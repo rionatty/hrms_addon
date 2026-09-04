@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "creation": "2026-09-04 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "intro_html",
+  "section_identity",
+  "product_name",
+  "rebrand_app_labels",
+  "column_break_identity",
+  "company_logo",
+  "favicon",
+  "section_surfaces",
+  "splash_image",
+  "column_break_surfaces",
+  "footer_powered"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "description": "Off = whatever Website Settings and Navbar Settings already hold. On = the values below are pushed into them on save and on every migrate.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Apply Branding"
+  },
+  {
+   "fieldname": "intro_html",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted small\">These write straight into <b>Website Settings</b> and <b>Navbar Settings</b> — the fields Frappe itself reads. Nothing here overrides a template.<br>A field left <b>blank is never pushed</b>, so it will not wipe a value someone set by hand upstream. Clear a value at its source instead.</p>"
+  },
+  {
+   "depends_on": "enabled",
+   "fieldname": "section_identity",
+   "fieldtype": "Section Break",
+   "label": "Identity"
+  },
+  {
+   "description": "Replaces \"Frappe\" as the product name: the browser tab on the desk, the heading on the login page, and the subject of login emails. Goes to Website Settings → App Name.",
+   "fieldname": "product_name",
+   "fieldtype": "Data",
+   "label": "Product Name"
+  },
+  {
+   "default": "0",
+   "description": "Also rewrite the app name shown in the desk sidebar and on the launcher tiles (e.g. \"Frappe HR\" → your product name). This one is done in the browser, because those labels are rendered client-side from each app's own hooks.",
+   "fieldname": "rebrand_app_labels",
+   "fieldtype": "Check",
+   "label": "Rebrand App Labels In The Desk"
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The mark in the desk navbar, on the /app/desktop launcher and on the login page. Square-ish reads best — it is drawn into a 52px bar. Goes to Website Settings → App Logo and Navbar Settings → App Logo (both, because they feed different screens).",
+   "fieldname": "company_logo",
+   "fieldtype": "Attach Image",
+   "label": "Company Logo"
+  },
+  {
+   "description": "Browser tab icon. Goes to Website Settings → FavIcon.",
+   "fieldname": "favicon",
+   "fieldtype": "Attach",
+   "label": "Favicon"
+  },
+  {
+   "depends_on": "enabled",
+   "fieldname": "section_surfaces",
+   "fieldtype": "Section Break",
+   "label": "Other Surfaces"
+  },
+  {
+   "description": "Shown while the desk is loading. Wider marks are fine here — it is capped at 200px.",
+   "fieldname": "splash_image",
+   "fieldtype": "Attach Image",
+   "label": "Splash Image"
+  },
+  {
+   "fieldname": "column_break_surfaces",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Replaces \"Powered by ERPNext\" in the website footer (the job portal, and every other public page). HTML is allowed, so a link works: Powered by &lt;a href=\"https://cyvetech.com\"&gt;CyveTech&lt;/a&gt;. Goes to Website Settings → Footer \"Powered By\".",
+   "fieldname": "footer_powered",
+   "fieldtype": "Small Text",
+   "label": "Footer \"Powered By\""
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-04 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HRMS Addon Branding",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -40,6 +40,8 @@ function ha_contrast_with_white(hex) {
 
 function ha_preview(frm) {
 	const root = document.documentElement;
+	// Density is independent of the colour switch — see theme.py.
+	root.setAttribute("data-ha-density", (frm.doc.density || "Compact").toLowerCase());
 	root.classList.toggle("ha-cockpit", !!(frm.doc.enabled && frm.doc.workspace_cockpit));
 	Object.entries(HA_THEME_FIELDS).forEach(([fieldname, cssVar]) => {
 		const value = (frm.doc[fieldname] || "").trim();
@@ -53,6 +55,10 @@ function ha_preview(frm) {
 
 function ha_restore_saved() {
 	const root = document.documentElement;
+	root.setAttribute(
+		"data-ha-density",
+		((frappe.boot && frappe.boot.hrms_addon_density) || "Compact").toLowerCase()
+	);
 	root.classList.toggle("ha-cockpit", !!(frappe.boot && frappe.boot.hrms_addon_workspace_cockpit));
 	const saved = (frappe.boot && frappe.boot.hrms_addon_theme) || {};
 	Object.values(HA_THEME_FIELDS).forEach((cssVar) => root.style.removeProperty(cssVar));
@@ -145,6 +151,7 @@ const ha_handlers = {
 			frappe.boot.hrms_addon_theme = palette;
 			frappe.boot.hrms_addon_workspace_cockpit =
 				frm.doc.enabled && frm.doc.workspace_cockpit ? 1 : 0;
+			frappe.boot.hrms_addon_density = frm.doc.density || "Compact";
 		}
 		ha_show_contrast(frm);
 	},
@@ -155,6 +162,10 @@ const ha_handlers = {
 	},
 
 	workspace_cockpit(frm) {
+		ha_preview(frm);
+	},
+
+	density(frm) {
 		ha_preview(frm);
 	},
 };

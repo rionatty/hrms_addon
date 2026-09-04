@@ -4,6 +4,11 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "section_layout",
+  "density",
+  "column_break_layout",
+  "density_help",
+  "section_colours",
   "enabled",
   "intro_html",
   "workspace_cockpit",
@@ -25,6 +30,33 @@
   "border_colour"
  ],
  "fields": [
+  {
+   "fieldname": "section_layout",
+   "fieldtype": "Section Break",
+   "label": "Layout Density"
+  },
+  {
+   "default": "Compact",
+   "description": "How tightly the desk is packed. Applies on its own — it is not tied to the colour switch below.",
+   "fieldname": "density",
+   "fieldtype": "Select",
+   "label": "Density",
+   "options": "Comfortable\nCompact\nDense"
+  },
+  {
+   "fieldname": "column_break_layout",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "density_help",
+   "fieldtype": "HTML",
+   "options": "<p class=\"text-muted small\"><b>Comfortable</b> — upstream Frappe spacing.<br><b>Compact</b> — tighter form sections and rows, and the app launcher fills the width instead of sitting in a narrow column. <i>Shipped default.</i><br><b>Dense</b> — as tight as stays readable; best on large screens.</p><p class=\"text-muted small\">Changes apply live. Save to make them permanent for everyone.</p>"
+  },
+  {
+   "fieldname": "section_colours",
+   "fieldtype": "Section Break",
+   "label": "Colours"
+  },
   {
    "default": "0",
    "description": "Off = the colours shipped with the app. On = the colours below.",

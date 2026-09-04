@@ -6,6 +6,30 @@ app_email = "musembiferdinand080@gmail.com"
 app_license = "mit"
 # required_apps = ["frappe/hrms"]
 
+# Branding
+# --------
+# The mark shown on this app's own launcher tile and in the apps screen.
+# Without it Frappe falls back to a grey letter-tile (which is exactly
+# why "Stock Addon" shows a plain "S" today).
+#
+# This is a STATIC hook — it cannot read a database field, so it points
+# at a shipped placeholder file. Replace the file itself; every consumer
+# below and the Branding screen's default both reference this path.
+#
+# The uploadable, per-site logo is a different mechanism: see
+# hrms_addon/hrms_addon/branding.py, which writes Website Settings and
+# Navbar Settings and covers the navbar, launcher header and login page.
+app_logo_url = "/assets/hrms_addon/images/company-logo-placeholder.svg"
+
+add_to_apps_screen = [
+    {
+        "name": app_name,
+        "logo": app_logo_url,
+        "title": app_title,
+        "route": "/app/hr",
+    }
+]
+
 # Includes in <head>
 # ------------------
 
@@ -17,15 +41,19 @@ app_license = "mit"
 app_include_css = "hrms_addon.bundle.css"
 
 # Desk-wide scripts (plain asset paths — no bench build needed):
-#  - hrms_addon_theme.js: colour overrides + status indicator colours
+#  - hrms_addon_theme.js: colour overrides, layout density, status colours
 #  - form_sidebar_toggle.js: collapse/expand the right-hand form panel
+#  - hrms_addon_branding.js: the few labels that are rendered client-side
+#    from each app's own hooks and so cannot be set server-side
 app_include_js = [
     "/assets/hrms_addon/js/hrms_addon_theme.js",
     "/assets/hrms_addon/js/form_sidebar_toggle.js",
+    "/assets/hrms_addon/js/hrms_addon_branding.js",
 ]
 
-# Ship the desk colour overrides ("HRMS Addon Theme Settings") with the
-# session boot so they are applied before first paint.
+# Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout
+# density and the branding payload with the session boot, so they are
+# applied before first paint. See hrms_addon/hrms_addon/theme.py.
 extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 
 # include js, css files in header of web template
@@ -109,11 +137,21 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 
 # Migration
 # ---------
-# Workspace wiring, Client Script installers and list defaults go here as
-# the HR features land. Kept as a list from the start — Frappe only sees
-# the LAST assignment of a hook name in this module, so append to this
-# one rather than adding a second `after_migrate = ...`.
-# after_migrate = []
+# Kept as a list from the start — Frappe only sees the LAST assignment of
+# a hook name in this module, so append to this one rather than adding a
+# second `after_migrate = ...`.
+#
+# Both entries below are self-healing and idempotent: they re-assert our
+# settings after an ERPNext or Frappe HR update has overwritten them, and
+# do nothing at all when everything already matches.
+after_migrate = [
+    # Push the Branding screen's values into Website Settings / Navbar
+    # Settings. A blank field is skipped, never cleared.
+    "hrms_addon.hrms_addon.branding.apply_branding_on_migrate",
+    # Sidebar order + link order. A no-op until the declarations at the
+    # top of workspace_setup.py are filled in.
+    "hrms_addon.hrms_addon.workspace_setup.apply_on_migrate",
+]
 
 # Fixtures
 # --------

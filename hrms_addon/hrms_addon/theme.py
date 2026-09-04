@@ -82,6 +82,27 @@ def get_palette():
         return {}
 
 
+# Layout density. Drives html[data-ha-density] — see the DENSITY block in
+# public/css/hrms_addon.bundle.css, which is where the actual numbers are.
+# Deliberately NOT gated by `enabled`: that switch is about colour
+# overrides, and someone who is happy with the shipped palette should
+# still be able to tighten the layout.
+DENSITIES = ("Comfortable", "Compact", "Dense")
+DEFAULT_DENSITY = "Compact"
+
+
+def get_density():
+    """The density to stamp on <html>. Falls back to the shipped default
+    on any site where the field is missing or the value is unknown."""
+    try:
+        if not frappe.db.exists("DocType", "HRMS Addon Theme Settings"):
+            return DEFAULT_DENSITY
+        value = (frappe.get_cached_doc("HRMS Addon Theme Settings").get("density") or "").strip()
+        return value if value in DENSITIES else DEFAULT_DENSITY
+    except Exception:
+        return DEFAULT_DENSITY
+
+
 def workspace_cockpit_enabled():
     """Is the (opt-in) navy workspace cockpit switched on?
 
@@ -100,5 +121,9 @@ def workspace_cockpit_enabled():
 def boot_session(bootinfo):
     """extend_bootinfo hook — ship the palette with the desk boot so the
     colours are applied before first paint (no extra round trip)."""
+    from hrms_addon.hrms_addon.branding import get_boot_branding
+
     bootinfo.hrms_addon_theme = get_palette()
     bootinfo.hrms_addon_workspace_cockpit = workspace_cockpit_enabled()
+    bootinfo.hrms_addon_density = get_density()
+    bootinfo.hrms_addon_branding = get_boot_branding()

@@ -29,12 +29,26 @@
 		document.documentElement.classList.toggle("ha-cockpit", !!on);
 	};
 
+	// Layout density — stamped on <html> as data-ha-density; the numbers
+	// live in the DENSITY block of hrms_addon.bundle.css. Independent of
+	// the colour override switch.
+	hrms_addon.DENSITIES = ["Comfortable", "Compact", "Dense"];
+	hrms_addon.DEFAULT_DENSITY = "Compact";
+
+	hrms_addon.apply_density = function (density) {
+		const value = hrms_addon.DENSITIES.includes(density)
+			? density
+			: hrms_addon.DEFAULT_DENSITY;
+		document.documentElement.setAttribute("data-ha-density", value.toLowerCase());
+	};
+
 	function apply_boot_palette() {
 		if (!frappe.boot) return;
 		if (frappe.boot.hrms_addon_theme) {
 			hrms_addon.apply_palette(frappe.boot.hrms_addon_theme);
 		}
 		hrms_addon.apply_cockpit(frappe.boot.hrms_addon_workspace_cockpit);
+		hrms_addon.apply_density(frappe.boot.hrms_addon_density);
 	}
 
 	apply_boot_palette();               // boot is usually already inlined

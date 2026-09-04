@@ -429,18 +429,26 @@ a:hover { color: var(--hra-accent); }
    block is purely vertical rhythm: B1 fits roughly a third more
    on a screen than stock Frappe, and most of that difference is
    section and control padding rather than font size.
+
+   The numbers are no longer hard-coded here — they come from the
+   density variables set in the DENSITY block near the end of this
+   file, so "HRMS Addon Theme Settings > Density" can move them.
+   The fallbacks below match Compact, the shipped default, and are
+   only used if that block is ever deleted.
    ============================================================ */
 .form-section {
-  padding: 12px 14px 6px !important;
-  margin-bottom: 10px !important;
+  padding: var(--hra-d-section-pad, 12px 14px 6px) !important;
+  margin-bottom: var(--hra-d-section-gap, 10px) !important;
 }
-.form-column .frappe-control { margin-bottom: 9px !important; }
+.form-column .frappe-control {
+  margin-bottom: var(--hra-d-control-gap, 9px) !important;
+}
 .form-section .section-body { padding-top: 2px !important; }
 
 /* Grid rows: shave the padding, keep the hit area usable. */
 .grid-body .rows .grid-row .data-row .col {
-  padding-top: 4px !important;
-  padding-bottom: 4px !important;
+  padding-top: var(--hra-d-grid-pad, 4px) !important;
+  padding-bottom: var(--hra-d-grid-pad, 4px) !important;
 }
 .grid-body .rows .grid-row .data-row { min-height: 0 !important; }
 
@@ -902,3 +910,166 @@ html[data-theme="dark"] .ha-sidebar-toggle {
   color: #FFFFFF;
   border-color: rgba(255, 255, 255, .25);
 }
+
+/* ============================================================
+   DENSITY
+   ------------------------------------------------------------
+   html[data-ha-density] is stamped by public/js/hrms_addon_theme.js
+   from "HRMS Addon Theme Settings > Density". Third self-contained,
+   deletable block — nothing above depends on it, but the FORM
+   DENSITY block reads the variables it sets.
+
+   Compact is the shipped default, so Compact lives in :root and
+   the other two are the deviations. That ordering is deliberate:
+   the attribute is only stamped once the boot payload has been
+   read, and a default that matched neither would flash on load.
+
+   THE APP LAUNCHER (/app/desktop) needs its own explanation,
+   because the wasted space there is not padding. Upstream v16:
+
+     .desktop-container { display: flex; justify-content: center }
+     .icons { display: grid;
+              grid-template-columns: repeat(6, 1fr);
+              grid-template-rows: repeat(3, 1fr);
+              gap: 16px }
+     .desktop-icon { width: 127px; height: 126px }
+
+   .icons-container is a flex ITEM of a centred flex parent, so it
+   is sized to max-content — which collapses every `1fr` column onto
+   the 127px tile. The grid is therefore ALWAYS 6x127 + 5x16 = 842px,
+   centred, however wide the screen is, and hard-capped at 18 tiles
+   by the three fixed rows. On a 1920px monitor that is an 842px
+   island in the middle of the page.
+
+   Widening it takes THREE changes and all three are load-bearing;
+   any one alone does nothing:
+
+     1. give .icons-container a real width — it is max-content until
+        you do, and auto-fill would resolve to a single column
+     2. size the columns FIXED, not 1fr — with 1fr the columns
+        stretch and justify-items:center simply re-opens the gaps
+     3. justify-content:center on the grid, so the leftover width
+        goes to the outside margins instead of between the tiles
+
+   Comfortable deliberately changes none of it. That setting means
+   "upstream Frappe spacing", so it must leave the launcher alone.
+   ============================================================ */
+
+/* Compact — the shipped default. */
+:root {
+  --hra-d-section-pad: 12px 14px 6px;
+  --hra-d-section-gap: 10px;
+  --hra-d-control-gap: 9px;
+  --hra-d-grid-pad: 4px;
+  --hra-d-widget-pad: 12px 14px;
+  --hra-d-tile-w: 112px;
+  --hra-d-tile-h: 110px;
+  --hra-d-launcher-gap: 12px;
+  --hra-d-launcher-top: 24px;
+  --hra-d-launcher-max: 1180px;
+}
+
+html[data-ha-density="comfortable"] {
+  --hra-d-section-pad: 18px 20px 10px;
+  --hra-d-section-gap: 14px;
+  --hra-d-control-gap: 14px;
+  --hra-d-grid-pad: 8px;
+  --hra-d-widget-pad: 16px 18px;
+}
+
+html[data-ha-density="dense"] {
+  --hra-d-section-pad: 8px 12px 4px;
+  --hra-d-section-gap: 7px;
+  --hra-d-control-gap: 6px;
+  --hra-d-grid-pad: 2px;
+  --hra-d-widget-pad: 9px 11px;
+  --hra-d-tile-w: 100px;
+  --hra-d-tile-h: 98px;
+  --hra-d-launcher-gap: 10px;
+  --hra-d-launcher-top: 16px;
+  --hra-d-launcher-max: 1400px;
+  --desktop-icon-dimension: 38px;
+}
+
+html[data-ha-density="compact"] {
+  --desktop-icon-dimension: 44px;
+}
+
+/* ── Launcher: use the width (Compact + Dense only) ─────────── */
+/* The :not() also catches the pre-boot state, which is Compact. */
+html:not([data-ha-density="comfortable"]) .desktop-container {
+  width: 100%;
+}
+/* (1) a real width — without this auto-fill collapses to one column */
+html:not([data-ha-density="comfortable"]) .desktop-container > .icons-container {
+  width: 100%;
+  max-width: var(--hra-d-launcher-max);
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: var(--hra-d-launcher-top);
+}
+/* (2) fixed tracks, not 1fr  (3) centre the leftover width */
+html:not([data-ha-density="comfortable"]) .icons {
+  grid-template-columns: repeat(auto-fill, var(--hra-d-tile-w));
+  grid-template-rows: auto;
+  grid-auto-rows: auto;
+  justify-content: center;
+  gap: var(--hra-d-launcher-gap);
+}
+html:not([data-ha-density="comfortable"]) .desktop-icon {
+  width: var(--hra-d-tile-w);
+  height: var(--hra-d-tile-h);
+  gap: 9px;
+  padding: 10px 8px 8px;
+}
+/* Tile captions get narrower with the tile — let them ellipsis
+   rather than push the grid wider. */
+html:not([data-ha-density="comfortable"]) .desktop-icon .icon-caption {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Workspace tiles ────────────────────────────────────────── */
+/* Shots 4-5: the gap between the chart cards and "Masters & Reports"
+   is widget padding, not layout. Scoped to the real card variants —
+   see rule (c) in the cockpit block: bare .widget also matches
+   EditorJS paragraphs and spacers. */
+html:not([data-ha-density="comfortable"]) .widget.links-widget-box,
+html:not([data-ha-density="comfortable"]) .widget.shortcut-widget-box,
+html:not([data-ha-density="comfortable"]) .widget.number-widget-box,
+html:not([data-ha-density="comfortable"]) .widget.dashboard-widget-box {
+  padding: var(--hra-d-widget-pad) !important;
+}
+
+/* ============================================================
+   BRAND LOGO SIZING
+   ------------------------------------------------------------
+   Frappe caps neither of the two brand marks:
+
+     desktop.css : #brand-logo { width: auto }   <- no height at all
+     navbar      : .navbar-home img              <- no cap either
+
+   The navbar is a fixed 52px (--desktop-navbar-height), so the
+   moment somebody uploads a real company logo instead of the 24px
+   default SVG, the image renders at its natural size and spills
+   out of the bar. Capping height and letting width follow keeps
+   any aspect ratio safe.
+
+   ID selector prefixed with html so it beats desktop.css whichever
+   order the two stylesheets happen to load in.
+   ============================================================ */
+html #brand-logo {
+  max-height: 32px;
+  max-width: 190px;
+  width: auto;
+  object-fit: contain;
+}
+.navbar .navbar-home img {
+  max-height: 28px;
+  max-width: 180px;
+  width: auto;
+  object-fit: contain;
+}
+/* Login page + splash: both are free-standing, so they can be bigger. */
+.page-card .app-logo { max-height: 56px; width: auto; object-fit: contain; }
+.splash img { max-height: 120px; width: auto; object-fit: contain; }
