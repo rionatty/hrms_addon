@@ -1,0 +1,82 @@
+// HRMS Addon — global desk JS.
+// (ported from rionatty/stock_addon branch `pre-sap`.)
+//
+// Two jobs:
+//   1. Apply the colour overrides from "HRMS Addon Theme Settings".
+//      They ride along on the session boot (see hrms_addon/theme.py),
+//      so the desk is painted before first render — no extra request,
+//      no flash of the shipped palette.
+//   2. Status indicator colours for HRMS Addon doctypes.
+//
+// Wrapped in an IIFE so nothing here collides with Stock Addon's copy
+// when both apps are installed on one site.
+
+(function () {
+	frappe.provide("hrms_addon");
+
+	// ── 1. Theme colour overrides ──────────────────────────────
+	hrms_addon.apply_palette = function (palette) {
+		const root = document.documentElement;
+		Object.entries(palette || {}).forEach(([cssVar, value]) => {
+			if (value) root.style.setProperty(cssVar, value);
+		});
+	};
+
+	// The navy workspace cockpit is opt-in: it repaints ERPNext's own
+	// workspace layout, which differs between versions, so the standard
+	// display is what ships unless the setting asks otherwise.
+	hrms_addon.apply_cockpit = function (on) {
+		document.documentElement.classList.toggle("ha-cockpit", !!on);
+	};
+
+	function apply_boot_palette() {
+		if (!frappe.boot) return;
+		if (frappe.boot.hrms_addon_theme) {
+			hrms_addon.apply_palette(frappe.boot.hrms_addon_theme);
+		}
+		hrms_addon.apply_cockpit(frappe.boot.hrms_addon_workspace_cockpit);
+	}
+
+	apply_boot_palette();               // boot is usually already inlined
+	$(document).on("startup", apply_boot_palette);   // belt and braces
+
+	// ── 2. Status indicator colours ────────────────────────────
+	const STATUS_COLORS = {
+		// Generic workflow
+		"Draft":       "gray",
+		"Submitted":   "blue",
+		"Approved":    "green",
+		"Rejected":    "red",
+		"Cancelled":   "red",
+		"Completed":   "green",
+		"Open":        "orange",
+		"In Progress": "blue",
+		"Pending":     "yellow",
+		"Success":     "green",
+		"Failed":      "red",
+		// HR flavours
+		"Active":      "green",
+		"Inactive":    "gray",
+		"Left":        "red",
+		"Suspended":   "orange",
+		"On Hold":     "orange",
+		"Paid":        "green",
+		"Unpaid":      "orange",
+	};
+
+	hrms_addon.get_status_color = (status) => STATUS_COLORS[status] || "gray";
+
+	// Apply an indicator dot to the status field on our own forms.
+	// Add each HRMS Addon doctype that carries a `status` field here.
+	const STATUS_DOCTYPES = [];
+
+	STATUS_DOCTYPES.forEach((dt) => {
+		frappe.ui.form.on(dt, {
+			refresh(frm) {
+				const status = frm.doc.status;
+				if (!status) return;
+				frm.page.set_indicator(status, hrms_addon.get_status_color(status));
+			},
+		});
+	});
+})();
