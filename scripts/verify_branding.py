@@ -125,6 +125,7 @@ MODULES = {
     "hrms_addon.hrms_addon.branding": brand_py,
     "hrms_addon.hrms_addon.workspace_setup": ws_py,
     "hrms_addon.hrms_addon.theme": theme_py,
+    "hrms_addon.hrms_addon.apps_screen": read("hrms_addon/hrms_addon/apps_screen.py"),
 }
 hook_paths = re.findall(r'"(hrms_addon\.[\w.]+)"', block(hooks_live, "after_migrate = [", "]"))
 hook_paths.append(re.search(r'extend_bootinfo = "([\w.]+)"', hooks_live).group(1))
@@ -191,13 +192,21 @@ def frappe_slug(name):
     return name.lower().replace(" ", "-")
 
 
-expected_route = "/desk/" + frappe_slug(ws_json["name"])
+expected_route = "/app/" + frappe_slug(ws_json["name"])
 app_home = re.search(r'app_home = "([^"]+)"', hooks_live).group(1)
 print("workspace %r -> %s" % (ws_json["name"], expected_route))
 if app_home != expected_route:
     fail.append("app_home is %r but the shipped workspace resolves to %r" % (app_home, expected_route))
-if app_home.startswith("/app/"):
-    fail.append("app_home uses /app/ — v16 rewrites it to /desk/ and it will 404")
+# The /app prefix is not about navigation (v16 rewrites /app/* to /desk/*).
+# desktop_icon.py hides an app's OWN workspaces from the launcher when the
+# app icon's link does not start with /app — observed on Frappe HR, whose
+# app_home is /desk/people and whose workspaces are absent from the grid.
+if not app_home.startswith("/app"):
+    fail.append("app_home must start with /app or this app's workspaces are hidden from the launcher")
+# The route is copied into a Desktop Icon row at install and never re-read,
+# so something has to re-sync it or hooks.py and the tile drift apart.
+if "apps_screen.sync_on_migrate" not in hooks_live:
+    fail.append("apps_screen.sync_on_migrate is not in after_migrate — the tile will keep its install-time route")
 tile_route = re.search(r'"route":\s*([^,\n]+)', hooks_live).group(1).strip()
 if tile_route != "app_home":
     fail.append("add_to_apps_screen route should reuse app_home, got %s" % tile_route)

@@ -29,15 +29,31 @@ app_logo_url = "/assets/hrms_addon/images/company-logo-placeholder.svg"
 #     does NOT read the "route" key below.
 #   * the sidebar switcher reads the add_to_apps_screen entry.
 #
-# The path is /desk/, not /app/ — v16 rewrites "/app/(.*)" to "/desk/\1"
-# (frappe/hooks.py website_redirects), so an /app/... route here silently
-# becomes /desk/... and 404s if the target is not a real workspace.
+# The /app prefix is deliberate and load-bearing. It is NOT about
+# navigation — v16 rewrites "/app/(.*)" to "/desk/\1", so both spellings
+# open the same page. It matters because of this, in
+# frappe/desk/doctype/desktop_icon/desktop_icon.py:
+#
+#     if app_icon_link and not app_icon_link.startswith("/app"):
+#         icon.hidden = 1
+#         icon.parent_icon = None
+#
+# An app whose icon link does not start with /app gets all of its OWN
+# workspaces hidden from the launcher. Frappe HR demonstrates it on this
+# site: app_home = "/desk/people", and its Leaves / Recruitment /
+# Expenses / Payroll workspaces are missing from the launcher grid, while
+# ERPNext — which ships no app icon at all — shows every one of its
+# workspaces. We will have more than one workspace, so /app it is.
 #
 # "hrms-addon" is slug("HRMS Addon"): frappe/desk/utils.py slug() is just
 # name.lower().replace(" ", "-"). It resolves to the Workspace record
 # shipped at hrms_addon/workspace/hrms_addon/, so renaming that record
 # means changing this too.
-app_home = "/desk/hrms-addon"
+#
+# NOTE: changing this value does not move an EXISTING tile. Frappe copies
+# `route` into a Desktop Icon row once, at install, and never re-reads the
+# hook. hrms_addon/apps_screen.py re-syncs the row on every migrate.
+app_home = "/app/hrms-addon"
 
 add_to_apps_screen = [
     {
@@ -169,6 +185,11 @@ after_migrate = [
     # Sidebar order + link order. A no-op until the declarations at the
     # top of workspace_setup.py are filled in.
     "hrms_addon.hrms_addon.workspace_setup.apply_on_migrate",
+    # Re-point the launcher tile. Frappe bakes add_to_apps_screen into a
+    # Desktop Icon row at INSTALL time and never re-reads the hook, so
+    # editing the route above does nothing on a site that already has the
+    # app. See apps_screen.py.
+    "hrms_addon.hrms_addon.apps_screen.sync_on_migrate",
 ]
 
 # Fixtures
