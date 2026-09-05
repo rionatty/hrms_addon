@@ -990,18 +990,17 @@ html[data-ha-density="dense"] {
   --hra-d-launcher-top: 16px;
   --hra-d-launcher-max: 1400px;
   --desktop-icon-dimension: 38px;
-  --page-max-width: 1120px;
+  --page-max-width: none;
 }
 
 html[data-ha-density="compact"] {
   --desktop-icon-dimension: 44px;
-  --page-max-width: 1000px;
+  --page-max-width: none;
 }
 
 /* ── Content column width ───────────────────────────────────────
    --page-max-width is FRAPPE'S OWN variable (scss/common/css_variables
-   .scss, 900px). TWO different screens read it, and they want very
-   different things — which is the trap:
+   .scss, 900px). Several screens read it, all through the same shape:
 
      workspaces  [data-page-route="Workspaces"] @media(lg)
                  .layout-main { margin:auto;
@@ -1011,34 +1010,34 @@ html[data-ha-density="compact"] {
                  { margin:auto !important;
                    body:not(.full-width) & { max-width: var(...) } }
 
-   A workspace is a grid of cards: more width just packs more per row,
-   and at 900px on a 1920px screen it is a narrow column with ~400px of
-   dead space either side. A form is label/value pairs in two columns:
-   push it past ~1000px and each column clears 500px, so a date field
-   renders 600px wide and the value drifts miles from its label. Raising
-   the shared variable to suit the workspace visibly wrecked the form
-   (Payroll Entry, 05-09-2026), so DO NOT do that.
+     also        .form-footer, .form-section-description,
+                 the grid-row editor (grid.scss) and tree views
 
-   The split: keep the variable near upstream so forms stay readable,
-   and widen the workspace on its own selector below.
+   At 900px on a 1920px screen that is a narrow column with ~400px of
+   dead space either side — the complaint that started this.
+
+   Compact and Dense therefore set it to `none`: content runs edge to
+   edge and the screen is actually used. `max-width: none` is a valid
+   value, so every consumer above uncaps together and none of them can
+   drift out of step.
+
+   THE TRADE-OFF, recorded because it is real and was measured: a form
+   is label/value pairs in two columns, so at 1691px each column clears
+   800px and a date field renders that wide, with its value a long way
+   from its label. An intermediate cap does not solve this — it just
+   moves the gutters back. Comfortable is the escape hatch: it restores
+   upstream's 900px everywhere, and it is one dropdown away in
+   HRMS Addon Theme Settings.
 
    Set in the density blocks above rather than in :root, because Frappe
    declares it in :root too — html[data-ha-density] is (0,1,1) and wins
    whichever stylesheet loads last.
 
-   Frappe's own `full-width` body toggle still bypasses both caps: each
-   rule keeps upstream's body:not(.full-width) guard.
+   Frappe's own `full-width` body toggle still bypasses the caps: every
+   rule here keeps upstream's body:not(.full-width) guard.
    ─────────────────────────────────────────────────────────────── */
 /* Pre-boot fallback, before the density attribute is stamped. */
-:root { --page-max-width: 1000px; }
-
-/* Workspaces only — the card grid that actually wants the width. */
-@media (min-width: 992px) {
-  html:not([data-ha-density="comfortable"]) body:not(.full-width)
-    .page-container[data-page-route="Workspaces"] .layout-main {
-    max-width: 1650px;
-  }
-}
+:root { --page-max-width: none; }
 
 /* ── Section cards must wrap their own fields ───────────────────
    Upstream caps the section's CONTENTS (.section-head/.section-body)
@@ -1046,18 +1045,35 @@ html[data-ha-density="compact"] {
    Frappe, where a section has no background of its own — but this
    theme draws each section as a white B1 card with a border and a
    shadow, so the card stretched to the full page while the fields
-   inside it sat centred in a 1000px column: a framed box with its
+   inside it sat centred in a narrower column: a framed box with its
    contents floating nowhere near the frame.
 
-   Capping the card to the same width puts the border back around
-   the fields it belongs to. Uses the identical max-width source and
-   full-width guard as upstream, so the two can never drift apart.
+   Still needed now that the cap is `none`, because Comfortable puts
+   900px back and the card has to follow it. Reading the same variable
+   means the two can never disagree.
    ─────────────────────────────────────────────────────────────── */
 body:not(.full-width) .std-form-layout .form-section,
 body:not(.full-width) .std-form-layout .form-dashboard-section {
   max-width: var(--page-max-width);
   margin-left: auto !important;
   margin-right: auto !important;
+}
+
+/* ── Edge gutter ────────────────────────────────────────────────
+   With the cap gone, section cards would otherwise sit flush against
+   the viewport edge and against the navy sidebar, which reads as a
+   layout bug rather than a deliberate full-bleed. A small symmetric
+   gutter keeps the card edges legible.
+
+   Comfortable is excluded: it is still centred at 900px, where the
+   margins are enormous and extra padding would only narrow it.
+   ─────────────────────────────────────────────────────────────── */
+@media (min-width: 992px) {
+  html:not([data-ha-density="comfortable"]) .layout-main-section-wrapper,
+  html:not([data-ha-density="comfortable"]) .layout-main-section {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
 }
 
 /* ── Launcher: use the width (Compact + Dense only) ─────────── */

@@ -51,7 +51,19 @@ Renaming the Workspace record means changing `app_home` too;
 Applies live, independent of the colour switch. Ships as **Compact**.
 
 It moves form section padding, control spacing and grid rows, workspace
-card padding, and the `/app/desktop` launcher.
+card padding, the `/app/desktop` launcher — and the **content width**.
+
+Compact and Dense run content **edge to edge**; Comfortable restores
+upstream's centred 900px column. That is Frappe's own `--page-max-width`,
+which workspaces, forms, the form footer, the grid-row editor and tree
+views all read, so they uncap together.
+
+The trade-off is real and worth knowing before you pick: a form is
+label/value pairs in two columns, so on a 1691px content area each column
+clears 800px and a date field renders that wide, with its value a long way
+from its label. An intermediate cap doesn't fix that — it just puts the
+gutters back. If it bothers you, switch to **Comfortable**. Frappe's own
+per-user *Toggle Full Width* still works on top of either.
 
 The launcher is worth knowing about. Upstream v16 sizes it so that
 `.icons-container` is a flex item of a centred flex parent — which makes
