@@ -174,6 +174,55 @@ if "def apply_on_migrate(" not in ws_py:
     fail.append("workspace_setup has no apply_on_migrate()")
 print("workspace_setup declarations present")
 
+# 8a. The launcher tile must land somewhere that exists.
+#
+#     This is the "Page hr not found" bug: `app_home` was pointing at a
+#     route with no Workspace behind it. Two things make it easy to get
+#     wrong — v16 rewrites /app/* to /desk/* (so an /app/ route 404s
+#     silently under a different name), and frappe/boot.py builds the
+#     tile's route from the `app_home` HOOK, not from the "route" key in
+#     add_to_apps_screen. So both are checked, against the record that
+#     actually ships.
+ws_json = json.loads(read("hrms_addon/hrms_addon/workspace/hrms_addon/hrms_addon.json"))
+
+
+def frappe_slug(name):
+    # frappe/desk/utils.py
+    return name.lower().replace(" ", "-")
+
+
+expected_route = "/desk/" + frappe_slug(ws_json["name"])
+app_home = re.search(r'app_home = "([^"]+)"', hooks_live).group(1)
+print("workspace %r -> %s" % (ws_json["name"], expected_route))
+if app_home != expected_route:
+    fail.append("app_home is %r but the shipped workspace resolves to %r" % (app_home, expected_route))
+if app_home.startswith("/app/"):
+    fail.append("app_home uses /app/ — v16 rewrites it to /desk/ and it will 404")
+tile_route = re.search(r'"route":\s*([^,\n]+)', hooks_live).group(1).strip()
+if tile_route != "app_home":
+    fail.append("add_to_apps_screen route should reuse app_home, got %s" % tile_route)
+if ws_json["module"] != "HRMS Addon":
+    fail.append("workspace module is %r — boot.py finds workspaces by Module Def.app_name" % ws_json["module"])
+if not ws_json.get("public"):
+    fail.append("workspace must be public or it will not appear")
+
+# Card blocks in `content` reference a Card Break in `links` by name;
+# a mismatch renders an empty card with no error.
+content_cards = {b["data"]["card_name"] for b in json.loads(ws_json["content"]) if b["type"] == "card"}
+card_breaks = {l["label"] for l in ws_json["links"] if l["type"] == "Card Break"}
+if not content_cards <= card_breaks:
+    fail.append("workspace card_name with no matching Card Break: %s" % sorted(content_cards - card_breaks))
+
+# Every DocType the workspace links to must actually ship in this app.
+for l in ws_json["links"]:
+    if l["type"] != "Link" or l.get("link_type") != "DocType":
+        continue
+    folder = l["link_to"].lower().replace(" ", "_")
+    if not os.path.exists(BASE + "/hrms_addon/hrms_addon/doctype/%s/%s.json" % (folder, folder)):
+        fail.append("workspace links to %r which this app does not ship" % l["link_to"])
+print("workspace wiring: route, module, %d cards, %d links all resolve"
+      % (len(content_cards), len([l for l in ws_json["links"] if l["type"] == "Link"])))
+
 # 8b. Every package directory needs __init__.py or Frappe cannot import
 #     the controller. Easy to forget when adding a doctype by hand.
 pkg_roots = [BASE + "/hrms_addon"]

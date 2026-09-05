@@ -1,0 +1,68 @@
+{
+ "app": "hrms_addon",
+ "charts": [],
+ "content": "[{\"id\":\"haHeaderCfg\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Appearance &amp; Branding</b></span>\",\"col\":12}},{\"id\":\"haCardAppear\",\"type\":\"card\",\"data\":{\"card_name\":\"Appearance\",\"col\":4}},{\"id\":\"haCardBrand\",\"type\":\"card\",\"data\":{\"card_name\":\"Branding\",\"col\":4}}]",
+ "creation": "2026-09-05 10:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "setting",
+ "idx": 1,
+ "is_hidden": 0,
+ "label": "HRMS Addon",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Appearance",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Theme & Density",
+   "link_count": 0,
+   "link_to": "HRMS Addon Theme Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Branding",
+   "link_count": 1,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Branding",
+   "link_count": 0,
+   "link_to": "HRMS Addon Branding",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-09-05 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HRMS Addon",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [],
+ "sequence_id": 30.0,
+ "shortcuts": [],
+ "title": "HRMS Addon",
+ "type": "Workspace"
+}

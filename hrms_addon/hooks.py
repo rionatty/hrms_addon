@@ -21,12 +21,30 @@ app_license = "mit"
 # Navbar Settings and covers the navbar, launcher header and login page.
 app_logo_url = "/assets/hrms_addon/images/company-logo-placeholder.svg"
 
+# Where the launcher tile and the sidebar app-switcher land.
+#
+# Two different consumers, so both are set and they must agree:
+#   * frappe/boot.py builds apps_data.app_route from the `app_home` HOOK,
+#     falling back to "/desk/" + slug(first workspace of this app). It
+#     does NOT read the "route" key below.
+#   * the sidebar switcher reads the add_to_apps_screen entry.
+#
+# The path is /desk/, not /app/ — v16 rewrites "/app/(.*)" to "/desk/\1"
+# (frappe/hooks.py website_redirects), so an /app/... route here silently
+# becomes /desk/... and 404s if the target is not a real workspace.
+#
+# "hrms-addon" is slug("HRMS Addon"): frappe/desk/utils.py slug() is just
+# name.lower().replace(" ", "-"). It resolves to the Workspace record
+# shipped at hrms_addon/workspace/hrms_addon/, so renaming that record
+# means changing this too.
+app_home = "/desk/hrms-addon"
+
 add_to_apps_screen = [
     {
         "name": app_name,
         "logo": app_logo_url,
         "title": app_title,
-        "route": "/app/hr",
+        "route": app_home,
     }
 ]
 

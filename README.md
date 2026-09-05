@@ -22,6 +22,28 @@ business logic yet; that is what gets built on top.
 | Branding screen | `hrms_addon/doctype/hrms_addon_branding/` | no |
 | Branding applier | `hrms_addon/branding.py` | no |
 | Workspace reorganisation | `hrms_addon/workspace_setup.py` | no |
+| Its own workspace | `hrms_addon/workspace/hrms_addon/` | no |
+
+### The launcher tile
+
+The app's tile lands on `/desk/hrms-addon`, the Workspace record shipped at
+`hrms_addon/hrms_addon/workspace/hrms_addon/`. It holds links to the Theme
+and Branding screens, which otherwise are only reachable by search.
+
+Two things make this easy to break, so `scripts/verify_branding.py` checks
+both:
+
+- **The prefix is `/desk/`, not `/app/`.** v16 rewrites `/app/(.*)` to
+  `/desk/\1` (`website_redirects` in frappe's hooks), so an `/app/…` route
+  silently becomes `/desk/…` and 404s under a name you never typed.
+- **`app_home` is the hook that matters.** `frappe/boot.py` builds the
+  tile's route from the `app_home` hook — falling back to
+  `"/desk/" + slug(first workspace)` — and never reads the `route` key in
+  `add_to_apps_screen`. The sidebar switcher reads that key instead, so
+  both are set and must agree.
+
+Renaming the Workspace record means changing `app_home` too;
+`slug()` is just `name.lower().replace(" ", "-")`.
 
 ### Density
 
