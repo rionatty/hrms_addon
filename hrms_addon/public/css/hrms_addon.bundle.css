@@ -975,6 +975,7 @@ html[data-ha-density="comfortable"] {
   --hra-d-control-gap: 14px;
   --hra-d-grid-pad: 8px;
   --hra-d-widget-pad: 16px 18px;
+  --page-max-width: 900px;          /* upstream */
 }
 
 html[data-ha-density="dense"] {
@@ -989,10 +990,48 @@ html[data-ha-density="dense"] {
   --hra-d-launcher-top: 16px;
   --hra-d-launcher-max: 1400px;
   --desktop-icon-dimension: 38px;
+  --page-max-width: 1600px;
 }
 
 html[data-ha-density="compact"] {
   --desktop-icon-dimension: 44px;
+  --page-max-width: 1280px;
+}
+
+/* ── Content column width ───────────────────────────────────────
+   --page-max-width is FRAPPE'S OWN variable (declared in
+   scss/common/css_variables.scss at 900px), and it is the single
+   knob behind the wide empty gutters on a workspace: v16 does
+
+     @media (min-width: lg) {
+       .layout-main { margin: auto;
+         body:not(.full-width) & { max-width: var(--page-max-width); } } }
+
+   so on a 1920px screen a workspace is a 900px column floating in
+   the middle with ~400px of dead space either side. Forms, the
+   grid-row editor and tree views read the same variable, so moving
+   it widens all of them together and consistently.
+
+   Set in the density blocks above rather than in :root because
+   Frappe declares it in :root too — html[data-ha-density] is (0,1,1)
+   and always wins, whichever stylesheet happens to load last.
+
+   Frappe's own `full-width` body toggle still works: it is a
+   :not() on the same rule, so it bypasses the cap entirely.
+   ─────────────────────────────────────────────────────────────── */
+/* Pre-boot fallback, before the density attribute is stamped. */
+:root { --page-max-width: 1280px; }
+
+/* Workspaces get more room than forms deliberately. A form is mostly
+   label/value pairs, where an over-wide column strands the value miles
+   from its label; a workspace is a grid of cards, which just packs more
+   per row. Frappe uses one variable for both, so the split is made here.
+   Same selector shape upstream uses, so `full-width` still bypasses it. */
+@media (min-width: 992px) {
+  html:not([data-ha-density="comfortable"]) body:not(.full-width)
+    .page-container[data-page-route="Workspaces"] .layout-main {
+    max-width: 1650px;
+  }
 }
 
 /* ── Launcher: use the width (Compact + Dense only) ─────────── */
