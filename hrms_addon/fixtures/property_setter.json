@@ -1,0 +1,90 @@
+[
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-designation-label",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "field_name": "designation",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Job Title",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-no_of_positions-label",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "field_name": "no_of_positions",
+  "property": "label",
+  "property_type": "Data",
+  "value": "No. of Vacancies",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-description-label",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "field_name": "description",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Responsibilities",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-reason_for_requesting-label",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "field_name": "reason_for_requesting",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Reason Details",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-expected_compensation-label",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "field_name": "expected_compensation",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Recommended Salary",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-expected_compensation-reqd",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "field_name": "expected_compensation",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Opening-employment_type-fetch_from",
+  "doc_type": "Job Opening",
+  "doctype_or_field": "DocField",
+  "field_name": "employment_type",
+  "property": "fetch_from",
+  "property_type": "Small Text",
+  "value": "job_requisition.custom_employment_type",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Opening-employment_type-fetch_if_empty",
+  "doc_type": "Job Opening",
+  "doctype_or_field": "DocField",
+  "field_name": "employment_type",
+  "property": "fetch_if_empty",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ }
+]

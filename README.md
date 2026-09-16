@@ -167,8 +167,13 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py
 ```
+
+`verify_fixtures.py` also needs the upstream apps checked out (it reads
+their doctype JSON to resolve `insert_after`, Link targets and fetch
+sources). It looks in `../ERPNext/{frappe,erpnext,hrms}`; set
+`FRAPPE_APPS_ROOT` if yours live elsewhere.
 
 Between them they check that the field→variable maps match across Python
 and JS, that shipped defaults match the stylesheet's `:root`, that no

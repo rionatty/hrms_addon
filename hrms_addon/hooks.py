@@ -194,10 +194,108 @@ after_migrate = [
 
 # Fixtures
 # --------
-# Custom Fields / Property Setters, installed on `bench migrate`
-# (no bench build needed). Files live in hrms_addon/fixtures/ — the
-# app-package root, next to this hooks.py. Frappe only syncs from there.
-# fixtures = []
+# Custom Fields / Property Setters, installed on `bench migrate` (no bench
+# build needed). Files live in hrms_addon/fixtures/ — the app-package root,
+# next to this hooks.py.
+#
+# Two things worth knowing, both from frappe/utils/fixtures.py:
+#   * migrate imports EVERY .json in fixtures/ with force=True — these lists
+#     do not filter the import. They only drive `bench export-fixtures`, so
+#     they must name exactly what the files contain or an export will add
+#     or drop records. scripts/verify_fixtures.py checks that they do.
+#   * force=True overwrites on every migrate, so a change made by hand in
+#     Customize Form to one of these records is reverted on the next deploy.
+#     Change the fixture file instead.
+#
+# LPL/HR/36 "Recruitment Process, Staff Requisition Form" (Manpower
+# Requisition). In the signed To-Be flow the HOD raises a Job Requisition,
+# it is approved, then HR clicks Create Job Opening — so the paper form's
+# fields live on Job Requisition. The vacancy descriptors are duplicated on
+# Job Opening under the SAME fieldnames, which is what makes
+# frappe.model.mapper.map_fields copy them across; the sign-off blocks stay
+# on the requisition only.
+fixtures = [
+    {
+        "dt": "Custom Field",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    # Job Requisition — the form
+                    "Job Requisition-custom_section",
+                    "Job Requisition-custom_employment_type",
+                    "Job Requisition-custom_reason_type",
+                    "Job Requisition-custom_recruitment_section",
+                    "Job Requisition-custom_external_advert",
+                    "Job Requisition-custom_internal_advert",
+                    "Job Requisition-custom_recruitment_cb",
+                    "Job Requisition-custom_head_hunt",
+                    "Job Requisition-custom_reference_to_database",
+                    "Job Requisition-custom_reporting_section",
+                    "Job Requisition-custom_reporting_line",
+                    "Job Requisition-custom_reporting_cb",
+                    "Job Requisition-custom_subordinates",
+                    # Job Requisition — Sign & Date blocks
+                    "Job Requisition-custom_approvals_tab",
+                    "Job Requisition-custom_department_signoff_section",
+                    "Job Requisition-custom_supervisor",
+                    "Job Requisition-custom_supervisor_date",
+                    "Job Requisition-custom_signoff_cb1",
+                    "Job Requisition-custom_process_owner",
+                    "Job Requisition-custom_process_owner_date",
+                    "Job Requisition-custom_signoff_cb2",
+                    "Job Requisition-custom_hod",
+                    "Job Requisition-custom_hod_date",
+                    "Job Requisition-custom_hr_signoff_section",
+                    "Job Requisition-custom_hr_officer",
+                    "Job Requisition-custom_hr_officer_date",
+                    "Job Requisition-custom_hr_signoff_cb",
+                    "Job Requisition-custom_hrm",
+                    "Job Requisition-custom_hrm_decision",
+                    "Job Requisition-custom_hrm_date",
+                    "Job Requisition-custom_ed_signoff_section",
+                    "Job Requisition-custom_ed",
+                    "Job Requisition-custom_ed_decision",
+                    "Job Requisition-custom_ed_signoff_cb",
+                    "Job Requisition-custom_ed_date",
+                    # Job Opening — same-named copies of the vacancy fields
+                    "Job Opening-custom_section",
+                    "Job Opening-custom_reason_type",
+                    "Job Opening-custom_recruitment_section",
+                    "Job Opening-custom_external_advert",
+                    "Job Opening-custom_internal_advert",
+                    "Job Opening-custom_recruitment_cb",
+                    "Job Opening-custom_head_hunt",
+                    "Job Opening-custom_reference_to_database",
+                    "Job Opening-custom_reporting_section",
+                    "Job Opening-custom_reporting_line",
+                    "Job Opening-custom_reporting_cb",
+                    "Job Opening-custom_subordinates",
+                ],
+            ]
+        ],
+    },
+    {
+        "dt": "Property Setter",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "Job Requisition-designation-label",
+                    "Job Requisition-no_of_positions-label",
+                    "Job Requisition-description-label",
+                    "Job Requisition-reason_for_requesting-label",
+                    "Job Requisition-expected_compensation-label",
+                    "Job Requisition-expected_compensation-reqd",
+                    "Job Opening-employment_type-fetch_from",
+                    "Job Opening-employment_type-fetch_if_empty",
+                ],
+            ]
+        ],
+    },
+]
 
 # Desk Notifications
 # ------------------

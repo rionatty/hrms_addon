@@ -1,0 +1,483 @@
+[
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_section",
+  "fieldtype": "Link",
+  "insert_after": "department",
+  "label": "Section",
+  "options": "Department",
+  "description": "Section within the department, e.g. Extrusion under Production. Set up as a child department.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_employment_type",
+  "dt": "Job Requisition",
+  "fieldname": "custom_employment_type",
+  "fieldtype": "Link",
+  "insert_after": "no_of_positions",
+  "label": "Permanent or Casual",
+  "options": "Employment Type",
+  "description": "The form's tick-box: Permanent or Casual(s). Copied to the Job Opening's Employment Type.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reason_type",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reason_type",
+  "fieldtype": "Select",
+  "insert_after": "description",
+  "label": "Reason Why New Employee Is Required",
+  "options": "\nNew Position\nReplacement\nNew Addition",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_recruitment_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_recruitment_section",
+  "fieldtype": "Section Break",
+  "insert_after": "reason_for_requesting",
+  "label": "Mode of Recruitment",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_external_advert",
+  "dt": "Job Requisition",
+  "fieldname": "custom_external_advert",
+  "fieldtype": "Check",
+  "insert_after": "custom_recruitment_section",
+  "label": "External Advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_internal_advert",
+  "dt": "Job Requisition",
+  "fieldname": "custom_internal_advert",
+  "fieldtype": "Check",
+  "insert_after": "custom_external_advert",
+  "label": "Internal Advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_recruitment_cb",
+  "dt": "Job Requisition",
+  "fieldname": "custom_recruitment_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_internal_advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_head_hunt",
+  "dt": "Job Requisition",
+  "fieldname": "custom_head_hunt",
+  "fieldtype": "Check",
+  "insert_after": "custom_recruitment_cb",
+  "label": "Head Hunt",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reference_to_database",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reference_to_database",
+  "fieldtype": "Check",
+  "insert_after": "custom_head_hunt",
+  "label": "Reference to Database",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reporting_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reporting_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_reference_to_database",
+  "label": "Reporting Structure",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reporting_line",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reporting_line",
+  "fieldtype": "Link",
+  "insert_after": "custom_reporting_section",
+  "label": "Reporting Line of the New Employee",
+  "options": "Designation",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reporting_cb",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reporting_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_reporting_line",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_subordinates",
+  "dt": "Job Requisition",
+  "fieldname": "custom_subordinates",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_reporting_cb",
+  "label": "Subordinates of the New Employee",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_approvals_tab",
+  "dt": "Job Requisition",
+  "fieldname": "custom_approvals_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "custom_subordinates",
+  "label": "Approvals",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_department_signoff_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_department_signoff_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_approvals_tab",
+  "label": "Requesting Department",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_supervisor",
+  "dt": "Job Requisition",
+  "fieldname": "custom_supervisor",
+  "fieldtype": "Link",
+  "insert_after": "custom_department_signoff_section",
+  "label": "Supervisor",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_supervisor_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_supervisor_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_supervisor",
+  "label": "Supervisor Sign Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_signoff_cb1",
+  "dt": "Job Requisition",
+  "fieldname": "custom_signoff_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_supervisor_date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_process_owner",
+  "dt": "Job Requisition",
+  "fieldname": "custom_process_owner",
+  "fieldtype": "Link",
+  "insert_after": "custom_signoff_cb1",
+  "label": "Process Owner",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_process_owner_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_process_owner_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_process_owner",
+  "label": "Process Owner Sign Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_signoff_cb2",
+  "dt": "Job Requisition",
+  "fieldname": "custom_signoff_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_process_owner_date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hod",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hod",
+  "fieldtype": "Link",
+  "insert_after": "custom_signoff_cb2",
+  "label": "Head of Department",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hod_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hod_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_hod",
+  "label": "Head of Department Sign Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hr_signoff_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hr_signoff_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_hod_date",
+  "label": "Human Resource",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hr_officer",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hr_officer",
+  "fieldtype": "Link",
+  "insert_after": "custom_hr_signoff_section",
+  "label": "HR Officer (Filling the Requisition)",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hr_officer_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hr_officer_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_hr_officer",
+  "label": "HR Officer Sign Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hr_signoff_cb",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hr_signoff_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_hr_officer_date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hrm",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hrm",
+  "fieldtype": "Link",
+  "insert_after": "custom_hr_signoff_cb",
+  "label": "Human Resource Manager",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hrm_decision",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hrm_decision",
+  "fieldtype": "Select",
+  "insert_after": "custom_hrm",
+  "label": "HR Manager Decision",
+  "options": "\nRecruitment Authorized\nNot Authorized",
+  "description": "The Recommended Salary is on the main tab.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_hrm_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_hrm_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_hrm_decision",
+  "label": "HR Manager Sign Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_ed_signoff_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_ed_signoff_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_hrm_date",
+  "label": "Executive Director",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_ed",
+  "dt": "Job Requisition",
+  "fieldname": "custom_ed",
+  "fieldtype": "Link",
+  "insert_after": "custom_ed_signoff_section",
+  "label": "Executive Director",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_ed_decision",
+  "dt": "Job Requisition",
+  "fieldname": "custom_ed_decision",
+  "fieldtype": "Select",
+  "insert_after": "custom_ed",
+  "label": "Executive Director Decision",
+  "options": "\nRecruitment Approved\nNot Approved",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_ed_signoff_cb",
+  "dt": "Job Requisition",
+  "fieldname": "custom_ed_signoff_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_ed_decision",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_ed_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_ed_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_ed_signoff_cb",
+  "label": "Executive Director Sign Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_section",
+  "dt": "Job Opening",
+  "fieldname": "custom_section",
+  "fieldtype": "Link",
+  "insert_after": "department",
+  "label": "Section",
+  "options": "Department",
+  "description": "Section within the department, e.g. Extrusion under Production. Set up as a child department.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_reason_type",
+  "dt": "Job Opening",
+  "fieldname": "custom_reason_type",
+  "fieldtype": "Select",
+  "insert_after": "vacancies",
+  "label": "Reason Why New Employee Is Required",
+  "options": "\nNew Position\nReplacement\nNew Addition",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_recruitment_section",
+  "dt": "Job Opening",
+  "fieldname": "custom_recruitment_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_reason_type",
+  "label": "Mode of Recruitment",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_external_advert",
+  "dt": "Job Opening",
+  "fieldname": "custom_external_advert",
+  "fieldtype": "Check",
+  "insert_after": "custom_recruitment_section",
+  "label": "External Advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_internal_advert",
+  "dt": "Job Opening",
+  "fieldname": "custom_internal_advert",
+  "fieldtype": "Check",
+  "insert_after": "custom_external_advert",
+  "label": "Internal Advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_recruitment_cb",
+  "dt": "Job Opening",
+  "fieldname": "custom_recruitment_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_internal_advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_head_hunt",
+  "dt": "Job Opening",
+  "fieldname": "custom_head_hunt",
+  "fieldtype": "Check",
+  "insert_after": "custom_recruitment_cb",
+  "label": "Head Hunt",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_reference_to_database",
+  "dt": "Job Opening",
+  "fieldname": "custom_reference_to_database",
+  "fieldtype": "Check",
+  "insert_after": "custom_head_hunt",
+  "label": "Reference to Database",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_reporting_section",
+  "dt": "Job Opening",
+  "fieldname": "custom_reporting_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_reference_to_database",
+  "label": "Reporting Structure",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_reporting_line",
+  "dt": "Job Opening",
+  "fieldname": "custom_reporting_line",
+  "fieldtype": "Link",
+  "insert_after": "custom_reporting_section",
+  "label": "Reporting Line of the New Employee",
+  "options": "Designation",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_reporting_cb",
+  "dt": "Job Opening",
+  "fieldname": "custom_reporting_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_reporting_line",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_subordinates",
+  "dt": "Job Opening",
+  "fieldname": "custom_subordinates",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_reporting_cb",
+  "label": "Subordinates of the New Employee",
+  "module": "HRMS Addon"
+ }
+]
