@@ -167,8 +167,13 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py
 ```
+
+`verify_job_description.py` does the same for the Job Description template on
+Designation: it loads `jd_rules.py` without Frappe and checks the Balanced
+Scorecard rules against real splits, including one (15.7/22.1/51.4/10.8)
+that is 100% on paper but 99.99999999999999 in floating point.
 
 `verify_requisition_workflow.py` loads `requisition_approval.py` directly —
 it deliberately imports nothing from Frappe — and walks every approval

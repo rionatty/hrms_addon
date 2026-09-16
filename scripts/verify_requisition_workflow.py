@@ -262,7 +262,8 @@ if '"hrms_addon.hrms_addon.job_requisition.setup_on_migrate"' not in hooks or "d
 if hooks.count("\ndoc_events = ") != 1:
     fail.append("doc_events must be assigned exactly once in hooks.py (a second assignment replaces the first)")
 
-m = re.search(r'doctype_js = \{"Job Requisition": "([^"]+)"\}', hooks)
+block = re.search(r"^doctype_js = \{(.*?)^\}", hooks, re.S | re.M)
+m = re.search(r'"Job Requisition": "([^"]+)"', block.group(1)) if block else None
 if not m or not os.path.exists(os.path.join(REPO, "hrms_addon", m.group(1))):
     fail.append("doctype_js for Job Requisition does not point at an existing file")
 

@@ -501,5 +501,634 @@
   "insert_after": "custom_reporting_cb",
   "label": "Subordinates of the New Employee",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_tab",
+  "dt": "Designation",
+  "fieldname": "custom_jd_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "skills",
+  "label": "Job Description",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_details_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_details_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_tab",
+  "label": "Job Details",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_reports_to",
+  "dt": "Designation",
+  "fieldname": "custom_jd_reports_to",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_details_section",
+  "label": "Reports To",
+  "options": "Designation",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_department",
+  "dt": "Designation",
+  "fieldname": "custom_jd_department",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_reports_to",
+  "label": "Department",
+  "options": "Department",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_section_unit",
+  "dt": "Designation",
+  "fieldname": "custom_jd_section_unit",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_department",
+  "label": "Section / Unit",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_details_cb1",
+  "dt": "Designation",
+  "fieldname": "custom_jd_details_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_section_unit",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_grade",
+  "dt": "Designation",
+  "fieldname": "custom_jd_grade",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_details_cb1",
+  "label": "Grade",
+  "options": "Employee Grade",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_date",
+  "dt": "Designation",
+  "fieldname": "custom_jd_date",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_grade",
+  "label": "JD Date",
+  "description": "Period the JD applies from, e.g. Q2 2026.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_details_cb2",
+  "dt": "Designation",
+  "fieldname": "custom_jd_details_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_reference",
+  "dt": "Designation",
+  "fieldname": "custom_jd_reference",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_details_cb2",
+  "label": "Reference",
+  "description": "e.g. LPL/JD/SM/001",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_revision",
+  "dt": "Designation",
+  "fieldname": "custom_jd_revision",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_reference",
+  "label": "Revision No",
+  "description": "e.g. Rev 01",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_purpose_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_purpose_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_revision",
+  "label": "Job Purpose Statement",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_purpose",
+  "dt": "Designation",
+  "fieldname": "custom_jd_purpose",
+  "fieldtype": "Text",
+  "insert_after": "custom_jd_purpose_section",
+  "label": "Job Purpose Statement",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_kra_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_kra_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_purpose",
+  "label": "Key Result Areas (Balanced Scorecard Framework)",
+  "description": "One row per perspective. Weightings must total 100%.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_key_result_areas",
+  "dt": "Designation",
+  "fieldname": "custom_jd_key_result_areas",
+  "fieldtype": "Table",
+  "insert_after": "custom_jd_kra_section",
+  "label": "Key Result Areas",
+  "options": "JD Key Result Area",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_reporting_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_reporting_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_key_result_areas",
+  "label": "Reporting Relationships",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_direct_reports",
+  "dt": "Designation",
+  "fieldname": "custom_jd_direct_reports",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_reporting_section",
+  "label": "Direct Reports",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_reporting_cb",
+  "dt": "Designation",
+  "fieldname": "custom_jd_reporting_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_direct_reports",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_indirect_reports",
+  "dt": "Designation",
+  "fieldname": "custom_jd_indirect_reports",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_reporting_cb",
+  "label": "Indirect Reports",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_stakeholder_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_stakeholder_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_indirect_reports",
+  "label": "Stakeholder Management",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_internal_stakeholders",
+  "dt": "Designation",
+  "fieldname": "custom_jd_internal_stakeholders",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_stakeholder_section",
+  "label": "Internal",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_stakeholder_cb",
+  "dt": "Designation",
+  "fieldname": "custom_jd_stakeholder_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_internal_stakeholders",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_external_stakeholders",
+  "dt": "Designation",
+  "fieldname": "custom_jd_external_stakeholders",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_stakeholder_cb",
+  "label": "External",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_authority_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_authority_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_external_stakeholders",
+  "label": "Decision-Making Authority / Mandates / Constraints",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_strategic_authority",
+  "dt": "Designation",
+  "fieldname": "custom_jd_strategic_authority",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_authority_section",
+  "label": "Strategic",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_authority_cb1",
+  "dt": "Designation",
+  "fieldname": "custom_jd_authority_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_strategic_authority",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_operational_authority",
+  "dt": "Designation",
+  "fieldname": "custom_jd_operational_authority",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_authority_cb1",
+  "label": "Operational",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_authority_cb2",
+  "dt": "Designation",
+  "fieldname": "custom_jd_authority_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_operational_authority",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_managerial_authority",
+  "dt": "Designation",
+  "fieldname": "custom_jd_managerial_authority",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_authority_cb2",
+  "label": "Managerial",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_work_cycle_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_work_cycle_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_managerial_authority",
+  "label": "Work Cycle & Planning Horizon",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_short_term",
+  "dt": "Designation",
+  "fieldname": "custom_jd_short_term",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_work_cycle_section",
+  "label": "Short-Term",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_work_cycle_cb1",
+  "dt": "Designation",
+  "fieldname": "custom_jd_work_cycle_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_short_term",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_medium_term",
+  "dt": "Designation",
+  "fieldname": "custom_jd_medium_term",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_work_cycle_cb1",
+  "label": "Medium-Term",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_work_cycle_cb2",
+  "dt": "Designation",
+  "fieldname": "custom_jd_work_cycle_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_medium_term",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_long_term",
+  "dt": "Designation",
+  "fieldname": "custom_jd_long_term",
+  "fieldtype": "Data",
+  "insert_after": "custom_jd_work_cycle_cb2",
+  "label": "Long-Term",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_iso_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_iso_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_long_term",
+  "label": "ISO Responsibilities (ISO 9001, ISO 22000, ISO 45001, ISO 14001)",
+  "description": "As part of the Integrated Management System (IMS), the role holder is accountable for:",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_iso_9001",
+  "dt": "Designation",
+  "fieldname": "custom_jd_iso_9001",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_iso_section",
+  "label": "ISO 9001 (Quality Management)",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_iso_22000",
+  "dt": "Designation",
+  "fieldname": "custom_jd_iso_22000",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_iso_9001",
+  "label": "ISO 22000 (Food Safety)",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_ims_leadership",
+  "dt": "Designation",
+  "fieldname": "custom_jd_ims_leadership",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_iso_22000",
+  "label": "IMS Leadership",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_iso_cb",
+  "dt": "Designation",
+  "fieldname": "custom_jd_iso_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_ims_leadership",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_iso_45001",
+  "dt": "Designation",
+  "fieldname": "custom_jd_iso_45001",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_iso_cb",
+  "label": "ISO 45001 (Occupational Health & Safety)",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_iso_14001",
+  "dt": "Designation",
+  "fieldname": "custom_jd_iso_14001",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_iso_45001",
+  "label": "ISO 14001 (Environmental Management)",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_specs_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_specs_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_iso_14001",
+  "label": "Ideal Job Specifications",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_academic",
+  "dt": "Designation",
+  "fieldname": "custom_jd_academic",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_specs_section",
+  "label": "Academic Qualifications",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_specs_cb1",
+  "dt": "Designation",
+  "fieldname": "custom_jd_specs_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_academic",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_professional",
+  "dt": "Designation",
+  "fieldname": "custom_jd_professional",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_specs_cb1",
+  "label": "Professional Training & Certifications",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_specs_cb2",
+  "dt": "Designation",
+  "fieldname": "custom_jd_specs_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_professional",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_experience",
+  "dt": "Designation",
+  "fieldname": "custom_jd_experience",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_specs_cb2",
+  "label": "Desired Work Experience",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_competency_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_competency_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_experience",
+  "label": "Competency Framework",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_technical_competencies",
+  "dt": "Designation",
+  "fieldname": "custom_jd_technical_competencies",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_competency_section",
+  "label": "Technical Competencies",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_competency_cb",
+  "dt": "Designation",
+  "fieldname": "custom_jd_competency_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_technical_competencies",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_behavioural_competencies",
+  "dt": "Designation",
+  "fieldname": "custom_jd_behavioural_competencies",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_jd_competency_cb",
+  "label": "Behavioural Competencies",
+  "description": "One per line.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_signoff_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_signoff_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_behavioural_competencies",
+  "label": "Sign-Off",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_hrm",
+  "dt": "Designation",
+  "fieldname": "custom_jd_hrm",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_signoff_section",
+  "label": "Human Resource Manager",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_hrm_date",
+  "dt": "Designation",
+  "fieldname": "custom_jd_hrm_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_jd_hrm",
+  "label": "HR Manager Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_reviewed_by",
+  "dt": "Designation",
+  "fieldname": "custom_jd_reviewed_by",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_hrm_date",
+  "label": "Reviewed By (Head of Function)",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_reviewed_date",
+  "dt": "Designation",
+  "fieldname": "custom_jd_reviewed_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_jd_reviewed_by",
+  "label": "Review Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_signoff_cb",
+  "dt": "Designation",
+  "fieldname": "custom_jd_signoff_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_jd_reviewed_date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_approved_by",
+  "dt": "Designation",
+  "fieldname": "custom_jd_approved_by",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_signoff_cb",
+  "label": "Approved By (Executive Director / General Manager)",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_approved_date",
+  "dt": "Designation",
+  "fieldname": "custom_jd_approved_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_jd_approved_by",
+  "label": "Approval Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_md",
+  "dt": "Designation",
+  "fieldname": "custom_jd_md",
+  "fieldtype": "Link",
+  "insert_after": "custom_jd_approved_date",
+  "label": "MD Approval",
+  "options": "User",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_md_date",
+  "dt": "Designation",
+  "fieldname": "custom_jd_md_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_jd_md",
+  "label": "MD Approval Date",
+  "module": "HRMS Addon"
  }
 ]

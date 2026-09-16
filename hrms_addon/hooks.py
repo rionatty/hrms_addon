@@ -108,7 +108,13 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # Job Requisition: Requested By default + Connections moved onto the
 # Details tab. doctype_js is read from disk when the form loads, so a
 # change to it needs no `bench build`.
-doctype_js = {"Job Requisition": "public/js/job_requisition.js"}
+#
+# Designation (Job Title): pre-fills the four Balanced Scorecard rows of
+# the Job Description tab.
+doctype_js = {
+    "Job Requisition": "public/js/job_requisition.js",
+    "Designation": "public/js/designation.js",
+}
 # doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -283,6 +289,68 @@ fixtures = [
                     "Job Opening-custom_reporting_line",
                     "Job Opening-custom_reporting_cb",
                     "Job Opening-custom_subordinates",
+                    "Designation-custom_jd_tab",
+                    "Designation-custom_jd_details_section",
+                    "Designation-custom_jd_reports_to",
+                    "Designation-custom_jd_department",
+                    "Designation-custom_jd_section_unit",
+                    "Designation-custom_jd_details_cb1",
+                    "Designation-custom_jd_grade",
+                    "Designation-custom_jd_date",
+                    "Designation-custom_jd_details_cb2",
+                    "Designation-custom_jd_reference",
+                    "Designation-custom_jd_revision",
+                    "Designation-custom_jd_purpose_section",
+                    "Designation-custom_jd_purpose",
+                    "Designation-custom_jd_kra_section",
+                    "Designation-custom_jd_key_result_areas",
+                    "Designation-custom_jd_reporting_section",
+                    "Designation-custom_jd_direct_reports",
+                    "Designation-custom_jd_reporting_cb",
+                    "Designation-custom_jd_indirect_reports",
+                    "Designation-custom_jd_stakeholder_section",
+                    "Designation-custom_jd_internal_stakeholders",
+                    "Designation-custom_jd_stakeholder_cb",
+                    "Designation-custom_jd_external_stakeholders",
+                    "Designation-custom_jd_authority_section",
+                    "Designation-custom_jd_strategic_authority",
+                    "Designation-custom_jd_authority_cb1",
+                    "Designation-custom_jd_operational_authority",
+                    "Designation-custom_jd_authority_cb2",
+                    "Designation-custom_jd_managerial_authority",
+                    "Designation-custom_jd_work_cycle_section",
+                    "Designation-custom_jd_short_term",
+                    "Designation-custom_jd_work_cycle_cb1",
+                    "Designation-custom_jd_medium_term",
+                    "Designation-custom_jd_work_cycle_cb2",
+                    "Designation-custom_jd_long_term",
+                    "Designation-custom_jd_iso_section",
+                    "Designation-custom_jd_iso_9001",
+                    "Designation-custom_jd_iso_22000",
+                    "Designation-custom_jd_ims_leadership",
+                    "Designation-custom_jd_iso_cb",
+                    "Designation-custom_jd_iso_45001",
+                    "Designation-custom_jd_iso_14001",
+                    "Designation-custom_jd_specs_section",
+                    "Designation-custom_jd_academic",
+                    "Designation-custom_jd_specs_cb1",
+                    "Designation-custom_jd_professional",
+                    "Designation-custom_jd_specs_cb2",
+                    "Designation-custom_jd_experience",
+                    "Designation-custom_jd_competency_section",
+                    "Designation-custom_jd_technical_competencies",
+                    "Designation-custom_jd_competency_cb",
+                    "Designation-custom_jd_behavioural_competencies",
+                    "Designation-custom_jd_signoff_section",
+                    "Designation-custom_jd_hrm",
+                    "Designation-custom_jd_hrm_date",
+                    "Designation-custom_jd_reviewed_by",
+                    "Designation-custom_jd_reviewed_date",
+                    "Designation-custom_jd_signoff_cb",
+                    "Designation-custom_jd_approved_by",
+                    "Designation-custom_jd_approved_date",
+                    "Designation-custom_jd_md",
+                    "Designation-custom_jd_md_date",
                 ],
             ]
         ],
@@ -349,6 +417,10 @@ doc_events = {
         "before_validate": "hrms_addon.hrms_addon.job_requisition.before_validate",
         # Fills the Approvals tab as each approver acts; reverts typed edits
         "validate": "hrms_addon.hrms_addon.job_requisition.validate",
+    },
+    "Designation": {
+        # Job Description: one row per scorecard perspective, totalling 100%
+        "validate": "hrms_addon.hrms_addon.designation.validate",
     },
 }
 

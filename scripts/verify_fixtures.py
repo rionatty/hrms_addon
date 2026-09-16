@@ -64,12 +64,56 @@ def load(name):
 
 
 def find_doctype_json(doctype):
+    """A doctype definition from this app or the three upstream apps."""
     folder = doctype.lower().replace(" ", "_")
-    for app in ("frappe", "erpnext", "hrms"):
-        hits = glob.glob(os.path.join(APPS_ROOT, app, app, "**", "doctype", folder, folder + ".json"), recursive=True)
+    roots = [os.path.join(REPO, "hrms_addon")] + [os.path.join(APPS_ROOT, app, app) for app in ("frappe", "erpnext", "hrms")]
+    for root in roots:
+        hits = glob.glob(os.path.join(root, "**", "doctype", folder, folder + ".json"), recursive=True)
         if hits:
             return json.load(open(hits[0], encoding="utf-8"))
     return None
+
+
+def _ast_literal(node):
+    """ast literal, treating _("x") translation calls as "x"."""
+    import ast
+
+    if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "_" and node.args:
+        return _ast_literal(node.args[0])
+    if isinstance(node, ast.Dict):
+        return {_ast_literal(k): _ast_literal(v) for k, v in zip(node.keys, node.values)}
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return [_ast_literal(e) for e in node.elts]
+    if isinstance(node, ast.Constant):
+        return node.value
+    return None
+
+
+def load_hrms_custom_fields():
+    """Custom fields HRMS itself creates on install (hrms/setup.py), keyed by
+    doctype. They are not in any doctype JSON, but our fields can anchor on
+    them — the Job Description tab goes after HRMS's `skills` table."""
+    import ast
+
+    path = os.path.join(APPS_ROOT, "hrms", "hrms", "setup.py")
+    if not os.path.exists(path):
+        return {}
+    found = {}
+    for node in ast.walk(ast.parse(open(path, encoding="utf-8").read())):
+        if not isinstance(node, ast.Dict):
+            continue
+        value = _ast_literal(node)
+        if not isinstance(value, dict):
+            continue
+        for doctype, fields in value.items():
+            if isinstance(doctype, str) and isinstance(fields, list) and fields and all(
+                isinstance(f, dict) and f.get("fieldname") for f in fields
+            ):
+                found.setdefault(doctype, {f["fieldname"]: f for f in fields})
+    return found
+
+
+HRMS_CUSTOM_FIELDS = None
 
 
 if not os.path.isdir(APPS_ROOT):
@@ -94,6 +138,19 @@ def standard_fields(doctype):
     return {f["fieldname"]: f for f in m["fields"]} if m else {}
 
 
+HRMS_CUSTOM_FIELDS = load_hrms_custom_fields()
+
+
+def doctype_in_repo(doctype):
+    folder = doctype.lower().replace(" ", "_")
+    return bool(glob.glob(os.path.join(REPO, "hrms_addon", "**", "doctype", folder, folder + ".json"), recursive=True))
+
+
+def upstream_fields(doctype):
+    """Standard fields plus the custom fields HRMS installs on this doctype."""
+    return {**standard_fields(doctype), **HRMS_CUSTOM_FIELDS.get(doctype, {})}
+
+
 # ── 1. Custom fields ─────────────────────────────────────────────────
 by_dt = {}
 for f in custom_fields:
@@ -113,8 +170,8 @@ for f in custom_fields:
     if meta(dt) is None:
         fail.append("%s: doctype %r not found upstream" % (where, dt))
         continue
-    if fn in standard_fields(dt):
-        fail.append("%s: collides with a standard field" % where)
+    if fn in upstream_fields(dt):
+        fail.append("%s: collides with a standard or HRMS-installed field" % where)
     if fn in by_dt.setdefault(dt, {}):
         fail.append("%s: defined twice" % where)
     by_dt[dt][fn] = f
@@ -125,6 +182,14 @@ for f in custom_fields:
             fail.append("%s: Link without options" % where)
         elif meta(f["options"]) is None:
             fail.append("%s: Link target doctype %r not found upstream" % (where, f["options"]))
+    if ft == "Table":
+        child = meta(f.get("options") or "")
+        if child is None:
+            fail.append("%s: Table child doctype %r not found here or upstream" % (where, f.get("options")))
+        elif not child.get("istable"):
+            fail.append("%s: Table options %r is not a child table (istable)" % (where, f.get("options")))
+        elif doctype_in_repo(f["options"]) and child.get("module") != MODULE:
+            fail.append("%s: this app's child doctype %r has module %r" % (where, f["options"], child.get("module")))
     if ft == "Select" and not [o for o in (f.get("options") or "").split("\n") if o.strip()]:
         fail.append("%s: Select without options" % where)
     if ft in BREAKS and f.get("options"):
@@ -139,7 +204,7 @@ for f in custom_fields:
         fail.append("%s: fetch_from on a Check field silently undoes unticking" % where)
 
 for dt, fields in by_dt.items():
-    std = standard_fields(dt)
+    std = upstream_fields(dt)
     for fn, f in fields.items():
         after = f.get("insert_after")
         if not after:
@@ -229,8 +294,15 @@ def update_order_based_on_insert_after(field_order, insertion_map):
         field_order.extend(names)
 
 
-def simulate_layout(dt):
-    """Port of frappe.model.meta.Meta.sort_fields for one doctype."""
+def simulate_layout(dt, hrms_first=True):
+    """Port of frappe.model.meta.Meta.sort_fields for one doctype.
+
+    Frappe loads custom fields ORDER BY idx (Meta.add_custom_fields), and a
+    custom field's idx is set from its insert_after target. Two fields that
+    anchor on the same target get the same idx, and then the database
+    decides which comes first. hrms_first chooses that order, so callers can
+    require a layout to hold either way.
+    """
     m = meta(dt)
     std = {f["fieldname"]: dict(f) for f in m["fields"]}
     std_order = [fn for fn in (m.get("field_order") or list(std)) if fn in std]
@@ -239,7 +311,9 @@ def simulate_layout(dt):
         {"fieldname": fn, "fieldtype": "Link", "hidden": 1, "is_custom_field": 1}
         for fn in sorted(RUNTIME_FIELDS.get(dt, ()))
     ]
-    sequence += [dict(f, is_custom_field=1) for f in by_dt.get(dt, {}).values()] + runtime
+    hrms_installed = [dict(f, is_custom_field=1) for f in HRMS_CUSTOM_FIELDS.get(dt, {}).values()]
+    ours = [dict(f, is_custom_field=1) for f in by_dt.get(dt, {}).values()]
+    sequence += (hrms_installed + ours if hrms_first else ours + hrms_installed) + runtime
     fields = {f["fieldname"]: f for f in sequence}
 
     # DocField property setters change how the form renders (hidden tabs)
@@ -408,6 +482,50 @@ stray = sorted(fn for fn in by_dt.get(JO, {}) if placement.get(fn) != "Details")
 if stray:
     fail.append("Job Opening custom fields outside the first tab: %s" % stray)
 print("Job Opening layout: all custom fields on the first tab")
+
+# ── 6b. Designation (Job Title) — Job Description template ──────────
+DS = "Designation"
+if by_dt.get(DS):
+    order, fields = simulate_layout(DS)
+    positions = positions_of(order, fields)
+    print_layout(DS, order, fields)
+    print()
+
+    # HRMS's own Designation fields must stay on the first tab, whichever
+    # order the database returns tied custom fields in. Anchoring the JD tab
+    # on "description" ties it with HRMS's appraisal_template (same idx), and
+    # if the tab loads first it swallows Appraisal Template and Skills;
+    # anchoring on "skills" is safe in both orders.
+    for hrms_first in (True, False):
+        o, f = simulate_layout(DS, hrms_first=hrms_first)
+        p = positions_of(o, f)
+        label = "HRMS fields loaded %s" % ("first" if hrms_first else "last")
+        for fn in HRMS_CUSTOM_FIELDS.get(DS, {}):
+            if p.get(fn, ("?",))[0] != "Details":
+                fail.append("Designation.%s (installed by HRMS) was pulled into tab %r (%s)" % (fn, p.get(fn, ("?",))[0], label))
+        stray = sorted(fn for fn in by_dt[DS] if p.get(fn, ("?",))[0] != "Job Description")
+        if stray:
+            fail.append("Designation JD fields outside the Job Description tab (%s): %s" % (label, stray))
+
+    # Every section of LPL/JD/SM/001, in the order the JD prints them.
+    JD_SECTIONS = [
+        "Job Details",
+        "Job Purpose Statement",
+        "Key Result Areas (Balanced Scorecard Framework)",
+        "Reporting Relationships",
+        "Stakeholder Management",
+        "Decision-Making Authority / Mandates / Constraints",
+        "Work Cycle & Planning Horizon",
+        "ISO Responsibilities (ISO 9001, ISO 22000, ISO 45001, ISO 14001)",
+        "Ideal Job Specifications",
+        "Competency Framework",
+        "Sign-Off",
+    ]
+    rendered = [fields[fn].get("label") for fn in order
+                if fields[fn]["fieldtype"] == "Section Break" and positions[fn][0] == "Job Description"]
+    if rendered != JD_SECTIONS:
+        fail.append("Job Description sections %s do not match the JD's %s" % (rendered, JD_SECTIONS))
+    print("Designation layout: %d JD sections in JD order, HRMS fields untouched" % len(JD_SECTIONS))
 
 # ── 7. Removed fields are deleted by a patch ─────────────────────────
 # Dropping a record from a fixture file never deletes it from a site that
