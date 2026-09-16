@@ -276,13 +276,19 @@ for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
     if stripped.count(op) != stripped.count(cl):
         fail.append("job_requisition.js: unbalanced %s%s" % (op, cl))
 
-patch = "hrms_addon.patches.v1_0.remove_requisition_section_field"
-if patch not in read("hrms_addon/patches.txt"):
-    fail.append("patch not listed in patches.txt")
-if "def execute(" not in read("hrms_addon/patches/v1_0/remove_requisition_section_field.py"):
-    fail.append("patch has no execute()")
-if not os.path.exists(os.path.join(REPO, "hrms_addon", "patches", "v1_0", "__init__.py")):
-    fail.append("patches/v1_0 is missing __init__.py")
+patch_lines = [l.strip() for l in read("hrms_addon/patches.txt").splitlines()
+               if l.strip() and not l.strip().startswith(("#", "["))]
+if not patch_lines:
+    fail.append("patches.txt lists no patches")
+for dotted in patch_lines:
+    rel = os.path.join(*dotted.split(".")) + ".py"
+    if not os.path.exists(os.path.join(REPO, rel)):
+        fail.append("patch %s has no file %s" % (dotted, rel))
+    elif "def execute(" not in read(rel):
+        fail.append("patch %s has no execute()" % dotted)
+    package = os.path.join(REPO, *dotted.split(".")[:-1], "__init__.py")
+    if not os.path.exists(package):
+        fail.append("patch package for %s is missing __init__.py" % dotted)
 print("wiring: doc events, after_migrate, form script, whitelisted call and patch all resolve")
 
 print()

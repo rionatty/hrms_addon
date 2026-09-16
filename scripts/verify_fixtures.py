@@ -299,11 +299,25 @@ def simulate_layout(dt):
 
 def tabs_of(field_order, fields):
     """{fieldname: tab label}; fields before the first Tab Break sit in Details."""
-    tab, placement = "Details", {}
+    return {fn: where[0] for fn, where in positions_of(field_order, fields).items()}
+
+
+def positions_of(field_order, fields):
+    """{fieldname: (tab, section label, column index)} as the form renders it.
+
+    Fields before the first Tab Break sit in "Details"; a Section Break
+    starts column 0 of a new section; each Column Break moves one column right.
+    """
+    tab, section, column, placement = "Details", "", 0, {}
     for fn in field_order:
-        if fields[fn]["fieldtype"] == "Tab Break":
-            tab = fields[fn].get("label") or fn
-        placement[fn] = tab
+        fieldtype = fields[fn]["fieldtype"]
+        if fieldtype == "Tab Break":
+            tab, section, column = fields[fn].get("label") or fn, "", 0
+        elif fieldtype == "Section Break":
+            section, column = fields[fn].get("label") or fn, 0
+        elif fieldtype == "Column Break":
+            column += 1
+        placement[fn] = (tab, section, column)
     return placement
 
 
@@ -319,7 +333,11 @@ def print_layout(dt, field_order, fields):
             print("    [tab] %s%s" % (tab, hidden))
         elif f["fieldtype"] == "Section Break":
             print("       -- %s%s" % (f.get("label") or "(section)", hidden))
-        elif f["fieldtype"] != "Column Break":
+        elif f["fieldtype"] == "Column Break":
+            print("          | next column")
+        elif f["fieldtype"] == "Heading":
+            print("          ## %s" % (f.get("label") or fn))
+        else:
             print("          %s%s" % (f.get("label") or fn, hidden))
 
 
@@ -332,15 +350,32 @@ print()
 
 EXPECT_TAB = {
     "Details": ["custom_employment_type", "custom_reason_type", "reason_for_requesting", "requested_by",
+                "custom_recruitment_heading", "custom_external_advert", "custom_internal_advert",
+                "custom_head_hunt", "custom_reference_to_database",
                 "custom_connections_section", "custom_connections_html"],
-    "Job Description": ["description", "custom_external_advert", "custom_head_hunt", "custom_reporting_line",
-                        "custom_subordinates"],
+    "Job Description": ["description", "custom_reporting_line", "custom_subordinates"],
     "Approvals": ["custom_supervisor", "custom_hod", "custom_hr_officer", "custom_hrm_decision", "custom_ed_date"],
 }
 for tab, names in EXPECT_TAB.items():
     for fn in names:
         if placement.get(fn) != tab:
             fail.append("Job Requisition.%s lands in tab %r, expected %r" % (fn, placement.get(fn), tab))
+
+# Mode of Recruitment sits UNDER the reason, in the same left column, with
+# Reason Details alone in the right-hand column of that section.
+positions = positions_of(order, fields)
+REASON = "Reason for Requisition"
+left_column = ["custom_reason_type", "custom_recruitment_heading", "custom_external_advert",
+               "custom_internal_advert", "custom_head_hunt", "custom_reference_to_database"]
+for fn in left_column:
+    if positions.get(fn, (None,))[1:] != (REASON, 0):
+        fail.append("Job Requisition.%s is at %s, expected section %r column 0" % (fn, positions.get(fn), REASON))
+if [fn for fn in order if fn in left_column] != left_column:
+    fail.append("Mode of Recruitment must come after the reason, in order: %s" % left_column)
+if positions.get("reason_for_requesting", (None,))[1:] != (REASON, 1):
+    fail.append("Reason Details is at %s, expected section %r column 1" % (positions.get("reason_for_requesting"), REASON))
+if (fields.get("custom_recruitment_heading") or {}).get("fieldtype") != "Heading":
+    fail.append("Mode of Recruitment title must be a Heading: a Section Break would leave the column")
 
 order_setter = setter_index.get((JR, None, "field_order"))
 if not order_setter:
@@ -374,7 +409,34 @@ if stray:
     fail.append("Job Opening custom fields outside the first tab: %s" % stray)
 print("Job Opening layout: all custom fields on the first tab")
 
-# ── 7. hooks.py lists what the fixture files contain ─────────────────
+# ── 7. Removed fields are deleted by a patch ─────────────────────────
+# Dropping a record from a fixture file never deletes it from a site that
+# already imported it. Anything removed must be deleted by a listed patch,
+# or the leftover gets placed by the sorter walk (see section 4).
+REMOVED = (
+    "Job Requisition-custom_section",
+    "Job Opening-custom_section",
+    "Job Requisition-custom_recruitment_section",
+    "Job Requisition-custom_recruitment_cb",
+)
+patch_sources = ""
+for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-8"):
+    line = line.strip()
+    if line and not line.startswith(("#", "[")):
+        path = os.path.join(REPO, *line.split(".")) + ".py"
+        if os.path.exists(path):
+            patch_sources += open(path, encoding="utf-8").read()
+        else:
+            fail.append("patches.txt lists %s but %s does not exist" % (line, path))
+fixture_names = {r["name"] for r in custom_fields}
+for name in REMOVED:
+    if name in fixture_names:
+        fail.append("%s was removed but is back in the fixtures" % name)
+    if '"%s"' % name not in patch_sources:
+        fail.append("%s was removed from the fixtures but no listed patch deletes it" % name)
+print("removed fields: %d, each absent from fixtures and deleted by a listed patch" % len(REMOVED))
+
+# ── 8. hooks.py lists what the fixture files contain ─────────────────
 hooks = open(os.path.join(REPO, "hrms_addon", "hooks.py"), encoding="utf-8").read()
 for dt_name, records in (("Custom Field", custom_fields), ("Property Setter", setters)):
     m = re.search(r'"dt":\s*"%s".*?"in",\s*(\[.*?\])' % re.escape(dt_name), hooks, re.S)

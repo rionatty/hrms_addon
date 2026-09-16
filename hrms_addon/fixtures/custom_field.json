@@ -34,11 +34,61 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Job Requisition-custom_recruitment_heading",
+  "dt": "Job Requisition",
+  "fieldname": "custom_recruitment_heading",
+  "fieldtype": "Heading",
+  "insert_after": "custom_reason_type",
+  "label": "Mode of Recruitment",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_external_advert",
+  "dt": "Job Requisition",
+  "fieldname": "custom_external_advert",
+  "fieldtype": "Check",
+  "insert_after": "custom_recruitment_heading",
+  "label": "External Advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_internal_advert",
+  "dt": "Job Requisition",
+  "fieldname": "custom_internal_advert",
+  "fieldtype": "Check",
+  "insert_after": "custom_external_advert",
+  "label": "Internal Advert",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_head_hunt",
+  "dt": "Job Requisition",
+  "fieldname": "custom_head_hunt",
+  "fieldtype": "Check",
+  "insert_after": "custom_internal_advert",
+  "label": "Head Hunt",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reference_to_database",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reference_to_database",
+  "fieldtype": "Check",
+  "insert_after": "custom_head_hunt",
+  "label": "Reference to Database",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Job Requisition-custom_reason_cb",
   "dt": "Job Requisition",
   "fieldname": "custom_reason_cb",
   "fieldtype": "Column Break",
-  "insert_after": "custom_reason_type",
+  "insert_after": "custom_reference_to_database",
   "module": "HRMS Addon"
  },
  {
@@ -64,70 +114,11 @@
  },
  {
   "doctype": "Custom Field",
-  "name": "Job Requisition-custom_recruitment_section",
-  "dt": "Job Requisition",
-  "fieldname": "custom_recruitment_section",
-  "fieldtype": "Section Break",
-  "insert_after": "description",
-  "label": "Mode of Recruitment",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Requisition-custom_external_advert",
-  "dt": "Job Requisition",
-  "fieldname": "custom_external_advert",
-  "fieldtype": "Check",
-  "insert_after": "custom_recruitment_section",
-  "label": "External Advert",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Requisition-custom_internal_advert",
-  "dt": "Job Requisition",
-  "fieldname": "custom_internal_advert",
-  "fieldtype": "Check",
-  "insert_after": "custom_external_advert",
-  "label": "Internal Advert",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Requisition-custom_recruitment_cb",
-  "dt": "Job Requisition",
-  "fieldname": "custom_recruitment_cb",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_internal_advert",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Requisition-custom_head_hunt",
-  "dt": "Job Requisition",
-  "fieldname": "custom_head_hunt",
-  "fieldtype": "Check",
-  "insert_after": "custom_recruitment_cb",
-  "label": "Head Hunt",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Requisition-custom_reference_to_database",
-  "dt": "Job Requisition",
-  "fieldname": "custom_reference_to_database",
-  "fieldtype": "Check",
-  "insert_after": "custom_head_hunt",
-  "label": "Reference to Database",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
   "name": "Job Requisition-custom_reporting_section",
   "dt": "Job Requisition",
   "fieldname": "custom_reporting_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_reference_to_database",
+  "insert_after": "description",
   "label": "Reporting Structure",
   "module": "HRMS Addon"
  },
