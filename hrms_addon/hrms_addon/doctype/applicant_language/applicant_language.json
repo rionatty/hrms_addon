@@ -1,0 +1,56 @@
+{
+ "actions": [],
+ "creation": "2026-09-17 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "language",
+  "can_read",
+  "can_write",
+  "can_speak"
+ ],
+ "fields": [
+  {
+   "fieldname": "language",
+   "fieldtype": "Link",
+   "label": "Language",
+   "in_list_view": 1,
+   "columns": 4,
+   "reqd": 1,
+   "options": "Spoken Language"
+  },
+  {
+   "fieldname": "can_read",
+   "fieldtype": "Check",
+   "label": "Read",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "can_write",
+   "fieldtype": "Check",
+   "label": "Write",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "can_speak",
+   "fieldtype": "Check",
+   "label": "Speak",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-17 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Applicant Language",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

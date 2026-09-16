@@ -2,9 +2,11 @@
 # For license information, please see license.txt
 
 """Seed the pick lists: the KRA form's (KRA Perspective, Level, Unit, Data
-Source, Review Frequency) and the Job Description tables' (JD Relationship
+Source, Review Frequency), the Job Description tables' (JD Relationship
 Type, Stakeholder Type, Authority Level, Horizon, ISO Standard,
-Specification Type, Requirement Priority, Competency Category).
+Specification Type, Requirement Priority, Competency Category) and the Job
+Applicant Bio-Data tab's (District, Relationship, Spoken Language,
+Examination Level).
 
 What to create is decided by jd_rules.seed_plan, which has no Frappe
 import and is tested without a bench. This only reads what is there and
@@ -15,8 +17,8 @@ value they delete must stay deleted and a rename must stay renamed, which
 rules out fixtures (re-imported with force on every migrate) and
 after_migrate (runs every migrate). Instead:
 
-  * existing sites — patches hrms_addon.patches.v1_0.seed_kra_masters and
-    seed_jd_masters, which migrate runs once each;
+  * existing sites — patches hrms_addon.patches.v1_0.seed_kra_masters,
+    seed_jd_masters and seed_bio_data_masters, which migrate runs once each;
   * fresh installs — after_install below, because Frappe marks every patch
     as already run when an app is installed
     (frappe/installer.py set_all_patches_as_completed) and never executes
@@ -25,7 +27,11 @@ after_migrate (runs every migrate). Instead:
 
 import frappe
 
-from hrms_addon.hrms_addon import jd_rules
+from hrms_addon.hrms_addon import bio_data_rules, jd_rules
+
+# Every pick list, and every (DocType, field) that picks from one
+MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS}
+FIELD_MASTERS = {**jd_rules.FIELD_MASTERS, **bio_data_rules.BIO_DATA_FIELD_MASTERS}
 
 
 def seed_kra_masters():
@@ -34,6 +40,10 @@ def seed_kra_masters():
 
 def seed_jd_masters():
     seed_masters(jd_rules.JD_MASTERS)
+
+
+def seed_bio_data_masters():
+    seed_masters(bio_data_rules.BIO_DATA_MASTERS)
 
 
 def seed_masters(masters):
@@ -54,7 +64,7 @@ def _values_in_use(masters):
     before fixtures) has nothing stored.
     """
     in_use = {}
-    for (doctype, fieldname), master in jd_rules.FIELD_MASTERS.items():
+    for (doctype, fieldname), master in FIELD_MASTERS.items():
         if master not in masters:
             continue
         try:
@@ -71,4 +81,4 @@ def _values_in_use(masters):
 
 
 def after_install():
-    seed_masters(jd_rules.MASTERS)
+    seed_masters(MASTERS)

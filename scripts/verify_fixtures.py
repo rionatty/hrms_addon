@@ -533,6 +533,72 @@ if by_dt.get(DS):
         fail.append("Job Description sections %s do not match the JD's %s" % (rendered, JD_SECTIONS))
     print("Designation layout: %d JD sections in JD order, HRMS fields untouched" % len(JD_SECTIONS))
 
+# ── 6c. Job Applicant — Pre-Interview Bio-Data Form (LPL/HR/19) ──────
+JA = "Job Applicant"
+if by_dt.get(JA):
+    m = meta(JA)
+    baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
+    BIO_SECTIONS = [
+        "Personal Information",
+        "Parents' Details",
+        "Next of Kin Details",
+        "Professional Qualifications / Other Qualifications",
+        "A'Level and O'Level Results",
+        "Employment History",
+        "Skills Possessed",
+        "Language Proficiency",
+        "Declaration",
+    ]
+    for hrms_first in (True, False):
+        order, fields = simulate_layout(JA, hrms_first=hrms_first)
+        positions = positions_of(order, fields)
+        moved = sorted(fn for fn, where in baseline.items() if positions.get(fn, ("?",))[0] != where[0])
+        if moved:
+            fail.append("Job Applicant standard fields moved to another tab: %s" % moved)
+        for fn in by_dt[JA]:
+            expected = "Salary Expectation" if fn == "custom_previous_salary" else "Bio-Data"
+            if positions.get(fn, ("?",))[0] != expected:
+                fail.append("Job Applicant.%s lands in tab %r, expected %r" % (fn, positions.get(fn, ("?",))[0], expected))
+        tabs = [fields[fn].get("label") for fn in order if fields[fn]["fieldtype"] == "Tab Break"]
+        if tabs != ["Salary Expectation", "Bio-Data"]:
+            fail.append("Job Applicant tabs after Details are %s, expected Salary Expectation then Bio-Data" % tabs)
+        sections = [fields[fn].get("label") for fn in order
+                    if fields[fn]["fieldtype"] == "Section Break" and positions[fn][0] == "Bio-Data"]
+        if sections != BIO_SECTIONS:
+            fail.append("Bio-Data sections %s do not follow the paper form %s" % (sections, BIO_SECTIONS))
+        for fn, f in by_dt[JA].items():
+            if f["fieldtype"] == "Table":
+                before = order[order.index(fn) - 1]
+                if fields[before]["fieldtype"] != "Section Break" or positions[fn][2] != 0:
+                    fail.append("Job Applicant.%s must open its own section, full width" % fn)
+    order, fields = simulate_layout(JA)
+    print_layout(JA, order, fields)
+    print()
+    print("Job Applicant layout: Previous Salary with the salary expectation, %d Bio-Data sections in the form's order"
+          % len(BIO_SECTIONS))
+
+# ── 6d. Employee — statutory numbers ─────────────────────────────────
+EM = "Employee"
+if by_dt.get(EM):
+    m = meta(EM)
+    baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
+    for hrms_first in (True, False):
+        order, fields = simulate_layout(EM, hrms_first=hrms_first)
+        positions = positions_of(order, fields)
+        moved = sorted(fn for fn, where in baseline.items() if positions.get(fn, ("?",))[0] != where[0])
+        if moved:
+            fail.append("Employee standard fields moved to another tab: %s" % moved)
+        ids = ["custom_nin", "custom_tin", "custom_nssf_no"]
+        if sorted(by_dt[EM]) != sorted(ids):
+            fail.append("Employee custom fields %s, expected exactly %s" % (sorted(by_dt[EM]), ids))
+        for fn in ids:
+            if positions.get(fn) != ("Personal Details", "Identity & Statutory Numbers", 0):
+                fail.append("Employee.%s is at %s, expected Personal Details / Identity & Statutory Numbers, first column"
+                            % (fn, positions.get(fn)))
+        if [fn for fn in order if fn in ids + ["passport_number"]] != ids + ["passport_number"]:
+            fail.append("Employee NIN, TIN and NSSF No. must come first in the section, before Passport Number")
+    print("Employee layout: NIN, TIN and NSSF No. open the Identity & Statutory Numbers section, nothing else moves")
+
 # ── 7. Removed fields are deleted by a patch ─────────────────────────
 # Dropping a record from a fixture file never deletes it from a site that
 # already imported it. Anything removed must be deleted by a listed patch,

@@ -154,10 +154,16 @@ doctype_js = {
 # ------------
 
 # before_install = "hrms_addon.install.before_install"
-# Seed the pick lists (KRA form, Job Description tables) on a fresh install.
-# Frappe marks every patch as already run when an app is installed, so the
-# seeding patches never run there. See hrms_addon/pick_lists.py.
-after_install = "hrms_addon.hrms_addon.pick_lists.after_install"
+# One-off setup on a fresh install. Frappe marks every patch as already run
+# when an app is installed, so what the patches do on existing sites has to
+# be repeated here:
+#  - seed the pick lists (KRA form, Job Description tables, Bio-Data tab),
+#    see hrms_addon/pick_lists.py;
+#  - let HR User add Skills, see hrms_addon/bio_data.py.
+after_install = [
+    "hrms_addon.hrms_addon.pick_lists.after_install",
+    "hrms_addon.hrms_addon.bio_data.after_install",
+]
 
 # Uninstallation
 # ------------
@@ -340,6 +346,45 @@ fixtures = [
                     "KRA-custom_kpi_cb2",
                     "KRA-custom_source",
                     "KRA-custom_frequency",
+                    "Job Applicant-custom_previous_salary",
+                    "Job Applicant-custom_bio_data_tab",
+                    "Job Applicant-custom_personal_section",
+                    "Job Applicant-custom_date_of_birth",
+                    "Job Applicant-custom_gender",
+                    "Job Applicant-custom_marital_status",
+                    "Job Applicant-custom_no_of_children",
+                    "Job Applicant-custom_citizenship",
+                    "Job Applicant-custom_personal_cb1",
+                    "Job Applicant-custom_home_village",
+                    "Job Applicant-custom_home_district",
+                    "Job Applicant-custom_current_residence",
+                    "Job Applicant-custom_current_district",
+                    "Job Applicant-custom_personal_cb2",
+                    "Job Applicant-custom_nin",
+                    "Job Applicant-custom_nssf_no",
+                    "Job Applicant-custom_tin",
+                    "Job Applicant-custom_health_issues",
+                    "Job Applicant-custom_parents_section",
+                    "Job Applicant-custom_parents",
+                    "Job Applicant-custom_next_of_kin_section",
+                    "Job Applicant-custom_next_of_kin",
+                    "Job Applicant-custom_qualifications_section",
+                    "Job Applicant-custom_qualifications",
+                    "Job Applicant-custom_school_results_section",
+                    "Job Applicant-custom_school_results",
+                    "Job Applicant-custom_employment_history_section",
+                    "Job Applicant-custom_employment_history",
+                    "Job Applicant-custom_skills_section",
+                    "Job Applicant-custom_skills",
+                    "Job Applicant-custom_languages_section",
+                    "Job Applicant-custom_languages",
+                    "Job Applicant-custom_declaration_section",
+                    "Job Applicant-custom_bio_data_date",
+                    "Job Applicant-custom_declaration_cb",
+                    "Job Applicant-custom_signed_bio_data",
+                    "Employee-custom_nin",
+                    "Employee-custom_tin",
+                    "Employee-custom_nssf_no",
                 ],
             ]
         ],
@@ -363,6 +408,7 @@ fixtures = [
                     "Job Opening-employment_type-fetch_from",
                     "Job Opening-employment_type-fetch_if_empty",
                     "KRA-main-search_fields",
+                    "Employee-passport_details_section-label",
                 ],
             ]
         ],
@@ -409,8 +455,12 @@ doc_events = {
         "validate": "hrms_addon.hrms_addon.job_requisition.validate",
     },
     "Designation": {
-        # Job Description: one row per scorecard perspective, totalling 100%
+        # Job Description tables: KRA weightings total 100%, nothing listed twice
         "validate": "hrms_addon.hrms_addon.designation.validate",
+    },
+    "Job Applicant": {
+        # Pre-Interview Bio-Data (LPL/HR/19): dates, years, repeated rows
+        "validate": "hrms_addon.hrms_addon.bio_data.validate",
     },
 }
 
@@ -431,9 +481,16 @@ doc_events = {
 # Overriding Methods
 # ------------------------------
 #
-# override_whitelisted_methods = {
-# 	"frappe.desk.doctype.event.event.get_events": "hrms_addon.event.get_events"
-# }
+# Create > Employee on a Job Offer or an Employee Onboarding builds the new
+# Employee form. These wrap the HRMS originals and fill the form from the
+# candidate's Pre-Interview Bio-Data first, so Date of Birth, Gender and the
+# rest are there before HR saves. See hrms_addon/bio_data.py.
+override_whitelisted_methods = {
+    "hrms.hr.doctype.job_offer.job_offer.make_employee": "hrms_addon.hrms_addon.bio_data.make_employee_from_job_offer",
+    "hrms.hr.doctype.employee_onboarding.employee_onboarding.make_employee": (
+        "hrms_addon.hrms_addon.bio_data.make_employee_from_onboarding"
+    ),
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

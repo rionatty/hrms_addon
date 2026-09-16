@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py
 ```
 
 `verify_job_description.py` does the same for the Job Description template on
@@ -183,6 +183,21 @@ values Luuka's documents use (plus any value already stored) by patch or
 `after_install`, never by fixtures or `after_migrate`, which would bring
 back values HR deleted. The moves of old JD text boxes into the tables
 are run against the lines of LPL/JD/SM/001.
+
+`verify_bio_data.py` covers the Pre-Interview Bio-Data Form (LPL/HR/19) on
+Job Applicant's Bio-Data tab. It loads `bio_data_rules.py` without Frappe
+and runs a filled-in form through the save checks and through the
+carry-over onto Employee (Create > Employee on a Job Offer or an Employee
+Onboarding, routed through `bio_data.py` by `override_whitelisted_methods`),
+checking every Employee field it writes exists upstream and that nothing
+already on the Employee is overwritten. It also checks the Bio-Data pick
+lists and child tables, the one-off Skill permission for HR User, and that
+the print format only prints fields that exist, escaped.
+
+The print format's HTML is generated into
+`hrms_addon/print_format/pre_interview_bio_data_form/`; migrate re-imports
+an app's Print Format only when its `modified` is newer than the site's
+copy, so bump `modified` with every change to it.
 
 `verify_requisition_workflow.py` loads `requisition_approval.py` directly —
 it deliberately imports nothing from Frappe — and walks every approval

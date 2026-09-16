@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "creation": "2026-09-17 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "institution",
+  "period",
+  "program",
+  "award"
+ ],
+ "fields": [
+  {
+   "fieldname": "institution",
+   "fieldtype": "Data",
+   "label": "Institution / Organisation",
+   "in_list_view": 1,
+   "columns": 3,
+   "reqd": 1
+  },
+  {
+   "fieldname": "period",
+   "fieldtype": "Data",
+   "label": "Year / Period",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "e.g. 2014 - 2017"
+  },
+  {
+   "fieldname": "program",
+   "fieldtype": "Data",
+   "label": "Study / Program",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "award",
+   "fieldtype": "Data",
+   "label": "Award",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "e.g. Degree, Diploma, Certificate"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-17 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Applicant Qualification",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

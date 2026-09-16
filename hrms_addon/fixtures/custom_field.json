@@ -1011,5 +1011,411 @@
   "label": "Review Frequency",
   "options": "KRA Review Frequency",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_previous_salary",
+  "dt": "Job Applicant",
+  "fieldname": "custom_previous_salary",
+  "fieldtype": "Currency",
+  "insert_after": "upper_range",
+  "label": "Previous Salary",
+  "options": "currency",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_bio_data_tab",
+  "dt": "Job Applicant",
+  "fieldname": "custom_bio_data_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "custom_previous_salary",
+  "label": "Bio-Data",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_personal_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_personal_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_bio_data_tab",
+  "label": "Personal Information",
+  "description": "From the Pre-Interview Bio-Data Form (LPL/HR/19). Carried onto the Employee record when the candidate is hired.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_date_of_birth",
+  "dt": "Job Applicant",
+  "fieldname": "custom_date_of_birth",
+  "fieldtype": "Date",
+  "insert_after": "custom_personal_section",
+  "label": "Date of Birth",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_gender",
+  "dt": "Job Applicant",
+  "fieldname": "custom_gender",
+  "fieldtype": "Link",
+  "insert_after": "custom_date_of_birth",
+  "label": "Gender",
+  "options": "Gender",
+  "description": "Not on the paper form, but the Employee record requires it.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_marital_status",
+  "dt": "Job Applicant",
+  "fieldname": "custom_marital_status",
+  "fieldtype": "Select",
+  "insert_after": "custom_gender",
+  "label": "Marital Status",
+  "options": "\nSingle\nMarried\nDivorced\nWidowed",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_no_of_children",
+  "dt": "Job Applicant",
+  "fieldname": "custom_no_of_children",
+  "fieldtype": "Int",
+  "insert_after": "custom_marital_status",
+  "label": "No. of Children",
+  "non_negative": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_citizenship",
+  "dt": "Job Applicant",
+  "fieldname": "custom_citizenship",
+  "fieldtype": "Link",
+  "insert_after": "custom_no_of_children",
+  "label": "Citizenship",
+  "options": "Country",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_personal_cb1",
+  "dt": "Job Applicant",
+  "fieldname": "custom_personal_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_citizenship",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_home_village",
+  "dt": "Job Applicant",
+  "fieldname": "custom_home_village",
+  "fieldtype": "Data",
+  "insert_after": "custom_personal_cb1",
+  "label": "Home Village",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_home_district",
+  "dt": "Job Applicant",
+  "fieldname": "custom_home_district",
+  "fieldtype": "Link",
+  "insert_after": "custom_home_village",
+  "label": "Home District",
+  "options": "District",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_current_residence",
+  "dt": "Job Applicant",
+  "fieldname": "custom_current_residence",
+  "fieldtype": "Data",
+  "insert_after": "custom_home_district",
+  "label": "Current Place of Residence",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_current_district",
+  "dt": "Job Applicant",
+  "fieldname": "custom_current_district",
+  "fieldtype": "Link",
+  "insert_after": "custom_current_residence",
+  "label": "Current District of Residence",
+  "options": "District",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_personal_cb2",
+  "dt": "Job Applicant",
+  "fieldname": "custom_personal_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_current_district",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_nin",
+  "dt": "Job Applicant",
+  "fieldname": "custom_nin",
+  "fieldtype": "Data",
+  "insert_after": "custom_personal_cb2",
+  "label": "NIN",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_nssf_no",
+  "dt": "Job Applicant",
+  "fieldname": "custom_nssf_no",
+  "fieldtype": "Data",
+  "insert_after": "custom_nin",
+  "label": "NSSF No.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_tin",
+  "dt": "Job Applicant",
+  "fieldname": "custom_tin",
+  "fieldtype": "Data",
+  "insert_after": "custom_nssf_no",
+  "label": "TIN No.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_health_issues",
+  "dt": "Job Applicant",
+  "fieldname": "custom_health_issues",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_tin",
+  "label": "Health Issues / Diseases",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_parents_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_parents_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_health_issues",
+  "label": "Parents' Details",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_parents",
+  "dt": "Job Applicant",
+  "fieldname": "custom_parents",
+  "fieldtype": "Table",
+  "insert_after": "custom_parents_section",
+  "label": "Parents",
+  "options": "Applicant Parent",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_next_of_kin_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_next_of_kin_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_parents",
+  "label": "Next of Kin Details",
+  "description": "The first next of kin becomes the Employee's emergency contact.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_next_of_kin",
+  "dt": "Job Applicant",
+  "fieldname": "custom_next_of_kin",
+  "fieldtype": "Table",
+  "insert_after": "custom_next_of_kin_section",
+  "label": "Next of Kin",
+  "options": "Applicant Next of Kin",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_qualifications_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_qualifications_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_next_of_kin",
+  "label": "Professional Qualifications / Other Qualifications",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_qualifications",
+  "dt": "Job Applicant",
+  "fieldname": "custom_qualifications",
+  "fieldtype": "Table",
+  "insert_after": "custom_qualifications_section",
+  "label": "Qualifications",
+  "options": "Applicant Qualification",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_school_results_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_school_results_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_qualifications",
+  "label": "A'Level and O'Level Results",
+  "description": "One row per subject.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_school_results",
+  "dt": "Job Applicant",
+  "fieldname": "custom_school_results",
+  "fieldtype": "Table",
+  "insert_after": "custom_school_results_section",
+  "label": "Results",
+  "options": "Applicant School Result",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_employment_history_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_employment_history_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_school_results",
+  "label": "Employment History",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_employment_history",
+  "dt": "Job Applicant",
+  "fieldname": "custom_employment_history",
+  "fieldtype": "Table",
+  "insert_after": "custom_employment_history_section",
+  "label": "Employment History",
+  "options": "Applicant Employment History",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_skills_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_skills_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_employment_history",
+  "label": "Skills Possessed",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_skills",
+  "dt": "Job Applicant",
+  "fieldname": "custom_skills",
+  "fieldtype": "Table",
+  "insert_after": "custom_skills_section",
+  "label": "Skills",
+  "options": "Applicant Skill",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_languages_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_languages_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_skills",
+  "label": "Language Proficiency",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_languages",
+  "dt": "Job Applicant",
+  "fieldname": "custom_languages",
+  "fieldtype": "Table",
+  "insert_after": "custom_languages_section",
+  "label": "Languages",
+  "options": "Applicant Language",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_declaration_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_declaration_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_languages",
+  "label": "Declaration",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_bio_data_date",
+  "dt": "Job Applicant",
+  "fieldname": "custom_bio_data_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_declaration_section",
+  "label": "Date Signed",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_declaration_cb",
+  "dt": "Job Applicant",
+  "fieldname": "custom_declaration_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_bio_data_date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_signed_bio_data",
+  "dt": "Job Applicant",
+  "fieldname": "custom_signed_bio_data",
+  "fieldtype": "Attach",
+  "insert_after": "custom_declaration_cb",
+  "label": "Signed Bio-Data Form",
+  "description": "Scan of the form the candidate signed.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_nin",
+  "dt": "Employee",
+  "fieldname": "custom_nin",
+  "fieldtype": "Data",
+  "insert_after": "passport_details_section",
+  "label": "NIN",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_tin",
+  "dt": "Employee",
+  "fieldname": "custom_tin",
+  "fieldtype": "Data",
+  "insert_after": "custom_nin",
+  "label": "TIN No.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_nssf_no",
+  "dt": "Employee",
+  "fieldname": "custom_nssf_no",
+  "fieldtype": "Data",
+  "insert_after": "custom_tin",
+  "label": "NSSF No.",
+  "module": "HRMS Addon"
  }
 ]

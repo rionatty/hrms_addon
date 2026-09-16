@@ -128,5 +128,16 @@
   "property_type": "Data",
   "value": "custom_perspective,description",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee-passport_details_section-label",
+  "doc_type": "Employee",
+  "doctype_or_field": "DocField",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Identity & Statutory Numbers",
+  "module": "HRMS Addon",
+  "field_name": "passport_details_section"
  }
 ]

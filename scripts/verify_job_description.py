@@ -647,21 +647,24 @@ for needle, why in (
     ("jd_rules.seed_plan(", "must use the tested seed plan"),
     ("seed_plan(existing, _values_in_use(masters), masters)", "must seed the values already stored, for exactly the lists asked for"),
     ("get_table_columns(doctype)", "must check a field's column exists (a fresh install has no KRA custom fields yet)"),
-    ("for (doctype, fieldname), master in jd_rules.FIELD_MASTERS.items():",
+    ("FIELD_MASTERS = {**jd_rules.FIELD_MASTERS, **bio_data_rules.BIO_DATA_FIELD_MASTERS}",
+     "must know every field that picks from a list"),
+    ("for (doctype, fieldname), master in FIELD_MASTERS.items():",
      "must look for stored values in every field that picks from a list"),
+    ("MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS}", "must know every pick list"),
     ("insert(ignore_permissions=True)", "must insert regardless of the migrating user's permissions"),
     ("def seed_kra_masters():\n    seed_masters(jd_rules.KRA_MASTERS)", "seed_kra_masters must seed the KRA lists"),
     ("def seed_jd_masters():\n    seed_masters(jd_rules.JD_MASTERS)", "seed_jd_masters must seed the JD lists"),
-    ("def after_install():\n    seed_masters(jd_rules.MASTERS)",
+    ("def after_install():\n    seed_masters(MASTERS)",
      "after_install must seed every pick list: on a fresh install patches are marked done without running"),
 ):
     if needle not in masters_src:
         fail.append("pick_lists.py %s" % why)
 if os.path.exists(os.path.join(REPO, "hrms_addon", "hrms_addon", "kra_masters.py")):
     fail.append("kra_masters.py is now pick_lists.py: remove the old module")
-m = re.search(r'^after_install = "([a-z_.]+)"', hooks, re.M)
-if not m or m.group(1) != "hrms_addon.hrms_addon.pick_lists.after_install":
-    fail.append("hooks.after_install must be hrms_addon.hrms_addon.pick_lists.after_install")
+m = re.search(r"^after_install = (\[.*?^\]|\"[^\"]*\")", hooks, re.S | re.M)
+if not m or '"hrms_addon.hrms_addon.pick_lists.after_install"' not in m.group(1):
+    fail.append("hooks.after_install must include hrms_addon.hrms_addon.pick_lists.after_install")
 after_migrate = re.search(r"^after_migrate = \[(.*?)^\]", hooks, re.S | re.M)
 if after_migrate and ("pick_lists" in after_migrate.group(1) or "kra_masters" in after_migrate.group(1)):
     fail.append("the pick lists must not be seeded on every migrate: it would recreate values HR deleted")
