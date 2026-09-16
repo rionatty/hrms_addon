@@ -1,31 +1,32 @@
 {
  "actions": [],
- "creation": "2026-09-16 16:00:00.000000",
+ "creation": "2026-09-16 20:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "horizon",
-  "work_cycle"
+  "category",
+  "competency"
  ],
  "fields": [
   {
-   "fieldname": "horizon",
+   "fieldname": "category",
    "fieldtype": "Link",
-   "label": "Horizon",
-   "options": "JD Horizon",
+   "label": "Category",
+   "options": "JD Competency Category",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 2
+   "columns": 3
   },
   {
-   "fieldname": "work_cycle",
-   "fieldtype": "Data",
-   "label": "Work Cycle / Planning Activity",
+   "fieldname": "competency",
+   "fieldtype": "Link",
+   "label": "Competency",
+   "options": "Skill",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 8,
-   "description": "e.g. Monthly sales cycles"
+   "columns": 7,
+   "description": "Picked from the Skill list, the one Employee Skill Maps and interview rounds use."
   }
  ],
  "istable": 1,
@@ -33,7 +34,7 @@
  "modified": "2026-09-16 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
- "name": "JD Planning Horizon",
+ "name": "JD Competency",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",

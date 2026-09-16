@@ -757,61 +757,14 @@
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_iso_9001",
+  "name": "Designation-custom_jd_iso_responsibilities",
   "dt": "Designation",
-  "fieldname": "custom_jd_iso_9001",
-  "fieldtype": "Small Text",
+  "fieldname": "custom_jd_iso_responsibilities",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_iso_section",
-  "label": "ISO 9001 (Quality Management)",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_iso_22000",
-  "dt": "Designation",
-  "fieldname": "custom_jd_iso_22000",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_iso_9001",
-  "label": "ISO 22000 (Food Safety)",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_ims_leadership",
-  "dt": "Designation",
-  "fieldname": "custom_jd_ims_leadership",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_iso_22000",
-  "label": "IMS Leadership",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_iso_cb",
-  "dt": "Designation",
-  "fieldname": "custom_jd_iso_cb",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_ims_leadership",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_iso_45001",
-  "dt": "Designation",
-  "fieldname": "custom_jd_iso_45001",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_iso_cb",
-  "label": "ISO 45001 (Occupational Health & Safety)",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_iso_14001",
-  "dt": "Designation",
-  "fieldname": "custom_jd_iso_14001",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_iso_45001",
-  "label": "ISO 14001 (Environmental Management)",
+  "label": "ISO Responsibilities",
+  "options": "JD ISO Responsibility",
+  "description": "One row per standard.",
   "module": "HRMS Addon"
  },
  {
@@ -820,59 +773,20 @@
   "dt": "Designation",
   "fieldname": "custom_jd_specs_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_iso_14001",
+  "insert_after": "custom_jd_iso_responsibilities",
   "label": "Ideal Job Specifications",
+  "description": "One row per qualification, training or certification, or experience requirement.",
   "module": "HRMS Addon"
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_academic",
+  "name": "Designation-custom_jd_specifications",
   "dt": "Designation",
-  "fieldname": "custom_jd_academic",
-  "fieldtype": "Small Text",
+  "fieldname": "custom_jd_specifications",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_specs_section",
-  "label": "Academic Qualifications",
-  "description": "One per line.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_specs_cb1",
-  "dt": "Designation",
-  "fieldname": "custom_jd_specs_cb1",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_academic",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_professional",
-  "dt": "Designation",
-  "fieldname": "custom_jd_professional",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_specs_cb1",
-  "label": "Professional Training & Certifications",
-  "description": "One per line.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_specs_cb2",
-  "dt": "Designation",
-  "fieldname": "custom_jd_specs_cb2",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_professional",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_experience",
-  "dt": "Designation",
-  "fieldname": "custom_jd_experience",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_specs_cb2",
-  "label": "Desired Work Experience",
-  "description": "One per line.",
+  "label": "Job Specifications",
+  "options": "JD Job Specification",
   "module": "HRMS Addon"
  },
  {
@@ -881,39 +795,20 @@
   "dt": "Designation",
   "fieldname": "custom_jd_competency_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_experience",
+  "insert_after": "custom_jd_specifications",
   "label": "Competency Framework",
+  "description": "One row per competency, picked from the Skill list.",
   "module": "HRMS Addon"
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_technical_competencies",
+  "name": "Designation-custom_jd_competencies",
   "dt": "Designation",
-  "fieldname": "custom_jd_technical_competencies",
-  "fieldtype": "Small Text",
+  "fieldname": "custom_jd_competencies",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_competency_section",
-  "label": "Technical Competencies",
-  "description": "One per line.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_competency_cb",
-  "dt": "Designation",
-  "fieldname": "custom_jd_competency_cb",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_technical_competencies",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_behavioural_competencies",
-  "dt": "Designation",
-  "fieldname": "custom_jd_behavioural_competencies",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_competency_cb",
-  "label": "Behavioural Competencies",
-  "description": "One per line.",
+  "label": "Competencies",
+  "options": "JD Competency",
   "module": "HRMS Addon"
  },
  {
@@ -922,7 +817,7 @@
   "dt": "Designation",
   "fieldname": "custom_jd_signoff_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_behavioural_competencies",
+  "insert_after": "custom_jd_competencies",
   "label": "Sign-Off",
   "module": "HRMS Addon"
  },

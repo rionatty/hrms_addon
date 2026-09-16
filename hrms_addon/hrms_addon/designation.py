@@ -4,7 +4,9 @@
 """Designation (Job Title) — Job Description template.
 
 The JD fields themselves are fixtures (Job Description tab). This enforces
-the Key Result Area rules from jd_rules.py.
+the rules for its tables from jd_rules.py: Key Result Areas, reporting
+lines, stakeholders, decision areas, horizons, ISO responsibilities, job
+specifications and competencies.
 """
 
 import frappe
@@ -26,9 +28,12 @@ def validate(doc, method=None):
         doc.get("custom_jd_stakeholders"),
         doc.get("custom_jd_decision_authorities"),
         doc.get("custom_jd_planning_horizons"),
+        iso_responsibilities=doc.get("custom_jd_iso_responsibilities"),
+        specifications=doc.get("custom_jd_specifications"),
+        competencies=doc.get("custom_jd_competencies"),
     )
     if errors:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Key Result Areas"))
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Job Description"))
 
 
 @frappe.whitelist()

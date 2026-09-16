@@ -1,31 +1,31 @@
 {
  "actions": [],
- "creation": "2026-09-16 16:00:00.000000",
+ "creation": "2026-09-16 20:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "horizon",
-  "work_cycle"
+  "standard",
+  "accountabilities"
  ],
  "fields": [
   {
-   "fieldname": "horizon",
+   "fieldname": "standard",
    "fieldtype": "Link",
-   "label": "Horizon",
-   "options": "JD Horizon",
+   "label": "Standard",
+   "options": "JD ISO Standard",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 2
+   "columns": 3
   },
   {
-   "fieldname": "work_cycle",
-   "fieldtype": "Data",
-   "label": "Work Cycle / Planning Activity",
+   "fieldname": "accountabilities",
+   "fieldtype": "Small Text",
+   "label": "Accountabilities",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 8,
-   "description": "e.g. Monthly sales cycles"
+   "columns": 7,
+   "description": "e.g. Champion zero customer complaints across all plants; ensure NCRs are closed on time."
   }
  ],
  "istable": 1,
@@ -33,7 +33,7 @@
  "modified": "2026-09-16 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
- "name": "JD Planning Horizon",
+ "name": "JD ISO Responsibility",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",

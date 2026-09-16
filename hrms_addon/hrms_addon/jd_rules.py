@@ -14,6 +14,10 @@ without re-keying. The KRA carries its Balanced Scorecard perspective
 (custom_perspective); several KRAs may share a perspective, so the JD's
 "Financial 25%" can be split across three Financial KRAs. The weightings of
 all rows together total 100%.
+
+The JD's other sections are child tables too. Every dropdown in them, and
+on the KRA form, picks from a small master HR can add to (MASTERS), seeded
+once with the values Luuka's documents use.
 """
 
 # The perspectives a JD starts with, in the order the JD prints them. Only a
@@ -50,26 +54,76 @@ KRA_FIELD_MASTERS = {
     "custom_frequency": "KRA Review Frequency",
 }
 
+HORIZONS = ("Short-Term", "Medium-Term", "Long-Term")
+
+# The standards of LPL's Integrated Management System, in the order the JD
+# lists them. IMS Leadership is not a standard, but the JD gives it a line of
+# its own, so it is a value like the others.
+ISO_STANDARDS = (
+    "ISO 9001 (Quality Management)",
+    "ISO 22000 (Food Safety)",
+    "ISO 45001 (Occupational Health & Safety)",
+    "ISO 14001 (Environmental Management)",
+    "IMS Leadership",
+)
+SPECIFICATION_TYPES = ("Academic Qualification", "Professional Training & Certification", "Work Experience")
+COMPETENCY_CATEGORIES = ("Technical", "Behavioural")
+
+# The Job Description tables' pick lists, same idea as KRA_MASTERS. The seeds
+# are what LPL/JD/SM/001 uses and every value the old dropdowns and text
+# sections could hold, so moving an existing JD over never needs a value its
+# list lacks.
+JD_MASTERS = {
+    "JD Relationship Type": ("relationship_type", ("Direct", "Indirect")),
+    "JD Stakeholder Type": ("stakeholder_type", ("Internal", "External")),
+    "JD Authority Level": ("authority_level", ("Strategic", "Operational", "Managerial")),
+    "JD Horizon": ("horizon", HORIZONS),
+    "JD ISO Standard": ("standard", ISO_STANDARDS),
+    "JD Specification Type": ("specification_type", SPECIFICATION_TYPES),
+    "JD Requirement Priority": ("priority", ("Essential", "Preferred", "Desirable")),
+    "JD Competency Category": ("category", COMPETENCY_CATEGORIES),
+}
+
+# (JD child DocType, field) -> the master it links to
+JD_FIELD_MASTERS = {
+    ("JD Reporting Line", "relationship"): "JD Relationship Type",
+    ("JD Stakeholder", "stakeholder_type"): "JD Stakeholder Type",
+    ("JD Decision Authority", "authority_level"): "JD Authority Level",
+    ("JD Planning Horizon", "horizon"): "JD Horizon",
+    ("JD ISO Responsibility", "standard"): "JD ISO Standard",
+    ("JD Job Specification", "specification_type"): "JD Specification Type",
+    ("JD Job Specification", "priority"): "JD Requirement Priority",
+    ("JD Competency", "category"): "JD Competency Category",
+}
+
+# Every pick list, and every (DocType, field) that picks from one
+MASTERS = {**KRA_MASTERS, **JD_MASTERS}
+FIELD_MASTERS = {
+    **{("KRA", field): master for field, master in KRA_FIELD_MASTERS.items()},
+    **JD_FIELD_MASTERS,
+}
+
 TOTAL_WEIGHTING = 100.0
 TOLERANCE = 0.01  # 15.7 + 22.1 + 51.4 + 10.8 is 99.99999999999999 in floating point
 
 
-def seed_plan(existing, in_use=None):
+def seed_plan(existing, in_use=None, masters=None):
     """Records to create so each master holds its seed values and every
-    value already stored on a KRA.
+    value already stored in a field that picks from it.
 
     existing: {master doctype: [names already in the master]}
-    in_use:   {master doctype: [values stored on KRAs]}; values in use are
-              kept valid because those fields used to be free Select
-              options, and a KRA holding a value its new master lacks
+    in_use:   {master doctype: [values stored in its fields]}; values in use
+              are kept valid because those fields used to be Select
+              options, and a document holding a value its new master lacks
               could not be saved again.
+    masters:  the pick lists to plan, from MASTERS (the default: all).
     Returns {master doctype: [record dicts ready to insert]}.
 
     Names are compared ignoring case: the database collation treats
     "monthly" and "Monthly" as the same name, so creating both would fail.
     """
     plan = {}
-    for doctype, (name_field, seeds) in KRA_MASTERS.items():
+    for doctype, (name_field, seeds) in (MASTERS if masters is None else masters).items():
         taken = {str(name).strip().lower() for name in existing.get(doctype, []) if name}
         records = []
         wanted = list(seeds) + [value for value in (in_use or {}).get(doctype, []) if value]
@@ -162,7 +216,7 @@ def key_result_area_errors(rows, perspectives=None):
     return errors
 
 
-# ── Reporting, stakeholders, authority and planning horizon tables ───
+# ── The other Job Description tables ─────────────────────────────────
 
 # Designation table field -> child DocType
 TABLES = {
@@ -170,17 +224,29 @@ TABLES = {
     "custom_jd_stakeholders": "JD Stakeholder",
     "custom_jd_decision_authorities": "JD Decision Authority",
     "custom_jd_planning_horizons": "JD Planning Horizon",
+    "custom_jd_iso_responsibilities": "JD ISO Responsibility",
+    "custom_jd_specifications": "JD Job Specification",
+    "custom_jd_competencies": "JD Competency",
 }
 
-HORIZONS = ("Short-Term", "Medium-Term", "Long-Term")
-
-# Frappe stores Data fields as varchar(140). A longer value would abort the
-# insert, so the migration sends it to the comment instead.
+# Frappe stores Data fields as varchar(140), document names included. A
+# longer value would abort the insert, so the migration sends it to the
+# comment instead.
 DATA_MAX = 140
 
 
-def jd_table_errors(designation, reports_to, reporting_lines, stakeholders, authorities, horizons):
-    """Problems across the four Job Description tables, as user-facing messages."""
+def jd_table_errors(
+    designation,
+    reports_to,
+    reporting_lines,
+    stakeholders,
+    authorities,
+    horizons,
+    iso_responsibilities=None,
+    specifications=None,
+    competencies=None,
+):
+    """Problems across the Job Description tables, as user-facing messages."""
     errors = []
 
     seen = {}
@@ -239,6 +305,43 @@ def jd_table_errors(designation, reports_to, reporting_lines, stakeholders, auth
         elif horizon:
             seen[horizon] = index
 
+    seen = {}
+    for index, row in enumerate(iso_responsibilities or [], start=1):
+        standard = _get(row, "standard")
+        if not standard:
+            continue
+        if standard.lower() in seen:
+            errors.append(
+                "ISO Responsibilities row %d: %s is already in row %d. Put all its accountabilities in one row."
+                % (index, standard, seen[standard.lower()])
+            )
+        else:
+            seen[standard.lower()] = index
+
+    seen = {}
+    for index, row in enumerate(specifications or [], start=1):
+        text = " ".join((_get(row, "requirement") or "").split()).lower()
+        if not text:
+            continue
+        key = (_get(row, "specification_type"), text)
+        if key in seen:
+            errors.append("Ideal Job Specifications row %d repeats row %d." % (index, seen[key]))
+        else:
+            seen[key] = index
+
+    seen = {}
+    for index, row in enumerate(competencies or [], start=1):
+        competency = _get(row, "competency")
+        if not competency:
+            continue
+        if competency.lower() in seen:
+            errors.append(
+                "Competency Framework row %d: %s is already listed in row %d."
+                % (index, competency, seen[competency.lower()])
+            )
+        else:
+            seen[competency.lower()] = index
+
     return errors
 
 
@@ -272,9 +375,14 @@ def split_lines(text):
     return lines
 
 
+def name_lookup(names):
+    """Case-insensitive name -> the record's exact name."""
+    return {name.strip().lower(): name for name in names if name}
+
+
 def designation_lookup(names):
     """Case-insensitive name -> the Job Title's exact name."""
-    return {name.strip().lower(): name for name in names if name}
+    return name_lookup(names)
 
 
 def split_parenthetical(text):
@@ -360,6 +468,90 @@ def text_sections_to_rows(values, lookup):
                 unconverted.append("%s: %s" % (label, work_cycle))
 
     return tables, unconverted
+
+
+# The text fields the ISO, specification and competency tables replace:
+# fieldname -> the value its rows get in the table's pick list column
+ISO_TEXT_FIELDS = dict(
+    zip(
+        ("custom_jd_iso_9001", "custom_jd_iso_22000", "custom_jd_iso_45001", "custom_jd_iso_14001", "custom_jd_ims_leadership"),
+        ISO_STANDARDS,
+    )
+)
+SPECIFICATION_TEXT_FIELDS = dict(
+    zip(("custom_jd_academic", "custom_jd_professional", "custom_jd_experience"), SPECIFICATION_TYPES)
+)
+COMPETENCY_TEXT_FIELDS = dict(
+    zip(("custom_jd_technical_competencies", "custom_jd_behavioural_competencies"), COMPETENCY_CATEGORIES)
+)
+PROFILE_TEXT_FIELDS = {**ISO_TEXT_FIELDS, **SPECIFICATION_TEXT_FIELDS, **COMPETENCY_TEXT_FIELDS}
+
+
+def skill_name_problem(name):
+    """Why `name` cannot be a Skill, or None. Frappe refuses < and > in a
+    name, and a name equal to its DocType (frappe/model/naming.py
+    validate_name); the name column holds DATA_MAX characters."""
+    if len(name) > DATA_MAX:
+        return "longer than %d characters" % DATA_MAX
+    if "<" in name or ">" in name:
+        return "contains < or >"
+    if name.lower() == "skill":
+        return "a Skill cannot be called Skill"
+    return None
+
+
+def profile_sections_to_rows(values, skills):
+    """Rows for the ISO Responsibilities, Ideal Job Specifications and
+    Competency Framework tables from one Designation's old text fields.
+
+    skills: {lower-cased name: exact name} of the Skills that already exist.
+    Returns ({table field: [row dict, ...]}, [Skills to create first],
+    [lines that could not be moved]).
+
+    An ISO field becomes one row, whole: the table takes one row per
+    standard. Each line of a specification or competency field becomes a
+    row; a line repeated in the same list is kept once. A competency the
+    Skill list lacks becomes a new Skill, unless it cannot be a Skill name.
+    Nothing else is dropped: a line that cannot become a row is returned.
+    """
+    tables = {"custom_jd_iso_responsibilities": [], "custom_jd_specifications": [], "custom_jd_competencies": []}
+    new_skills = []
+    unconverted = []
+
+    for field, standard in ISO_TEXT_FIELDS.items():
+        text = str(values.get(field) or "").strip()
+        if text:
+            tables["custom_jd_iso_responsibilities"].append({"standard": standard, "accountabilities": text})
+
+    seen = set()
+    for field, kind in SPECIFICATION_TEXT_FIELDS.items():
+        for line in split_lines(values.get(field)):
+            key = (kind, " ".join(line.split()).lower())
+            if key not in seen:
+                seen.add(key)
+                tables["custom_jd_specifications"].append({"specification_type": kind, "requirement": line})
+
+    known = dict(skills)
+    listed = {}  # lower-cased competency -> the category it was listed under
+    for field, category in COMPETENCY_TEXT_FIELDS.items():
+        for line in split_lines(values.get(field)):
+            name = " ".join(line.split())
+            key = name.lower()
+            if key in listed:
+                if listed[key] != category:
+                    unconverted.append("%s competency: %s (already listed as %s)" % (category, line, listed[key]))
+                continue
+            if key not in known:
+                problem = skill_name_problem(name)
+                if problem:
+                    unconverted.append("%s competency: %s (%s)" % (category, line, problem))
+                    continue
+                known[key] = name
+                new_skills.append(name)
+            listed[key] = category
+            tables["custom_jd_competencies"].append({"category": category, "competency": known[key]})
+
+    return tables, new_skills, unconverted
 
 
 def _get(row, key):

@@ -17,7 +17,7 @@ so the Select -> Link type check, which only runs on update, never fires,
 and the column (varchar either way) keeps its data.
 """
 
-from hrms_addon.hrms_addon.kra_masters import seed_kra_masters
+from hrms_addon.hrms_addon.pick_lists import seed_kra_masters
 
 
 def execute():

@@ -154,10 +154,10 @@ doctype_js = {
 # ------------
 
 # before_install = "hrms_addon.install.before_install"
-# Seed the KRA pick lists on a fresh install. Frappe marks every patch as
-# already run when an app is installed, so the seeding patch never runs
-# there. See hrms_addon/kra_masters.py.
-after_install = "hrms_addon.hrms_addon.kra_masters.after_install"
+# Seed the pick lists (KRA form, Job Description tables) on a fresh install.
+# Frappe marks every patch as already run when an app is installed, so the
+# seeding patches never run there. See hrms_addon/pick_lists.py.
+after_install = "hrms_addon.hrms_addon.pick_lists.after_install"
 
 # Uninstallation
 # ------------
@@ -316,22 +316,11 @@ fixtures = [
                     "Designation-custom_jd_work_cycle_section",
                     "Designation-custom_jd_planning_horizons",
                     "Designation-custom_jd_iso_section",
-                    "Designation-custom_jd_iso_9001",
-                    "Designation-custom_jd_iso_22000",
-                    "Designation-custom_jd_ims_leadership",
-                    "Designation-custom_jd_iso_cb",
-                    "Designation-custom_jd_iso_45001",
-                    "Designation-custom_jd_iso_14001",
+                    "Designation-custom_jd_iso_responsibilities",
                     "Designation-custom_jd_specs_section",
-                    "Designation-custom_jd_academic",
-                    "Designation-custom_jd_specs_cb1",
-                    "Designation-custom_jd_professional",
-                    "Designation-custom_jd_specs_cb2",
-                    "Designation-custom_jd_experience",
+                    "Designation-custom_jd_specifications",
                     "Designation-custom_jd_competency_section",
-                    "Designation-custom_jd_technical_competencies",
-                    "Designation-custom_jd_competency_cb",
-                    "Designation-custom_jd_behavioural_competencies",
+                    "Designation-custom_jd_competencies",
                     "Designation-custom_jd_signoff_section",
                     "Designation-custom_jd_hrm",
                     "Designation-custom_jd_hrm_date",

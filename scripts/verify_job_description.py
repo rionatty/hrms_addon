@@ -6,12 +6,14 @@ Key Result Area rules are exercised: the real Head Sales & Marketing split
 floating-point drift, totals that miss 100%, missing and repeated KRAs, a
 KRA with no perspective, bad weightings, a perspective HR added, and the
 seeding of the pick lists (fresh, partly there, case clashes, values
-already stored on KRAs).
+already stored). The other JD tables' rules and the moves of old text
+sections into them run against the lines of the same JD.
 
 It also checks:
-  * each KRA pick list (Perspective, Level, Unit, Data Source, Review
-    Frequency) is a Link to its own master DocType that HR can add to and
-    rename, and no code keeps its own copy of the perspective list;
+  * every dropdown of the KRA form and of the JD tables is a Link to its
+    own master DocType that HR can add to and rename, seeded with every
+    value the old dropdowns and text sections held, and no code keeps its
+    own copy of the perspective list;
   * the JD row picks from the standard KRA master and fetches the
     perspective from a field that exists;
   * the KRA additions keep the KPI Library contract — the exact fieldnames
@@ -69,17 +71,41 @@ child_fields = {f["fieldname"]: f for f in child["fields"]}
 js = read("hrms_addon", "public", "js", "designation.js")
 glue = read("hrms_addon", "hrms_addon", "designation.py")
 
-# ── 1. The KRA pick lists are masters HR maintains ───────────────────
-# Every former dropdown on KRA links to its own master DocType; nothing that
-# reads the lists may hold a copy of them.
+def doctype_json(name):
+    folder = name.lower().replace(" ", "_")
+    return json.loads(read("hrms_addon", "hrms_addon", "doctype", folder, folder + ".json"))
+
+
+# ── 1. The pick lists are masters HR maintains ───────────────────────
+# Every dropdown on KRA and in the JD tables links to its own master
+# DocType; nothing that reads the lists may hold a copy of them.
 for fieldname, master in rules.KRA_FIELD_MASTERS.items():
     f = kra_fields.get(fieldname) or {}
     if (f.get("fieldtype"), f.get("options")) != ("Link", master):
         fail.append("KRA.%s must be a Link to %s, is %s %r" % (fieldname, master, f.get("fieldtype"), f.get("options")))
 if set(rules.KRA_FIELD_MASTERS.values()) != set(rules.KRA_MASTERS):
     fail.append("KRA_FIELD_MASTERS and KRA_MASTERS name different masters")
+for (table, fieldname), master in rules.JD_FIELD_MASTERS.items():
+    try:
+        f = next((x for x in doctype_json(table)["fields"] if x["fieldname"] == fieldname), {})
+    except OSError:
+        fail.append("%s has no DocType JSON" % table)
+        continue
+    if (f.get("fieldtype"), f.get("options")) != ("Link", master):
+        fail.append("%s.%s must be a Link to %s, is %s %r" % (table, fieldname, master, f.get("fieldtype"), f.get("options")))
+if set(rules.JD_FIELD_MASTERS.values()) != set(rules.JD_MASTERS):
+    fail.append("JD_FIELD_MASTERS and JD_MASTERS name different masters")
+if rules.MASTERS != {**rules.KRA_MASTERS, **rules.JD_MASTERS} or set(rules.FIELD_MASTERS.values()) != set(rules.MASTERS):
+    fail.append("MASTERS / FIELD_MASTERS must cover exactly the KRA and JD pick lists")
+# Every Select left in a JD child table would be a dropdown HR cannot extend
+for folder in sorted(os.listdir(os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype"))):
+    if folder.startswith("jd_"):
+        spec_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", folder, folder + ".json"))
+        for f in spec_json["fields"]:
+            if f["fieldtype"] == "Select":
+                fail.append("%s.%s is still a Select: make it a Link to a pick list" % (spec_json["name"], f["fieldname"]))
 
-for master, (name_field, seeds) in rules.KRA_MASTERS.items():
+for master, (name_field, seeds) in rules.MASTERS.items():
     folder = master.lower().replace(" ", "_")
     try:
         spec_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", folder, folder + ".json"))
@@ -92,9 +118,11 @@ for master, (name_field, seeds) in rules.KRA_MASTERS.items():
     if spec_json.get("autoname") != "field:%s" % name_field or not (fields.get(name_field) or {}).get("reqd"):
         fail.append("%s must be named by its mandatory %s field" % (master, name_field))
     if not spec_json.get("allow_rename"):
-        fail.append("%s must allow rename, so fixing a value updates every KRA using it" % master)
+        fail.append("%s must allow rename, so fixing a value updates every document using it" % master)
     if not spec_json.get("quick_entry"):
-        fail.append("%s should open in quick entry when created from the KRA form" % master)
+        fail.append("%s should open in quick entry when created from the form that picks it" % master)
+    if len(set(s.lower() for s in seeds)) != len(seeds) or not all(s and s == s.strip() for s in seeds):
+        fail.append("%s seeds must be distinct, non-blank and trimmed: %s" % (master, list(seeds)))
     perms = {p["role"]: p for p in spec_json.get("permissions", [])}
     for role in ("HR Manager", "HR User"):
         if not all((perms.get(role) or {}).get(k) for k in ("read", "write", "create")):
@@ -123,7 +151,24 @@ for name in rules.PERSPECTIVES:
         fail.append("designation.js hard-codes the perspective %r — perspectives come from the master" % name)
 if "get_perspective_order" not in js or not re.search(r"@frappe\.whitelist\(\)\s*\ndef get_perspective_order\(", glue):
     fail.append("designation.js must get the perspective order from the whitelisted get_perspective_order")
-print("pick lists: 5 KRA fields link to 5 HR-maintained masters; no copy of the perspective list in the form")
+
+# The seeds hold every value the old JD dropdowns and text sections could
+# produce, so nothing moved across needs a value its list lacks.
+def seeds_of(master):
+    return set(rules.JD_MASTERS.get(master, (None, ()))[1])
+
+
+for kind, master in (("reporting", "JD Relationship Type"), ("stakeholder", "JD Stakeholder Type"),
+                     ("authority", "JD Authority Level"), ("horizon", "JD Horizon")):
+    written = {label for k, label in rules.OLD_TEXT_FIELDS.values() if k == kind}
+    if not written <= seeds_of(master):
+        fail.append("%s seeds must include every value the old text migration writes: %s" % (master, sorted(written - seeds_of(master))))
+for mapping, master in ((rules.ISO_TEXT_FIELDS, "JD ISO Standard"), (rules.SPECIFICATION_TEXT_FIELDS, "JD Specification Type"),
+                        (rules.COMPETENCY_TEXT_FIELDS, "JD Competency Category")):
+    if not set(mapping.values()) <= seeds_of(master):
+        fail.append("%s seeds must include every value the profile migration writes: %s" % (master, sorted(set(mapping.values()) - seeds_of(master))))
+print("pick lists: %d fields link to %d HR-maintained masters; no dropdown left fixed, no copy of the perspective list"
+      % (len(rules.FIELD_MASTERS), len(rules.MASTERS)))
 
 # ── 2. The JD row picks from the KRA master ──────────────────────────
 kra = child_fields.get("kra") or {}
@@ -252,15 +297,34 @@ if [r["source_name"] for r in plan["KRA Data Source"]].count("SAP") != 1 or len(
 for orders, expected in (([], 10), ([10, 20, 30, 40], 50), ([10, None, 105, 0], 110), ([0, 0], 10), ([40, 45], 50)):
     if rules.next_display_order(orders) != expected:
         fail.append("next_display_order(%s) is %s, expected %s" % (orders, rules.next_display_order(orders), expected))
+plan = rules.seed_plan({})
+if set(plan) != set(rules.MASTERS):
+    fail.append("seed_plan with no lists named must plan every pick list: %s" % sorted(plan))
+for master, (name_field, seeds) in rules.JD_MASTERS.items():
+    if [r[name_field] for r in plan[master]] != list(seeds) or any(r["doctype"] != master for r in plan[master]):
+        fail.append("fresh seed of %s wrong: %s" % (master, plan[master]))
+plan = rules.seed_plan({"JD Horizon": ["short-term"]}, {"JD Relationship Type": ["Direct", "Dotted Line"],
+                                                        "KRA Unit": ["Tonnes"]}, rules.JD_MASTERS)
+if set(plan) != set(rules.JD_MASTERS):
+    fail.append("seed_plan must plan only the lists it is given: %s" % sorted(plan))
+if [r["horizon"] for r in plan["JD Horizon"]] != ["Medium-Term", "Long-Term"]:
+    fail.append("JD Horizon seed must skip Short-Term, already there as short-term: %s" % plan["JD Horizon"])
+if [r["relationship_type"] for r in plan["JD Relationship Type"]] != ["Direct", "Indirect", "Dotted Line"]:
+    fail.append("a relationship type in use must be seeded once, after the defaults: %s" % plan["JD Relationship Type"])
 print("behaviour: JD split, split perspective, drift, totals, repeats, gaps, bad values, new perspectives and seeding correct")
 
-# ── 4b. The four section tables ──────────────────────────────────────
+# ── 4b. The other section tables ─────────────────────────────────────
 EXPECTED_TABLE_FIELDS = {
     "JD Reporting Line": ["relationship", "designation", "scope"],
     "JD Stakeholder": ["stakeholder_type", "stakeholder", "interaction"],
     "JD Decision Authority": ["authority_level", "decisions", "constraints"],
     "JD Planning Horizon": ["horizon", "work_cycle"],
+    "JD ISO Responsibility": ["standard", "accountabilities"],
+    "JD Job Specification": ["specification_type", "requirement", "priority"],
+    "JD Competency": ["category", "competency"],
 }
+if set(rules.TABLES.values()) != set(EXPECTED_TABLE_FIELDS):
+    fail.append("jd_rules.TABLES %s differ from the expected tables" % sorted(rules.TABLES.values()))
 by_name = {f["name"]: f for f in custom}
 for table_field, child_doctype in rules.TABLES.items():
     parent_field = by_name.get("Designation-%s" % table_field)
@@ -286,14 +350,30 @@ for table_field, child_doctype in rules.TABLES.items():
     if not os.path.exists(os.path.join(path, "__init__.py")):
         fail.append("%s folder is missing __init__.py" % child_doctype)
 
-horizon_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", "jd_planning_horizon", "jd_planning_horizon.json"))
-if tuple(options(next(f for f in horizon_json["fields"] if f["fieldname"] == "horizon"))) != rules.HORIZONS:
-    fail.append("JD Planning Horizon options differ from jd_rules.HORIZONS")
-position = next(f for f in json.loads(read("hrms_addon", "hrms_addon", "doctype", "jd_reporting_line", "jd_reporting_line.json"))["fields"]
-                if f["fieldname"] == "designation")
-if (position.get("fieldtype"), position.get("options"), position.get("reqd")) != ("Link", "Designation", 1):
-    fail.append("JD Reporting Line.designation must be a mandatory Link to Designation")
-print("section tables: 4 child tables wired, fields, grid width and classes correct")
+if rules.JD_MASTERS["JD Horizon"][1] != rules.HORIZONS:
+    fail.append("JD Horizon must be seeded with jd_rules.HORIZONS")
+
+
+def table_field(table, fieldname):
+    return next((f for f in doctype_json(table)["fields"] if f["fieldname"] == fieldname), {})
+
+
+for table, fieldname, fieldtype, options_ in (
+    ("JD Reporting Line", "designation", "Link", "Designation"),
+    ("JD Competency", "competency", "Link", "Skill"),
+    ("JD ISO Responsibility", "accountabilities", "Small Text", None),
+    ("JD Job Specification", "requirement", "Small Text", None),
+):
+    f = table_field(table, fieldname)
+    if (f.get("fieldtype"), f.get("options"), f.get("reqd"), f.get("in_list_view")) != (fieldtype, options_, 1, 1):
+        fail.append("%s.%s must be a mandatory %s shown in the grid" % (table, fieldname, "Link to %s" % options_ if options_ else fieldtype))
+if table_field("JD Job Specification", "priority").get("reqd"):
+    fail.append("JD Job Specification.priority must stay optional: the JD's wording does not always say")
+for fieldname in ("custom_jd_iso_responsibilities", "custom_jd_specifications", "custom_jd_competencies"):
+    f = by_name.get("Designation-%s" % fieldname) or {}
+    if f.get("reqd"):
+        fail.append("Designation.%s must not be mandatory: not every Job Title has a written JD yet" % fieldname)
+print("section tables: %d child tables wired, fields, grid width and classes correct" % len(rules.TABLES))
 
 # Rules across the tables
 t = rules.jd_table_errors
@@ -318,6 +398,33 @@ expect("decision repeated", t("X", None, [], [], [{"authority_level": "Strategic
        "repeats row 1")
 expect("horizon twice", t("X", None, [], [], [], [{"horizon": "Short-Term"}, {"horizon": "Short-Term"}]),
        "Use one row per horizon")
+ISO_9001, IMS = rules.ISO_STANDARDS[0], rules.ISO_STANDARDS[-1]
+ACADEMIC, TRAINING, EXPERIENCE = rules.SPECIFICATION_TYPES
+TECHNICAL, BEHAVIOURAL = rules.COMPETENCY_CATEGORIES
+expect("clean ISO, specification and competency tables", t(
+    "Head Sales & Marketing", None, [], [], [], [],
+    iso_responsibilities=[{"standard": ISO_9001, "accountabilities": "Champion zero customer complaints."},
+                          {"standard": IMS, "accountabilities": "Participate in IMS management reviews."}],
+    specifications=[{"specification_type": ACADEMIC, "requirement": "Bachelor's Degree in Commerce", "priority": "Essential"},
+                    {"specification_type": TRAINING, "requirement": "Bachelor's Degree in Commerce"},
+                    {"specification_type": EXPERIENCE, "requirement": "Minimum 8 years in sales"}],
+    competencies=[{"category": TECHNICAL, "competency": "Key account management"},
+                  {"category": BEHAVIOURAL, "competency": "Negotiation and persuasion"}]))
+expect("standard twice", t("X", None, [], [], [], [], iso_responsibilities=[
+    {"standard": ISO_9001, "accountabilities": "Complaints"}, {"standard": ISO_9001, "accountabilities": "NCRs"}]),
+    "ISO Responsibilities row 2: %s is already in row 1. Put all its accountabilities in one row." % ISO_9001)
+expect("specification repeated", t("X", None, [], [], [], [], specifications=[
+    {"specification_type": ACADEMIC, "requirement": "Bachelor's  Degree in Commerce"},
+    {"specification_type": ACADEMIC, "requirement": "bachelor's degree in commerce"}]),
+    "Ideal Job Specifications row 2 repeats row 1.")
+expect("competency under both categories", t("X", None, [], [], [], [], competencies=[
+    {"category": TECHNICAL, "competency": "Negotiation"}, {"category": BEHAVIOURAL, "competency": "negotiation"}]),
+    "Competency Framework row 2: negotiation is already listed in row 1.")
+expect("competency repeated in another case", t("X", None, [], [], [], [], competencies=[
+    {"category": TECHNICAL, "competency": "key account management"}, {"category": TECHNICAL, "competency": "Key Account Management"}]),
+    "Competency Framework row 2: Key Account Management is already listed in row 1.")
+expect("blank rows are left to the mandatory check", t("X", None, [], [], [], [], iso_responsibilities=[{}, {}],
+                                                       specifications=[{}, {}], competencies=[{}, {}]))
 
 # Moving the old text into the tables, using the lines of LPL/JD/SM/001
 lookup = rules.designation_lookup(["Sales Manager", "Senior Sales/CCE", "Executive Director", "Receptionist"])
@@ -391,6 +498,110 @@ if "jd_rules.jd_table_errors" not in glue:
     fail.append("designation.py does not apply jd_table_errors on save")
 print("migration patch: listed, uses the tested conversion, idempotent, defensive, deletes exactly the old fields")
 
+# Moving ISO Responsibilities, Ideal Job Specifications and Competency
+# Framework into their tables, using the lines of LPL/JD/SM/001
+OLD_PROFILE_FIELDS = {
+    "iso": ["custom_jd_iso_9001", "custom_jd_iso_22000", "custom_jd_iso_45001", "custom_jd_iso_14001", "custom_jd_ims_leadership"],
+    "specification": ["custom_jd_academic", "custom_jd_professional", "custom_jd_experience"],
+    "competency": ["custom_jd_technical_competencies", "custom_jd_behavioural_competencies"],
+}
+for kind, mapping in (("iso", rules.ISO_TEXT_FIELDS), ("specification", rules.SPECIFICATION_TEXT_FIELDS),
+                      ("competency", rules.COMPETENCY_TEXT_FIELDS)):
+    if sorted(mapping) != sorted(OLD_PROFILE_FIELDS[kind]):
+        fail.append("the %s migration must read exactly the old fields %s, reads %s" % (kind, OLD_PROFILE_FIELDS[kind], sorted(mapping)))
+if rules.PROFILE_TEXT_FIELDS != {**rules.ISO_TEXT_FIELDS, **rules.SPECIFICATION_TEXT_FIELDS, **rules.COMPETENCY_TEXT_FIELDS}:
+    fail.append("PROFILE_TEXT_FIELDS must be the ISO, specification and competency fields together")
+if (rules.ISO_TEXT_FIELDS.get("custom_jd_iso_45001"), rules.ISO_TEXT_FIELDS.get("custom_jd_ims_leadership"),
+        rules.SPECIFICATION_TEXT_FIELDS.get("custom_jd_professional"), rules.COMPETENCY_TEXT_FIELDS.get("custom_jd_behavioural_competencies")) != (
+        "ISO 45001 (Occupational Health & Safety)", "IMS Leadership", "Professional Training & Certification", "Behavioural"):
+    fail.append("an old field maps to the wrong list value: %s" % rules.PROFILE_TEXT_FIELDS)
+
+profile_text = {
+    "custom_jd_iso_9001": "Champion zero customer complaints across all plants;\nensure NCRs are closed.  ",
+    "custom_jd_iso_22000": "   ",
+    "custom_jd_ims_leadership": "Participate in IMS management reviews representing the Sales & Marketing function.",
+    "custom_jd_academic": "• Bachelor’s Degree in Business Administration, Commerce, Marketing, or a related field.\n\n"
+                          "• Post Graduate Diploma or Master’s Degree is strongly preferred.",
+    "custom_jd_professional": "Chartered Institute of Marketing (CIM) — professional certification desirable.\n"
+                              "Key Account Management and Strategic Selling programmes.\n"
+                              "key account management and  strategic selling programmes.",
+    "custom_jd_experience": "- Minimum 8 years’ experience in sales and marketing.",
+    "custom_jd_technical_competencies": "• Sales strategy development and execution\n• Key account management\n"
+                                        "• Negotiation and persuasion\n• " + "y" * 150,
+    "custom_jd_behavioural_competencies": "• Negotiation and persuasion\n• Customer-centric focus\n"
+                                          "• Results <b>orientation</b>\n• Customer-centric   focus",
+}
+existing_skills = rules.name_lookup(["Key Account Management", "Customer-Centric Focus"])
+before = dict(existing_skills)
+tables, new_skills, unconverted = rules.profile_sections_to_rows(profile_text, existing_skills)
+if existing_skills != before:
+    fail.append("profile_sections_to_rows must not change the Skill lookup it is given (the patch merges it only after a success)")
+if tables["custom_jd_iso_responsibilities"] != [
+        {"standard": ISO_9001, "accountabilities": "Champion zero customer complaints across all plants;\nensure NCRs are closed."},
+        {"standard": IMS, "accountabilities": "Participate in IMS management reviews representing the Sales & Marketing function."}]:
+    fail.append("ISO rows from the JD text wrong (one whole row per filled standard, in order): %s" % tables["custom_jd_iso_responsibilities"])
+if [(r["specification_type"], r["requirement"]) for r in tables["custom_jd_specifications"]] != [
+        (ACADEMIC, "Bachelor’s Degree in Business Administration, Commerce, Marketing, or a related field."),
+        (ACADEMIC, "Post Graduate Diploma or Master’s Degree is strongly preferred."),
+        (TRAINING, "Chartered Institute of Marketing (CIM) — professional certification desirable."),
+        (TRAINING, "Key Account Management and Strategic Selling programmes."),
+        (EXPERIENCE, "Minimum 8 years’ experience in sales and marketing.")]:
+    fail.append("specification rows from the JD text wrong (one per line, bullets off, repeats once): %s" % tables["custom_jd_specifications"])
+if [(r["category"], r["competency"]) for r in tables["custom_jd_competencies"]] != [
+        (TECHNICAL, "Sales strategy development and execution"), (TECHNICAL, "Key Account Management"),
+        (TECHNICAL, "Negotiation and persuasion"), (BEHAVIOURAL, "Customer-Centric Focus")]:
+    fail.append("competency rows from the JD text wrong (existing Skills matched ignoring case): %s" % tables["custom_jd_competencies"])
+if new_skills != ["Sales strategy development and execution", "Negotiation and persuasion"]:
+    fail.append("only competencies the Skill list lacks become new Skills, once each: %s" % new_skills)
+if not any("y" * 141 in line and "longer than" in line for line in unconverted):
+    fail.append("a competency too long to be a Skill name must not become a Skill; keep it for the comment")
+if not any("<b>" in line for line in unconverted) or any("<" in name for name in new_skills):
+    fail.append("a competency with < or > cannot be a Skill name; keep it for the comment")
+if not any("Negotiation and persuasion (already listed as Technical)" in line for line in unconverted):
+    fail.append("a competency listed under both categories must keep the second listing for the comment")
+if len(unconverted) != 3:
+    fail.append("expected exactly 3 unconverted competency lines, got %s" % unconverted)
+if rules.skill_name_problem("Skill") is None or rules.skill_name_problem("x" * 140) is not None:
+    fail.append("skill_name_problem: 'Skill' is refused by Frappe, 140 characters is allowed")
+empty = rules.profile_sections_to_rows({}, {})
+if empty != ({"custom_jd_iso_responsibilities": [], "custom_jd_specifications": [], "custom_jd_competencies": []}, [], []):
+    fail.append("a Job Title with none of the old text must produce nothing: %s" % (empty,))
+print("profile text migration: %d rows, %d new Skills, %d lines kept for the comment"
+      % (sum(len(r) for r in tables.values()), len(new_skills), len(unconverted)))
+
+profile_patch = read("hrms_addon", "patches", "v1_0", "jd_profile_sections_to_tables.py")
+for needle, why in (
+    ("jd_rules.profile_sections_to_rows(values, skills)", "must use the tested conversion"),
+    ("frappe.db.exists(", "must not add rows to a table that already has some"),
+    ('"parentfield": field', "must set parentfield: the Table fields do not exist yet when it runs"),
+    ("frappe.db.savepoint(SAVEPOINT)", "must handle each Job Title inside a savepoint"),
+    ("frappe.db.rollback(save_point=SAVEPOINT)", "must roll back a failed Job Title, its new Skills included"),
+    ("except Exception", "must not let one Job Title stop the whole migrate"),
+    ("skills.update(_move(values, skills))", "must share the Skills a Job Title created only after it succeeded"),
+    ('frappe.get_doc({"doctype": "Skill", "skill_name": name}).insert(ignore_permissions=True)',
+     "must create the missing Skills before the rows that link to them"),
+    ('"doctype": "Comment"', "must record unconverted lines instead of dropping them"),
+    ("escape_html", "must escape user text written into the comment"),
+    ('frappe.get_all("Skill", pluck="name")', "must match competencies against the existing Skills"),
+):
+    if needle not in profile_patch:
+        fail.append("profile patch %s" % why)
+if profile_patch.find("Skill\", \"skill_name\"") > profile_patch.find(".db_insert()"):
+    fail.append("profile patch must insert the Skills before the competency rows")
+removed = set(re.findall(r'"(Designation-custom_jd_[a-z0-9_]+)"', profile_patch))
+expected_removed = {"Designation-%s" % f for f in rules.PROFILE_TEXT_FIELDS} | {
+    "Designation-custom_jd_iso_cb", "Designation-custom_jd_specs_cb1", "Designation-custom_jd_specs_cb2", "Designation-custom_jd_competency_cb"}
+if removed != expected_removed:
+    fail.append("profile patch must delete exactly the old fields and their column breaks: missing %s, extra %s"
+                % (sorted(expected_removed - removed), sorted(removed - expected_removed)))
+if removed & set(by_name):
+    fail.append("profile patch deletes fields that are still in the fixtures: %s" % sorted(removed & set(by_name)))
+for keyword in ("iso_responsibilities=doc.get(\"custom_jd_iso_responsibilities\")", "specifications=doc.get(\"custom_jd_specifications\")",
+                "competencies=doc.get(\"custom_jd_competencies\")"):
+    if keyword not in glue:
+        fail.append("designation.py must pass %s to jd_table_errors" % keyword.split("=")[0])
+print("profile patch: uses the tested conversion, savepoint per Job Title, Skills first, deletes exactly the old fields")
+
 # ── 5. Wiring ────────────────────────────────────────────────────────
 hooks = read("hrms_addon", "hooks.py")
 glue = read("hrms_addon", "hrms_addon", "designation.py")
@@ -431,36 +642,54 @@ print("wiring: table, doc event, KRA lookup, form script events and totals all r
 
 # Seeding the pick lists: once per site, never on every migrate (HR owns
 # the lists after that, so a value they delete must stay deleted).
-masters_src = read("hrms_addon", "hrms_addon", "kra_masters.py")
+masters_src = read("hrms_addon", "hrms_addon", "pick_lists.py")
 for needle, why in (
     ("jd_rules.seed_plan(", "must use the tested seed plan"),
-    ("seed_plan(existing, _values_in_use())", "must seed the values already stored on KRAs"),
-    ('get_table_columns("KRA")', "must check the KRA columns exist (a fresh install has no custom fields yet)"),
+    ("seed_plan(existing, _values_in_use(masters), masters)", "must seed the values already stored, for exactly the lists asked for"),
+    ("get_table_columns(doctype)", "must check a field's column exists (a fresh install has no KRA custom fields yet)"),
+    ("for (doctype, fieldname), master in jd_rules.FIELD_MASTERS.items():",
+     "must look for stored values in every field that picks from a list"),
     ("insert(ignore_permissions=True)", "must insert regardless of the migrating user's permissions"),
-    ("def after_install():", "must seed on a fresh install, where patches are marked done without running"),
+    ("def seed_kra_masters():\n    seed_masters(jd_rules.KRA_MASTERS)", "seed_kra_masters must seed the KRA lists"),
+    ("def seed_jd_masters():\n    seed_masters(jd_rules.JD_MASTERS)", "seed_jd_masters must seed the JD lists"),
+    ("def after_install():\n    seed_masters(jd_rules.MASTERS)",
+     "after_install must seed every pick list: on a fresh install patches are marked done without running"),
 ):
     if needle not in masters_src:
-        fail.append("kra_masters.py %s" % why)
+        fail.append("pick_lists.py %s" % why)
+if os.path.exists(os.path.join(REPO, "hrms_addon", "hrms_addon", "kra_masters.py")):
+    fail.append("kra_masters.py is now pick_lists.py: remove the old module")
 m = re.search(r'^after_install = "([a-z_.]+)"', hooks, re.M)
-if not m or m.group(1) != "hrms_addon.hrms_addon.kra_masters.after_install":
-    fail.append("hooks.after_install must be hrms_addon.hrms_addon.kra_masters.after_install")
+if not m or m.group(1) != "hrms_addon.hrms_addon.pick_lists.after_install":
+    fail.append("hooks.after_install must be hrms_addon.hrms_addon.pick_lists.after_install")
 after_migrate = re.search(r"^after_migrate = \[(.*?)^\]", hooks, re.S | re.M)
-if after_migrate and "kra_masters" in after_migrate.group(1):
-    fail.append("the KRA lists must not be seeded on every migrate: it would recreate values HR deleted")
+if after_migrate and ("pick_lists" in after_migrate.group(1) or "kra_masters" in after_migrate.group(1)):
+    fail.append("the pick lists must not be seeded on every migrate: it would recreate values HR deleted")
 # migrate imports every JSON in fixtures/, whatever hooks.fixtures says
 for name in sorted(os.listdir(os.path.join(REPO, "hrms_addon", "fixtures"))):
     if name.endswith(".json") and any(
-        record.get("doctype") in rules.KRA_MASTERS for record in json.loads(read("hrms_addon", "fixtures", name))
+        record.get("doctype") in rules.MASTERS for record in json.loads(read("hrms_addon", "fixtures", name))
     ):
-        fail.append("fixtures/%s holds KRA list values: migrate would re-import them over HR's changes" % name)
-if any('"%s"' % master in hooks for master in rules.KRA_MASTERS):
-    fail.append("hooks.py names a KRA list master (fixtures?): the lists are HR data, seeded once")
+        fail.append("fixtures/%s holds pick list values: migrate would re-import them over HR's changes" % name)
+if any('"%s"' % master in hooks for master in rules.MASTERS):
+    fail.append("hooks.py names a pick list master (fixtures?): the lists are HR data, seeded once")
+
+# Patch order: text moved into the first four tables, then the JD lists
+# seeded (values in use included), then the profile text moved using them.
 post = read("hrms_addon", "patches.txt").split("[post_model_sync]")
-if len(post) != 2 or "hrms_addon.patches.v1_0.seed_kra_masters" not in post[1]:
+listed = [line.strip() for line in post[1].splitlines() if line.strip() and not line.startswith("#")] if len(post) == 2 else []
+order = ["hrms_addon.patches.v1_0.jd_text_sections_to_tables", "hrms_addon.patches.v1_0.seed_jd_masters",
+         "hrms_addon.patches.v1_0.jd_profile_sections_to_tables"]
+if "hrms_addon.patches.v1_0.seed_kra_masters" not in listed:
     fail.append("seed_kra_masters must be a post_model_sync patch (the master tables exist only after the model sync)")
-seed_patch = read("hrms_addon", "patches", "v1_0", "seed_kra_masters.py")
-if not re.search(r"def execute\(\):\s*\n\s+seed_kra_masters\(\)", seed_patch) or "from hrms_addon.hrms_addon.kra_masters import seed_kra_masters" not in seed_patch:
-    fail.append("patch seed_kra_masters must call kra_masters.seed_kra_masters")
+if not all(p in listed for p in order) or [listed.index(p) for p in order] != sorted(listed.index(p) for p in order):
+    fail.append("post_model_sync must run %s in that order: seed_jd_masters must run after jd_text_sections_to_tables "
+                "and jd_profile_sections_to_tables must run after seed_jd_masters" % " -> ".join(p.rsplit(".", 1)[1] for p in order))
+for patch, function in (("seed_kra_masters", "seed_kra_masters"), ("seed_jd_masters", "seed_jd_masters")):
+    seed_patch = read("hrms_addon", "patches", "v1_0", patch + ".py")
+    if (not re.search(r"def execute\(\):\s*\n\s+%s\(\)" % function, seed_patch)
+            or "from hrms_addon.hrms_addon.pick_lists import %s" % function not in seed_patch):
+        fail.append("patch %s must call pick_lists.%s" % (patch, function))
 print("seeding: once by patch on existing sites, by after_install on new ones, never on migrate or as fixtures")
 
 print()

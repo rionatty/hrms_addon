@@ -559,6 +559,21 @@ REMOVED = (
     "Designation-custom_jd_medium_term",
     "Designation-custom_jd_work_cycle_cb2",
     "Designation-custom_jd_long_term",
+    # ISO, specification and competency text replaced by child tables
+    "Designation-custom_jd_iso_9001",
+    "Designation-custom_jd_iso_22000",
+    "Designation-custom_jd_ims_leadership",
+    "Designation-custom_jd_iso_cb",
+    "Designation-custom_jd_iso_45001",
+    "Designation-custom_jd_iso_14001",
+    "Designation-custom_jd_academic",
+    "Designation-custom_jd_specs_cb1",
+    "Designation-custom_jd_professional",
+    "Designation-custom_jd_specs_cb2",
+    "Designation-custom_jd_experience",
+    "Designation-custom_jd_technical_competencies",
+    "Designation-custom_jd_competency_cb",
+    "Designation-custom_jd_behavioural_competencies",
 )
 patch_sources = ""
 for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-8"):
