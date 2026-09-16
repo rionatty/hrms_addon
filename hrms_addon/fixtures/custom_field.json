@@ -1,18 +1,6 @@
 [
  {
   "doctype": "Custom Field",
-  "name": "Job Requisition-custom_section",
-  "dt": "Job Requisition",
-  "fieldname": "custom_section",
-  "fieldtype": "Link",
-  "insert_after": "department",
-  "label": "Section",
-  "options": "Department",
-  "description": "Section within the department, e.g. Extrusion under Production. Set up as a child department.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
   "name": "Job Requisition-custom_employment_type",
   "dt": "Job Requisition",
   "fieldname": "custom_employment_type",
@@ -20,7 +8,17 @@
   "insert_after": "no_of_positions",
   "label": "Permanent or Casual",
   "options": "Employment Type",
-  "description": "The form's tick-box: Permanent or Casual(s). Copied to the Job Opening's Employment Type.",
+  "description": "The form tick-box: Permanent or Casual(s). Copied to the Job Opening Employment Type.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reason_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reason_section",
+  "fieldtype": "Section Break",
+  "insert_after": "status",
+  "label": "Reason for Requisition",
   "module": "HRMS Addon"
  },
  {
@@ -29,9 +27,39 @@
   "dt": "Job Requisition",
   "fieldname": "custom_reason_type",
   "fieldtype": "Select",
-  "insert_after": "description",
+  "insert_after": "custom_reason_section",
   "label": "Reason Why New Employee Is Required",
   "options": "\nNew Position\nReplacement\nNew Addition",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_reason_cb",
+  "dt": "Job Requisition",
+  "fieldname": "custom_reason_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_reason_type",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_connections_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_connections_section",
+  "fieldtype": "Section Break",
+  "insert_after": "time_to_fill",
+  "label": "Connections",
+  "depends_on": "eval:!doc.__islocal",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_connections_html",
+  "dt": "Job Requisition",
+  "fieldname": "custom_connections_html",
+  "fieldtype": "HTML",
+  "insert_after": "custom_connections_section",
+  "description": "Holds the Connections list, moved here by public/js/job_requisition.js. Leave Options empty: an HTML field with content is re-rendered on every refresh, which would wipe the list.",
   "module": "HRMS Addon"
  },
  {
@@ -40,7 +68,7 @@
   "dt": "Job Requisition",
   "fieldname": "custom_recruitment_section",
   "fieldtype": "Section Break",
-  "insert_after": "reason_for_requesting",
+  "insert_after": "description",
   "label": "Mode of Recruitment",
   "module": "HRMS Addon"
  },
@@ -151,6 +179,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_approvals_tab",
   "label": "Requesting Department",
+  "description": "Filled in automatically as each approver acts in the Job Requisition Approval workflow.",
   "module": "HRMS Addon"
  },
  {
@@ -162,6 +191,7 @@
   "insert_after": "custom_department_signoff_section",
   "label": "Supervisor",
   "options": "User",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -172,6 +202,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_supervisor",
   "label": "Supervisor Sign Date",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -192,6 +223,7 @@
   "insert_after": "custom_signoff_cb1",
   "label": "Process Owner",
   "options": "User",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -202,6 +234,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_process_owner",
   "label": "Process Owner Sign Date",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -222,6 +255,7 @@
   "insert_after": "custom_signoff_cb2",
   "label": "Head of Department",
   "options": "User",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -232,6 +266,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_hod",
   "label": "Head of Department Sign Date",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -251,8 +286,9 @@
   "fieldname": "custom_hr_officer",
   "fieldtype": "Link",
   "insert_after": "custom_hr_signoff_section",
-  "label": "HR Officer (Filling the Requisition)",
+  "label": "HR Officer",
   "options": "User",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -263,6 +299,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_hr_officer",
   "label": "HR Officer Sign Date",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -283,6 +320,7 @@
   "insert_after": "custom_hr_signoff_cb",
   "label": "Human Resource Manager",
   "options": "User",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -294,7 +332,8 @@
   "insert_after": "custom_hrm",
   "label": "HR Manager Decision",
   "options": "\nRecruitment Authorized\nNot Authorized",
-  "description": "The Recommended Salary is on the main tab.",
+  "description": "The Recommended Salary is on the Details tab.",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -305,6 +344,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_hrm_decision",
   "label": "HR Manager Sign Date",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -326,6 +366,7 @@
   "insert_after": "custom_ed_signoff_section",
   "label": "Executive Director",
   "options": "User",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -337,6 +378,7 @@
   "insert_after": "custom_ed",
   "label": "Executive Director Decision",
   "options": "\nRecruitment Approved\nNot Approved",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {
@@ -356,18 +398,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_ed_signoff_cb",
   "label": "Executive Director Sign Date",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Opening-custom_section",
-  "dt": "Job Opening",
-  "fieldname": "custom_section",
-  "fieldtype": "Link",
-  "insert_after": "department",
-  "label": "Section",
-  "options": "Department",
-  "description": "Section within the department, e.g. Extrusion under Production. Set up as a child department.",
+  "read_only": 1,
   "module": "HRMS Addon"
  },
  {

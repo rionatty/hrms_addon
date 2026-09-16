@@ -167,8 +167,13 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py
 ```
+
+`verify_requisition_workflow.py` loads `requisition_approval.py` directly —
+it deliberately imports nothing from Frappe — and walks every approval
+path: submit, each approval, rejection, revision, and a hand-typed approval
+being reverted.
 
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch

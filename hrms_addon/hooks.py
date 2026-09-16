@@ -105,7 +105,10 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"Employee": "public/js/employee.js"}
+# Job Requisition: Requested By default + Connections moved onto the
+# Details tab. doctype_js is read from disk when the form loads, so a
+# change to it needs no `bench build`.
+doctype_js = {"Job Requisition": "public/js/job_requisition.js"}
 # doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -190,6 +193,11 @@ after_migrate = [
     # editing the route above does nothing on a site that already has the
     # app. See apps_screen.py.
     "hrms_addon.hrms_addon.apps_screen.sync_on_migrate",
+    # Job Requisition approval: roles, permissions, Workflow States and
+    # Actions, and the Workflow. Python rather than fixtures because
+    # workflow.json would import before the states it links to. See
+    # job_requisition.py.
+    "hrms_addon.hrms_addon.job_requisition.setup_on_migrate",
 ]
 
 # Fixtures
@@ -213,7 +221,12 @@ after_migrate = [
 # fields live on Job Requisition. The vacancy descriptors are duplicated on
 # Job Opening under the SAME fieldnames, which is what makes
 # frappe.model.mapper.map_fields copy them across; the sign-off blocks stay
-# on the requisition only.
+# on the requisition only, read-only, filled by the approval workflow.
+#
+# Job Requisition-main-field_order fixes the whole form layout. Without it
+# Frappe's sorter (frappe/model/meta.py sort_fields) walks a custom Section
+# Break forward past Tab Breaks to the next Section Break, which on this
+# doctype drops the Job Description sections into the Connections tab.
 fixtures = [
     {
         "dt": "Custom Field",
@@ -222,10 +235,12 @@ fixtures = [
                 "name",
                 "in",
                 [
-                    # Job Requisition — the form
-                    "Job Requisition-custom_section",
                     "Job Requisition-custom_employment_type",
+                    "Job Requisition-custom_reason_section",
                     "Job Requisition-custom_reason_type",
+                    "Job Requisition-custom_reason_cb",
+                    "Job Requisition-custom_connections_section",
+                    "Job Requisition-custom_connections_html",
                     "Job Requisition-custom_recruitment_section",
                     "Job Requisition-custom_external_advert",
                     "Job Requisition-custom_internal_advert",
@@ -236,7 +251,6 @@ fixtures = [
                     "Job Requisition-custom_reporting_line",
                     "Job Requisition-custom_reporting_cb",
                     "Job Requisition-custom_subordinates",
-                    # Job Requisition — Sign & Date blocks
                     "Job Requisition-custom_approvals_tab",
                     "Job Requisition-custom_department_signoff_section",
                     "Job Requisition-custom_supervisor",
@@ -259,8 +273,6 @@ fixtures = [
                     "Job Requisition-custom_ed_decision",
                     "Job Requisition-custom_ed_signoff_cb",
                     "Job Requisition-custom_ed_date",
-                    # Job Opening — same-named copies of the vacancy fields
-                    "Job Opening-custom_section",
                     "Job Opening-custom_reason_type",
                     "Job Opening-custom_recruitment_section",
                     "Job Opening-custom_external_advert",
@@ -289,6 +301,9 @@ fixtures = [
                     "Job Requisition-reason_for_requesting-label",
                     "Job Requisition-expected_compensation-label",
                     "Job Requisition-expected_compensation-reqd",
+                    "Job Requisition-connections_tab-show_dashboard",
+                    "Job Requisition-connections_tab-hidden",
+                    "Job Requisition-main-field_order",
                     "Job Opening-employment_type-fetch_from",
                     "Job Opening-employment_type-fetch_if_empty",
                 ],
@@ -329,7 +344,14 @@ fixtures = [
 # NOTE: doc_events must be assigned exactly ONCE in this module — a second
 # assignment silently replaces the first and Frappe only sees the last one.
 
-# doc_events = {}
+doc_events = {
+    "Job Requisition": {
+        # Requested By = the logged-in employee, before the mandatory check
+        "before_validate": "hrms_addon.hrms_addon.job_requisition.before_validate",
+        # Fills the Approvals tab as each approver acts; reverts typed edits
+        "validate": "hrms_addon.hrms_addon.job_requisition.validate",
+    },
+}
 
 # Scheduled Tasks
 # ---------------
