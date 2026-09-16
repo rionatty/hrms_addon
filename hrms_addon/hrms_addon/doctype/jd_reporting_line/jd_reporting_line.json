@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "creation": "2026-09-16 16:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "relationship",
+  "designation",
+  "scope"
+ ],
+ "fields": [
+  {
+   "fieldname": "relationship",
+   "fieldtype": "Select",
+   "label": "Relationship",
+   "options": "\nDirect\nIndirect",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Position",
+   "options": "Designation",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 5,
+   "description": "Picked from the Job Title list, so reporting lines stay consistent across JDs."
+  },
+  {
+   "fieldname": "scope",
+   "fieldtype": "Data",
+   "label": "Plant / Scope",
+   "in_list_view": 1,
+   "columns": 3,
+   "description": "e.g. PE/Kawempe, all plants"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-16 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "JD Reporting Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

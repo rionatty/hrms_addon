@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 hrms_addon.patches.v1_0.remove_requisition_section_field
 hrms_addon.patches.v1_0.remove_requisition_recruitment_breaks
+hrms_addon.patches.v1_0.jd_text_sections_to_tables

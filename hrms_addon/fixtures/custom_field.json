@@ -666,37 +666,18 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_jd_key_result_areas",
   "label": "Reporting Relationships",
+  "description": "One row per position that reports to this role, directly or indirectly.",
   "module": "HRMS Addon"
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_direct_reports",
+  "name": "Designation-custom_jd_reporting_lines",
   "dt": "Designation",
-  "fieldname": "custom_jd_direct_reports",
-  "fieldtype": "Small Text",
+  "fieldname": "custom_jd_reporting_lines",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_reporting_section",
-  "label": "Direct Reports",
-  "description": "One per line.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_reporting_cb",
-  "dt": "Designation",
-  "fieldname": "custom_jd_reporting_cb",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_direct_reports",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_indirect_reports",
-  "dt": "Designation",
-  "fieldname": "custom_jd_indirect_reports",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_reporting_cb",
-  "label": "Indirect Reports",
-  "description": "One per line.",
+  "label": "Reporting Relationships",
+  "options": "JD Reporting Line",
   "module": "HRMS Addon"
  },
  {
@@ -705,39 +686,19 @@
   "dt": "Designation",
   "fieldname": "custom_jd_stakeholder_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_indirect_reports",
+  "insert_after": "custom_jd_reporting_lines",
   "label": "Stakeholder Management",
   "module": "HRMS Addon"
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_internal_stakeholders",
+  "name": "Designation-custom_jd_stakeholders",
   "dt": "Designation",
-  "fieldname": "custom_jd_internal_stakeholders",
-  "fieldtype": "Small Text",
+  "fieldname": "custom_jd_stakeholders",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_stakeholder_section",
-  "label": "Internal",
-  "description": "One per line.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_stakeholder_cb",
-  "dt": "Designation",
-  "fieldname": "custom_jd_stakeholder_cb",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_internal_stakeholders",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_external_stakeholders",
-  "dt": "Designation",
-  "fieldname": "custom_jd_external_stakeholders",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_stakeholder_cb",
-  "label": "External",
-  "description": "One per line.",
+  "label": "Stakeholders",
+  "options": "JD Stakeholder",
   "module": "HRMS Addon"
  },
  {
@@ -746,56 +707,20 @@
   "dt": "Designation",
   "fieldname": "custom_jd_authority_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_external_stakeholders",
+  "insert_after": "custom_jd_stakeholders",
   "label": "Decision-Making Authority / Mandates / Constraints",
+  "description": "One row per decision area.",
   "module": "HRMS Addon"
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_strategic_authority",
+  "name": "Designation-custom_jd_decision_authorities",
   "dt": "Designation",
-  "fieldname": "custom_jd_strategic_authority",
-  "fieldtype": "Small Text",
+  "fieldname": "custom_jd_decision_authorities",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_authority_section",
-  "label": "Strategic",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_authority_cb1",
-  "dt": "Designation",
-  "fieldname": "custom_jd_authority_cb1",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_strategic_authority",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_operational_authority",
-  "dt": "Designation",
-  "fieldname": "custom_jd_operational_authority",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_authority_cb1",
-  "label": "Operational",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_authority_cb2",
-  "dt": "Designation",
-  "fieldname": "custom_jd_authority_cb2",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_operational_authority",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_managerial_authority",
-  "dt": "Designation",
-  "fieldname": "custom_jd_managerial_authority",
-  "fieldtype": "Small Text",
-  "insert_after": "custom_jd_authority_cb2",
-  "label": "Managerial",
+  "label": "Decision-Making Authority",
+  "options": "JD Decision Authority",
   "module": "HRMS Addon"
  },
  {
@@ -804,56 +729,19 @@
   "dt": "Designation",
   "fieldname": "custom_jd_work_cycle_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_managerial_authority",
+  "insert_after": "custom_jd_decision_authorities",
   "label": "Work Cycle & Planning Horizon",
   "module": "HRMS Addon"
  },
  {
   "doctype": "Custom Field",
-  "name": "Designation-custom_jd_short_term",
+  "name": "Designation-custom_jd_planning_horizons",
   "dt": "Designation",
-  "fieldname": "custom_jd_short_term",
-  "fieldtype": "Data",
+  "fieldname": "custom_jd_planning_horizons",
+  "fieldtype": "Table",
   "insert_after": "custom_jd_work_cycle_section",
-  "label": "Short-Term",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_work_cycle_cb1",
-  "dt": "Designation",
-  "fieldname": "custom_jd_work_cycle_cb1",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_short_term",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_medium_term",
-  "dt": "Designation",
-  "fieldname": "custom_jd_medium_term",
-  "fieldtype": "Data",
-  "insert_after": "custom_jd_work_cycle_cb1",
-  "label": "Medium-Term",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_work_cycle_cb2",
-  "dt": "Designation",
-  "fieldname": "custom_jd_work_cycle_cb2",
-  "fieldtype": "Column Break",
-  "insert_after": "custom_jd_medium_term",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Designation-custom_jd_long_term",
-  "dt": "Designation",
-  "fieldname": "custom_jd_long_term",
-  "fieldtype": "Data",
-  "insert_after": "custom_jd_work_cycle_cb2",
-  "label": "Long-Term",
+  "label": "Planning Horizons",
+  "options": "JD Planning Horizon",
   "module": "HRMS Addon"
  },
  {
@@ -862,7 +750,7 @@
   "dt": "Designation",
   "fieldname": "custom_jd_iso_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_long_term",
+  "insert_after": "custom_jd_planning_horizons",
   "label": "ISO Responsibilities (ISO 9001, ISO 22000, ISO 45001, ISO 14001)",
   "description": "As part of the Integrated Management System (IMS), the role holder is accountable for:",
   "module": "HRMS Addon"

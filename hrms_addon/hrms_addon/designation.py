@@ -18,7 +18,14 @@ TABLE = "custom_jd_key_result_areas"
 def validate(doc, method=None):
     rows = doc.get(TABLE) or []
     _set_perspectives_from_kra(rows)
-    errors = jd_rules.key_result_area_errors(rows)
+    errors = jd_rules.key_result_area_errors(rows) + jd_rules.jd_table_errors(
+        doc.name or doc.get("designation_name"),
+        doc.get("custom_jd_reports_to"),
+        doc.get("custom_jd_reporting_lines"),
+        doc.get("custom_jd_stakeholders"),
+        doc.get("custom_jd_decision_authorities"),
+        doc.get("custom_jd_planning_horizons"),
+    )
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Key Result Areas"))
 

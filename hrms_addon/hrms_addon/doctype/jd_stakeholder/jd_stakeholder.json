@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "creation": "2026-09-16 16:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "stakeholder_type",
+  "stakeholder",
+  "interaction"
+ ],
+ "fields": [
+  {
+   "fieldname": "stakeholder_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "\nInternal\nExternal",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "stakeholder",
+   "fieldtype": "Data",
+   "label": "Stakeholder",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 4,
+   "description": "A role, team or organisation, e.g. CFO, Distributors and wholesalers"
+  },
+  {
+   "fieldname": "interaction",
+   "fieldtype": "Data",
+   "label": "Nature of Interaction",
+   "in_list_view": 1,
+   "columns": 4,
+   "description": "e.g. credit, collections"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-16 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "JD Stakeholder",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

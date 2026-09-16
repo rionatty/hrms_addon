@@ -542,6 +542,23 @@ REMOVED = (
     "Job Opening-custom_section",
     "Job Requisition-custom_recruitment_section",
     "Job Requisition-custom_recruitment_cb",
+    # JD text sections replaced by child tables
+    "Designation-custom_jd_direct_reports",
+    "Designation-custom_jd_reporting_cb",
+    "Designation-custom_jd_indirect_reports",
+    "Designation-custom_jd_internal_stakeholders",
+    "Designation-custom_jd_stakeholder_cb",
+    "Designation-custom_jd_external_stakeholders",
+    "Designation-custom_jd_strategic_authority",
+    "Designation-custom_jd_authority_cb1",
+    "Designation-custom_jd_operational_authority",
+    "Designation-custom_jd_authority_cb2",
+    "Designation-custom_jd_managerial_authority",
+    "Designation-custom_jd_short_term",
+    "Designation-custom_jd_work_cycle_cb1",
+    "Designation-custom_jd_medium_term",
+    "Designation-custom_jd_work_cycle_cb2",
+    "Designation-custom_jd_long_term",
 )
 patch_sources = ""
 for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-8"):

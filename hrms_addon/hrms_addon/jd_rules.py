@@ -89,6 +89,206 @@ def key_result_area_errors(rows):
     return errors
 
 
+# ── Reporting, stakeholders, authority and planning horizon tables ───
+
+# Designation table field -> child DocType
+TABLES = {
+    "custom_jd_reporting_lines": "JD Reporting Line",
+    "custom_jd_stakeholders": "JD Stakeholder",
+    "custom_jd_decision_authorities": "JD Decision Authority",
+    "custom_jd_planning_horizons": "JD Planning Horizon",
+}
+
+HORIZONS = ("Short-Term", "Medium-Term", "Long-Term")
+
+# Frappe stores Data fields as varchar(140). A longer value would abort the
+# insert, so the migration sends it to the comment instead.
+DATA_MAX = 140
+
+
+def jd_table_errors(designation, reports_to, reporting_lines, stakeholders, authorities, horizons):
+    """Problems across the four Job Description tables, as user-facing messages."""
+    errors = []
+
+    seen = {}
+    for index, row in enumerate(reporting_lines or [], start=1):
+        position = _get(row, "designation")
+        scope = (_get(row, "scope") or "").strip()
+        if not position:
+            continue
+        if designation and position == designation:
+            errors.append("Reporting Relationships row %d: a role cannot report to itself." % index)
+        elif reports_to and position == reports_to:
+            errors.append(
+                "Reporting Relationships row %d: %s is this role's Reports To, so it cannot also report to it."
+                % (index, position)
+            )
+        key = (position, scope.lower())
+        if key in seen:
+            errors.append(
+                "Reporting Relationships row %d: %s%s is already listed in row %d."
+                % (index, position, " (%s)" % scope if scope else "", seen[key])
+            )
+        else:
+            seen[key] = index
+
+    seen = {}
+    for index, row in enumerate(stakeholders or [], start=1):
+        name = (_get(row, "stakeholder") or "").strip()
+        kind = _get(row, "stakeholder_type")
+        if not name:
+            continue
+        key = (kind, name.lower())
+        if key in seen:
+            errors.append("Stakeholder Management row %d: %s is already listed in row %d." % (index, name, seen[key]))
+        else:
+            seen[key] = index
+
+    seen = {}
+    for index, row in enumerate(authorities or [], start=1):
+        text = " ".join((_get(row, "decisions") or "").split()).lower()
+        if not text:
+            continue
+        key = (_get(row, "authority_level"), text)
+        if key in seen:
+            errors.append("Decision-Making Authority row %d repeats row %d." % (index, seen[key]))
+        else:
+            seen[key] = index
+
+    seen = {}
+    for index, row in enumerate(horizons or [], start=1):
+        horizon = _get(row, "horizon")
+        if horizon in seen:
+            errors.append(
+                "Work Cycle & Planning Horizon row %d: %s is already in row %d. Use one row per horizon."
+                % (index, horizon, seen[horizon])
+            )
+        elif horizon:
+            seen[horizon] = index
+
+    return errors
+
+
+# ── Moving the old text sections into the tables (one-off migration) ──
+
+# The text fields these tables replace: fieldname -> (table kind, label)
+OLD_TEXT_FIELDS = {
+    "custom_jd_direct_reports": ("reporting", "Direct"),
+    "custom_jd_indirect_reports": ("reporting", "Indirect"),
+    "custom_jd_internal_stakeholders": ("stakeholder", "Internal"),
+    "custom_jd_external_stakeholders": ("stakeholder", "External"),
+    "custom_jd_strategic_authority": ("authority", "Strategic"),
+    "custom_jd_operational_authority": ("authority", "Operational"),
+    "custom_jd_managerial_authority": ("authority", "Managerial"),
+    "custom_jd_short_term": ("horizon", "Short-Term"),
+    "custom_jd_medium_term": ("horizon", "Medium-Term"),
+    "custom_jd_long_term": ("horizon", "Long-Term"),
+}
+
+_BULLETS = "•▪◦‣·*-–—"
+_DASHES = (" – ", " — ", " - ")
+
+
+def split_lines(text):
+    """One item per non-empty line, bullets and surrounding space removed."""
+    lines = []
+    for raw in str(text or "").replace("\r", "\n").split("\n"):
+        line = raw.strip().lstrip(_BULLETS).strip()
+        if line:
+            lines.append(line)
+    return lines
+
+
+def designation_lookup(names):
+    """Case-insensitive name -> the Job Title's exact name."""
+    return {name.strip().lower(): name for name in names if name}
+
+
+def split_parenthetical(text):
+    """'CFO (credit, collections)' -> ('CFO', 'credit, collections').
+    Text without a trailing (...) -> (text, None)."""
+    text = str(text or "").strip()
+    if text.endswith(")") and "(" in text:
+        head, _, tail = text.rpartition("(")
+        if head.strip():
+            return head.strip(), tail[:-1].strip()
+    return text, None
+
+
+def parse_reporting_line(line, lookup):
+    """(Job Title, scope) when the line names an existing Job Title, else None.
+
+    Handles the JD's two styles, "Sales Manager – PE/Kawempe" and
+    "Senior Sales/CCE (all plants)". A Job Title that does not exist is not
+    guessed at: the row would carry a broken link and block the next save.
+    """
+    text = str(line or "").strip()
+    if text.lower() in lookup:
+        return lookup[text.lower()], ""
+    for dash in _DASHES:
+        if dash in text:
+            head, tail = text.split(dash, 1)
+            if head.strip().lower() in lookup:
+                return lookup[head.strip().lower()], tail.strip()
+    head, scope = split_parenthetical(text)
+    if scope is not None and head.lower() in lookup:
+        return lookup[head.lower()], scope
+    return None
+
+
+def text_sections_to_rows(values, lookup):
+    """Rows for the four tables from one Designation's old text fields.
+
+    Returns ({table field: [row dict, ...]}, [lines that could not be moved]).
+    Nothing is dropped silently: every line either becomes a row or is
+    returned for the caller to record.
+    """
+    tables = {field: [] for field in TABLES}
+    unconverted = []
+
+    def fits(*parts):
+        return all(len(part or "") <= DATA_MAX for part in parts)
+
+    for field, (kind, label) in OLD_TEXT_FIELDS.items():
+        text = values.get(field)
+        if not text or not str(text).strip():
+            continue
+
+        if kind == "reporting":
+            for line in split_lines(text):
+                parsed = parse_reporting_line(line, lookup)
+                if parsed and fits(parsed[1]):
+                    tables["custom_jd_reporting_lines"].append(
+                        {"relationship": label, "designation": parsed[0], "scope": parsed[1]}
+                    )
+                else:
+                    unconverted.append("%s report: %s" % (label, line))
+
+        elif kind == "stakeholder":
+            for line in split_lines(text):
+                name, detail = split_parenthetical(line)
+                if fits(name, detail):
+                    tables["custom_jd_stakeholders"].append(
+                        {"stakeholder_type": label, "stakeholder": name, "interaction": detail or ""}
+                    )
+                else:
+                    unconverted.append("%s stakeholder: %s" % (label, line))
+
+        elif kind == "authority":
+            tables["custom_jd_decision_authorities"].append(
+                {"authority_level": label, "decisions": str(text).strip()}
+            )
+
+        else:
+            work_cycle = " ".join(str(text).split())
+            if fits(work_cycle):
+                tables["custom_jd_planning_horizons"].append({"horizon": label, "work_cycle": work_cycle})
+            else:
+                unconverted.append("%s: %s" % (label, work_cycle))
+
+    return tables, unconverted
+
+
 def _get(row, key):
     return row.get(key) if isinstance(row, dict) else getattr(row, key, None)
 

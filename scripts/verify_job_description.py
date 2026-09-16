@@ -61,6 +61,7 @@ kra_fields = {f["fieldname"]: f for f in custom if f["dt"] == "KRA"}
 child = json.loads(read("hrms_addon", "hrms_addon", "doctype", "jd_key_result_area", "jd_key_result_area.json"))
 child_fields = {f["fieldname"]: f for f in child["fields"]}
 js = read("hrms_addon", "public", "js", "designation.js")
+glue = read("hrms_addon", "hrms_addon", "designation.py")
 
 # ── 1. One list of perspectives, written in four places ──────────────
 lists = {
@@ -162,6 +163,143 @@ totals = rules.perspective_totals(rows(("A", F, 10), ("B", F, 15), ("C", I, 75))
 if totals != {F: 25.0, C: 0.0, I: 75.0, L: 0.0}:
     fail.append("perspective_totals wrong: %s" % totals)
 print("behaviour: JD split, split perspective, drift, strings, objects, totals, repeats, gaps and bad values correct")
+
+# ── 4b. The four section tables ──────────────────────────────────────
+EXPECTED_TABLE_FIELDS = {
+    "JD Reporting Line": ["relationship", "designation", "scope"],
+    "JD Stakeholder": ["stakeholder_type", "stakeholder", "interaction"],
+    "JD Decision Authority": ["authority_level", "decisions", "constraints"],
+    "JD Planning Horizon": ["horizon", "work_cycle"],
+}
+by_name = {f["name"]: f for f in custom}
+for table_field, child_doctype in rules.TABLES.items():
+    parent_field = by_name.get("Designation-%s" % table_field)
+    if not parent_field or parent_field.get("fieldtype") != "Table" or parent_field.get("options") != child_doctype:
+        fail.append("Designation.%s must be a Table of %s" % (table_field, child_doctype))
+    folder = child_doctype.lower().replace(" ", "_")
+    path = os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype", folder)
+    try:
+        spec_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", folder, folder + ".json"))
+    except OSError:
+        fail.append("child doctype %s has no JSON" % child_doctype)
+        continue
+    names = [f["fieldname"] for f in spec_json["fields"]]
+    if names != EXPECTED_TABLE_FIELDS[child_doctype] or spec_json.get("field_order") != names:
+        fail.append("%s fields %s, expected %s" % (child_doctype, names, EXPECTED_TABLE_FIELDS[child_doctype]))
+    if not spec_json.get("istable") or spec_json.get("module") != "HRMS Addon" or spec_json.get("name") != child_doctype:
+        fail.append("%s must be an HRMS Addon child table" % child_doctype)
+    if sum(f.get("columns") or 0 for f in spec_json["fields"] if f.get("in_list_view")) > 10:
+        fail.append("%s grid exceeds 10 columns" % child_doctype)
+    classname = child_doctype.replace(" ", "").replace("-", "")
+    if not re.search(r"^class %s\(Document\):" % classname, read("hrms_addon", "hrms_addon", "doctype", folder, folder + ".py"), re.M):
+        fail.append("%s controller class must be %s" % (child_doctype, classname))
+    if not os.path.exists(os.path.join(path, "__init__.py")):
+        fail.append("%s folder is missing __init__.py" % child_doctype)
+
+horizon_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", "jd_planning_horizon", "jd_planning_horizon.json"))
+if tuple(options(next(f for f in horizon_json["fields"] if f["fieldname"] == "horizon"))) != rules.HORIZONS:
+    fail.append("JD Planning Horizon options differ from jd_rules.HORIZONS")
+position = next(f for f in json.loads(read("hrms_addon", "hrms_addon", "doctype", "jd_reporting_line", "jd_reporting_line.json"))["fields"]
+                if f["fieldname"] == "designation")
+if (position.get("fieldtype"), position.get("options"), position.get("reqd")) != ("Link", "Designation", 1):
+    fail.append("JD Reporting Line.designation must be a mandatory Link to Designation")
+print("section tables: 4 child tables wired, fields, grid width and classes correct")
+
+# Rules across the tables
+t = rules.jd_table_errors
+expect("clean tables", t("Head Sales & Marketing", "Executive Director",
+                         [{"relationship": "Direct", "designation": "Sales Manager", "scope": "PE/Kawempe"},
+                          {"relationship": "Direct", "designation": "Sales Manager", "scope": "PP/Namanve"}],
+                         [{"stakeholder_type": "Internal", "stakeholder": "CFO"}, {"stakeholder_type": "External", "stakeholder": "CFO"}],
+                         [{"authority_level": "Strategic", "decisions": "Pricing"}], [{"horizon": "Short-Term"}, {"horizon": "Long-Term"}]))
+expect("reports to itself", t("Sales Manager", None, [{"relationship": "Direct", "designation": "Sales Manager"}], [], [], []),
+       "cannot report to itself")
+expect("reports-to listed as a report", t("Head Sales & Marketing", "Executive Director",
+                                          [{"relationship": "Indirect", "designation": "Executive Director"}], [], [], []),
+       "is this role's Reports To")
+expect("same position and scope twice", t("X", None, [{"relationship": "Direct", "designation": "Sales Manager", "scope": "PE"},
+                                                      {"relationship": "Indirect", "designation": "Sales Manager", "scope": "pe"}], [], [], []),
+       "Sales Manager (pe) is already listed in row 1")
+expect("stakeholder twice", t("X", None, [], [{"stakeholder_type": "Internal", "stakeholder": "CFO"},
+                                             {"stakeholder_type": "Internal", "stakeholder": "cfo"}], [], []),
+       "is already listed in row 1")
+expect("decision repeated", t("X", None, [], [], [{"authority_level": "Strategic", "decisions": "Pricing  frameworks"},
+                                                 {"authority_level": "Strategic", "decisions": "pricing frameworks"}], []),
+       "repeats row 1")
+expect("horizon twice", t("X", None, [], [], [], [{"horizon": "Short-Term"}, {"horizon": "Short-Term"}]),
+       "Use one row per horizon")
+
+# Moving the old text into the tables, using the lines of LPL/JD/SM/001
+lookup = rules.designation_lookup(["Sales Manager", "Senior Sales/CCE", "Executive Director", "Receptionist"])
+if rules.parse_reporting_line("Sales Manager – PE/Kawempe", lookup) != ("Sales Manager", "PE/Kawempe"):
+    fail.append("en-dash reporting line not parsed")
+if rules.parse_reporting_line("Senior Sales/CCE (all plants)", lookup) != ("Senior Sales/CCE", "all plants"):
+    fail.append("parenthetical reporting line not parsed")
+if rules.parse_reporting_line("executive director", lookup) != ("Executive Director", ""):
+    fail.append("reporting line should match a Job Title case-insensitively and return its exact name")
+if rules.parse_reporting_line("Graphics Designers (all plants)", lookup) is not None:
+    fail.append("a Job Title that does not exist must not be guessed")
+if rules.split_parenthetical("Procurement (raw materials for custom orders)") != ("Procurement", "raw materials for custom orders"):
+    fail.append("stakeholder interaction not split")
+if rules.split_lines("• Executive Director\n\n▪ CFO (credit, collections)\r\n - HR Manager ") != ["Executive Director", "CFO (credit, collections)", "HR Manager"]:
+    fail.append("split_lines does not strip bullets and blanks")
+
+jd_text = {
+    "custom_jd_direct_reports": "Sales Manager – PE/Kawempe\nSales Manager – PP/Namanve\nSales Manager – PIB/Matugga",
+    "custom_jd_indirect_reports": "Senior Sales/CCE (all plants)\nGraphics Designers (all plants)\nReceptionist (all plants)",
+    "custom_jd_internal_stakeholders": "Executive Director\nCFO (credit, collections)",
+    "custom_jd_external_stakeholders": "Distributors and wholesalers\n" + "x" * 150,
+    "custom_jd_strategic_authority": "Group sales strategy, pricing frameworks, brand direction.",
+    "custom_jd_short_term": "Monthly sales cycles",
+    "custom_jd_long_term": "Annual and 3-year sales strategy",
+}
+tables, unconverted = rules.text_sections_to_rows(jd_text, lookup)
+reporting = tables["custom_jd_reporting_lines"]
+if [(r["relationship"], r["designation"], r["scope"]) for r in reporting] != [
+    ("Direct", "Sales Manager", "PE/Kawempe"), ("Direct", "Sales Manager", "PP/Namanve"),
+    ("Direct", "Sales Manager", "PIB/Matugga"), ("Indirect", "Senior Sales/CCE", "all plants"),
+    ("Indirect", "Receptionist", "all plants")]:
+    fail.append("reporting rows from the JD text wrong: %s" % reporting)
+if [(r["stakeholder_type"], r["stakeholder"], r["interaction"]) for r in tables["custom_jd_stakeholders"]] != [
+    ("Internal", "Executive Director", ""), ("Internal", "CFO", "credit, collections"), ("External", "Distributors and wholesalers", "")]:
+    fail.append("stakeholder rows from the JD text wrong: %s" % tables["custom_jd_stakeholders"])
+if tables["custom_jd_decision_authorities"] != [{"authority_level": "Strategic", "decisions": "Group sales strategy, pricing frameworks, brand direction."}]:
+    fail.append("authority rows from the JD text wrong")
+if [(r["horizon"], r["work_cycle"]) for r in tables["custom_jd_planning_horizons"]] != [
+    ("Short-Term", "Monthly sales cycles"), ("Long-Term", "Annual and 3-year sales strategy")]:
+    fail.append("horizon rows from the JD text wrong")
+if not any("Graphics Designers" in line for line in unconverted):
+    fail.append("a report naming a missing Job Title must be kept for the comment, not dropped")
+if not any("x" * 141 in line for line in unconverted):
+    fail.append("a value longer than a Data field must be kept for the comment, not inserted")
+if len(unconverted) != 2:
+    fail.append("expected exactly 2 unconverted lines, got %s" % unconverted)
+converted = sum(len(rows) for rows in tables.values())
+print("section rules and text migration: %d rows moved from the JD text, %d lines kept for the comment" % (converted, len(unconverted)))
+
+# The migration patch
+patch_src = read("hrms_addon", "patches", "v1_0", "jd_text_sections_to_tables.py")
+if "hrms_addon.patches.v1_0.jd_text_sections_to_tables" not in read("hrms_addon", "patches.txt"):
+    fail.append("jd_text_sections_to_tables is not listed in patches.txt")
+for needle, why in (
+    ("jd_rules.text_sections_to_rows", "must use the tested conversion"),
+    ("frappe.db.exists(child", "must not add rows to a table that already has some"),
+    ('"parentfield": field', "must set parentfield: the Table fields do not exist yet when it runs"),
+    ("except Exception", "must not let one Job Title stop the whole migrate"),
+    ('"doctype": "Comment"', "must record unconverted lines instead of dropping them"),
+    ("escape_html", "must escape user text written into the comment"),
+):
+    if needle not in patch_src:
+        fail.append("patch %s" % why)
+removed = set(re.findall(r'"(Designation-custom_jd_[a-z0-9_]+)"', patch_src))
+for field in rules.OLD_TEXT_FIELDS:
+    if "Designation-%s" % field not in removed:
+        fail.append("patch reads %s but never deletes the field" % field)
+if any(name in by_name for name in removed):
+    fail.append("patch deletes fields that are still in the fixtures: %s" % sorted(removed & set(by_name)))
+if "jd_rules.jd_table_errors" not in glue:
+    fail.append("designation.py does not apply jd_table_errors on save")
+print("migration patch: listed, uses the tested conversion, idempotent, defensive, deletes exactly the old fields")
 
 # ── 5. Wiring ────────────────────────────────────────────────────────
 hooks = read("hrms_addon", "hooks.py")
