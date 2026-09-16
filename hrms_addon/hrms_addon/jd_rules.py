@@ -16,8 +16,9 @@ without re-keying. The KRA carries its Balanced Scorecard perspective
 all rows together total 100%.
 """
 
-# Order and wording as printed in the JD. Must match the Select options of
-# KRA.custom_perspective and JD Key Result Area.perspective.
+# The perspectives a JD starts with, in the order the JD prints them. Only a
+# seed for the "KRA Perspective" master: HR can add, rename and reorder
+# perspectives, so nothing below treats this list as the complete set.
 PERSPECTIVES = (
     "Financial",
     "Customer / Stakeholder",
@@ -25,26 +26,98 @@ PERSPECTIVES = (
     "Learning & Growth",
 )
 
+# The KRA form's pick lists. Master DocType -> (name field, values seeded
+# once). The values are EXACTLY the dropdowns of the "KPI Library" sheet in
+# the Part 2 master-data template given to Luuka, so that sheet imports
+# cleanly; after seeding, each list is HR's to maintain.
+KRA_MASTERS = {
+    "KRA Perspective": ("perspective_name", PERSPECTIVES),
+    "KRA Level": ("level_name", (
+        "Machine Operator", "Shift Supervisor", "Production Officer", "Production Manager",
+        "Department Staff", "Supervisory", "Management", "All Staff",
+    )),
+    "KRA Unit": ("unit_name", ("%", "Metres", "Pieces", "Hours", "Count", "UGX")),
+    "KRA Data Source": ("source_name", ("Luuka Prod", "Biometric", "Manual", "ERPNext", "Excel")),
+    "KRA Review Frequency": ("frequency_name", ("Monthly", "Quarterly", "Semi-Annual", "Annual", "On Demand", "Once")),
+}
+
+# KRA custom field -> the master it links to
+KRA_FIELD_MASTERS = {
+    "custom_perspective": "KRA Perspective",
+    "custom_applies_to": "KRA Level",
+    "custom_unit": "KRA Unit",
+    "custom_source": "KRA Data Source",
+    "custom_frequency": "KRA Review Frequency",
+}
+
 TOTAL_WEIGHTING = 100.0
 TOLERANCE = 0.01  # 15.7 + 22.1 + 51.4 + 10.8 is 99.99999999999999 in floating point
 
 
-def perspective_totals(rows):
-    """{perspective: summed weighting}, in JD order, for every perspective."""
-    totals = {perspective: 0.0 for perspective in PERSPECTIVES}
+def seed_plan(existing, in_use=None):
+    """Records to create so each master holds its seed values and every
+    value already stored on a KRA.
+
+    existing: {master doctype: [names already in the master]}
+    in_use:   {master doctype: [values stored on KRAs]}; values in use are
+              kept valid because those fields used to be free Select
+              options, and a KRA holding a value its new master lacks
+              could not be saved again.
+    Returns {master doctype: [record dicts ready to insert]}.
+
+    Names are compared ignoring case: the database collation treats
+    "monthly" and "Monthly" as the same name, so creating both would fail.
+    """
+    plan = {}
+    for doctype, (name_field, seeds) in KRA_MASTERS.items():
+        taken = {str(name).strip().lower() for name in existing.get(doctype, []) if name}
+        records = []
+        wanted = list(seeds) + [value for value in (in_use or {}).get(doctype, []) if value]
+        for position, value in enumerate(wanted):
+            value = str(value).strip()
+            if not value or value.lower() in taken:
+                continue
+            taken.add(value.lower())
+            record = {"doctype": doctype, name_field: value}
+            if doctype == "KRA Perspective":
+                record["sort_order"] = (seeds.index(value) + 1) * 10 if value in seeds else 100 + position
+            records.append(record)
+        plan[doctype] = records
+    return plan
+
+
+def next_display_order(orders):
+    """Display Order for a perspective added without one, e.g. from the KRA
+    form's quick entry: the next ten after the highest in use, so it lists
+    after the existing perspectives instead of before them (an unset Int is
+    0), and HR can still slot one in between later."""
+    highest = max([0] + [int(order) for order in orders if order])
+    return (highest // 10 + 1) * 10
+
+
+def perspective_totals(rows, perspectives=None):
+    """{perspective: summed weighting}.
+
+    Every perspective in `perspectives` (the master, in display order)
+    appears, 0 when unused; any other perspective a row carries follows in
+    the order first seen. Defaults to the seed list when none is given.
+    """
+    totals = {perspective: 0.0 for perspective in (PERSPECTIVES if perspectives is None else perspectives)}
     for row in rows or []:
         perspective = _get(row, "perspective")
-        if perspective in totals:
-            totals[perspective] += _number(_get(row, "weighting")) or 0.0
+        if perspective:
+            totals[perspective] = totals.get(perspective, 0.0) + (_number(_get(row, "weighting")) or 0.0)
     return totals
 
 
-def key_result_area_errors(rows):
+def key_result_area_errors(rows, perspectives=None):
     """Problems with a Key Result Areas table, as user-facing messages.
 
     rows: iterable of objects or dicts with kra, perspective and weighting.
     `perspective` must already be the KRA's own perspective — the caller
     looks it up rather than trusting what the browser sent.
+    perspectives: the KRA Perspective master in display order, used only to
+    order the breakdown in the message.
     An empty table is allowed: not every Job Title has a written JD yet.
     """
     rows = list(rows or [])
@@ -65,7 +138,7 @@ def key_result_area_errors(rows):
             errors.append("Row %d: KRA %s is listed more than once." % (index, kra))
         else:
             seen.add(kra)
-            if perspective not in PERSPECTIVES:
+            if not perspective:
                 errors.append(
                     "Row %d: KRA %s has no Balanced Scorecard perspective. Set it on the KRA first." % (index, kra)
                 )
@@ -81,7 +154,7 @@ def key_result_area_errors(rows):
     if abs(total - TOTAL_WEIGHTING) > TOLERANCE:
         breakdown = ", ".join(
             "%s %s%%" % (perspective, _format_number(amount))
-            for perspective, amount in perspective_totals(rows).items()
+            for perspective, amount in perspective_totals(rows, perspectives).items()
         )
         errors.append(
             "KRA weightings must total 100%% (currently %s%%: %s)." % (_format_number(total), breakdown)

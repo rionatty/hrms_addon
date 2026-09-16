@@ -173,7 +173,12 @@ python scripts/verify_palette.py && python scripts/verify_branding.py && python 
 `verify_job_description.py` does the same for the Job Description template on
 Designation: it loads `jd_rules.py` without Frappe and checks the Balanced
 Scorecard rules against real splits, including one (15.7/22.1/51.4/10.8)
-that is 100% on paper but 99.99999999999999 in floating point.
+that is 100% on paper but 99.99999999999999 in floating point. It also
+checks the KRA pick lists (KRA Perspective, KRA Level, KRA Unit, KRA Data
+Source, KRA Review Frequency): each KRA field links to its master, the
+masters are seeded once with the KPI Library sheet's values (plus any
+value already on a KRA) by patch or `after_install`, and never by fixtures
+or `after_migrate`, which would bring back values HR deleted.
 
 `verify_requisition_workflow.py` loads `requisition_approval.py` directly —
 it deliberately imports nothing from Frappe — and walks every approval

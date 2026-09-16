@@ -1034,10 +1034,10 @@
   "name": "KRA-custom_perspective",
   "dt": "KRA",
   "fieldname": "custom_perspective",
-  "fieldtype": "Select",
+  "fieldtype": "Link",
   "insert_after": "custom_kpi_section",
   "label": "Balanced Scorecard Perspective",
-  "options": "\nFinancial\nCustomer / Stakeholder\nInternal Business Processes\nLearning & Growth",
+  "options": "KRA Perspective",
   "description": "Groups this KRA on Job Descriptions. A KRA needs a perspective before a JD can use it.",
   "in_list_view": 1,
   "in_standard_filter": 1,
@@ -1049,10 +1049,10 @@
   "name": "KRA-custom_applies_to",
   "dt": "KRA",
   "fieldname": "custom_applies_to",
-  "fieldtype": "Select",
+  "fieldtype": "Link",
   "insert_after": "custom_perspective",
   "label": "Applies To (Level)",
-  "options": "\nMachine Operator\nShift Supervisor\nProduction Officer\nProduction Manager\nDepartment Staff\nSupervisory\nManagement\nAll Staff",
+  "options": "KRA Level",
   "in_standard_filter": 1,
   "module": "HRMS Addon"
  },
@@ -1070,10 +1070,10 @@
   "name": "KRA-custom_unit",
   "dt": "KRA",
   "fieldname": "custom_unit",
-  "fieldtype": "Select",
+  "fieldtype": "Link",
   "insert_after": "custom_kpi_cb1",
   "label": "Unit",
-  "options": "\n%\nMetres\nPieces\nHours\nCount\nUGX",
+  "options": "KRA Unit",
   "module": "HRMS Addon"
  },
  {
@@ -1100,10 +1100,10 @@
   "name": "KRA-custom_source",
   "dt": "KRA",
   "fieldname": "custom_source",
-  "fieldtype": "Select",
+  "fieldtype": "Link",
   "insert_after": "custom_kpi_cb2",
   "label": "Data Source",
-  "options": "\nLuuka Prod\nBiometric\nManual\nERPNext\nExcel",
+  "options": "KRA Data Source",
   "module": "HRMS Addon"
  },
  {
@@ -1111,10 +1111,10 @@
   "name": "KRA-custom_frequency",
   "dt": "KRA",
   "fieldname": "custom_frequency",
-  "fieldtype": "Select",
+  "fieldtype": "Link",
   "insert_after": "custom_source",
   "label": "Review Frequency",
-  "options": "\nMonthly\nQuarterly\nSemi-Annual\nAnnual\nOn Demand\nOnce",
+  "options": "KRA Review Frequency",
   "module": "HRMS Addon"
  }
 ]

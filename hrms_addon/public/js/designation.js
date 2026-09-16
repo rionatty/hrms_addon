@@ -8,19 +8,21 @@
 // perspective is fetched from the KRA. Several KRAs can share a
 // perspective, so this keeps a running total per perspective under the
 // table, the way the paper JD prints it ("Financial 25%").
+//
+// Perspectives are a master HR maintains (KRA Perspective), so the list and
+// its order come from the server, never from a list written here.
 
-// Order and wording as printed in Luuka's JDs. Source of truth is
-// hrms_addon/hrms_addon/jd_rules.py PERSPECTIVES — keep them in step
-// (scripts/verify_job_description.py checks that they are).
-const HA_BSC_PERSPECTIVES = [
-	"Financial",
-	"Customer / Stakeholder",
-	"Internal Business Processes",
-	"Learning & Growth",
-];
 const HA_KRA_TABLE = "custom_jd_key_result_areas";
 
 frappe.ui.form.on("Designation", {
+	onload(frm) {
+		frappe
+			.xcall("hrms_addon.hrms_addon.designation.get_perspective_order")
+			.then((names) => {
+				frm.__ha_perspectives = names || [];
+				ha_show_kra_totals(frm);
+			});
+	},
 	refresh(frm) {
 		ha_show_kra_totals(frm);
 	},
@@ -52,20 +54,30 @@ function ha_show_kra_totals(frm) {
 		return;
 	}
 	const rows = frm.doc[HA_KRA_TABLE] || [];
+
+	// Every perspective in the master, in Display Order, then any other
+	// perspective a row carries (e.g. added since the form was opened).
+	const order = (frm.__ha_perspectives || []).slice();
+	rows.forEach((row) => {
+		if (row.perspective && !order.includes(row.perspective)) {
+			order.push(row.perspective);
+		}
+	});
 	const totals = {};
-	HA_BSC_PERSPECTIVES.forEach((perspective) => (totals[perspective] = 0));
+	order.forEach((perspective) => (totals[perspective] = 0));
+
 	let total = 0;
 	rows.forEach((row) => {
 		const value = flt(row.weighting);
 		total += value;
-		if (row.perspective in totals) {
+		if (row.perspective) {
 			totals[row.perspective] += value;
 		}
 	});
 
 	let html = "";
 	if (rows.length) {
-		const parts = HA_BSC_PERSPECTIVES.map(
+		const parts = order.map(
 			(perspective) => `${frappe.utils.escape_html(__(perspective))} <b>${ha_percent(totals[perspective])}</b>`
 		);
 		// Same 0.01 tolerance as jd_rules.TOLERANCE

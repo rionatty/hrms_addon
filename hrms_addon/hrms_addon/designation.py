@@ -18,7 +18,8 @@ TABLE = "custom_jd_key_result_areas"
 def validate(doc, method=None):
     rows = doc.get(TABLE) or []
     _set_perspectives_from_kra(rows)
-    errors = jd_rules.key_result_area_errors(rows) + jd_rules.jd_table_errors(
+    perspectives = frappe.get_all("KRA Perspective", order_by="sort_order asc, name asc", pluck="name")
+    errors = jd_rules.key_result_area_errors(rows, perspectives) + jd_rules.jd_table_errors(
         doc.name or doc.get("designation_name"),
         doc.get("custom_jd_reports_to"),
         doc.get("custom_jd_reporting_lines"),
@@ -28,6 +29,17 @@ def validate(doc, method=None):
     )
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Key Result Areas"))
+
+
+@frappe.whitelist()
+def get_perspective_order():
+    """KRA Perspective names in Display Order, for the form's running totals.
+
+    Server-side so a user who may view a Job Title but has no access to the
+    KRA Perspective list gets the order instead of a permission popup; the
+    names are not sensitive.
+    """
+    return frappe.get_all("KRA Perspective", order_by="sort_order asc, name asc", pluck="name")
 
 
 def _set_perspectives_from_kra(rows):

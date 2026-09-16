@@ -109,8 +109,8 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # Details tab. doctype_js is read from disk when the form loads, so a
 # change to it needs no `bench build`.
 #
-# Designation (Job Title): pre-fills the four Balanced Scorecard rows of
-# the Job Description tab.
+# Designation (Job Title): running per-perspective totals under the Key
+# Result Areas table of the Job Description tab.
 doctype_js = {
     "Job Requisition": "public/js/job_requisition.js",
     "Designation": "public/js/designation.js",
@@ -154,7 +154,10 @@ doctype_js = {
 # ------------
 
 # before_install = "hrms_addon.install.before_install"
-# after_install = "hrms_addon.install.after_install"
+# Seed the KRA pick lists on a fresh install. Frappe marks every patch as
+# already run when an app is installed, so the seeding patch never runs
+# there. See hrms_addon/kra_masters.py.
+after_install = "hrms_addon.hrms_addon.kra_masters.after_install"
 
 # Uninstallation
 # ------------

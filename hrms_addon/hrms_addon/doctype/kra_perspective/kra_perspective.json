@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:perspective_name",
+ "creation": "2026-09-16 18:00:00.000000",
+ "description": "A Balanced Scorecard perspective. KRAs are grouped by it on Job Descriptions.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "perspective_name",
+  "sort_order",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "perspective_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Perspective",
+   "reqd": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "description": "Lower numbers are listed first in a Job Description's totals and in the KRA picker. Leave blank to list it after the others.",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Display Order"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-16 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "KRA Perspective",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": []
+}
