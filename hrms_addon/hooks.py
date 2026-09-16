@@ -351,6 +351,15 @@ fixtures = [
                     "Designation-custom_jd_approved_date",
                     "Designation-custom_jd_md",
                     "Designation-custom_jd_md_date",
+                    "KRA-custom_kpi_section",
+                    "KRA-custom_perspective",
+                    "KRA-custom_applies_to",
+                    "KRA-custom_kpi_cb1",
+                    "KRA-custom_unit",
+                    "KRA-custom_target",
+                    "KRA-custom_kpi_cb2",
+                    "KRA-custom_source",
+                    "KRA-custom_frequency",
                 ],
             ]
         ],
@@ -373,6 +382,7 @@ fixtures = [
                     "Job Requisition-main-field_order",
                     "Job Opening-employment_type-fetch_from",
                     "Job Opening-employment_type-fetch_if_empty",
+                    "KRA-main-search_fields",
                 ],
             ]
         ],

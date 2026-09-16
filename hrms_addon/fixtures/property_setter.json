@@ -118,5 +118,15 @@
   "value": "1",
   "module": "HRMS Addon",
   "field_name": "employment_type"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "KRA-main-search_fields",
+  "doc_type": "KRA",
+  "doctype_or_field": "DocType",
+  "property": "search_fields",
+  "property_type": "Data",
+  "value": "custom_perspective,description",
+  "module": "HRMS Addon"
  }
 ]

@@ -644,7 +644,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_jd_purpose",
   "label": "Key Result Areas (Balanced Scorecard Framework)",
-  "description": "One row per perspective. Weightings must total 100%.",
+  "description": "Pick each KRA from the KRA list. Its Balanced Scorecard perspective comes from the KRA, and several KRAs can share one. Weightings across all rows must total 100%.",
   "module": "HRMS Addon"
  },
  {
@@ -1129,6 +1129,104 @@
   "fieldtype": "Date",
   "insert_after": "custom_jd_md",
   "label": "MD Approval Date",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_kpi_section",
+  "dt": "KRA",
+  "fieldname": "custom_kpi_section",
+  "fieldtype": "Section Break",
+  "insert_after": "description",
+  "label": "Balanced Scorecard & Measurement",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_perspective",
+  "dt": "KRA",
+  "fieldname": "custom_perspective",
+  "fieldtype": "Select",
+  "insert_after": "custom_kpi_section",
+  "label": "Balanced Scorecard Perspective",
+  "options": "\nFinancial\nCustomer / Stakeholder\nInternal Business Processes\nLearning & Growth",
+  "description": "Groups this KRA on Job Descriptions. A KRA needs a perspective before a JD can use it.",
+  "in_list_view": 1,
+  "in_standard_filter": 1,
+  "allow_in_quick_entry": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_applies_to",
+  "dt": "KRA",
+  "fieldname": "custom_applies_to",
+  "fieldtype": "Select",
+  "insert_after": "custom_perspective",
+  "label": "Applies To (Level)",
+  "options": "\nMachine Operator\nShift Supervisor\nProduction Officer\nProduction Manager\nDepartment Staff\nSupervisory\nManagement\nAll Staff",
+  "in_standard_filter": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_kpi_cb1",
+  "dt": "KRA",
+  "fieldname": "custom_kpi_cb1",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_applies_to",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_unit",
+  "dt": "KRA",
+  "fieldname": "custom_unit",
+  "fieldtype": "Select",
+  "insert_after": "custom_kpi_cb1",
+  "label": "Unit",
+  "options": "\n%\nMetres\nPieces\nHours\nCount\nUGX",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_target",
+  "dt": "KRA",
+  "fieldname": "custom_target",
+  "fieldtype": "Data",
+  "insert_after": "custom_unit",
+  "label": "Typical Target",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_kpi_cb2",
+  "dt": "KRA",
+  "fieldname": "custom_kpi_cb2",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_target",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_source",
+  "dt": "KRA",
+  "fieldname": "custom_source",
+  "fieldtype": "Select",
+  "insert_after": "custom_kpi_cb2",
+  "label": "Data Source",
+  "options": "\nLuuka Prod\nBiometric\nManual\nERPNext\nExcel",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "KRA-custom_frequency",
+  "dt": "KRA",
+  "fieldname": "custom_frequency",
+  "fieldtype": "Select",
+  "insert_after": "custom_source",
+  "label": "Review Frequency",
+  "options": "\nMonthly\nQuarterly\nSemi-Annual\nAnnual\nOn Demand\nOnce",
   "module": "HRMS Addon"
  }
 ]

@@ -50,7 +50,7 @@ DOCFIELD_PROPERTIES = {
     "options": "Text",
     "description": "Text",
 }
-DOCTYPE_PROPERTIES = {"field_order": "Data"}
+DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
 # by these fixtures, but legitimately named in a field_order.
 RUNTIME_FIELDS = {"Job Requisition": {"workflow_state"}}
@@ -263,6 +263,12 @@ for s in setters:
         fail.append("%s: property %r not allowed at %s level" % (where, prop, level))
     elif s.get("property_type") != allowed[prop]:
         fail.append("%s: property_type %r should be %r" % (where, s.get("property_type"), allowed[prop]))
+
+    if prop == "search_fields":
+        known = set(upstream_fields(dt)) | set(by_dt.get(dt, {})) | {"name"}
+        for name in [n.strip() for n in (s.get("value") or "").split(",") if n.strip()]:
+            if name not in known:
+                fail.append("%s: search field %r does not exist on %s" % (where, name, dt))
 
     if prop == "fetch_from":
         link, _, target = (s.get("value") or "").partition(".")

@@ -5,31 +5,43 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "kra",
   "perspective",
   "weighting",
   "key_outputs"
  ],
  "fields": [
   {
+   "columns": 3,
+   "description": "Picked from the standard KRA list, the same master Appraisal Templates use.",
+   "fieldname": "kra",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "KRA",
+   "options": "KRA",
+   "reqd": 1
+  },
+  {
    "columns": 2,
+   "fetch_from": "kra.custom_perspective",
    "fieldname": "perspective",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Perspective",
    "options": "\nFinancial\nCustomer / Stakeholder\nInternal Business Processes\nLearning & Growth",
-   "reqd": 1
+   "read_only": 1
   },
   {
    "columns": 1,
-   "description": "All perspectives together must total 100%.",
+   "description": "All rows together must total 100%.",
    "fieldname": "weighting",
    "fieldtype": "Percent",
    "in_list_view": 1,
    "label": "% Weighting"
   },
   {
-   "columns": 7,
-   "description": "One output or accountability per line.",
+   "columns": 4,
+   "description": "What this role delivers under the KRA. One per line.",
    "fieldname": "key_outputs",
    "fieldtype": "Small Text",
    "in_list_view": 1,
@@ -38,7 +50,7 @@
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-16 12:00:00.000000",
+ "modified": "2026-09-16 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "JD Key Result Area",
