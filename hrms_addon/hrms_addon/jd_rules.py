@@ -345,6 +345,59 @@ def jd_table_errors(
     return errors
 
 
+# ── Uploading a table ─────────────────────────────────────────────────
+
+# Every table on the Job Description tab. Each has Download and Upload
+# buttons under it (allow_bulk_edit on its Designation field).
+KRA_TABLE = "custom_jd_key_result_areas"
+JD_TABLE_FIELDS = (KRA_TABLE, *TABLES)
+
+# The column types uploaded_value repairs as text
+TEXT_FIELDTYPES = ("Data", "Small Text", "Text", "Long Text")
+
+
+def _windows_1252(code):
+    try:
+        return bytes([code]).decode("cp1252")
+    except UnicodeDecodeError:
+        return None  # one of the five codes Windows-1252 leaves unused: dropped
+
+
+# Windows-1252's characters at 0x80-0x9F, keyed by the control character
+# Latin-1 reads each of those bytes as (str.translate table)
+_WINDOWS_1252 = {code: _windows_1252(code) for code in range(0x80, 0xA0)}
+
+
+def uploaded_value(fieldtype, value):
+    """A table cell as the rules and the database expect it.
+
+    Upload (frappe/public/js/frappe/form/grid.js) copies each CSV cell into
+    its row as text, without any form event, so a row can hold exactly what
+    Excel wrote:
+    - Percent: a percentage cell is written "25%". Without the "%" it is
+      25; anything still not a number comes back unchanged for
+      key_result_area_errors to report.
+    - Text: Excel's plain "CSV" format is Windows-1252, and Frappe reads a
+      file that is not UTF-8 as Latin-1 (get_decoded_string in
+      frappe/public/js/frappe/utils/utils.js). The two agree except at
+      0x80-0x9F, where Word's curly quotes, dashes and bullets land as
+      invisible control characters. Nobody types those, so each goes back
+      to the character it was.
+    Other columns, and values that are not text, come back as they are.
+    """
+    if not isinstance(value, str):
+        return value
+    if fieldtype == "Percent":
+        text = value.strip()
+        if text.endswith("%"):
+            text = text[:-1].strip()
+        number = _number(text)
+        return value if number is None else number
+    if fieldtype in TEXT_FIELDTYPES:
+        return value.translate(_WINDOWS_1252)
+    return value
+
+
 # ── Moving the old text sections into the tables (one-off migration) ──
 
 # The text fields these tables replace: fieldname -> (table kind, label)
@@ -623,9 +676,13 @@ def _get(row, key):
 
 def _number(value):
     try:
-        return float(value or 0)
+        number = float(value or 0)
     except (TypeError, ValueError):
         return None
+    # float() also reads "nan" and "inf", which an uploaded cell can hold.
+    # Neither is a weighting, and NaN would slip past the range and total
+    # checks (every comparison with it is false) to fail the database write.
+    return number if number == number and abs(number) != float("inf") else None
 
 
 def _format_number(value):

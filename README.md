@@ -204,6 +204,21 @@ values Luuka's documents use (plus any value already stored) by patch or
 back values HR deleted. The moves of old JD text boxes into the tables
 are run against the lines of LPL/JD/SM/001.
 
+Every table on the Job Description tab can be filled from a CSV: each has
+**Download** and **Upload** under it (Allow Bulk Edit on its Designation
+field). Download gives the table as a CSV; fill it in Excel, save it as
+CSV and Upload it. The file's rows replace the table's rows, and saving
+the Job Title applies the JD rules as usual. Values picked from a list
+(and KRAs, Skills, Job Titles) must already exist, because Upload creates
+none. Two things Excel writes into such a file are repaired on save by
+`jd_rules.uploaded_value`: a weighting saved as "25%" counts as 25, and
+the curly quotes, dashes and bullets of a file saved in Excel's plain CSV
+format (Windows-1252), which Frappe's upload reads as Latin-1, are put
+back. The form's Download is Frappe's file with a UTF-8 byte order mark in
+front, so Excel opens text that is already there correctly. The check
+compares its rows with Frappe's `grid.js`, and fails if an update changes
+what Upload reads.
+
 `verify_bio_data.py` covers the Pre-Interview Bio-Data Form (LPL/HR/19) on
 Job Applicant's Bio-Data tab. It loads `bio_data_rules.py` without Frappe
 and runs a filled-in form through the save checks and through the

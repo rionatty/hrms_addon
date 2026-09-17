@@ -648,6 +648,7 @@
   "insert_after": "custom_jd_kra_section",
   "label": "Key Result Areas",
   "options": "JD Key Result Area",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -670,6 +671,7 @@
   "insert_after": "custom_jd_reporting_section",
   "label": "Reporting Relationships",
   "options": "JD Reporting Line",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -691,6 +693,7 @@
   "insert_after": "custom_jd_stakeholder_section",
   "label": "Stakeholders",
   "options": "JD Stakeholder",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -713,6 +716,7 @@
   "insert_after": "custom_jd_authority_section",
   "label": "Decision-Making Authority",
   "options": "JD Decision Authority",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -734,6 +738,7 @@
   "insert_after": "custom_jd_work_cycle_section",
   "label": "Planning Horizons",
   "options": "JD Planning Horizon",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -757,6 +762,7 @@
   "label": "ISO Responsibilities",
   "options": "JD ISO Responsibility",
   "description": "One row per standard.",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -779,6 +785,7 @@
   "insert_after": "custom_jd_specs_section",
   "label": "Job Specifications",
   "options": "JD Job Specification",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {
@@ -801,6 +808,7 @@
   "insert_after": "custom_jd_competency_section",
   "label": "Competencies",
   "options": "JD Competency",
+  "allow_bulk_edit": 1,
   "module": "HRMS Addon"
  },
  {

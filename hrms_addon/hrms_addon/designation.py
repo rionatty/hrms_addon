@@ -6,7 +6,9 @@
 The JD fields themselves are fixtures (Job Description tab). This enforces
 the rules for its tables from jd_rules.py: Key Result Areas, reporting
 lines, stakeholders, decision areas, horizons, ISO responsibilities, job
-specifications and competencies.
+specifications and competencies. Every table can be filled from a CSV
+(Download / Upload under it), so rows are first cleaned of what Excel
+writes into such a file.
 """
 
 import frappe
@@ -18,6 +20,7 @@ TABLE = "custom_jd_key_result_areas"
 
 
 def validate(doc, method=None):
+    _clean_uploaded_cells(doc)
     rows = doc.get(TABLE) or []
     _set_perspectives_from_kra(rows)
     perspectives = frappe.get_all("KRA Perspective", order_by="sort_order asc, name asc", pluck="name")
@@ -45,6 +48,23 @@ def get_perspective_order():
     names are not sensitive.
     """
     return frappe.get_all("KRA Perspective", order_by="sort_order asc, name asc", pluck="name")
+
+
+def _clean_uploaded_cells(doc):
+    """Every JD table's cells as the rules expect them, before they run.
+
+    Upload puts a CSV's cells into the rows as the file has them: a
+    weighting Excel wrote as "25%", or curly quotes and dashes garbled by
+    Excel's plain CSV format. jd_rules.uploaded_value repairs both; Link
+    columns are left alone (Frappe has already checked them by now).
+    """
+    for fieldname in jd_rules.JD_TABLE_FIELDS:
+        for row in doc.get(fieldname) or []:
+            for df in row.meta.fields:
+                value = row.get(df.fieldname)
+                cleaned = jd_rules.uploaded_value(df.fieldtype, value)
+                if cleaned != value:
+                    row.set(df.fieldname, cleaned)
 
 
 def _set_perspectives_from_kra(rows):

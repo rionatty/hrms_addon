@@ -22,7 +22,12 @@ It also checks:
     completed sheet imports into KRA;
   * the seeding runs once on existing sites (patch) and on new installs
     (after_install), never on every migrate;
-  * hooks, controller and form script are wired to things that exist.
+  * hooks, controller and form script are wired to things that exist;
+  * every JD table can be filled from a CSV: each has Download / Upload, the
+    save hook first repairs what Excel writes into such a file ("25%",
+    Windows-1252 quotes and dashes), and the form's Download writes the rows
+    Frappe's Upload reads (checked against frappe's grid.js when the
+    upstream apps are checked out, see FRAPPE_APPS_ROOT).
 
     python scripts/verify_job_description.py
 """
@@ -35,7 +40,8 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHILD_DIR = os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype", "jd_key_result_area")
+APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
+CHILD_DIR =os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype", "jd_key_result_area")
 TABLE_FIELD = "custom_jd_key_result_areas"
 fail = []
 
@@ -694,6 +700,141 @@ for patch, function in (("seed_kra_masters", "seed_kra_masters"), ("seed_jd_mast
             or "from hrms_addon.hrms_addon.pick_lists import %s" % function not in seed_patch):
         fail.append("patch %s must call pick_lists.%s" % (patch, function))
 print("seeding: once by patch on existing sites, by after_install on new ones, never on migrate or as fixtures")
+
+# ── 6. Filling the tables from a CSV ─────────────────────────────────
+# Every table on the Job Description tab has Download and Upload buttons:
+# Frappe shows them for a Table field with allow_bulk_edit. Upload copies
+# each cell into the rows as the file has it, so the save hook first
+# repairs what Excel writes, and the form's own Download must keep writing
+# the rows Upload reads.
+jd_tables = sorted(f["fieldname"] for f in custom
+                   if f["dt"] == "Designation" and f["fieldtype"] == "Table" and f["fieldname"].startswith("custom_jd_"))
+if sorted(rules.JD_TABLE_FIELDS) != jd_tables:
+    fail.append("jd_rules.JD_TABLE_FIELDS %s must be exactly the Job Description tables %s" % (sorted(rules.JD_TABLE_FIELDS), jd_tables))
+if (rules.KRA_TABLE != TABLE_FIELD or rules.JD_TABLE_FIELDS[0] != TABLE_FIELD
+        or sorted(rules.JD_TABLE_FIELDS[1:]) != sorted(rules.TABLES)):
+    fail.append("JD_TABLE_FIELDS must be the Key Result Areas table followed by jd_rules.TABLES")
+for fieldname in jd_tables:
+    if by_name["Designation-%s" % fieldname].get("allow_bulk_edit") != 1:
+        fail.append("Designation.%s needs allow_bulk_edit: without it the table has no Download / Upload buttons" % fieldname)
+
+# Every uploaded column is either Frappe's to check (Link) or cleaned
+CLEANED = ("Link", "Percent") + tuple(rules.TEXT_FIELDTYPES)
+columns = 0
+for fieldname in rules.JD_TABLE_FIELDS:
+    child_doctype = (by_name.get("Designation-%s" % fieldname) or {}).get("options")
+    if not child_doctype:
+        continue
+    for column in doctype_json(child_doctype)["fields"]:
+        columns += 1
+        if column["fieldtype"] not in CLEANED:
+            fail.append("%s.%s is a %s, which uploaded_value does not handle: decide how an uploaded cell of it is read"
+                        % (child_doctype, column["fieldname"], column["fieldtype"]))
+if (child_fields.get("weighting") or {}).get("fieldtype") != "Percent":
+    fail.append("JD Key Result Area.weighting must be a Percent: uploaded_value strips the % only from Percent cells")
+
+u = rules.uploaded_value
+for fieldtype, value, expected in (
+    ("Percent", "25%", 25.0),
+    ("Percent", " 12.5 % ", 12.5),
+    ("Percent", "40", 40.0),
+    ("Percent", "", 0.0),
+    ("Percent", 30.0, 30.0),
+    ("Percent", None, None),
+    ("Percent", "abc", "abc"),        # left for key_result_area_errors to report
+    ("Percent", "12,5", "12,5"),      # a decimal comma is not 125
+    ("Percent", "#VALUE!", "#VALUE!"),
+    ("Percent", "nan", "nan"),
+    ("Small Text", "Bachelor\x92s degree \x96 \x93IMS\x94 \x95 5\x80", "Bachelor’s degree – “IMS” • 5€"),
+    ("Data", "PE\x81/Kawempe", "PE/Kawempe"),  # unused in Windows-1252: dropped
+    ("Data", "Café – Ōsaka’s", "Café – Ōsaka’s"),  # already right: untouched
+    ("Small Text", None, None),
+    ("Link", "Customer\x92s Focus", "Customer\x92s Focus"),  # Frappe checks Links before the hook runs
+):
+    got = u(fieldtype, value)
+    if got != expected or type(got) is not type(expected):
+        fail.append("uploaded_value(%r, %r) is %r, expected %r" % (fieldtype, value, got, expected))
+for code in range(0x80, 0xA0):
+    try:
+        expected = bytes([code]).decode("cp1252")
+    except UnicodeDecodeError:
+        expected = ""
+    if u("Data", chr(code)) != expected:
+        fail.append("uploaded_value must read U+%04X as Windows-1252 byte 0x%02X (%r), got %r" % (code, code, expected, u("Data", chr(code))))
+        break
+expect("weighting nan", check(rows(("A", F, "nan"), ("B", C, 100))), "Row 1: the weighting must be a number")
+expect("weighting inf", check(rows(("A", F, "inf"), ("B", C, 100))), "Row 1: the weighting must be a number")
+uploaded = rows(("A", F, "25%"), ("B", C, "20%"), ("C", I, " 45 % "), ("D", L, "10"))
+expect("an uploaded 25%/20%/45 %/10 split, as sent", check(uploaded), "must be a number")
+for row in uploaded:
+    row["weighting"] = u("Percent", row["weighting"])
+expect("the same split once cleaned", check(uploaded))
+
+validate_body = re.search(r"^def validate\(doc, method=None\):\n(.*?)(?=^\S)", glue, re.S | re.M)
+if not validate_body or not validate_body.group(1).lstrip().startswith("_clean_uploaded_cells(doc)\n"):
+    fail.append("designation.validate must call _clean_uploaded_cells(doc) first, before any rule reads the rows")
+cleaner = re.search(r"^def _clean_uploaded_cells\(doc\):\n(.*?)(?=^\S)", glue, re.S | re.M)
+for needle, why in (
+    ("for fieldname in jd_rules.JD_TABLE_FIELDS:", "must clean every Job Description table"),
+    ("for df in row.meta.fields:", "must look at every column of a row"),
+    ("jd_rules.uploaded_value(df.fieldtype, value)", "must use the tested uploaded_value"),
+    ("row.set(df.fieldname, cleaned)", "must write the cleaned value back"),
+):
+    if not cleaner or needle not in cleaner.group(1):
+        fail.append("designation._clean_uploaded_cells %s" % why)
+
+if not re.search(r'setup\(frm\) \{(?:\s*//[^\n]*)*\s*\$\(frm\.wrapper\)\.on\(\s*"dirty",\s*frappe\.utils\.debounce\(\(\) => ha_show_kra_totals\(frm\), \d+\)', js):
+    fail.append("designation.js must recount the KRA totals when the form turns dirty (setup): Upload fires no row event")
+if not re.search(r"refresh\(frm\) \{[^}]*ha_setup_jd_downloads\(frm\);", js):
+    fail.append("designation.js must set up the Job Description downloads on refresh")
+for needle, why in (
+    ('df.fieldtype === "Table" && df.fieldname.startsWith("custom_jd_")', "must replace Download on exactly the Job Description tables"),
+    ('.find(".grid-download")\n\t\t\t\t.off("click")\n\t\t\t\t.on("click"', "must replace Frappe's Download click, not add to it"),
+    ('frappe.model.is_value_type(column.fieldtype)', "must write the same columns as Frappe's Download"),
+    ('new Blob(["\\ufeff" + csv]', "must start the file with a UTF-8 byte order mark, or Excel reads it as Windows-1252"),
+    ('`"${value.replace(/"/g, \'""\')}"`', "must quote text cells, doubling quotes inside them"),
+):
+    if needle not in js:
+        fail.append("designation.js Download %s" % why)
+header = re.search(r"const data = \[\n(.*?)\n\t\];", js, re.S)
+our_rows = [line.strip().rstrip(",") for line in header.group(1).splitlines()] if header else []
+
+if os.path.isdir(APPS_ROOT):
+    def upstream(*parts):
+        return open(os.path.join(APPS_ROOT, "frappe", "frappe", *parts), encoding="utf-8").read()
+
+    grid = upstream("public", "js", "frappe", "form", "grid.js")
+    download = re.search(r"\n\tsetup_download\(\) \{\n(.*?)\n\t\}\n", grid, re.S)
+    frappe_rows = re.findall(r"data\.push\((\[.*?\])\);", download.group(1))[:7] if download else []
+    if not frappe_rows or our_rows != frappe_rows:
+        fail.append("designation.js Download header rows %s differ from Frappe's %s: Upload would misread the file"
+                    % (our_rows, frappe_rows))
+    for needle, why in (
+        ("this.frm.get_docfield(this.df.fieldname)?.allow_bulk_edit", "reads allow_bulk_edit from the Table field"),
+        ("var fieldnames = data[2];", "reads the fieldnames from the third row"),
+        ("if (i > 6) {", "reads rows from the eighth row on"),
+        ("me.frm.add_child(me.df.fieldname)", "adds each row with frm.add_child"),
+        ("frappe.utils.get_decoded_string(file.dataurl)", "decodes the file with get_decoded_string"),
+        ('.find(".grid-download")', "binds its Download to .grid-download"),
+    ):
+        if needle not in grid:
+            fail.append("frappe grid.js no longer %s: recheck the Job Description tables' Download / Upload" % why)
+    add_child = re.search(r"\n\tadd_child: function \(parent_doc, doctype, parentfield, idx\) \{\n(.*?)\n\t\},\n", upstream("public", "js", "frappe", "model", "create_new.js"), re.S)
+    if not add_child or "cur_frm.dirty()" not in add_child.group(1):
+        fail.append("frappe.model.add_child no longer marks the form dirty: the KRA totals would not follow an Upload")
+    # uploaded_value's Windows-1252 repair assumes this exact decoding: UTF-8
+    # when the file is valid UTF-8, otherwise atob's bytes as Latin-1
+    decoded = re.search(r"\n\tget_decoded_string\(dataURI\) \{\n(.*?)\n\t\},\n", upstream("public", "js", "frappe", "utils", "utils.js"), re.S)
+    decoded_code = " ".join(re.sub(r"//[^\n]*", "", decoded.group(1)).split()) if decoded else ""
+    if decoded_code != ('let parts = dataURI.split(","); const encoded_data = parts[1]; let decoded = atob(encoded_data); '
+                        "try { const escaped = escape(decoded); decoded = decodeURIComponent(escaped); } catch (e) { } return decoded;"):
+        fail.append("frappe's get_decoded_string changed: recheck uploaded_value's Windows-1252 repair against it (%s)" % decoded_code)
+    upstream_note = "checked against frappe's grid.js"
+else:
+    if len(our_rows) != 7 or our_rows[6] != '["------"]':
+        fail.append("designation.js Download must write Frappe's 7 header rows")
+    upstream_note = "upstream apps not found at %s: grid.js contract not checked" % APPS_ROOT
+print("table import: %d tables with Download / Upload, %d columns cleaned or linked, %s" % (len(jd_tables), columns, upstream_note))
 
 print()
 if fail:
