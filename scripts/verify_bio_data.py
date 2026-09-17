@@ -92,6 +92,8 @@ for master, (name_field, seeds) in rules.BIO_DATA_MASTERS.items():
         fail.append("%s must be named by its mandatory %s field" % (master, name_field))
     if not spec_json.get("allow_rename") or not spec_json.get("quick_entry"):
         fail.append("%s must allow rename and open in quick entry" % master)
+    if not spec_json.get("allow_import"):
+        fail.append("%s must allow Data Import: a list is loaded in bulk, not typed one value at a time" % master)
     perms = {p["role"]: p for p in spec_json.get("permissions", [])}
     for role in ("HR Manager", "HR User"):
         if not all((perms.get(role) or {}).get(k) for k in ("read", "write", "create")):

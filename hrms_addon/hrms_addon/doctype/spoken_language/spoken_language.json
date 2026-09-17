@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:language_name",
  "creation": "2026-09-17 10:00:00.000000",
@@ -25,7 +26,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-17 10:00:00.000000",
+ "modified": "2026-09-17 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Spoken Language",

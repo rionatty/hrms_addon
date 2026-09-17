@@ -204,9 +204,16 @@ values Luuka's documents use (plus any value already stored) by patch or
 back values HR deleted. The moves of old JD text boxes into the tables
 are run against the lines of LPL/JD/SM/001.
 
-Every table on the Job Description tab can be filled from a CSV: each has
-**Download** and **Upload** under it (Allow Bulk Edit on its Designation
-field). HRMS's own **Required Skills** table on the same form has them too,
+Bulk loading works two ways. **Data Import** (Document Type: Designation)
+takes the tables with their Job Title — a child table is never its own
+Document Type in Frappe, so this is the only way it can work — and every
+pick list of the app allows import as well, so HR loads a list in one file
+instead of typing values one at a time. Both verifiers fail if a master
+loses `allow_import`.
+
+The second way is per Job Title, on the form. Every table on the Job
+Description tab can be filled from a CSV: each has **Download** and
+**Upload** under it (Allow Bulk Edit on its Designation field). HRMS's own **Required Skills** table on the same form has them too,
 set by property setter because the field is theirs (`hrms/setup.py`), which
 is why `jd_rules.UPLOADABLE_TABLES` — every table the save hook cleans — is
 the JD tables plus that one. Download gives the table as a CSV; fill it in

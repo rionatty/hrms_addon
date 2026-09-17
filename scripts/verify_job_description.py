@@ -127,6 +127,10 @@ for master, (name_field, seeds) in rules.MASTERS.items():
         fail.append("%s must allow rename, so fixing a value updates every document using it" % master)
     if not spec_json.get("quick_entry"):
         fail.append("%s should open in quick entry when created from the form that picks it" % master)
+    # Data Import lists only DocTypes with allow_import (frappe/utils/user.py
+    # can_import), so without it HR can only type a list in one value at a time
+    if not spec_json.get("allow_import"):
+        fail.append("%s must allow Data Import: HR loads these lists in bulk" % master)
     if len(set(s.lower() for s in seeds)) != len(seeds) or not all(s and s == s.strip() for s in seeds):
         fail.append("%s seeds must be distinct, non-blank and trimmed: %s" % (master, list(seeds)))
     perms = {p["role"]: p for p in spec_json.get("permissions", [])}
