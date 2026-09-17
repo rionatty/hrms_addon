@@ -1,0 +1,185 @@
+{#-
+	Careers portal list page (/jobs). Replaces HRMS's hrms/www/jobs/index.html;
+	see index.py next to this file.
+
+	HRMS's index.js still drives this page, so these must stay exactly as they
+	are: #data (data-filters, data-no-of-pages), #search-box, #sort, #filter,
+	the desktop-/mobile- filter checkboxes with their .desktop-filters /
+	.mobile-filters classes, [name=clear-filters], [name=card] with the route
+	as its id, [name=pagination], #previous, #next, #filters-drawer,
+	[name=close-filters-drawer], #apply-filters and #overlay.
+	scripts/verify_careers.py checks them against HRMS's script.
+-#}
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Job Openings") }}{% endblock title %}
+
+{% block style %}
+	{{ super() }}
+	<link rel="stylesheet" href="/assets/hrms_addon/css/careers.css?v=20260917">
+{% endblock %}
+
+{% block header %}{% endblock header %}
+
+{% macro filter_groups(prefix) -%}
+	{%- for name, values in all_filters.items() %}
+	<div class="lpl-filter-group">
+		<p class="lpl-filter-group__title">{{ name.title() | replace('_', ' ') }}</p>
+		{%- for value in values %}
+		<div class="form-group form-check">
+			<input
+				id="{{ prefix ~ '-' ~ value }}"
+				name="{{ name }}"
+				value="{{ value }}"
+				class="form-check-input {{ prefix }}-filters"
+				type="checkbox"
+				role="button"
+			/>
+			<label class="form-check-label align-top" for="{{ prefix ~ '-' ~ value }}" role="button">{{ value | e }}</label>
+		</div>
+		{%- endfor %}
+	</div>
+	{%- endfor %}
+{%- endmacro %}
+
+{% block page_content %}
+<meta id="data" data-filters="{{ all_filters }}" data-no-of-pages="{{ no_of_pages }}" />
+{%- set job_opening_count = job_openings | length %}
+
+<div class="lpl-careers lpl-jobs">
+	<section class="lpl-hero lpl-hero--jobs">
+		<div class="lpl-hero__text">
+			<p class="lpl-eyebrow">{{ _("Careers") }}</p>
+			<h1 class="lpl-hero__title">{{ _("Job Openings") }}</h1>
+			<p class="lpl-hero__meta">{{ _("Find the role that fits you and apply online in a few minutes.") }}</p>
+		</div>
+		<div class="lpl-search">
+			<svg class="lpl-search__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+			<input
+				type="search"
+				name="query"
+				id="search-box"
+				class="form-control desktop-filters mobile-filters"
+				placeholder="{{ _('Search by job title or keyword') }}"
+				aria-label="{{ _('Search for jobs') }}"
+			/>
+		</div>
+	</section>
+
+	<div class="lpl-layout lpl-layout--jobs">
+		<aside class="lpl-filters d-none d-lg-block">
+			<div class="lpl-card">
+				<div class="lpl-filters__head">
+					<h2>{{ _("Filters") }}</h2>
+					<a name="clear-filters" role="button">{{ _("Clear All") }}</a>
+				</div>
+				{{ filter_groups("desktop") }}
+			</div>
+		</aside>
+
+		<div class="lpl-results">
+			<div class="lpl-results__bar">
+				<p class="lpl-results__count">
+					{{ _("Showing") }} <strong>{{ job_opening_count }}</strong>
+					{{ _("result") if job_opening_count == 1 else _("results") }}
+				</p>
+				<div class="lpl-results__tools">
+					<button id="sort" class="lpl-tool" title="{{ _('Sort by posting date') }}">
+						<svg class="icon icon-sm"><use href="#icon-sort-{{ 'ascending' if frappe.form_dict.sort == 'asc' else 'descending' }}"></use></svg>
+						<span class="d-none d-lg-inline">{{ _("Posting Date") }}</span>
+					</button>
+					<button id="filter" class="lpl-tool d-lg-none" title="{{ _('Filters') }}">
+						<svg class="icon icon-sm"><use href="#icon-filter"></use></svg>
+						<span>{{ _("Filters") }}</span>
+					</button>
+				</div>
+			</div>
+
+			{%- if job_openings %}
+			<div class="lpl-job-grid">
+				{%- for jo in job_openings %}
+				<article id="{{ jo.route }}" name="card" class="lpl-job-card" role="button">
+					<div class="lpl-job-card__body">
+						<div class="lpl-job-card__head">
+							<h2 class="lpl-job-card__title" title="{{ jo.job_title | e }}">
+								<a href="/{{ jo.route }}">{{ jo.job_title | e }}</a>
+							</h2>
+							{%- if jo.employment_type %}
+							<span class="lpl-badge lpl-badge--{{ jo.employment_type | lower | replace(' ', '-') | e }}">{{ jo.employment_type | e }}</span>
+							{%- endif %}
+						</div>
+						<p class="lpl-job-card__meta"><strong>{{ jo.company | e }}</strong> &middot; {{ jo.posted_on }}</p>
+						<ul class="lpl-job-card__facts">
+							{%- if jo.location %}
+							<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle></svg>{{ jo.location | e }}</li>
+							{%- endif %}
+							{%- if jo.department %}
+							<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-5h6v5"></path></svg>{{ jo.department | e }}</li>
+							{%- endif %}
+							{%- if jo.publish_salary_range and (jo.lower_range or jo.upper_range) %}
+							{%- set low = frappe.format_value(frappe.utils.flt(jo.lower_range), currency=jo.currency) if jo.lower_range else "" %}
+							{%- set high = frappe.format_value(frappe.utils.flt(jo.upper_range), currency=jo.currency) if jo.upper_range else "" %}
+							<li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle></svg>{{ (low ~ " - " ~ high) if (low and high) else (low or high) }} / {{ _(jo.salary_per or "Month") | lower }}</li>
+							{%- endif %}
+						</ul>
+					</div>
+					<div class="lpl-job-card__foot">
+						<span>
+							{%- if jo.closes_on %}{{ _("Closes") }} <strong>{{ frappe.utils.format_date(jo.closes_on, "d MMM, YYYY") }}</strong>{% endif -%}
+							{%- if jo.publish_applications_received %}{% if jo.closes_on %} &middot; {% endif %}{{ _("Applications") }} <strong>{{ jo.no_of_applications }}</strong>{% endif -%}
+						</span>
+						<span class="lpl-job-card__cta">{{ _("View job") }} &rarr;</span>
+					</div>
+				</article>
+				{%- endfor %}
+			</div>
+			{%- else %}
+			<div class="lpl-card lpl-empty-state">
+				<h2>{{ _("No openings match your search") }}</h2>
+				<p class="lpl-empty">{{ _("Try other words or fewer filters, or check back soon.") }}</p>
+				<a name="clear-filters" role="button" class="lpl-btn lpl-btn--apply">{{ _("Show all openings") }}</a>
+			</div>
+			{%- endif %}
+
+			<!-- Pagination -->
+			{%- if no_of_pages > 1 %}
+			<nav class="lpl-pagination" aria-label="{{ _('Pagination') }}">
+				{%- set page = frappe.form_dict.page %}
+				{%- set page = '1' if (not page or page|int > no_of_pages or page|int < 1) else page %}
+				<button id="previous" class="lpl-page" title="{{ _('Previous') }}">
+					<svg class="icon icon-sm"><use href="#icon-left"></use></svg>
+				</button>
+				{%- set initial_page = 1 if page|int == 1 else ((page|int / 3 + 0.5) | round(method='floor')|int * 3 - 2) %}
+				{%- set no_of_displayed_pages = 5 if no_of_pages - initial_page > 5 else no_of_pages - initial_page + 1 %}
+				{%- for i in range(no_of_displayed_pages) %}
+					{%- set pg = i + initial_page %}
+					<button id="{{ pg }}" name="pagination" class="lpl-page{{ ' lpl-page--current' if pg|string == page else '' }}">
+						{%- if (loop.first and pg != 1) or (loop.last and pg != no_of_pages) %}...{% else %}{{ pg }}{% endif -%}
+					</button>
+				{%- endfor %}
+				<button id="next" class="lpl-page" title="{{ _('Next') }}">
+					<svg class="icon icon-sm"><use href="#icon-right"></use></svg>
+				</button>
+			</nav>
+			{%- endif %}
+		</div>
+	</div>
+
+	<!-- Mobile Filters -->
+	<div id="filters-drawer" class="filters-drawer position-fixed bg-white w-100 d-lg-none">
+		<div class="lpl-drawer__head">
+			<h2>{{ _("Filters") }}</h2>
+			<div name="close-filters-drawer" role="button" aria-label="{{ _('Close') }}">
+				<svg class="icon icon-lg"><use href="#icon-close"></use></svg>
+			</div>
+		</div>
+		<div class="lpl-drawer__body">
+			{{ filter_groups("mobile") }}
+		</div>
+		<div class="lpl-drawer__foot">
+			<a name="clear-filters" role="button">{{ _("Clear All") }}</a>
+			<a id="apply-filters" class="lpl-btn lpl-btn--apply">{{ _("Apply") }}</a>
+		</div>
+	</div>
+	<div id="overlay" name="close-filters-drawer" class="overlay d-lg-none"></div>
+</div>
+{% endblock page_content %}

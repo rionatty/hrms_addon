@@ -441,6 +441,367 @@
 	}
 }
 
+/* ── Job Openings list (/jobs) ────────────────────────────────────── */
+/* HRMS's own index.css still loads on this page for the mobile filter
+   drawer; #search-box is re-styled here with an id selector because HRMS
+   styles it by id. */
+
+body.lpl-jobs-page {
+	background: var(--lpl-surface);
+}
+
+.lpl-hero--jobs {
+	align-items: center;
+}
+
+.lpl-search {
+	position: relative;
+	z-index: 1;
+	flex: 0 1 440px;
+	min-width: 0;
+}
+
+.lpl-search__icon {
+	position: absolute;
+	left: 16px;
+	top: 50%;
+	width: 18px;
+	height: 18px;
+	transform: translateY(-50%);
+	fill: none;
+	stroke: var(--lpl-muted);
+	stroke-width: 2;
+	stroke-linecap: round;
+	pointer-events: none;
+}
+
+.lpl-jobs #search-box {
+	height: 50px;
+	padding: 0 18px 0 46px;
+	border: 0;
+	border-radius: 999px;
+	background: var(--lpl-white);
+	color: var(--lpl-ink);
+	font-size: 15px;
+	box-shadow: 0 8px 22px rgba(0, 20, 70, 0.28);
+}
+
+.lpl-jobs #search-box:focus {
+	box-shadow: 0 8px 22px rgba(0, 20, 70, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.45);
+}
+
+.lpl-layout--jobs {
+	grid-template-columns: 260px minmax(0, 1fr);
+}
+
+.lpl-filters {
+	position: sticky;
+	top: 88px;
+}
+
+.lpl-filters__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.lpl-careers .lpl-filters__head h2 {
+	margin: 0;
+}
+
+.lpl-filters__head a,
+.lpl-drawer__foot a[name="clear-filters"] {
+	color: var(--lpl-blue);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.lpl-filter-group {
+	padding: 14px 0 4px;
+	border-top: 1px solid var(--lpl-line);
+}
+
+.lpl-filter-group__title {
+	margin: 0 0 8px;
+	color: var(--lpl-blue);
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.lpl-filter-group .form-check {
+	margin-bottom: 8px;
+	font-size: 14px;
+}
+
+.lpl-filter-group .form-check-input {
+	accent-color: var(--lpl-blue);
+}
+
+.lpl-results {
+	/* a grid item: without this a long job title would push the page sideways */
+	min-width: 0;
+}
+
+.lpl-results__bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.lpl-results__count {
+	margin: 0;
+	color: var(--lpl-muted);
+	font-size: 14px;
+}
+
+.lpl-results__count strong {
+	color: var(--lpl-ink);
+}
+
+.lpl-results__tools {
+	display: flex;
+	gap: 8px;
+}
+
+.lpl-tool {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 14px;
+	border: 1px solid var(--lpl-line);
+	border-radius: 999px;
+	background: var(--lpl-white);
+	color: var(--lpl-text);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.lpl-tool:hover {
+	border-color: var(--lpl-blue-100);
+	color: var(--lpl-blue);
+}
+
+.lpl-job-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 20px;
+}
+
+.lpl-job-card {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border: 1px solid var(--lpl-line);
+	border-radius: var(--lpl-radius);
+	background: var(--lpl-white);
+	box-shadow: var(--lpl-shadow);
+	cursor: pointer;
+	transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.lpl-job-card:hover {
+	transform: translateY(-2px);
+	border-color: var(--lpl-blue-100);
+	box-shadow: 0 2px 4px rgba(15, 26, 46, 0.05), 0 14px 32px rgba(0, 51, 154, 0.12);
+}
+
+.lpl-job-card__body {
+	flex: 1;
+	padding: 22px 22px 18px;
+}
+
+.lpl-job-card__head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.lpl-careers .lpl-job-card__title {
+	margin: 0;
+	min-width: 0;
+	font-size: 1.15rem;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.lpl-job-card__title a,
+.lpl-job-card__title a:hover {
+	color: var(--lpl-ink);
+	text-decoration: none;
+}
+
+.lpl-badge {
+	flex: 0 0 auto;
+	padding: 3px 10px;
+	border-radius: 999px;
+	background: var(--lpl-surface);
+	color: var(--lpl-muted);
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.lpl-badge--full-time,
+.lpl-badge--permanent {
+	background: var(--lpl-green-50);
+	color: var(--lpl-green-600);
+}
+
+.lpl-badge--intern,
+.lpl-badge--apprentice,
+.lpl-badge--contract {
+	background: var(--lpl-blue-50);
+	color: var(--lpl-blue);
+}
+
+.lpl-job-card__meta {
+	margin: 6px 0 14px;
+	color: var(--lpl-muted);
+	font-size: 13px;
+}
+
+.lpl-job-card__meta strong {
+	color: var(--lpl-text);
+}
+
+.lpl-job-card__facts {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: 14px;
+}
+
+.lpl-job-card__facts li {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.lpl-job-card__facts svg {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 16px;
+	fill: none;
+	stroke: var(--lpl-blue);
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.lpl-job-card__foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 12px 22px;
+	border-top: 1px solid var(--lpl-line);
+	background: var(--lpl-surface);
+	color: var(--lpl-muted);
+	font-size: 12px;
+}
+
+.lpl-job-card__foot strong {
+	color: var(--lpl-text);
+}
+
+.lpl-job-card__cta {
+	color: var(--lpl-blue);
+	font-weight: 700;
+	white-space: nowrap;
+}
+
+.lpl-empty-state {
+	text-align: center;
+}
+
+.lpl-careers .lpl-empty-state h2 {
+	justify-content: center;
+}
+
+.lpl-careers .lpl-empty-state h2::before {
+	display: none;
+}
+
+.lpl-empty-state .lpl-btn {
+	margin-top: 16px;
+}
+
+.lpl-pagination {
+	display: flex;
+	justify-content: center;
+	gap: 6px;
+	margin: 28px 0 8px;
+}
+
+.lpl-page {
+	min-width: 38px;
+	height: 38px;
+	padding: 0 10px;
+	border: 1px solid var(--lpl-line);
+	border-radius: 999px;
+	background: var(--lpl-white);
+	color: var(--lpl-text);
+	font-weight: 600;
+}
+
+.lpl-page:disabled {
+	opacity: 0.4;
+}
+
+.lpl-page--current {
+	border-color: var(--lpl-blue);
+	background: var(--lpl-blue);
+	color: var(--lpl-white);
+}
+
+.lpl-drawer__head,
+.lpl-drawer__foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 16px 22px;
+}
+
+.lpl-drawer__head {
+	border-bottom: 1px solid var(--lpl-line);
+}
+
+.lpl-careers .lpl-drawer__head h2 {
+	margin: 0;
+	font-size: 1.15rem;
+}
+
+.lpl-drawer__body {
+	flex-grow: 1;
+	overflow: auto;
+	padding: 4px 22px 16px;
+}
+
+.lpl-drawer__foot {
+	border-top: 1px solid var(--lpl-line);
+}
+
+@media (max-width: 991px) {
+	.lpl-layout--jobs {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.lpl-search {
+		flex-basis: 100%;
+	}
+}
+
 /* ── Job Application Form (/apply) ────────────────────────────────── */
 /* Frappe's own rules are nested under [data-doctype="Web Form"], so these
    repeat that chain to win on specificity rather than using !important. */

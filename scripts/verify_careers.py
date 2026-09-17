@@ -273,7 +273,82 @@ for init in (os.path.join(APP, "web_form", "__init__.py"), os.path.join(FORM_DIR
         fail.append("%s is missing: Frappe imports the web form's module" % os.path.relpath(init, REPO))
 print("Job Application Form: %d steps, fields match Job Applicant, only step 1 mandatory, every pick list filled" % len(pages))
 
-# ── 4. Stylesheet ────────────────────────────────────────────────────
+# ── 4. Job Openings list (/jobs) ─────────────────────────────────────
+JOBS_DIR = os.path.join(REPO, "hrms_addon", "www", "jobs")
+jobs_page = read(os.path.join(JOBS_DIR, "index.html"))
+jobs_py = read(os.path.join(JOBS_DIR, "index.py"))
+hrms_jobs = os.path.join(APPS_ROOT, "hrms", "hrms", "www", "jobs")
+for init in (os.path.join(REPO, "hrms_addon", "www", "__init__.py"), os.path.join(JOBS_DIR, "__init__.py")):
+    if not os.path.exists(init):
+        fail.append("%s is missing: Frappe imports the page's index.py as a module" % os.path.relpath(init, REPO))
+for own in ("index.js", "index.css"):
+    if os.path.exists(os.path.join(JOBS_DIR, own)):
+        fail.append("www/jobs/%s would replace HRMS's; the page must keep running HRMS's own" % own)
+if "from hrms.www.jobs.index import get_context as hrms_get_context" not in jobs_py or "hrms_get_context(context)" not in jobs_py:
+    fail.append("www/jobs/index.py must build the page with HRMS's get_context")
+for kind in ("js", "css"):
+    if 'context.colocated_%s = frappe.read_file(frappe.get_app_path("hrms", "www", "jobs", "index.%s"))' % (kind, kind) not in jobs_py:
+        fail.append("www/jobs/index.py must load HRMS's index.%s as the page's colocated %s" % (kind, kind))
+if 'context.body_class = "jobs-page lpl-jobs-page"' not in jobs_py:
+    fail.append("the page body must keep HRMS's jobs-page class (its styles use it) and add lpl-jobs-page")
+if "{{ super() }}" not in jobs_page.split("{% block style %}")[-1].split("{% endblock %}")[0]:
+    fail.append("the list page's style block must keep {{ super() }}: that is where HRMS's index.css is printed")
+if not re.search(r'href="/assets/hrms_addon/css/careers\.css\?v=\d+"', jobs_page):
+    fail.append("the list page must link the careers stylesheet")
+for tag in ("if", "for", "macro", "block"):
+    if len(re.findall(r"{%-?\s*" + tag + r"\b", jobs_page)) != len(re.findall(r"{%-?\s*end" + tag + r"\b", jobs_page)):
+        fail.append("list page: every {%% %s %%} needs its {%% end%s %%}" % (tag, tag))
+for opened, closed in (("{%", "%}"), ("{{", "}}")):
+    if jobs_page.count(opened) != jobs_page.count(closed):
+        fail.append("list page: unbalanced %s %s" % (opened, closed))
+for field in ("job_title", "company", "location", "department", "employment_type"):
+    for printed in re.findall(r"{{\s*jo\." + field + r"\b([^}]*)}}", jobs_page):
+        if "| e" not in printed:
+            fail.append("list page prints jo.%s without escaping it" % field)
+
+hrms_script_path = os.path.join(hrms_jobs, "index.js")
+if os.path.exists(hrms_script_path):
+    hrms_script = read(hrms_script_path)
+    selectors = set()
+    for found in re.findall(r'\$\(\s*"([^"]+)"', hrms_script):
+        selectors.update(part.strip() for part in found.split(","))
+    for selector in sorted(selectors):
+        if selector in ("html", "body"):
+            continue
+        if selector in ("#desktop-", "#mobile-"):
+            prefix = selector[1:-1]
+            if "{{ prefix ~ '-' ~ value }}" not in jobs_page or 'filter_groups("%s")' % prefix not in jobs_page:
+                fail.append("HRMS's script ticks filters by id %s<value>: the page must render them" % selector)
+        elif selector.startswith("#"):
+            if 'id="%s"' % selector[1:] not in jobs_page:
+                fail.append("HRMS's script needs #%s, which the list page no longer has" % selector[1:])
+        elif selector.startswith("."):
+            name = selector[1:]
+            prefix = name.split("-")[0]
+            if not re.search(r'class="[^"]*\b%s\b' % re.escape(name), jobs_page) and not (
+                name.endswith("-filters") and 'filter_groups("%s")' % prefix in jobs_page and "{{ prefix }}-filters" in jobs_page
+            ):
+                fail.append("HRMS's script needs .%s, which the list page no longer has" % name)
+        elif selector.startswith("[name="):
+            name = selector[len("[name="):].rstrip("]")
+            if 'name="%s"' % name not in jobs_page:
+                fail.append("HRMS's script needs [name=%s], which the list page no longer has" % name)
+        else:
+            fail.append("HRMS's script uses a selector this check does not understand: %r" % selector)
+    for data in re.findall(r'\.data\("([a-z-]+)"\)', hrms_script):
+        if 'data-%s="' % data not in jobs_page:
+            fail.append("HRMS's script reads data-%s from #data, which the list page no longer sets" % data)
+    search_box = re.search(r"<input[^>]*id=\"search-box\"[^>]*>", jobs_page, re.S)
+    if not search_box or not re.search(r'class="[^"]*\bdesktop-filters\b[^"]*\bmobile-filters\b', search_box.group(0)):
+        fail.append("the search box must carry both desktop-filters and mobile-filters: HRMS sends the query with either set")
+    if 'id="{{ jo.route }}" name="card"' not in jobs_page:
+        fail.append("each job card must carry its route as its id: HRMS's script navigates to this.id")
+    print("Job Openings list: %d selectors HRMS's script uses, all present; HRMS's context, script and styles kept"
+          % len(selectors - {"html", "body"}))
+else:
+    print("SKIPPED HRMS script check: %s not found" % hrms_script_path)
+
+# ── 5. Stylesheet ────────────────────────────────────────────────────
 css = read(os.path.join(REPO, "hrms_addon", "public", "css", "careers.css"))
 defined = set(re.findall(r"(--lpl-[a-z0-9-]+)\s*:", css))
 used = set(re.findall(r"var\((--lpl-[a-z0-9-]+)\)", css))
@@ -284,10 +359,11 @@ if body.count("{") != body.count("}"):
     fail.append("careers.css: unbalanced braces")
 if "!important" in body:
     fail.append("careers.css must win on specificity, not !important")
-for cls in set(re.findall(r'class="([^"{]+)"', template)):
-    for name in cls.split():
-        if name.startswith("lpl-") and "." + name not in css:
-            fail.append("the page uses .%s, which careers.css does not style" % name)
+for page_name, page_source in (("job page", template), ("list page", jobs_page)):
+    for cls in set(re.findall(r'class="([^"{]+)"', page_source)):
+        for name in cls.split():
+            if name.startswith("lpl-") and not re.search(r"\.%s(?![\w-])" % re.escape(name), css):
+                fail.append("the %s uses .%s, which careers.css does not style" % (page_name, name))
 print("stylesheet: %d variables, all defined; every page class styled" % len(used))
 
 print()

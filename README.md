@@ -182,6 +182,14 @@ picks from is seeded (a candidate cannot add a District or a Language), and
 that the form's script has no Jinja delimiters, since Frappe renders it
 through Jinja.
 
+The Job Openings list (`www/jobs/index.html`) replaces HRMS's page the same
+way, but only its markup: `www/jobs/index.py` builds the page with HRMS's
+`get_context` and serves HRMS's own `index.js` and `index.css`, so search,
+filters, sort and paging are still HRMS's code. The check reads HRMS's
+script and fails if any element it looks for (`#sort`, `[name=card]`, the
+filter checkboxes, ...) is missing from the page, which is what an HRMS
+update that renames one would otherwise break silently.
+
 `verify_job_description.py` does the same for the Job Description template on
 Designation: it loads `jd_rules.py` without Frappe and checks the Balanced
 Scorecard rules against real splits, including one (15.7/22.1/51.4/10.8)
