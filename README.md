@@ -167,8 +167,20 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py
 ```
+
+`verify_careers.py` covers the careers portal: the Job Opening page
+(`templates/generators/job_opening.html`, which replaces HRMS's template of
+the same path because Frappe searches the last-installed app first), the
+Job Application Form web form at `/apply` (step 1 the application, steps 2 to
+5 the Pre-Interview Bio-Data) and their stylesheet
+`public/css/careers.css`. It checks that the page escapes what it prints and
+shows only the candidate-facing parts of the Job Title's Job Description,
+that every form field matches Job Applicant, that every list a candidate
+picks from is seeded (a candidate cannot add a District or a Language), and
+that the form's script has no Jinja delimiters, since Frappe renders it
+through Jinja.
 
 `verify_job_description.py` does the same for the Job Description template on
 Designation: it loads `jd_rules.py` without Frappe and checks the Balanced

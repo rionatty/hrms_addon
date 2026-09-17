@@ -1,0 +1,4 @@
+/* Job Application Form (/apply). All styles are shared with the Job Opening
+   page in the careers stylesheet; Frappe puts this file in the page's <style>
+   block, so the import comes first. */
+@import url("/assets/hrms_addon/css/careers.css?v=20260917");

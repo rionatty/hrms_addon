@@ -99,6 +99,17 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Job Opening-job_application_route-description",
+  "doc_type": "Job Opening",
+  "doctype_or_field": "DocField",
+  "property": "description",
+  "property_type": "Text",
+  "value": "Leave blank to use the Job Application Form with the Pre-Interview Bio-Data steps (/apply).",
+  "module": "HRMS Addon",
+  "field_name": "job_application_route"
+ },
+ {
+  "doctype": "Property Setter",
   "name": "KRA-main-search_fields",
   "doc_type": "KRA",
   "doctype_or_field": "DocType",

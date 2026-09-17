@@ -215,9 +215,11 @@ print("custom fields: names, links, selects, HTML, insert_after chains checked")
 
 # ── 2. Same-name mapping Job Requisition -> Job Opening ──────────────
 jr, jo = by_dt.get("Job Requisition", {}), by_dt.get("Job Opening", {})
+# Job Opening fields about its careers page, not the requisition's content
+JOB_OPENING_ONLY = {"custom_show_job_description"}
 mapped = 0
 for fn, f in jo.items():
-    if f["fieldtype"] in BREAKS:
+    if f["fieldtype"] in BREAKS or fn in JOB_OPENING_ONLY:
         continue
     src = jr.get(fn)
     if not src:

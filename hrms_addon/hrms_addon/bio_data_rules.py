@@ -15,16 +15,44 @@ missing_values() keeps anything already on the Employee.
 
 import re
 
+# Uganda's districts, from the "Districts of Uganda" list (current as of
+# 1 July 2020: 26 Central, 37 Eastern, 39 Northern, 35 Western, Kampala
+# included). Candidates pick from this list on the online Job Application
+# Form and cannot add to it, so it is seeded in full; HR adds any new one.
+UGANDA_DISTRICTS = tuple(sorted((
+    # Central
+    "Buikwe", "Bukomansimbi", "Butambala", "Buvuma", "Gomba", "Kalangala", "Kalungu", "Kampala", "Kasanda",
+    "Kayunga", "Kiboga", "Kyankwanzi", "Kyotera", "Luweero", "Lwengo", "Lyantonde", "Masaka", "Mityana",
+    "Mpigi", "Mubende", "Mukono", "Nakaseke", "Nakasongola", "Rakai", "Sembabule", "Wakiso",
+    # Eastern
+    "Amuria", "Budaka", "Bududa", "Bugiri", "Bugweri", "Bukedea", "Bukwo", "Bulambuli", "Busia", "Butaleja",
+    "Butebo", "Buyende", "Iganga", "Jinja", "Kaberamaido", "Kalaki", "Kaliro", "Kamuli", "Kapchorwa",
+    "Kapelebyong", "Katakwi", "Kibuku", "Kumi", "Kween", "Luuka", "Manafwa", "Mayuge", "Mbale", "Namayingo",
+    "Namisindwa", "Namutumba", "Ngora", "Pallisa", "Serere", "Sironko", "Soroti", "Tororo",
+    # Northern
+    "Abim", "Adjumani", "Agago", "Alebtong", "Amolatar", "Amudat", "Amuru", "Apac", "Arua", "Dokolo", "Gulu",
+    "Kaabong", "Karenga", "Kitgum", "Koboko", "Kole", "Kotido", "Kwania", "Lamwo", "Lira", "Madi-Okollo",
+    "Maracha", "Moroto", "Moyo", "Nabilatuk", "Nakapiripirit", "Napak", "Nebbi", "Nwoya", "Obongi", "Omoro",
+    "Otuke", "Oyam", "Pader", "Pakwach", "Terego", "Yumbe", "Zombo",
+    # Western
+    "Buhweju", "Buliisa", "Bundibugyo", "Bunyangabu", "Bushenyi", "Hoima", "Ibanda", "Isingiro", "Kabale",
+    "Kabarole", "Kagadi", "Kakumiro", "Kamwenge", "Kanungu", "Kasese", "Kazo", "Kibaale", "Kikuube", "Kiruhura",
+    "Kiryandongo", "Kisoro", "Kitagwenda", "Kyegegwa", "Kyenjojo", "Masindi", "Mbarara", "Mitooma", "Ntoroko",
+    "Ntungamo", "Rubanda", "Rubirizi", "Rukiga", "Rukungiri", "Rwampara", "Sheema",
+)))
+
 # The Bio-Data tab's pick lists, same shape as jd_rules.MASTERS: master
-# DocType -> (name field, values seeded once). Districts start empty: HR adds
-# each one the first time a candidate names it.
+# DocType -> (name field, values seeded once).
 BIO_DATA_MASTERS = {
-    "District": ("district_name", ()),
+    "District": ("district_name", UGANDA_DISTRICTS),
     "Relationship": ("relationship_name", (
         "Father", "Mother", "Guardian", "Spouse", "Son", "Daughter",
         "Brother", "Sister", "Uncle", "Aunt", "Cousin", "Friend",
     )),
-    "Spoken Language": ("language_name", ("English", "Swahili", "Luganda")),
+    "Spoken Language": ("language_name", (
+        "English", "Swahili", "Luganda", "Runyankore", "Rukiga", "Lusoga", "Acholi", "Lango", "Ateso",
+        "Lugbara", "Lumasaba", "Rutooro", "Runyoro", "Alur", "Karamojong", "Kinyarwanda", "French", "Arabic",
+    )),
     "Examination Level": ("level_name", ("O-Level (UCE)", "A-Level (UACE)")),
 }
 

@@ -96,10 +96,11 @@ for master, (name_field, seeds) in rules.BIO_DATA_MASTERS.items():
     for role in ("HR Manager", "HR User"):
         if not all((perms.get(role) or {}).get(k) for k in ("read", "write", "create")):
             fail.append("%s: %s must be able to add values" % (master, role))
-    expected_sort = (name_field, "ASC") if not seeds else ("creation", "ASC")
+    long_list = master == "District"
+    expected_sort = (name_field, "ASC") if long_list else ("creation", "ASC")
     if (spec_json.get("sort_field"), spec_json.get("sort_order")) != expected_sort:
         fail.append("%s must list values by %s (%s)" % (master, expected_sort,
-                    "a long list with no seeds, alphabetically" if not seeds else "the seeded order, then HR's additions"))
+                    "a long list, alphabetically" if long_list else "the seeded order, then HR's additions"))
     if not re.search(r"^class %s\(Document\):" % master.replace(" ", ""), open(os.path.join(APP, "doctype", folder, folder + ".py"), encoding="utf-8").read(), re.M):
         fail.append("%s controller class must be %s" % (master, master.replace(" ", "")))
     if not os.path.exists(os.path.join(APP, "doctype", folder, "__init__.py")):

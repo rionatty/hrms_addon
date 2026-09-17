@@ -483,6 +483,19 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Job Opening-custom_show_job_description",
+  "dt": "Job Opening",
+  "fieldname": "custom_show_job_description",
+  "fieldtype": "Check",
+  "insert_after": "job_application_route",
+  "label": "Show Job Description on Careers Page",
+  "description": "Adds the Job Title's purpose, responsibilities, requirements and competencies to this job's page. KRA weightings, reporting lines and other internal parts are never shown.",
+  "default": "1",
+  "depends_on": "publish",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Designation-custom_jd_tab",
   "dt": "Designation",
   "fieldname": "custom_jd_tab",

@@ -1,0 +1,644 @@
+/*
+ * Careers portal — the Job Opening page and the Job Application Form (/apply).
+ *
+ * A plain asset: served from /assets/hrms_addon/css/careers.css without
+ * `bench build`. Linked by templates/generators/job_opening.html and
+ * @imported by web_form/job_application_form/job_application_form.css, so
+ * it only ever loads on those two pages.
+ *
+ * Colours are Luuka Plastics' logo: the blue oval and the green leaf.
+ */
+
+:root {
+	--lpl-blue: #00339a;
+	--lpl-blue-deep: #001f63;
+	--lpl-blue-600: #0a44b8;
+	--lpl-blue-50: #eef3fc;
+	--lpl-blue-100: #dbe5f8;
+	--lpl-green: #00913b;
+	--lpl-green-600: #007a31;
+	--lpl-green-50: #e7f6ed;
+	--lpl-ink: #0f1a2e;
+	--lpl-text: #334155;
+	--lpl-muted: #64748b;
+	--lpl-line: #e2e8f0;
+	--lpl-surface: #f5f8fd;
+	--lpl-white: #ffffff;
+	--lpl-radius: 16px;
+	--lpl-radius-sm: 10px;
+	--lpl-shadow: 0 1px 2px rgba(15, 26, 46, 0.04), 0 8px 24px rgba(15, 26, 46, 0.06);
+	--lpl-focus: 0 0 0 3px rgba(0, 51, 154, 0.18);
+}
+
+/* ── Job Opening page ─────────────────────────────────────────────── */
+
+.lpl-careers {
+	color: var(--lpl-text);
+	padding: 8px 0 48px;
+}
+
+.lpl-careers h1,
+.lpl-careers h2,
+.lpl-careers h3 {
+	color: var(--lpl-ink);
+	letter-spacing: -0.01em;
+}
+
+.lpl-hero {
+	position: relative;
+	overflow: hidden;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 24px;
+	padding: 40px 44px;
+	border-radius: var(--lpl-radius);
+	background: linear-gradient(135deg, var(--lpl-blue) 0%, var(--lpl-blue-deep) 100%);
+	color: var(--lpl-white);
+	box-shadow: var(--lpl-shadow);
+}
+
+.lpl-hero::after {
+	/* the green leaf of the logo, as a soft shape in the corner */
+	content: "";
+	position: absolute;
+	right: -80px;
+	top: -120px;
+	width: 320px;
+	height: 320px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(0, 145, 59, 0.45) 0%, rgba(0, 145, 59, 0) 70%);
+	pointer-events: none;
+}
+
+.lpl-hero__text {
+	position: relative;
+	z-index: 1;
+	flex: 1 1 420px;
+	min-width: 0;
+}
+
+.lpl-eyebrow {
+	display: inline-block;
+	margin: 0 0 14px;
+	padding: 4px 12px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.14);
+	color: #e4ecff;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.lpl-careers .lpl-hero__title {
+	margin: 0 0 8px;
+	color: var(--lpl-white);
+	font-size: clamp(2rem, 4vw, 2.9rem);
+	font-weight: 700;
+	line-height: 1.1;
+	overflow-wrap: anywhere;
+}
+
+.lpl-hero__meta {
+	margin: 0;
+	color: #c9d7f5;
+	font-size: 15px;
+}
+
+.lpl-hero__meta strong {
+	color: var(--lpl-white);
+	font-weight: 600;
+}
+
+.lpl-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 20px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.lpl-chips li {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.12);
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	color: var(--lpl-white);
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.lpl-chips svg,
+.lpl-facts svg {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 16px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.lpl-hero__action {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 8px;
+}
+
+.lpl-deadline {
+	color: #c9d7f5;
+	font-size: 13px;
+}
+
+.lpl-deadline--soon {
+	color: #b6f0cb;
+	font-weight: 600;
+}
+
+.lpl-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 13px 26px;
+	border-radius: 999px;
+	border: 0;
+	font-size: 15px;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.lpl-btn:hover,
+.lpl-btn:focus {
+	text-decoration: none;
+	transform: translateY(-1px);
+}
+
+.lpl-btn--apply {
+	background: var(--lpl-green);
+	color: var(--lpl-white);
+	box-shadow: 0 6px 18px rgba(0, 145, 59, 0.35);
+}
+
+.lpl-btn--apply:hover,
+.lpl-btn--apply:focus {
+	background: var(--lpl-green-600);
+	color: var(--lpl-white);
+}
+
+.lpl-btn--block {
+	width: 100%;
+}
+
+.lpl-closed {
+	padding: 10px 18px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.14);
+	color: var(--lpl-white);
+	font-weight: 600;
+}
+
+.lpl-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 320px;
+	gap: 28px;
+	margin-top: 28px;
+	align-items: start;
+}
+
+.lpl-main {
+	/* a grid item defaults to min-width: auto; a long unbroken word would push the page sideways */
+	min-width: 0;
+}
+
+.lpl-card {
+	padding: 28px 30px;
+	border: 1px solid var(--lpl-line);
+	border-radius: var(--lpl-radius);
+	background: var(--lpl-white);
+	box-shadow: var(--lpl-shadow);
+}
+
+.lpl-card + .lpl-card {
+	margin-top: 20px;
+}
+
+.lpl-careers .lpl-card h2 {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin: 0 0 16px;
+	font-size: 1.2rem;
+	font-weight: 700;
+}
+
+.lpl-careers .lpl-card h2::before {
+	content: "";
+	width: 4px;
+	height: 18px;
+	border-radius: 2px;
+	background: var(--lpl-green);
+}
+
+.lpl-prose {
+	font-size: 15px;
+	line-height: 1.7;
+}
+
+.lpl-prose p:last-child {
+	margin-bottom: 0;
+}
+
+.lpl-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.lpl-list li {
+	position: relative;
+	padding: 6px 0 6px 28px;
+	font-size: 15px;
+	line-height: 1.55;
+}
+
+.lpl-list li::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 11px;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	background: var(--lpl-green-50) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.2l2.2 2.2 4.8-4.8' fill='none' stroke='%2300913b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+
+.lpl-group + .lpl-group {
+	margin-top: 18px;
+}
+
+.lpl-careers .lpl-group h3 {
+	margin: 0 0 6px;
+	color: var(--lpl-blue);
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.lpl-pill {
+	display: inline-block;
+	margin-left: 8px;
+	padding: 1px 9px;
+	border-radius: 999px;
+	background: var(--lpl-surface);
+	color: var(--lpl-muted);
+	font-size: 11px;
+	font-weight: 600;
+	vertical-align: 1px;
+	white-space: nowrap;
+}
+
+.lpl-pill--essential {
+	background: var(--lpl-green-50);
+	color: var(--lpl-green-600);
+}
+
+.lpl-pill--preferred {
+	background: var(--lpl-blue-50);
+	color: var(--lpl-blue);
+}
+
+.lpl-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.lpl-tags li {
+	padding: 6px 12px;
+	border-radius: 999px;
+	background: var(--lpl-blue-50);
+	color: var(--lpl-blue);
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.lpl-group:nth-of-type(even) .lpl-tags li {
+	background: var(--lpl-green-50);
+	color: var(--lpl-green-600);
+}
+
+.lpl-empty {
+	margin: 0;
+	color: var(--lpl-muted);
+}
+
+.lpl-aside {
+	position: sticky;
+	top: 88px;
+}
+
+.lpl-careers .lpl-aside h2 {
+	font-size: 1.05rem;
+}
+
+.lpl-facts {
+	margin: 0 0 22px;
+	padding: 0;
+	list-style: none;
+}
+
+.lpl-facts li {
+	display: flex;
+	gap: 12px;
+	padding: 10px 0;
+	border-bottom: 1px solid var(--lpl-line);
+}
+
+.lpl-facts li:last-child {
+	border-bottom: 0;
+}
+
+.lpl-facts svg {
+	margin-top: 2px;
+	color: var(--lpl-blue);
+}
+
+.lpl-facts small {
+	display: block;
+	color: var(--lpl-muted);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+
+.lpl-facts strong {
+	display: block;
+	margin-top: 2px;
+	color: var(--lpl-ink);
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.lpl-apply-bar {
+	display: none;
+}
+
+@media (max-width: 991px) {
+	.lpl-layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.lpl-aside {
+		position: static;
+	}
+}
+
+@media (max-width: 767px) {
+	.lpl-careers {
+		padding-bottom: 96px;
+	}
+
+	.lpl-hero {
+		padding: 28px 22px;
+	}
+
+	.lpl-hero__action {
+		display: none;
+	}
+
+	.lpl-card {
+		padding: 22px 20px;
+	}
+
+	.lpl-apply-bar {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 20;
+		display: block;
+		padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+		background: rgba(255, 255, 255, 0.96);
+		border-top: 1px solid var(--lpl-line);
+		box-shadow: 0 -6px 18px rgba(15, 26, 46, 0.08);
+	}
+}
+
+/* ── Job Application Form (/apply) ────────────────────────────────── */
+/* Frappe's own rules are nested under [data-doctype="Web Form"], so these
+   repeat that chain to win on specificity rather than using !important. */
+
+body[data-path^="apply"] {
+	background: var(--lpl-surface);
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content {
+	max-width: 880px;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form-header {
+	position: relative;
+	overflow: hidden;
+	padding: 34px 36px 26px;
+	border: 0;
+	border-radius: var(--lpl-radius) var(--lpl-radius) 0 0;
+	background: linear-gradient(135deg, var(--lpl-blue) 0%, var(--lpl-blue-deep) 100%);
+	color: var(--lpl-white);
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form-header::after {
+	content: "";
+	position: absolute;
+	right: -70px;
+	top: -110px;
+	width: 280px;
+	height: 280px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(0, 145, 59, 0.45) 0%, rgba(0, 145, 59, 0) 70%);
+	pointer-events: none;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form-header .web-form-head {
+	position: relative;
+	z-index: 1;
+	border-bottom: 0;
+	padding-bottom: 0;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content h1 {
+	color: var(--lpl-white);
+	font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+	font-weight: 700;
+	white-space: normal;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form-header .web-form-head .web-form-introduction,
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form-header .web-form-head .web-form-introduction p {
+	color: #d3def7;
+	font-size: 14px;
+}
+
+body[data-path^="apply"] .web-form-header .indicator-pill {
+	background: rgba(255, 255, 255, 0.16);
+	color: var(--lpl-white);
+}
+
+.lpl-apply-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 14px;
+}
+
+.lpl-apply-summary span {
+	padding: 5px 12px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.12);
+	border: 1px solid rgba(255, 255, 255, 0.18);
+	color: var(--lpl-white);
+	font-size: 13px;
+	font-weight: 500;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form {
+	padding: 28px 36px 32px;
+	border: 1px solid var(--lpl-line);
+	border-top: 0;
+	border-radius: 0 0 var(--lpl-radius) var(--lpl-radius);
+	background: var(--lpl-white);
+	box-shadow: var(--lpl-shadow);
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form .web-form-wrapper .form-section .section-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 18px 0 10px;
+	color: var(--lpl-ink);
+	font-size: 1.15rem;
+	font-weight: 700;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form .web-form-wrapper .form-section .section-head::before {
+	content: "";
+	width: 4px;
+	height: 18px;
+	border-radius: 2px;
+	background: var(--lpl-green);
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form .web-form-wrapper .form-control {
+	min-height: 40px;
+	border: 1px solid var(--lpl-line);
+	border-radius: var(--lpl-radius-sm);
+	background: var(--lpl-white);
+	transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form .web-form-wrapper .form-control:focus {
+	border-color: var(--lpl-blue-600);
+	box-shadow: var(--lpl-focus);
+}
+
+body[data-path^="apply"] .web-form .control-label {
+	color: var(--lpl-text);
+	font-weight: 600;
+}
+
+body[data-path^="apply"] .web-form .help-box,
+body[data-path^="apply"] .web-form .frappe-control .description {
+	color: var(--lpl-muted);
+}
+
+body[data-path^="apply"] .web-form .form-grid-container .form-grid {
+	border-color: var(--lpl-line);
+	border-radius: var(--lpl-radius-sm);
+}
+
+body[data-path^="apply"] .web-form .form-grid .grid-heading-row {
+	background: var(--lpl-blue-50);
+	color: var(--lpl-blue);
+	font-weight: 600;
+}
+
+body[data-path^="apply"] .web-form-footer {
+	margin-top: 12px;
+	padding-top: 18px;
+	border-top: 1px solid var(--lpl-line);
+}
+
+body[data-path^="apply"] .web-form-footer .btn {
+	padding: 8px 18px;
+	border-radius: 999px;
+	font-weight: 600;
+}
+
+body[data-path^="apply"] .web-form-footer .btn-primary.submit-btn {
+	border-color: var(--lpl-green);
+	background: var(--lpl-green);
+	color: var(--lpl-white);
+}
+
+body[data-path^="apply"] .web-form-footer .btn-primary.submit-btn:hover {
+	border-color: var(--lpl-green-600);
+	background: var(--lpl-green-600);
+}
+
+body[data-path^="apply"] .web-form-footer .btn-next {
+	border-color: var(--lpl-blue);
+	background: var(--lpl-blue);
+	color: var(--lpl-white);
+}
+
+body[data-path^="apply"] .web-form-footer .btn-next:hover {
+	border-color: var(--lpl-blue-deep);
+	background: var(--lpl-blue-deep);
+}
+
+body[data-path^="apply"] .slides-progress .slide-step .slide-step-indicator {
+	background: var(--lpl-blue-100);
+}
+
+body[data-path^="apply"] .slides-progress .slide-step.active .slide-step-indicator {
+	background: var(--lpl-blue);
+}
+
+body[data-path^="apply"] .slides-progress .slide-step.step-success .slide-step-complete {
+	background: var(--lpl-green);
+	color: var(--lpl-white);
+}
+
+body[data-path^="apply"] .success-page .success-title {
+	color: var(--lpl-ink);
+}
+
+body[data-path^="apply"] .success-page .success-icon {
+	color: var(--lpl-green);
+}
+
+@media (max-width: 767px) {
+	body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form-header {
+		padding: 26px 22px 20px;
+	}
+
+	body[data-path^="apply"] [data-doctype="Web Form"] .page-content-wrapper .container .page_content .web-form {
+		padding: 20px 18px 24px;
+	}
+}

@@ -145,10 +145,12 @@ doctype_js = {
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "hrms_addon.utils.jinja_methods",
-# 	"filters": "hrms_addon.utils.jinja_filters"
-# }
+# job_posting_details: the Job Opening page of the careers portal
+# (templates/generators/job_opening.html) shows the Job Title's Job
+# Description through it. See hrms_addon/careers.py.
+jinja = {
+    "methods": ["hrms_addon.hrms_addon.careers.job_posting_details"],
+}
 
 # Installation
 # ------------
@@ -296,6 +298,7 @@ fixtures = [
                     "Job Opening-custom_reporting_line",
                     "Job Opening-custom_reporting_cb",
                     "Job Opening-custom_subordinates",
+                    "Job Opening-custom_show_job_description",
                     "Designation-custom_jd_tab",
                     "Designation-custom_jd_details_section",
                     "Designation-custom_jd_reports_to",
@@ -403,6 +406,7 @@ fixtures = [
                     "Job Requisition-main-field_order",
                     "Job Opening-employment_type-fetch_from",
                     "Job Opening-employment_type-fetch_if_empty",
+                    "Job Opening-job_application_route-description",
                     "KRA-main-search_fields",
                     "Employee-passport_details_section-label",
                 ],

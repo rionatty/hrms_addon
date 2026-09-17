@@ -1,0 +1,171 @@
+{#-
+	Job Opening page of the careers portal. Overrides HRMS's
+	templates/generators/job_opening.html: Frappe looks for templates in the
+	installed apps last-installed first (frappe/utils/jinja.py _get_jloader),
+	so this file wins.
+
+	Same context as HRMS's version (the Job Opening's fields, posted_on,
+	no_of_applications). Styles: /assets/hrms_addon/css/careers.css.
+
+	Apply goes to the opening's Application Web Form Route, or to /apply, the
+	Job Application Form with the Pre-Interview Bio-Data steps.
+
+	When "Show Job Description on Careers Page" is ticked, the Job Title's
+	purpose, responsibilities, requirements and competencies come from
+	job_posting_details() (hrms_addon/hrms_addon/careers.py); weightings,
+	reporting lines and the other internal parts never do.
+-#}
+{% extends "templates/web.html" %}
+
+{% block style %}
+	{{ super() }}
+	<link rel="stylesheet" href="/assets/hrms_addon/css/careers.css?v=20260917">
+{% endblock %}
+
+{% macro icon(name) -%}
+	<svg viewBox="0 0 24 24" aria-hidden="true">
+		{%- if name == "pin" -%}
+			<path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"></path><circle cx="12" cy="9.5" r="2.5"></circle>
+		{%- elif name == "department" -%}
+			<path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-5h6v5"></path>
+		{%- elif name == "briefcase" -%}
+			<rect x="3" y="7" width="18" height="13" rx="2"></rect><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+		{%- elif name == "money" -%}
+			<rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="12" cy="12" r="2.5"></circle>
+		{%- elif name == "people" -%}
+			<circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20a6.5 6.5 0 0 1 13 0"></path><path d="M16 4.5a3.5 3.5 0 0 1 0 7"></path><path d="M18 14a6.5 6.5 0 0 1 3.5 6"></path>
+		{%- else -%}
+			<rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path>
+		{%- endif -%}
+	</svg>
+{%- endmacro %}
+
+{% block page_content %}
+{%- set apply_url = "/" ~ (job_application_route or "apply") ~ "/new?job_title=" ~ (name | urlencode) -%}
+{%- set is_open = status == "Open" -%}
+{%- set days_left = frappe.utils.date_diff(closes_on, frappe.utils.nowdate()) if (is_open and closes_on) else none -%}
+{%- set jd = job_posting_details(doc) if doc.get("custom_show_job_description") else {} -%}
+{%- set low = frappe.format_value(frappe.utils.flt(lower_range), currency=currency) if (publish_salary_range and lower_range) else "" -%}
+{%- set high = frappe.format_value(frappe.utils.flt(upper_range), currency=currency) if (publish_salary_range and upper_range) else "" -%}
+{%- set salary = (low ~ " - " ~ high) if (low and high) else (low or high) -%}
+
+<div class="lpl-careers">
+	<section class="lpl-hero">
+		<div class="lpl-hero__text">
+			{%- if department %}<p class="lpl-eyebrow">{{ department | e }}</p>{% endif %}
+			<h1 class="lpl-hero__title">{{ job_title | e }}</h1>
+			<p class="lpl-hero__meta"><strong>{{ company | e }}</strong> &middot; {{ _("Posted") }} {{ posted_on }}</p>
+			<ul class="lpl-chips">
+				{%- if location %}<li>{{ icon("pin") }}{{ location | e }}</li>{% endif %}
+				{%- if employment_type %}<li>{{ icon("briefcase") }}{{ employment_type | e }}</li>{% endif %}
+				{%- if salary %}<li>{{ icon("money") }}{{ salary }} / {{ _(salary_per) | lower }}</li>{% endif %}
+			</ul>
+		</div>
+		<div class="lpl-hero__action">
+			{%- if is_open %}
+				<a class="lpl-btn lpl-btn--apply" href="{{ apply_url }}">{{ _("Apply Now") }}</a>
+				{%- if days_left is not none %}
+					<span class="lpl-deadline{{ ' lpl-deadline--soon' if days_left <= 7 else '' }}">
+						{%- if days_left <= 0 %}{{ _("Closes today") }}
+						{%- elif days_left == 1 %}{{ _("Closes tomorrow") }}
+						{%- elif days_left <= 14 %}{{ _("Closes in {0} days").format(days_left) }}
+						{%- else %}{{ _("Closes on {0}").format(frappe.utils.format_date(closes_on, "d MMM, YYYY")) }}{% endif -%}
+					</span>
+				{%- endif %}
+			{%- else %}
+				<span class="lpl-closed">{{ _("This opening is closed") }}</span>
+			{%- endif %}
+		</div>
+	</section>
+
+	<div class="lpl-layout">
+		<div class="lpl-main">
+			{%- if description %}
+			<section class="lpl-card">
+				<h2>{{ _("About the Role") }}</h2>
+				<div class="lpl-prose">{{ description }}</div>
+			</section>
+			{%- endif %}
+
+			{%- if jd.purpose %}
+			<section class="lpl-card">
+				<h2>{{ _("Job Purpose") }}</h2>
+				<div class="lpl-prose">{{ jd.purpose | e | replace("\n", "<br>") }}</div>
+			</section>
+			{%- endif %}
+
+			{%- if jd.responsibilities %}
+			<section class="lpl-card">
+				<h2>{{ _("Key Responsibilities") }}</h2>
+				<ul class="lpl-list">
+					{%- for line in jd.responsibilities %}<li>{{ line | e }}</li>{% endfor %}
+				</ul>
+			</section>
+			{%- endif %}
+
+			{%- if jd.requirements %}
+			<section class="lpl-card">
+				<h2>{{ _("What We Are Looking For") }}</h2>
+				{%- for group in jd.requirements %}
+				<div class="lpl-group">
+					<h3>{{ _(group.title) | e }}</h3>
+					<ul class="lpl-list">
+						{%- for item in group["items"] %}
+						<li>{{ item.text | e }}{% if item.priority %}<span class="lpl-pill lpl-pill--{{ item.priority | lower | e }}">{{ _(item.priority) | e }}</span>{% endif %}</li>
+						{%- endfor %}
+					</ul>
+				</div>
+				{%- endfor %}
+			</section>
+			{%- endif %}
+
+			{%- if jd.competencies %}
+			<section class="lpl-card">
+				<h2>{{ _("Competencies") }}</h2>
+				{%- for group in jd.competencies %}
+				<div class="lpl-group">
+					<h3>{{ _(group.title) | e }}</h3>
+					<ul class="lpl-tags">
+						{%- for competency in group["items"] %}<li>{{ competency | e }}</li>{% endfor %}
+					</ul>
+				</div>
+				{%- endfor %}
+			</section>
+			{%- endif %}
+
+			{%- if not description and not jd %}
+			<section class="lpl-card">
+				<h2>{{ _("About the Role") }}</h2>
+				<p class="lpl-empty">{{ _("Full details of this role will be shared with shortlisted candidates.") }}</p>
+			</section>
+			{%- endif %}
+		</div>
+
+		<aside class="lpl-aside">
+			<section class="lpl-card">
+				<h2>{{ _("Job Overview") }}</h2>
+				<ul class="lpl-facts">
+					{%- if location %}<li>{{ icon("pin") }}<span><small>{{ _("Location") }}</small><strong>{{ location | e }}</strong></span></li>{% endif %}
+					{%- if department %}<li>{{ icon("department") }}<span><small>{{ _("Department") }}</small><strong>{{ department | e }}</strong></span></li>{% endif %}
+					{%- if employment_type %}<li>{{ icon("briefcase") }}<span><small>{{ _("Employment Type") }}</small><strong>{{ employment_type | e }}</strong></span></li>{% endif %}
+					{%- if salary %}<li>{{ icon("money") }}<span><small>{{ _("Salary Range") }}</small><strong>{{ salary }} / {{ _(salary_per) | lower }}</strong></span></li>{% endif %}
+					{%- if publish_applications_received %}<li>{{ icon("people") }}<span><small>{{ _("Applications Received") }}</small><strong>{{ no_of_applications }}</strong></span></li>{% endif %}
+					{%- if is_open and closes_on %}<li>{{ icon("calendar") }}<span><small>{{ _("Closes On") }}</small><strong>{{ frappe.utils.format_date(closes_on, "d MMM, YYYY") }}</strong></span></li>
+					{%- elif not is_open and closed_on %}<li>{{ icon("calendar") }}<span><small>{{ _("Closed On") }}</small><strong>{{ frappe.utils.format_date(closed_on, "d MMM, YYYY") }}</strong></span></li>{% endif %}
+				</ul>
+				{%- if is_open %}
+					<a class="lpl-btn lpl-btn--apply lpl-btn--block" href="{{ apply_url }}">{{ _("Apply Now") }}</a>
+				{%- else %}
+					<p class="lpl-empty">{{ _("This opening is closed.") }}</p>
+				{%- endif %}
+			</section>
+		</aside>
+	</div>
+
+	{%- if is_open %}
+	<div class="lpl-apply-bar">
+		<a class="lpl-btn lpl-btn--apply lpl-btn--block" href="{{ apply_url }}">{{ _("Apply Now") }}</a>
+	</div>
+	{%- endif %}
+</div>
+{% endblock page_content %}

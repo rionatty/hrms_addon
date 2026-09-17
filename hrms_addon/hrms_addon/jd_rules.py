@@ -554,6 +554,69 @@ def profile_sections_to_rows(values, skills):
     return tables, new_skills, unconverted
 
 
+# ── The careers page ──────────────────────────────────────────────────
+
+# What a Job Opening page may show from a Job Description. Everything else
+# (KRA weightings and perspectives, reporting lines, stakeholders, decision
+# authority, planning horizons, ISO responsibilities, sign-off) is internal.
+POSTING_PARTS = ("purpose", "responsibilities", "requirements", "competencies")
+
+
+def posting_details(
+    purpose=None,
+    key_result_areas=None,
+    specifications=None,
+    competencies=None,
+    specification_order=(),
+    category_order=(),
+):
+    """The candidate-facing parts of a Job Description, for the careers page.
+
+    purpose           : the Job Purpose Statement
+    key_result_areas  : JD Key Result Area rows; each line of their Key
+                        Outputs becomes one responsibility, repeats dropped
+    specifications    : JD Job Specification rows, grouped by type
+    competencies      : JD Competency rows, grouped by category
+    *_order           : the masters' order, so groups read as HR set them;
+                        a group missing from it follows, in order of first use
+
+    Returns {"purpose": str, "responsibilities": [str],
+    "requirements": [{"title", "items": [{"text", "priority"}]}],
+    "competencies": [{"title", "items": [str]}]}, or {} when there is
+    nothing to show.
+    """
+    responsibilities, seen = [], set()
+    for row in key_result_areas or []:
+        for line in split_lines(_get(row, "key_outputs")):
+            key = " ".join(line.split()).lower()
+            if key not in seen:
+                seen.add(key)
+                responsibilities.append(line)
+
+    def requirement(row):
+        text = " ".join(str(_get(row, "requirement") or "").split())
+        return {"text": text, "priority": _get(row, "priority") or ""} if text else None
+
+    details = {
+        "purpose": str(purpose or "").strip(),
+        "responsibilities": responsibilities,
+        "requirements": _grouped(specifications, "specification_type", specification_order, requirement),
+        "competencies": _grouped(competencies, "category", category_order, lambda row: _get(row, "competency") or None),
+    }
+    return details if any(details.values()) else {}
+
+
+def _grouped(rows, key, order, value):
+    groups = {}
+    for row in rows or []:
+        item = value(row)
+        if item:
+            groups.setdefault(_get(row, key) or "", []).append(item)
+    titles = [title for title in order if title in groups]
+    titles += [title for title in groups if title not in titles]
+    return [{"title": title, "items": groups[title]} for title in titles]
+
+
 def _get(row, key):
     return row.get(key) if isinstance(row, dict) else getattr(row, key, None)
 
