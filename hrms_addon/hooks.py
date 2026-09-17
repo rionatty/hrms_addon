@@ -409,6 +409,7 @@ fixtures = [
                     "Job Opening-job_application_route-description",
                     "KRA-main-search_fields",
                     "Employee-passport_details_section-label",
+                    "Designation-skills-allow_bulk_edit",
                 ],
             ]
         ],

@@ -49,6 +49,7 @@ DOCFIELD_PROPERTIES = {
     "depends_on": "Data",
     "options": "Text",
     "description": "Text",
+    "allow_bulk_edit": "Check",
 }
 DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
@@ -255,7 +256,10 @@ for s in setters:
         allowed = DOCTYPE_PROPERTIES
     elif level == "DocField":
         allowed = DOCFIELD_PROPERTIES
-        if fn not in standard_fields(dt) and fn not in by_dt.get(dt, {}):
+        # ours, upstream's own, or one HRMS creates in code (hrms/setup.py):
+        # Meta adds every custom field before it applies property setters
+        if (fn not in standard_fields(dt) and fn not in by_dt.get(dt, {})
+                and fn not in HRMS_CUSTOM_FIELDS.get(dt, {})):
             fail.append("%s: field %r does not exist on %s" % (where, fn, dt))
     else:
         fail.append("%s: doctype_or_field %r" % (where, level))

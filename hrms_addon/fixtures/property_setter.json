@@ -128,5 +128,16 @@
   "value": "Identity & Statutory Numbers",
   "module": "HRMS Addon",
   "field_name": "passport_details_section"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Designation-skills-allow_bulk_edit",
+  "doc_type": "Designation",
+  "doctype_or_field": "DocField",
+  "property": "allow_bulk_edit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "skills"
  }
 ]

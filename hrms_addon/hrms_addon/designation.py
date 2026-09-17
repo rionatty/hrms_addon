@@ -51,14 +51,14 @@ def get_perspective_order():
 
 
 def _clean_uploaded_cells(doc):
-    """Every JD table's cells as the rules expect them, before they run.
+    """Every uploadable table's cells as the rules expect them, before they run.
 
     Upload puts a CSV's cells into the rows as the file has them: a
     weighting Excel wrote as "25%", or curly quotes and dashes garbled by
     Excel's plain CSV format. jd_rules.uploaded_value repairs both; Link
     columns are left alone (Frappe has already checked them by now).
     """
-    for fieldname in jd_rules.JD_TABLE_FIELDS:
+    for fieldname in jd_rules.UPLOADABLE_TABLES:
         for row in doc.get(fieldname) or []:
             for df in row.meta.fields:
                 value = row.get(df.fieldname)

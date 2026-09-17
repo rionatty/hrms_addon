@@ -12,9 +12,9 @@
 // Perspectives are a master HR maintains (KRA Perspective), so the list and
 // its order come from the server, never from a list written here.
 //
-// Every Job Description table has Download and Upload buttons under it
-// (allow_bulk_edit on its Designation field): Upload is Frappe's own,
-// Download is replaced below so Excel reads the file correctly.
+// Every Job Description table, and HRMS's Required Skills table, has Download
+// and Upload buttons under it (allow_bulk_edit on the field): Upload is
+// Frappe's own, Download is replaced below so Excel reads the file correctly.
 
 const HA_KRA_TABLE = "custom_jd_key_result_areas";
 
@@ -116,7 +116,8 @@ function ha_percent(value) {
 	return `${(Math.round(value * 100) / 100).toString()}%`;
 }
 
-// Download under each Job Description table. Frappe's own button saves the
+// Download under each table that can be filled from a CSV (the ones Frappe
+// shows the buttons for, allow_bulk_edit). Frappe's own button saves the
 // CSV without a UTF-8 byte order mark, so Excel opens it as Windows-1252:
 // "Bachelor’s" shows as "Bachelorâ€™s", and saving keeps it that way. This
 // writes the same rows as Frappe (frappe/public/js/frappe/form/grid.js
@@ -126,7 +127,7 @@ function ha_percent(value) {
 // scripts/verify_job_description.py checks the rows against grid.js.
 function ha_setup_jd_downloads(frm) {
 	frm.meta.fields
-		.filter((df) => df.fieldtype === "Table" && df.fieldname.startsWith("custom_jd_"))
+		.filter((df) => df.fieldtype === "Table" && df.allow_bulk_edit)
 		.forEach((df) => {
 			const field = frm.fields_dict[df.fieldname];
 			if (!field || !field.grid) {

@@ -702,11 +702,11 @@ for patch, function in (("seed_kra_masters", "seed_kra_masters"), ("seed_jd_mast
 print("seeding: once by patch on existing sites, by after_install on new ones, never on migrate or as fixtures")
 
 # ── 6. Filling the tables from a CSV ─────────────────────────────────
-# Every table on the Job Description tab has Download and Upload buttons:
-# Frappe shows them for a Table field with allow_bulk_edit. Upload copies
-# each cell into the rows as the file has it, so the save hook first
-# repairs what Excel writes, and the form's own Download must keep writing
-# the rows Upload reads.
+# Every table on the Job Description tab, and HRMS's Required Skills table
+# on the same form, has Download and Upload buttons: Frappe shows them for
+# a Table field with allow_bulk_edit. Upload copies each cell into the rows
+# as the file has it, so the save hook first repairs what Excel writes, and
+# the form's own Download must keep writing the rows Upload reads.
 jd_tables = sorted(f["fieldname"] for f in custom
                    if f["dt"] == "Designation" and f["fieldtype"] == "Table" and f["fieldname"].startswith("custom_jd_"))
 if sorted(rules.JD_TABLE_FIELDS) != jd_tables:
@@ -718,13 +718,28 @@ for fieldname in jd_tables:
     if by_name["Designation-%s" % fieldname].get("allow_bulk_edit") != 1:
         fail.append("Designation.%s needs allow_bulk_edit: without it the table has no Download / Upload buttons" % fieldname)
 
+# HRMS's Required Skills table is theirs, so its flag is a property setter
+skills_setter = setters.get("Designation-%s-allow_bulk_edit" % rules.SKILLS_TABLE) or {}
+if (skills_setter.get("doctype_or_field"), skills_setter.get("property_type"), skills_setter.get("value")) != ("DocField", "Check", "1"):
+    fail.append("Designation.%s needs an allow_bulk_edit property setter (the field belongs to HRMS): %s"
+                % (rules.SKILLS_TABLE, skills_setter))
+flagged = sorted(jd_tables + [s.get("field_name") for s in setters.values()
+                              if s.get("doc_type") == "Designation" and s.get("property") == "allow_bulk_edit" and s.get("value") == "1"])
+if sorted(rules.UPLOADABLE_TABLES) != flagged:
+    fail.append("jd_rules.UPLOADABLE_TABLES %s must be every Designation table with Download / Upload %s"
+                % (sorted(rules.UPLOADABLE_TABLES), flagged))
+
 # Every uploaded column is either Frappe's to check (Link) or cleaned
 CLEANED = ("Link", "Percent") + tuple(rules.TEXT_FIELDTYPES)
+UPSTREAM_TABLES = {rules.SKILLS_TABLE: "Designation Skill"}  # not ours: checked against hrms/setup.py below
 columns = 0
-for fieldname in rules.JD_TABLE_FIELDS:
-    child_doctype = (by_name.get("Designation-%s" % fieldname) or {}).get("options")
+for fieldname in rules.UPLOADABLE_TABLES:
+    child_doctype = (by_name.get("Designation-%s" % fieldname) or {}).get("options") or UPSTREAM_TABLES.get(fieldname)
     if not child_doctype:
+        fail.append("no child DocType known for the uploadable table Designation.%s" % fieldname)
         continue
+    if fieldname in UPSTREAM_TABLES:
+        continue  # upstream's own columns, checked against hrms/setup.py below
     for column in doctype_json(child_doctype)["fields"]:
         columns += 1
         if column["fieldtype"] not in CLEANED:
@@ -775,7 +790,7 @@ if not validate_body or not validate_body.group(1).lstrip().startswith("_clean_u
     fail.append("designation.validate must call _clean_uploaded_cells(doc) first, before any rule reads the rows")
 cleaner = re.search(r"^def _clean_uploaded_cells\(doc\):\n(.*?)(?=^\S)", glue, re.S | re.M)
 for needle, why in (
-    ("for fieldname in jd_rules.JD_TABLE_FIELDS:", "must clean every Job Description table"),
+    ("for fieldname in jd_rules.UPLOADABLE_TABLES:", "must clean every table that can be filled from a CSV"),
     ("for df in row.meta.fields:", "must look at every column of a row"),
     ("jd_rules.uploaded_value(df.fieldtype, value)", "must use the tested uploaded_value"),
     ("row.set(df.fieldname, cleaned)", "must write the cleaned value back"),
@@ -788,7 +803,7 @@ if not re.search(r'setup\(frm\) \{(?:\s*//[^\n]*)*\s*\$\(frm\.wrapper\)\.on\(\s*
 if not re.search(r"refresh\(frm\) \{[^}]*ha_setup_jd_downloads\(frm\);", js):
     fail.append("designation.js must set up the Job Description downloads on refresh")
 for needle, why in (
-    ('df.fieldtype === "Table" && df.fieldname.startsWith("custom_jd_")', "must replace Download on exactly the Job Description tables"),
+    ('df.fieldtype === "Table" && df.allow_bulk_edit', "must replace Download on exactly the tables that have the buttons"),
     ('.find(".grid-download")\n\t\t\t\t.off("click")\n\t\t\t\t.on("click"', "must replace Frappe's Download click, not add to it"),
     ('frappe.model.is_value_type(column.fieldtype)', "must write the same columns as Frappe's Download"),
     ('new Blob(["\\ufeff" + csv]', "must start the file with a UTF-8 byte order mark, or Excel reads it as Windows-1252"),
@@ -801,7 +816,10 @@ our_rows = [line.strip().rstrip(",") for line in header.group(1).splitlines()] i
 
 if os.path.isdir(APPS_ROOT):
     def upstream(*parts):
-        return open(os.path.join(APPS_ROOT, "frappe", "frappe", *parts), encoding="utf-8").read()
+        return read_upstream("frappe", "frappe", *parts)
+
+    def read_upstream(*parts):
+        return open(os.path.join(APPS_ROOT, *parts), encoding="utf-8").read()
 
     grid = upstream("public", "js", "frappe", "form", "grid.js")
     download = re.search(r"\n\tsetup_download\(\) \{\n(.*?)\n\t\}\n", grid, re.S)
@@ -819,6 +837,9 @@ if os.path.isdir(APPS_ROOT):
     ):
         if needle not in grid:
             fail.append("frappe grid.js no longer %s: recheck the Job Description tables' Download / Upload" % why)
+    hrms_setup = re.search(r'"Designation": \[(.*?)\n\t\t\],\n', read_upstream("hrms", "hrms", "setup.py"), re.S)
+    if not hrms_setup or '"fieldname": "skills",' not in hrms_setup.group(1) or '"options": "Designation Skill",' not in hrms_setup.group(1):
+        fail.append("HRMS no longer adds the skills table to Designation: the allow_bulk_edit property setter would do nothing")
     add_child = re.search(r"\n\tadd_child: function \(parent_doc, doctype, parentfield, idx\) \{\n(.*?)\n\t\},\n", upstream("public", "js", "frappe", "model", "create_new.js"), re.S)
     if not add_child or "cur_frm.dirty()" not in add_child.group(1):
         fail.append("frappe.model.add_child no longer marks the form dirty: the KRA totals would not follow an Upload")
@@ -834,7 +855,8 @@ else:
     if len(our_rows) != 7 or our_rows[6] != '["------"]':
         fail.append("designation.js Download must write Frappe's 7 header rows")
     upstream_note = "upstream apps not found at %s: grid.js contract not checked" % APPS_ROOT
-print("table import: %d tables with Download / Upload, %d columns cleaned or linked, %s" % (len(jd_tables), columns, upstream_note))
+print("table import: %d tables with Download / Upload (%d on the JD tab), %d columns cleaned or linked, %s"
+      % (len(rules.UPLOADABLE_TABLES), len(jd_tables), columns, upstream_note))
 
 print()
 if fail:

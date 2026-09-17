@@ -352,6 +352,12 @@ def jd_table_errors(
 KRA_TABLE = "custom_jd_key_result_areas"
 JD_TABLE_FIELDS = (KRA_TABLE, *TABLES)
 
+# HRMS's own Required Skills table (hrms/setup.py) sits on the same form and
+# was given the same buttons, by property setter since the field is theirs.
+# Every table a Job Title can be filled from, and so every table cleaned:
+SKILLS_TABLE = "skills"
+UPLOADABLE_TABLES = (*JD_TABLE_FIELDS, SKILLS_TABLE)
+
 # The column types uploaded_value repairs as text
 TEXT_FIELDTYPES = ("Data", "Small Text", "Text", "Long Text")
 

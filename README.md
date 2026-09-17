@@ -206,10 +206,13 @@ are run against the lines of LPL/JD/SM/001.
 
 Every table on the Job Description tab can be filled from a CSV: each has
 **Download** and **Upload** under it (Allow Bulk Edit on its Designation
-field). Download gives the table as a CSV; fill it in Excel, save it as
-CSV and Upload it. The file's rows replace the table's rows, and saving
-the Job Title applies the JD rules as usual. Values picked from a list
-(and KRAs, Skills, Job Titles) must already exist, because Upload creates
+field). HRMS's own **Required Skills** table on the same form has them too,
+set by property setter because the field is theirs (`hrms/setup.py`), which
+is why `jd_rules.UPLOADABLE_TABLES` — every table the save hook cleans — is
+the JD tables plus that one. Download gives the table as a CSV; fill it in
+Excel, save it as CSV and Upload it. The file's rows replace the table's
+rows, and saving the Job Title applies the JD rules as usual. Values picked
+from a list (and KRAs, Skills, Job Titles) must already exist, as Upload creates
 none. Two things Excel writes into such a file are repaired on save by
 `jd_rules.uploaded_value`: a weighting saved as "25%" counts as 25, and
 the curly quotes, dashes and bullets of a file saved in Excel's plain CSV
