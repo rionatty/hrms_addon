@@ -183,6 +183,7 @@ def _desired_states():
             "allow_edit": row["allow_edit"],
             "update_field": "status",
             "update_value": row["status"],
+            "send_email": row["send_email"],
         }
         for row in rules.STATES
     ]
@@ -198,7 +199,7 @@ def _rows(doc_rows, keys):
 
 def _ensure_workflow():
     states, transitions = _desired_states(), _desired_transitions()
-    state_keys = ("state", "doc_status", "allow_edit", "update_field", "update_value")
+    state_keys = ("state", "doc_status", "allow_edit", "update_field", "update_value", "send_email")
     transition_keys = ("state", "action", "next_state", "allowed", "allow_self_approval")
 
     if frappe.db.exists("Workflow", rules.WORKFLOW_NAME):

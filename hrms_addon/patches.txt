@@ -12,3 +12,4 @@ hrms_addon.patches.v1_0.seed_jd_masters
 hrms_addon.patches.v1_0.jd_profile_sections_to_tables
 hrms_addon.patches.v1_0.seed_bio_data_masters
 hrms_addon.patches.v1_0.allow_hr_user_to_add_skills
+hrms_addon.patches.v1_0.restore_requisition_connections_tab

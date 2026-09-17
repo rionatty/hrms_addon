@@ -431,8 +431,7 @@ print()
 EXPECT_TAB = {
     "Details": ["custom_employment_type", "custom_reason_type", "reason_for_requesting", "requested_by",
                 "custom_recruitment_heading", "custom_external_advert", "custom_internal_advert",
-                "custom_head_hunt", "custom_reference_to_database",
-                "custom_connections_section", "custom_connections_html"],
+                "custom_head_hunt", "custom_reference_to_database"],
     "Job Description": ["description", "custom_reporting_line", "custom_subordinates"],
     "Approvals": ["custom_supervisor", "custom_hod", "custom_hr_officer", "custom_hrm_decision", "custom_ed_date"],
 }
@@ -473,12 +472,23 @@ else:
     if missing:
         fail.append("Job Requisition field_order omits %s — they would be placed by the sorter walk" % missing)
 
-conn = setter_index.get((JR, "connections_tab", "hidden")), setter_index.get((JR, "connections_tab", "show_dashboard"))
-if not conn[0] or conn[0]["value"] != "1" or not conn[1] or conn[1]["value"] != "0":
-    fail.append("connections_tab must be hidden with show_dashboard=0, or the dashboard stays in a tab")
-if (fields.get("custom_connections_section") or {}).get("depends_on") != "eval:!doc.__islocal":
-    fail.append("custom_connections_section should only show on saved documents")
-print("Job Requisition layout: every expected field is on its expected tab")
+# Connections is the standard connections_tab, visible and holding the
+# dashboard (Frappe puts the list in the first tab with show_dashboard,
+# frappe/public/js/frappe/form/form.js), straight after Job Description.
+for prop in ("hidden", "show_dashboard"):
+    if setter_index.get((JR, "connections_tab", prop)):
+        fail.append("connections_tab must keep its standard %s: Connections is a tab of its own" % prop)
+connections = fields.get("connections_tab") or {}
+if connections.get("fieldtype") != "Tab Break" or not connections.get("show_dashboard") or connections.get("hidden"):
+    fail.append("connections_tab must be a visible Tab Break that shows the dashboard")
+tabs = [fields[fn].get("label") for fn in order if fields[fn]["fieldtype"] == "Tab Break" and not fields[fn].get("hidden")]
+if tabs != ["Job Description", "Connections", "Approvals"]:
+    fail.append("Job Requisition tabs after Details are %s, expected Job Description, Connections, Approvals" % tabs)
+crowded = sorted(fn for fn, tab in placement.items()
+                 if tab == "Connections" and fn != "connections_tab" and not fields[fn].get("hidden"))
+if crowded:
+    fail.append("the Connections tab must hold only the list; fields in it: %s" % crowded)
+print("Job Requisition layout: every expected field is on its expected tab, Connections tab after Job Description")
 
 # ── 6. Job Opening layout expectations ───────────────────────────────
 JO = "Job Opening"
@@ -640,6 +650,11 @@ REMOVED = (
     "Designation-custom_jd_technical_competencies",
     "Designation-custom_jd_competency_cb",
     "Designation-custom_jd_behavioural_competencies",
+    # Connections back in its own tab
+    "Job Requisition-connections_tab-show_dashboard",
+    "Job Requisition-connections_tab-hidden",
+    "Job Requisition-custom_connections_section",
+    "Job Requisition-custom_connections_html",
 )
 patch_sources = ""
 for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-8"):
@@ -650,7 +665,7 @@ for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-
             patch_sources += open(path, encoding="utf-8").read()
         else:
             fail.append("patches.txt lists %s but %s does not exist" % (line, path))
-fixture_names = {r["name"] for r in custom_fields}
+fixture_names = {r["name"] for r in custom_fields} | {s["name"] for s in setters}
 for name in REMOVED:
     if name in fixture_names:
         fail.append("%s was removed but is back in the fixtures" % name)

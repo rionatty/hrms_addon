@@ -105,9 +105,9 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# Job Requisition: Requested By default + Connections moved onto the
-# Details tab. doctype_js is read from disk when the form loads, so a
-# change to it needs no `bench build`.
+# Job Requisition: Requested By defaults to the logged-in employee.
+# doctype_js is read from disk when the form loads, so a change to it
+# needs no `bench build`.
 #
 # Designation (Job Title): running per-perspective totals under the Key
 # Result Areas table of the Job Description tab.
@@ -259,8 +259,6 @@ fixtures = [
                     "Job Requisition-custom_head_hunt",
                     "Job Requisition-custom_reference_to_database",
                     "Job Requisition-custom_reason_cb",
-                    "Job Requisition-custom_connections_section",
-                    "Job Requisition-custom_connections_html",
                     "Job Requisition-custom_reporting_section",
                     "Job Requisition-custom_reporting_line",
                     "Job Requisition-custom_reporting_cb",
@@ -402,8 +400,6 @@ fixtures = [
                     "Job Requisition-reason_for_requesting-label",
                     "Job Requisition-expected_compensation-label",
                     "Job Requisition-expected_compensation-reqd",
-                    "Job Requisition-connections_tab-show_dashboard",
-                    "Job Requisition-connections_tab-hidden",
                     "Job Requisition-main-field_order",
                     "Job Opening-employment_type-fetch_from",
                     "Job Opening-employment_type-fetch_if_empty",

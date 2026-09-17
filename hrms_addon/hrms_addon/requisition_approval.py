@@ -43,9 +43,19 @@ REJECT = "Reject"
 REVISE = "Revise"
 ACTIONS = (SUBMIT, APPROVE, REJECT, REVISE)
 
-# Roles this app creates. HR User / HR Manager / Employee ship with HRMS.
+# Roles this app creates. HR User / HR Manager ship with HRMS.
 NEW_ROLES = ("Supervisor", "Process Owner", "Head of Department", "Executive Director")
-REQUESTER_ROLE = "Employee"
+
+# Who may raise a requisition: every role with create permission on Job
+# Requisition (HR Manager and System Manager from HRMS, the rest granted in
+# PERMISSIONS below). Each of them may edit a Draft, submit it, and revise
+# it after a rejection.
+#
+# Frappe makes a workflow document read-only ("This form is not editable
+# due to a Workflow", frappe/public/js/frappe/model/workflow.js is_read_only)
+# for anyone who is not an edit role of its current state. A Draft editable
+# by one role alone locked every other author out of their own requisition.
+REQUESTER_ROLES = ("Head of Department", "Supervisor", "Process Owner", "HR User", "HR Manager", "System Manager")
 
 HRM_STATE = "Pending HR Manager Approval"
 
@@ -101,26 +111,43 @@ APPROVAL_CHAIN = (
 # Workflow Document State rows. update_value keeps the standard Job
 # Requisition `status` in step, which matters: HRMS only shows its
 # "Create Job Opening" button when status == "Open & Approved".
+#
+# Draft has one row per requester role: a state row names a single
+# "Only Allow Edit For" role, and Frappe lets anyone holding the role of
+# ANY row for the state edit (get_document_state_roles). The first row is
+# still Draft, so new requisitions still start there.
+#
+# send_email: Frappe emails everyone who may take a state's next action
+# (frappe/workflow/doctype/workflow_action). That is right for the approval
+# steps, but in Draft and Rejected the next action (Submit, Revise) is open
+# to every requester role, so each saved draft would email every HR
+# Manager, Head of Department and Supervisor. Those two states stay quiet.
 STATES = (
-    {"state": DRAFT, "allow_edit": REQUESTER_ROLE, "status": "Pending", "style": ""},
     *(
-        {"state": step["state"], "allow_edit": step["role"], "status": "Pending", "style": "Warning"}
+        {"state": DRAFT, "allow_edit": role, "status": "Pending", "style": "", "send_email": 0}
+        for role in REQUESTER_ROLES
+    ),
+    *(
+        {"state": step["state"], "allow_edit": step["role"], "status": "Pending", "style": "Warning", "send_email": 1}
         for step in APPROVAL_CHAIN
     ),
-    {"state": APPROVED, "allow_edit": "HR Manager", "status": "Open & Approved", "style": "Success"},
-    {"state": REJECTED, "allow_edit": "HR Manager", "status": "Rejected", "style": "Danger"},
+    {"state": APPROVED, "allow_edit": "HR Manager", "status": "Open & Approved", "style": "Success", "send_email": 1},
+    {"state": REJECTED, "allow_edit": "HR Manager", "status": "Rejected", "style": "Danger", "send_email": 0},
 )
 
 
 def _build_transitions():
-    rows = [{"state": DRAFT, "action": SUBMIT, "next_state": APPROVAL_CHAIN[0]["state"], "allowed": REQUESTER_ROLE}]
+    rows = [
+        {"state": DRAFT, "action": SUBMIT, "next_state": APPROVAL_CHAIN[0]["state"], "allowed": role}
+        for role in REQUESTER_ROLES
+    ]
     for index, step in enumerate(APPROVAL_CHAIN):
         is_last = index == len(APPROVAL_CHAIN) - 1
         next_state = APPROVED if is_last else APPROVAL_CHAIN[index + 1]["state"]
         rows.append({"state": step["state"], "action": APPROVE, "next_state": next_state, "allowed": step["role"]})
         rows.append({"state": step["state"], "action": REJECT, "next_state": REJECTED, "allowed": step["role"]})
     # A rejected requisition goes back to the requester to amend and resubmit.
-    rows.append({"state": REJECTED, "action": REVISE, "next_state": DRAFT, "allowed": REQUESTER_ROLE})
+    rows.extend({"state": REJECTED, "action": REVISE, "next_state": DRAFT, "allowed": role} for role in REQUESTER_ROLES)
     return tuple(rows)
 
 

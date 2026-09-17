@@ -93,27 +93,6 @@
  },
  {
   "doctype": "Custom Field",
-  "name": "Job Requisition-custom_connections_section",
-  "dt": "Job Requisition",
-  "fieldname": "custom_connections_section",
-  "fieldtype": "Section Break",
-  "insert_after": "time_to_fill",
-  "label": "Connections",
-  "depends_on": "eval:!doc.__islocal",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
-  "name": "Job Requisition-custom_connections_html",
-  "dt": "Job Requisition",
-  "fieldname": "custom_connections_html",
-  "fieldtype": "HTML",
-  "insert_after": "custom_connections_section",
-  "description": "Holds the Connections list, moved here by public/js/job_requisition.js. Leave Options empty: an HTML field with content is re-rendered on every refresh, which would wipe the list.",
-  "module": "HRMS Addon"
- },
- {
-  "doctype": "Custom Field",
   "name": "Job Requisition-custom_reporting_section",
   "dt": "Job Requisition",
   "fieldname": "custom_reporting_section",

@@ -55,9 +55,26 @@ rules = load_rules()
 print("loaded requisition_approval.py without Frappe")
 
 # ── 1. Shape of the workflow ─────────────────────────────────────────
-state_names = [s["state"] for s in rules.STATES]
-if len(state_names) != len(set(state_names)):
-    fail.append("duplicate states")
+state_names = list(dict.fromkeys(s["state"] for s in rules.STATES))
+edit_rows = [(s["state"], s["allow_edit"]) for s in rules.STATES]
+if len(edit_rows) != len(set(edit_rows)):
+    fail.append("a state lists the same edit role twice")
+if rules.STATES[0]["state"] != rules.DRAFT:
+    fail.append("the first state row must be Draft: Frappe starts new documents in the first state")
+for name in state_names:
+    rows = [s for s in rules.STATES if s["state"] == name]
+    if len({(s["status"], s["style"], s["send_email"]) for s in rows}) != 1:
+        fail.append("the rows of state %s disagree on status, style or send_email" % name)
+    if name != rules.DRAFT and len(rows) != 1:
+        fail.append("only Draft may have a row per role; %s has %d" % (name, len(rows)))
+    quiet = name in (rules.DRAFT, rules.REJECTED)
+    if bool(rows[0]["send_email"]) == quiet:
+        fail.append("%s must %s" % (name, "not send email: its next action is open to every requester role, "
+                                          "so all of them would be emailed" if quiet
+                                    else "send email: its approver needs telling"))
+draft_editors = sorted(s["allow_edit"] for s in rules.STATES if s["state"] == rules.DRAFT)
+if draft_editors != sorted(rules.REQUESTER_ROLES):
+    fail.append("every requester role must be able to edit a Draft; Draft is editable by %s" % draft_editors)
 for t in rules.TRANSITIONS:
     for key in ("state", "next_state"):
         if t[key] not in state_names:
@@ -71,8 +88,10 @@ for t in rules.TRANSITIONS:
 
 chain = [step["state"] for step in rules.APPROVAL_CHAIN]
 submit = by_state.get(rules.DRAFT, [])
-if [(t["action"], t["next_state"]) for t in submit] != [(rules.SUBMIT, chain[0])]:
-    fail.append("Draft must have exactly one transition: Submit for Approval -> %s" % chain[0])
+if {(t["action"], t["next_state"]) for t in submit} != {(rules.SUBMIT, chain[0])} \
+        or sorted(t["allowed"] for t in submit) != sorted(rules.REQUESTER_ROLES):
+    fail.append("Draft must only allow Submit for Approval -> %s, once for each requester role %s"
+                % (chain[0], list(rules.REQUESTER_ROLES)))
 for index, step in enumerate(rules.APPROVAL_CHAIN):
     expected_next = chain[index + 1] if index + 1 < len(chain) else rules.APPROVED
     got = sorted((t["action"], t["next_state"], t["allowed"]) for t in by_state.get(step["state"], []))
@@ -81,8 +100,10 @@ for index, step in enumerate(rules.APPROVAL_CHAIN):
         fail.append("%s transitions %s, expected %s" % (step["state"], got, want))
 if by_state.get(rules.APPROVED):
     fail.append("Approved must be final")
-if [(t["action"], t["next_state"]) for t in by_state.get(rules.REJECTED, [])] != [(rules.REVISE, rules.DRAFT)]:
-    fail.append("Rejected must only allow Revise -> Draft")
+revise = by_state.get(rules.REJECTED, [])
+if {(t["action"], t["next_state"]) for t in revise} != {(rules.REVISE, rules.DRAFT)} \
+        or sorted(t["allowed"] for t in revise) != sorted(rules.REQUESTER_ROLES):
+    fail.append("Rejected must only allow Revise -> Draft, once for each requester role")
 
 # every non-final state is reachable from Draft
 reachable, frontier = {rules.DRAFT}, [rules.DRAFT]
@@ -177,6 +198,20 @@ if os.path.isdir(APPS_ROOT):
             for ptype in ptypes:
                 if ptype not in perm_fields:
                     fail.append("%s/%s: %r is not a permission type" % (doctype, role, ptype))
+    # Whoever can create a requisition must be able to edit and submit its
+    # Draft, or the form locks its own author out ("This form is not
+    # editable due to a Workflow").
+    creators = {p["role"] for p in jr.get("permissions", []) if p.get("create")}
+    creators |= {role for role, ptypes in rules.PERMISSIONS["Job Requisition"].items() if "create" in ptypes}
+    locked_out = sorted(creators - set(rules.REQUESTER_ROLES))
+    if locked_out:
+        fail.append("%s can create a requisition but cannot edit or submit its Draft: add them to REQUESTER_ROLES" % locked_out)
+    cannot_create = sorted(set(rules.REQUESTER_ROLES) - creators)
+    if cannot_create:
+        fail.append("requester roles %s cannot create a requisition" % cannot_create)
+    if "send_email" not in {f["fieldname"] for f in upstream_doctype("Workflow Document State")["fields"]}:
+        fail.append("Workflow Document State has no send_email field upstream")
+
     approver_roles = {step["role"] for step in rules.APPROVAL_CHAIN} - {"HR Manager"}
     for role in approver_roles:
         if "write" not in rules.PERMISSIONS["Job Requisition"].get(role, ()):
@@ -270,8 +305,10 @@ if not m or not os.path.exists(os.path.join(REPO, "hrms_addon", m.group(1))):
 for method in re.findall(r'xcall\("hrms_addon\.hrms_addon\.job_requisition\.(\w+)"', js):
     if not re.search(r"@frappe\.whitelist\(\)\s*\ndef %s\(" % method, glue):
         fail.append("form script calls %s, which is not a whitelisted function" % method)
-if "custom_connections_html" not in js:
-    fail.append("form script does not mount the Connections list")
+if "links_area" in js or "custom_connections_html" in js:
+    fail.append("form script must leave the Connections list in its own tab")
+if '"send_email": row["send_email"]' not in glue or '"update_value", "send_email")' not in glue:
+    fail.append("job_requisition.py must write and compare send_email, or existing workflows keep emailing on drafts")
 stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", js, flags=re.S)
 for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
     if stripped.count(op) != stripped.count(cl):
