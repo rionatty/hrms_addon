@@ -307,8 +307,11 @@ for method in re.findall(r'xcall\("hrms_addon\.hrms_addon\.job_requisition\.(\w+
         fail.append("form script calls %s, which is not a whitelisted function" % method)
 if "links_area" in js or "custom_connections_html" in js:
     fail.append("form script must leave the Connections list in its own tab")
-if '"send_email": row["send_email"]' not in glue or '"update_value", "send_email")' not in glue:
-    fail.append("job_requisition.py must write and compare send_email, or existing workflows keep emailing on drafts")
+builder = read("hrms_addon/hrms_addon/workflows.py")
+if '"send_email": row["send_email"]' not in builder or '"update_value", "send_email")' not in builder:
+    fail.append("workflows.py must write and compare send_email, or existing workflows keep emailing on drafts")
+if "workflows.setup_on_migrate(rules, " not in glue or "from hrms_addon.hrms_addon import workflows" not in glue:
+    fail.append("job_requisition.setup_on_migrate must build the workflow with workflows.py from requisition_approval")
 stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", js, flags=re.S)
 for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
     if stripped.count(op) != stripped.count(cl):

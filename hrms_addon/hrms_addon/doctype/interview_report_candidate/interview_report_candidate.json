@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "creation": "2026-09-18 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "job_applicant",
+  "applicant_name",
+  "phone_number",
+  "email_id",
+  "qualification",
+  "experience",
+  "average_score",
+  "score_band",
+  "panel_recommendations",
+  "decision",
+  "remarks",
+  "interview"
+ ],
+ "fields": [
+  {
+   "fieldname": "job_applicant",
+   "fieldtype": "Link",
+   "options": "Job Applicant",
+   "label": "Job Applicant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "applicant_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "job_applicant.applicant_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "fetch_from": "job_applicant.phone_number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email",
+   "fetch_from": "job_applicant.email_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qualification",
+   "fieldtype": "Small Text",
+   "label": "Qualification"
+  },
+  {
+   "fieldname": "experience",
+   "fieldtype": "Small Text",
+   "label": "Experience"
+  },
+  {
+   "fieldname": "average_score",
+   "fieldtype": "Percent",
+   "label": "Score",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "The panel's score sheets, averaged."
+  },
+  {
+   "fieldname": "score_band",
+   "fieldtype": "Data",
+   "label": "Rating",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "panel_recommendations",
+   "fieldtype": "Data",
+   "label": "Panel",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "The panel members' recommendations, counted."
+  },
+  {
+   "fieldname": "decision",
+   "fieldtype": "Select",
+   "label": "Decision",
+   "options": "\nOffer\nShortlist\nReject",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Filled in when most of the panel agreed; otherwise the panel's call."
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "description": "The panel's view of the candidate, as printed on the report."
+  },
+  {
+   "fieldname": "interview",
+   "fieldtype": "Link",
+   "options": "Interview",
+   "label": "Interview",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Interview Report Candidate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

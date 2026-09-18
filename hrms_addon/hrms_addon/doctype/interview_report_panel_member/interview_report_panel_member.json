@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "creation": "2026-09-18 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "interviewer",
+  "interviewer_name",
+  "designation"
+ ],
+ "fields": [
+  {
+   "fieldname": "interviewer",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Panel Member",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "interviewer_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "interviewer.full_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "label": "Designation",
+   "in_list_view": 1,
+   "columns": 4,
+   "description": "As printed on the report, e.g. Human Resource Manager."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Interview Report Panel Member",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

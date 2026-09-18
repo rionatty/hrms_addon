@@ -327,6 +327,93 @@ def _latest_year(text):
     return int(years[-1]) if years else None
 
 
+# ── The interview report ──────────────────────────────────────────────
+# One per Job Opening and interview day, like Luuka's interview report: the
+# panel, each candidate with their qualifications, experience and the panel's
+# verdict, and the recommendations, forwarded to the Executive Director
+# through the Human Resource Manager (interview_report_approval.py).
+
+
+def band_for_percent(percent):
+    """The scale's name for a percentage, such as a panel's average ("" for none)."""
+    if percent is None:
+        return ""
+    value = round(float(percent), 2)
+    for floor, name in BANDS:
+        if value >= floor:
+            return name
+    return BANDS[-1][1]
+
+
+def panel_summary(sheets):
+    """What a candidate's panel made of them, from their submitted score sheets.
+
+    sheets: dicts or objects with the sheet's percent, its maximum (0 when
+    nothing was scored) and its recommendation. Returns {count, average,
+    band, tally, decision}: the average of the scored sheets' percentages,
+    the recommendations counted in the form's order ("Offer 3, Reject 1"),
+    and the decision when more than half the panel agreed on it ("" when
+    they did not, for HR to settle).
+    """
+    sheets = list(sheets or [])
+    percents = [float(_get(s, "percent") or 0) for s in sheets if _int(_get(s, "maximum"))]
+    average = round(sum(percents) / len(percents), 2) if percents else None
+    counts = {}
+    for sheet in sheets:
+        recommendation = _text(_get(sheet, "recommendation"))
+        if recommendation in RECOMMENDATIONS:
+            counts[recommendation] = counts.get(recommendation, 0) + 1
+    voted = sum(counts.values())
+    decision = next((r for r in RECOMMENDATIONS if counts.get(r, 0) * 2 > voted), "")
+    return {
+        "count": len(sheets),
+        "average": average,
+        "band": band_for_percent(average),
+        "tally": ", ".join("%s %d" % (r, counts[r]) for r in RECOMMENDATIONS if counts.get(r)),
+        "decision": decision,
+    }
+
+
+def salary_remark(currency, low, high):
+    """'Expects UGX 2,600,000 to 2,700,000 a month.' from the application's
+    expected salary range ("" when none was given)."""
+    amounts = [float(v) for v in (low, high) if v and float(v) > 0]
+    if not amounts:
+        return ""
+    prefix = (_text(currency) + " ") if _text(currency) else ""
+    text = " to ".join("{:,.0f}".format(v) for v in sorted(set(amounts)))
+    return "Expects %s%s a month." % (prefix, text)
+
+
+def report_errors(candidates, recommendations, complete):
+    """Problems with an interview report, as user-facing messages.
+
+    complete: the report is past Draft (sent for approval or beyond), so it
+    must list the candidates, a decision for each, and the panel's
+    recommendations. A candidate twice or a decision off the form is wrong
+    either way.
+    """
+    candidates = list(candidates or [])
+    errors, seen = [], {}
+    for index, row in enumerate(candidates, start=1):
+        applicant = _text(_get(row, "job_applicant"))
+        decision = _text(_get(row, "decision"))
+        if applicant in seen:
+            errors.append("Row %d: %s is already listed in row %d." % (index, applicant, seen[applicant]))
+        elif applicant:
+            seen[applicant] = index
+        if decision and decision not in RECOMMENDATIONS:
+            errors.append("Row %d: the decision must be Offer, Shortlist or Reject, not %s." % (index, decision))
+        elif complete and not decision:
+            errors.append("Row %d (%s): choose the panel's decision." % (index, _text(_get(row, "applicant_name")) or applicant))
+    if complete:
+        if not candidates:
+            errors.append("List the candidates interviewed (Get Interview Results fills them in).")
+        if not _text(recommendations):
+            errors.append("Write the panel's recommendations before sending the report on.")
+    return errors
+
+
 def _job_recency(row):
     """A job with no end is the current one; otherwise its end year, then its start year."""
     if not _text(_get(row, "to_year")) and _text(_get(row, "from_year")):

@@ -26,7 +26,13 @@ It also checks:
     shortlist sheet reads (most recent first, certifications and licences
     apart by Qualification Type), the checks, back-to-back interview slots,
     the DocTypes, controller, buttons and print format, and what it relies
-    on in HRMS (the Shortlisted status, the Interview Type's panel).
+    on in HRMS (the Shortlisted status, the Interview Type's panel);
+  * the Interview Report: its approval walked end to end (HR prepares, the
+    HR Manager forwards, the Executive Director approves; either may
+    reject, HR revises), the sign-offs each step records, the panel's
+    averaged score and counted recommendations, the checks once it leaves
+    Draft, the DocTypes, Get Interview Results, the print format, and what
+    it relies on in HRMS and in Frappe's Workflow.
 
     python scripts/verify_interviews.py
 """
@@ -620,6 +626,226 @@ if UPSTREAM_OK:
         if fieldname not in interview_fields:
             fail.append("HRMS's Interview has no %s: recheck schedule_interviews" % fieldname)
 print("shortlist: columns written out from the Bio-Data, checks, slots, doctypes, controller, buttons and print format resolve")
+
+# ── 9. The interview report and its approval ─────────────────────────
+spec = importlib.util.spec_from_file_location("interview_report_approval", os.path.join(APP, "interview_report_approval.py"))
+approval = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(approval)  # no Frappe import either
+spec = importlib.util.spec_from_file_location("requisition_approval", os.path.join(APP, "requisition_approval.py"))
+requisition = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(requisition)
+
+A = approval
+states = {row["state"] for row in A.STATES}
+for t in A.TRANSITIONS:
+    if t["state"] not in states or t["next_state"] not in states:
+        fail.append("transition %s --%s--> %s uses a state the workflow does not have" % (t["state"], t["action"], t["next_state"]))
+    if t["action"] not in A.ACTIONS:
+        fail.append("transition action %s is not in ACTIONS" % t["action"])
+if tuple(A.ACTIONS) != tuple(requisition.ACTIONS):
+    fail.append("the report's actions must be the requisition's %s, so both workflows share them" % (requisition.ACTIONS,))
+for row in A.STATES:
+    submits = row.get("doc_status", "0") == "1"
+    if submits != (row["state"] == A.APPROVED):
+        fail.append("only Approved may submit the report (doc_status 1), not %s" % row["state"])
+    emails = row["state"] in (A.PENDING_HRM, A.PENDING_ED)
+    if bool(row["send_email"]) != emails:
+        fail.append("%s must %ssend email: only a step waiting on an approver emails them" % (row["state"], "" if emails else "not "))
+for state in (A.DRAFT, A.REJECTED):
+    if {row["allow_edit"] for row in A.STATES if row["state"] == state} != set(A.PREPARERS):
+        fail.append("%s must be editable by every preparer %s (the 'not editable due to a Workflow' lock-out)" % (state, A.PREPARERS))
+if A.PREPARERS != ("HR User", "HR Manager"):
+    fail.append("the report is prepared by HR: HR User and HR Manager")
+
+
+def walk(state, roles):
+    return dict(A.next_states(state, roles))
+
+
+if walk(A.DRAFT, ["HR User"]) != {A.SUBMIT: A.PENDING_HRM} or walk(A.DRAFT, ["HR Manager"]) != {A.SUBMIT: A.PENDING_HRM}:
+    fail.append("HR must be able to send a draft to the HR Manager, and only that")
+if walk(A.PENDING_HRM, ["HR User"]) or walk(A.PENDING_HRM, ["Executive Director"]):
+    fail.append("only the HR Manager may act on a report pending the HR Manager")
+if walk(A.PENDING_HRM, ["HR Manager"]) != {A.APPROVE: A.PENDING_ED, A.REJECT: A.REJECTED}:
+    fail.append("the HR Manager forwards the report to the Executive Director or rejects it")
+if walk(A.PENDING_ED, ["HR Manager"]) or walk(A.PENDING_ED, ["HR User"]):
+    fail.append("only the Executive Director may act on a report forwarded to them")
+if walk(A.PENDING_ED, ["Executive Director"]) != {A.APPROVE: A.APPROVED, A.REJECT: A.REJECTED}:
+    fail.append("the Executive Director approves or rejects the report")
+if walk(A.APPROVED, ["HR Manager", "HR User", "Executive Director", "System Manager"]):
+    fail.append("an approved report is final")
+if walk(A.REJECTED, ["HR User"]) != {A.REVISE: A.DRAFT} or walk(A.REJECTED, ["HR Manager"]) != {A.REVISE: A.DRAFT}:
+    fail.append("a rejected report goes back to HR to revise")
+
+cs = A.compute_stamps
+blank = dict.fromkeys(A.STAMP_FIELDS)
+if cs(None, A.DRAFT, "hr@lpl", "2026-07-16", {"hrm_approver": "forged@lpl"}) != blank:
+    fail.append("a new report starts with no sign-offs, whatever was posted")
+fwd = cs(A.PENDING_HRM, A.PENDING_ED, "hrm@lpl", "2026-07-17", {})
+if fwd != dict(blank, hrm_approver="hrm@lpl", hrm_approved_on="2026-07-17"):
+    fail.append("forwarding to the Executive Director records the HR Manager and the date: %s" % fwd)
+done = cs(A.PENDING_ED, A.APPROVED, "ed@lpl", "2026-07-18", fwd)
+if done != dict(fwd, ed_approver="ed@lpl", ed_approved_on="2026-07-18"):
+    fail.append("approving records the Executive Director and the date, keeping the HR Manager's: %s" % done)
+if cs(A.PENDING_ED, A.REJECTED, "ed@lpl", "2026-07-18", fwd) != fwd:
+    fail.append("a rejection records no approval")
+if cs(A.REJECTED, A.DRAFT, "hr@lpl", "2026-07-19", done) != blank:
+    fail.append("a revised report must be approved again from the start")
+if cs(A.PENDING_ED, A.PENDING_ED, "hr@lpl", "2026-07-19", fwd) != fwd:
+    fail.append("a save that moves nothing keeps the stored sign-offs (a typed date reverts)")
+if A.leaves_draft(A.DRAFT) or A.leaves_draft(None) or not A.leaves_draft(A.PENDING_HRM) or not A.leaves_draft(A.APPROVED):
+    fail.append("the report must be complete once it leaves Draft, and only then")
+if "Executive Director" not in A.NEW_ROLES or set(A.PERMISSIONS.get("Interview Report", {}).get("Executive Director", ())) \
+        != {"read", "write", "submit"}:
+    fail.append("the Executive Director needs read, write and submit on Interview Report to approve it")
+
+ps = rules.panel_summary
+s = ps([{"percent": 81.25, "maximum": 80, "recommendation": "Offer"}, {"percent": 90, "maximum": 85, "recommendation": "Offer"},
+        {"percent": 70, "maximum": 85, "recommendation": "Shortlist"}, {"percent": 0, "maximum": 0, "recommendation": ""}])
+if (s["count"], s["average"], s["band"], s["tally"], s["decision"]) != (4, 80.42, "Very Good", "Offer 2, Shortlist 1", "Offer"):
+    fail.append("panel summary: the scored sheets averaged, recommendations counted, the majority's decision: %s" % s)
+s = ps([{"percent": 60, "maximum": 5, "recommendation": "Offer"}, {"percent": 40, "maximum": 5, "recommendation": "Reject"}])
+if s["decision"] != "" or s["tally"] != "Offer 1, Reject 1":
+    fail.append("a split panel leaves the decision to HR: %s" % s)
+if ps([])["average"] is not None or ps([])["band"] != "":
+    fail.append("a candidate with no sheets has no score")
+for percent, band in ((90, "Excellent"), (89.99, "Very Good"), (75, "Very Good"), (59.99, "Average"), (49.99, "Below Average"), (None, "")):
+    if rules.band_for_percent(percent) != band:
+        fail.append("%s%% must be %r, got %r" % (percent, band, rules.band_for_percent(percent)))
+for args, text in ((("UGX", 2600000, 2700000), "Expects UGX 2,600,000 to 2,700,000 a month."),
+                   (("UGX", 1000000, 0), "Expects UGX 1,000,000 a month."), (("UGX", 900000, 900000), "Expects UGX 900,000 a month."),
+                   ((None, 0, None), "")):
+    if rules.salary_remark(*args) != text:
+        fail.append("salary_remark%s must be %r, got %r" % (args, text, rules.salary_remark(*args)))
+re_ = rules.report_errors
+expect("a draft report with gaps", re_([{"job_applicant": "A"}], "", complete=False))
+expect("a complete report", re_([{"job_applicant": "A", "decision": "Offer"}], "The panel recommends A.", complete=True))
+expect("sent on without decisions", re_([{"job_applicant": "A", "applicant_name": "Rinah Eupal"}], "x", complete=True),
+       "Row 1 (Rinah Eupal): choose the panel's decision.")
+expect("sent on without recommendations", re_([{"job_applicant": "A", "decision": "Offer"}], " ", complete=True),
+       "Write the panel's recommendations")
+expect("sent on empty", re_([], "x", complete=True), "List the candidates interviewed")
+expect("a candidate twice", re_([{"job_applicant": "A"}, {"job_applicant": "A"}], "", complete=False), "Row 2: A is already listed in row 1.")
+expect("a decision off the form", re_([{"job_applicant": "A", "decision": "Hire"}], "", complete=False), "must be Offer, Shortlist or Reject")
+
+rep = doctype_json("Interview Report")
+rep_fields = fields_of(rep)
+if not rep.get("is_submittable") or rep.get("autoname") != "HR-INR-.YYYY.-.####" or rep.get("default_print_format") != "Interview Report":
+    fail.append("Interview Report must be submittable, named HR-INR-YYYY-####, and print the report by default")
+wf = rep_fields.get(A.STATE_FIELD) or {}
+if (wf.get("fieldtype"), wf.get("options"), wf.get("hidden"), wf.get("allow_on_submit")) != ("Link", "Workflow State", 1, 1):
+    fail.append("Interview Report needs its own hidden workflow_state Link, settable after submit")
+status_options = [o for o in (rep_fields.get("status") or {}).get("options", "").split("\n") if o]
+if set(status_options) != {row["status"] for row in A.STATES} or not (rep_fields.get("status") or {}).get("allow_on_submit"):
+    fail.append("Interview Report.status must offer exactly the workflow's statuses %s" % sorted({row["status"] for row in A.STATES}))
+for field in A.STAMP_FIELDS:
+    f = rep_fields.get(field) or {}
+    if not f.get("read_only") or not f.get("allow_on_submit"):
+        fail.append("Interview Report.%s is filled by the approval, so it must be read-only and settable on submit" % field)
+for fieldname in ("job_opening", "interview_date"):
+    if not (rep_fields.get(fieldname) or {}).get("reqd"):
+        fail.append("Interview Report.%s must be mandatory" % fieldname)
+for fieldname, target in (("panel", "Interview Report Panel Member"), ("candidates", "Interview Report Candidate"),
+                          ("amended_from", "Interview Report"), ("head_of_department", "User")):
+    if (rep_fields.get(fieldname) or {}).get("options") != target:
+        fail.append("Interview Report.%s must point at %s" % (fieldname, target))
+rep_perms = {p["role"]: p for p in rep.get("permissions", [])}
+for role in A.PREPARERS:
+    if not all((rep_perms.get(role) or {}).get(k) for k in ("read", "write", "create")):
+        fail.append("%s prepares reports, so needs read, write and create on Interview Report" % role)
+rc = doctype_json("Interview Report Candidate")
+rc_fields = fields_of(rc)
+if [o for o in (rc_fields.get("decision") or {}).get("options", "").split("\n") if o] != list(rules.RECOMMENDATIONS):
+    fail.append("the candidate's decision must be the form's Offer / Shortlist / Reject")
+if sum(f.get("columns") or 0 for f in rc["fields"] if f.get("in_list_view")) > 10:
+    fail.append("the report's candidate grid exceeds 10 columns")
+rp_fields = fields_of(doctype_json("Interview Report Panel Member"))
+if (rp_fields.get("interviewer") or {}).get("options") != "User" or (rp_fields.get("interviewer_name") or {}).get("fetch_from") != "interviewer.full_name":
+    fail.append("a panel member is a User, their name fetched from it")
+if not re.search(r"def validate\(self\):\n        interviews\.validate_report\(self\)",
+                 read("hrms_addon", "hrms_addon", "doctype", "interview_report", "interview_report.py")):
+    fail.append("Interview Report validate must call interviews.validate_report")
+
+report_body = glue.split("def get_interview_results(")[-1].split("\ndef ")[0]
+returned = set(re.findall(r'^\s+"(\w+)": ', report_body, re.M))
+panel_keys = {"interviewer", "interviewer_name", "designation"}
+if not panel_keys <= set(rp_fields) or not (returned - panel_keys) <= set(rc_fields):
+    fail.append("get_interview_results returns fields the report's tables do not have: %s"
+                % sorted((returned - panel_keys) - set(rc_fields)))
+for needle, why in (
+    ("approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current)", "must fill the sign-offs with the tested rules"),
+    ("rules.report_errors(doc.candidates, doc.recommendations, complete=approval.leaves_draft(new_state))",
+     "must check the report with the tested rules, strictly once it leaves Draft"),
+    ('frappe.has_permission("Interview Report", "write", throw=True)', "must check the user may write reports"),
+    ('filters={"job_opening": job_opening, "scheduled_on": interview_date, "docstatus": ["!=", 2]}',
+     "must take the opening's interviews on that day, leaving cancelled ones out"),
+    ("summary = rules.panel_summary(sheets)", "must sum up the panel with the tested rules"),
+    ('filters={"interview": interview.name, "docstatus": 1}', "must count only submitted score sheets"),
+    ("rules.salary_remark(", "must write the salary expectation with the tested rules"),
+    ('workflows.setup_on_migrate(approval, "Interview Report approval")', "must build the approval workflow from interview_report_approval"),
+):
+    if needle not in glue:
+        fail.append("interviews.py %s" % why)
+if not re.search(r"@frappe\.whitelist\(\)\s*\ndef get_interview_results\(", glue):
+    fail.append("interviews.get_interview_results must be whitelisted")
+for fieldname in re.findall(r'"custom_(\w+) as', report_body):
+    if "Interview Feedback-custom_%s" % fieldname not in by_name:
+        fail.append("get_interview_results reads Interview Feedback.custom_%s, which does not exist" % fieldname)
+if '"hrms_addon.hrms_addon.interviews.setup_report_workflow_on_migrate"' not in hook_block("after_migrate"):
+    fail.append("after_migrate must build the Interview Report approval workflow")
+builder = read("hrms_addon", "hrms_addon", "workflows.py")
+if '"doc_status": row.get("doc_status", "0")' not in builder:
+    fail.append("workflows.py must take each state's doc_status from the rules, or the report is never submitted")
+
+rjs = read("hrms_addon", "hrms_addon", "doctype", "interview_report", "interview_report.js")
+if '.xcall("hrms_addon.hrms_addon.interviews.get_interview_results"' not in rjs:
+    fail.append("interview_report.js must fill the report with interviews.get_interview_results")
+if '.xcall("hrms_addon.hrms_addon.job_requisition.get_session_employee")' not in rjs \
+        or not re.search(r"@frappe\.whitelist\(\)\s*\ndef get_session_employee\(", read("hrms_addon", "hrms_addon", "job_requisition.py")):
+    fail.append("interview_report.js must default Prepared By through the whitelisted get_session_employee")
+if "frappe.confirm(" not in rjs:
+    fail.append("interview_report.js must ask before replacing remarks already typed")
+stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", rjs, flags=re.S)
+for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
+    if stripped.count(op) != stripped.count(cl):
+        fail.append("interview_report.js: unbalanced %s%s" % (op, cl))
+
+rpf = json.load(open(os.path.join(APP, "print_format", "interview_report", "interview_report.json"), encoding="utf-8"))
+if (rpf.get("name"), rpf.get("doc_type"), rpf.get("standard"), rpf.get("print_format_type"), rpf.get("disabled")) \
+        != ("Interview Report", "Interview Report", "Yes", "Jinja", 0):
+    fail.append("the report print format must be a standard Jinja format of Interview Report")
+rhtml = rpf.get("html") or ""
+for block in ("for", "if", "macro"):
+    if len(re.findall(r"{%-?\s*" + block + r"\b", rhtml)) != len(re.findall(r"{%-?\s*end" + block + r"\b", rhtml)):
+        fail.append("report print format: unbalanced %s blocks" % block)
+for text in ("INTERVIEW REPORT FOR", "<b>Position:</b>", "<b>Forwarded to:</b>", "<b>Thru:</b>", "<b>Prepared by:</b>",
+             "by a panel consisting of", ">No.</th>", ">Name</th>", ">Qualification</th>", ">Experience</th>", ">Remarks</th>",
+             "<b>Recommendations</b>", '"Human Resource Manager"', '"Executive Director"'):
+    if text not in rhtml:
+        fail.append("report print format must carry the report's %s" % text)
+for fieldname in set(re.findall(r"\bdoc\.([a-z_]+)", rhtml)):
+    if fieldname not in rep_fields:
+        fail.append("report print format uses Interview Report.%s, which does not exist" % fieldname)
+for attribute in set(re.findall(r"\brow\.([a-z_]+)", rhtml)):
+    if attribute not in rc_fields:
+        fail.append("report print format prints Interview Report Candidate.%s, which does not exist" % attribute)
+for attribute in set(re.findall(r"\bmember\.([a-z_]+)", rhtml)):
+    if attribute not in rp_fields:
+        fail.append("report print format prints Interview Report Panel Member.%s, which does not exist" % attribute)
+if re.findall(r"{{-?\s*(?:doc|row|member)\.[a-z_]+", rhtml):
+    fail.append("report print format must print text through v() or lines() so it is escaped")
+
+if UPSTREAM_OK:
+    interview_fields = fields_of(json.loads(upstream("hrms", "hr", "doctype", "interview", "interview.json")))
+    if (interview_fields.get("job_opening") or {}).get("fetch_from") != "job_applicant.job_title":
+        fail.append("HRMS's Interview no longer carries its Job Opening: recheck get_interview_results")
+    state_row = fields_of(json.loads(upstream("frappe", "workflow", "doctype", "workflow_document_state", "workflow_document_state.json")))
+    if "1" not in (state_row.get("doc_status") or {}).get("options", "").split("\n"):
+        fail.append("Frappe's Workflow no longer lets a state submit the document: recheck the report's Approved state")
+    workflow_py = upstream("frappe", "workflow", "doctype", "workflow", "workflow.py")
+    if "def create_custom_field_for_workflow_state" not in workflow_py or "if not meta.get_field(self.workflow_state_field)" not in workflow_py:
+        fail.append("Frappe's Workflow changed how it adds the state field: recheck Interview Report.workflow_state")
+print("report: approval walked end to end, sign-offs, panel summary, checks, doctypes, results, form script and print format resolve")
 
 print()
 if fail:

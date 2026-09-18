@@ -31,12 +31,26 @@ and the Interview Shortlist (one per Job Opening, like Luuka's shortlist sheet):
                        Applicants, Refresh Details)
   schedule_interviews  an HRMS Interview per candidate, back to back, with the
                        Interview Type's panel
+
+and the Interview Report (one per Job Opening and interview day):
+
+  validate_report      its controller's validate: complete once past Draft, and
+                       the sign-off block filled as the approvers act
+  get_interview_results
+                       the day's panel and candidates, with the score sheets
+                       averaged and counted (Get Interview Results)
+  setup_report_workflow_on_migrate
+                       after_migrate: its approval workflow, from
+                       interview_report_approval.py
 """
 
 import frappe
 from frappe import _
+from frappe.utils import today
 
+from hrms_addon.hrms_addon import interview_report_approval as approval
 from hrms_addon.hrms_addon import interview_rules as rules
+from hrms_addon.hrms_addon import workflows
 
 
 def feedback_validate(doc, method=None):
@@ -217,6 +231,93 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
         row.db_set("interview", interview.name)
         booked.append(interview.name)
     return {"booked": booked, "refused": refused}
+
+
+# ── The interview report ──────────────────────────────────────────────
+
+
+def validate_report(doc):
+    """Interview Report validate: complete once past Draft, and its sign-off block
+    filled as the HR Manager and the Executive Director act."""
+    before = doc.get_doc_before_save()
+    old_state = before.get(approval.STATE_FIELD) if before else None
+    new_state = doc.get(approval.STATE_FIELD)
+    errors = rules.report_errors(doc.candidates, doc.recommendations, complete=approval.leaves_draft(new_state))
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Interview Report"))
+
+    current = {field: before.get(field) for field in approval.STAMP_FIELDS} if before else {}
+    for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current).items():
+        doc.set(field, value)
+    if doc.is_new() and not doc.get("prepared_by"):
+        doc.prepared_by = frappe.db.get_value("Employee", {"user_id": frappe.session.user, "status": "Active"}, "name")
+
+
+@frappe.whitelist()
+def get_interview_results(job_opening: str, interview_date: str) -> dict:
+    """The day's panel and candidates for an Interview Report.
+
+    Every Interview for the opening on that date (not cancelled), in the order
+    they were held: the panel is everyone who sat on any of them, and each
+    candidate comes with their Bio-Data written out, the panel's score sheets
+    averaged and counted, and their salary expectation.
+    """
+    frappe.has_permission("Interview Report", "write", throw=True)
+    interviews = frappe.get_all(
+        "Interview",
+        filters={"job_opening": job_opening, "scheduled_on": interview_date, "docstatus": ["!=", 2]},
+        fields=["name", "job_applicant"],
+        order_by="from_time asc, creation asc",
+    )
+
+    panel, seated = [], set()
+    for interview in interviews:
+        for user in frappe.get_all(
+            "Interview Detail", filters={"parent": interview.name, "parenttype": "Interview"}, pluck="interviewer", order_by="idx asc"
+        ):
+            if user and user not in seated:
+                seated.add(user)
+                panel.append({
+                    "interviewer": user,
+                    "interviewer_name": frappe.db.get_value("User", user, "full_name") or user,
+                    "designation": _designation_of(user),
+                })
+
+    candidates, listed = [], set()
+    for interview in interviews:
+        if interview.job_applicant in listed:
+            continue
+        listed.add(interview.job_applicant)
+        details = candidate_details(interview.job_applicant)
+        sheets = frappe.get_all(
+            "Interview Feedback",
+            filters={"interview": interview.name, "docstatus": 1},
+            fields=["custom_score_percent as percent", "custom_max_score as maximum", "custom_recommendation as recommendation"],
+        )
+        summary = rules.panel_summary(sheets)
+        salary = frappe.db.get_value(
+            "Job Applicant", interview.job_applicant, ["currency", "lower_range", "upper_range"], as_dict=True
+        ) or {}
+        candidates.append({
+            "job_applicant": details["job_applicant"],
+            "applicant_name": details["applicant_name"],
+            "phone_number": details["phone_number"],
+            "email_id": details["email_id"],
+            "qualification": "\n".join(part for part in (details["education"], details["certifications"]) if part),
+            "experience": details["work_experience"],
+            "average_score": summary["average"] or 0,
+            "score_band": summary["band"],
+            "panel_recommendations": summary["tally"],
+            "decision": summary["decision"],
+            "remarks": rules.salary_remark(salary.get("currency"), salary.get("lower_range"), salary.get("upper_range")),
+            "interview": interview.name,
+        })
+    return {"panel": panel, "candidates": candidates}
+
+
+def setup_report_workflow_on_migrate():
+    """after_migrate: the Interview Report's approval workflow (workflows.py)."""
+    workflows.setup_on_migrate(approval, "Interview Report approval")
 
 
 def seed_interview_criteria():

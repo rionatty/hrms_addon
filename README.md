@@ -279,6 +279,21 @@ still lists them). **Schedule Interviews** then books an HRMS Interview per
 candidate, back to back from a start time, with the Interview Type's panel;
 one HRMS refuses is reported and the rest still go ahead.
 
+The **Interview Report** closes the day, laid out like Luuka's report:
+one per Job Opening and interview date. **Get Interview Results** fills the
+panel (everyone who sat on that day's Interviews, with their designations)
+and each candidate: qualifications and experience from the Bio-Data, the
+panel's score sheets averaged into a score and rating, the recommendations
+counted ("Offer 3, Reject 1"), the decision when most of the panel agreed,
+and the salary expectation as the start of the remarks. HR writes the
+remarks and the recommendations, then sends it on. It goes, as the paper
+says, through the Human Resource Manager to the Executive Director: a
+Frappe Workflow, **Interview Report Approval**, declared in
+`interview_report_approval.py` (no Frappe import) and built on every
+migrate by `workflows.py`, the builder the Job Requisition approval now
+shares. The Executive Director's approval submits the report; each step
+stamps its sign-off, printed on the report with the Head of Department's.
+
 `verify_requisition_workflow.py` loads `requisition_approval.py` directly —
 it deliberately imports nothing from Frappe — and walks every approval
 path: submit, each approval, rejection, revision, and a hand-typed approval

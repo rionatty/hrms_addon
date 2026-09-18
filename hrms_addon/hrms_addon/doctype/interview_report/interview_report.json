@@ -1,0 +1,279 @@
+{
+ "actions": [],
+ "autoname": "HR-INR-.YYYY.-.####",
+ "creation": "2026-09-18 12:00:00.000000",
+ "default_print_format": "Interview Report",
+ "description": "The panel's report on one day's interviews for a Job Opening, forwarded to the Executive Director through the Human Resource Manager.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "job_opening",
+  "designation",
+  "interview_date",
+  "column_break_1",
+  "status",
+  "forwarded_to",
+  "through",
+  "prepared_by",
+  "prepared_by_name",
+  "prepared_by_designation",
+  "panel_section",
+  "panel",
+  "candidates_section",
+  "candidates",
+  "recommendations_section",
+  "recommendations",
+  "signoff_section",
+  "head_of_department",
+  "column_break_2",
+  "hrm_approver",
+  "hrm_approved_on",
+  "column_break_3",
+  "ed_approver",
+  "ed_approved_on",
+  "workflow_state",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "job_opening",
+   "fieldtype": "Link",
+   "options": "Job Opening",
+   "label": "Job Opening",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "options": "Designation",
+   "label": "Position",
+   "fetch_from": "job_opening.designation",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "interview_date",
+   "fieldtype": "Date",
+   "label": "Interviewed On",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending HR Manager\nPending Executive Director\nApproved\nRejected",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "forwarded_to",
+   "fieldtype": "Data",
+   "label": "Forwarded To",
+   "default": "The Executive Director"
+  },
+  {
+   "fieldname": "through",
+   "fieldtype": "Data",
+   "label": "Through",
+   "default": "The Human Resource Manager"
+  },
+  {
+   "fieldname": "prepared_by",
+   "fieldtype": "Link",
+   "options": "Employee",
+   "label": "Prepared By"
+  },
+  {
+   "fieldname": "prepared_by_name",
+   "fieldtype": "Data",
+   "label": "Prepared By (Name)",
+   "fetch_from": "prepared_by.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "prepared_by_designation",
+   "fieldtype": "Data",
+   "label": "Prepared By (Designation)",
+   "fetch_from": "prepared_by.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "panel_section",
+   "fieldtype": "Section Break",
+   "label": "Interview Panel",
+   "description": "Get Interview Results fills the panel and the candidates from the day's Interviews and the panel's score sheets."
+  },
+  {
+   "fieldname": "panel",
+   "fieldtype": "Table",
+   "options": "Interview Report Panel Member",
+   "label": "Panel"
+  },
+  {
+   "fieldname": "candidates_section",
+   "fieldtype": "Section Break",
+   "label": "Candidates Interviewed"
+  },
+  {
+   "fieldname": "candidates",
+   "fieldtype": "Table",
+   "options": "Interview Report Candidate",
+   "label": "Candidates"
+  },
+  {
+   "fieldname": "recommendations_section",
+   "fieldtype": "Section Break",
+   "label": "Recommendations"
+  },
+  {
+   "fieldname": "recommendations",
+   "fieldtype": "Text",
+   "label": "Panel's Recommendations",
+   "description": "e.g. The panel recommends selection of both candidate No. 1 and 2 for the position."
+  },
+  {
+   "fieldname": "signoff_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-Off"
+  },
+  {
+   "fieldname": "head_of_department",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Head of Department",
+   "description": "The hiring department's head, who signs the report with the Human Resource Manager and the Executive Director."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hrm_approver",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Human Resource Manager",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_approved_on",
+   "fieldtype": "Date",
+   "label": "Forwarded On",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ed_approver",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Executive Director",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_approved_on",
+   "fieldtype": "Date",
+   "label": "Approved On",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "options": "Workflow State",
+   "label": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "options": "Interview Report",
+   "label": "Amended From",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Interview Report",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager",
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager",
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1
+  },
+  {
+   "role": "Interviewer",
+   "read": 1,
+   "print": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

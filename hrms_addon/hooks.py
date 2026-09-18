@@ -220,6 +220,9 @@ after_migrate = [
     # workflow.json would import before the states it links to. See
     # job_requisition.py.
     "hrms_addon.hrms_addon.job_requisition.setup_on_migrate",
+    # Interview Report approval (through the HR Manager to the Executive
+    # Director), built the same way. See interview_report_approval.py.
+    "hrms_addon.hrms_addon.interviews.setup_report_workflow_on_migrate",
 ]
 
 # Fixtures
