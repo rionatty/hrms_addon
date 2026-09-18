@@ -267,6 +267,18 @@ what the design relies on in HRMS: the button still fires
 `submit_feedback`, the feedback's average rating still feeds the Interview,
 and the Feedback tab still reads skill and rating.
 
+The **Interview Shortlist** comes before the interviews, one per Job
+Opening, laid out like Luuka's shortlist sheet. **Get Applicants** lists
+everyone who applied and can still be shortlisted, each written out from
+their Pre-Interview Bio-Data: name and contacts, education, work experience,
+and certifications and licences, most recent first. A qualification counts
+as a certification or licence by its **Qualification Type**, a new Bio-Data
+list the application form asks for. Submitting marks the applicants
+Shortlisted (cancelling puts them back to Open unless another shortlist
+still lists them). **Schedule Interviews** then books an HRMS Interview per
+candidate, back to back from a start time, with the Interview Type's panel;
+one HRMS refuses is reported and the rest still go ahead.
+
 `verify_requisition_workflow.py` loads `requisition_approval.py` directly —
 it deliberately imports nothing from Frappe — and walks every approval
 path: submit, each approval, rejection, revision, and a hand-typed approval

@@ -1,0 +1,92 @@
+{
+ "actions": [],
+ "creation": "2026-09-18 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "job_applicant",
+  "applicant_name",
+  "phone_number",
+  "email_id",
+  "education",
+  "work_experience",
+  "certifications",
+  "interview"
+ ],
+ "fields": [
+  {
+   "fieldname": "job_applicant",
+   "fieldtype": "Link",
+   "options": "Job Applicant",
+   "label": "Job Applicant",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "applicant_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "job_applicant.applicant_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "fetch_from": "job_applicant.phone_number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email",
+   "fetch_from": "job_applicant.email_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "education",
+   "fieldtype": "Small Text",
+   "label": "Education Qualification",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "work_experience",
+   "fieldtype": "Small Text",
+   "label": "Work Experience",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "certifications",
+   "fieldtype": "Small Text",
+   "label": "Certifications and Licences",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "interview",
+   "fieldtype": "Link",
+   "options": "Interview",
+   "label": "Interview",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Interview Shortlist Candidate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

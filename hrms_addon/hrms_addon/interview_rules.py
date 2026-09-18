@@ -18,6 +18,8 @@ been earned on the criteria actually scored, so an N/A neither helps nor
 hurts, and the same scale then names the overall result.
 """
 
+import re
+
 # LPL/HR/17's criteria, grouped and ordered as the form prints them. Only
 # the seed for the Interview Criteria Group and Interview Criterion masters:
 # HR can add, rename, reorder and switch off criteria afterwards.
@@ -215,6 +217,127 @@ def criteria_seed_plan(existing_groups, existing_criteria, groups=CRITERIA_GROUP
             "sort_order": position * 10,
         })
     return group_records, criterion_records
+
+
+# ── The interview shortlist ───────────────────────────────────────────
+# One per Job Opening, listing the applicants invited to interview the way
+# Luuka's shortlist sheet does: name and contacts, then education, work
+# experience, and certifications and licences, each written out from the
+# applicant's Pre-Interview Bio-Data (LPL/HR/19) so HR does not retype it.
+
+# Applicants who can still be shortlisted: not already turned down or hired
+SHORTLISTABLE_STATUSES = ("Open", "Replied", "Hold", "Shortlisted")
+
+
+def contact_line(name, phone, email):
+    """'Mark Henry, 0781669900, markhenry@gmail.com', leaving out what is blank."""
+    return ", ".join(part for part in (_text(name), _text(phone), _text(email)) if part)
+
+
+def qualification_lines(qualifications, certification_types, certifications):
+    """The applicant's qualifications as the shortlist lists them, one per line.
+
+    certifications=False gives the Education Qualification column, True the
+    Certifications and Licences column: a row counts as a certification when
+    its type is one of certification_types. Each line reads
+    '<study / program>, <institution> (<year / period>)', most recent first;
+    the award stands in when no program is given.
+    """
+    kinds = {_text(t).lower() for t in certification_types or []}
+    picked = [row for row in qualifications or []
+              if (_text(_get(row, "qualification_type")).lower() in kinds) == bool(certifications)]
+    lines = []
+    for row in _most_recent_first(picked, lambda row: _latest_year(_get(row, "period"))):
+        title = _text(_get(row, "program")) or _text(_get(row, "award"))
+        place = _text(_get(row, "institution"))
+        period = _text(_get(row, "period"))
+        line = ", ".join(part for part in (title, place) if part)
+        if period:
+            line = "%s (%s)" % (line, period) if line else period
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def experience_lines(history):
+    """Employment history as the shortlist lists it, one job per line, most recent
+    first: '<position>, <workplace> (<from> - <to>)', 'Present' when no end is given."""
+    lines = []
+    for row in _most_recent_first(history or [], _job_recency):
+        position, workplace = _text(_get(row, "position")), _text(_get(row, "workplace"))
+        start, end = _text(_get(row, "from_year")), _text(_get(row, "to_year"))
+        line = ", ".join(part for part in (position, workplace) if part)
+        if start or end:
+            tenure = "%s - %s" % (start or "?", end or "Present")
+            line = "%s (%s)" % (line, tenure) if line else tenure
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def shortlist_errors(job_opening, rows, opening_of, submitting):
+    """Problems with a shortlist, as user-facing messages.
+
+    rows: dicts or objects with job_applicant. opening_of: {applicant: the
+    Job Opening they applied for}, looked up by the caller. A draft may be
+    empty; a submitted shortlist may not.
+    """
+    rows = list(rows or [])
+    if not rows:
+        return ["Add the applicants invited to interview (Get Applicants lists everyone who applied)."] if submitting else []
+    errors, seen = [], {}
+    for index, row in enumerate(rows, start=1):
+        applicant = _text(_get(row, "job_applicant"))
+        if not applicant:
+            continue
+        if applicant in seen:
+            errors.append("Row %d: %s is already listed in row %d." % (index, applicant, seen[applicant]))
+            continue
+        seen[applicant] = index
+        applied_for = _text((opening_of or {}).get(applicant))
+        if job_opening and applied_for != _text(job_opening):
+            errors.append("Row %d: %s applied for %s, not this opening." % (index, applicant, applied_for or "no opening"))
+    return errors
+
+
+def interview_slots(start, minutes, count):
+    """`count` back-to-back interview slots of `minutes` from `start`.
+
+    start: 'HH:MM' or 'HH:MM:SS'. Returns [('HH:MM:SS', 'HH:MM:SS')], or
+    raises ValueError when the length is not positive or the day runs out.
+    """
+    minutes = _int(minutes)
+    if minutes <= 0:
+        raise ValueError("Each interview needs a length in minutes.")
+    parts = [int(p) for p in _text(start).split(":")]
+    if len(parts) < 2 or not (0 <= parts[0] < 24 and 0 <= parts[1] < 60):
+        raise ValueError("The first interview needs a start time.")
+    begin = parts[0] * 60 + parts[1]
+    if begin + minutes * count > 24 * 60:
+        raise ValueError("%d interviews of %d minutes from %02d:%02d run past midnight." % (count, minutes, parts[0], parts[1]))
+    return [(_clock(begin + i * minutes), _clock(begin + (i + 1) * minutes)) for i in range(count)]
+
+
+def _clock(total_minutes):
+    return "%02d:%02d:00" % divmod(total_minutes, 60)
+
+
+def _latest_year(text):
+    years = re.findall(r"(?<!\d)(?:19|20)\d{2}(?!\d)", _text(text))
+    return int(years[-1]) if years else None
+
+
+def _job_recency(row):
+    """A job with no end is the current one; otherwise its end year, then its start year."""
+    if not _text(_get(row, "to_year")) and _text(_get(row, "from_year")):
+        return 9999
+    return _latest_year(_get(row, "to_year")) or _latest_year(_get(row, "from_year"))
+
+
+def _most_recent_first(rows, year_of):
+    """Newest first; rows with no year keep their order, after the dated ones."""
+    dated = [(year_of(row), index, row) for index, row in enumerate(rows)]
+    return [row for year, index, row in sorted(dated, key=lambda d: (d[0] is None, -(d[0] or 0), d[1]))]
 
 
 def _get(row, key):

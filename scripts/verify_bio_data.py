@@ -127,7 +127,7 @@ print("pick lists: %d masters, %d fields link to them" % (len(rules.BIO_DATA_MAS
 EXPECTED_TABLE_FIELDS = {
     "Applicant Parent": ["full_name", "relationship", "home_village", "home_district", "current_residence", "current_district", "phone"],
     "Applicant Next of Kin": ["full_name", "relationship", "company", "job_title", "phone", "email"],
-    "Applicant Qualification": ["institution", "period", "program", "award"],
+    "Applicant Qualification": ["qualification_type", "institution", "period", "program", "award"],
     "Applicant School Result": ["examination_level", "subject", "grade"],
     "Applicant Employment History": ["workplace", "position", "from_year", "to_year", "reason_for_leaving"],
     "Applicant Skill": ["skill"],

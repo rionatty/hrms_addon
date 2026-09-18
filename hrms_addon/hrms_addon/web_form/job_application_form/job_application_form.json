@@ -10,7 +10,7 @@
  "button_label": "Submit Application",
  "client_script": "frappe.web_form.after_load = () => hrms_addon_apply.init();\n\nfrappe.web_form.on(\"resume_link\", (field, value) => {\n\tif (value && !frappe.utils.is_url(value)) {\n\t\tfrappe.msgprint(__(\"Please enter a valid link to your CV, starting with https://\"));\n\t}\n});\n",
  "condition_json": "[]",
- "creation": "2026-09-18 09:00:00.000000",
+ "creation": "2026-09-18 12:00:00.000000",
  "custom_css": "",
  "doc_type": "Job Applicant",
  "docstatus": 0,
@@ -26,7 +26,7 @@
  "max_attachment_size": 10,
  "meta_description": "Apply for a job at Luuka Plastics.",
  "meta_title": "Job Application",
- "modified": "2026-09-18 09:00:00.000000",
+ "modified": "2026-09-18 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "job-application-form",
@@ -274,7 +274,8 @@
    "fieldtype": "Table",
    "fieldname": "custom_qualifications",
    "label": "Professional and Other Qualifications",
-   "options": "Applicant Qualification"
+   "options": "Applicant Qualification",
+   "allow_read_on_all_link_options": 1
   },
   {
    "doctype": "Web Form Field",

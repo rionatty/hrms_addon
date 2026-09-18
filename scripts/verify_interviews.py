@@ -20,7 +20,13 @@ It also checks:
     the form's reference LPL/HR/17;
   * against HRMS (../ERPNext, or FRAPPE_APPS_ROOT): the button still fires
     "submit_feedback", the feedback's average rating still feeds the
-    Interview, and the Feedback tab still reads skill / rating.
+    Interview, and the Feedback tab still reads skill / rating;
+  * the Interview Shortlist: each applicant's education, work experience
+    and certifications written out from their Bio-Data the way Luuka's
+    shortlist sheet reads (most recent first, certifications and licences
+    apart by Qualification Type), the checks, back-to-back interview slots,
+    the DocTypes, controller, buttons and print format, and what it relies
+    on in HRMS (the Shortlisted status, the Interview Type's panel).
 
     python scripts/verify_interviews.py
 """
@@ -397,6 +403,223 @@ if UPSTREAM_OK:
 else:
     upstream_note = "HRMS not found at %s, upstream contract not checked" % APPS_ROOT
 print("HRMS contract: %s" % upstream_note)
+
+# ── 8. The interview shortlist ───────────────────────────────────────
+spec = importlib.util.spec_from_file_location("bio_data_rules", os.path.join(APP, "bio_data_rules.py"))
+bio = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(bio)
+CERTS = bio.CERTIFICATION_TYPES
+quals = [
+    {"qualification_type": "Academic", "program": "Bachelor's Degree in Business Computing",
+     "institution": "Makerere University Business School", "period": "2008 - 2012"},
+    {"qualification_type": "academic", "program": "Post Graduate Diploma in Digital Marketing",
+     "institution": "Chartered Institute of Marketing", "period": "2026"},
+    {"qualification_type": "Professional Certification", "program": "Certificate in Customer Experience Design",
+     "institution": "Alison Courses", "period": "2024"},
+    {"qualification_type": "", "award": "UACE", "institution": "East High School Ntinda", "period": "2017"},
+    {"qualification_type": "Licence", "program": "Class B Driving Permit", "institution": "", "period": ""},
+]
+education = rules.qualification_lines(quals, CERTS, certifications=False)
+if education.split("\n") != [
+        "Post Graduate Diploma in Digital Marketing, Chartered Institute of Marketing (2026)",
+        "UACE, East High School Ntinda (2017)",
+        "Bachelor's Degree in Business Computing, Makerere University Business School (2008 - 2012)"]:
+    fail.append("education must list the academic rows, most recent first, award standing in for a missing program: %r" % education)
+certifications = rules.qualification_lines(quals, [c.lower() for c in CERTS], certifications=True)
+if certifications.split("\n") != ["Certificate in Customer Experience Design, Alison Courses (2024)", "Class B Driving Permit"]:
+    fail.append("certifications must list the certification and licence rows, whatever the case: %r" % certifications)
+history = [
+    {"position": "Retail Manager", "workplace": "Africell Uganda Limited", "from_year": "Sept 2016", "to_year": "Apr 2020"},
+    {"position": "Operations Coordinator", "workplace": "Leanstar Trading Limited", "from_year": "Nov 2023", "to_year": ""},
+    {"position": "Key Account Manager", "workplace": "Echotel Uganda Limited", "from_year": "May 2022", "to_year": "Sept 2023"},
+    {"position": "Volunteer", "workplace": "Red Cross", "from_year": "", "to_year": ""},
+]
+experience = rules.experience_lines(history)
+if experience.split("\n") != [
+        "Operations Coordinator, Leanstar Trading Limited (Nov 2023 - Present)",
+        "Key Account Manager, Echotel Uganda Limited (May 2022 - Sept 2023)",
+        "Retail Manager, Africell Uganda Limited (Sept 2016 - Apr 2020)",
+        "Volunteer, Red Cross"]:
+    fail.append("work experience must put the current job first and undated ones last: %r" % experience)
+if rules.contact_line("Rinah Eupal", "0703900711", "rinaeupallorika@gmail.com") != "Rinah Eupal, 0703900711, rinaeupallorika@gmail.com" \
+        or rules.contact_line("Mark Henry", None, " ") != "Mark Henry":
+    fail.append("the name column is name, phone and email, leaving out what is blank")
+if rules.qualification_lines([], CERTS, False) or rules.experience_lines(None):
+    fail.append("an applicant with no Bio-Data rows gets empty columns")
+se = rules.shortlist_errors
+expect("an empty draft", se("JO-1", [], {}, submitting=False))
+expect("an empty shortlist submitted", se("JO-1", [], {}, submitting=True), "Add the applicants invited to interview")
+expect("a clean shortlist", se("JO-1", [{"job_applicant": "A"}, {"job_applicant": "B"}], {"A": "JO-1", "B": "JO-1"}, submitting=True))
+expect("an applicant twice", se("JO-1", [{"job_applicant": "A"}, {"job_applicant": "A"}], {"A": "JO-1"}, submitting=False),
+       "Row 2: A is already listed in row 1.")
+expect("an applicant for another opening", se("JO-1", [{"job_applicant": "B"}], {"B": "JO-2"}, submitting=False),
+       "Row 1: B applied for JO-2, not this opening.")
+if rules.interview_slots("09:00", 30, 3) != [("09:00:00", "09:30:00"), ("09:30:00", "10:00:00"), ("10:00:00", "10:30:00")] \
+        or rules.interview_slots("13:45:00", 45, 1) != [("13:45:00", "14:30:00")] or rules.interview_slots("09:00", 20, 0) != []:
+    fail.append("interview slots must run back to back from the first start time")
+for args, why in ((("09:00", 0, 2), "a length of 0"), (("22:30", 60, 2), "running past midnight"), (("", 30, 1), "no start time")):
+    try:
+        rules.interview_slots(*args)
+        fail.append("interview_slots must refuse %s" % why)
+    except ValueError:
+        pass
+if set(rules.SHORTLISTABLE_STATUSES) != {"Open", "Replied", "Hold", "Shortlisted"}:
+    fail.append("only applicants not yet turned down or hired can be shortlisted: %s" % (rules.SHORTLISTABLE_STATUSES,))
+
+qt = doctype_json("Qualification Type")
+qt_fields = fields_of(qt)
+if (qt_fields.get("is_certification") or {}).get("fieldtype") != "Check":
+    fail.append("Qualification Type needs its Certification or Licence check")
+if bio.BIO_DATA_MASTERS.get("Qualification Type", (None,))[0] != "type_name" \
+        or not set(CERTS) <= set(bio.BIO_DATA_MASTERS.get("Qualification Type", (None, ()))[1]):
+    fail.append("Qualification Type must be a Bio-Data pick list seeded with the certification types %s" % (CERTS,))
+aq = fields_of(doctype_json("Applicant Qualification"))
+if (aq.get("qualification_type") or {}).get("options") != "Qualification Type":
+    fail.append("Applicant Qualification needs a Type linking to Qualification Type")
+web_form = json.load(open(os.path.join(APP, "web_form", "job_application_form", "job_application_form.json"), encoding="utf-8"))
+quals_field = next((f for f in web_form["web_form_fields"] if f.get("fieldname") == "custom_qualifications"), {})
+if not quals_field.get("allow_read_on_all_link_options"):
+    fail.append("the application form must let candidates pick a Qualification Type (allow_read_on_all_link_options)")
+picks = read("hrms_addon", "hrms_addon", "pick_lists.py")
+for needle, why in (
+    ("def after_install():\n    seed_masters(MASTERS)\n    flag_certification_types()", "after_install must flag the certification types it seeds"),
+    ('seed_masters({"Qualification Type": bio_data_rules.BIO_DATA_MASTERS["Qualification Type"]})\n    flag_certification_types()',
+     "seed_qualification_types must seed the list, then flag the certification types"),
+    ('frappe.db.set_value("Qualification Type", name, "is_certification", 1)', "must tick Certification or Licence on the seeded types"),
+):
+    if needle not in picks:
+        fail.append("pick_lists.py %s" % why)
+patch_src = read("hrms_addon", "patches", "v1_0", "seed_qualification_types.py")
+if "hrms_addon.patches.v1_0.seed_qualification_types" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[-1] \
+        or not re.search(r"def execute\(\):\n    seed_qualification_types\(\)", patch_src):
+    fail.append("seed_qualification_types must be a post_model_sync patch calling pick_lists.seed_qualification_types")
+
+shl = doctype_json("Interview Shortlist")
+shl_fields = fields_of(shl)
+if not shl.get("is_submittable") or shl.get("autoname") != "HR-SHL-.YYYY.-.####" or shl.get("default_print_format") != "Interview Shortlist":
+    fail.append("Interview Shortlist must be submittable, named HR-SHL-YYYY-####, and print the shortlist by default")
+if (shl_fields.get("job_opening") or {}).get("options") != "Job Opening" or not shl_fields["job_opening"].get("reqd"):
+    fail.append("Interview Shortlist.job_opening must be a mandatory Link to Job Opening")
+if (shl_fields.get("designation") or {}).get("fetch_from") != "job_opening.designation":
+    fail.append("the shortlist's position must be fetched from the Job Opening")
+if (shl_fields.get("candidates") or {}).get("options") != "Interview Shortlist Candidate":
+    fail.append("Interview Shortlist.candidates must be a Table of Interview Shortlist Candidate")
+if (shl_fields.get("amended_from") or {}).get("options") != "Interview Shortlist":
+    fail.append("a submittable Interview Shortlist needs amended_from")
+perms = {p["role"]: p for p in shl.get("permissions", [])}
+if not all((perms.get("HR User") or {}).get(k) for k in ("read", "write", "create", "submit")):
+    fail.append("HR User must be able to prepare and submit a shortlist")
+if not (perms.get("Interviewer") or {}).get("read") or (perms.get("Interviewer") or {}).get("write"):
+    fail.append("the panel (Interviewer) may read the shortlist but not change it")
+cand = doctype_json("Interview Shortlist Candidate")
+cand_fields = fields_of(cand)
+if list(cand_fields) != ["job_applicant", "applicant_name", "phone_number", "email_id", "education", "work_experience",
+                         "certifications", "interview"] or not cand.get("istable"):
+    fail.append("Interview Shortlist Candidate's fields are not the shortlist's columns: %s" % list(cand_fields))
+if not (cand_fields.get("interview") or {}).get("allow_on_submit"):
+    fail.append("Interview Shortlist Candidate.interview is set after submit, so it needs allow_on_submit")
+if sum(f.get("columns") or 0 for f in cand["fields"] if f.get("in_list_view")) > 10:
+    fail.append("the shortlist grid exceeds 10 columns")
+controller = read("hrms_addon", "hrms_addon", "doctype", "interview_shortlist", "interview_shortlist.py")
+for event, function in (("validate", "validate_shortlist"), ("on_submit", "mark_shortlisted"), ("on_cancel", "unmark_shortlisted")):
+    if not re.search(r"def %s\(self\):\n        interviews\.%s\(self\)" % (event, function), controller) \
+            or "def %s(doc):" % function not in glue:
+        fail.append("Interview Shortlist %s must call interviews.%s" % (event, function))
+for needle, why in (
+    ("rules.shortlist_errors(doc.job_opening, doc.candidates, opening_of, submitting=doc.docstatus == 1)",
+     "must check the shortlist with the tested rules"),
+    ('in ("Open", "Replied", "Hold"):\n            frappe.db.set_value("Job Applicant", row.job_applicant, "status", "Shortlisted")',
+     "must mark only applicants still open as Shortlisted"),
+    ('"docstatus": 1},\n        )\n        if not elsewhere:', "must keep an applicant Shortlisted while another submitted shortlist lists them"),
+    ('filters={"job_title": job_opening, "status": ["in", list(rules.SHORTLISTABLE_STATUSES)]}',
+     "must offer only this opening's applicants who can still be shortlisted"),
+    ("rules.qualification_lines(qualifications, certification_types, certifications=False)", "must write education out with the tested rules"),
+    ("rules.qualification_lines(qualifications, certification_types, certifications=True)", "must write certifications out with the tested rules"),
+    ("rules.experience_lines(", "must write work experience out with the tested rules"),
+    ('frappe.get_all("Qualification Type", filters={"is_certification": 1}, pluck="name")', "must read which types are certifications"),
+    ("slots = rules.interview_slots(from_time, minutes, len(pending))", "must book with the tested slots"),
+    ('if doc.docstatus != 1:\n        frappe.throw(_("Submit the shortlist before scheduling its interviews."))', "must schedule only a submitted shortlist"),
+    ('frappe.has_permission("Interview", "create", throw=True)', "must check the user may create Interviews"),
+    ('frappe.get_all("Interviewer", filters={"parent": interview_type, "parenttype": "Interview Type"}, pluck="user")',
+     "must take the panel from the Interview Type"),
+    ('frappe.db.rollback(save_point="hrms_addon_schedule_interview")', "must undo a refused booking and carry on with the rest"),
+    ('row.db_set("interview", interview.name)', "must link each candidate to their Interview"),
+):
+    if needle not in glue:
+        fail.append("interviews.py %s" % why)
+for method, decorator in (("get_shortlist_candidates", r"@frappe\.whitelist\(\)"), ("get_candidate_details", r"@frappe\.whitelist\(\)"),
+                          ("schedule_interviews", r'@frappe\.whitelist\(methods=\["POST"\]\)')):
+    if not re.search(decorator + r"\s*\ndef %s\(" % method, glue):
+        fail.append("interviews.%s must be whitelisted (%s)" % (method, decorator.replace("\\", "")))
+    body = glue.split("def %s(" % method)[-1].split("\ndef ")[0]
+    if method != "schedule_interviews" and 'frappe.has_permission("Interview Shortlist", "write", throw=True)' not in body:
+        fail.append("interviews.%s must check the user may write shortlists" % method)
+
+sjs = read("hrms_addon", "hrms_addon", "doctype", "interview_shortlist", "interview_shortlist.js")
+for method in set(re.findall(r'HA_SHORTLIST_METHODS \+ "(\w+)"', sjs)):
+    if not re.search(r"@frappe\.whitelist\([^)]*\)\s*\ndef %s\(" % method, glue):
+        fail.append("interview_shortlist.js calls interviews.%s, which is not a whitelisted function" % method)
+if 'const HA_SHORTLIST_METHODS = "hrms_addon.hrms_addon.interviews.";' not in sjs:
+    fail.append("interview_shortlist.js must call the methods in hrms_addon.hrms_addon.interviews")
+filled = re.search(r"\[([^\[\]]*)\]\s*\.forEach\(\(field\) => \(row\[field\] = details\[field\] \|\| \"\"\)\)", sjs)
+for field_name in re.findall(r'"(\w+)"', filled.group(1) if filled else ""):
+    if field_name not in cand_fields:
+        fail.append("interview_shortlist.js fills %s, which is not a shortlist column" % field_name)
+if not filled:
+    fail.append("interview_shortlist.js must fill the rows from the server's details")
+for needle, why in (
+    ("frm.doc.docstatus === 0 && frm.doc.job_opening", "must offer Get Applicants only on a draft with an opening"),
+    ("frm.doc.docstatus === 1 && unscheduled.length", "must offer Schedule Interviews only once submitted, while someone is unscheduled"),
+    ("filters: { job_title: frm.doc.job_opening", "must pick applicants of this opening only"),
+    ("frappe.utils.escape_html(reason)", "must escape the reasons a booking was refused"),
+):
+    if needle not in sjs:
+        fail.append("interview_shortlist.js %s" % why)
+stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", sjs, flags=re.S)
+for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
+    if stripped.count(op) != stripped.count(cl):
+        fail.append("interview_shortlist.js: unbalanced %s%s" % (op, cl))
+
+spf = json.load(open(os.path.join(APP, "print_format", "interview_shortlist", "interview_shortlist.json"), encoding="utf-8"))
+if (spf.get("name"), spf.get("doc_type"), spf.get("standard"), spf.get("print_format_type"), spf.get("disabled")) \
+        != ("Interview Shortlist", "Interview Shortlist", "Yes", "Jinja", 0):
+    fail.append("the shortlist print format must be a standard Jinja format of Interview Shortlist")
+shtml = spf.get("html") or ""
+if html_count := [b for b in ("for", "if", "macro") if len(re.findall(r"{%-?\s*" + b + r"\b", shtml)) != len(re.findall(r"{%-?\s*end" + b + r"\b", shtml))]:
+    fail.append("shortlist print format: unbalanced %s blocks" % html_count)
+for heading in ("SHORTLIST</h3>", "<th class=\"no\">NO.</th>", ">NAME</th>", ">EDUCATION QUALIFICATION</th>", ">WORK EXPERIENCE</th>",
+                ">CERTIFICATIONS AND LICENSES</th>"):
+    if heading not in shtml:
+        fail.append("shortlist print format must carry the sheet's heading %s" % heading)
+for attribute in set(re.findall(r"\brow\.([a-z_]+)", shtml)):
+    if attribute not in cand_fields:
+        fail.append("shortlist print format prints Interview Shortlist Candidate.%s, which does not exist" % attribute)
+for fieldname in set(re.findall(r"\bdoc\.([a-z_]+)", shtml)):
+    if fieldname not in shl_fields and fieldname not in ("name",):
+        fail.append("shortlist print format uses Interview Shortlist.%s, which does not exist" % fieldname)
+if re.findall(r"{{-?\s*(?:doc|row)\.[a-z_]+", shtml):
+    fail.append("shortlist print format must print text through v() or lines() so it is escaped")
+
+if UPSTREAM_OK:
+    applicant_json = json.loads(upstream("hrms", "hr", "doctype", "job_applicant", "job_applicant.json"))
+    status = fields_of(applicant_json).get("status") or {}
+    if "Shortlisted" not in (status.get("options") or "").split("\n"):
+        fail.append("HRMS's Job Applicant has no Shortlisted status any more: recheck mark_shortlisted")
+    for fieldname in ("applicant_name", "phone_number", "email_id", "job_title"):
+        if fieldname not in fields_of(applicant_json):
+            fail.append("HRMS's Job Applicant has no %s: recheck the shortlist's fetches" % fieldname)
+    itype = fields_of(json.loads(upstream("hrms", "hr", "doctype", "interview_type", "interview_type.json")))
+    if (itype.get("interviewers") or {}).get("options") != "Interviewer" \
+            or "user" not in fields_of(json.loads(upstream("hrms", "hr", "doctype", "interviewer", "interviewer.json"))):
+        fail.append("HRMS's Interview Type no longer lists its panel as Interviewer rows with a user")
+    interview_fields = fields_of(json.loads(upstream("hrms", "hr", "doctype", "interview", "interview.json")))
+    if (interview_fields.get("interview_details") or {}).get("options") != "Interview Detail" \
+            or "interviewer" not in fields_of(json.loads(upstream("hrms", "hr", "doctype", "interview_detail", "interview_detail.json"))):
+        fail.append("HRMS's Interview no longer lists its interviewers as Interview Detail rows")
+    for fieldname in ("interview_type", "job_applicant", "scheduled_on", "from_time", "to_time"):
+        if fieldname not in interview_fields:
+            fail.append("HRMS's Interview has no %s: recheck schedule_interviews" % fieldname)
+print("shortlist: columns written out from the Bio-Data, checks, slots, doctypes, controller, buttons and print format resolve")
 
 print()
 if fail:

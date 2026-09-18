@@ -46,6 +46,21 @@ def seed_bio_data_masters():
     seed_masters(bio_data_rules.BIO_DATA_MASTERS)
 
 
+def seed_qualification_types():
+    """Qualification Type, added to the Bio-Data after its other lists."""
+    seed_masters({"Qualification Type": bio_data_rules.BIO_DATA_MASTERS["Qualification Type"]})
+    flag_certification_types()
+
+
+def flag_certification_types():
+    """The seeded certification and licence types go in the interview shortlist's
+    own column. Runs once with the seeding, like it, so a type HR later
+    unticks stays unticked."""
+    for name in bio_data_rules.CERTIFICATION_TYPES:
+        if frappe.db.exists("Qualification Type", name):
+            frappe.db.set_value("Qualification Type", name, "is_certification", 1)
+
+
 def seed_masters(masters):
     existing = {doctype: frappe.get_all(doctype, pluck="name") for doctype in masters}
     plan = jd_rules.seed_plan(existing, _values_in_use(masters), masters)
@@ -82,3 +97,4 @@ def _values_in_use(masters):
 
 def after_install():
     seed_masters(MASTERS)
+    flag_certification_types()

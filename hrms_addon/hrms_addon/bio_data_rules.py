@@ -54,7 +54,13 @@ BIO_DATA_MASTERS = {
         "Lugbara", "Lumasaba", "Rutooro", "Runyoro", "Alur", "Karamojong", "Kinyarwanda", "French", "Arabic",
     )),
     "Examination Level": ("level_name", ("O-Level (UCE)", "A-Level (UACE)")),
+    # Academic, or a certification / licence: the interview shortlist lists
+    # certifications and licences in their own column (Qualification Type's
+    # "Certification or Licence" check, set on these seeds by pick_lists)
+    "Qualification Type": ("type_name", ("Academic", "Professional Certification", "Licence")),
 }
+# The seeded Qualification Types that count as certifications or licences
+CERTIFICATION_TYPES = ("Professional Certification", "Licence")
 
 # (DocType, field) -> the master it links to
 BIO_DATA_FIELD_MASTERS = {
@@ -66,6 +72,7 @@ BIO_DATA_FIELD_MASTERS = {
     ("Applicant Next of Kin", "relationship"): "Relationship",
     ("Applicant School Result", "examination_level"): "Examination Level",
     ("Applicant Language", "language"): "Spoken Language",
+    ("Applicant Qualification", "qualification_type"): "Qualification Type",
 }
 
 # Job Applicant table field -> child DocType, in the order of the paper form
