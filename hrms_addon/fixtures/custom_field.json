@@ -1025,11 +1025,42 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Job Applicant-custom_current_benefits",
+  "dt": "Job Applicant",
+  "fieldname": "custom_current_benefits",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_previous_salary",
+  "label": "Current Benefits",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_expected_benefits",
+  "dt": "Job Applicant",
+  "fieldname": "custom_expected_benefits",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_current_benefits",
+  "label": "Expected Benefits",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_notice_period",
+  "dt": "Job Applicant",
+  "fieldname": "custom_notice_period",
+  "fieldtype": "Data",
+  "insert_after": "custom_expected_benefits",
+  "label": "Notice Period",
+  "description": "e.g. One month",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Job Applicant-custom_bio_data_tab",
   "dt": "Job Applicant",
   "fieldname": "custom_bio_data_tab",
   "fieldtype": "Tab Break",
-  "insert_after": "custom_previous_salary",
+  "insert_after": "custom_notice_period",
   "label": "Bio-Data",
   "module": "HRMS Addon"
  },
@@ -1416,6 +1447,118 @@
   "fieldtype": "Data",
   "insert_after": "custom_tin",
   "label": "NSSF No.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_interviewer_designation",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_interviewer_designation",
+  "fieldtype": "Data",
+  "insert_after": "interviewer",
+  "label": "Interviewer Designation",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_evaluation_section",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_evaluation_section",
+  "fieldtype": "Section Break",
+  "insert_after": "average_rating",
+  "label": "Candidate Interview Evaluation",
+  "description": "Score each criterion: Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (49% and below), or N/A where it does not apply.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_scores",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_scores",
+  "fieldtype": "Table",
+  "insert_after": "custom_evaluation_section",
+  "label": "Scores",
+  "options": "Interview Feedback Score",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_score_summary_section",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_score_summary_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_scores",
+  "label": "Total Score",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_total_score",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_total_score",
+  "fieldtype": "Int",
+  "insert_after": "custom_score_summary_section",
+  "label": "Total Score",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_max_score",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_max_score",
+  "fieldtype": "Int",
+  "insert_after": "custom_total_score",
+  "label": "Out Of",
+  "description": "5 for every criterion scored; N/A adds nothing.",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_score_cb",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_score_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_max_score",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_score_percent",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_score_percent",
+  "fieldtype": "Percent",
+  "insert_after": "custom_score_cb",
+  "label": "Score %",
+  "in_list_view": 1,
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_score_band",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_score_band",
+  "fieldtype": "Data",
+  "insert_after": "custom_score_percent",
+  "label": "Rating",
+  "in_list_view": 1,
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_recommendation",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_recommendation",
+  "fieldtype": "Select",
+  "insert_after": "feedback",
+  "label": "Recommendation",
+  "options": "\nOffer\nShortlist\nReject",
+  "description": "Offer = selected, Shortlist = to be interviewed again, Reject = not selected.",
+  "in_list_view": 1,
   "module": "HRMS Addon"
  }
 ]

@@ -51,7 +51,7 @@ DOCFIELD_PROPERTIES = {
     "description": "Text",
     "allow_bulk_edit": "Check",
 }
-DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data"}
+DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
 # by these fixtures, but legitimately named in a field_order.
 RUNTIME_FIELDS = {"Job Requisition": {"workflow_state"}}
@@ -554,6 +554,9 @@ JA = "Job Applicant"
 if by_dt.get(JA):
     m = meta(JA)
     baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
+    # Salary history and expectation, on HRMS's own tab; the score sheet
+    # (LPL/HR/17) prints them for every panel member
+    SALARY_FIELDS = {"custom_previous_salary", "custom_current_benefits", "custom_expected_benefits", "custom_notice_period"}
     BIO_SECTIONS = [
         "Personal Information",
         "Parents' Details",
@@ -572,7 +575,7 @@ if by_dt.get(JA):
         if moved:
             fail.append("Job Applicant standard fields moved to another tab: %s" % moved)
         for fn in by_dt[JA]:
-            expected = "Salary Expectation" if fn == "custom_previous_salary" else "Bio-Data"
+            expected = "Salary Expectation" if fn in SALARY_FIELDS else "Bio-Data"
             if positions.get(fn, ("?",))[0] != expected:
                 fail.append("Job Applicant.%s lands in tab %r, expected %r" % (fn, positions.get(fn, ("?",))[0], expected))
         tabs = [fields[fn].get("label") for fn in order if fields[fn]["fieldtype"] == "Tab Break"]
@@ -590,8 +593,24 @@ if by_dt.get(JA):
     order, fields = simulate_layout(JA)
     print_layout(JA, order, fields)
     print()
-    print("Job Applicant layout: Previous Salary with the salary expectation, %d Bio-Data sections in the form's order"
+    print("Job Applicant layout: salary history with the salary expectation, %d Bio-Data sections in the form's order"
           % len(BIO_SECTIONS))
+
+# ── 6c2. Interview Feedback — the score sheet (LPL/HR/17) ────────────
+IFB = "Interview Feedback"
+if by_dt.get(IFB):
+    for hrms_first in (True, False):
+        order, fields = simulate_layout(IFB, hrms_first=hrms_first)
+        visible_sections = [fields[fn].get("label") for fn in order
+                            if fields[fn]["fieldtype"] == "Section Break" and not fields[fn].get("hidden")]
+        expected_sections = ["Details", "Candidate Interview Evaluation", "Total Score", "Suitability & Recommendation"]
+        if visible_sections != expected_sections:
+            fail.append("Interview Feedback sections %s, expected %s" % (visible_sections, expected_sections))
+        for field, after in (("custom_scores", "custom_evaluation_section"), ("custom_recommendation", "feedback"),
+                             ("custom_interviewer_designation", "interviewer")):
+            if field in order and order[order.index(field) - 1] != after:
+                fail.append("Interview Feedback.%s must follow %s, follows %s" % (field, after, order[order.index(field) - 1]))
+    print("Interview Feedback layout: details, the evaluation grid, the total, then suitability and the recommendation")
 
 # ── 6d. Employee — statutory numbers ─────────────────────────────────
 EM = "Employee"

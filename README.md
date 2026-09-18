@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -243,6 +243,29 @@ The print format's HTML is generated into
 `hrms_addon/print_format/pre_interview_bio_data_form/`; migrate re-imports
 an app's Print Format only when its `modified` is newer than the site's
 copy, so bump `modified` with every change to it.
+
+`verify_interviews.py` covers the interview process. Each panel member's
+**Interview Feedback** is Luuka's Candidate Interview Evaluation / Score Form
+(LPL/HR/17): every criterion in the Interview Criterion list (seeded once with
+the form's 17, in five Interview Criteria Groups) is scored 1 to 5 or N/A,
+with a comment, and the sheet works out its total, the percentage of what it
+could have scored (N/A counts for nothing either way) and the form's rating,
+Excellent (90-100%) down to Below Average. The recommendation, Offer, Shortlist
+(interview again) or Reject, sets HRMS's Cleared / Rejected result, and the
+percentage becomes HRMS's average rating, so the Interview's panel average
+and star summary use the scores. HRMS's star-rated skill assessment is set
+aside by property setters. "Submit Feedback" on an Interview opens the sheet:
+`public/js/interview.js` drops HRMS's handler for that event with Frappe's
+own `frappe.ui.form.off` and adds one that opens the form. The Interview's
+Feedback tab shows the panel's average per criterion
+(`override_whitelisted_methods`). The candidate's salary history, benefits
+and notice period are asked on the application form and kept on the Job
+Applicant, and every sheet prints them. The check loads
+`interview_rules.py` without Frappe, runs sheets through every boundary of
+the scale (27 of 30 is exactly 90%, compared in whole numbers), and pins
+what the design relies on in HRMS: the button still fires
+`submit_feedback`, the feedback's average rating still feeds the Interview,
+and the Feedback tab still reads skill and rating.
 
 `verify_requisition_workflow.py` loads `requisition_approval.py` directly —
 it deliberately imports nothing from Frappe — and walks every approval

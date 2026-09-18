@@ -139,5 +139,136 @@
   "value": "1",
   "module": "HRMS Addon",
   "field_name": "skills"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-skill_assessment-reqd",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon",
+  "field_name": "skill_assessment"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-skill_assessment-hidden",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "skill_assessment"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-section_break_4-hidden",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "section_break_4"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-result-reqd",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon",
+  "field_name": "result"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-result-read_only",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "result"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-result-description",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "description",
+  "property_type": "Text",
+  "value": "Set from the recommendation: Reject is Rejected, Offer or Shortlist is Cleared.",
+  "module": "HRMS Addon",
+  "field_name": "result"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-section_break_7-label",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Suitability & Recommendation",
+  "module": "HRMS Addon",
+  "field_name": "section_break_7"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-feedback-label",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocField",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Interviewer's Comments on Suitability for the Position",
+  "module": "HRMS Addon",
+  "field_name": "feedback"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Feedback-main-default_print_format",
+  "doc_type": "Interview Feedback",
+  "doctype_or_field": "DocType",
+  "property": "default_print_format",
+  "property_type": "Data",
+  "value": "Candidate Interview Evaluation Score Form",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Type-expected_skill_set-reqd",
+  "doc_type": "Interview Type",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon",
+  "field_name": "expected_skill_set"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Type-expected_skill_set-hidden",
+  "doc_type": "Interview Type",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "expected_skill_set"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Type-expected_average_rating-description",
+  "doc_type": "Interview Type",
+  "doctype_or_field": "DocField",
+  "property": "description",
+  "property_type": "Text",
+  "value": "The pass mark in stars on the LPL/HR/17 scale: 3 = Good (60%), 4 = Very Good (75%).",
+  "module": "HRMS Addon",
+  "field_name": "expected_average_rating"
  }
 ]

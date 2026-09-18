@@ -114,6 +114,9 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 doctype_js = {
     "Job Requisition": "public/js/job_requisition.js",
     "Designation": "public/js/designation.js",
+    # Submit Feedback opens the score sheet (LPL/HR/17) instead of HRMS's star dialog
+    "Interview": "public/js/interview.js",
+    "Interview Feedback": "public/js/interview_feedback.js",
 }
 # doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -161,10 +164,12 @@ jinja = {
 # be repeated here:
 #  - seed the pick lists (KRA form, Job Description tables, Bio-Data tab),
 #    see hrms_addon/pick_lists.py;
-#  - let HR User add Skills, see hrms_addon/bio_data.py.
+#  - let HR User add Skills, see hrms_addon/bio_data.py;
+#  - seed the interview score sheet's criteria, see hrms_addon/interviews.py.
 after_install = [
     "hrms_addon.hrms_addon.pick_lists.after_install",
     "hrms_addon.hrms_addon.bio_data.after_install",
+    "hrms_addon.hrms_addon.interviews.after_install",
 ]
 
 # Uninstallation
@@ -348,6 +353,9 @@ fixtures = [
                     "KRA-custom_source",
                     "KRA-custom_frequency",
                     "Job Applicant-custom_previous_salary",
+                    "Job Applicant-custom_current_benefits",
+                    "Job Applicant-custom_expected_benefits",
+                    "Job Applicant-custom_notice_period",
                     "Job Applicant-custom_bio_data_tab",
                     "Job Applicant-custom_personal_section",
                     "Job Applicant-custom_date_of_birth",
@@ -386,6 +394,16 @@ fixtures = [
                     "Employee-custom_nin",
                     "Employee-custom_tin",
                     "Employee-custom_nssf_no",
+                    "Interview Feedback-custom_interviewer_designation",
+                    "Interview Feedback-custom_evaluation_section",
+                    "Interview Feedback-custom_scores",
+                    "Interview Feedback-custom_score_summary_section",
+                    "Interview Feedback-custom_total_score",
+                    "Interview Feedback-custom_max_score",
+                    "Interview Feedback-custom_score_cb",
+                    "Interview Feedback-custom_score_percent",
+                    "Interview Feedback-custom_score_band",
+                    "Interview Feedback-custom_recommendation",
                 ],
             ]
         ],
@@ -410,6 +428,18 @@ fixtures = [
                     "KRA-main-search_fields",
                     "Employee-passport_details_section-label",
                     "Designation-skills-allow_bulk_edit",
+                    "Interview Feedback-skill_assessment-reqd",
+                    "Interview Feedback-skill_assessment-hidden",
+                    "Interview Feedback-section_break_4-hidden",
+                    "Interview Feedback-result-reqd",
+                    "Interview Feedback-result-read_only",
+                    "Interview Feedback-result-description",
+                    "Interview Feedback-section_break_7-label",
+                    "Interview Feedback-feedback-label",
+                    "Interview Feedback-main-default_print_format",
+                    "Interview Type-expected_skill_set-reqd",
+                    "Interview Type-expected_skill_set-hidden",
+                    "Interview Type-expected_average_rating-description",
                 ],
             ]
         ],
@@ -463,6 +493,10 @@ doc_events = {
         # Pre-Interview Bio-Data (LPL/HR/19): dates, years, repeated rows
         "validate": "hrms_addon.hrms_addon.bio_data.validate",
     },
+    "Interview Feedback": {
+        # Score sheet (LPL/HR/17): totals, rating and result from the scores
+        "validate": "hrms_addon.hrms_addon.interviews.feedback_validate",
+    },
 }
 
 # Scheduled Tasks
@@ -490,6 +524,10 @@ override_whitelisted_methods = {
     "hrms.hr.doctype.job_offer.job_offer.make_employee": "hrms_addon.hrms_addon.bio_data.make_employee_from_job_offer",
     "hrms.hr.doctype.employee_onboarding.employee_onboarding.make_employee": (
         "hrms_addon.hrms_addon.bio_data.make_employee_from_onboarding"
+    ),
+    # the Interview's Feedback tab: averages per score sheet criterion
+    "hrms.hr.doctype.interview.interview.get_skill_wise_average_rating": (
+        "hrms_addon.hrms_addon.interviews.get_skill_wise_average_rating"
     ),
 }
 #
