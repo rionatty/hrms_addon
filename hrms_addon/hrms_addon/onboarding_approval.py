@@ -115,7 +115,8 @@ def step_errors(old_state, new_state, facts):
             errors.append("Record the date the Workplace Rules and Regulations were signed (Orientation section) "
                           "before sending the onboarding to the HR Manager.")
         if not facts.get("employee"):
-            errors.append("Create the Employee (Create > Employee) before sending the onboarding to the HR Manager.")
+            errors.append("Create the Employee (Create > Employee) before sending the onboarding to the HR Manager. "
+                          "An Employee made another way is found once its Job Applicant (Joining tab) is this candidate.")
         elif not facts.get("bio_data_signed_on"):
             errors.append("Update the Employee from the signed Personal Bio-Data Form and record the date it was signed "
                           "(Employee, Personal Bio-Data tab) before sending the onboarding to the HR Manager.")

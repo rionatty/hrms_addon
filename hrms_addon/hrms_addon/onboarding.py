@@ -21,6 +21,8 @@ into Frappe HR's Employee Onboarding:
                               allowed to complete it
   get_onboarding_defaults     the form fills itself from the candidate
   add_placement               Create Employee: branch, employment type, offer date
+  link_onboarding             Employee on_update: the candidate's onboarding
+                              learns its Employee (see WHY THE EMPLOYEE IS LINKED)
   seed_onboarding             Luuka's templates and Workplace Rules, once
 
 WHY THE ROLE IS CLEARED
@@ -31,6 +33,15 @@ branch. So each role is resolved first (onboarding_rules.activity_assignees)
 and the activity keeps the first person as its user and no role; anyone else
 it resolved to is added in after_tasks. frappe.flags carries that list across
 Frappe HR's reload in on_submit, keyed by onboarding and activity row.
+
+WHY THE EMPLOYEE IS LINKED
+
+Frappe HR writes the new Employee onto its onboarding only while the
+onboarding's tasks are not all done (hrms/overrides/employee_master.py,
+boarding_status != Completed). An Employee created after they are stayed
+unknown to its onboarding, which then could not go to the HR Manager. So the
+Employee links itself (link_onboarding), and a step finds one not linked by
+the candidate (_link_employee).
 """
 
 import frappe
@@ -59,8 +70,35 @@ def validate(doc, method=None):
 
 def before_update_after_submit(doc, method=None):
     """Every step after the start (Submit for Approval, Approve, Return)."""
+    _link_employee(doc)
     _check_step(doc)
     _resolve_assignees(doc)
+
+
+def link_onboarding(employee, method=None):
+    """Employee on_update: its candidate's started onboarding, if it has no
+    Employee yet, gets this one, whether or not its tasks are all done."""
+    if not employee.get("job_applicant"):
+        return
+    onboarding = frappe.db.get_value(
+        "Employee Onboarding",
+        {"job_applicant": employee.job_applicant, "docstatus": 1, "employee": ("is", "not set")},
+        "name",
+    )
+    if onboarding:
+        frappe.db.set_value("Employee Onboarding", onboarding, "employee", employee.name, update_modified=False)
+
+
+def _link_employee(doc):
+    """An onboarding whose Employee was never linked (created before this app
+    linked them): found by the candidate. Employee is not allow_on_submit, so
+    it is written straight to the database, as Frappe HR does; the check for
+    changes after submit compares with a fresh copy, and sees none."""
+    if doc.get("employee") or not doc.get("job_applicant"):
+        return
+    employee = frappe.db.get_value("Employee", {"job_applicant": doc.job_applicant}, "name")
+    if employee:
+        doc.db_set("employee", employee, update_modified=False)
 
 
 def after_tasks(doc, method=None):
@@ -212,6 +250,8 @@ def onboarding_defaults(job_applicant, job_offer=None):
     branch, department = offer.custom_branch or opening.location, opening.department
     designation = offer.designation or opening.designation or applicant.designation
     hod = frappe.db.get_value("Job Requisition", opening.job_requisition, "custom_hod") if opening.job_requisition else None
+    if hod in ("Administrator", "Guest"):
+        hod = None  # tasks go to people, as in Frappe HR's own assignment
     category = frappe.db.get_value("Department", department, "custom_position_category") if department else None
     values = {
         "job_offer": job_offer,

@@ -590,6 +590,11 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.onboarding.after_tasks",
         "on_update_after_submit": "hrms_addon.hrms_addon.onboarding.after_tasks",
     },
+    "Employee": {
+        # the candidate's onboarding learns its Employee even once its tasks
+        # are all done, which Frappe HR's own link skips (onboarding.py)
+        "on_update": "hrms_addon.hrms_addon.onboarding.link_onboarding",
+    },
 }
 
 # Scheduled Tasks

@@ -178,6 +178,8 @@ expect("send before the rules are signed", step(A.ONBOARDING, A.PENDING_HRM, dic
        "Record the date the Workplace Rules and Regulations were signed")
 expect("send before the Employee exists", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, employee=None, bio_data_signed_on=None)),
        "Create the Employee")
+if "Job Applicant (Joining tab) is this candidate" not in " ".join(step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, employee=None))):
+    fail.append("the missing-Employee message must say how an Employee made another way is found (its Job Applicant)")
 expect("send before the bio-data is captured", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, bio_data_signed_on=None)),
        "Update the Employee from the signed Personal Bio-Data Form")
 expect("send with nothing", step(A.ONBOARDING, A.PENDING_HRM, {}),
@@ -394,7 +396,7 @@ eo = upstream_doctype(EO)
 if eo:
     eo_all = {f["fieldname"]: f for f in eo["fields"]} | eo_fields
     for name in sorted(set(re.findall(r'doc\.get\("(\w+)"\)', glue)) | set(re.findall(r"\bdoc\.(\w+)\b", glue))):
-        if name in ("get", "set", "name", "docstatus", "get_doc_before_save", "activities", "idx", "flags", "throw"):
+        if name in ("get", "set", "name", "docstatus", "get_doc_before_save", "activities", "idx", "flags", "throw", "db_set"):
             continue
         if name not in eo_all:
             fail.append("onboarding.py reads Employee Onboarding.%s, which does not exist" % name)
@@ -454,6 +456,13 @@ if eo:
     if "onboarding = frappe.get_doc(\"Employee Onboarding\", employee_onboarding[0].name)\n\t\tonboarding.validate_employee_creation()" \
             not in master:
         fail.append("saving an Employee no longer checks its onboarding through the controller")
+    # Frappe HR links the Employee only while the tasks are not all done: why link_onboarding exists
+    if '"boarding_status": ("!=", "Completed"),' not in master:
+        fail.append("Frappe HR changed which onboardings it links a new Employee to: re-check link_onboarding")
+    base_document = upstream_source("frappe", "model", "base_document.py") or ""
+    if "db_values = frappe.get_doc(self.doctype, self.name).as_dict()" not in base_document:
+        fail.append("Frappe's check for changes after submit no longer reads a fresh copy: _link_employee's db_set "
+                    "would be refused")
     document = upstream_source("frappe", "model", "document.py") or ""
     if 'elif self._action == "update_after_submit":\n\t\t\tself.run_method("before_update_after_submit")' not in document:
         fail.append("Frappe's update after submit changed: the steps after the start rely on before_update_after_submit")
@@ -491,6 +500,14 @@ for needle, why in (
     ('"hr": 1,', "the rules are HR Terms and Conditions"),
     ("workflows.setup_on_migrate(approval, ", "the workflow is built from onboarding_approval"),
     ("if value and not employee.get(field):", "the placement only fills blanks"),
+    ('{"job_applicant": employee.job_applicant, "docstatus": 1, "employee": ("is", "not set")}',
+     "an Employee links only its candidate's started onboarding that has none"),
+    ('frappe.db.set_value("Employee Onboarding", onboarding, "employee", employee.name, update_modified=False)',
+     "the link is written as Frappe HR writes it"),
+    ('employee = frappe.db.get_value("Employee", {"job_applicant": doc.job_applicant}, "name")',
+     "a step finds an Employee never linked by the candidate"),
+    ('doc.db_set("employee", employee, update_modified=False)', "Employee is not allow_on_submit: written to the database"),
+    ('if hod in ("Administrator", "Guest"):', "the handover never goes to Administrator"),
 ):
     if needle not in glue:
         fail.append("onboarding.py: %s (%r not found)" % (why, needle))
@@ -506,6 +523,9 @@ for name in ("validate", "before_update_after_submit"):
         fail.append("%s must check the step and hand out new activities" % name)
 if "if doc.docstatus == 1:" not in body_of("validate"):
     fail.append("validate hands the activities out only as the onboarding starts (it is submitted)")
+after_submit = body_of("before_update_after_submit")
+if "_link_employee(doc)" not in after_submit or after_submit.find("_link_employee(doc)") > after_submit.find("_check_step(doc)"):
+    fail.append("before_update_after_submit must find the Employee before checking the step")
 if not re.search(r"@frappe\.whitelist\(\)\ndef get_onboarding_defaults\(job_applicant, job_offer=None\):", glue):
     fail.append("get_onboarding_defaults must be whitelisted")
 server_defaults = re.findall(r'"(\w+)"', (re.search(r"_SERVER_DEFAULTS = \((.*?)\)", glue, re.S) or re.search("()", "")).group(1))
@@ -530,6 +550,9 @@ for event, function in EVENTS.items():
         fail.append("doc_events Employee Onboarding %s must be onboarding.%s" % (event, function))
     if not re.search(r"^def %s\(doc, method=None\):" % function, glue, re.M):
         fail.append("onboarding.%s(doc, method=None) is missing" % function)
+if ((hooks.get("doc_events") or {}).get("Employee") or {}).get("on_update") != "hrms_addon.hrms_addon.onboarding.link_onboarding" \
+        or not re.search(r"^def link_onboarding\(employee, method=None\):", glue, re.M):
+    fail.append("doc_events Employee on_update must be onboarding.link_onboarding(employee, method=None)")
 if "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate" not in (hooks.get("after_migrate") or []) \
         or "def setup_workflow_on_migrate():" not in glue:
     fail.append("the onboarding workflow must be built on every migrate")
