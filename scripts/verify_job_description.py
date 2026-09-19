@@ -27,7 +27,11 @@ It also checks:
     save hook first repairs what Excel writes into such a file ("25%",
     Windows-1252 quotes and dashes), and the form's Download writes the rows
     Frappe's Upload reads (checked against frappe's grid.js when the
-    upstream apps are checked out, see FRAPPE_APPS_ROOT).
+    upstream apps are checked out, see FRAPPE_APPS_ROOT);
+  * a Job Requisition's Job Description tab, filled from the Job Title's
+    JD: the Responsibilities say only what the careers page may (HRMS
+    copies them onto the public Job Opening), escaped, and the subordinates
+    come from the Reporting Relationships.
 
     python scripts/verify_job_description.py
 """
@@ -861,6 +865,47 @@ else:
     upstream_note = "upstream apps not found at %s: grid.js contract not checked" % APPS_ROOT
 print("table import: %d tables with Download / Upload (%d on the JD tab), %d columns cleaned or linked, %s"
       % (len(rules.UPLOADABLE_TABLES), len(jd_tables), columns, upstream_note))
+
+# ── 7. A Job Requisition's Job Description tab ───────────────────────
+# Picking the Job Title fills it from the JD. HRMS copies the Responsibilities
+# onto the public Job Opening, so they are posting_details and nothing more.
+if tuple(part for part, heading in rules.REQUISITION_HEADINGS) != tuple(rules.POSTING_PARTS):
+    fail.append("the requisition's Responsibilities must set out exactly posting_details' parts %s, in its order" % (rules.POSTING_PARTS,))
+sample = {
+    "purpose": "Lead sales & marketing.\n\n  <Grow> revenue  ",
+    "responsibilities": ["Hit the <monthly> targets", "Build the team"],
+    "requirements": [{"title": "Academic Qualification", "items": [{"text": "Degree in Marketing", "priority": "Essential"}]},
+                     {"title": "", "items": [{"text": "Driving permit", "priority": ""}]}],
+    "competencies": [{"title": "Technical", "items": ["Pricing", "CRM & ERP"]}, {"title": "", "items": ["Leadership"]}],
+}
+expected_html = (
+    "<h4>Job Purpose</h4><p>Lead sales &amp; marketing.</p><p>&lt;Grow&gt; revenue</p>"
+    "<h4>Key Responsibilities</h4><ul><li>Hit the &lt;monthly&gt; targets</li><li>Build the team</li></ul>"
+    "<h4>Requirements</h4><p><strong>Academic Qualification</strong></p><ul><li>Degree in Marketing (Essential)</li></ul>"
+    "<ul><li>Driving permit</li></ul>"
+    "<h4>Competencies</h4><p><strong>Technical:</strong> Pricing, CRM &amp; ERP</p><p>Leadership</p>"
+)
+got_html = rules.requisition_description(sample)
+if got_html != expected_html:
+    fail.append("requisition_description: headings, paragraphs and lists the editor keeps, every value escaped\n    got      %s\n    expected %s"
+                % (got_html, expected_html))
+if rules.requisition_description({}) != "" or rules.requisition_description(None) != "":
+    fail.append("a Job Title with nothing a candidate may see gives empty Responsibilities")
+if rules.requisition_description({"competencies": [{"title": "Behavioural", "items": ["Integrity"]}]}) \
+        != "<h4>Competencies</h4><p><strong>Behavioural:</strong> Integrity</p>":
+    fail.append("requisition_description must write only the parts the JD has")
+subordinates = rules.requisition_subordinates([
+    {"relationship": "Indirect", "designation": "Sales Representative", "scope": "All depots"},
+    {"relationship": "Direct", "designation": "Sales Manager", "scope": ""},
+    {"relationship": "Direct", "designation": " Marketing  Officer ", "scope": " Kampala "},
+    {"relationship": "", "designation": "Driver"},
+    {"relationship": "Direct", "designation": "", "scope": "a row with no position"},
+], ["Direct", "Indirect"])
+if subordinates != "Direct: Sales Manager, Marketing Officer (Kampala)\nIndirect: Sales Representative (All depots)\nDriver":
+    fail.append("requisition_subordinates: one line per relationship in HR's order, positions with their scope: %r" % subordinates)
+if rules.requisition_subordinates(None) != "" or rules.requisition_subordinates([{"relationship": "Direct"}], ["Direct"]) != "":
+    fail.append("no reporting relationships give no subordinates")
+print("requisition: the JD fills the Job Description tab with the careers page's parts only, escaped; subordinates by relationship")
 
 print()
 if fail:

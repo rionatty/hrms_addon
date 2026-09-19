@@ -20,6 +20,8 @@ on the KRA form, picks from a small master HR can add to (MASTERS), seeded
 once with the values Luuka's documents use.
 """
 
+import html
+
 # The perspectives a JD starts with, in the order the JD prints them. Only a
 # seed for the "KRA Perspective" master: HR can add, rename and reorder
 # perspectives, so nothing below treats this list as the complete set.
@@ -663,6 +665,81 @@ def posting_details(
         "competencies": _grouped(competencies, "category", category_order, lambda row: _get(row, "competency") or None),
     }
     return details if any(details.values()) else {}
+
+
+# ── The Job Requisition ──────────────────────────────────────────────
+
+# Picking a Job Title on a Job Requisition fills its Job Description tab from
+# the Job Title's JD. HRMS copies the requisition's Responsibilities onto the
+# Job Opening made from it, whose page is public, so they hold only what
+# posting_details lets out. Reports To and the Reporting Relationships fill
+# the tab's Reporting Structure, which no public page shows.
+REQUISITION_HEADINGS = (
+    ("purpose", "Job Purpose"),
+    ("responsibilities", "Key Responsibilities"),
+    ("requirements", "Requirements"),
+    ("competencies", "Competencies"),
+)
+
+
+def requisition_description(details):
+    """posting_details as a requisition's Responsibilities.
+
+    HTML the form's text editor keeps (headings, paragraphs, bullet lists),
+    in the careers page's order, every value escaped. "" when the JD has
+    nothing a candidate may see.
+    """
+    details = details or {}
+    parts = []
+    for part, heading in REQUISITION_HEADINGS:
+        if not details.get(part):
+            continue
+        parts.append("<h4>%s</h4>" % _escape(heading))
+        if part == "purpose":
+            parts.extend("<p>%s</p>" % _escape(line.strip()) for line in str(details[part]).splitlines() if line.strip())
+        elif part == "responsibilities":
+            parts.append(_bullets(details[part]))
+        elif part == "requirements":
+            for group in details[part]:
+                if group["title"]:
+                    parts.append("<p><strong>%s</strong></p>" % _escape(group["title"]))
+                parts.append(_bullets(
+                    "%s (%s)" % (item["text"], item["priority"]) if item["priority"] else item["text"]
+                    for item in group["items"]
+                ))
+        else:
+            for group in details[part]:
+                items = ", ".join(_escape(item) for item in group["items"])
+                title = "<strong>%s:</strong> " % _escape(group["title"]) if group["title"] else ""
+                parts.append("<p>%s%s</p>" % (title, items))
+    return "".join(parts)
+
+
+def requisition_subordinates(reporting_lines, relationship_order=()):
+    """A requisition's Subordinates of the New Employee: the JD's Reporting
+    Relationships, one line per relationship type in HR's order of them,
+    e.g. "Direct: Sales Manager, Marketing Officer (Kampala)"."""
+    lines = []
+    for group in _grouped(reporting_lines, "relationship", relationship_order, _position):
+        positions = ", ".join(group["items"])
+        lines.append("%s: %s" % (group["title"], positions) if group["title"] else positions)
+    return "\n".join(lines)
+
+
+def _position(row):
+    position = " ".join(str(_get(row, "designation") or "").split())
+    scope = " ".join(str(_get(row, "scope") or "").split())
+    if not position:
+        return None
+    return "%s (%s)" % (position, scope) if scope else position
+
+
+def _bullets(items):
+    return "<ul>%s</ul>" % "".join("<li>%s</li>" % _escape(item) for item in items)
+
+
+def _escape(text):
+    return html.escape(str(text), quote=False)
 
 
 def _grouped(rows, key, order, value):

@@ -9,7 +9,9 @@ It also cross-checks the definition against the fixtures and upstream
 Frappe/HRMS: every stamped field exists, is read-only and has the right
 type; every status value is a real Job Requisition status; every role,
 state style and permission type is valid; and the hooks, form script and
-patch are wired to things that exist.
+patch are wired to things that exist. Picking the Job Title fills the Job
+Description tab from that Job Title's JD, with only the parts the careers
+page may show, and never over what someone wrote without asking.
 
 Needs ../ERPNext/{frappe,erpnext,hrms} (or FRAPPE_APPS_ROOT) for the
 upstream cross-checks.
@@ -331,6 +333,61 @@ for dotted in patch_lines:
     if not os.path.exists(package):
         fail.append("patch package for %s is missing __init__.py" % dotted)
 print("wiring: doc events, after_migrate, form script, whitelisted call and patch all resolve")
+
+# ── 6. The Job Description tab, from the Job Title's JD ──────────────
+custom_fields = {f["name"]: f for f in json.load(open(os.path.join(REPO, "hrms_addon", "fixtures", "custom_field.json"), encoding="utf-8"))}
+careers = read("hrms_addon/hrms_addon/careers.py")
+jd_fields = re.search(r"^JD_FIELDS = \(([^)]*)\)", glue, re.M)
+jd_field_names = re.findall(r'"(\w+)"', jd_fields.group(1)) if jd_fields else []
+if jd_field_names != ["description", "custom_reporting_line", "custom_subordinates"]:
+    fail.append("JD_FIELDS must be the Job Description tab's Responsibilities, Reporting Line and Subordinates: %s" % jd_field_names)
+js_fields = re.search(r"^const HA_JD_FIELDS = \[([^\]]*)\];", js, re.M)
+if not js_fields or re.findall(r'"(\w+)"', js_fields.group(1)) != jd_field_names:
+    fail.append("job_requisition.js must fill the fields the server fills (HA_JD_FIELDS = JD_FIELDS)")
+for name in ("Job Requisition-custom_reporting_line", "Job Requisition-custom_subordinates", "Designation-custom_jd_reports_to",
+             "Designation-custom_jd_reporting_lines"):
+    if name not in custom_fields:
+        fail.append("custom field %s, which the Job Description tab fill reads or writes, does not exist" % name)
+if (custom_fields.get("Job Requisition-custom_reporting_line") or {}).get("options") \
+        != (custom_fields.get("Designation-custom_jd_reports_to") or {}).get("options"):
+    fail.append("the requisition's Reporting Line and the JD's Reports To must link to the same DocType")
+requisition_json = upstream_doctype("Job Requisition")
+if requisition_json and next((f for f in requisition_json["fields"] if f["fieldname"] == "description"), {}).get("fieldtype") != "Text Editor":
+    fail.append("HRMS's Job Requisition.description is no longer a Text Editor: recheck requisition_description's HTML")
+body = glue.split("def get_job_description(")[-1].split("\ndef ")[0]
+if 'frappe.has_permission("Job Requisition", "write", throw=True)' not in body or "return job_description_for(designation)" not in body:
+    fail.append("get_job_description must check the user may write requisitions before reading the Job Title for them")
+for needle, why in (
+    ("jd_rules.requisition_description(careers.posting_details_of(jd))",
+     "must write the Responsibilities from the careers page's parts of the JD only (HRMS copies them onto the public Job Opening)"),
+    ('values["custom_reporting_line"] = jd.get("custom_jd_reports_to") or ""', "must take the Reporting Line from the JD's Reports To"),
+    ('jd.get("custom_jd_reporting_lines"),', "must take the Subordinates from the JD's Reporting Relationships"),
+    ('frappe.get_all("JD Relationship Type", order_by="creation asc", pluck="name")', "must order the subordinates as HR orders relationship types"),
+    ('if doc.is_new() and doc.get("designation") and not any(_has_content(doc.get(field)) for field in JD_FIELDS):\n'
+     "        doc.update(job_description_for(doc.designation))",
+     "must fill only a new requisition's empty Job Description tab, never what someone wrote or cleared"),
+    ('or "<img" in value.lower()', "must count a pasted image as content"),
+):
+    if needle not in glue:
+        fail.append("job_requisition.py %s" % why)
+if not re.search(r"def posting_details_of\(designation\):\n(?:.*\n)*?    return jd_rules\.posting_details\(", careers) \
+        or 'return posting_details_of(frappe.get_doc("Designation", designation))' not in careers:
+    fail.append("careers.posting_details_of must be exactly what the careers page shows, so the requisition says no more")
+for needle, why in (
+    ("designation(frm) {\n\t\tif (frm.doc.designation) {\n\t\t\tha_fill_job_description(frm);", "must fill the tab when the Job Title is picked"),
+    ('.xcall("hrms_addon.hrms_addon.job_requisition.get_job_description", { designation })', "must ask the server for the Job Title's JD"),
+    ("if (frm.doc.designation !== designation) {", "must ignore an answer for a Job Title since changed"),
+    ("if (ha_jd_blank(frm) || ha_jd_as_filled(frm)) {\n\t\t\t\tfill();\n\t\t\t} else {\n\t\t\t\tfrappe.confirm(",
+     "must ask before replacing what someone wrote"),
+    ("if (frm.is_new() && frm.doc.designation && ha_jd_blank(frm)) {", "must fill on refresh only a new requisition with an empty tab"),
+    ("new DOMParser().parseFromString(", "must read the tab's HTML inertly"),
+    ('body.querySelectorAll("img, video, iframe, object, embed").length', "must count a pasted image as content"),
+):
+    if needle not in js:
+        fail.append("job_requisition.js %s" % why)
+if re.search(r"\$\([^)]*\)\s*\.html\(", js):
+    fail.append("job_requisition.js must not parse the tab's HTML with jQuery, which loads its images and runs their handlers")
+print("job description tab: the Job Title's JD fills it (public parts only), asks before replacing, new requisitions filled on save")
 
 print()
 if fail:

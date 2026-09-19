@@ -10,8 +10,12 @@ tested without a bench. This module only applies it:
   setup_on_migrate()  after_migrate: roles, permissions, Workflow States,
                       Workflow Actions and the Workflow itself, built by
                       workflows.py (which says why that is Python, not fixtures)
-  before_validate()   defaults Requested By to the logged-in employee
+  before_validate()   defaults Requested By to the logged-in employee, and an
+                      empty Job Description tab to the Job Title's JD
   validate()          fills the Approvals tab as approvers act
+  get_job_description()
+                      the Job Description tab for a Job Title, which the form
+                      fills in when the Job Title is picked
 
 To change who approves, change requisition_approval.py, not the Workflow in
 the desk — a desk edit is overwritten on the next deploy.
@@ -19,25 +23,33 @@ the desk — a desk edit is overwritten on the next deploy.
 
 import frappe
 from frappe import _
-from frappe.utils import today
+from frappe.utils import strip_html, today
 
+from hrms_addon.hrms_addon import careers, jd_rules
 from hrms_addon.hrms_addon import requisition_approval as rules
 from hrms_addon.hrms_addon import workflows
+
+# The requisition's Job Description tab: Responsibilities, Reporting Line of
+# the New Employee and Subordinates of the New Employee
+JD_FIELDS = ("description", "custom_reporting_line", "custom_subordinates")
 
 # ── Doc events ───────────────────────────────────────────────────────
 
 
 def before_validate(doc, method=None):
-    """Requested By = the logged-in user's employee record.
+    """A new requisition's defaults, before the mandatory check: Requested By
+    = the logged-in user's employee record, and an empty Job Description tab
+    = the Job Title's JD.
 
-    Runs before the mandatory check, so an API or import that leaves it
-    blank still saves. The form sets it on load (job_requisition.js); this
-    is the server-side net for everything that is not the form.
+    The form does both itself (job_requisition.js); this is the server-side
+    net for everything that is not the form, such as an API call or import.
     """
     if doc.is_new() and not doc.get("requested_by"):
         employee = _employee_for(frappe.session.user)
         if employee:
             doc.requested_by = employee
+    if doc.is_new() and doc.get("designation") and not any(_has_content(doc.get(field)) for field in JD_FIELDS):
+        doc.update(job_description_for(doc.designation))
 
 
 def validate(doc, method=None):
@@ -72,6 +84,44 @@ def _employee_for(user):
     if not user or user in ("Guest", "Administrator"):
         return None
     return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+
+
+@frappe.whitelist()
+def get_job_description(designation: str) -> dict:
+    """The Job Description tab for this Job Title, for the form to fill in
+    when the Job Title is picked.
+
+    For whoever writes requisitions: the requesting roles may only pick Job
+    Titles, not open them, so the Designation is read here on their behalf.
+    """
+    frappe.has_permission("Job Requisition", "write", throw=True)
+    return job_description_for(designation)
+
+
+def job_description_for(designation):
+    """{field: value} for a requisition's Job Description tab, from the Job
+    Title's JD: its candidate-facing parts as the Responsibilities (HRMS copies
+    them onto the Job Opening, whose page is public), Reports To as the
+    Reporting Line, and the Reporting Relationships as the Subordinates.
+    All blank when the Job Title has no JD.
+    """
+    values = dict.fromkeys(JD_FIELDS, "")
+    if not designation or not frappe.db.exists("Designation", designation):
+        return values
+    jd = frappe.get_doc("Designation", designation)
+    values["description"] = jd_rules.requisition_description(careers.posting_details_of(jd))
+    values["custom_reporting_line"] = jd.get("custom_jd_reports_to") or ""
+    values["custom_subordinates"] = jd_rules.requisition_subordinates(
+        jd.get("custom_jd_reporting_lines"),
+        frappe.get_all("JD Relationship Type", order_by="creation asc", pluck="name"),
+    )
+    return values
+
+
+def _has_content(value):
+    """Text, or a pasted image: the editor's empty "<p><br></p>" is not content."""
+    value = str(value or "")
+    return bool(strip_html(value).strip()) or "<img" in value.lower()
 
 
 # ── Setup (after_migrate) ────────────────────────────────────────────

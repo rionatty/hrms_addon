@@ -24,13 +24,21 @@ def job_posting_details(job_opening):
     designation = job_opening.get("designation") if job_opening else None
     if not designation or not frappe.db.exists("Designation", designation):
         return {}
+    return posting_details_of(frappe.get_doc("Designation", designation))
 
-    doc = frappe.get_doc("Designation", designation)
+
+def posting_details_of(designation):
+    """jd_rules.posting_details of a Job Title (the Designation document).
+
+    The careers page shows them, and a Job Requisition takes them as its
+    Responsibilities (job_requisition.job_description_for), so both say the
+    same and neither lets out more.
+    """
     return jd_rules.posting_details(
-        purpose=doc.get("custom_jd_purpose"),
-        key_result_areas=doc.get("custom_jd_key_result_areas"),
-        specifications=doc.get("custom_jd_specifications"),
-        competencies=doc.get("custom_jd_competencies"),
+        purpose=designation.get("custom_jd_purpose"),
+        key_result_areas=designation.get("custom_jd_key_result_areas"),
+        specifications=designation.get("custom_jd_specifications"),
+        competencies=designation.get("custom_jd_competencies"),
         specification_order=frappe.get_all("JD Specification Type", order_by="creation asc", pluck="name"),
         category_order=frappe.get_all("JD Competency Category", order_by="creation asc", pluck="name"),
     )
