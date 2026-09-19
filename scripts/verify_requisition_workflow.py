@@ -13,6 +13,14 @@ patch are wired to things that exist. Picking the Job Title fills the Job
 Description tab from that Job Title's JD, with only the parts the careers
 page may show, and never over what someone wrote without asking.
 
+Branches: the route after the HR Manager is walked for every Position
+Category with the real condition strings (administrative straight to the
+Executive Director, the others through the branch General Manager, exactly
+one Approve holding at each step); the requisition carries its Branch and
+the Department's category, the Job Opening its Branch, Luuka's three
+branches are seeded, and Frappe only tells approvers who may open the
+document (so Branch User Permissions route each step to its branch).
+
 Needs ../ERPNext/{frappe,erpnext,hrms} (or FRAPPE_APPS_ROOT) for the
 upstream cross-checks.
 
@@ -24,6 +32,7 @@ import json
 import os
 import re
 import sys
+import types
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -95,9 +104,18 @@ if {(t["action"], t["next_state"]) for t in submit} != {(rules.SUBMIT, chain[0])
     fail.append("Draft must only allow Submit for Approval -> %s, once for each requester role %s"
                 % (chain[0], list(rules.REQUESTER_ROLES)))
 for index, step in enumerate(rules.APPROVAL_CHAIN):
-    expected_next = chain[index + 1] if index + 1 < len(chain) else rules.APPROVED
-    got = sorted((t["action"], t["next_state"], t["allowed"]) for t in by_state.get(step["state"], []))
-    want = sorted([(rules.APPROVE, expected_next, step["role"]), (rules.REJECT, rules.REJECTED, step["role"])])
+    # Approve leads to the next step; before a step some requisitions skip
+    # (the General Manager), one Approve leads into it and one past it, on
+    # the step's own opposite conditions
+    following = rules.APPROVAL_CHAIN[index + 1] if index + 1 < len(chain) else None
+    if following and following.get("skip_if"):
+        after = chain[index + 2] if index + 2 < len(chain) else rules.APPROVED
+        approvals = [(rules.APPROVE, following["state"], step["role"], following["only_if"]),
+                     (rules.APPROVE, after, step["role"], following["skip_if"])]
+    else:
+        approvals = [(rules.APPROVE, following["state"] if following else rules.APPROVED, step["role"], "")]
+    got = sorted((t["action"], t["next_state"], t["allowed"], t.get("condition") or "") for t in by_state.get(step["state"], []))
+    want = sorted(approvals + [(rules.REJECT, rules.REJECTED, step["role"], "")])
     if got != want:
         fail.append("%s transitions %s, expected %s" % (step["state"], got, want))
 if by_state.get(rules.APPROVED):
@@ -118,6 +136,50 @@ unreachable = set(state_names) - reachable
 if unreachable:
     fail.append("unreachable states: %s" % sorted(unreachable))
 print("workflow shape: %d states, %d transitions, all reachable" % (len(state_names), len(rules.TRANSITIONS)))
+
+# ── 1b. The route by the Department's Position Category ──────────────
+# Frappe evaluates each transition's condition with the requisition as `doc`
+# (frappe/model/workflow.py is_transition_condition_satisfied) and offers the
+# transitions that hold. Walking the chain with the real condition strings,
+# exactly one Approve must hold at every step, for every category.
+spec = importlib.util.spec_from_file_location("org_rules", os.path.join(REPO, "hrms_addon", "hrms_addon", "org_rules.py"))
+org = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(org)  # no Frappe import either
+
+
+def approvals_that_hold(state, category):
+    doc = types.SimpleNamespace(custom_position_category=category)
+    return [t["next_state"] for t in by_state.get(state, []) if t["action"] == rules.APPROVE
+            and (not t.get("condition") or eval(t["condition"], {"__builtins__": {}}, {"doc": doc}))]
+
+
+for category in (*org.POSITION_CATEGORIES, None, ""):
+    state, walked = chain[0], []
+    while state != rules.APPROVED and len(walked) <= len(chain):
+        walked.append(state)
+        targets = approvals_that_hold(state, category)
+        if len(targets) != 1:
+            fail.append("exactly one Approve must apply at %s for a %r department, %d do: %s" % (state, category, len(targets), targets))
+            break
+        state = targets[0]
+    if walked != rules.route(category):
+        fail.append("a %r department's requisition goes %s, but route() says %s" % (category, walked, rules.route(category)))
+if rules.ADMINISTRATIVE != org.ADMINISTRATIVE or rules.ADMINISTRATIVE not in org.POSITION_CATEGORIES:
+    fail.append("the workflow's Administrative must be the Department's category %r" % org.ADMINISTRATIVE)
+admin_route, other_route = rules.route(org.ADMINISTRATIVE), rules.route(org.NON_ADMINISTRATIVE)
+if rules.GM_STATE in admin_route or admin_route[-2:] != [rules.HRM_STATE, chain[-1]]:
+    fail.append("an administrative department's requisition goes HR Manager -> Executive Director: %s" % admin_route[-3:])
+if other_route[-3:] != [rules.HRM_STATE, rules.GM_STATE, chain[-1]]:
+    fail.append("the others go HR Manager -> General Manager -> Executive Director: %s" % other_route[-3:])
+if rules.route(None) != other_route or rules.route("") != other_route:
+    fail.append("a requisition with no category must take the longer route, through the General Manager")
+for condition in {step.get(key) for step in rules.APPROVAL_CHAIN for key in ("only_if", "skip_if")} - {None}:
+    if "doc.%s" % rules.CATEGORY_FIELD not in condition:
+        fail.append("the condition %r must read the requisition's %s" % (condition, rules.CATEGORY_FIELD))
+gm = next((step for step in rules.APPROVAL_CHAIN if step["state"] == rules.GM_STATE), {})
+if gm.get("role") != "General Manager" or "General Manager" not in rules.NEW_ROLES:
+    fail.append("the General Manager step is for the General Manager role, which the workflow creates")
+print("route: administrative HR Manager -> Executive Director; the others through the General Manager; one Approve applies at each step")
 
 # ── 2. Stamp fields match the fixtures ───────────────────────────────
 custom = {f["fieldname"]: f for f in json.loads(read("hrms_addon/fixtures/custom_field.json")) if f["dt"] == rules.DOCTYPE}
@@ -265,6 +327,17 @@ check("reject at Executive Director records Not Approved",
       dict(empty, custom_ed=USER, custom_ed_date=TODAY, custom_ed_decision="Not Approved"))
 check("revise after rejection clears every approval",
       rules.compute_stamp_values(rules.REJECTED, rules.DRAFT, USER, TODAY, walked), empty)
+# An administrative department's requisition goes from the HR Manager
+# straight to the Executive Director: no General Manager stamp
+check("an administrative requisition passes the General Manager by",
+      rules.compute_stamp_values(hrm, ed, "hrm", TODAY, after_super),
+      dict(after_super, custom_hrm="hrm", custom_hrm_date=TODAY, custom_hrm_decision="Recruitment Authorized"))
+check("the General Manager's approval is recorded",
+      rules.compute_stamp_values(rules.GM_STATE, ed, "gm", TODAY, empty), dict(empty, custom_gm="gm", custom_gm_date=TODAY))
+check("a General Manager's rejection records nothing (a sign-only step)",
+      rules.compute_stamp_values(rules.GM_STATE, rules.REJECTED, "gm", TODAY, empty), empty)
+if not rules.recommended_salary_missing(hrm, rules.GM_STATE, None):
+    fail.append("authorizing on to the General Manager without a Recommended Salary must be blocked too")
 
 # The caller writes back EVERY returned value, so a hand-edited stamp in a
 # plain save (no state change) is reverted to what the database held.
@@ -282,7 +355,8 @@ if rules.recommended_salary_missing(hrm, rules.REJECTED, None):
     fail.append("rejecting must not require a Recommended Salary")
 if rules.recommended_salary_missing(supervisor, pending_po, None):
     fail.append("the salary rule must only apply at the HR Manager step")
-print("behaviour: submit, 6 approvals, 3 rejections, revise, tamper, salary rule all correct")
+print("behaviour: submit, %d approvals, rejections, the administrative short cut, revise, tamper, salary rule all correct"
+      % len(rules.APPROVAL_CHAIN))
 
 # ── 5. Wiring ────────────────────────────────────────────────────────
 hooks = read("hrms_addon/hooks.py")
@@ -388,6 +462,62 @@ for needle, why in (
 if re.search(r"\$\([^)]*\)\s*\.html\(", js):
     fail.append("job_requisition.js must not parse the tab's HTML with jQuery, which loads its images and runs their handlers")
 print("job description tab: the Job Title's JD fills it (public parts only), asks before replacing, new requisitions filled on save")
+
+# ── 7. Branches: each approval reaches only the requisition's own branch ─
+fixtures_cf = {f["name"]: f for f in json.loads(read("hrms_addon/fixtures/custom_field.json"))}
+setters = {s["name"]: s for s in json.loads(read("hrms_addon/fixtures/property_setter.json"))}
+if tuple(org.BRANCHES) != ("Kawempe", "Namanve", "Matugga") or org.ORG_MASTERS != {"Branch": ("branch", org.BRANCHES)}:
+    fail.append("Luuka's branches are Kawempe, Namanve and Matugga, seeded into ERPNext's Branch: %s" % (org.ORG_MASTERS,))
+picks = read("hrms_addon/hrms_addon/pick_lists.py")
+for needle, why in (
+    ("MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS, **org_rules.ORG_MASTERS}", "must seed the branches on a new install"),
+    ("def seed_branches():", "must seed the branches on its own, for the patch"),
+    ("    seed_masters(org_rules.ORG_MASTERS)", "must seed the branches through seed_masters (adds only what is missing)"),
+):
+    if needle not in picks:
+        fail.append("pick_lists.py %s" % why)
+if "hrms_addon.patches.v1_0.seed_branches" not in read("hrms_addon/patches.txt").split("[post_model_sync]")[-1] \
+        or not re.search(r"def execute\(\):\n    seed_branches\(\)", read("hrms_addon/patches/v1_0/seed_branches.py")):
+    fail.append("existing sites need the branches seeded once: post_model_sync patch seed_branches")
+branch = fixtures_cf.get("Job Requisition-custom_branch") or {}
+if (branch.get("fieldtype"), branch.get("options"), branch.get("reqd"), branch.get("fetch_from"), branch.get("fetch_if_empty")) \
+        != ("Link", "Branch", 1, "requested_by.branch", 1):
+    fail.append("the requisition needs a mandatory Branch, taken from the requester's employee record unless chosen")
+category = fixtures_cf.get("Job Requisition-%s" % rules.CATEGORY_FIELD) or {}
+if category.get("fetch_from") != "department.%s" % rules.CATEGORY_FIELD or not category.get("read_only"):
+    fail.append("the requisition's %s must be the Department's, read-only: the workflow conditions read it" % rules.CATEGORY_FIELD)
+department = fixtures_cf.get("Department-%s" % rules.CATEGORY_FIELD) or {}
+if department.get("fieldtype") != "Select" or [o for o in (department.get("options") or "").split("\n") if o] != list(org.POSITION_CATEGORIES) \
+        or department.get("default") != org.NON_ADMINISTRATIVE or not department.get("reqd"):
+    fail.append("each Department needs its Position Category %s, Non-Administrative by default" % (org.POSITION_CATEGORIES,))
+if (setters.get("Job Requisition-department-reqd") or {}).get("value") != "1":
+    fail.append("Department must be mandatory on the requisition: it picks the route and the department's HOD")
+for name, value in (("Job Opening-location-label", "Branch"), ("Job Opening-location-reqd", "1"),
+                    ("Job Opening-location-fetch_from", "job_requisition.custom_branch"), ("Job Opening-location-fetch_if_empty", "1")):
+    if (setters.get(name) or {}).get("value") != value:
+        fail.append("the Job Opening's Location is its Branch, from the requisition: property setter %s must be %r" % (name, value))
+if '"allow_self_approval", "condition")' not in read("hrms_addon/hrms_addon/workflows.py"):
+    fail.append("workflows.py must compare transition conditions, or a changed route never reaches a site")
+if os.path.isdir(APPS_ROOT):
+    def upstream_field(doctype, fieldname):
+        return next((f for f in (upstream_doctype(doctype) or {}).get("fields", []) if f["fieldname"] == fieldname), {})
+
+    for doctype, fieldname, options in (("Employee", "branch", "Branch"), ("Job Requisition", "requested_by", "Employee"),
+                                        ("Job Requisition", "department", "Department"), ("Job Opening", "location", "Branch")):
+        if upstream_field(doctype, fieldname).get("options") != options:
+            fail.append("upstream %s.%s is no longer a Link to %s: recheck the branch routing" % (doctype, fieldname, options))
+    if upstream_field("Workflow Transition", "condition").get("fieldtype") != "Code":
+        fail.append("Frappe's Workflow Transition has no condition any more: recheck the General Manager route")
+    workflow_model = open(os.path.join(APPS_ROOT, "frappe", "frappe", "model", "workflow.py"), encoding="utf-8").read()
+    if "frappe.safe_eval(transition.condition, get_workflow_safe_globals(), dict(doc=doc.as_dict()))" not in workflow_model:
+        fail.append("Frappe evaluates transition conditions differently: recheck the route conditions")
+    workflow_action = open(os.path.join(APPS_ROOT, "frappe", "frappe", "workflow", "doctype", "workflow_action", "workflow_action.py"),
+                           encoding="utf-8").read()
+    if "return has_permission(doctype=doc, user=user)" not in workflow_action \
+            or "has_approval_access(user, doc, transition) and user_has_permission(user)" not in workflow_action:
+        fail.append("Frappe's workflow no longer tells only the approvers who may open the document: branch routing needs rechecking")
+print("branches: Kawempe, Namanve, Matugga seeded; the requisition carries its Branch and the Department's category; "
+      "the opening its Branch; Frappe tells only approvers who may open the document")
 
 print()
 if fail:

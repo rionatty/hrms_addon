@@ -1146,6 +1146,17 @@ if UPSTREAM_OK:
         fail.append("Frappe no longer runs on_cancel before its link check: recheck unblock_cancel")
 print("closing the loop: interviews closed and applicants moved on at approval, one draft Job Offer per Offer, rights and HRMS contract checked")
 
+# ── 9c. Each branch sees its own ──────────────────────────────────────
+# The shortlist and the report take the Job Opening's branch and department,
+# so Branch and Department User Permissions show each branch's HODs and HR
+# Officer their own (org_rules.py)
+for label, fields in (("Interview Shortlist", shl_fields), ("Interview Report", rep_fields)):
+    for fieldname, options, source in (("branch", "Branch", "job_opening.location"), ("department", "Department", "job_opening.department")):
+        f = fields.get(fieldname) or {}
+        if (f.get("fieldtype"), f.get("options"), f.get("fetch_from"), f.get("read_only")) != ("Link", options, source, 1):
+            fail.append("%s.%s must be the Job Opening's %s, read-only, so each branch sees its own" % (label, fieldname, source.split(".")[1]))
+print("branches: the shortlist and the report carry the Job Opening's branch and department")
+
 # ── 10. Where HR finds it: the Recruitment workspace ─────────────────
 import ast
 

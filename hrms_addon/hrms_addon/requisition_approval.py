@@ -24,9 +24,22 @@ compute_stamp_values(). Those fields are read-only in the form, and this
 module also puts back any value that was changed without a workflow
 transition, so nobody can type in someone else's approval.
 
-Not modelled, on purpose: the blueprint's approval matrix adds a General
-Manager step and splits admin from non-admin routes. The paper form the
-client handed over has neither, so neither does this.
+THE GENERAL MANAGER, BY DEPARTMENT
+
+The To-Be resourcing process adds one step the paper form lacks: a
+non-administrative position also goes through the branch's General Manager,
+between the HR Manager and the Executive Director. The Department's
+Position Category decides (fetched onto the requisition), so the HR
+Manager's Approve has two transitions with opposite conditions and exactly
+one applies; route() says the same in plain Python for the checks.
+
+    Administrative:     ... -> HR Manager -> Executive Director
+    Non-Administrative: ... -> HR Manager -> General Manager -> Executive Director
+
+Every approver apart from the HR Manager and the Executive Director belongs
+to a branch. The requisition carries its Branch, and branch-level users
+hold Branch User Permissions (org_rules.py), so each step reaches only the
+requesting branch's Supervisor, HOD, HR Officer or General Manager.
 """
 
 DOCTYPE = "Job Requisition"
@@ -44,7 +57,16 @@ REVISE = "Revise"
 ACTIONS = (SUBMIT, APPROVE, REJECT, REVISE)
 
 # Roles this app creates. HR User / HR Manager ship with HRMS.
-NEW_ROLES = ("Supervisor", "Process Owner", "Head of Department", "Executive Director")
+NEW_ROLES = ("Supervisor", "Process Owner", "Head of Department", "Executive Director", "General Manager")
+
+# The Department's Position Category, fetched onto the requisition, picks the
+# route after the HR Manager (org_rules.POSITION_CATEGORIES). Blank counts as
+# non-administrative: the longer route is the safer one.
+ADMINISTRATIVE = "Administrative"
+CATEGORY_FIELD = "custom_position_category"
+# Workflow Transition conditions, evaluated by Frappe with the requisition as `doc`
+IS_ADMINISTRATIVE = 'doc.custom_position_category == "Administrative"'
+NOT_ADMINISTRATIVE = 'doc.custom_position_category != "Administrative"'
 
 # Who may raise a requisition: every role with create permission on Job
 # Requisition (HR Manager and System Manager from HRMS, the rest granted in
@@ -58,11 +80,14 @@ NEW_ROLES = ("Supervisor", "Process Owner", "Head of Department", "Executive Dir
 REQUESTER_ROLES = ("Head of Department", "Supervisor", "Process Owner", "HR User", "HR Manager", "System Manager")
 
 HRM_STATE = "Pending HR Manager Approval"
+GM_STATE = "Pending General Manager Approval"
 
 # One row per signature on the paper form, in signing order.
-#   state  : the Workflow State the requisition waits in
-#   role   : who may approve or reject it there
-#   stamp  : which Approvals-tab fields record that signature
+#   state   : the Workflow State the requisition waits in
+#   role    : who may approve or reject it there
+#   stamp   : which Approvals-tab fields record that signature
+#   only_if : a step some requisitions skip: the Workflow Transition
+#   skip_if   conditions for reaching it and for going past it
 APPROVAL_CHAIN = (
     {
         "state": "Pending Supervisor Approval",
@@ -94,6 +119,14 @@ APPROVAL_CHAIN = (
             "approved": "Recruitment Authorized",
             "rejected": "Not Authorized",
         },
+    },
+    {
+        # Non-administrative departments only (the To-Be resourcing process)
+        "state": GM_STATE,
+        "role": "General Manager",
+        "stamp": {"user": "custom_gm", "date": "custom_gm_date"},
+        "only_if": NOT_ADMINISTRATIVE,
+        "skip_if": IS_ADMINISTRATIVE,
     },
     {
         "state": "Pending Executive Director Approval",
@@ -142,16 +175,43 @@ def _build_transitions():
         for role in REQUESTER_ROLES
     ]
     for index, step in enumerate(APPROVAL_CHAIN):
-        is_last = index == len(APPROVAL_CHAIN) - 1
-        next_state = APPROVED if is_last else APPROVAL_CHAIN[index + 1]["state"]
-        rows.append({"state": step["state"], "action": APPROVE, "next_state": next_state, "allowed": step["role"]})
+        for condition, next_state in _approval_targets(index):
+            row = {"state": step["state"], "action": APPROVE, "next_state": next_state, "allowed": step["role"]}
+            if condition:
+                row["condition"] = condition
+            rows.append(row)
         rows.append({"state": step["state"], "action": REJECT, "next_state": REJECTED, "allowed": step["role"]})
     # A rejected requisition goes back to the requester to amend and resubmit.
     rows.extend({"state": REJECTED, "action": REVISE, "next_state": DRAFT, "allowed": role} for role in REQUESTER_ROLES)
     return tuple(rows)
 
 
+def _approval_targets(index):
+    """[(condition, next state)] for Approve at APPROVAL_CHAIN[index]: the next
+    step, or, before a step some requisitions skip, one transition into it and
+    one past it, with opposite conditions."""
+    following = _state_after(index)
+    step = APPROVAL_CHAIN[index + 1] if index + 1 < len(APPROVAL_CHAIN) else None
+    if step and step.get("skip_if"):
+        return [(step["only_if"], following), (step["skip_if"], _state_after(index + 1))]
+    return [(None, following)]
+
+
+def _state_after(index):
+    return APPROVAL_CHAIN[index + 1]["state"] if index + 1 < len(APPROVAL_CHAIN) else APPROVED
+
+
 TRANSITIONS = _build_transitions()
+
+
+def route(category):
+    """The approval states a requisition passes through, in order, for a
+    Department of this Position Category (what the conditions above do)."""
+    return [
+        step["state"]
+        for step in APPROVAL_CHAIN
+        if not (step.get("skip_if") and category == ADMINISTRATIVE)
+    ]
 
 STAMP_RULES = {step["state"]: step["stamp"] for step in APPROVAL_CHAIN}
 
@@ -173,6 +233,7 @@ PERMISSIONS = {
         "Process Owner": ("read", "write", "create"),
         "Head of Department": ("read", "write", "create"),
         "Executive Director": ("read", "write"),
+        "General Manager": ("read", "write"),
         "HR User": ("read", "write", "create"),
     },
     "Designation": {

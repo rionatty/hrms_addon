@@ -1,6 +1,36 @@
 [
  {
   "doctype": "Custom Field",
+  "name": "Job Requisition-custom_branch",
+  "dt": "Job Requisition",
+  "fieldname": "custom_branch",
+  "fieldtype": "Link",
+  "insert_after": "department",
+  "label": "Branch",
+  "options": "Branch",
+  "description": "The branch the position is for. Its Supervisor, HOD, HR Officer and General Manager approve the requisition; the HR Manager and Executive Director serve every branch.",
+  "reqd": 1,
+  "in_standard_filter": 1,
+  "in_list_view": 1,
+  "fetch_from": "requested_by.branch",
+  "fetch_if_empty": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_position_category",
+  "dt": "Job Requisition",
+  "fieldname": "custom_position_category",
+  "fieldtype": "Data",
+  "insert_after": "custom_branch",
+  "label": "Position Category",
+  "description": "From the Department. Administrative: HR Manager, then Executive Director. Non-Administrative: HR Manager, the branch General Manager, then Executive Director.",
+  "fetch_from": "department.custom_position_category",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Job Requisition-custom_employment_type",
   "dt": "Job Requisition",
   "fieldname": "custom_employment_type",
@@ -319,11 +349,54 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Job Requisition-custom_gm_signoff_section",
+  "dt": "Job Requisition",
+  "fieldname": "custom_gm_signoff_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_hrm_date",
+  "label": "General Manager",
+  "description": "Non-administrative departments only: the branch's General Manager, after the HR Manager.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_gm",
+  "dt": "Job Requisition",
+  "fieldname": "custom_gm",
+  "fieldtype": "Link",
+  "insert_after": "custom_gm_signoff_section",
+  "label": "General Manager",
+  "options": "User",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_gm_signoff_cb",
+  "dt": "Job Requisition",
+  "fieldname": "custom_gm_signoff_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_gm",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Requisition-custom_gm_date",
+  "dt": "Job Requisition",
+  "fieldname": "custom_gm_date",
+  "fieldtype": "Date",
+  "insert_after": "custom_gm_signoff_cb",
+  "label": "General Manager Sign Date",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Job Requisition-custom_ed_signoff_section",
   "dt": "Job Requisition",
   "fieldname": "custom_ed_signoff_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_hrm_date",
+  "insert_after": "custom_gm_date",
   "label": "Executive Director",
   "module": "HRMS Addon"
  },
@@ -492,6 +565,22 @@
   "description": "Adds the Job Title's purpose, responsibilities, requirements and competencies to this job's page. KRA weightings, reporting lines and other internal parts are never shown.",
   "default": "1",
   "depends_on": "publish",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Department-custom_position_category",
+  "dt": "Department",
+  "fieldname": "custom_position_category",
+  "fieldtype": "Select",
+  "insert_after": "company",
+  "label": "Position Category",
+  "options": "Non-Administrative\nAdministrative",
+  "description": "Routes the requisitions this department raises. Administrative: HR Manager, then Executive Director. Non-Administrative: HR Manager, the branch General Manager, then Executive Director.",
+  "default": "Non-Administrative",
+  "reqd": 1,
+  "in_list_view": 1,
+  "in_standard_filter": 1,
   "module": "HRMS Addon"
  },
  {

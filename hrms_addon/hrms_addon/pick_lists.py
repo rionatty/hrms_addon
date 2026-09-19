@@ -6,7 +6,7 @@ Source, Review Frequency), the Job Description tables' (JD Relationship
 Type, Stakeholder Type, Authority Level, Horizon, ISO Standard,
 Specification Type, Requirement Priority, Competency Category) and the Job
 Applicant Bio-Data tab's (District, Relationship, Spoken Language,
-Examination Level).
+Examination Level), and Luuka's branches (org_rules.py).
 
 What to create is decided by jd_rules.seed_plan, which has no Frappe
 import and is tested without a bench. This only reads what is there and
@@ -27,10 +27,10 @@ after_migrate (runs every migrate). Instead:
 
 import frappe
 
-from hrms_addon.hrms_addon import bio_data_rules, jd_rules
+from hrms_addon.hrms_addon import bio_data_rules, jd_rules, org_rules
 
 # Every pick list, and every (DocType, field) that picks from one
-MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS}
+MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS, **org_rules.ORG_MASTERS}
 FIELD_MASTERS = {**jd_rules.FIELD_MASTERS, **bio_data_rules.BIO_DATA_FIELD_MASTERS}
 
 
@@ -44,6 +44,11 @@ def seed_jd_masters():
 
 def seed_bio_data_masters():
     seed_masters(bio_data_rules.BIO_DATA_MASTERS)
+
+
+def seed_branches():
+    """Luuka's three branches, which every approval is routed by."""
+    seed_masters(org_rules.ORG_MASTERS)
 
 
 def seed_qualification_types():

@@ -665,7 +665,7 @@ for needle, why in (
      "must know every field that picks from a list"),
     ("for (doctype, fieldname), master in FIELD_MASTERS.items():",
      "must look for stored values in every field that picks from a list"),
-    ("MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS}", "must know every pick list"),
+    ("MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS, **org_rules.ORG_MASTERS}", "must know every pick list"),
     ("insert(ignore_permissions=True)", "must insert regardless of the migrating user's permissions"),
     ("def seed_kra_masters():\n    seed_masters(jd_rules.KRA_MASTERS)", "seed_kra_masters must seed the KRA lists"),
     ("def seed_jd_masters():\n    seed_masters(jd_rules.JD_MASTERS)", "seed_jd_masters must seed the JD lists"),

@@ -395,7 +395,7 @@ if "bio_data" in json.dumps(hooks.get("after_migrate") or []):
 
 pick_lists = read("hrms_addon", "hrms_addon", "pick_lists.py")
 if "def seed_bio_data_masters():\n    seed_masters(bio_data_rules.BIO_DATA_MASTERS)" not in pick_lists \
-        or "MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS}" not in pick_lists:
+        or "MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS, **org_rules.ORG_MASTERS}" not in pick_lists:
     fail.append("pick_lists.py must seed the Bio-Data lists (seed_bio_data_masters) and include them in after_install")
 for name in os.listdir(os.path.join(REPO, "hrms_addon", "fixtures")):
     if name.endswith(".json") and any(r.get("doctype") in rules.BIO_DATA_MASTERS for r in json.loads(read("hrms_addon", "fixtures", name))):

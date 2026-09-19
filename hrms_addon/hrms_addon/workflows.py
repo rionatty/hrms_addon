@@ -12,7 +12,8 @@ for the Interview Report). This builds it on the site, on every migrate:
   STATES          rows of state, style, allow_edit, status, send_email and,
                   for a state that submits the document, doc_status "1"
   ACTIONS         the buttons' names
-  TRANSITIONS     rows of state, action, next_state, allowed
+  TRANSITIONS     rows of state, action, next_state, allowed and, where a
+                  route depends on the document, a condition on `doc`
   DOCTYPE, WORKFLOW_NAME, STATE_FIELD
 
 WHY PYTHON AND NOT FIXTURES
@@ -135,6 +136,9 @@ def _desired_states(rules):
 
 
 def _desired_transitions(rules):
+    # A row may carry a condition (a Python expression on `doc`): two rows
+    # with the same state and action and opposite conditions route a
+    # document one way or the other (requisition_approval.py).
     return [dict(row, allow_self_approval=1) for row in rules.TRANSITIONS]
 
 
@@ -145,7 +149,7 @@ def _rows(doc_rows, keys):
 def _ensure_workflow(rules):
     states, transitions = _desired_states(rules), _desired_transitions(rules)
     state_keys = ("state", "doc_status", "allow_edit", "update_field", "update_value", "send_email")
-    transition_keys = ("state", "action", "next_state", "allowed", "allow_self_approval")
+    transition_keys = ("state", "action", "next_state", "allowed", "allow_self_approval", "condition")
 
     if frappe.db.exists("Workflow", rules.WORKFLOW_NAME):
         workflow = frappe.get_doc("Workflow", rules.WORKFLOW_NAME)
