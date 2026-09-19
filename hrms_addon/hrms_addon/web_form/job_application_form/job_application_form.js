@@ -1,5 +1,5 @@
 // Job Application Form (/apply): the careers portal's application, with the
-// Pre-Interview Bio-Data Form (LPL/HR/19) as optional steps 2 to 5.
+// Pre-Interview Bio-Data Form (LPL/HR/19) as optional steps 2 to 4.
 //
 // Frappe renders this file through Jinja before sending it
 // (frappe/website/doctype/web_form/web_form.py add_custom_context_and_script),

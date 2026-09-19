@@ -208,19 +208,26 @@ for row in rows:
     if (row["fieldtype"], row.get("options") or None) != (meta["fieldtype"], meta.get("options") or None):
         fail.append("web form field %s is %s %r, Job Applicant has %s %r"
                     % (row["fieldname"], row["fieldtype"], row.get("options"), meta["fieldtype"], meta.get("options")))
-if len(pages) != 5 or [p for p in pages if not p]:
-    fail.append("the form must have 5 non-empty steps (application, personal, family, education, skills), has %d" % len(pages))
+if len(pages) != 4 or [p for p in pages if not p]:
+    fail.append("the form must have 4 non-empty steps (application, personal, education, skills), has %d" % len(pages))
 mandatory = sorted(row["fieldname"] for p in pages for row in p if row.get("reqd"))
 first_page_mandatory = sorted(row["fieldname"] for row in pages[0] if row.get("reqd"))
 if mandatory != ["applicant_name", "email_id"] or first_page_mandatory != mandatory:
     fail.append("only Full Name and Email Address may be mandatory, both on step 1: %s" % mandatory)
+# Family details (parents, next of kin) are collected at onboarding, on the
+# applicant's Bio-Data tab, not asked of every candidate on the portal
+ONBOARDING_ONLY = {"custom_parents", "custom_next_of_kin"}
 bio_fields = {fn for fn, f in applicant.items()
               if fn.startswith("custom_") and f["fieldtype"] not in ("Section Break", "Column Break", "Tab Break")
               and fn not in ("custom_bio_data_date", "custom_signed_bio_data")}
 on_form = {row.get("fieldname") for row in rows}
-missing = sorted(bio_fields - on_form)
+missing = sorted(bio_fields - on_form - ONBOARDING_ONLY)
 if missing:
     fail.append("Bio-Data fields missing from the online form: %s" % missing)
+if ONBOARDING_ONLY & on_form:
+    fail.append("family details are collected at onboarding, not on the portal: %s" % sorted(ONBOARDING_ONLY & on_form))
+if not ONBOARDING_ONLY <= set(applicant):
+    fail.append("the family tables HR fills at onboarding must stay on Job Applicant: %s" % sorted(ONBOARDING_ONLY - set(applicant)))
 if "custom_signed_bio_data" in on_form or "custom_bio_data_date" in on_form:
     fail.append("the signature date and signed scan belong to the paper form, not the online one")
 

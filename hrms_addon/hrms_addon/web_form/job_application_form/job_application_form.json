@@ -10,7 +10,7 @@
  "button_label": "Submit Application",
  "client_script": "frappe.web_form.after_load = () => hrms_addon_apply.init();\n\nfrappe.web_form.on(\"resume_link\", (field, value) => {\n\tif (value && !frappe.utils.is_url(value)) {\n\t\tfrappe.msgprint(__(\"Please enter a valid link to your CV, starting with https://\"));\n\t}\n});\n",
  "condition_json": "[]",
- "creation": "2026-09-18 12:00:00.000000",
+ "creation": "2026-09-19 12:00:00.000000",
  "custom_css": "",
  "doc_type": "Job Applicant",
  "docstatus": 0,
@@ -18,7 +18,7 @@
  "hide_footer": 0,
  "hide_navbar": 0,
  "idx": 0,
- "introduction_text": "<p>Step 1 is all we need to consider your application. Steps 2 to 5 are our Pre-Interview Bio-Data Form: fill in as much as you can now, or complete it at the interview.</p>",
+ "introduction_text": "<p>Step 1 is all we need to consider your application. Steps 2 to 4 are our Pre-Interview Bio-Data Form: fill in as much as you can now, or complete it at the interview.</p>",
  "is_standard": 1,
  "key_required": 0,
  "list_columns": [],
@@ -26,7 +26,7 @@
  "max_attachment_size": 10,
  "meta_description": "Apply for a job at Luuka Plastics.",
  "meta_title": "Job Application",
- "modified": "2026-09-18 12:00:00.000000",
+ "modified": "2026-09-19 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "job-application-form",
@@ -241,28 +241,6 @@
    "fieldname": "custom_health_issues",
    "label": "Health Issues / Diseases",
    "description": "Only anything the employer should know about for your safety at work."
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Page Break",
-   "label": "Family"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Table",
-   "fieldname": "custom_parents",
-   "label": "Parents' Details",
-   "options": "Applicant Parent",
-   "allow_read_on_all_link_options": 1
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Table",
-   "fieldname": "custom_next_of_kin",
-   "label": "Next of Kin",
-   "options": "Applicant Next of Kin",
-   "description": "Your first next of kin is who we contact in an emergency.",
-   "allow_read_on_all_link_options": 1
   },
   {
    "doctype": "Web Form Field",
