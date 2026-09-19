@@ -847,6 +847,70 @@ if UPSTREAM_OK:
         fail.append("Frappe's Workflow changed how it adds the state field: recheck Interview Report.workflow_state")
 print("report: approval walked end to end, sign-offs, panel summary, checks, doctypes, results, form script and print format resolve")
 
+# ── 10. Where HR finds it: the Recruitment workspace ─────────────────
+import ast
+
+spec = importlib.util.spec_from_file_location("workspace_rules", os.path.join(APP, "workspace_rules.py"))
+wsr = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(wsr)  # no Frappe import
+ws_src = read("hrms_addon", "hrms_addon", "workspace_setup.py")
+declared = next((ast.literal_eval(node.value) for node in ast.parse(ws_src).body
+                 if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "WORKSPACE_ADD_LINKS"), {})
+interview_links = (declared.get("Recruitment") or {}).get("Interviews") or []
+if [link[2] for link in interview_links] != ["Interview Shortlist", "Interview Report", "Interview Criterion"]:
+    fail.append("WORKSPACE_ADD_LINKS must put Interview Shortlist, Interview Report and Interview Criterion on Recruitment's Interviews card")
+for label, link_type, link_to, _after in interview_links:
+    folder = link_to.lower().replace(" ", "_")
+    if link_type != "DocType" or not os.path.exists(os.path.join(APP, "doctype", folder, folder + ".json")):
+        fail.append("the Recruitment link %s must open one of this app's DocTypes" % label)
+
+sample = [
+    {"type": "Card Break", "label": "Jobs"}, {"type": "Link", "label": "Job Opening", "link_type": "DocType", "link_to": "Job Opening"},
+    {"type": "Card Break", "label": "Interviews"},
+    {"type": "Link", "label": "Interview Type", "link_type": "DocType", "link_to": "Interview Type"},
+    {"type": "Link", "label": "Interview", "link_type": "DocType", "link_to": "Interview"},
+    {"type": "Link", "label": "Interview Feedback", "link_type": "DocType", "link_to": "Interview Feedback"},
+    {"type": "Card Break", "label": "Appointment"},
+    {"type": "Link", "label": "Appointment Letter", "link_type": "DocType", "link_to": "Appointment Letter"},
+]
+planned = wsr.plan_card_links(sample, "Interviews", interview_links)
+if wsr.card_links(planned, "Interviews") != ["Interview Shortlist", "Interview Type", "Interview", "Interview Feedback",
+                                             "Interview Report", "Interview Criterion"]:
+    fail.append("the Interviews card must read Shortlist, Type, Interview, Feedback, Report, Criterion: %s"
+                % wsr.card_links(planned, "Interviews"))
+if wsr.card_links(planned, "Jobs") != ["Job Opening"] or wsr.card_links(planned, "Appointment") != ["Appointment Letter"]:
+    fail.append("adding to the Interviews card must leave the other cards alone")
+if any(row.get("new") for row in wsr.plan_card_links([{k: v for k, v in r.items() if k != "new"} for r in planned],
+                                                      "Interviews", interview_links)):
+    fail.append("adding the links again must change nothing (idempotent on every migrate)")
+if wsr.plan_card_links(sample, "No Such Card", interview_links) is not None:
+    fail.append("a workspace without the card must be left alone")
+moved = wsr.plan_card_links(sample, "Interviews", [("Extra", "DocType", "Extra", "Not There")])
+if wsr.card_links(moved, "Interviews")[-1] != "Extra":
+    fail.append("a link whose anchor is missing goes last in its card, not into the next card")
+on_migrate = re.sub(r'^\s*""".*?"""', "", ws_src.split("def apply_on_migrate():")[-1], count=1, flags=re.S)
+first_add = on_migrate.find("apply_added_links()")
+if first_add < 0 or re.search(r"\breturn\b", on_migrate[:first_add]):
+    fail.append("workspace_setup.py apply_on_migrate must add the links on every migrate, not only once the menu order is agreed")
+for needle, why in (
+    ("workspace_rules.plan_card_links(rows, card, wanted)", "must place the links with the tested rules"),
+    ('frappe.db.set_value("Workspace Link", card_row["name"], "link_count", count, update_modified=False)',
+     "must keep the card's link count true, or the workspace editor cuts the links out of the card"),
+    ('"doctype": "Workspace Link",', "must write Workspace Link rows, never save another app's Workspace"),
+):
+    if needle not in ws_src:
+        fail.append("workspace_setup.py %s" % why)
+if ".save(" in ws_src:
+    fail.append("workspace_setup.py must not save a Workspace: in developer mode that writes it into Frappe HR's files")
+
+if UPSTREAM_OK:
+    recruitment = json.loads(upstream("hrms", "hr", "workspace", "recruitment", "recruitment.json"))
+    real = wsr.plan_card_links(recruitment["links"], "Interviews", interview_links)
+    if real is None or wsr.card_links(real, "Interviews") != ["Interview Shortlist", "Interview Type", "Interview",
+                                                              "Interview Feedback", "Interview Report", "Interview Criterion"]:
+        fail.append("HRMS's Recruitment workspace no longer has the Interviews card with Interview Feedback: recheck WORKSPACE_ADD_LINKS")
+print("workspace: the three documents on Recruitment's Interviews card, placed idempotently, link count kept true")
+
 print()
 if fail:
     print("FAILURES:")

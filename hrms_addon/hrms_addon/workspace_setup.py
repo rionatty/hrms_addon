@@ -3,11 +3,12 @@
 
 """Workspace reorganisation.
 
-Two separate things, both driven by the declarations at the top of this
-file so that changing the menu is a data edit, not a code change:
+Driven by the declarations at the top of this file, so that changing the
+menu is a data edit, not a code change:
 
-  WORKSPACE_ORDER   the top-level list down the desk sidebar
-  SIDEBAR_LINKS     the links inside one workspace
+  WORKSPACE_ORDER      the top-level list down the desk sidebar
+  SIDEBAR_LINKS        the links inside one workspace
+  WORKSPACE_ADD_LINKS  this app's own links, added to another app's cards
 
 Verified against frappe v16.33 (frappe/desk/doctype/workspace):
 
@@ -24,8 +25,9 @@ Verified against frappe v16.33 (frappe/desk/doctype/workspace):
 WHY REORDER RATHER THAN REBUILD: these are ERPNext's and Frappe HR's own
 Workspace records. Deleting and recreating them loses whatever the site
 has customised and puts us in conflict with every upstream update. So
-this only ever nudges sequence_id / is_hidden / idx on records that
-already exist, and silently skips anything that is not installed.
+this adds only its own links, otherwise only nudges sequence_id /
+is_hidden / idx on records that already exist, and silently skips
+anything that is not installed.
 
 IDEMPOTENT: safe on every migrate. Nothing is written when the stored
 value already matches, so a repeat run is a no-op and does not churn
@@ -33,6 +35,8 @@ value already matches, so a repeat run is a no-op and does not churn
 """
 
 import frappe
+
+from hrms_addon.hrms_addon import workspace_rules
 
 # ── Top-level sidebar order ──────────────────────────────────────────
 # "Workspace name": sequence_id. Lower floats sort first. Names must
@@ -70,9 +74,75 @@ SIDEBAR_LINKS = {}
 # Links to hide, per workspace: "Workspace name": [labels]
 SIDEBAR_HIDE = {}
 
+# ── Links this app adds to another app's workspace ───────────────────
+# "Workspace name": {"Card label": [(label, link_type, link_to, after)]}
+#
+# Each link goes into the card straight after the link labelled `after`
+# (None: first in the card), unless the card already has it. Unlike the
+# declarations above this is not pending anything: it is how HR finds this
+# app's documents on the pages they already use. Re-asserted on every
+# migrate, because a Frappe HR update re-imports its workspace and drops
+# rows it does not know. The placing is workspace_rules.plan_card_links.
+WORKSPACE_ADD_LINKS = {
+    "Recruitment": {
+        "Interviews": [
+            ("Interview Shortlist", "DocType", "Interview Shortlist", None),
+            ("Interview Report", "DocType", "Interview Report", "Interview Feedback"),
+            ("Interview Criterion", "DocType", "Interview Criterion", "Interview Report"),
+        ],
+    },
+}
+
 
 def _workspace_exists(name):
     return bool(frappe.db.exists("Workspace", name))
+
+
+def apply_added_links():
+    """Add WORKSPACE_ADD_LINKS to their cards, straight in the Workspace Link
+    table: saving another app's Workspace would, in developer mode, write it
+    back into that app's files."""
+    changed = []
+    for workspace, cards in WORKSPACE_ADD_LINKS.items():
+        if not _workspace_exists(workspace):
+            continue
+        for card, wanted in cards.items():
+            wanted = [link for link in wanted if link[1] != "DocType" or frappe.db.exists("DocType", link[2])]
+            rows = frappe.get_all(
+                "Workspace Link",
+                filters={"parent": workspace, "parenttype": "Workspace", "parentfield": "links"},
+                fields=["name", "type", "label", "link_type", "link_to", "idx", "link_count"],
+                order_by="idx asc",
+            )
+            planned = workspace_rules.plan_card_links(rows, card, wanted)
+            if planned is None or not any(row.get("new") for row in planned):
+                continue
+            for position, row in enumerate(planned, start=1):
+                if row.get("new"):
+                    frappe.get_doc({
+                        "doctype": "Workspace Link",
+                        "parent": workspace,
+                        "parenttype": "Workspace",
+                        "parentfield": "links",
+                        "idx": position,
+                        "type": "Link",
+                        "label": row["label"],
+                        "link_type": row["link_type"],
+                        "link_to": row["link_to"],
+                        "hidden": 0,
+                        "onboard": 0,
+                        "is_query_report": 0,
+                    }).db_insert()
+                    changed.append("%s: %s added to %s" % (workspace, row["label"], card))
+                elif row.get("idx") != position:
+                    frappe.db.set_value("Workspace Link", row["name"], "idx", position, update_modified=False)
+            # The workspace editor cuts a card out of the table by its link
+            # count when it saves: keep it true, or our links fall out of the card.
+            card_row = next(row for row in planned if row.get("type") == "Card Break" and row.get("label") == card)
+            count = len(workspace_rules.card_links(planned, card))
+            if card_row.get("link_count") != count:
+                frappe.db.set_value("Workspace Link", card_row["name"], "link_count", count, update_modified=False)
+    return changed
 
 
 def apply_workspace_order():
@@ -153,7 +223,7 @@ def apply_sidebar_links():
 
 def apply_all():
     """Everything, in one call. Returns the combined change list."""
-    changed = apply_workspace_order() + apply_sidebar_links()
+    changed = apply_added_links() + apply_workspace_order() + apply_sidebar_links()
     if changed:
         # The sidebar tree is cached in the boot payload.
         frappe.clear_cache()
@@ -163,11 +233,15 @@ def apply_all():
 def apply_on_migrate():
     """after_migrate hook. Never allowed to fail a deploy.
 
-    A no-op until WORKSPACE_ORDER / SIDEBAR_LINKS above are filled in.
+    Adds this app's links (WORKSPACE_ADD_LINKS) every time; the reordering
+    is a no-op until WORKSPACE_ORDER / SIDEBAR_LINKS above are filled in.
     """
-    if not (WORKSPACE_ORDER or WORKSPACE_HIDE or SIDEBAR_LINKS or SIDEBAR_HIDE):
-        return
     try:
-        apply_all()
+        changed = apply_added_links()
+        if WORKSPACE_ORDER or WORKSPACE_HIDE or SIDEBAR_LINKS or SIDEBAR_HIDE:
+            changed += apply_workspace_order() + apply_sidebar_links()
+        if changed:
+            # The sidebar tree is cached in the boot payload.
+            frappe.clear_cache()
     except Exception:
         frappe.log_error(title="HRMS Addon: workspace reorganisation failed")
