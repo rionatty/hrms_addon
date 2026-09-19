@@ -14,7 +14,11 @@
   * the form's script has no Jinja delimiters (Frappe renders it through
     Jinja) and calls the guest-safe summary method, which only describes
     published openings;
-  * the stylesheet defines every variable it uses.
+  * the stylesheet defines every variable it uses;
+  * every file a guest or portal user uploads is stored private (uploads.py,
+    in front of Frappe's upload_file), and the form's upload dialog starts
+    private with no Private box to untick (checked against Frappe's upload
+    code when the upstream apps are checked out).
 
     python scripts/verify_careers.py
 """
@@ -372,6 +376,66 @@ for page_name, page_source in (("job page", template), ("list page", jobs_page))
             if name.startswith("lpl-") and not re.search(r"\.%s(?![\w-])" % re.escape(name), css):
                 fail.append("the %s uses .%s, which careers.css does not style" % (page_name, name))
 print("stylesheet: %d variables, all defined; every page class styled" % len(used))
+
+# ── 6. Uploads from the website are private ──────────────────────────
+# A CV is personal data. Everything a guest or portal user uploads is stored
+# private on the server, and the form's upload dialog offers no choice.
+overrides = ast.literal_eval(hooks["override_whitelisted_methods"]) if "override_whitelisted_methods" in hooks else {}
+for name in ("upload_file", "frappe.handler.upload_file"):
+    if overrides.get(name) != "hrms_addon.hrms_addon.uploads.upload_file":
+        fail.append("override_whitelisted_methods must send Frappe's %s to uploads.upload_file, or a CV can be stored public" % name)
+uploads = read(os.path.join(APP, "uploads.py"))
+for needle, why in (
+    ('@frappe.whitelist(allow_guest=True, methods=["POST"])\ndef upload_file():', "must stay open to guests, by POST, as Frappe's is"),
+    ('    if "file" in frappe.request.files and from_the_website(frappe.session.user):\n        frappe.form_dict.is_private = 1\n'
+     "    return frappe_upload_file()",
+     "must store a file sent from the website private, then hand over to Frappe's upload"),
+    ("from frappe.handler import upload_file as frappe_upload_file", "must call Frappe's own upload, not a copy of it"),
+    ('return user == "Guest" or not frappe.get_doc("User", user).has_desk_access()',
+     "must treat guests and portal users, and only them, as the website"),
+):
+    if needle not in uploads:
+        fail.append("uploads.py %s" % why)
+init = re.search(r"\n\tinit\(\) \{\n\t\t([^\n]*)\n", script)
+if not init or init.group(1) != "this.private_uploads();":
+    fail.append("job_application_form.js must make uploads private first thing in init, before anything can return early")
+private_uploads = script.split("\tprivate_uploads() {")[-1].split("\n\t},")[0] if "\tprivate_uploads() {" in script else ""
+for needle in ('["Attach", "Attach Image"].includes(field.df.fieldtype)', "Object.assign({}, field.df.options, {",
+               "make_attachments_public: 0,", "allow_toggle_private: false,"):
+    if needle not in private_uploads:
+        fail.append("job_application_form.js private_uploads must give each attachment field private-only options (%s)" % needle)
+hidden = re.search(r"([^{}]*)\{\s*display: none;\s*\}", style)
+selectors = {part.strip() for part in hidden.group(1).split("*/")[-1].split(",")} if hidden else set()
+if selectors != {"#uploader-private-checkbox", ".file-preview-area .alert-warning"}:
+    fail.append("job_application_form.css must hide the dialog's Private box and its 'this file is public' note: %s" % sorted(selectors))
+
+if os.path.isdir(APPS_ROOT):
+    def frappe_source(*parts):
+        return read(os.path.join(APPS_ROOT, "frappe", "frappe", *parts))
+
+    UPLOADER = ("public", "js", "frappe", "file_uploader")
+    for parts, needle, why in (
+        (("handler.py",), '@frappe.whitelist(allow_guest=True, methods=["POST"])\ndef upload_file():', "upload_file is whitelisted differently"),
+        (("handler.py",), "is_private = frappe.form_dict.is_private", "upload_file no longer reads is_private from the request"),
+        (("handler.py",), "cmd = frappe.override_whitelisted_method(cmd)", "calls no longer go through override_whitelisted_methods"),
+        (UPLOADER + ("FileUploader.vue",), 'xhr.open("POST", "/api/method/upload_file", true);', "the upload dialog no longer posts to upload_file"),
+        (UPLOADER + ("FileUploader.vue",), "private: !props.make_attachments_public || !frappe.utils.can_upload_public_files(),",
+         "the dialog decides a file's privacy differently"),
+        (UPLOADER + ("FileUploader.vue",), 'class="file-preview-area"', "the dialog's preview area is named differently"),
+        (UPLOADER + ("file_uploader.bundle.js",), "allow_toggle_private && frappe.utils.can_upload_public_files()",
+         "the dialog decides whether privacy may be toggled differently"),
+        (UPLOADER + ("FilePreview.vue",), 'id="uploader-private-checkbox"', "the Private box is named differently"),
+        (UPLOADER + ("FilePreview.vue",), 'class="alert alert-warning mb-0"', "the 'this file is public' note is marked up differently"),
+        (("public", "js", "frappe", "form", "controls", "attach.js"), "Object.assign(options, this.df.options);",
+         "an attachment field's options no longer reach the dialog"),
+        (("public", "js", "frappe", "web_form", "web_form.js"), 'method: "frappe.handler.upload_file",',
+         "the web form attaches its file differently"),
+        (("core", "doctype", "file", "file.py"), 'self.is_private = cint(self.file_url.startswith("/private"))',
+         "a file linked by URL no longer takes its privacy from the URL"),
+    ):
+        if needle not in frappe_source(*parts):
+            fail.append("Frappe changed: %s (%s). Recheck the private uploads" % (why, "/".join(parts)))
+print("uploads: every file sent from the website is stored private; the form's upload dialog starts private and offers no choice")
 
 print()
 if fail:

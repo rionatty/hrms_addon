@@ -2,3 +2,10 @@
    page in the careers stylesheet; Frappe puts this file in the page's <style>
    block, so the import comes first. */
 @import url("/assets/hrms_addon/css/careers.css?v=2026091702");
+
+/* Every upload here is stored private (hrms_addon/hrms_addon/uploads.py), so
+   the upload dialog shows no Private box and no "this file is public" note. */
+#uploader-private-checkbox,
+.file-preview-area .alert-warning {
+	display: none;
+}

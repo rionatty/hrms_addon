@@ -544,6 +544,11 @@ override_whitelisted_methods = {
     "hrms.hr.doctype.interview.interview.get_skill_wise_average_rating": (
         "hrms_addon.hrms_addon.interviews.get_skill_wise_average_rating"
     ),
+    # A file uploaded from the website (the careers portal's CV) is stored
+    # private, whatever the dialog asks. The dialog posts to "upload_file";
+    # the saved web form attaches the file through the full name.
+    "upload_file": "hrms_addon.hrms_addon.uploads.upload_file",
+    "frappe.handler.upload_file": "hrms_addon.hrms_addon.uploads.upload_file",
 }
 #
 # each overriding function accepts a `data` argument;
