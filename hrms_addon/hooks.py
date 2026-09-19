@@ -537,10 +537,13 @@ fixtures = [
 # DocType Class
 # ---------------
 # Override standard doctype classes
-
-# override_doctype_class = {
-# 	"Employee": "hrms_addon.hrms_addon.overrides.employee_override.Employee"
-# }
+#
+# Employee Onboarding: Frappe HR's controller, except that when the Employee
+# cannot be created or saved yet it lists the onboarding tasks still open
+# (its own message names none). See overrides/employee_onboarding.py.
+override_doctype_class = {
+    "Employee Onboarding": "hrms_addon.hrms_addon.overrides.employee_onboarding.EmployeeOnboarding",
+}
 
 # Document Events
 # ---------------

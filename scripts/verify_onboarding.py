@@ -260,6 +260,37 @@ if set(R.TEMPLATE_BY_CATEGORY) != set(org.POSITION_CATEGORIES) \
     fail.append("TEMPLATE_BY_CATEGORY must cover exactly org_rules.POSITION_CATEGORIES, production for non-administrative")
 print("assignment: named people, branch and department holders, then those serving every branch; templates picked")
 
+# ── 3b. What still stops the Employee ────────────────────────────────
+ACTIVITIES = [
+    {"activity_name": "Orientation <b>tour</b>", "required_for_employee_creation": 1, "task": "TASK-2026-00001",
+     "task_status": "Open", "assignees": ["Jane O'Hara"]},
+    {"activity_name": "Workplace Rules signed", "required_for_employee_creation": 1, "task": "TASK-2026-00002",
+     "task_status": "Completed", "assignees": ["Jane O'Hara"]},
+    {"activity_name": "Handover to the HOD", "required_for_employee_creation": 1, "task": "TASK-2026-00003",
+     "task_status": "Cancelled", "assignees": []},
+    {"activity_name": "Bio-data captured", "required_for_employee_creation": 0, "task": "TASK-2026-00004",
+     "task_status": "Open", "assignees": []},
+    {"activity_name": "Plant visits", "required_for_employee_creation": 1, "task": None, "task_status": None},
+]
+pending = R.pending_required(ACTIVITIES)
+if [a["activity_name"] for a in pending] != ["Orientation <b>tour</b>", "Plant visits"]:
+    fail.append("pending_required must list the required activities whose task is not Completed or Cancelled, in order: %s"
+                % [a["activity_name"] for a in pending])
+message = R.pending_message("HR-EMP-ONB-2026-00001", pending)
+for needle, why in (
+    ('<a href="/app/employee-onboarding/HR-EMP-ONB-2026-00001">HR-EMP-ONB-2026-00001</a>', "names the onboarding, linked"),
+    ('<a href="/app/task/TASK-2026-00001">Orientation &lt;b&gt;tour&lt;/b&gt;</a>: Open, with Jane O&#x27;Hara',
+     "each task linked, its status and who has it, escaped"),
+    ("<li>Plant visits: no task made, with nobody assigned</li>", "an activity with no task still listed"),
+    ("sets its Status to Completed", "says what to do"),
+):
+    if needle not in message:
+        fail.append("pending_message %s: %r not in %r" % (why, needle, message))
+for done in ("Workplace Rules signed", "Handover to the HOD", "Bio-data captured", "<b>tour"):
+    if done in message:
+        fail.append("pending_message must list only what is still open, escaped: %r is in it" % done)
+print("what still stops the Employee: the open required tasks, linked, with status and people, escaped")
+
 # ── 4. The seeded templates and the Workplace Rules ──────────────────
 if set(R.TEMPLATES) != {R.DEFAULT_TEMPLATE, R.PRODUCTION_TEMPLATE}:
     fail.append("the seeded templates must be the standard and the production one: %s" % sorted(R.TEMPLATES))
@@ -410,6 +441,19 @@ if eo:
     master = upstream_source("hrms", "overrides", "employee_master.py") or ""
     if 'onboarding.db_set("employee", doc.name)' not in master:
         fail.append("Frappe HR no longer links the new Employee back to its onboarding: the step check reads it")
+    # the check our controller replaces: same test, same error, the same two callers
+    if "def validate_employee_creation(self):" not in onboarding_py \
+            or 'if task_status not in ["Completed", "Cancelled"]:' not in onboarding_py \
+            or list(R.DONE_TASK_STATUSES) != ["Completed", "Cancelled"]:
+        fail.append("Frappe HR's employee creation check changed: re-read validate_employee_creation before relying on "
+                    "DONE_TASK_STATUSES")
+    if "class IncompleteTaskError(frappe.ValidationError):" not in onboarding_py:
+        fail.append("Frappe HR no longer has IncompleteTaskError, which the listing keeps raising")
+    if "doc = frappe.get_doc(\"Employee Onboarding\", source_name)\n\tdoc.validate_employee_creation()" not in onboarding_py:
+        fail.append("Create > Employee no longer checks the onboarding through its controller")
+    if "onboarding = frappe.get_doc(\"Employee Onboarding\", employee_onboarding[0].name)\n\t\tonboarding.validate_employee_creation()" \
+            not in master:
+        fail.append("saving an Employee no longer checks its onboarding through the controller")
     document = upstream_source("frappe", "model", "document.py") or ""
     if 'elif self._action == "update_after_submit":\n\t\t\tself.run_method("before_update_after_submit")' not in document:
         fail.append("Frappe's update after submit changed: the steps after the start rely on before_update_after_submit")
@@ -499,6 +543,22 @@ bio_glue = read("hrms_addon", "hrms_addon", "bio_data.py")
 for source in ("Job Offer", "Employee Onboarding"):
     if 'return onboarding.add_placement(employee, "%s", source_name)' % source not in bio_glue:
         fail.append("Create Employee from the %s must add the placement (branch, employment type, offer date)" % source)
+override_path = os.path.join(APP, "overrides", "employee_onboarding.py")
+override = open(override_path, encoding="utf-8").read() if os.path.exists(override_path) else ""
+if (hooks.get("override_doctype_class") or {}).get(EO) != "hrms_addon.hrms_addon.overrides.employee_onboarding.EmployeeOnboarding":
+    fail.append("override_doctype_class must give Employee Onboarding the controller that lists the open tasks")
+for needle, why in (
+    ("from hrms.hr.doctype.employee_onboarding.employee_onboarding import EmployeeOnboarding as HRMSEmployeeOnboarding",
+     "it extends Frappe HR's controller"),
+    ("class EmployeeOnboarding(HRMSEmployeeOnboarding):", "it extends Frappe HR's controller"),
+    ("    def validate_employee_creation(self):", "it replaces the check that names nothing"),
+    ("if self.docstatus != 1:", "an onboarding not yet started still refuses"),
+    ('frappe.db.get_value("Task", activity.task, ["status", "_assign"])', "each task's status and assignees are read"),
+    ("pending = rules.pending_required(activities)", "the tested rule decides what is open"),
+    ("rules.pending_message(self.name, pending),\n                IncompleteTaskError,", "the listing keeps Frappe HR's error"),
+):
+    if needle not in override:
+        fail.append("overrides/employee_onboarding.py: %s (%r not found)" % (why, needle))
 
 post = read("hrms_addon", "patches.txt").split("[post_model_sync]")
 listed = [line.strip() for line in post[1].splitlines() if line.strip() and not line.startswith("#")] if len(post) == 2 else []

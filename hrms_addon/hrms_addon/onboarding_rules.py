@@ -32,10 +32,24 @@ pick_template(): one HR made for the Job Title or the Department wins;
 otherwise the production template for a non-administrative department (the
 production roles walk through the process and visit the plants), the
 standard one for the rest.
+
+WHAT IS STILL TO DO
+
+Frappe HR refuses to create, or save, the Employee of a running onboarding
+until every activity required for it has its task Completed or Cancelled,
+and says only "All the mandatory tasks for employee creation are not
+completed yet." pending_required() and pending_message() name them.
 """
+
+import html
+from urllib.parse import quote
 
 HR_OFFICER_ROLE = "HR User"
 HOD_ROLE = "Head of Department"
+
+# A required activity stops Create Employee until its task is one of these
+# (Frappe HR's own test, employee_onboarding.validate_employee_creation)
+DONE_TASK_STATUSES = ("Completed", "Cancelled")
 
 # The templates Luuka starts with, seeded once (HR's to change afterwards).
 # Each activity: (what, role, begin on day, days allowed, required before the
@@ -145,6 +159,36 @@ def pick_template(templates, company, department, designation, category):
     for template in sorted(fitting, key=lambda t: t["name"]):
         by_title.setdefault(template.get("title"), template["name"])
     return by_title.get(TEMPLATE_BY_CATEGORY.get(category)) or by_title.get(DEFAULT_TEMPLATE)
+
+
+def pending_required(activities):
+    """The activities still stopping Create Employee, in their order.
+
+    activities: [{"activity_name", "required_for_employee_creation", "task",
+    "task_status", "assignees"}]; an activity whose task is missing counts as
+    not done, as it does for Frappe HR.
+    """
+    return [a for a in activities
+            if a.get("required_for_employee_creation") and a.get("task_status") not in DONE_TASK_STATUSES]
+
+
+def pending_message(onboarding, pending):
+    """The message HR sees instead of Frappe HR's: each task still to
+    complete, linked, with its status and who has it. HTML, escaped."""
+    items = []
+    for activity in pending:
+        name = html.escape(activity.get("activity_name") or "")
+        task = activity.get("task")
+        label = '<a href="/app/task/%s">%s</a>' % (quote(task), name) if task else name
+        status = html.escape(activity.get("task_status") or "no task made")
+        people = ", ".join(html.escape(person) for person in activity.get("assignees") or []) or "nobody assigned"
+        items.append("<li>%s: %s, with %s</li>" % (label, status, people))
+    return (
+        '<p>These tasks of the onboarding <a href="/app/employee-onboarding/%s">%s</a> must be completed before '
+        "the Employee can be created or saved:</p><ul>%s</ul>"
+        "<p>Whoever has a task opens it and sets its Status to Completed.</p>"
+        % (quote(onboarding or ""), html.escape(onboarding or ""), "".join(items))
+    )
 
 
 # The Workplace Rules and Regulations (LPL/HR/05) as issued, kept as Terms
