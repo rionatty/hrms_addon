@@ -27,12 +27,21 @@ It also checks:
     apart by Qualification Type), the checks, back-to-back interview slots,
     the DocTypes, controller, buttons and print format, and what it relies
     on in HRMS (the Shortlisted status, the Interview Type's panel);
+  * the shortlist's screening walked end to end (HR shares it with the HOD,
+    who approves it or returns it with a reason; HR revises; the HR Manager
+    cancels through the workflow), the sign-offs, the HOD named and assigned,
+    each screener's remarks, and what it relies on in Frappe;
   * the Interview Report: its approval walked end to end (HR prepares, the
     HR Manager forwards, the Executive Director approves; either may
-    reject, HR revises), the sign-offs each step records, the panel's
-    averaged score and counted recommendations, the checks once it leaves
-    Draft, the DocTypes, Get Interview Results, the print format, and what
-    it relies on in HRMS and in Frappe's Workflow.
+    reject, HR revises; the HR Manager cancels through the workflow), the
+    sign-offs each step records, the panel's averaged score and counted
+    recommendations, the checks once it leaves Draft, the DocTypes, Get
+    Interview Results, the print format, and what it relies on in HRMS and
+    in Frappe's Workflow;
+  * closing the loop: approval closes each interview with the panel's
+    decision and moves each undecided applicant on (never one already
+    Accepted or Rejected), and Create Job Offers makes one draft offer per
+    Offer decision, linking an offer the candidate already has.
 
     python scripts/verify_interviews.py
 """
@@ -520,14 +529,15 @@ if not (perms.get("Interviewer") or {}).get("read") or (perms.get("Interviewer")
 cand = doctype_json("Interview Shortlist Candidate")
 cand_fields = fields_of(cand)
 if list(cand_fields) != ["job_applicant", "applicant_name", "phone_number", "email_id", "education", "work_experience",
-                         "certifications", "interview"] or not cand.get("istable"):
+                         "certifications", "hr_remarks", "hod_remarks", "interview"] or not cand.get("istable"):
     fail.append("Interview Shortlist Candidate's fields are not the shortlist's columns: %s" % list(cand_fields))
 if not (cand_fields.get("interview") or {}).get("allow_on_submit"):
     fail.append("Interview Shortlist Candidate.interview is set after submit, so it needs allow_on_submit")
 if sum(f.get("columns") or 0 for f in cand["fields"] if f.get("in_list_view")) > 10:
     fail.append("the shortlist grid exceeds 10 columns")
 controller = read("hrms_addon", "hrms_addon", "doctype", "interview_shortlist", "interview_shortlist.py")
-for event, function in (("validate", "validate_shortlist"), ("on_submit", "mark_shortlisted"), ("on_cancel", "unmark_shortlisted")):
+for event, function in (("validate", "validate_shortlist"), ("on_update", "shortlist_on_update"), ("on_submit", "mark_shortlisted"),
+                        ("on_cancel", "unmark_shortlisted")):
     if not re.search(r"def %s\(self\):\n        interviews\.%s\(self\)" % (event, function), controller) \
             or "def %s(doc):" % function not in glue:
         fail.append("Interview Shortlist %s must call interviews.%s" % (event, function))
@@ -627,6 +637,171 @@ if UPSTREAM_OK:
             fail.append("HRMS's Interview has no %s: recheck schedule_interviews" % fieldname)
 print("shortlist: columns written out from the Bio-Data, checks, slots, doctypes, controller, buttons and print format resolve")
 
+# ── 8b. The shortlist's screening: HR, then the HOD (steps 10 and 11) ─
+spec = importlib.util.spec_from_file_location("interview_shortlist_approval", os.path.join(APP, "interview_shortlist_approval.py"))
+S = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(S)  # no Frappe import either
+spec = importlib.util.spec_from_file_location("requisition_approval", os.path.join(APP, "requisition_approval.py"))
+requisition_rules = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(requisition_rules)
+
+if (S.DOCTYPE, S.STATE_FIELD) != ("Interview Shortlist", "workflow_state") or S.STATES[0]["state"] != S.DRAFT:
+    fail.append("the screening runs on Interview Shortlist's workflow_state and starts in Draft (Frappe's default state)")
+doc_status_of = {row["state"]: row.get("doc_status", "0") for row in S.STATES}
+if doc_status_of != {S.DRAFT: "0", S.PENDING_HOD: "0", S.RETURNED: "0", S.SCREENED: "1", S.CANCELLED: "2"} \
+        or len({(row["state"], row.get("doc_status", "0")) for row in S.STATES}) != len(doc_status_of):
+    fail.append("the HOD's approval submits the shortlist (Screened), Cancel cancels it, the rest are drafts: %s" % doc_status_of)
+for t in S.TRANSITIONS:
+    if t["state"] not in doc_status_of or t["next_state"] not in doc_status_of or t["action"] not in S.ACTIONS:
+        fail.append("screening transition %s --%s--> %s is not in the workflow's states and actions" % (t["state"], t["action"], t["next_state"]))
+        continue
+    moves = (doc_status_of[t["state"]], doc_status_of[t["next_state"]])
+    if moves[0] == "2" or moves == ("1", "0") or moves == ("0", "2"):
+        fail.append("Frappe's Workflow refuses %s --%s--> %s (doc_status %s to %s)" % (t["state"], t["action"], t["next_state"], *moves))
+if any(row["send_email"] for row in S.STATES):
+    fail.append("the screening must send no workflow email, which reaches everyone with the role: the assignment tells the one HOD")
+for state, roles in ((S.DRAFT, set(S.PREPARERS)), (S.RETURNED, set(S.PREPARERS)), (S.PENDING_HOD, {S.SCREENER})):
+    if {row["allow_edit"] for row in S.STATES if row["state"] == state} != roles:
+        fail.append("%s must be editable by %s alone" % (state, sorted(roles)))
+if S.PREPARERS != ("HR User", "HR Manager"):
+    fail.append("HR screens first: HR User (the HR Officer) and HR Manager")
+if S.SCREENER != "Head of Department" or S.SCREENER not in requisition_rules.NEW_ROLES or S.SCREENER not in S.NEW_ROLES:
+    fail.append("the second screening is by the requisition's Head of Department role, which the workflow ensures")
+if set(S.PERMISSIONS.get("Interview Shortlist", {}).get(S.SCREENER, ())) != {"read", "write", "submit"}:
+    fail.append("the HOD needs read, write and submit on Interview Shortlist: they edit it, and their approval submits it")
+if not (perms.get(S.CANCELLER) or {}).get("cancel"):
+    fail.append("the %s cancels screened shortlists, so needs cancel on Interview Shortlist" % S.CANCELLER)
+
+
+def swalk(state, roles):
+    return dict(S.next_states(state, roles))
+
+
+for role in S.PREPARERS:
+    if swalk(S.DRAFT, [role]) != {S.SHARE: S.PENDING_HOD}:
+        fail.append("%s shares a draft shortlist with the HOD, and only that" % role)
+    if swalk(S.RETURNED, [role]) != {S.REVISE: S.DRAFT}:
+        fail.append("%s revises a shortlist the HOD returned" % role)
+    if swalk(S.PENDING_HOD, [role]):
+        fail.append("only the HOD acts on a shortlist shared with them, not %s" % role)
+if swalk(S.DRAFT, [S.SCREENER]) or swalk(S.RETURNED, [S.SCREENER]):
+    fail.append("the HOD cannot share or revise HR's draft")
+if swalk(S.PENDING_HOD, [S.SCREENER]) != {S.APPROVE: S.SCREENED, S.RETURN: S.RETURNED}:
+    fail.append("the HOD approves the shortlist or returns it to HR")
+if swalk(S.SCREENED, ["HR Manager"]) != {S.CANCEL: S.CANCELLED} or swalk(S.SCREENED, ["HR User", S.SCREENER, "Interviewer"]):
+    fail.append("only the HR Manager cancels a screened shortlist, through the workflow")
+if swalk(S.CANCELLED, ["HR Manager", "HR User", S.SCREENER, "System Manager"]):
+    fail.append("a cancelled shortlist is final (amend it for a new one)")
+
+scs = S.compute_stamps
+sblank = dict.fromkeys(S.STAMP_FIELDS)
+if scs(None, S.DRAFT, "hr@lpl", "2026-09-19", {"hod_screened_by": "forged@lpl"}) != sblank:
+    fail.append("a new shortlist starts with no screening sign-offs, whatever was posted")
+shared = scs(S.DRAFT, S.PENDING_HOD, "hr@lpl", "2026-09-19", {})
+if shared != dict(sblank, hr_screened_by="hr@lpl", hr_screened_on="2026-09-19"):
+    fail.append("sharing records HR's screener and the date: %s" % shared)
+screened = scs(S.PENDING_HOD, S.SCREENED, "hod@lpl", "2026-09-20", shared)
+if screened != dict(shared, hod_screened_by="hod@lpl", hod_screened_on="2026-09-20"):
+    fail.append("the HOD's approval records the HOD and the date, keeping HR's: %s" % screened)
+if scs(S.PENDING_HOD, S.RETURNED, "hod@lpl", "2026-09-20", shared) != shared:
+    fail.append("returning the shortlist records no approval")
+if scs(S.RETURNED, S.DRAFT, "hr@lpl", "2026-09-21", shared) != sblank:
+    fail.append("a revised shortlist is screened again from the start")
+if scs(S.PENDING_HOD, S.PENDING_HOD, "hod@lpl", "2026-09-21", shared) != shared:
+    fail.append("a save that moves nothing keeps the stored screening sign-offs (a typed date reverts)")
+
+ser = S.screening_errors
+expect("sharing with the HOD named", ser(S.DRAFT, S.PENDING_HOD, "hod@lpl", ""))
+expect("sharing with no HOD named", ser(S.DRAFT, S.PENDING_HOD, None, ""), "Name the Head of Department")
+expect("returning with a reason", ser(S.PENDING_HOD, S.RETURNED, "hod@lpl", "Add the two applicants with a diploma."))
+expect("returning with no reason", ser(S.PENDING_HOD, S.RETURNED, "hod@lpl", "  "), "HOD's Comments")
+expect("a draft saved before the HOD is known", ser(S.DRAFT, S.DRAFT, None, None))
+expect("a new shortlist", ser(None, S.DRAFT, None, None))
+expect("the HOD's approval", ser(S.PENDING_HOD, S.SCREENED, "hod@lpl", None))
+
+sa = S.assignee
+if sa(S.DRAFT, S.PENDING_HOD, "hod@lpl", "hr@lpl") != "hod@lpl" or sa(S.PENDING_HOD, S.RETURNED, "hod@lpl", "hr@lpl") != "hr@lpl":
+    fail.append("sharing assigns the shortlist to the HOD, and a return assigns it back to whoever prepared it")
+for moves in ((S.PENDING_HOD, S.SCREENED), (S.RETURNED, S.DRAFT), (S.PENDING_HOD, S.PENDING_HOD), (None, S.DRAFT)):
+    if sa(*moves, "hod@lpl", "hr@lpl") is not None:
+        fail.append("nobody new is assigned on %s -> %s" % moves)
+
+swf = shl_fields.get(S.STATE_FIELD) or {}
+if (swf.get("fieldtype"), swf.get("options"), swf.get("hidden"), swf.get("allow_on_submit")) != ("Link", "Workflow State", 1, 1):
+    fail.append("Interview Shortlist needs its own hidden workflow_state Link, settable after submit")
+sstatus = shl_fields.get("status") or {}
+if set(o for o in sstatus.get("options", "").split("\n") if o) != {row["status"] for row in S.STATES} \
+        or not sstatus.get("read_only") or not sstatus.get("allow_on_submit"):
+    fail.append("Interview Shortlist.status must be read-only, settable after submit, with exactly the workflow's statuses")
+for fieldname in S.STAMP_FIELDS:
+    f = shl_fields.get(fieldname) or {}
+    if not (f.get("read_only") and f.get("allow_on_submit") and f.get("no_copy")):
+        fail.append("Interview Shortlist.%s is filled by the screening: read-only, settable after submit, not copied" % fieldname)
+hod_field = shl_fields.get("head_of_department") or {}
+if hod_field.get("options") != "User" or hod_field.get("read_only"):
+    fail.append("the shortlist names its HOD as a User that HR can change")
+if (by_name.get("Job Requisition-custom_hod") or {}).get("options") != "User":
+    fail.append("the shortlist's HOD defaults from Job Requisition.custom_hod, which must be a User")
+if "hod_comments" not in shl_fields or not {"hr_remarks", "hod_remarks"} <= set(cand_fields):
+    fail.append("each screener needs remarks per candidate, and the HOD a place to say why it is returned")
+for needle, why in (
+    ('frappe.db.get_value("Job Requisition", requisition, "custom_hod")', "must default the HOD to the one who signed the requisition"),
+    ('screening.screening_errors(old_state, new_state, doc.get("head_of_department"), doc.get("hod_comments"))',
+     "must check each screening step with the tested rules"),
+    ("screening.compute_stamps(old_state, new_state, frappe.session.user, today(), current)", "must fill the screening sign-offs with the tested rules"),
+    ("close_all_assignments(doc.doctype, doc.name, ignore_permissions=True)", "must close the last screener's assignment when it moves on"),
+    ('screening.assignee(old_state, new_state, doc.get("head_of_department"), doc.owner)', "must assign the shortlist with the tested rules"),
+    ('workflows.setup_on_migrate(screening, "Interview Shortlist screening")', "must build the screening workflow from interview_shortlist_approval"),
+):
+    if needle not in glue:
+        fail.append("interviews.py %s" % why)
+on_update_body = glue.split("def shortlist_on_update(")[-1].split("\ndef ")[0]
+unmoved = on_update_body.find("if old_state == new_state:\n        return\n")
+if unmoved == -1 or unmoved > on_update_body.find("close_all_assignments(doc.doctype"):
+    fail.append("interviews.shortlist_on_update must leave assignments alone on a save that moves nothing")
+if '"hrms_addon.hrms_addon.interviews.setup_shortlist_workflow_on_migrate"' not in hook_block("after_migrate"):
+    fail.append("after_migrate must build the Interview Shortlist screening workflow")
+status_patch = read("hrms_addon", "patches", "v1_0", "shortlist_status_from_docstatus.py")
+if "hrms_addon.patches.v1_0.shortlist_status_from_docstatus" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[-1] \
+        or "for docstatus, status in ((1, screening.SCREENED), (2, screening.CANCELLED)):" not in status_patch:
+    fail.append("shortlists submitted or cancelled before the screening need the matching Status: post_model_sync patch "
+                "shortlist_status_from_docstatus")
+hr_states = re.search(r"const HA_HR_STATES = \[([^\[\]]*)\];", sjs)
+if not hr_states or re.findall(r'"([^"]+)"', hr_states.group(1)) != [S.DRAFT, S.RETURNED] \
+        or 'const HA_HOD_STATE = "%s";' % S.PENDING_HOD not in sjs:
+    fail.append("interview_shortlist.js must know HR's states %s and the HOD's %s" % ([S.DRAFT, S.RETURNED], S.PENDING_HOD))
+for needle, why in (
+    ("const with_hr = !frm.doc.workflow_state || HA_HR_STATES.includes(frm.doc.workflow_state);", "must treat a new shortlist as HR's"),
+    ("frm.doc.docstatus === 0 && frm.doc.job_opening && with_hr", "must offer Get Applicants only to HR"),
+    ('frm.toggle_enable("hod_comments", with_hod);', "must open the HOD's comments only to the HOD"),
+    ('grid.toggle_enable("hr_remarks", with_hr);', "must open HR's remarks only to HR"),
+    ('grid.toggle_enable("hod_remarks", with_hod);', "must open the HOD's remarks only to the HOD"),
+    ('frappe.model.can_create("Interview")', "must offer Schedule Interviews only to someone who can create Interviews"),
+):
+    if needle not in sjs:
+        fail.append("interview_shortlist.js %s" % why)
+for who, when in (("hr_screened_by", "hr_screened_on"), ("hod_screened_by", "hod_screened_on")):
+    if 'frappe.db.get_value("User", doc.%s, "full_name")' % who not in shtml or "frappe.utils.format_date(doc.%s)" % when not in shtml:
+        fail.append("the shortlist print format must carry the screening sign-off %s and its date" % who)
+
+if UPSTREAM_OK:
+    assign_py = upstream("frappe", "desk", "form", "assign_to.py")
+    if "def _add(args=None, *, ignore_permissions=False):" not in assign_py \
+            or "def close_all_assignments(doctype, name, ignore_permissions=False):" not in assign_py:
+        fail.append("Frappe's assign_to changed: recheck shortlist_on_update")
+    workflow_model = upstream("frappe", "model", "workflow.py")
+    if "elif doc.docstatus.is_submitted() and new_docstatus.is_cancelled():\n\t\tdoc.cancel()" not in workflow_model:
+        fail.append("Frappe's apply_workflow no longer cancels on a doc_status 2 state: recheck the shortlist's Cancel step")
+    document_py = upstream("frappe", "model", "document.py")
+    if 'if self._action != "cancel":\n\t\t\tself._validate()' not in document_py:
+        fail.append("Frappe now validates on a plain cancel: recheck whether the shortlist still needs its Cancel step")
+    if 'elif self._action == "submit":\n\t\t\tself.run_method("on_update")\n\t\t\tself.run_method("on_submit")' not in document_py:
+        fail.append("Frappe no longer runs on_update on submit: the HOD's approval would leave their assignment open")
+    opening = fields_of(json.loads(upstream("hrms", "hr", "doctype", "job_opening", "job_opening.json")))
+    if (opening.get("job_requisition") or {}).get("options") != "Job Requisition":
+        fail.append("HRMS's Job Opening no longer links its Job Requisition: recheck the shortlist's default HOD")
+print("screening: HR shares, the HOD approves or returns with a reason, HR revises, the HR Manager cancels; sign-offs, assignment and remarks resolve")
+
 # ── 9. The interview report and its approval ─────────────────────────
 spec = importlib.util.spec_from_file_location("interview_report_approval", os.path.join(APP, "interview_report_approval.py"))
 approval = importlib.util.module_from_spec(spec)
@@ -642,15 +817,23 @@ for t in A.TRANSITIONS:
         fail.append("transition %s --%s--> %s uses a state the workflow does not have" % (t["state"], t["action"], t["next_state"]))
     if t["action"] not in A.ACTIONS:
         fail.append("transition action %s is not in ACTIONS" % t["action"])
-if tuple(A.ACTIONS) != tuple(requisition.ACTIONS):
-    fail.append("the report's actions must be the requisition's %s, so both workflows share them" % (requisition.ACTIONS,))
+if tuple(A.ACTIONS) != tuple(requisition.ACTIONS) + (A.CANCEL,) or A.CANCEL != S.CANCEL:
+    fail.append("the report's actions must be the requisition's %s and the shortlist's Cancel, so the workflows share them"
+                % (requisition.ACTIONS,))
+report_status_of = {row["state"]: row.get("doc_status", "0") for row in A.STATES}
 for row in A.STATES:
     submits = row.get("doc_status", "0") == "1"
     if submits != (row["state"] == A.APPROVED):
         fail.append("only Approved may submit the report (doc_status 1), not %s" % row["state"])
+    if (row.get("doc_status") == "2") != (row["state"] == A.CANCELLED):
+        fail.append("only Cancelled cancels the report (doc_status 2), not %s" % row["state"])
     emails = row["state"] in (A.PENDING_HRM, A.PENDING_ED)
     if bool(row["send_email"]) != emails:
         fail.append("%s must %ssend email: only a step waiting on an approver emails them" % (row["state"], "" if emails else "not "))
+for t in A.TRANSITIONS:
+    moves = (report_status_of.get(t["state"]), report_status_of.get(t["next_state"]))
+    if moves[0] == "2" or moves == ("1", "0") or moves == ("0", "2"):
+        fail.append("Frappe's Workflow refuses %s --%s--> %s (doc_status %s to %s)" % (t["state"], t["action"], t["next_state"], *moves))
 for state in (A.DRAFT, A.REJECTED):
     if {row["allow_edit"] for row in A.STATES if row["state"] == state} != set(A.PREPARERS):
         fail.append("%s must be editable by every preparer %s (the 'not editable due to a Workflow' lock-out)" % (state, A.PREPARERS))
@@ -672,8 +855,10 @@ if walk(A.PENDING_ED, ["HR Manager"]) or walk(A.PENDING_ED, ["HR User"]):
     fail.append("only the Executive Director may act on a report forwarded to them")
 if walk(A.PENDING_ED, ["Executive Director"]) != {A.APPROVE: A.APPROVED, A.REJECT: A.REJECTED}:
     fail.append("the Executive Director approves or rejects the report")
-if walk(A.APPROVED, ["HR Manager", "HR User", "Executive Director", "System Manager"]):
-    fail.append("an approved report is final")
+if walk(A.APPROVED, ["HR User", "Executive Director", "System Manager"]) or walk(A.APPROVED, ["HR Manager"]) != {A.CANCEL: A.CANCELLED}:
+    fail.append("an approved report is final: only the HR Manager may cancel it, through the workflow")
+if walk(A.CANCELLED, ["HR Manager", "HR User", "Executive Director", "System Manager"]):
+    fail.append("a cancelled report is final (amend it for a new one)")
 if walk(A.REJECTED, ["HR User"]) != {A.REVISE: A.DRAFT} or walk(A.REJECTED, ["HR Manager"]) != {A.REVISE: A.DRAFT}:
     fail.append("a rejected report goes back to HR to revise")
 
@@ -753,6 +938,8 @@ rep_perms = {p["role"]: p for p in rep.get("permissions", [])}
 for role in A.PREPARERS:
     if not all((rep_perms.get(role) or {}).get(k) for k in ("read", "write", "create")):
         fail.append("%s prepares reports, so needs read, write and create on Interview Report" % role)
+if not (rep_perms.get(A.CANCELLER) or {}).get("cancel"):
+    fail.append("the %s cancels approved reports, so needs cancel on Interview Report" % A.CANCELLER)
 rc = doctype_json("Interview Report Candidate")
 rc_fields = fields_of(rc)
 if [o for o in (rc_fields.get("decision") or {}).get("options", "").split("\n") if o] != list(rules.RECOMMENDATIONS):
@@ -846,6 +1033,118 @@ if UPSTREAM_OK:
     if "def create_custom_field_for_workflow_state" not in workflow_py or "if not meta.get_field(self.workflow_state_field)" not in workflow_py:
         fail.append("Frappe's Workflow changed how it adds the state field: recheck Interview Report.workflow_state")
 print("report: approval walked end to end, sign-offs, panel summary, checks, doctypes, results, form script and print format resolve")
+
+# ── 9b. Closing the loop: the approved report's interviews, applicants and offers
+asa = rules.applicant_status_after
+if set(rules.APPLICANT_STATUSES) != set(rules.RECOMMENDATIONS):
+    fail.append("every decision on the report must say what becomes of the applicant: %s" % (rules.APPLICANT_STATUSES,))
+for decision, current, after, why in (
+        ("Offer", "Shortlisted", "Accepted", "an offer marks the applicant Accepted, as HRMS does for a cleared interview"),
+        ("Reject", "Shortlisted", "Rejected", "a rejection marks the applicant Rejected"),
+        ("Shortlist", "Hold", "Shortlisted", "Shortlist means another interview, so the applicant is Shortlisted"),
+        ("Shortlist", "Shortlisted", None, "an applicant already Shortlisted is left alone"),
+        ("Offer", "Open", "Accepted", "an applicant added by hand, never shortlisted, still moves on"),
+        ("Reject", "Accepted", None, "an applicant already Accepted (by a Job Offer, say) keeps it"),
+        ("Offer", "Rejected", None, "an applicant already Rejected keeps it"),
+        ("", "Shortlisted", None, "no decision moves nobody"),
+        (None, "Open", None, "no decision moves nobody")):
+    if asa(decision, current) != after:
+        fail.append("%s: applicant_status_after(%r, %r) is %r" % (why, decision, current, asa(decision, current)))
+plan = rules.offer_plan([
+    {"job_applicant": "A", "decision": "Offer"}, {"job_applicant": "B", "decision": "Offer", "job_offer": "JO-B"},
+    {"job_applicant": "C", "decision": "Offer", "job_offer": "JO-OLD"}, {"job_applicant": "D", "decision": "Reject"},
+    {"job_applicant": "E", "decision": "Shortlist"}, {"job_applicant": "F", "decision": "Offer"}, {"job_applicant": "", "decision": "Offer"},
+], {"B": "JO-B", "D": "JO-D", "F": "JO-F"})
+if plan != (["A", "C"], [("F", "JO-F")]):
+    fail.append("offers: a draft for each Offer with no live offer (a cancelled one does not count), a link to the offer a candidate "
+                "already has, nothing for a row already linked or not offered the job: %s" % (plan,))
+if rules.offer_plan([], {}) != ([], []) or rules.offer_plan(None, None) != ([], []):
+    fail.append("a report with no candidates makes no offers")
+
+jo = rc_fields.get("job_offer") or {}
+if (jo.get("fieldtype"), jo.get("options")) != ("Link", "Job Offer") or not (jo.get("read_only") and jo.get("allow_on_submit") and jo.get("no_copy")):
+    fail.append("Interview Report Candidate.job_offer is set after approval: a read-only Link to Job Offer, settable after submit, not copied")
+if not re.search(r"def on_submit\(self\):\n        interviews\.close_report\(self\)",
+                 read("hrms_addon", "hrms_addon", "doctype", "interview_report", "interview_report.py")) or "def close_report(doc):" not in glue:
+    fail.append("Interview Report on_submit (the approval) must call interviews.close_report")
+close_body = glue.split("def close_report(")[-1].split("\ndef ")[0]
+close_one = glue.split("def _close_interview(")[-1].split("\ndef ")[0]
+offers_body = glue.split("def create_job_offers(")[-1].split("\ndef ")[0]
+for body, needle, why in (
+    (close_body, "result = rules.result_for(row.decision)", "must close each interview with the tested result for its decision"),
+    (close_body, "rules.applicant_status_after(row.decision, current)", "must move applicants on with the tested rules"),
+    (close_body, 'frappe.db.set_value("Job Applicant", row.job_applicant, "status", status)', "must set the applicant's new status"),
+    (close_body, "doc.add_comment(", "must leave HR a note of the interviews it could not close"),
+    (close_body, "escape_html(reason)", "must escape the reasons an interview could not be closed"),
+    (close_one, 'if interview.docstatus != 0 or interview.status == "Cancelled":\n        return None',
+     "must leave an interview closed or cancelled by hand alone"),
+    (close_one, "interview.flags.ignore_permissions = True", "must close interviews for the approver, who need not have rights on them"),
+    (close_one, 'frappe.db.rollback(save_point="hrms_addon_close_interview")', "must undo a refused interview and carry on"),
+    (close_one, "frappe.flags.mute_messages = True", "must keep HRMS's per-interview prompt from the approver"),
+    (close_one, "finally:\n        frappe.flags.mute_messages = muted", "must restore messages however the submit ends"),
+    (offers_body, 'doc.check_permission("read")', "must check the user may read the report"),
+    (offers_body, 'frappe.has_permission("Job Offer", "create", throw=True)', "must check the user may create Job Offers"),
+    (offers_body, "if doc.docstatus != 1:", "must make offers only from an approved report"),
+    (offers_body, '"docstatus": ["!=", 2]', "must count the offers HRMS counts: any not cancelled"),
+    (offers_body, "rules.offer_plan(doc.candidates, existing)", "must plan the offers with the tested rules"),
+    (offers_body, 'frappe.db.rollback(save_point="hrms_addon_job_offer")', "must undo a refused offer and carry on with the rest"),
+    (offers_body, 'row.db_set("job_offer", offer.name)', "must link each candidate to the offer made"),
+    (offers_body, 'rows[applicant].db_set("job_offer", offer)', "must link a candidate to the offer they already have"),
+):
+    if needle not in body:
+        fail.append("interviews.py %s" % why)
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\s*\ndef create_job_offers\(', glue):
+    fail.append("interviews.create_job_offers must be whitelisted for POST")
+offer_given = set(re.findall(r'"(\w+)": ', offers_body.split('"doctype": "Job Offer",')[-1].split("})")[0]))
+for needle, why in (
+    ('.xcall("hrms_addon.hrms_addon.interviews.create_job_offers", { report: frm.doc.name })', "must make the offers through interviews.create_job_offers"),
+    ('row.decision === "Offer" && !row.job_offer', "must count the Offers still without a Job Offer"),
+    ('frm.doc.docstatus === 1 && unoffered.length && frappe.model.can_create("Job Offer")',
+     "must offer Create Job Offers only on an approved report, to someone who can create them"),
+    ("frappe.utils.escape_html(reason)", "must escape the reasons an offer was refused"),
+):
+    if needle not in rjs:
+        fail.append("interview_report.js %s" % why)
+
+if UPSTREAM_OK:
+    interview_py = upstream("hrms", "hr", "doctype", "interview", "interview.py")
+    if 'if self.status not in ["Cleared", "Rejected"]:' not in interview_py:
+        fail.append("HRMS's Interview no longer submits only Cleared or Rejected: recheck close_report")
+    if 'status_map = {"Cleared": "Accepted", "Rejected": "Rejected"}' not in interview_py:
+        fail.append("HRMS no longer marks a cleared interview's applicant Accepted: recheck APPLICANT_STATUSES")
+    applicant_statuses = set((fields_of(json.loads(upstream("hrms", "hr", "doctype", "job_applicant", "job_applicant.json"))).get("status") or {})
+                             .get("options", "").split("\n"))
+    if not set(rules.APPLICANT_STATUSES.values()) <= applicant_statuses:
+        fail.append("HRMS's Job Applicant has no status %s any more" % sorted(set(rules.APPLICANT_STATUSES.values()) - applicant_statuses))
+    if '{"job_applicant": self.job_applicant, "docstatus": ["!=", 2]}' not in upstream("hrms", "hr", "doctype", "job_offer", "job_offer.py"):
+        fail.append("HRMS changed which Job Offers count against an applicant: recheck create_job_offers")
+    offer_fields = fields_of(json.loads(upstream("hrms", "hr", "doctype", "job_offer", "job_offer.json")))
+    for fieldname, f in offer_fields.items():
+        if f.get("reqd") and not f.get("fetch_from") and fieldname not in offer_given:
+            fail.append("HRMS's Job Offer requires %s, which create_job_offers does not set" % fieldname)
+    for fieldname in offer_given - set(offer_fields):
+        fail.append("create_job_offers sets Job Offer.%s, which HRMS does not have" % fieldname)
+
+# The shortlist and the report record the Interviews and Job Offers made from
+# them; they must not stop HR cancelling one to correct it
+for doctype in ("Interview", "Job Offer"):
+    if not re.search(r'"%s": \{[^}]*"on_cancel": "hrms_addon\.hrms_addon\.interviews\.unblock_cancel"' % doctype, hook_block("doc_events")):
+        fail.append("doc_events must run interviews.unblock_cancel on %s on_cancel, or the shortlist and report block its correction" % doctype)
+exempted = re.search(r"^auto_cancel_exempted_doctypes = \[([^\]]*)\]", hooks, re.M)
+if not exempted or set(re.findall(r'"([^"]+)"', exempted.group(1))) != {"Interview Shortlist", "Interview Report"}:
+    fail.append("auto_cancel_exempted_doctypes must keep the shortlist and the report out of Frappe's Cancel All")
+if 'RECORDS = ("Interview Shortlist", "Interview Report")' not in glue \
+        or 'doc.ignore_linked_doctypes = tuple(doc.get("ignore_linked_doctypes") or ()) + RECORDS' not in glue:
+    fail.append("interviews.unblock_cancel must add the shortlist and the report to ignore_linked_doctypes, keeping any it has")
+if UPSTREAM_OK:
+    if 'if method == "Cancel" and (doc_ignore_flags := doc.get("ignore_linked_doctypes")):' not in upstream("frappe", "model", "delete_doc.py"):
+        fail.append("Frappe's cancel link check no longer reads ignore_linked_doctypes: recheck unblock_cancel")
+    if 'frappe.get_hooks("auto_cancel_exempted_doctypes")' not in upstream("frappe", "desk", "form", "linked_with.py"):
+        fail.append("Frappe's Cancel All no longer reads auto_cancel_exempted_doctypes")
+    if 'elif self._action == "cancel":\n\t\t\tself.run_method("on_cancel")\n\t\t\tself.check_no_back_links_exist()' \
+            not in upstream("frappe", "model", "document.py"):
+        fail.append("Frappe no longer runs on_cancel before its link check: recheck unblock_cancel")
+print("closing the loop: interviews closed and applicants moved on at approval, one draft Job Offer per Offer, rights and HRMS contract checked")
 
 # ── 10. Where HR finds it: the Recruitment workspace ─────────────────
 import ast

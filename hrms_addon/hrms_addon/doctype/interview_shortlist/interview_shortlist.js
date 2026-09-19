@@ -5,8 +5,16 @@
 // interview, laid out like Luuka's shortlist sheet. The server writes each
 // applicant out from their Bio-Data (hrms_addon/hrms_addon/interviews.py):
 // education, work experience, and certifications and licences.
+//
+// HR screens it and shares it with the HOD, who does the second and final
+// screening (the Workflow's buttons, interview_shortlist_approval.py). HR
+// builds the list; while it is with the HOD they only remove candidates and
+// add remarks, so Get Applicants is HR's alone, and each screener writes
+// only their own remarks.
 
 const HA_SHORTLIST_METHODS = "hrms_addon.hrms_addon.interviews.";
+const HA_HR_STATES = ["Draft", "Returned to HR"];
+const HA_HOD_STATE = "Pending HOD Screening";
 
 frappe.ui.form.on("Interview Shortlist", {
 	setup(frm) {
@@ -16,14 +24,19 @@ frappe.ui.form.on("Interview Shortlist", {
 		}));
 	},
 	refresh(frm) {
-		if (frm.doc.docstatus === 0 && frm.doc.job_opening) {
+		const with_hr = !frm.doc.workflow_state || HA_HR_STATES.includes(frm.doc.workflow_state);
+		const with_hod = frm.doc.workflow_state === HA_HOD_STATE;
+		frm.toggle_enable("hod_comments", with_hod);
+		frm.fields_dict.candidates.grid.toggle_enable("hr_remarks", with_hr);
+		frm.fields_dict.candidates.grid.toggle_enable("hod_remarks", with_hod);
+		if (frm.doc.docstatus === 0 && frm.doc.job_opening && with_hr) {
 			frm.add_custom_button(__("Get Applicants"), () => ha_get_applicants(frm));
 			if ((frm.doc.candidates || []).length) {
 				frm.add_custom_button(__("Refresh Details"), () => ha_refresh_details(frm));
 			}
 		}
 		const unscheduled = (frm.doc.candidates || []).filter((row) => !row.interview);
-		if (frm.doc.docstatus === 1 && unscheduled.length) {
+		if (frm.doc.docstatus === 1 && unscheduled.length && frappe.model.can_create("Interview")) {
 			frm.add_custom_button(__("Schedule Interviews"), () => ha_schedule_interviews(frm, unscheduled.length));
 		}
 	},

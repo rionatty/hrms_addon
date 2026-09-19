@@ -223,6 +223,9 @@ after_migrate = [
     # Interview Report approval (through the HR Manager to the Executive
     # Director), built the same way. See interview_report_approval.py.
     "hrms_addon.hrms_addon.interviews.setup_report_workflow_on_migrate",
+    # Interview Shortlist screening: HR, then the HOD's second and final
+    # screening. See interview_shortlist_approval.py.
+    "hrms_addon.hrms_addon.interviews.setup_shortlist_workflow_on_migrate",
 ]
 
 # Fixtures
@@ -500,6 +503,15 @@ doc_events = {
         # Score sheet (LPL/HR/17): totals, rating and result from the scores
         "validate": "hrms_addon.hrms_addon.interviews.feedback_validate",
     },
+    "Interview": {
+        # Cancelling a submitted interview to correct it: the shortlist and the
+        # report that list it are records of it, not dependants
+        "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
+    },
+    "Job Offer": {
+        # the same for an offer made from an approved Interview Report
+        "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
+    },
 }
 
 # Scheduled Tasks
@@ -542,7 +554,11 @@ override_whitelisted_methods = {
 
 # exempt linked doctypes from being automatically cancelled
 #
-# auto_cancel_exempted_doctypes = ["Auto Repeat"]
+# The Interview Shortlist and the Interview Report list the Interviews and Job
+# Offers made from them. Cancelling one of those must not offer to cancel the
+# shortlist or the approved report as well (interviews.unblock_cancel then
+# lets the cancel through).
+auto_cancel_exempted_doctypes = ["Interview Shortlist", "Interview Report"]
 
 # Ignore links to specified DocTypes when deleting documents
 # -----------------------------------------------------------

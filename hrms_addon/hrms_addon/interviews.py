@@ -24,8 +24,12 @@ scripts/verify_interviews.py). This wires them into HRMS:
 
 and the Interview Shortlist (one per Job Opening, like Luuka's shortlist sheet):
 
-  validate_shortlist / mark_shortlisted / unmark_shortlisted
-                       its controller's validate, on_submit and on_cancel
+  validate_shortlist / shortlist_on_update / mark_shortlisted / unmark_shortlisted
+                       its controller's validate, on_update, on_submit and
+                       on_cancel: HR screens and shares it with the HOD, whose
+                       approval submits it (interview_shortlist_approval.py)
+  setup_shortlist_workflow_on_migrate
+                       after_migrate: that screening workflow
   get_shortlist_candidates / get_candidate_details
                        applicants written out from their Bio-Data (Get
                        Applicants, Refresh Details)
@@ -36,9 +40,15 @@ and the Interview Report (one per Job Opening and interview day):
 
   validate_report      its controller's validate: complete once past Draft, and
                        the sign-off block filled as the approvers act
+  close_report         its controller's on_submit (the approval): the day's
+                       interviews closed with the panel's decisions and the
+                       applicants moved on
   get_interview_results
                        the day's panel and candidates, with the score sheets
                        averaged and counted (Get Interview Results)
+  create_job_offers    a draft Job Offer for each candidate offered the job
+  unblock_cancel       Interview and Job Offer on_cancel: the shortlist and the
+                       report that list them do not stop a correction
   setup_report_workflow_on_migrate
                        after_migrate: its approval workflow, from
                        interview_report_approval.py
@@ -46,10 +56,11 @@ and the Interview Report (one per Job Opening and interview day):
 
 import frappe
 from frappe import _
-from frappe.utils import today
+from frappe.utils import escape_html, today
 
 from hrms_addon.hrms_addon import interview_report_approval as approval
 from hrms_addon.hrms_addon import interview_rules as rules
+from hrms_addon.hrms_addon import interview_shortlist_approval as screening
 from hrms_addon.hrms_addon import workflows
 
 
@@ -115,15 +126,59 @@ def get_skill_wise_average_rating(interview: str) -> list[dict]:
 
 
 def validate_shortlist(doc):
-    """Interview Shortlist validate: every applicant once, each one of this opening's."""
+    """Interview Shortlist validate: every applicant once, each one of this opening's,
+    the HOD named before it is shared (the requisition's HOD unless changed), their
+    reason given when they return it, and the screening sign-offs as each screener acts."""
+    if not doc.get("head_of_department") and doc.get("job_opening"):
+        requisition = frappe.db.get_value("Job Opening", doc.job_opening, "job_requisition")
+        if requisition:
+            doc.head_of_department = frappe.db.get_value("Job Requisition", requisition, "custom_hod")
+
+    before = doc.get_doc_before_save()
+    old_state = before.get(screening.STATE_FIELD) if before else None
+    new_state = doc.get(screening.STATE_FIELD)
     applicants = [row.job_applicant for row in doc.candidates if row.job_applicant]
     opening_of = dict(
         frappe.get_all("Job Applicant", filters={"name": ["in", applicants]}, fields=["name", "job_title"], as_list=True)
     ) if applicants else {}
     errors = rules.shortlist_errors(doc.job_opening, doc.candidates, opening_of, submitting=doc.docstatus == 1)
+    errors += screening.screening_errors(old_state, new_state, doc.get("head_of_department"), doc.get("hod_comments"))
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Interview Shortlist"))
     doc.candidate_count = len(doc.candidates)
+
+    current = {field: before.get(field) for field in screening.STAMP_FIELDS} if before else {}
+    for field, value in screening.compute_stamps(old_state, new_state, frappe.session.user, today(), current).items():
+        doc.set(field, value)
+
+
+def shortlist_on_update(doc):
+    """When the shortlist moves on, only the person who acts next is told: the HOD
+    it is shared with, or back to whoever prepared it when the HOD returns it."""
+    before = doc.get_doc_before_save()
+    old_state = before.get(screening.STATE_FIELD) if before else None
+    new_state = doc.get(screening.STATE_FIELD)
+    if old_state == new_state:
+        return
+    from frappe.desk.form.assign_to import _add, close_all_assignments
+
+    close_all_assignments(doc.doctype, doc.name, ignore_permissions=True)
+    user = screening.assignee(old_state, new_state, doc.get("head_of_department"), doc.owner)
+    if user:
+        _add(
+            {
+                "assign_to": [user],
+                "doctype": doc.doctype,
+                "name": doc.name,
+                "description": _("Interview shortlist for {0}: {1}").format(doc.designation or doc.job_opening, _(new_state)),
+            },
+            ignore_permissions=True,
+        )
+
+
+def setup_shortlist_workflow_on_migrate():
+    """after_migrate: the shortlist's screening workflow (workflows.py)."""
+    workflows.setup_on_migrate(screening, "Interview Shortlist screening")
 
 
 @frappe.whitelist()
@@ -313,6 +368,121 @@ def get_interview_results(job_opening: str, interview_date: str) -> dict:
             "interview": interview.name,
         })
     return {"panel": panel, "candidates": candidates}
+
+
+def close_report(doc):
+    """Interview Report on_submit, the Executive Director's approval: each interview
+    closed with the panel's decision (Cleared or Rejected, as on the score sheets)
+    and each applicant still undecided moved on: Accepted for an offer,
+    Shortlisted to be interviewed again, Rejected.
+
+    Runs as the approver, who need not have rights on Interviews. An interview
+    already closed or cancelled by hand is left alone, and one HRMS refuses to
+    close is noted on the report for HR while the rest still go ahead.
+    """
+    refused = []
+    for row in doc.candidates:
+        result = rules.result_for(row.decision)
+        if row.interview and result:
+            problem = _close_interview(row.interview, result)
+            if problem:
+                refused.append("%s (%s): %s" % (row.applicant_name or row.job_applicant, row.interview, problem))
+        current = frappe.db.get_value("Job Applicant", row.job_applicant, "status")
+        status = rules.applicant_status_after(row.decision, current)
+        if status:
+            frappe.db.set_value("Job Applicant", row.job_applicant, "status", status)
+    if refused:
+        message = _("These interviews could not be closed; close them from the Interview:") + "<br>" + "<br>".join(
+            escape_html(reason) for reason in refused
+        )
+        doc.add_comment("Comment", message)
+        frappe.msgprint(message, title=_("Interviews"), indicator="orange")
+
+
+def _close_interview(name, result):
+    """Submit one draft Interview with its result. Returns why HRMS refused, or None."""
+    interview = frappe.get_doc("Interview", name)
+    # closed, cancelled, or marked Cancelled by HR (a no-show, say): theirs to keep
+    if interview.docstatus != 0 or interview.status == "Cancelled":
+        return None
+    interview.status = result
+    interview.flags.ignore_permissions = True
+    frappe.db.savepoint("hrms_addon_close_interview")
+    # HRMS asks on every submit whether to update the applicant; close_report does that
+    muted = frappe.flags.mute_messages
+    frappe.flags.mute_messages = True
+    try:
+        interview.submit()
+    except frappe.ValidationError as error:
+        frappe.db.rollback(save_point="hrms_addon_close_interview")
+        return str(error)
+    finally:
+        frappe.flags.mute_messages = muted
+    return None
+
+
+@frappe.whitelist(methods=["POST"])
+def create_job_offers(report: str) -> dict:
+    """A draft Job Offer for each candidate the approved report offers the job, for
+    HR to fill in the terms and send; a candidate who already has one is linked to it.
+
+    Each offer is made on its own, so one HRMS refuses (no vacancy left under the
+    staffing plan, say) is reported and the rest still go ahead.
+    """
+    doc = frappe.get_doc("Interview Report", report)
+    doc.check_permission("read")
+    frappe.has_permission("Job Offer", "create", throw=True)
+    if doc.docstatus != 1:
+        frappe.throw(_("Job Offers are made once the report is approved."))
+    applicants = [row.job_applicant for row in doc.candidates if row.job_applicant]
+    existing = dict(
+        frappe.get_all(
+            "Job Offer",
+            filters={"job_applicant": ["in", applicants], "docstatus": ["!=", 2]},
+            fields=["job_applicant", "name"],
+            as_list=True,
+        )
+    ) if applicants else {}
+    to_create, to_link = rules.offer_plan(doc.candidates, existing)
+    rows = {row.job_applicant: row for row in doc.candidates}
+    company = frappe.db.get_value("Job Opening", doc.job_opening, "company")
+
+    created, linked, refused = [], [], []
+    for applicant, offer in to_link:
+        rows[applicant].db_set("job_offer", offer)
+        linked.append(offer)
+    for applicant in to_create:
+        row = rows[applicant]
+        offer = frappe.get_doc({
+            "doctype": "Job Offer",
+            "job_applicant": applicant,
+            "offer_date": today(),
+            "company": company,
+            "designation": doc.designation,
+        })
+        frappe.db.savepoint("hrms_addon_job_offer")
+        try:
+            offer.insert()
+        except frappe.ValidationError as error:
+            frappe.db.rollback(save_point="hrms_addon_job_offer")
+            frappe.clear_messages()
+            refused.append("%s: %s" % (row.applicant_name or applicant, error))
+            continue
+        row.db_set("job_offer", offer.name)
+        created.append(offer.name)
+    return {"created": created, "linked": linked, "refused": refused}
+
+
+# Documents that record the Interviews and Job Offers made from them (hooks.py
+# auto_cancel_exempted_doctypes lists them too)
+RECORDS = ("Interview Shortlist", "Interview Report")
+
+
+def unblock_cancel(doc, method=None):
+    """Interview and Job Offer on_cancel: the shortlist and the report list the
+    interviews and offers made from them, as records, so cancelling one to
+    correct it does not need the approved shortlist or report cancelled first."""
+    doc.ignore_linked_doctypes = tuple(doc.get("ignore_linked_doctypes") or ()) + RECORDS
 
 
 def setup_report_workflow_on_migrate():

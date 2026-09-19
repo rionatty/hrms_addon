@@ -16,3 +16,4 @@ hrms_addon.patches.v1_0.restore_requisition_connections_tab
 hrms_addon.patches.v1_0.seed_districts_and_languages
 hrms_addon.patches.v1_0.seed_interview_criteria
 hrms_addon.patches.v1_0.seed_qualification_types
+hrms_addon.patches.v1_0.shortlist_status_from_docstatus

@@ -414,6 +414,50 @@ def report_errors(candidates, recommendations, complete):
     return errors
 
 
+# What the approved report makes of each applicant (Job Applicant.status):
+# HRMS marks a cleared interview's applicant Accepted and a rejected one
+# Rejected (Interview.get_job_applicant_status), and Shortlist means another
+# interview. The Job Offer moves them on from there.
+APPLICANT_STATUSES = {"Offer": "Accepted", "Shortlist": "Shortlisted", "Reject": "Rejected"}
+
+
+def applicant_status_after(decision, current):
+    """An applicant's status once the report is approved, or None to leave it.
+
+    Only an applicant still undecided moves: one already Accepted or Rejected
+    (by a Job Offer, say, or by hand) keeps their status.
+    """
+    status = APPLICANT_STATUSES.get(_text(decision))
+    if not status or current not in SHORTLISTABLE_STATUSES or current == status:
+        return None
+    return status
+
+
+def offer_plan(rows, existing):
+    """Who on an approved report gets a Job Offer: the panel's Offer decisions.
+
+    rows:     the report's candidates (job_applicant, decision, job_offer).
+    existing: {applicant: offer} for each applicant who already has a Job
+              Offer that is not cancelled (HRMS allows one).
+    Returns (to_create, to_link): applicants who need a draft offer, and
+    [(applicant, offer)] rows to point at the offer they already have. A row
+    already pointing at its live offer is left alone.
+    """
+    to_create, to_link = [], []
+    for row in rows or []:
+        applicant = _get(row, "job_applicant")
+        if _get(row, "decision") != "Offer" or not applicant:
+            continue
+        offer = (existing or {}).get(applicant)
+        if offer and _get(row, "job_offer") == offer:
+            continue
+        if offer:
+            to_link.append((applicant, offer))
+        else:
+            to_create.append(applicant)
+    return to_create, to_link
+
+
 def _job_recency(row):
     """A job with no end is the current one; otherwise its end year, then its start year."""
     if not _text(_get(row, "to_year")) and _text(_get(row, "from_year")):

@@ -12,6 +12,13 @@ every migrate (interviews.setup_report_workflow_on_migrate).
     Draft --Submit for Approval--> Pending HR Manager --Approve--> Pending Executive Director
     Pending Executive Director --Approve--> Approved (submitted)
     Pending HR Manager / Pending Executive Director --Reject--> Rejected --Revise--> Draft
+    Approved --Cancel--> Cancelled (the HR Manager)
+
+Approval closes the day's interviews and moves each applicant on
+(interviews.close_report). Cancelling the report undoes neither: the
+interviews' results stand. The Cancel step exists because Frappe's own
+Cancel leaves a workflow's state as it was, so the report would go on
+showing Approved.
 """
 
 DOCTYPE = "Interview Report"
@@ -23,16 +30,21 @@ PENDING_HRM = "Pending HR Manager"
 PENDING_ED = "Pending Executive Director"
 APPROVED = "Approved"
 REJECTED = "Rejected"
+CANCELLED = "Cancelled"
 
 # The same action names as the requisition's, so both workflows share them
 SUBMIT = "Submit for Approval"
 APPROVE = "Approve"
 REJECT = "Reject"
 REVISE = "Revise"
-ACTIONS = (SUBMIT, APPROVE, REJECT, REVISE)
+# ... and the shortlist's
+CANCEL = "Cancel"
+ACTIONS = (SUBMIT, APPROVE, REJECT, REVISE, CANCEL)
 
 # Who prepares a report (the paper's "Prepared by"), edits it and sends it on
 PREPARERS = ("HR User", "HR Manager")
+# Who may cancel an approved report (the DocType gives only them cancel)
+CANCELLER = "HR Manager"
 
 # The requisition workflow creates this role too; ensured here as well so the
 # report does not depend on it
@@ -49,6 +61,7 @@ STATES = (
     {"state": APPROVED, "allow_edit": "Executive Director", "status": APPROVED, "style": "Success", "send_email": 0,
      "doc_status": "1"},
     *({"state": REJECTED, "allow_edit": role, "status": REJECTED, "style": "Danger", "send_email": 0} for role in PREPARERS),
+    {"state": CANCELLED, "allow_edit": CANCELLER, "status": CANCELLED, "style": "Danger", "send_email": 0, "doc_status": "2"},
 )
 
 TRANSITIONS = (
@@ -57,6 +70,7 @@ TRANSITIONS = (
     {"state": PENDING_HRM, "action": REJECT, "next_state": REJECTED, "allowed": "HR Manager"},
     {"state": PENDING_ED, "action": APPROVE, "next_state": APPROVED, "allowed": "Executive Director"},
     {"state": PENDING_ED, "action": REJECT, "next_state": REJECTED, "allowed": "Executive Director"},
+    {"state": APPROVED, "action": CANCEL, "next_state": CANCELLED, "allowed": CANCELLER},
     *({"state": REJECTED, "action": REVISE, "next_state": DRAFT, "allowed": role} for role in PREPARERS),
 )
 
