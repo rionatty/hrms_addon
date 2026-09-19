@@ -18,3 +18,5 @@ hrms_addon.patches.v1_0.seed_interview_criteria
 hrms_addon.patches.v1_0.seed_qualification_types
 hrms_addon.patches.v1_0.shortlist_status_from_docstatus
 hrms_addon.patches.v1_0.seed_branches
+hrms_addon.patches.v1_0.seed_onboarding
+hrms_addon.patches.v1_0.branch_on_applicants_and_offers

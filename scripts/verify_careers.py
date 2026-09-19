@@ -221,13 +221,21 @@ if mandatory != ["applicant_name", "email_id"] or first_page_mandatory != mandat
 # Family details (parents, next of kin) are collected at onboarding, on the
 # applicant's Bio-Data tab, not asked of every candidate on the portal
 ONBOARDING_ONLY = {"custom_parents", "custom_next_of_kin"}
+# The Branch is the Job Opening's (fetched, read-only): never asked
+FROM_THE_OPENING = {"custom_branch"}
 bio_fields = {fn for fn, f in applicant.items()
               if fn.startswith("custom_") and f["fieldtype"] not in ("Section Break", "Column Break", "Tab Break")
               and fn not in ("custom_bio_data_date", "custom_signed_bio_data")}
 on_form = {row.get("fieldname") for row in rows}
-missing = sorted(bio_fields - on_form - ONBOARDING_ONLY)
+missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING)
 if missing:
     fail.append("Bio-Data fields missing from the online form: %s" % missing)
+if FROM_THE_OPENING & on_form:
+    fail.append("the Branch comes from the Job Opening applied for; the portal must not ask it: %s"
+                % sorted(FROM_THE_OPENING & on_form))
+if (applicant.get("custom_branch") or {}).get("fetch_from") != "job_title.location" \
+        or not (applicant.get("custom_branch") or {}).get("read_only"):
+    fail.append("Job Applicant.custom_branch must be read-only, fetched from the Job Opening's Branch (job_title.location)")
 if ONBOARDING_ONLY & on_form:
     fail.append("family details are collected at onboarding, not on the portal: %s" % sorted(ONBOARDING_ONLY & on_form))
 if not ONBOARDING_ONLY <= set(applicant):

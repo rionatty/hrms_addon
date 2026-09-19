@@ -16,6 +16,11 @@ It also checks:
     Education and External Work History tables, or our fixtures; Marital
     Status offers exactly Employee's options; NIN, TIN and NSSF No. keep
     the Employee master-data template's fieldnames on both doctypes;
+  * the Employee's Personal Bio-Data tab (the Personal Bio-Data Form,
+    LPL/HR/16) shares the parent, next of kin and qualification tables with
+    Job Applicant, is filled from the candidate on hire (certifications and
+    licences apart from Education), and its print format only prints fields
+    that exist, escaped;
   * the two HRMS "Create Employee" methods the overrides wrap still exist;
   * hooks, patches and the print format resolve, and the print format
     only prints fields that exist, escaped.
@@ -125,7 +130,8 @@ print("pick lists: %d masters, %d fields link to them" % (len(rules.BIO_DATA_MAS
 
 # ── 2. Child tables ──────────────────────────────────────────────────
 EXPECTED_TABLE_FIELDS = {
-    "Applicant Parent": ["full_name", "relationship", "home_village", "home_district", "current_residence", "current_district", "phone"],
+    "Applicant Parent": ["full_name", "relationship", "occupation", "home_village", "home_district", "current_residence",
+                         "current_district", "phone"],
     "Applicant Next of Kin": ["full_name", "relationship", "company", "job_title", "phone", "email"],
     "Applicant Qualification": ["qualification_type", "institution", "period", "program", "award"],
     "Applicant School Result": ["examination_level", "subject", "grade"],
@@ -181,13 +187,14 @@ print("child tables: %d wired to Job Applicant, columns, grid width and classes 
 # ── 3. Carrying the bio-data onto Employee ───────────────────────────
 if list(rules.MARITAL_STATUSES) != [o for o in (ja_fields.get("custom_marital_status", {}).get("options") or "").split("\n") if o]:
     fail.append("Job Applicant.custom_marital_status options must be exactly bio_data_rules.MARITAL_STATUSES")
-if [f for f in TEMPLATE_STATUTORY_FIELDS if f not in ja_fields] or sorted(em_fields) != sorted(TEMPLATE_STATUTORY_FIELDS):
+if [f for f in TEMPLATE_STATUTORY_FIELDS if f not in ja_fields or f not in em_fields]:
     fail.append("NIN, TIN and NSSF No. must be %s on both Job Applicant and Employee (the master-data template's names)"
                 % TEMPLATE_STATUTORY_FIELDS)
 for fieldname in TEMPLATE_STATUTORY_FIELDS:
     if rules.EMPLOYEE_FIELDS.get(fieldname) != fieldname:
         fail.append("%s must carry over to the Employee field of the same name" % fieldname)
 
+glue_source_for_types = read("hrms_addon", "hrms_addon", "bio_data.py")
 employee = upstream_json("erpnext", "setup", "doctype", "employee", "employee.json")
 job_applicant = upstream_json("hrms", "hr", "doctype", "job_applicant", "job_applicant.json")
 education = upstream_json("erpnext", "setup", "doctype", "employee_education", "employee_education.json")
@@ -288,6 +295,9 @@ EXPECTED_SIMPLE = {
     "custom_nin": "CM94012345678P", "custom_tin": "1001234567", "custom_nssf_no": "NS123456789",
     "current_address": "Kawempe, Kampala", "permanent_address": "Kasangati, Wakiso",
     "person_to_be_contacted": "Namusoke Sarah", "relation": "Spouse", "emergency_phone_number": "0772000111",
+    # the Employee's Personal Bio-Data tab asks the same
+    "custom_home_village": "Kasangati", "custom_home_district": "Wakiso",
+    "custom_current_residence": "Kawempe", "custom_current_district": "Kampala",
 }
 for field, value in EXPECTED_SIMPLE.items():
     if values.get(field) != value:
@@ -339,6 +349,79 @@ if UPSTREAM_OK:
                 elif columns[key]["fieldtype"] == "Int" and not isinstance(value, int):
                     fail.append("carry-over writes %r into Int field %s.%s" % (value, spec_json["name"], key))
 print("carry-over: %d Employee fields filled from the form, blanks only, every target exists" % len(values))
+
+# ── 3b. The Employee's Personal Bio-Data tab (LPL/HR/16) ─────────────
+for child, columns in rules.TABLE_COLUMNS.items():
+    names = [f["fieldname"] for f in (doctype_json(child) or {}).get("fields", [])]
+    if list(columns) != names:
+        fail.append("bio_data_rules.TABLE_COLUMNS[%r] %s must be all of %s's columns %s" % (child, list(columns), child, names))
+for source, target in rules.EMPLOYEE_TABLES.items():
+    f = em_fields.get(target) or {}
+    if (f.get("fieldtype"), f.get("options")) != ("Table", rules.TABLES.get(source)):
+        fail.append("Employee.%s must be a Table of %s, like Job Applicant.%s" % (target, rules.TABLES.get(source), source))
+f = em_fields.get(rules.PROFESSIONAL_TABLE) or {}
+if (f.get("fieldtype"), f.get("options")) != ("Table", "Applicant Qualification"):
+    fail.append("Employee.%s must be a Table of Applicant Qualification" % rules.PROFESSIONAL_TABLE)
+f = em_fields.get("custom_children") or {}
+if (f.get("fieldtype"), f.get("options")) != ("Table", "Employee Child"):
+    fail.append("Employee.custom_children must be a Table of Employee Child")
+child_spec = doctype_json("Employee Child") or {}
+kid_fields = [(f["fieldname"], f["fieldtype"], bool(f.get("reqd"))) for f in child_spec.get("fields", [])]
+if kid_fields != [("full_name", "Data", True), ("date_of_birth", "Date", False)]:
+    fail.append("Employee Child must have a mandatory Name and a Date of Birth, has %s" % kid_fields)
+if not child_spec.get("istable") or child_spec.get("module") != "HRMS Addon" \
+        or not 0 < sum(f.get("columns") or 0 for f in child_spec.get("fields", []) if f.get("in_list_view")) <= 10:
+    fail.append("Employee Child must be an HRMS Addon child table that fits the grid")
+kid_py = os.path.join(APP, "doctype", "employee_child", "employee_child.py")
+if not os.path.exists(kid_py) or not re.search(r"^class EmployeeChild\(Document\):", open(kid_py, encoding="utf-8").read(), re.M) \
+        or not os.path.exists(os.path.join(APP, "doctype", "employee_child", "__init__.py")):
+    fail.append("Employee Child needs its controller class EmployeeChild and __init__.py")
+if (em_fields.get("custom_bio_data_signed_on") or {}).get("fieldtype") != "Date":
+    fail.append("Employee.custom_bio_data_signed_on (the date the form was signed) must be a Date: the onboarding checks it")
+
+# parents and next of kin carry over row by row; a next of kin with no name does not
+if values.get("custom_parents") != [
+    {"full_name": "Okello Peter", "relationship": "Father", "home_village": "Kasangati", "home_district": "Wakiso",
+     "current_residence": "Gayaza", "current_district": "Wakiso", "phone": "0701234567"},
+    {"full_name": "Akello Mary", "relationship": "Mother"},
+]:
+    fail.append("parent rows wrong: %s" % values.get("custom_parents"))
+if values.get("custom_next_of_kin") != [
+    {"full_name": "Namusoke Sarah", "relationship": "Spouse", "company": "Crane Bank", "job_title": "Teller",
+     "phone": "0772000111", "email": "sarah@example.com"},
+]:
+    fail.append("next of kin rows wrong (the row with no name must be left out): %s" % values.get("custom_next_of_kin"))
+if rules.PROFESSIONAL_TABLE in values:
+    fail.append("qualifications with no type stay in Education: %s" % values.get(rules.PROFESSIONAL_TABLE))
+
+# certifications and licences apart from the formal education, by the site's own types
+QUALIFICATIONS = [
+    {"qualification_type": "Academic", "institution": "Makerere University", "period": "2014 - 2017",
+     "program": "Bachelor of Commerce"},
+    {"qualification_type": "Professional Certification", "institution": "ICPAU", "period": "2020", "award": "CPA"},
+    {"qualification_type": "Membership", "institution": "IPPU", "award": "Member"},
+]
+routed = rules.employee_values(dict(FORM, custom_qualifications=QUALIFICATIONS, custom_school_results=[]))
+if routed.get(rules.PROFESSIONAL_TABLE) != [QUALIFICATIONS[1]]:
+    fail.append("a Professional Certification must go to the professional table: %s" % routed.get(rules.PROFESSIONAL_TABLE))
+if [row.get("school_univ") for row in routed.get("education", [])] != ["Makerere University", "IPPU"]:
+    fail.append("Education must keep the other qualifications only: %s" % routed.get("education"))
+routed = rules.employee_values(dict(FORM, custom_qualifications=QUALIFICATIONS, custom_school_results=[]), ("Membership",))
+if [row.get("institution") for row in routed.get(rules.PROFESSIONAL_TABLE, [])] != ["IPPU"] \
+        or [row.get("school_univ") for row in routed.get("education", [])] != ["Makerere University", "ICPAU"]:
+    fail.append("the site's own certification types (ticked on Qualification Type) must decide: %s / %s"
+                % (routed.get(rules.PROFESSIONAL_TABLE), routed.get("education")))
+if "is_certification" not in glue_source_for_types:
+    fail.append("bio_data.add_bio_data must pass the site's certification types (Qualification Type is_certification)")
+for target in list(rules.EMPLOYEE_TABLES.values()) + [rules.PROFESSIONAL_TABLE]:
+    child = (em_fields.get(target) or {}).get("options")
+    columns = {f["fieldname"] for f in (doctype_json(child) or {}).get("fields", [])}
+    for row in values.get(target, []) + dict(routed).get(target, []):
+        for key in row:
+            if key not in columns:
+                fail.append("carry-over writes %s.%s, which does not exist" % (child, key))
+print("Personal Bio-Data tab: shared tables wired, parents and next of kin carried, certifications apart, "
+      "Employee Child ready")
 
 # ── 4. Wiring ────────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "bio_data.py")
@@ -453,6 +536,52 @@ if raw:
 if len(PADDED) != 6:
     fail.append("print format should pad the six repeating sections to the paper form's rows, pads %s" % sorted(PADDED))
 print("print format: LPL/HR/19, balanced blocks, every printed field exists, text escaped")
+
+# ── 5b. Personal Bio-Data Form print (LPL/HR/16) on Employee ─────────
+pf_path = os.path.join(APP, "print_format", "personal_bio_data_form", "personal_bio_data_form.json")
+pf = json.load(open(pf_path, encoding="utf-8")) if os.path.exists(pf_path) else {}
+if (pf.get("doctype"), pf.get("name"), pf.get("doc_type"), pf.get("module"), pf.get("standard"), pf.get("print_format_type"),
+        pf.get("custom_format"), pf.get("disabled")) != ("Print Format", "Personal Bio-Data Form", "Employee", "HRMS Addon",
+                                                        "Yes", "Jinja", 1, 0):
+    fail.append("Personal Bio-Data Form must be a standard, enabled Jinja print format of Employee in HRMS Addon")
+html = pf.get("html") or ""
+for block in ("for", "if", "macro"):
+    opened = len(re.findall(r"{%-?\s*" + block + r"\b", html))
+    closed = len(re.findall(r"{%-?\s*end" + block + r"\b", html))
+    if opened != closed:
+        fail.append("Personal Bio-Data Form: %d {%% %s %%} but %d {%% end%s %%}" % (opened, block, closed, block))
+if html.count("{{") != html.count("}}") or html.count("{%") != html.count("%}"):
+    fail.append("Personal Bio-Data Form: unbalanced {{ }} or {% %}")
+for needle in ("LPL/HR/16", "PERSONAL BIO-DATA FORM", "passport size photographs", "Number of Children",
+               "Previous Work Experience", "true and correct to the best of my knowledge"):
+    if needle not in html:
+        fail.append("Personal Bio-Data Form must print %r, as the paper form does" % needle)
+if UPSTREAM_OK:
+    for fieldname in set(re.findall(r"\bdoc\.([a-z_]+)", html)):
+        if fieldname not in em_all:
+            fail.append("Personal Bio-Data Form uses Employee.%s, which does not exist" % fieldname)
+    # each loop prints only the columns of the table it walks
+    padded = dict(re.findall(r"set (\w+) = \(doc\.(\w+) or \[\]\) \+ \[\{\}\]", html))
+    padded.update({name: "custom_parents" for name in ("others", "father", "mother", "parents")})
+    tables = {"education": education, "external_work_history": work_history}
+    for variable, body in re.findall(r"for (?:\w+, )?row in (\w+|\[.*?\]) %}(.*?){%-? endfor", html, re.S):
+        table_field = padded.get(variable) or ("custom_parents" if "father" in variable else None)
+        options = (em_all.get(table_field) or {}).get("options")
+        spec_json = tables.get(table_field) or doctype_json(options or "")
+        if not spec_json:
+            fail.append("Personal Bio-Data Form loops over %s, which is no Employee table" % variable[:30])
+            continue
+        columns = {f["fieldname"] for f in spec_json["fields"]}
+        for attribute in set(re.findall(r"\brow\.([a-z_]+)", body)):
+            if attribute not in columns:
+                fail.append("Personal Bio-Data Form prints %s.%s, which does not exist" % (spec_json["name"], attribute))
+    if len({v for v in padded.values()}) != 6:
+        fail.append("Personal Bio-Data Form must pad the paper form's lists (next of kin, children, education, "
+                    "certificates, work) and print the parents: %s" % sorted(padded))
+raw = re.findall(r"{{-?\s*(?:doc|row)\.[a-z_]+", html)
+if raw:
+    fail.append("Personal Bio-Data Form must print text through v() so it is escaped: %s" % raw[:3])
+print("Personal Bio-Data Form: LPL/HR/16, balanced blocks, every printed field exists, text escaped")
 
 print()
 if fail:

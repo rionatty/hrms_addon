@@ -117,6 +117,10 @@ doctype_js = {
     # Submit Feedback opens the score sheet (LPL/HR/17) instead of HRMS's star dialog
     "Interview": "public/js/interview.js",
     "Interview Feedback": "public/js/interview_feedback.js",
+    # The onboarding fills itself from the candidate (onboarding.py); an
+    # accepted offer starts one
+    "Employee Onboarding": "public/js/employee_onboarding.js",
+    "Job Offer": "public/js/job_offer.js",
 }
 # doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -165,11 +169,14 @@ jinja = {
 #  - seed the pick lists (KRA form, Job Description tables, Bio-Data tab),
 #    see hrms_addon/pick_lists.py;
 #  - let HR User add Skills, see hrms_addon/bio_data.py;
-#  - seed the interview score sheet's criteria, see hrms_addon/interviews.py.
+#  - seed the interview score sheet's criteria, see hrms_addon/interviews.py;
+#  - seed the onboarding templates and the Workplace Rules and Regulations,
+#    see hrms_addon/onboarding.py.
 after_install = [
     "hrms_addon.hrms_addon.pick_lists.after_install",
     "hrms_addon.hrms_addon.bio_data.after_install",
     "hrms_addon.hrms_addon.interviews.after_install",
+    "hrms_addon.hrms_addon.onboarding.after_install",
 ]
 
 # Uninstallation
@@ -226,6 +233,9 @@ after_migrate = [
     # Interview Shortlist screening: HR, then the HOD's second and final
     # screening. See interview_shortlist_approval.py.
     "hrms_addon.hrms_addon.interviews.setup_shortlist_workflow_on_migrate",
+    # Employee Onboarding: started by the branch HR Officer, approved by the
+    # HR Manager. See onboarding_approval.py.
+    "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate",
 ]
 
 # Fixtures
@@ -365,6 +375,7 @@ fixtures = [
                     "KRA-custom_kpi_cb2",
                     "KRA-custom_source",
                     "KRA-custom_frequency",
+                    "Job Applicant-custom_branch",
                     "Job Applicant-custom_previous_salary",
                     "Job Applicant-custom_current_benefits",
                     "Job Applicant-custom_expected_benefits",
@@ -407,6 +418,46 @@ fixtures = [
                     "Employee-custom_nin",
                     "Employee-custom_tin",
                     "Employee-custom_nssf_no",
+                    "Employee-custom_place_of_birth",
+                    "Employee-custom_personal_bio_data_tab",
+                    "Employee-custom_residence_section",
+                    "Employee-custom_home_village",
+                    "Employee-custom_home_district",
+                    "Employee-custom_residence_cb",
+                    "Employee-custom_current_residence",
+                    "Employee-custom_current_division",
+                    "Employee-custom_current_district",
+                    "Employee-custom_spouse_section",
+                    "Employee-custom_spouse_name",
+                    "Employee-custom_spouse_cb",
+                    "Employee-custom_spouse_occupation",
+                    "Employee-custom_spouse_phone",
+                    "Employee-custom_parents_section",
+                    "Employee-custom_parents",
+                    "Employee-custom_next_of_kin_section",
+                    "Employee-custom_next_of_kin",
+                    "Employee-custom_children_section",
+                    "Employee-custom_children",
+                    "Employee-custom_bio_data_declaration_section",
+                    "Employee-custom_bio_data_signed_on",
+                    "Employee-custom_bio_data_declaration_cb",
+                    "Employee-custom_signed_bio_data_form",
+                    "Employee-custom_professional_section",
+                    "Employee-custom_professional_qualifications",
+                    "Job Offer-custom_branch",
+                    "Employee Onboarding-custom_branch",
+                    "Employee Onboarding-custom_onboarding_status",
+                    "Employee Onboarding-custom_hr_officer",
+                    "Employee Onboarding-custom_head_of_department",
+                    "Employee Onboarding-custom_orientation_section",
+                    "Employee Onboarding-custom_rules_signed_on",
+                    "Employee Onboarding-custom_orientation_cb",
+                    "Employee Onboarding-custom_signed_workplace_rules",
+                    "Employee Onboarding-custom_hrm_approval_section",
+                    "Employee Onboarding-custom_hrm_approved_by",
+                    "Employee Onboarding-custom_hrm_approved_on",
+                    "Employee Onboarding-custom_hrm_approval_cb",
+                    "Employee Onboarding-custom_hrm_remarks",
                     "Interview Feedback-custom_interviewer_designation",
                     "Interview Feedback-custom_evaluation_section",
                     "Interview Feedback-custom_scores",
@@ -455,6 +506,7 @@ fixtures = [
                     "Interview Feedback-section_break_7-label",
                     "Interview Feedback-feedback-label",
                     "Interview Feedback-main-default_print_format",
+                    "Employee Onboarding-main-default_print_format",
                     "Interview Type-expected_skill_set-reqd",
                     "Interview Type-expected_skill_set-hidden",
                     "Interview Type-expected_average_rating-description",
@@ -523,6 +575,17 @@ doc_events = {
     "Job Offer": {
         # the same for an offer made from an approved Interview Report
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
+    },
+    "Employee Onboarding": {
+        # Defaults from the candidate, the workflow step's checks and stamp,
+        # and each activity given to the branch's own people, not every
+        # holder of its role (onboarding.py)
+        "validate": "hrms_addon.hrms_addon.onboarding.validate",
+        # the steps after the start are updates after submit: no validate
+        "before_update_after_submit": "hrms_addon.hrms_addon.onboarding.before_update_after_submit",
+        # after Frappe HR made the tasks
+        "on_submit": "hrms_addon.hrms_addon.onboarding.after_tasks",
+        "on_update_after_submit": "hrms_addon.hrms_addon.onboarding.after_tasks",
     },
 }
 

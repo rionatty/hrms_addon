@@ -5,7 +5,8 @@
 
 The fields are fixtures (the Bio-Data tab) and the rules live in
 bio_data_rules.py. This checks the tab on save and carries it onto the
-Employee when the candidate is hired.
+Employee when the candidate is hired, with the placement (branch, employment
+type, offer date: onboarding.add_placement).
 
 Carrying over happens while the new Employee form is being built, not on
 its save: Employee requires Date of Birth and Gender, so the browser would
@@ -20,7 +21,7 @@ import frappe
 from frappe import _
 from frappe.utils import today
 
-from hrms_addon.hrms_addon import bio_data_rules
+from hrms_addon.hrms_addon import bio_data_rules, onboarding
 
 
 def validate(doc, method=None):
@@ -33,14 +34,16 @@ def validate(doc, method=None):
 def make_employee_from_job_offer(source_name, target_doc=None):
     from hrms.hr.doctype.job_offer.job_offer import make_employee
 
-    return add_bio_data(make_employee(source_name, target_doc), "Job Offer", source_name)
+    employee = add_bio_data(make_employee(source_name, target_doc), "Job Offer", source_name)
+    return onboarding.add_placement(employee, "Job Offer", source_name)
 
 
 @frappe.whitelist()
 def make_employee_from_onboarding(source_name, target_doc=None):
     from hrms.hr.doctype.employee_onboarding.employee_onboarding import make_employee
 
-    return add_bio_data(make_employee(source_name, target_doc), "Employee Onboarding", source_name)
+    employee = add_bio_data(make_employee(source_name, target_doc), "Employee Onboarding", source_name)
+    return onboarding.add_placement(employee, "Employee Onboarding", source_name)
 
 
 def add_bio_data(employee, source_doctype, source_name):
@@ -51,10 +54,12 @@ def add_bio_data(employee, source_doctype, source_name):
 
     applicant = frappe.get_doc("Job Applicant", job_applicant)
     meta = frappe.get_meta("Employee")
+    # the site's certification and licence types (ticked on the list)
+    certification_types = frappe.get_all("Qualification Type", filters={"is_certification": 1}, pluck="name")
     values = {
         field: value
-        for field, value in bio_data_rules.employee_values(applicant.as_dict()).items()
-        if meta.has_field(field)  # NIN, TIN and NSSF No. exist only once the fixtures are in
+        for field, value in bio_data_rules.employee_values(applicant.as_dict(), certification_types).items()
+        if meta.has_field(field)  # the custom fields exist only once the fixtures are in
     }
     for field, value in bio_data_rules.missing_values(employee.as_dict(), values).items():
         if isinstance(value, list):

@@ -15,6 +15,8 @@ for the Interview Report). This builds it on the site, on every migrate:
   TRANSITIONS     rows of state, action, next_state, allowed and, where a
                   route depends on the document, a condition on `doc`
   DOCTYPE, WORKFLOW_NAME, STATE_FIELD
+  STATUS_FIELD    optional: where the states' status goes when the doctype has
+                  no `status` field
 
 WHY PYTHON AND NOT FIXTURES
 
@@ -122,12 +124,14 @@ def _ensure_workflow_masters(rules):
 
 
 def _desired_states(rules):
+    # Each state writes its status into the document's `status`, or into the
+    # field the rules name when the doctype has none (Employee Onboarding)
     return [
         {
             "state": row["state"],
             "doc_status": row.get("doc_status", "0"),
             "allow_edit": row["allow_edit"],
-            "update_field": "status",
+            "update_field": getattr(rules, "STATUS_FIELD", "status"),
             "update_value": row["status"],
             "send_email": row["send_email"],
         }

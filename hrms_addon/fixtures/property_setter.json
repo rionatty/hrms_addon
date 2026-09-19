@@ -295,6 +295,16 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Employee Onboarding-main-default_print_format",
+  "doc_type": "Employee Onboarding",
+  "doctype_or_field": "DocType",
+  "property": "default_print_format",
+  "property_type": "Data",
+  "value": "Workplace Rules and Regulations",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
   "name": "Interview Type-expected_skill_set-reqd",
   "doc_type": "Interview Type",
   "doctype_or_field": "DocField",

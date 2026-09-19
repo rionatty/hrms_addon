@@ -9,8 +9,10 @@ exercise them without a bench.
 Candidates fill the paper form at the interview and the HR Officer enters
 it on the Job Applicant's Bio-Data tab. When the candidate is hired, the
 Employee created from the Job Offer or Employee Onboarding starts with what
-the form captured: employee_values() maps it onto Employee's own fields,
-missing_values() keeps anything already on the Employee.
+the form captured: employee_values() maps it onto Employee's own fields and
+its Personal Bio-Data tab (the Personal Bio-Data Form, LPL/HR/16, which
+reuses the parent, next of kin and qualification tables), missing_values()
+keeps anything already on the Employee.
 """
 
 import re
@@ -100,7 +102,25 @@ EMPLOYEE_FIELDS = {
     "custom_tin": "custom_tin",
     "custom_nssf_no": "custom_nssf_no",
     "custom_health_issues": "health_details",
+    # the Employee's Personal Bio-Data tab asks the same
+    "custom_home_village": "custom_home_village",
+    "custom_home_district": "custom_home_district",
+    "custom_current_residence": "custom_current_residence",
+    "custom_current_district": "custom_current_district",
 }
+
+# Job Applicant table -> the Employee table of the same child DocType, and
+# the columns a row carries
+EMPLOYEE_TABLES = {"custom_parents": "custom_parents", "custom_next_of_kin": "custom_next_of_kin"}
+TABLE_COLUMNS = {
+    "Applicant Parent": ("full_name", "relationship", "occupation", "home_village", "home_district",
+                         "current_residence", "current_district", "phone"),
+    "Applicant Next of Kin": ("full_name", "relationship", "company", "job_title", "phone", "email"),
+    "Applicant Qualification": ("qualification_type", "institution", "period", "program", "award"),
+}
+# Certifications, licences and memberships sit apart from the formal
+# education on the Employee, as on the Personal Bio-Data Form
+PROFESSIONAL_TABLE = "custom_professional_qualifications"
 
 # Frappe stores Data fields as varchar(140)
 DATA_MAX = 140
@@ -173,14 +193,18 @@ def bio_data_errors(applicant, today):
     return errors
 
 
-def employee_values(applicant):
+def employee_values(applicant, certification_types=CERTIFICATION_TYPES):
     """Employee fields and tables filled from a Job Applicant's bio-data.
 
     Returns {Employee field: value, or a list of row dicts for a table}.
     Empty values are left out, so applying the result can only fill in.
-    Everything the Employee has no place for (parents' home villages,
-    languages, reasons for leaving) stays on the Job Applicant, which the
+    Everything the Employee has no place for (languages, school results by
+    subject, reasons for leaving) stays on the Job Applicant, which the
     Employee links to.
+
+    certification_types: the Qualification Types that are certifications or
+    licences (the site's own, ticked on the list); those qualifications go to
+    the Employee's professional table, the rest to its Education.
     """
     values = {target: _get(applicant, source) for source, target in EMPLOYEE_FIELDS.items()}
     values["current_address"] = _joined(
@@ -197,8 +221,13 @@ def employee_values(applicant):
         values["emergency_phone_number"] = _get(kin, "phone")
 
     values["family_background"] = family_background(applicant)
-    values["education"] = education_rows(applicant)
+    values["education"] = education_rows(applicant, certification_types)
+    values[PROFESSIONAL_TABLE] = professional_rows(applicant, certification_types)
     values["external_work_history"] = work_history_rows(applicant)
+    for source, target in EMPLOYEE_TABLES.items():
+        columns = TABLE_COLUMNS[TABLES[source]]
+        values[target] = [_compact({column: _get(row, column) for column in columns})
+                          for row in _rows(applicant, source) if _get(row, "full_name")]
     return {field: value for field, value in values.items() if value not in (None, "", [])}
 
 
@@ -226,11 +255,14 @@ def family_background(applicant):
     return "\n".join(lines)
 
 
-def education_rows(applicant):
-    """Rows for Employee's Education table: one per qualification, then one
-    per examination level listing its subjects and grades."""
+def education_rows(applicant, certification_types=CERTIFICATION_TYPES):
+    """Rows for Employee's Education table: one per qualification that is not
+    a certification or licence, then one per examination level listing its
+    subjects and grades."""
     rows = []
     for row in _rows(applicant, "custom_qualifications"):
+        if _get(row, "qualification_type") in certification_types:
+            continue
         institution, program, award = _get(row, "institution"), _get(row, "program"), _get(row, "award")
         if not (institution or program or award):
             continue
@@ -253,6 +285,16 @@ def education_rows(applicant):
     for level, lines in results.items():
         rows.append({"qualification": _truncate(level), "maj_opt_subj": "\n".join(lines)})
     return rows
+
+
+def professional_rows(applicant, certification_types=CERTIFICATION_TYPES):
+    """Rows for the Employee's Professional Certificates and Memberships
+    table (Applicant Qualification rows, as they are): the qualifications
+    whose type is a certification or licence."""
+    columns = TABLE_COLUMNS["Applicant Qualification"]
+    return [_compact({column: _get(row, column) for column in columns})
+            for row in _rows(applicant, "custom_qualifications")
+            if _get(row, "qualification_type") in certification_types and _get(row, "institution")]
 
 
 def work_history_rows(applicant):

@@ -54,7 +54,7 @@ DOCFIELD_PROPERTIES = {
 DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
 # by these fixtures, but legitimately named in a field_order.
-RUNTIME_FIELDS = {"Job Requisition": {"workflow_state"}}
+RUNTIME_FIELDS = {"Job Requisition": {"workflow_state"}, "Employee Onboarding": {"workflow_state"}}
 
 fail = []
 
@@ -557,6 +557,8 @@ if by_dt.get(JA):
     # Salary history and expectation, on HRMS's own tab; the score sheet
     # (LPL/HR/17) prints them for every panel member
     SALARY_FIELDS = {"custom_previous_salary", "custom_current_benefits", "custom_expected_benefits", "custom_notice_period"}
+    # the opening's Branch, beside the Job Opening and Designation
+    DETAILS_FIELDS = {"custom_branch"}
     BIO_SECTIONS = [
         "Personal Information",
         "Parents' Details",
@@ -575,7 +577,7 @@ if by_dt.get(JA):
         if moved:
             fail.append("Job Applicant standard fields moved to another tab: %s" % moved)
         for fn in by_dt[JA]:
-            expected = "Salary Expectation" if fn in SALARY_FIELDS else "Bio-Data"
+            expected = "Salary Expectation" if fn in SALARY_FIELDS else "Details" if fn in DETAILS_FIELDS else "Bio-Data"
             if positions.get(fn, ("?",))[0] != expected:
                 fail.append("Job Applicant.%s lands in tab %r, expected %r" % (fn, positions.get(fn, ("?",))[0], expected))
         tabs = [fields[fn].get("label") for fn in order if fields[fn]["fieldtype"] == "Tab Break"]
@@ -590,6 +592,8 @@ if by_dt.get(JA):
                 before = order[order.index(fn) - 1]
                 if fields[before]["fieldtype"] != "Section Break" or positions[fn][2] != 0:
                     fail.append("Job Applicant.%s must open its own section, full width" % fn)
+        if "custom_branch" in order and order[order.index("custom_branch") - 1] != "designation":
+            fail.append("Job Applicant.custom_branch must follow Designation, beside the Job Opening")
     order, fields = simulate_layout(JA)
     print_layout(JA, order, fields)
     print()
@@ -612,27 +616,94 @@ if by_dt.get(IFB):
                 fail.append("Interview Feedback.%s must follow %s, follows %s" % (field, after, order[order.index(field) - 1]))
     print("Interview Feedback layout: details, the evaluation grid, the total, then suitability and the recommendation")
 
-# ── 6d. Employee — statutory numbers ─────────────────────────────────
+# ── 6d. Employee — statutory numbers, the Personal Bio-Data tab ──────
 EM = "Employee"
 if by_dt.get(EM):
     m = meta(EM)
     baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
+    ids = ["custom_nin", "custom_tin", "custom_nssf_no"]
+    # The Personal Bio-Data Form (LPL/HR/16) in its own order, after Personal
+    # Details; place of birth beside the date of birth; the professional
+    # certificates between Education and Previous Work Experience, as on the form
+    BIO_TAB = "Personal Bio-Data"
+    BIO_SECTIONS = ["Home and Residence", "Spouse", "Parents", "Next of Kin", "Children", "Declaration"]
+    ELSEWHERE = {"custom_place_of_birth": ("Overview", "date_of_birth"),
+                 "custom_professional_section": ("Profile", "education"),
+                 "custom_professional_qualifications": ("Profile", "custom_professional_section")}
     for hrms_first in (True, False):
         order, fields = simulate_layout(EM, hrms_first=hrms_first)
         positions = positions_of(order, fields)
         moved = sorted(fn for fn, where in baseline.items() if positions.get(fn, ("?",))[0] != where[0])
         if moved:
             fail.append("Employee standard fields moved to another tab: %s" % moved)
-        ids = ["custom_nin", "custom_tin", "custom_nssf_no"]
-        if sorted(by_dt[EM]) != sorted(ids):
-            fail.append("Employee custom fields %s, expected exactly %s" % (sorted(by_dt[EM]), ids))
         for fn in ids:
             if positions.get(fn) != ("Personal Details", "Identity & Statutory Numbers", 0):
                 fail.append("Employee.%s is at %s, expected Personal Details / Identity & Statutory Numbers, first column"
                             % (fn, positions.get(fn)))
         if [fn for fn in order if fn in ids + ["passport_number"]] != ids + ["passport_number"]:
             fail.append("Employee NIN, TIN and NSSF No. must come first in the section, before Passport Number")
-    print("Employee layout: NIN, TIN and NSSF No. open the Identity & Statutory Numbers section, nothing else moves")
+        tabs = [fields[fn].get("label") or fn for fn in order if fields[fn]["fieldtype"] == "Tab Break"]
+        if BIO_TAB not in tabs or tabs[tabs.index(BIO_TAB) - 1] != "Personal Details" or tabs[tabs.index(BIO_TAB) + 1] != "Profile":
+            fail.append("Employee tab %r must sit between Personal Details and Profile; tabs are %s" % (BIO_TAB, tabs))
+        for fn in by_dt[EM]:
+            if fn in ids:
+                continue
+            tab, after = ELSEWHERE.get(fn, (BIO_TAB, None))
+            if positions.get(fn, ("?",))[0] != tab:
+                fail.append("Employee.%s lands in tab %r, expected %r" % (fn, positions.get(fn, ("?",))[0], tab))
+            if after and order[order.index(fn) - 1] != after:
+                fail.append("Employee.%s must follow %s, follows %s" % (fn, after, order[order.index(fn) - 1]))
+        sections = [fields[fn].get("label") for fn in order
+                    if fields[fn]["fieldtype"] == "Section Break" and positions[fn][0] == BIO_TAB]
+        if sections != BIO_SECTIONS:
+            fail.append("Personal Bio-Data sections %s do not follow the paper form %s" % (sections, BIO_SECTIONS))
+        profile = [fn for fn in order if positions[fn][0] == "Profile" and fields[fn]["fieldtype"] == "Section Break"]
+        if profile != ["educational_qualification", "custom_professional_section", "previous_work_experience",
+                       "history_in_company"]:
+            fail.append("Employee Profile sections %s: professional certificates must follow Education" % profile)
+        for fn, f in by_dt[EM].items():
+            if f["fieldtype"] == "Table":
+                before = order[order.index(fn) - 1]
+                if fields[before]["fieldtype"] != "Section Break" or positions[fn][2] != 0:
+                    fail.append("Employee.%s must open its own section, full width" % fn)
+    order, fields = simulate_layout(EM)
+    print_layout(EM, order[order.index("personal_details"):order.index("employment_details")], fields)
+    print()
+    print("Employee layout: NIN, TIN and NSSF No. open the Identity & Statutory Numbers section; the Personal "
+          "Bio-Data tab follows Personal Details in the form's order; nothing standard moves")
+
+# ── 6e. Employee Onboarding and Job Offer — onboarding ───────────────
+EO = "Employee Onboarding"
+if by_dt.get(EO):
+    m = meta(EO)
+    baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
+    EO_AFTER = {"custom_branch": "company", "custom_onboarding_status": "boarding_status",
+                "custom_hr_officer": "boarding_begins_on", "custom_head_of_department": "custom_hr_officer",
+                "custom_orientation_section": "amended_from"}
+    EO_SECTIONS = ["Employee Details", "Onboarding Activities", "Orientation", "HR Manager Approval"]
+    for hrms_first in (True, False):
+        order, fields = simulate_layout(EO, hrms_first=hrms_first)
+        positions = positions_of(order, fields)
+        moved = sorted(fn for fn, where in baseline.items() if positions.get(fn, ("?",))[1] != where[1])
+        if moved:
+            fail.append("Employee Onboarding standard fields moved to another section: %s" % moved)
+        for fn, after in EO_AFTER.items():
+            if fn in order and order[order.index(fn) - 1] != after:
+                fail.append("Employee Onboarding.%s must follow %s, follows %s" % (fn, after, order[order.index(fn) - 1]))
+        sections = [fields[fn].get("label") for fn in order if fields[fn]["fieldtype"] == "Section Break"]
+        if sections != EO_SECTIONS:
+            fail.append("Employee Onboarding sections %s, expected %s" % (sections, EO_SECTIONS))
+    order, fields = simulate_layout(EO)
+    print_layout(EO, order, fields)
+    print()
+    print("Employee Onboarding layout: branch and status up top, the HR Officer and HOD with the dates, "
+          "orientation and the HR Manager's approval after the activities")
+JOF = "Job Offer"
+if by_dt.get(JOF):
+    order, fields = simulate_layout(JOF)
+    if "custom_branch" in order and order[order.index("custom_branch") - 1] != "company":
+        fail.append("Job Offer.custom_branch must follow Company")
+    print("Job Offer layout: Branch follows Company")
 
 # ── 7. Removed fields are deleted by a patch ─────────────────────────
 # Dropping a record from a fixture file never deletes it from a site that
