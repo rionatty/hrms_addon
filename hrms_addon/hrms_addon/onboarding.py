@@ -46,18 +46,19 @@ the candidate (_link_employee).
 
 import frappe
 from frappe import _
-from frappe.utils import today
+from frappe.utils import flt, getdate, today
 
+from hrms_addon.hrms_addon import contracts, people, probation, reviews, workflows
 from hrms_addon.hrms_addon import onboarding_approval as approval
 from hrms_addon.hrms_addon import onboarding_rules as rules
-from hrms_addon.hrms_addon import workflows
+from hrms_addon.hrms_addon import probation_rules
 
 # {onboarding: {activity idx: [users]}} for after_tasks, within one request
 _ASSIGNEES = "hrms_addon_onboarding_assignees"
 # What onboarding_defaults may fill in on save. The template is left to the
 # form: choosing one there loads its activities (Frappe HR's form script).
 _SERVER_DEFAULTS = ("job_offer", "company", "department", "designation", "custom_branch", "custom_head_of_department",
-                    "custom_hr_officer", "holiday_list")
+                    "custom_hr_officer", "holiday_list", "custom_supervisor", "custom_base_salary")
 
 
 def validate(doc, method=None):
@@ -65,14 +66,28 @@ def validate(doc, method=None):
     _apply_defaults(doc)
     _check_step(doc)
     if doc.docstatus == 1:  # validate runs for a submit, never an update after one: the onboarding starts
+        _request_tools(doc)
         _resolve_assignees(doc)
 
 
 def before_update_after_submit(doc, method=None):
     """Every step after the start (Submit for Approval, Approve, Return)."""
     _link_employee(doc)
-    _check_step(doc)
+    old_state, new_state = _check_step(doc)
+    if new_state != old_state and new_state == approval.PENDING_HRM:
+        _draft_salary(doc)
+    if new_state != old_state and new_state == approval.APPROVED:
+        _approve(doc)
+    _request_tools(doc)
     _resolve_assignees(doc)
+
+
+def on_cancel(doc, method=None):
+    """A cancelled onboarding drops the salary structure it drafted; one
+    already approved is payroll's, and stays."""
+    name = doc.get("custom_salary_structure_assignment")
+    if name and frappe.db.get_value("Salary Structure Assignment", name, "docstatus") == 0:
+        frappe.delete_doc("Salary Structure Assignment", name, ignore_permissions=True)
 
 
 def link_onboarding(employee, method=None):
@@ -142,11 +157,27 @@ def _apply_defaults(doc):
         doc.custom_hr_officer = frappe.session.user  # nobody holds HR User for the branch
     if not doc.get("boarding_begins_on") and doc.get("date_of_joining"):
         doc.boarding_begins_on = doc.date_of_joining
+    if not doc.get("custom_salary_from") and doc.get("date_of_joining"):
+        doc.custom_salary_from = doc.date_of_joining
+    if doc.docstatus == 0 and not doc.get("custom_tools") and doc.get("designation"):
+        for row in _default_tools(doc.designation):
+            doc.append("custom_tools", row)
+
+
+def _default_tools(designation):
+    """The tools every new employee gets, then the Job Title's own."""
+    every = [(name, 1) for name in frappe.get_all("Tool of Work", filters={"all_staff": 1}, pluck="name",
+                                                   order_by="tool_name asc")]
+    own = [(row.tool, row.qty) for row in frappe.get_all(
+        "Designation Tool", filters={"parent": designation, "parenttype": "Designation", "parentfield": "custom_tools"},
+        fields=["tool", "qty"], order_by="idx asc")]
+    return rules.default_tools(every, own)
 
 
 def _check_step(doc):
     """The workflow step this save makes, if any: its checks, then the HR
-    Manager's stamp (recorded on approval, a typed one reverts)."""
+    Manager's stamp (recorded on approval, a typed one reverts). Returns
+    (old state, new state)."""
     before = doc.get_doc_before_save()
     old_state = before.get(approval.STATE_FIELD) if before else None
     new_state = doc.get(approval.STATE_FIELD)
@@ -157,10 +188,12 @@ def _check_step(doc):
     current = {field: before.get(field) for field in approval.STAMP_FIELDS} if before else {}
     for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current).items():
         doc.set(field, value)
+    return old_state, new_state
 
 
 def _facts(doc):
     employee = doc.get("employee")
+    structure, supervisor = doc.get("custom_salary_structure"), doc.get("custom_supervisor")
     return {
         "head_of_department": doc.get("custom_head_of_department"),
         "activities": len(doc.get("activities") or []),
@@ -170,7 +203,147 @@ def _facts(doc):
         "rules_signed_on": doc.get("custom_rules_signed_on"),
         "bio_data_signed_on": frappe.db.get_value("Employee", employee, "custom_bio_data_signed_on") if employee else None,
         "hrm_remarks": doc.get("custom_hrm_remarks"),
+        "supervisor": supervisor,
+        "supervisor_is_employee": bool(supervisor and supervisor == employee),
+        "salary_structure": structure,
+        "base_salary": flt(doc.get("custom_base_salary")),
+        "salary_from": str(doc.custom_salary_from) if doc.get("custom_salary_from") else None,
+        "date_of_joining": str(doc.date_of_joining) if doc.get("date_of_joining") else None,
+        "tax_slab_needed": structure if structure and not doc.get("custom_income_tax_slab") and _deducts_tax(structure) else None,
+        "tools_pending": rules.pending_tools([{"tool": row.tool, "status": row.status} for row in doc.get("custom_tools") or []]),
+        "training_required": doc.get("custom_training_required"),
+        "training_missing": rules.training_missing(doc.as_dict()),
     }
+
+
+def _deducts_tax(structure):
+    from hrms.payroll.doctype.salary_structure_assignment.salary_structure_assignment import get_tax_component
+
+    return bool(get_tax_component(structure))
+
+
+def _request_tools(doc):
+    """The tools not yet asked for: one activity per provider, handed to that
+    provider's people in the branch like any other activity; the tools are
+    then Requested."""
+    rows = [row for row in doc.get("custom_tools") or [] if not row.status and row.tool]
+    if not rows:
+        return
+    tools = {tool.name: tool for tool in frappe.get_all(
+        "Tool of Work", filters={"name": ["in", [row.tool for row in rows]]}, fields=["name", "provider", "before_day_one"])}
+    providers = dict(frappe.get_all("Tool Provider", fields=["name", "responsible_role"], as_list=True))
+    requests = rules.tool_requests(
+        [{"tool": row.tool, "provider": (tools.get(row.tool) or {}).get("provider"), "qty": row.qty, "status": row.status,
+          "before_day_one": (tools.get(row.tool) or {}).get("before_day_one")} for row in rows],
+        providers,
+    )
+    for activity in requests:
+        doc.append("activities", activity)
+    for row in rows:
+        row.status = rules.TOOL_REQUESTED
+
+
+def _draft_salary(doc):
+    """Step 5: the Salary Structure Assignment, drafted from the Salary
+    section when the onboarding goes to the HR Manager, and brought up to
+    date with it until approved. Returns it."""
+    name = doc.get("custom_salary_structure_assignment")
+    if not (name and frappe.db.exists("Salary Structure Assignment", name)):
+        # one HR already made from the Employee: Frappe HR allows one per date
+        name = frappe.db.get_value("Salary Structure Assignment", {
+            "employee": doc.employee, "from_date": doc.custom_salary_from, "docstatus": ["!=", 2]}, "name")
+    if name:
+        assignment = frappe.get_doc("Salary Structure Assignment", name)
+        if assignment.docstatus != 0:
+            doc.custom_salary_structure_assignment = assignment.name
+            return assignment
+    else:
+        assignment = frappe.new_doc("Salary Structure Assignment")
+    assignment.update({
+        "employee": doc.employee,
+        "company": doc.company,
+        "salary_structure": doc.custom_salary_structure,
+        "currency": frappe.db.get_value("Salary Structure", doc.custom_salary_structure, "currency"),
+        "from_date": doc.custom_salary_from,
+        "base": flt(doc.custom_base_salary),
+        "variable": flt(doc.get("custom_variable_pay")),
+        "income_tax_slab": doc.get("custom_income_tax_slab"),
+    })
+    assignment.flags.ignore_permissions = True
+    assignment.save()
+    doc.custom_salary_structure_assignment = assignment.name
+    return assignment
+
+
+def _approve(doc):
+    """The HR Manager approved (steps 5 to 7 and after): the salary structure
+    submitted, the Employee reporting to the supervisor with the tools issued
+    and on probation, the training scheduled if required, the 30-60-90 reviews
+    and the probation evaluation made, and the contract drafted."""
+    assignment = _draft_salary(doc)
+    if assignment.docstatus == 0:
+        assignment.flags.ignore_permissions = True
+        assignment.submit()
+    probation_end = probation_rules.probation_end(doc.date_of_joining, probation.settings().probation_months)
+    _update_employee(doc, probation_end)
+    if doc.get("custom_training_required"):
+        _schedule_training(doc)
+    reviews.create_reviews(doc.employee, doc.date_of_joining, doc.name, doc.custom_hr_officer)
+    if not frappe.db.exists("Probation Evaluation", {"employee": doc.employee, "docstatus": ["!=", 2]}):
+        probation.create_evaluation(doc.employee, probation_end, onboarding=doc.name, hr_officer=doc.custom_hr_officer)
+    contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get("custom_base_salary")))
+
+
+def _update_employee(doc, probation_end):
+    """Step 7 and the tools register: Reports To, the tools issued (for the
+    clearance when the employee leaves) and the probation."""
+    employee = frappe.get_doc("Employee", doc.employee)
+    if doc.get("custom_supervisor"):
+        employee.reports_to = doc.custom_supervisor
+    have = {(row.tool, row.onboarding) for row in employee.get("custom_employee_tools") or []}
+    for row in doc.get("custom_tools") or []:
+        if row.status == rules.TOOL_ISSUED and (row.tool, doc.name) not in have:
+            employee.append("custom_employee_tools", {
+                "tool": row.tool, "qty": row.qty, "serial_no": row.serial_no, "issued_on": row.issued_on,
+                "onboarding": doc.name, "remarks": row.remarks,
+            })
+    if not employee.get("custom_probation_end_date"):
+        employee.custom_probation_end_date = probation_end
+        employee.custom_probation_status = probation_rules.ON_PROBATION
+    employee.flags.ignore_permissions = True
+    employee.save()
+
+
+def _schedule_training(doc):
+    """"Training Required?" Yes: the Training Event for the new employee, and
+    the supervisor's task to evaluate it (an activity like the others)."""
+    if doc.get("custom_training_event"):
+        return
+    start, end = rules.training_window(doc.custom_training_start, doc.custom_training_days)
+    program = doc.get("custom_training_program")
+    introduction = (doc.get("custom_training_scope") or "").strip() or (
+        frappe.db.get_value("Training Program", program, "description") if program else "") or "Induction training"
+    event = frappe.get_doc({
+        "doctype": "Training Event",
+        "event_name": "%s: %s (%s)" % ((doc.employee_name or "")[:50], (program or "Induction training")[:50], doc.name),
+        "training_program": program,
+        "event_status": "Scheduled",
+        "type": doc.get("custom_training_type") or "Workshop",
+        "company": doc.company,
+        "trainer_name": doc.custom_trainer_name,
+        "trainer_email": doc.get("custom_trainer_email"),
+        "location": doc.custom_training_location,
+        "start_time": start,
+        "end_time": end,
+        "introduction": introduction,
+        "employees": [{"employee": doc.employee}],
+    })
+    event.insert(ignore_permissions=True)
+    doc.custom_training_event = event.name
+    activity = rules.training_evaluation_activity(doc.boarding_begins_on, doc.custom_training_start, doc.custom_training_days)
+    supervisor_user = frappe.db.get_value("Employee", doc.custom_supervisor, "user_id") if doc.get("custom_supervisor") else None
+    activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})
+    doc.append("activities", activity)
 
 
 def _resolve_assignees(doc):
@@ -186,7 +359,7 @@ def _resolve_assignees(doc):
             users = [activity.user]
         else:
             if activity.role not in holders:
-                holders[activity.role] = _holders(activity.role)
+                holders[activity.role] = people.holders(activity.role)
             users = rules.activity_assignees(
                 activity.role, named, holders[activity.role], doc.get("custom_branch"), doc.get("department")
             ) or [doc.get("custom_hr_officer")]
@@ -194,29 +367,6 @@ def _resolve_assignees(doc):
         resolved[activity.idx] = [user for user in users if user]
     if resolved:
         frappe.flags.setdefault(_ASSIGNEES, {})[doc.name] = resolved
-
-
-def _holders(role):
-    """[{"user", "branches", "departments"}] for the enabled users holding
-    `role`, with the Branch and Department User Permissions limiting them."""
-    users = frappe.get_all("Has Role", filters={"role": role, "parenttype": "User"}, pluck="parent", distinct=True)
-    if not users:
-        return []
-    users = frappe.get_all(
-        "User",
-        filters=[["name", "in", users], ["name", "not in", ["Administrator", "Guest"]], ["enabled", "=", 1]],
-        pluck="name",
-    )
-    limits = {user: {"Branch": set(), "Department": set()} for user in users}
-    if users:
-        for perm in frappe.get_all(
-            "User Permission",
-            filters={"user": ["in", users], "allow": ["in", ["Branch", "Department"]]},
-            fields=["user", "allow", "for_value"],
-        ):
-            limits[perm.user][perm.allow].add(perm.for_value)
-    return [{"user": user, "branches": limits[user]["Branch"], "departments": limits[user]["Department"]}
-            for user in sorted(users)]
 
 
 @frappe.whitelist()
@@ -252,6 +402,14 @@ def onboarding_defaults(job_applicant, job_offer=None):
     hod = frappe.db.get_value("Job Requisition", opening.job_requisition, "custom_hod") if opening.job_requisition else None
     if hod in ("Administrator", "Guest"):
         hod = None  # tasks go to people, as in Frappe HR's own assignment
+    requisition = frappe._dict()
+    if opening.job_requisition:
+        requisition = frappe.db.get_value("Job Requisition", opening.job_requisition,
+                                          ["custom_supervisor", "expected_compensation"], as_dict=True) or requisition
+    # the Supervisor who signed the requisition, as an Employee (Reports To)
+    supervisor = None
+    if requisition.custom_supervisor and requisition.custom_supervisor not in ("Administrator", "Guest"):
+        supervisor = frappe.db.get_value("Employee", {"user_id": requisition.custom_supervisor, "status": "Active"}, "name")
     category = frappe.db.get_value("Department", department, "custom_position_category") if department else None
     values = {
         "job_offer": job_offer,
@@ -260,11 +418,14 @@ def onboarding_defaults(job_applicant, job_offer=None):
         "designation": designation,
         "custom_branch": branch,
         "custom_head_of_department": hod or _first(
-            rules.activity_assignees(rules.HOD_ROLE, {}, _holders(rules.HOD_ROLE), branch, department)
+            rules.activity_assignees(rules.HOD_ROLE, {}, people.holders(rules.HOD_ROLE), branch, department)
         ),
         "custom_hr_officer": _first(
-            rules.activity_assignees(rules.HR_OFFICER_ROLE, {}, _holders(rules.HR_OFFICER_ROLE), branch, department)
+            rules.activity_assignees(rules.HR_OFFICER_ROLE, {}, people.holders(rules.HR_OFFICER_ROLE), branch, department)
         ),
+        "custom_supervisor": supervisor,
+        # the requisition's Recommended Salary, as the base to confirm
+        "custom_base_salary": flt(requisition.expected_compensation) or None,
         "holiday_list": frappe.get_cached_value("Company", company, "default_holiday_list") if company else None,
         "employee_onboarding_template": rules.pick_template(
             frappe.get_all("Employee Onboarding Template", fields=["name", "title", "company", "department", "designation"]),
@@ -313,6 +474,16 @@ def add_placement(employee, source_doctype, source_name):
 def setup_workflow_on_migrate():
     """after_migrate: the onboarding workflow (workflows.py)."""
     workflows.setup_on_migrate(approval, "Employee Onboarding workflow")
+
+
+def employee_dashboard(data):
+    """The Employee's Connections: its reviews, probation evaluations and
+    contracts (override_doctype_dashboards)."""
+    data.setdefault("transactions", []).append({
+        "label": _("Probation and Contracts"),
+        "items": ["Onboarding Review", "Probation Evaluation", "Employee Contract"],
+    })
+    return data
 
 
 def seed_onboarding():

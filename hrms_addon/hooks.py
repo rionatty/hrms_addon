@@ -177,6 +177,7 @@ after_install = [
     "hrms_addon.hrms_addon.bio_data.after_install",
     "hrms_addon.hrms_addon.interviews.after_install",
     "hrms_addon.hrms_addon.onboarding.after_install",
+    "hrms_addon.hrms_addon.probation.after_install",
 ]
 
 # Uninstallation
@@ -236,6 +237,11 @@ after_migrate = [
     # Employee Onboarding: started by the branch HR Officer, approved by the
     # HR Manager. See onboarding_approval.py.
     "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate",
+    # The 30-60-90 reviews (Staff Onboarding Form) and the End of probation
+    # evaluation, through their signatures. See review_approval.py and
+    # probation_approval.py.
+    "hrms_addon.hrms_addon.reviews.setup_workflow_on_migrate",
+    "hrms_addon.hrms_addon.probation.setup_workflow_on_migrate",
 ]
 
 # Fixtures
@@ -366,6 +372,8 @@ fixtures = [
                     "Designation-custom_jd_approved_date",
                     "Designation-custom_jd_md",
                     "Designation-custom_jd_md_date",
+                    "Designation-custom_tools_tab",
+                    "Designation-custom_tools",
                     "KRA-custom_kpi_section",
                     "KRA-custom_perspective",
                     "KRA-custom_applies_to",
@@ -444,20 +452,48 @@ fixtures = [
                     "Employee-custom_signed_bio_data_form",
                     "Employee-custom_professional_section",
                     "Employee-custom_professional_qualifications",
+                    "Employee-custom_probation_end_date",
+                    "Employee-custom_probation_status",
+                    "Employee-custom_tools_tab",
+                    "Employee-custom_employee_tools",
                     "Job Offer-custom_branch",
                     "Employee Onboarding-custom_branch",
                     "Employee Onboarding-custom_onboarding_status",
                     "Employee Onboarding-custom_hr_officer",
                     "Employee Onboarding-custom_head_of_department",
+                    "Employee Onboarding-custom_supervisor",
                     "Employee Onboarding-custom_orientation_section",
                     "Employee Onboarding-custom_rules_signed_on",
                     "Employee Onboarding-custom_orientation_cb",
                     "Employee Onboarding-custom_signed_workplace_rules",
+                    "Employee Onboarding-custom_tools_section",
+                    "Employee Onboarding-custom_tools",
+                    "Employee Onboarding-custom_salary_section",
+                    "Employee Onboarding-custom_salary_structure",
+                    "Employee Onboarding-custom_salary_from",
+                    "Employee Onboarding-custom_income_tax_slab",
+                    "Employee Onboarding-custom_salary_cb",
+                    "Employee Onboarding-custom_base_salary",
+                    "Employee Onboarding-custom_variable_pay",
+                    "Employee Onboarding-custom_salary_structure_assignment",
+                    "Employee Onboarding-custom_training_section",
+                    "Employee Onboarding-custom_training_required",
+                    "Employee Onboarding-custom_training_program",
+                    "Employee Onboarding-custom_training_type",
+                    "Employee Onboarding-custom_training_scope",
+                    "Employee Onboarding-custom_training_cb",
+                    "Employee Onboarding-custom_trainer_name",
+                    "Employee Onboarding-custom_trainer_email",
+                    "Employee Onboarding-custom_training_start",
+                    "Employee Onboarding-custom_training_days",
+                    "Employee Onboarding-custom_training_location",
+                    "Employee Onboarding-custom_training_event",
                     "Employee Onboarding-custom_hrm_approval_section",
                     "Employee Onboarding-custom_hrm_approved_by",
                     "Employee Onboarding-custom_hrm_approved_on",
                     "Employee Onboarding-custom_hrm_approval_cb",
                     "Employee Onboarding-custom_hrm_remarks",
+                    "Employment Type-custom_contract_months",
                     "Interview Feedback-custom_interviewer_designation",
                     "Interview Feedback-custom_evaluation_section",
                     "Interview Feedback-custom_scores",
@@ -589,6 +625,8 @@ doc_events = {
         # after Frappe HR made the tasks
         "on_submit": "hrms_addon.hrms_addon.onboarding.after_tasks",
         "on_update_after_submit": "hrms_addon.hrms_addon.onboarding.after_tasks",
+        # a salary structure it drafted goes with it
+        "on_cancel": "hrms_addon.hrms_addon.onboarding.on_cancel",
     },
     "Employee": {
         # the candidate's onboarding learns its Employee even once its tasks
@@ -600,11 +638,13 @@ doc_events = {
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"daily": [
-# 		"hrms_addon.tasks.daily"
-# 	],
-# }
+# Contracts: each one's status, and the HR Officer told a year, a quarter and
+# a month before it ends (contracts.py, Onboarding Settings)
+scheduler_events = {
+    "daily": [
+        "hrms_addon.hrms_addon.contracts.daily",
+    ],
+}
 
 # Testing
 # -------
@@ -638,7 +678,11 @@ override_whitelisted_methods = {
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 
-# override_doctype_dashboards = {}
+# The Employee's Connections list its onboarding reviews, probation
+# evaluations and contracts (onboarding.employee_dashboard)
+override_doctype_dashboards = {
+    "Employee": "hrms_addon.hrms_addon.onboarding.employee_dashboard",
+}
 
 # exempt linked doctypes from being automatically cancelled
 #

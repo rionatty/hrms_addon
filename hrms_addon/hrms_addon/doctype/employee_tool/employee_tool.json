@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "creation": "2026-09-20 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "tool",
+  "provider",
+  "qty",
+  "serial_no",
+  "issued_on",
+  "returned_on",
+  "onboarding",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "tool",
+   "fieldtype": "Link",
+   "label": "Tool / Resource",
+   "options": "Tool of Work",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "provider",
+   "fieldtype": "Link",
+   "label": "Provided By",
+   "options": "Tool Provider",
+   "fetch_from": "tool.provider",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Int",
+   "label": "Qty",
+   "default": "1",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "serial_no",
+   "fieldtype": "Data",
+   "label": "Serial / Asset No.",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "issued_on",
+   "fieldtype": "Date",
+   "label": "Issued On",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "returned_on",
+   "fieldtype": "Date",
+   "label": "Returned On",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "On the clearance when the employee leaves."
+  },
+  {
+   "fieldname": "onboarding",
+   "fieldtype": "Link",
+   "label": "Onboarding",
+   "options": "Employee Onboarding",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-20 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Tool",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

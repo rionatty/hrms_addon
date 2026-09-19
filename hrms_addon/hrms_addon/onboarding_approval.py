@@ -109,6 +109,7 @@ def step_errors(old_state, new_state, facts):
             errors.append("Choose the Holiday List the task dates skip (the company has no default one) before "
                           "starting the onboarding.")
     if new_state == PENDING_HRM:
+        errors += _ready_for_approval(facts)
         # Steps 2 to 4 of the induction are done: the rules signed, the
         # Employee created and updated from the signed Personal Bio-Data Form
         if not facts.get("rules_signed_on"):
@@ -122,4 +123,41 @@ def step_errors(old_state, new_state, facts):
                           "(Employee, Personal Bio-Data tab) before sending the onboarding to the HR Manager.")
     if old_state == PENDING_HRM and new_state == ONBOARDING and not (facts.get("hrm_remarks") or "").strip():
         errors.append("Write in the HR Manager's Remarks what HR should change before returning the onboarding.")
+    return errors
+
+
+def _ready_for_approval(facts):
+    """Steps 5 to 7 and the training choice, done before the HR Manager
+    approves: the salary structure, the tools of work, the supervisor.
+
+    facts: "supervisor", "supervisor_is_employee", "salary_structure",
+    "base_salary", "salary_from", "date_of_joining" (ISO dates),
+    "tax_slab_needed" (the structure's name when it deducts tax and no slab
+    is chosen), "tools_pending" ([tool]), "training_required",
+    "training_missing" ([label]).
+    """
+    errors = []
+    if not facts.get("supervisor"):
+        errors.append("Choose the Supervisor the new employee reports to (Employee Details) before sending the "
+                      "onboarding to the HR Manager.")
+    elif facts.get("supervisor_is_employee"):
+        errors.append("The Supervisor cannot be the new employee.")
+    if not facts.get("salary_structure"):
+        errors.append("Choose the Salary Structure (Salary section) before sending the onboarding to the HR Manager.")
+    if not (facts.get("base_salary") or 0) > 0:
+        errors.append("Enter the Base salary (Salary section) before sending the onboarding to the HR Manager.")
+    if not facts.get("salary_from"):
+        errors.append("Set the date the salary is Effective From (Salary section) before sending the onboarding to "
+                      "the HR Manager.")
+    elif facts.get("date_of_joining") and str(facts["salary_from"]) < str(facts["date_of_joining"]):
+        errors.append("The salary cannot start before the Date of Joining.")
+    if facts.get("tax_slab_needed"):
+        errors.append("Choose the Income Tax Slab (Salary section): the Salary Structure %s deducts income tax."
+                      % facts["tax_slab_needed"])
+    if facts.get("tools_pending"):
+        errors.append("Issue the tools of work, or mark them Not Needed, before sending the onboarding to the HR "
+                      "Manager: %s." % ", ".join(facts["tools_pending"]))
+    if facts.get("training_required") and facts.get("training_missing"):
+        errors.append("Training is required: fill in the %s (Training section) before sending the onboarding to the "
+                      "HR Manager." % ", ".join(facts["training_missing"]))
     return errors

@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "creation": "2026-09-20 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "skill",
+  "how_to_develop",
+  "measurement"
+ ],
+ "fields": [
+  {
+   "fieldname": "skill",
+   "fieldtype": "Data",
+   "label": "Training / Skill to Develop",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 4
+  },
+  {
+   "fieldname": "how_to_develop",
+   "fieldtype": "Small Text",
+   "label": "How to Develop the Skill",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "measurement",
+   "fieldtype": "Small Text",
+   "label": "Measurement Criteria",
+   "in_list_view": 1,
+   "columns": 3
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-20 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Probation Training Need",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

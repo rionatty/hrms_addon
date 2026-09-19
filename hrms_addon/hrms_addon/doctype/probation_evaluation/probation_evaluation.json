@@ -1,0 +1,637 @@
+{
+ "actions": [],
+ "autoname": "HR-PEV-.YYYY.-.#####",
+ "creation": "2026-09-20 09:00:00.000000",
+ "default_print_format": "End of Probation Evaluation Form",
+ "description": "The End of probation evaluation / confirmation form (LPL/HR/32): the ratings, the signatures and the Executive Director's decision to confirm, extend or terminate.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "designation",
+  "date_of_joining",
+  "column_break_1",
+  "supervisor",
+  "department",
+  "branch",
+  "position_category",
+  "column_break_2",
+  "end_of_probation",
+  "status",
+  "onboarding",
+  "extension_of",
+  "company",
+  "section_a",
+  "factors",
+  "section_b",
+  "objectives",
+  "section_c",
+  "factors_score",
+  "objectives_score",
+  "column_break_3",
+  "total_score",
+  "rating_band",
+  "column_break_4",
+  "pass_mark",
+  "passed",
+  "section_d",
+  "achievements",
+  "column_break_5",
+  "challenges",
+  "section_d_training",
+  "training_needs",
+  "section_e",
+  "next_period_from",
+  "column_break_6",
+  "next_period_to",
+  "section_e_table",
+  "next_objectives",
+  "section_f",
+  "employee_remarks",
+  "column_break_7",
+  "employee_signed_on",
+  "supervisor_section",
+  "supervisor_remarks",
+  "column_break_8",
+  "supervisor_by",
+  "supervisor_on",
+  "manager_section",
+  "manager_remarks",
+  "column_break_9",
+  "manager_by",
+  "manager_on",
+  "hod_section",
+  "hod_remarks",
+  "column_break_10",
+  "hod_by",
+  "hod_on",
+  "hrm_section",
+  "hrm_recommendation",
+  "hrm_remarks",
+  "column_break_11",
+  "hrm_by",
+  "hrm_on",
+  "ed_section",
+  "ed_decision",
+  "confirmation_date",
+  "new_end_of_probation",
+  "ed_remarks",
+  "column_break_12",
+  "ed_by",
+  "ed_on",
+  "next_evaluation",
+  "amended_from",
+  "workflow_state"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining",
+   "fetch_from": "employee.date_of_joining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee",
+   "fetch_from": "employee.reports_to",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "position_category",
+   "fieldtype": "Data",
+   "label": "Position Category",
+   "fetch_from": "department.custom_position_category",
+   "read_only": 1,
+   "description": "From the Department: a non-administrative position goes through the branch General Manager."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "end_of_probation",
+   "fieldtype": "Date",
+   "label": "End of Probation",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Supervisor\nPending General Manager\nPending Head of Department\nPending HR Manager\nPending Executive Director\nDecided\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "onboarding",
+   "fieldtype": "Link",
+   "label": "Onboarding",
+   "options": "Employee Onboarding",
+   "read_only": 1
+  },
+  {
+   "fieldname": "extension_of",
+   "fieldtype": "Link",
+   "label": "Extension Of",
+   "options": "Probation Evaluation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_a",
+   "fieldtype": "Section Break",
+   "label": "Section A: Ratable Factors",
+   "description": "Rating scale: Excellent=5 (90-100%), Very Good=4 (75-89%), Good=3 (60-74%), Average=2 (50-59%), Below average=1 (49% and below). N/A where the factor is not in line with the job. The employee rates first; the supervisor's rating is the one scored."
+  },
+  {
+   "fieldname": "factors",
+   "fieldtype": "Table",
+   "label": "Ratable Factors",
+   "options": "Probation Evaluation Factor"
+  },
+  {
+   "fieldname": "section_b",
+   "fieldtype": "Section Break",
+   "label": "Section B: Performance Objectives / KPIs during Probation",
+   "description": "In line with the departmental / section objectives. Filled from the Job Title's Key Result Areas; edit as agreed."
+  },
+  {
+   "fieldname": "objectives",
+   "fieldtype": "Table",
+   "label": "Objectives / KPIs",
+   "options": "Probation Evaluation Objective"
+  },
+  {
+   "fieldname": "section_c",
+   "fieldtype": "Section Break",
+   "label": "Section C: Overall Score",
+   "description": "Excellent=90-100%, Very Good=75-89%, Good=60-74%, Average=50-59%, Below Average=49% and below."
+  },
+  {
+   "fieldname": "factors_score",
+   "fieldtype": "Float",
+   "label": "Ratable Factors (out of 60)",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "objectives_score",
+   "fieldtype": "Float",
+   "label": "Objectives / KPIs (out of 40)",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_score",
+   "fieldtype": "Percent",
+   "label": "Total Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rating_band",
+   "fieldtype": "Data",
+   "label": "Overall Rating",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pass_mark",
+   "fieldtype": "Percent",
+   "label": "Pass Mark",
+   "read_only": 1,
+   "description": "From Onboarding Settings when the evaluation was made."
+  },
+  {
+   "fieldname": "passed",
+   "fieldtype": "Check",
+   "label": "Passed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_d",
+   "fieldtype": "Section Break",
+   "label": "Section D: Achievements, Challenges and Training Needs"
+  },
+  {
+   "fieldname": "achievements",
+   "fieldtype": "Small Text",
+   "label": "Achievements during the period under review"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "challenges",
+   "fieldtype": "Small Text",
+   "label": "Performance challenges / problems and how they can be resolved"
+  },
+  {
+   "fieldname": "section_d_training",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "training_needs",
+   "fieldtype": "Table",
+   "label": "Training and Development Needs / Skills",
+   "options": "Probation Training Need"
+  },
+  {
+   "fieldname": "section_e",
+   "fieldtype": "Section Break",
+   "label": "Section E: Objectives / KPIs for the Next Performance Period"
+  },
+  {
+   "fieldname": "next_period_from",
+   "fieldtype": "Date",
+   "label": "From"
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "next_period_to",
+   "fieldtype": "Date",
+   "label": "To"
+  },
+  {
+   "fieldname": "section_e_table",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "next_objectives",
+   "fieldtype": "Table",
+   "label": "Objectives / KPIs",
+   "options": "Probation Next Objective"
+  },
+  {
+   "fieldname": "section_f",
+   "fieldtype": "Section Break",
+   "label": "Section F: Recommendations and Signatures"
+  },
+  {
+   "fieldname": "employee_remarks",
+   "fieldtype": "Small Text",
+   "label": "Employee's remarks / comments"
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee_signed_on",
+   "fieldtype": "Date",
+   "label": "Employee Signed On"
+  },
+  {
+   "fieldname": "supervisor_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "supervisor_remarks",
+   "fieldtype": "Small Text",
+   "label": "Immediate Supervisor's remarks / comments"
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor_by",
+   "fieldtype": "Link",
+   "label": "Supervisor Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "supervisor_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "manager_section",
+   "fieldtype": "Section Break",
+   "depends_on": "eval:doc.position_category!=\"Administrative\""
+  },
+  {
+   "fieldname": "manager_remarks",
+   "fieldtype": "Small Text",
+   "label": "Manager's remarks / comments",
+   "description": "The branch General Manager."
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "manager_by",
+   "fieldtype": "Link",
+   "label": "General Manager Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "manager_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hod_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "hod_remarks",
+   "fieldtype": "Small Text",
+   "label": "Head of Department's remarks / comments"
+  },
+  {
+   "fieldname": "column_break_10",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hod_by",
+   "fieldtype": "Link",
+   "label": "Head of Department Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hod_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "hrm_recommendation",
+   "fieldtype": "Select",
+   "label": "Human Resources Manager's Recommendation",
+   "options": "\nConfirm\nExtend Probation\nTerminate"
+  },
+  {
+   "fieldname": "hrm_remarks",
+   "fieldtype": "Small Text",
+   "label": "Human Resources Manager's remarks"
+  },
+  {
+   "fieldname": "column_break_11",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hrm_by",
+   "fieldtype": "Link",
+   "label": "HR Manager Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_section",
+   "fieldtype": "Section Break",
+   "label": "Executive Director's Decision"
+  },
+  {
+   "fieldname": "ed_decision",
+   "fieldtype": "Select",
+   "label": "Decision",
+   "options": "\nConfirm\nExtend Probation\nTerminate",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "confirmation_date",
+   "fieldtype": "Date",
+   "label": "Confirmed From",
+   "depends_on": "eval:doc.ed_decision==\"Confirm\"",
+   "description": "The Employee's Confirmation Date."
+  },
+  {
+   "fieldname": "new_end_of_probation",
+   "fieldtype": "Date",
+   "label": "Probation Extended To",
+   "depends_on": "eval:doc.ed_decision==\"Extend Probation\"",
+   "description": "Defaults to the extension in Onboarding Settings."
+  },
+  {
+   "fieldname": "ed_remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ed_by",
+   "fieldtype": "Link",
+   "label": "Executive Director Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "next_evaluation",
+   "fieldtype": "Link",
+   "label": "Next Evaluation",
+   "options": "Probation Evaluation",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "description": "Made when the probation is extended."
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Probation Evaluation",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-20 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Probation Evaluation",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "write": 1,
+   "print": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "write": 1,
+   "print": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "write": 1,
+   "print": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "write": 1,
+   "submit": 1,
+   "print": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

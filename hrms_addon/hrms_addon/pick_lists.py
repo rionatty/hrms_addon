@@ -27,7 +27,7 @@ after_migrate (runs every migrate). Instead:
 
 import frappe
 
-from hrms_addon.hrms_addon import bio_data_rules, jd_rules, org_rules
+from hrms_addon.hrms_addon import bio_data_rules, jd_rules, onboarding_rules, org_rules, probation_rules
 
 # Every pick list, and every (DocType, field) that picks from one
 MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS, **org_rules.ORG_MASTERS}
@@ -64,6 +64,16 @@ def flag_certification_types():
     for name in bio_data_rules.CERTIFICATION_TYPES:
         if frappe.db.exists("Qualification Type", name):
             frappe.db.set_value("Qualification Type", name, "is_certification", 1)
+
+
+def seed_onboarding_masters():
+    """The Tool Providers, with the role preparing a department's own tools
+    (its Head of Department), and the probation form's ratable factors."""
+    seed_masters({**onboarding_rules.ONBOARDING_MASTERS, **probation_rules.PROBATION_MASTERS})
+    for provider, role in onboarding_rules.PROVIDER_ROLES.items():
+        if (frappe.db.exists("Role", role) and frappe.db.exists("Tool Provider", provider)
+                and not frappe.db.get_value("Tool Provider", provider, "responsible_role")):
+            frappe.db.set_value("Tool Provider", provider, "responsible_role", role)
 
 
 def seed_masters(masters):
@@ -103,3 +113,4 @@ def _values_in_use(masters):
 def after_install():
     seed_masters(MASTERS)
     flag_certification_types()
+    seed_onboarding_masters()

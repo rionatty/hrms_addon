@@ -1,0 +1,375 @@
+{
+ "actions": [],
+ "autoname": "HR-OBR-.YYYY.-.#####",
+ "creation": "2026-09-20 09:00:00.000000",
+ "default_print_format": "Staff Onboarding Form",
+ "description": "The Staff Onboarding Form (LPL/HR/04) at 30, 60 and 90 days: the new employee's view, the supervisor's comments and the HR Manager's remarks.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "review_day",
+  "due_date",
+  "column_break_1",
+  "date_of_joining",
+  "department",
+  "designation",
+  "branch",
+  "column_break_2",
+  "supervisor",
+  "onboarding",
+  "company",
+  "status",
+  "section_b",
+  "roles_responsibilities",
+  "feel_about_role",
+  "culture_values",
+  "column_break_3",
+  "communication_support",
+  "handover_achievements",
+  "onboarding_challenges",
+  "improvement_section",
+  "improve_onboarding",
+  "improvement_suggestions",
+  "column_break_4",
+  "employee_comments",
+  "employee_signed_on",
+  "supervisor_section",
+  "supervisor_comments",
+  "column_break_5",
+  "supervisor_by",
+  "supervisor_on",
+  "hrm_section",
+  "hrm_remarks",
+  "column_break_6",
+  "hrm_by",
+  "hrm_on",
+  "amended_from",
+  "workflow_state"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "review_day",
+   "fieldtype": "Select",
+   "label": "Review",
+   "options": "30\n60\n90",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Days after joining."
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due On",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining",
+   "fetch_from": "employee.date_of_joining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee",
+   "fetch_from": "employee.reports_to",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "onboarding",
+   "fieldtype": "Link",
+   "label": "Onboarding",
+   "options": "Employee Onboarding",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Supervisor\nPending HR Manager\nCompleted\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_b",
+   "fieldtype": "Section Break",
+   "label": "Section B: The New Employee",
+   "description": "The new employee's own answers. HR records them from the paper form when the employee has no login."
+  },
+  {
+   "fieldname": "roles_responsibilities",
+   "fieldtype": "Small Text",
+   "label": "The roles and responsibilities of your position in the company",
+   "description": "One per line, as the employee lists them."
+  },
+  {
+   "fieldname": "feel_about_role",
+   "fieldtype": "Small Text",
+   "label": "How do you feel about your new role and responsibilities?"
+  },
+  {
+   "fieldname": "culture_values",
+   "fieldtype": "Small Text",
+   "label": "How did the onboarding process help you understand the company culture and values?"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "communication_support",
+   "fieldtype": "Small Text",
+   "label": "How satisfied are you with the communication and support provided during onboarding?"
+  },
+  {
+   "fieldname": "handover_achievements",
+   "fieldtype": "Small Text",
+   "label": "Any achievements from the handover to your department?"
+  },
+  {
+   "fieldname": "onboarding_challenges",
+   "fieldtype": "Small Text",
+   "label": "Any challenges faced during onboarding?"
+  },
+  {
+   "fieldname": "improvement_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "improve_onboarding",
+   "fieldtype": "Select",
+   "label": "Should the onboarding process be improved?",
+   "options": "\nYes\nNo"
+  },
+  {
+   "fieldname": "improvement_suggestions",
+   "fieldtype": "Small Text",
+   "label": "How best can we improve it?",
+   "depends_on": "eval:doc.improve_onboarding==\"Yes\""
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee_comments",
+   "fieldtype": "Small Text",
+   "label": "General comments by the new employee"
+  },
+  {
+   "fieldname": "employee_signed_on",
+   "fieldtype": "Date",
+   "label": "Employee Signed On"
+  },
+  {
+   "fieldname": "supervisor_section",
+   "fieldtype": "Section Break",
+   "label": "Supervisor"
+  },
+  {
+   "fieldname": "supervisor_comments",
+   "fieldtype": "Small Text",
+   "label": "General comments by the supervisor of the new employee"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor_by",
+   "fieldtype": "Link",
+   "label": "Supervisor Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "supervisor_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_section",
+   "fieldtype": "Section Break",
+   "label": "Human Resources Manager"
+  },
+  {
+   "fieldname": "hrm_remarks",
+   "fieldtype": "Small Text",
+   "label": "Human Resources Manager's remarks"
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hrm_by",
+   "fieldtype": "Link",
+   "label": "HR Manager Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Onboarding Review",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-20 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Onboarding Review",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "write": 1,
+   "print": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "write": 1,
+   "print": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

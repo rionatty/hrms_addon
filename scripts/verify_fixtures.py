@@ -525,9 +525,16 @@ if by_dt.get(DS):
         for fn in HRMS_CUSTOM_FIELDS.get(DS, {}):
             if p.get(fn, ("?",))[0] != "Details":
                 fail.append("Designation.%s (installed by HRMS) was pulled into tab %r (%s)" % (fn, p.get(fn, ("?",))[0], label))
-        stray = sorted(fn for fn in by_dt[DS] if p.get(fn, ("?",))[0] != "Job Description")
+        TOOLS = {"custom_tools_tab", "custom_tools"}
+        stray = sorted(fn for fn in by_dt[DS] if fn not in TOOLS and p.get(fn, ("?",))[0] != "Job Description")
         if stray:
             fail.append("Designation JD fields outside the Job Description tab (%s): %s" % (label, stray))
+        stray = sorted(fn for fn in TOOLS & set(by_dt[DS]) if p.get(fn, ("?",))[0] != "Tools of Work")
+        if stray:
+            fail.append("Designation tools fields outside the Tools of Work tab (%s): %s" % (label, stray))
+        tabs = [f[fn].get("label") for fn in o if f[fn]["fieldtype"] == "Tab Break"]
+        if "Tools of Work" in tabs and tabs[tabs.index("Tools of Work") - 1] != "Job Description":
+            fail.append("Designation's Tools of Work tab must follow the Job Description tab: %s" % tabs)
 
     # Every section of LPL/JD/SM/001, in the order the JD prints them.
     JD_SECTIONS = [
@@ -629,7 +636,13 @@ if by_dt.get(EM):
     BIO_SECTIONS = ["Home and Residence", "Spouse", "Parents", "Next of Kin", "Children", "Declaration"]
     ELSEWHERE = {"custom_place_of_birth": ("Overview", "date_of_birth"),
                  "custom_professional_section": ("Profile", "education"),
-                 "custom_professional_qualifications": ("Profile", "custom_professional_section")}
+                 "custom_professional_qualifications": ("Profile", "custom_professional_section"),
+                 # beside the Offer Date on the Joining tab
+                 "custom_probation_end_date": ("Joining", "scheduled_confirmation_date"),
+                 "custom_probation_status": ("Joining", "custom_probation_end_date"),
+                 # the tools register, a tab after Joining
+                 "custom_tools_tab": ("Tools of Work", None),
+                 "custom_employee_tools": ("Tools of Work", "custom_tools_tab")}
     for hrms_first in (True, False):
         order, fields = simulate_layout(EM, hrms_first=hrms_first)
         positions = positions_of(order, fields)
@@ -645,6 +658,8 @@ if by_dt.get(EM):
         tabs = [fields[fn].get("label") or fn for fn in order if fields[fn]["fieldtype"] == "Tab Break"]
         if BIO_TAB not in tabs or tabs[tabs.index(BIO_TAB) - 1] != "Personal Details" or tabs[tabs.index(BIO_TAB) + 1] != "Profile":
             fail.append("Employee tab %r must sit between Personal Details and Profile; tabs are %s" % (BIO_TAB, tabs))
+        if "Tools of Work" not in tabs or tabs[tabs.index("Tools of Work") - 1] != "Joining":
+            fail.append("Employee tab 'Tools of Work' must follow Joining; tabs are %s" % tabs)
         for fn in by_dt[EM]:
             if fn in ids:
                 continue
@@ -664,7 +679,7 @@ if by_dt.get(EM):
         for fn, f in by_dt[EM].items():
             if f["fieldtype"] == "Table":
                 before = order[order.index(fn) - 1]
-                if fields[before]["fieldtype"] != "Section Break" or positions[fn][2] != 0:
+                if fields[before]["fieldtype"] not in ("Section Break", "Tab Break") or positions[fn][2] != 0:
                     fail.append("Employee.%s must open its own section, full width" % fn)
     order, fields = simulate_layout(EM)
     print_layout(EM, order[order.index("personal_details"):order.index("employment_details")], fields)
@@ -679,8 +694,13 @@ if by_dt.get(EO):
     baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
     EO_AFTER = {"custom_branch": "company", "custom_onboarding_status": "boarding_status",
                 "custom_hr_officer": "boarding_begins_on", "custom_head_of_department": "custom_hr_officer",
-                "custom_orientation_section": "amended_from"}
-    EO_SECTIONS = ["Employee Details", "Onboarding Activities", "Orientation", "HR Manager Approval"]
+                "custom_supervisor": "custom_head_of_department", "custom_orientation_section": "amended_from",
+                "custom_tools_section": "custom_signed_workplace_rules", "custom_salary_section": "custom_tools",
+                "custom_training_section": "custom_salary_structure_assignment",
+                "custom_hrm_approval_section": "custom_training_event"}
+    # the induction's order: orientation, tools of work, salary, training, then the approval
+    EO_SECTIONS = ["Employee Details", "Onboarding Activities", "Orientation", "Tools of Work", "Salary", "Training",
+                   "HR Manager Approval"]
     for hrms_first in (True, False):
         order, fields = simulate_layout(EO, hrms_first=hrms_first)
         positions = positions_of(order, fields)

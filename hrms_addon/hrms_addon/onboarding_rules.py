@@ -41,11 +41,33 @@ and says only "All the mandatory tasks for employee creation are not
 completed yet." pending_required() and pending_message() name them.
 """
 
+import datetime
 import html
 from urllib.parse import quote
 
 HR_OFFICER_ROLE = "HR User"
 HOD_ROLE = "Head of Department"
+
+# Tools of work (steps 6 and 7 of the induction): each tool on the
+# onboarding is requested from its provider, then issued, or found not needed
+TOOL_REQUESTED, TOOL_ISSUED, TOOL_NOT_NEEDED = "Requested", "Issued", "Not Needed"
+TOOL_STATUSES = (TOOL_REQUESTED, TOOL_ISSUED, TOOL_NOT_NEEDED)
+TOOL_DONE = (TOOL_ISSUED, TOOL_NOT_NEEDED)
+# The providers of the Tools of Work sheet (Part 2 master-data template),
+# seeded once; the department's own tools are prepared by its Head of
+# Department, the others by the HR Officer until HR names a role
+PROVIDERS = ("EHS", "IT", "HR", "Department", "Stores", "Procurement")
+PROVIDER_ROLES = {"Department": HOD_ROLE}
+ONBOARDING_MASTERS = {"Tool Provider": ("provider_name", PROVIDERS)}
+# Training (the flowchart's "Training Required?"): what a required training
+# needs before the onboarding goes to the HR Manager
+TRAINING_DETAILS = (
+    ("custom_trainer_name", "Trainer"),
+    ("custom_training_start", "Training Starts On"),
+    ("custom_training_days", "Duration (Days)"),
+    ("custom_training_location", "Location"),
+)
+TRAINING_DAY_STARTS, TRAINING_DAY_ENDS = datetime.time(8, 0), datetime.time(17, 0)
 
 # A required activity stops Create Employee until its task is one of these
 # (Frappe HR's own test, employee_onboarding.validate_employee_creation)
@@ -161,6 +183,84 @@ def pick_template(templates, company, department, designation, category):
     return by_title.get(TEMPLATE_BY_CATEGORY.get(category)) or by_title.get(DEFAULT_TEMPLATE)
 
 
+def default_tools(every_employee, for_job_title):
+    """The tools of work an onboarding starts with: those every new employee
+    gets, then the Job Title's own; a tool in both once, the larger quantity.
+
+    every_employee, for_job_title: [(tool, quantity)]
+    """
+    tools = {}
+    for tool, qty in list(every_employee) + list(for_job_title):
+        tools[tool] = max(tools.get(tool, 0), max(int(qty or 1), 1))
+    return [{"tool": tool, "qty": qty} for tool, qty in tools.items()]
+
+
+def tool_requests(tools, providers):
+    """One onboarding activity per provider, for the tools not yet requested.
+
+    tools:     [{"tool", "provider", "qty", "status", "before_day_one"}]; a
+               tool with any status has been requested already
+    providers: {provider: the role that prepares its tools}; none: the HR Officer
+    The activity goes to that role in the onboarding's branch like any other
+    (activity_assignees): Head of Department means the new employee's own.
+    """
+    by_provider = {}
+    for row in tools:
+        if not row.get("status"):
+            by_provider.setdefault(row.get("provider") or "HR", []).append(row)
+    activities = []
+    for provider, rows in by_provider.items():
+        description = "Prepare for the new employee: %s." % "; ".join(
+            "%s x %s" % (row.get("qty") or 1, row["tool"]) for row in rows)
+        first = [row["tool"] for row in rows if row.get("before_day_one")]
+        if first:
+            description += " Needed before day 1: %s." % ", ".join(first)
+        description += " Then tell the HR Officer, who marks each one Issued on the onboarding."
+        activities.append({
+            "activity_name": "Tools of work from %s" % provider[:50],
+            "role": providers.get(provider) or HR_OFFICER_ROLE,
+            "begin_on": 0,
+            "duration": 0,
+            "required_for_employee_creation": 0,
+            "description": description,
+        })
+    return activities
+
+
+def pending_tools(tools):
+    """The tools neither issued nor found not needed, by name."""
+    return [row["tool"] for row in tools if row.get("status") not in TOOL_DONE]
+
+
+def training_missing(values):
+    """What a required training still lacks, by label."""
+    missing = [label for field, label in TRAINING_DETAILS if not values.get(field)]
+    if not (values.get("custom_training_program") or (values.get("custom_training_scope") or "").strip()):
+        missing.append("Training Program or Training Scope")
+    return missing
+
+
+def training_window(start, days):
+    """(start, end) datetimes of a training of `days` days from `start`."""
+    start = _date(start)
+    end = start + datetime.timedelta(days=max(int(days or 1), 1) - 1)
+    return datetime.datetime.combine(start, TRAINING_DAY_STARTS), datetime.datetime.combine(end, TRAINING_DAY_ENDS)
+
+
+def training_evaluation_activity(boarding_begins_on, training_start, days):
+    """The supervisor's task to evaluate the training (the flowchart's
+    "Supervisor Evaluates the Employee"), due as the training ends."""
+    begin = max((_date(training_start) - _date(boarding_begins_on)).days + max(int(days or 1), 1), 0)
+    return {
+        "activity_name": "Training evaluation by the supervisor",
+        "begin_on": begin,
+        "duration": 2,
+        "required_for_employee_creation": 0,
+        "description": "Evaluate the new employee's training: open the Training Event from the onboarding and record "
+                       "the result (Create > Training Result), then set this task to Completed.",
+    }
+
+
 def pending_required(activities):
     """The activities still stopping Create Employee, in their order.
 
@@ -189,6 +289,14 @@ def pending_message(onboarding, pending):
         "<p>Whoever has a task opens it and sets its Status to Completed.</p>"
         % (quote(onboarding or ""), html.escape(onboarding or ""), "".join(items))
     )
+
+
+def _date(value):
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    return datetime.date.fromisoformat(str(value)[:10])
 
 
 # The Workplace Rules and Regulations (LPL/HR/05) as issued, kept as Terms

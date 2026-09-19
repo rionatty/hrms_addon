@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -298,6 +298,37 @@ stamps its sign-off, printed on the report with the Head of Department's.
 it deliberately imports nothing from Frappe — and walks every approval
 path: submit, each approval, rejection, revision, and a hand-typed approval
 being reverted.
+
+`verify_onboarding.py` covers the induction on Frappe HR's Employee
+Onboarding: its workflow, what each step needs before it may be taken
+(the Workplace Rules signed, the Employee created and its bio-data
+recorded, the Supervisor, the Salary Structure and base salary, the tools
+of work issued or found not needed, a required training set up), the
+tools of work themselves (what every new employee gets, one request per
+provider, what is still pending) and the training window. It also pins
+what the design relies on in Frappe HR — how it assigns an activity's
+task, when it links a new Employee back to its onboarding, and that an
+update after submit runs no `validate` — so an upstream change that would
+break it fails here instead of on the site.
+
+`verify_probation.py` covers the End of Probation Evaluation /
+Confirmation Form (LPL/HR/32) and the 30-60-90 day reviews (the Staff
+Onboarding Form, LPL/HR/04): the form's 13 ratable factors, the 60/40
+weighting with N/A left out, its bands and pass mark, the objectives taken
+from the Job Title's Key Result Areas, and the route from HR through the
+supervisor, the branch General Manager (non-administrative positions
+only), the Head of Department and the HR Manager's recommendation to the
+Executive Director's decision, with each step's checks and signature.
+It also checks what the decision does to the Employee — confirmed,
+extended (which makes the next evaluation) or not confirmed, which hands
+HR the termination process.
+
+`verify_contracts.py` covers contract management: a contract's status on a
+day, the alerts a year, a quarter and a month before its end (each sent
+once, a contract first seen inside several thresholds getting one alert),
+the end from the Employment Type's usual length, a renewal's dates, no two
+contracts at once, the signed copy before it is submitted, the daily job,
+the Contract Expiry Status report and the three letters.
 
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch

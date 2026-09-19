@@ -1,0 +1,58 @@
+{
+ "actions": [],
+ "creation": "2026-09-20 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "factor",
+  "employee_rating",
+  "supervisor_rating",
+  "supervisor_comment"
+ ],
+ "fields": [
+  {
+   "fieldname": "factor",
+   "fieldtype": "Link",
+   "label": "Factor",
+   "options": "Probation Factor",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 4
+  },
+  {
+   "fieldname": "employee_rating",
+   "fieldtype": "Select",
+   "label": "Employee's Rating",
+   "options": "\n1\n2\n3\n4\n5\nN/A",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "supervisor_rating",
+   "fieldtype": "Select",
+   "label": "Supervisor's Rating",
+   "options": "\n1\n2\n3\n4\n5\nN/A",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "supervisor_comment",
+   "fieldtype": "Small Text",
+   "label": "Supervisor's Comment",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-20 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Probation Evaluation Factor",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

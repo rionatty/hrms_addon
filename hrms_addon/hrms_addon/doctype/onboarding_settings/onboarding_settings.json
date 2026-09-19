@@ -1,0 +1,128 @@
+{
+ "actions": [],
+ "creation": "2026-09-20 09:00:00.000000",
+ "description": "Probation, contract alerts and the letters' signatories for Luuka's onboarding.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "probation_section",
+  "probation_months",
+  "extension_months",
+  "column_break_1",
+  "pass_mark",
+  "confirmed_employment_type",
+  "contract_section",
+  "contract_alert_days",
+  "letters_section",
+  "executive_director",
+  "column_break_2",
+  "head_of_hr"
+ ],
+ "fields": [
+  {
+   "fieldname": "probation_section",
+   "fieldtype": "Section Break",
+   "label": "Probation"
+  },
+  {
+   "fieldname": "probation_months",
+   "fieldtype": "Int",
+   "label": "Probation Period (Months)",
+   "default": "6",
+   "non_negative": 1,
+   "description": "The End of Probation date of a new employee: the joining date plus this."
+  },
+  {
+   "fieldname": "extension_months",
+   "fieldtype": "Int",
+   "label": "Extension (Months)",
+   "default": "3",
+   "non_negative": 1,
+   "description": "How long an extended probation runs, unless the Executive Director sets another date."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pass_mark",
+   "fieldtype": "Percent",
+   "label": "Pass Mark",
+   "default": "60",
+   "description": "The total score a probation evaluation must reach. To be confirmed by Luuka: the form's bands put Average at 50-59%."
+  },
+  {
+   "fieldname": "confirmed_employment_type",
+   "fieldtype": "Link",
+   "label": "Employment Type on Confirmation",
+   "options": "Employment Type",
+   "description": "Optional: the Employee's Employment Type once confirmed, e.g. Permanent."
+  },
+  {
+   "fieldname": "contract_section",
+   "fieldtype": "Section Break",
+   "label": "Contracts"
+  },
+  {
+   "fieldname": "contract_alert_days",
+   "fieldtype": "Data",
+   "label": "Contract Alerts (Days Before the End)",
+   "default": "365, 90, 30",
+   "description": "The HR Officer is told this many days before a contract ends: a year, a quarter and a month."
+  },
+  {
+   "fieldname": "letters_section",
+   "fieldtype": "Section Break",
+   "label": "Letters"
+  },
+  {
+   "fieldname": "executive_director",
+   "fieldtype": "Link",
+   "label": "Executive Director",
+   "options": "Employee",
+   "description": "Signs the Confirmation in Service and Contract Renewal letters."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "head_of_hr",
+   "fieldtype": "Link",
+   "label": "Head of Human Resources",
+   "options": "Employee",
+   "description": "Signs the Expiry of Contract letter."
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-20 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Onboarding Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1
+  }
+ ],
+ "states": [],
+ "track_changes": 1
+}

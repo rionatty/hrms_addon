@@ -21,9 +21,19 @@ const HA_ONBOARDING_FIELDS = [
 	"custom_hr_officer",
 	"custom_head_of_department",
 	"holiday_list",
+	"custom_supervisor",
+	"custom_base_salary",
 ];
 
 frappe.ui.form.on("Employee Onboarding", {
+	setup(frm) {
+		// the company's active, submitted salary structures and tax slabs, and its active employees
+		frm.set_query("custom_salary_structure", () => ({
+			filters: { docstatus: 1, is_active: "Yes", company: frm.doc.company },
+		}));
+		frm.set_query("custom_income_tax_slab", () => ({ filters: { docstatus: 1, disabled: 0 } }));
+		frm.set_query("custom_supervisor", () => ({ filters: { status: "Active", company: frm.doc.company } }));
+	},
 	refresh(frm) {
 		// arrived with the candidate set (Create > Employee Onboarding on a Job Offer)
 		if (frm.is_new() && frm.doc.job_applicant) {

@@ -129,6 +129,8 @@ MODULES = {
     "hrms_addon.hrms_addon.job_requisition": read("hrms_addon/hrms_addon/job_requisition.py"),
     "hrms_addon.hrms_addon.interviews": read("hrms_addon/hrms_addon/interviews.py"),
     "hrms_addon.hrms_addon.onboarding": read("hrms_addon/hrms_addon/onboarding.py"),
+    "hrms_addon.hrms_addon.reviews": read("hrms_addon/hrms_addon/reviews.py"),
+    "hrms_addon.hrms_addon.probation": read("hrms_addon/hrms_addon/probation.py"),
 }
 hook_paths = re.findall(r'"(hrms_addon\.[\w.]+)"', block(hooks_live, "after_migrate = [", "]"))
 hook_paths.append(re.search(r'extend_bootinfo = "([\w.]+)"', hooks_live).group(1))

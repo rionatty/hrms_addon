@@ -164,7 +164,10 @@ print("workflow shape: %d states, %d transitions, all reachable, docstatus only 
 
 # ── 2. Each step's checks and the HR Manager's stamp ─────────────────
 ALL = {"head_of_department": "hod@luuka", "activities": 4, "holiday_list": "Luuka 2026", "employee": "HR-EMP-00001",
-       "rules_signed_on": "2026-10-01", "bio_data_signed_on": "2026-10-02", "hrm_remarks": ""}
+       "rules_signed_on": "2026-10-01", "bio_data_signed_on": "2026-10-02", "hrm_remarks": "",
+       "supervisor": "HR-EMP-00042", "supervisor_is_employee": False, "salary_structure": "Luuka Staff 2026",
+       "base_salary": 850000, "salary_from": "2026-10-01", "date_of_joining": "2026-10-01", "tax_slab_needed": None,
+       "tools_pending": [], "training_required": 0, "training_missing": ["Trainer"]}
 step = A.step_errors
 expect("start with everything", step(A.DRAFT, A.ONBOARDING, ALL))
 expect("start without a Head of Department", step(A.DRAFT, A.ONBOARDING, dict(ALL, head_of_department=None)),
@@ -183,7 +186,21 @@ if "Job Applicant (Joining tab) is this candidate" not in " ".join(step(A.ONBOAR
 expect("send before the bio-data is captured", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, bio_data_signed_on=None)),
        "Update the Employee from the signed Personal Bio-Data Form")
 expect("send with nothing", step(A.ONBOARDING, A.PENDING_HRM, {}),
-       "Record the date the Workplace Rules", "Create the Employee")
+       "Choose the Supervisor", "Choose the Salary Structure", "Enter the Base salary",
+       "Set the date the salary is Effective From", "Record the date the Workplace Rules", "Create the Employee")
+# steps 5 to 7 and the training
+expect("the new employee as the supervisor", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, supervisor_is_employee=True)),
+       "The Supervisor cannot be the new employee.")
+expect("no base salary", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, base_salary=0)), "Enter the Base salary")
+expect("the salary before the joining date", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, salary_from="2026-09-30")),
+       "The salary cannot start before the Date of Joining.")
+expect("a structure deducting tax with no slab", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, tax_slab_needed="Luuka Staff 2026")),
+       "Choose the Income Tax Slab (Salary section): the Salary Structure Luuka Staff 2026 deducts income tax.")
+expect("tools not yet issued", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, tools_pending=["Computer", "PPE"])),
+       "Issue the tools of work, or mark them Not Needed, before sending the onboarding to the HR Manager: Computer, PPE.")
+expect("a required training not set up", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, training_required=1)),
+       "Training is required: fill in the Trainer (Training section)")
+expect("training details not needed when no training", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, training_required=0)))
 expect("return without remarks", step(A.PENDING_HRM, A.ONBOARDING, dict(ALL, hrm_remarks="   ")), "Write in the HR Manager's Remarks")
 expect("return with remarks", step(A.PENDING_HRM, A.ONBOARDING, dict(ALL, hrm_remarks="Salary grade is wrong")))
 expect("approve", step(A.PENDING_HRM, A.APPROVED, {}))
@@ -261,6 +278,54 @@ if set(R.TEMPLATE_BY_CATEGORY) != set(org.POSITION_CATEGORIES) \
         or R.TEMPLATE_BY_CATEGORY.get(org.NON_ADMINISTRATIVE) != R.PRODUCTION_TEMPLATE:
     fail.append("TEMPLATE_BY_CATEGORY must cover exactly org_rules.POSITION_CATEGORIES, production for non-administrative")
 print("assignment: named people, branch and department holders, then those serving every branch; templates picked")
+
+# ── 3c. Tools of work and training (steps 6 and 7, "Training Required?") ──
+if R.default_tools([("PPE", 1), ("Email account", 1)], [("Computer", 1), ("PPE", 2)]) != [
+        {"tool": "PPE", "qty": 2}, {"tool": "Email account", "qty": 1}, {"tool": "Computer", "qty": 1}]:
+    fail.append("default_tools: every new employee's tools, then the Job Title's, each once with the larger quantity")
+TOOLS = [
+    {"tool": "Computer", "provider": "IT", "qty": 1, "status": "", "before_day_one": 1},
+    {"tool": "Email account", "provider": "IT", "qty": 1, "status": None, "before_day_one": 0},
+    {"tool": "PPE", "provider": "EHS", "qty": 2, "status": "", "before_day_one": 1},
+    {"tool": "Log book", "provider": "Department", "qty": 1, "status": "", "before_day_one": 0},
+    {"tool": "Airtime", "provider": "HR", "qty": 1, "status": "Requested", "before_day_one": 0},
+]
+requests = R.tool_requests(TOOLS, {"Department": R.HOD_ROLE, "IT": None})
+if [(a["activity_name"], a["role"]) for a in requests] != [
+        ("Tools of work from IT", R.HR_OFFICER_ROLE), ("Tools of work from EHS", R.HR_OFFICER_ROLE),
+        ("Tools of work from Department", R.HOD_ROLE)]:
+    fail.append("tool_requests: one activity per provider not yet asked, to its role (the HR Officer if none): %s"
+                % [(a["activity_name"], a["role"]) for a in requests])
+it = requests[0]["description"] if requests else ""
+if "1 x Computer; 1 x Email account" not in it or "Needed before day 1: Computer." not in it:
+    fail.append("tool_requests must list each tool with its quantity and what is needed before day 1: %r" % it)
+if any(a["required_for_employee_creation"] or a["begin_on"] or len(a["activity_name"]) > 70 for a in requests):
+    fail.append("tool requests begin on day 0, never hold up Create Employee, and fit the task subject")
+if R.pending_tools([{"tool": "A", "status": "Issued"}, {"tool": "B", "status": "Not Needed"}, {"tool": "C", "status": "Requested"},
+                    {"tool": "D", "status": ""}]) != ["C", "D"]:
+    fail.append("pending_tools: everything not Issued or Not Needed")
+if R.training_missing({"custom_training_program": "GMP", "custom_trainer_name": "Peter", "custom_training_start": "2026-10-05",
+                       "custom_training_days": 2, "custom_training_location": "Kawempe"}) != []:
+    fail.append("training_missing: a training with its trainer, start, duration, place and program lacks nothing")
+if R.training_missing({"custom_training_scope": "  "}) != ["Trainer", "Training Starts On", "Duration (Days)", "Location",
+                                                           "Training Program or Training Scope"]:
+    fail.append("training_missing must name every missing detail: %s" % R.training_missing({"custom_training_scope": "  "}))
+start, end = R.training_window("2026-10-05", 3)
+if (str(start), str(end)) != ("2026-10-05 08:00:00", "2026-10-07 17:00:00"):
+    fail.append("training_window: from 08:00 on the first day to 17:00 on the last: %s to %s" % (start, end))
+evaluation = R.training_evaluation_activity("2026-10-01", "2026-10-05", 3)
+if (evaluation["begin_on"], evaluation["required_for_employee_creation"]) != (7, 0):
+    fail.append("the supervisor's evaluation begins as the training ends (day 7 here): %s" % evaluation)
+if set(R.PROVIDERS) != {"EHS", "IT", "HR", "Department", "Stores", "Procurement"} or R.PROVIDER_ROLES != {"Department": R.HOD_ROLE}:
+    fail.append("the seeded providers are the Tools of Work sheet's; the department's own tools go to its Head of Department")
+tool_json = json.load(open(os.path.join(APP, "doctype", "onboarding_tool", "onboarding_tool.json"), encoding="utf-8"))
+statuses = next((f.get("options") or "") for f in tool_json["fields"] if f["fieldname"] == "status").split("\n")
+if [o for o in statuses if o] != list(R.TOOL_STATUSES):
+    fail.append("Onboarding Tool status options must be exactly onboarding_rules.TOOL_STATUSES: %s" % statuses)
+for f in tool_json["fields"]:
+    if f["fieldname"] in ("status", "serial_no", "issued_on", "remarks", "qty") and not f.get("allow_on_submit"):
+        fail.append("Onboarding Tool.%s is filled after the onboarding starts: it must be allow_on_submit" % f["fieldname"])
+print("tools of work and training: defaults, one request per provider, what is pending, the training window")
 
 # ── 3b. What still stops the Employee ────────────────────────────────
 ACTIVITIES = [
@@ -388,6 +453,28 @@ if (field("custom_hrm_approval_section").get("depends_on") or "") != "eval:doc.d
 print_setter = next((s for s in setters if s["doc_type"] == EO and s["property"] == "default_print_format"), {})
 if print_setter.get("value") != "Workplace Rules and Regulations":
     fail.append("an onboarding prints the Workplace Rules and Regulations by default")
+# steps 5 to 7 and the training, filled after the start
+for name, (fieldtype, options) in {
+    "custom_supervisor": ("Link", "Employee"), "custom_tools": ("Table", "Onboarding Tool"),
+    "custom_salary_structure": ("Link", "Salary Structure"), "custom_salary_from": ("Date", None),
+    "custom_income_tax_slab": ("Link", "Income Tax Slab"), "custom_base_salary": ("Currency", None),
+    "custom_variable_pay": ("Currency", None), "custom_salary_structure_assignment": ("Link", "Salary Structure Assignment"),
+    "custom_training_required": ("Check", None), "custom_training_program": ("Link", "Training Program"),
+    "custom_training_scope": ("Small Text", None), "custom_trainer_name": ("Data", None), "custom_training_start": ("Date", None),
+    "custom_training_days": ("Int", None), "custom_training_location": ("Data", None),
+    "custom_training_event": ("Link", "Training Event"),
+}.items():
+    f = field(name)
+    if (f.get("fieldtype"), f.get("options") or None) != (fieldtype, options):
+        fail.append("Employee Onboarding.%s must be %s %s" % (name, fieldtype, options or ""))
+    if not f.get("allow_on_submit"):
+        fail.append("Employee Onboarding.%s is filled or set after the onboarding starts: it must be allow_on_submit" % name)
+for name in ("custom_salary_structure_assignment", "custom_training_event"):
+    if not (field(name).get("read_only") and field(name).get("no_copy")):
+        fail.append("Employee Onboarding.%s is set by the approval: read-only and never copied" % name)
+for field_name, label in R.TRAINING_DETAILS:
+    if field(field_name).get("depends_on") != "custom_training_required":
+        fail.append("Employee Onboarding.%s shows only when training is required" % field_name)
 print("fixtures: status, stamps, branch chain and the step fields are what the workflow needs")
 
 # ── 6. Upstream: what the glue relies on ─────────────────────────────
@@ -396,7 +483,8 @@ eo = upstream_doctype(EO)
 if eo:
     eo_all = {f["fieldname"]: f for f in eo["fields"]} | eo_fields
     for name in sorted(set(re.findall(r'doc\.get\("(\w+)"\)', glue)) | set(re.findall(r"\bdoc\.(\w+)\b", glue))):
-        if name in ("get", "set", "name", "docstatus", "get_doc_before_save", "activities", "idx", "flags", "throw", "db_set"):
+        if name in ("get", "set", "name", "docstatus", "get_doc_before_save", "activities", "idx", "flags", "throw", "db_set",
+                    "append", "as_dict"):
             continue
         if name not in eo_all:
             fail.append("onboarding.py reads Employee Onboarding.%s, which does not exist" % name)
@@ -475,7 +563,35 @@ if eo:
     hrms_setup = upstream_source("hrms", "setup.py") or ""
     if '"fieldname": "hr"' not in hrms_setup:
         fail.append("Frappe HR no longer adds the HR flag to Terms and Conditions: the rules are seeded with hr=1")
-    print("upstream: the role-holder assignment, reload, task link, Employee back-link and update path all as relied on")
+    # the Training Event the approval books, and the salary structure it submits
+    event = upstream_doctype("Training Event")
+    event_fields = {f["fieldname"]: f for f in (event or {}).get("fields", [])}
+    if event:
+        written = set(re.findall(r'^\s+"(\w+)": ', re.search(r'"doctype": "Training Event",(.*?)\n    \}\)', glue, re.S).group(1), re.M))
+        for name in sorted(written - {"doctype"}):
+            if name not in event_fields:
+                fail.append("the training booked sets Training Event.%s, which does not exist upstream" % name)
+        for name, f in event_fields.items():
+            if f.get("reqd") and name not in written:
+                fail.append("Training Event.%s is mandatory upstream and the training booked leaves it out" % name)
+        kinds = set((event_fields.get("type") or {}).get("options", "").split("\n"))
+        ours = {o for o in (field("custom_training_type").get("options") or "").split("\n") if o}
+        if not ours or not ours <= kinds:
+            fail.append("the Training Type offered must be Training Event's own kinds: %s" % sorted(ours - kinds))
+        if "Scheduled" not in (event_fields.get("event_status") or {}).get("options", ""):
+            fail.append("Training Event no longer has the Scheduled status the booking sets")
+    assignment = upstream_doctype("Salary Structure Assignment")
+    if assignment:
+        columns = {f["fieldname"] for f in assignment["fields"]}
+        written = set(re.findall(r'^\s+"(\w+)": ', re.search(r"assignment\.update\(\{(.*?)\n    \}\)", glue, re.S).group(1), re.M))
+        for name in sorted(written - columns):
+            fail.append("the salary drafted sets Salary Structure Assignment.%s, which does not exist upstream" % name)
+        ssa_py = upstream_source("hrms", "payroll", "doctype", "salary_structure_assignment", "salary_structure_assignment.py") or ""
+        if '{"employee": self.employee, "from_date": self.from_date, "docstatus": 1},' not in ssa_py:
+            fail.append("Frappe HR's one-assignment-per-date rule changed: re-check taking up the one HR already made")
+        if "def get_tax_component(salary_structure: str)" not in ssa_py:
+            fail.append("hrms get_tax_component is gone: the Income Tax Slab check reads it")
+    print("upstream: the role-holder assignment, reload, task link, Employee back-link, update path, training and salary")
 else:
     eo_all = eo_fields
     print("upstream cross-checks SKIPPED (no %s)" % APPS_ROOT)
@@ -508,6 +624,36 @@ for needle, why in (
      "a step finds an Employee never linked by the candidate"),
     ('doc.db_set("employee", employee, update_modified=False)', "Employee is not allow_on_submit: written to the database"),
     ('if hod in ("Administrator", "Guest"):', "the handover never goes to Administrator"),
+    # steps 5 to 7 and what the approval sets off
+    ("if new_state != old_state and new_state == approval.PENDING_HRM:\n        _draft_salary(doc)",
+     "the salary structure is drafted when the onboarding goes to the HR Manager"),
+    ("if new_state != old_state and new_state == approval.APPROVED:\n        _approve(doc)",
+     "the approval sets off the rest"),
+    ("assignment.flags.ignore_permissions = True\n        assignment.submit()", "the approval submits the salary structure"),
+    ("if assignment.docstatus != 0:\n            doc.custom_salary_structure_assignment = assignment.name\n            return assignment",
+     "a submitted assignment is never changed"),
+    ('"employee": doc.employee, "from_date": doc.custom_salary_from, "docstatus": ["!=", 2]}, "name")',
+     "an assignment HR already made for the date is taken, not duplicated (Frappe HR allows one per date)"),
+    ('if not frappe.db.exists("Probation Evaluation", {"employee": doc.employee, "docstatus": ["!=", 2]}):\n'
+     '        probation.create_evaluation(', "one probation evaluation, however often the approval runs"),
+    ('"base": flt(doc.custom_base_salary),', "the base salary goes into the assignment"),
+    ("employee.reports_to = doc.custom_supervisor", "the supervisor becomes the Employee's Reports To"),
+    ("if row.status == rules.TOOL_ISSUED and (row.tool, doc.name) not in have:", "the issued tools go on the register, once"),
+    ("employee.custom_probation_status = probation_rules.ON_PROBATION", "the Employee is on probation"),
+    ("reviews.create_reviews(doc.employee, doc.date_of_joining, doc.name, doc.custom_hr_officer)", "the 30-60-90 reviews"),
+    ("probation.create_evaluation(doc.employee, probation_end, onboarding=doc.name, hr_officer=doc.custom_hr_officer)",
+     "the probation evaluation"),
+    ("contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get(\"custom_base_salary\")))",
+     "the contract, drafted"),
+    ("if doc.get(\"custom_training_required\"):\n        _schedule_training(doc)", "the training, when required"),
+    ('activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})',
+     "the supervisor evaluates the training (the HOD when the supervisor has no login)"),
+    ("for row in rows:\n        row.status = rules.TOOL_REQUESTED", "the tools asked for are Requested"),
+    ('if name and frappe.db.get_value("Salary Structure Assignment", name, "docstatus") == 0:\n'
+     '        frappe.delete_doc("Salary Structure Assignment", name, ignore_permissions=True)',
+     "a cancelled onboarding drops only the draft salary structure"),
+    ('filters={"all_staff": 1}', "every new employee's tools are on each onboarding"),
+    ('"parentfield": "custom_tools"}', "then the Job Title's own"),
 ):
     if needle not in glue:
         fail.append("onboarding.py: %s (%r not found)" % (why, needle))
@@ -523,6 +669,13 @@ for name in ("validate", "before_update_after_submit"):
         fail.append("%s must check the step and hand out new activities" % name)
 if "if doc.docstatus == 1:" not in body_of("validate"):
     fail.append("validate hands the activities out only as the onboarding starts (it is submitted)")
+for name in ("validate", "before_update_after_submit"):
+    body = body_of(name)
+    if "_request_tools(doc)" not in body or body.find("_request_tools(doc)") > body.find("_resolve_assignees(doc)"):
+        fail.append("%s must ask for the tools before handing the activities out (the requests are activities)" % name)
+after_submit_body = body_of("before_update_after_submit")
+if after_submit_body.find("_approve(doc)") > after_submit_body.find("_resolve_assignees(doc)"):
+    fail.append("the approval adds the training evaluation activity: it must come before the activities are handed out")
 after_submit = body_of("before_update_after_submit")
 if "_link_employee(doc)" not in after_submit or after_submit.find("_link_employee(doc)") > after_submit.find("_check_step(doc)"):
     fail.append("before_update_after_submit must find the Employee before checking the step")
@@ -544,7 +697,7 @@ for node in ast.parse(hooks_src).body:
             pass
 events = (hooks.get("doc_events") or {}).get(EO, {})
 EVENTS = {"validate": "validate", "before_update_after_submit": "before_update_after_submit", "on_submit": "after_tasks",
-          "on_update_after_submit": "after_tasks"}
+          "on_update_after_submit": "after_tasks", "on_cancel": "on_cancel"}
 for event, function in EVENTS.items():
     if events.get(event) != "hrms_addon.hrms_addon.onboarding.%s" % function:
         fail.append("doc_events Employee Onboarding %s must be onboarding.%s" % (event, function))
