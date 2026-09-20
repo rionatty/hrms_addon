@@ -29,6 +29,8 @@ ONBOARDING_DOCS = ["Onboarding Review", "Probation Evaluation", "Employee Contra
 # what follows afterwards: a promotion, a change of designation or a salary
 # review, and where the pay is sent
 SERVICE_DOCS = ["Employee Position Change", "Employee Data Change Request"]
+# how the person is doing, and what was agreed where they fell short
+PERFORMANCE_DOCS = ["Appraisal", "Performance Improvement Plan"]
 
 
 def employee_dashboard(data=None):
@@ -37,6 +39,7 @@ def employee_dashboard(data=None):
     transactions = data.setdefault("transactions", [])
     transactions.append({"label": _("Probation and Contracts"), "items": list(ONBOARDING_DOCS)})
     transactions.append({"label": _("Position and Pay"), "items": list(SERVICE_DOCS)})
+    transactions.append({"label": _("Performance"), "items": list(PERFORMANCE_DOCS)})
     return data
 
 

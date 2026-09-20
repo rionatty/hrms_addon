@@ -86,11 +86,19 @@ CARDS = {
             ("Employee Performance Feedback", "Employee Performance Feedback", DOCTYPE),
             ("Goal", "Goal", DOCTYPE),
         ]),
+        # Luuka's own round: the plan, the report to management and what
+        # happens to anyone below the pass mark (appraisals.py, pips.py)
+        ("The Appraisal Round", [
+            ("Appraisal Plan", "Appraisal Plan", DOCTYPE),
+            ("Performance Review", "Performance Review", DOCTYPE),
+            ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE),
+        ]),
         ("After the Appraisal", [
             ("Employee Position Change", "Employee Position Change", DOCTYPE),
             ("Employee Promotion", "Employee Promotion", DOCTYPE),
         ]),
         ("Appraisal Setup", [
+            ("Appraisal Factor", "Appraisal Factor", DOCTYPE),
             ("Appraisal Template", "Appraisal Template", DOCTYPE),
             ("Employee Feedback Criteria", "Employee Feedback Criteria", DOCTYPE),
             ("KRA", "KRA", DOCTYPE),
@@ -133,7 +141,11 @@ SIDEBAR = {
     ],
     # a promotion follows an appraisal, so it is reachable from here too
     "Performance": [
+        ("Appraisal Plan", "Appraisal Plan", DOCTYPE, None, "Goal"),
+        ("Performance Review", "Performance Review", DOCTYPE, None, "Appraisal"),
+        ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Performance Review"),
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
+        ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
     ],
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),

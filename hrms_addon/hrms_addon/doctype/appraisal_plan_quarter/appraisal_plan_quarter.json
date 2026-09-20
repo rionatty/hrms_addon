@@ -1,0 +1,104 @@
+{
+ "actions": [],
+ "creation": "2026-09-23 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "quarter",
+  "from_date",
+  "to_date",
+  "soft_deadline",
+  "hard_deadline",
+  "appraisal_cycle",
+  "appraisals",
+  "notified_on",
+  "reminders_sent"
+ ],
+ "fields": [
+  {
+   "fieldname": "quarter",
+   "fieldtype": "Select",
+   "label": "Quarter",
+   "options": "Q1\nQ2\nQ3\nQ4",
+   "in_list_view": 1,
+   "columns": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "in_list_view": 1,
+   "columns": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "in_list_view": 1,
+   "columns": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "soft_deadline",
+   "fieldtype": "Date",
+   "label": "Soft Deadline",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "When the appraisals should be in (the 25th, by default)."
+  },
+  {
+   "fieldname": "hard_deadline",
+   "fieldtype": "Date",
+   "label": "Hard Deadline",
+   "in_list_view": 1,
+   "columns": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "appraisal_cycle",
+   "fieldtype": "Link",
+   "label": "Appraisal Cycle",
+   "options": "Appraisal Cycle",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "appraisals",
+   "fieldtype": "Int",
+   "label": "Appraisals",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "notified_on",
+   "fieldtype": "Date",
+   "label": "HR Notified On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reminders_sent",
+   "fieldtype": "Data",
+   "label": "Reminders Sent",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-23 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Appraisal Plan Quarter",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -128,6 +128,10 @@ doctype_js = {
     # list and the evaluation forms, key the evaluations in, the summary
     "Training Event": "public/js/training_event.js",
     "Training Feedback": "public/js/training_feedback.js",
+    # The Supervisory Skills Evaluation Form (LPL/HR/18) lives on Frappe
+    # HR's Appraisal; the cycle carries the sheet for appraising offline
+    "Appraisal": "public/js/appraisal.js",
+    "Appraisal Cycle": "public/js/appraisal_cycle.js",
 }
 # doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -194,6 +198,7 @@ after_install = [
     "hrms_addon.hrms_addon.probation.after_install",
     # the items of the Training Evaluation Form (LPL/TRG/FRM05)
     "hrms_addon.hrms_addon.pick_lists.seed_training_masters",
+    "hrms_addon.hrms_addon.pick_lists.seed_appraisal_masters",
 ]
 
 # Uninstallation
@@ -255,6 +260,11 @@ after_migrate = [
     # Legal Manager role the renewal and salary letters witness with.
     # See position_approval.py.
     "hrms_addon.hrms_addon.positions.setup_workflows_on_migrate",
+    # The appraisal round: the Supervisory Skills Evaluation Form's own
+    # signatures on Frappe HR's Appraisal, and the rights the supervisor,
+    # Production Manager and General Manager need on it.
+    # See appraisal_approval.py.
+    "hrms_addon.hrms_addon.appraisals.setup_workflows_on_migrate",
     # Employee Onboarding: started by the branch HR Officer, approved by the
     # HR Manager. See onboarding_approval.py.
     "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate",
@@ -576,6 +586,65 @@ fixtures = [
                     "Employee-custom_bank_witness",
                     "Employee-custom_bank_declaration_cb",
                     "Employee-custom_signed_bank_form",
+                    "Appraisal-custom_round_section",
+                    "Appraisal-custom_plan",
+                    "Appraisal-custom_quarter",
+                    "Appraisal-custom_round_cb",
+                    "Appraisal-custom_branch",
+                    "Appraisal-custom_supervisor",
+                    "Appraisal-custom_appraisal_status",
+                    "Appraisal-custom_section_a",
+                    "Appraisal-custom_factors",
+                    "Appraisal-custom_section_b",
+                    "Appraisal-custom_objectives",
+                    "Appraisal-custom_section_c",
+                    "Appraisal-custom_factors_score",
+                    "Appraisal-custom_objectives_score",
+                    "Appraisal-custom_section_c_cb",
+                    "Appraisal-custom_total_score",
+                    "Appraisal-custom_band",
+                    "Appraisal-custom_annual_score",
+                    "Appraisal-custom_general_section",
+                    "Appraisal-custom_roles",
+                    "Appraisal-custom_skills",
+                    "Appraisal-custom_achievements",
+                    "Appraisal-custom_challenges",
+                    "Appraisal-custom_employee_section",
+                    "Appraisal-custom_employee_remarks",
+                    "Appraisal-custom_employee_cb",
+                    "Appraisal-custom_employee_signed_by",
+                    "Appraisal-custom_employee_signed_on",
+                    "Appraisal-custom_supervisor_section",
+                    "Appraisal-custom_supervisor_remarks",
+                    "Appraisal-custom_supervisor_cb",
+                    "Appraisal-custom_supervisor_by",
+                    "Appraisal-custom_supervisor_on",
+                    "Appraisal-custom_hrm_section",
+                    "Appraisal-custom_hrm_remarks",
+                    "Appraisal-custom_hrm_cb",
+                    "Appraisal-custom_hrm_by",
+                    "Appraisal-custom_hrm_on",
+                    "Appraisal-custom_production_section",
+                    "Appraisal-custom_production_remarks",
+                    "Appraisal-custom_production_cb",
+                    "Appraisal-custom_production_by",
+                    "Appraisal-custom_production_on",
+                    "Appraisal-custom_gm_section",
+                    "Appraisal-custom_gm_remarks",
+                    "Appraisal-custom_gm_cb",
+                    "Appraisal-custom_gm_by",
+                    "Appraisal-custom_gm_on",
+                    "Appraisal-custom_return_section",
+                    "Appraisal-custom_return_remarks",
+                    "Appraisal-custom_outcome",
+                    "Appraisal-custom_performance_review",
+                    "Appraisal Cycle-custom_plan_section",
+                    "Appraisal Cycle-custom_plan",
+                    "Appraisal Cycle-custom_quarter",
+                    "Appraisal Cycle-custom_plan_cb",
+                    "Appraisal Cycle-custom_soft_deadline",
+                    "Appraisal Cycle-custom_hard_deadline",
+                    "Appraisal Cycle-custom_reminders_sent",
                 ],
             ]
         ],
@@ -689,6 +758,12 @@ doc_events = {
         # the same for an offer made from an approved Interview Report
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
     },
+    "Appraisal": {
+        # LPL/HR/18: Section C from the supervisor's ratings, the
+        # signatures, and the year to date (appraisals.py)
+        "validate": "hrms_addon.hrms_addon.appraisals.appraisal_validate",
+        "on_cancel": "hrms_addon.hrms_addon.appraisals.appraisal_on_cancel",
+    },
     "Employee Onboarding": {
         # Defaults from the candidate, the workflow step's checks and stamp,
         # and each activity given to the branch's own people, not every
@@ -736,6 +811,11 @@ scheduler_events = {
         # An internship whose end date has passed is marked Completed
         # (positions.py)
         "hrms_addon.hrms_addon.positions.daily",
+        # Performance: the HR Officer told when a quarter closes, and
+        # everyone appraising reminded before the deadlines
+        "hrms_addon.hrms_addon.appraisals.daily",
+        # A Performance Improvement Plan's review dates and its end
+        "hrms_addon.hrms_addon.pips.daily",
     ],
 }
 

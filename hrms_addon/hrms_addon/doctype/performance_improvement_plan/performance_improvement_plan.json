@@ -1,0 +1,382 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-23 09:00:00.000000",
+ "description": "An agreement with an employee who scored below the pass mark: what must improve, the support the company gives, how it is measured, and when it is looked at again.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "designation",
+  "column_break_1",
+  "department",
+  "branch",
+  "supervisor",
+  "status",
+  "why_section",
+  "appraisal",
+  "appraisal_score",
+  "column_break_2",
+  "performance_review",
+  "reason",
+  "period_section",
+  "start_date",
+  "months",
+  "column_break_3",
+  "end_date",
+  "objectives_section",
+  "objectives",
+  "agreement_section",
+  "employee_agreed_on",
+  "column_break_4",
+  "supervisor_agreed_on",
+  "signed_plan",
+  "reviews_section",
+  "reviews",
+  "outcome_section",
+  "outcome",
+  "suggested_outcome",
+  "new_end_date",
+  "column_break_5",
+  "outcome_remarks",
+  "closed_by",
+  "closed_on",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "HR-PIP-.YYYY.-",
+   "reqd": 1,
+   "default": "HR-PIP-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee",
+   "reqd": 1,
+   "description": "Who guides the employee through the plan."
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nAgreed\nIn Progress\nClosed\nCancelled",
+   "read_only": 1,
+   "default": "Draft",
+   "in_standard_filter": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "why_section",
+   "fieldtype": "Section Break",
+   "label": "Why"
+  },
+  {
+   "fieldname": "appraisal",
+   "fieldtype": "Link",
+   "label": "Appraisal",
+   "options": "Appraisal",
+   "description": "The appraisal the plan follows from."
+  },
+  {
+   "fieldname": "appraisal_score",
+   "fieldtype": "Percent",
+   "label": "Appraisal Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "performance_review",
+   "fieldtype": "Link",
+   "label": "Performance Review",
+   "options": "Performance Review",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "period_section",
+   "fieldtype": "Section Break",
+   "label": "Period"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "months",
+   "fieldtype": "Int",
+   "label": "Runs For (months)",
+   "default": "3"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "objectives_section",
+   "fieldtype": "Section Break",
+   "label": "What must improve"
+  },
+  {
+   "fieldname": "objectives",
+   "fieldtype": "Table",
+   "label": "Objectives",
+   "options": "PIP Objective"
+  },
+  {
+   "fieldname": "agreement_section",
+   "fieldtype": "Section Break",
+   "label": "Agreement"
+  },
+  {
+   "fieldname": "employee_agreed_on",
+   "fieldtype": "Date",
+   "label": "Employee Agreed On"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor_agreed_on",
+   "fieldtype": "Date",
+   "label": "Supervisor Agreed On"
+  },
+  {
+   "fieldname": "signed_plan",
+   "fieldtype": "Attach",
+   "label": "Signed Plan",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reviews_section",
+   "fieldtype": "Section Break",
+   "label": "Reviews",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "reviews",
+   "fieldtype": "Table",
+   "label": "Review Meetings",
+   "options": "PIP Review"
+  },
+  {
+   "fieldname": "outcome_section",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "outcome",
+   "fieldtype": "Select",
+   "label": "Outcome",
+   "options": "Improved\nNot Improved\nExtended",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "suggested_outcome",
+   "fieldtype": "Data",
+   "label": "Suggested by the reviews",
+   "read_only": 1
+  },
+  {
+   "fieldname": "new_end_date",
+   "fieldtype": "Date",
+   "label": "Extended To",
+   "depends_on": "eval:doc.outcome == \"Extended\""
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outcome_remarks",
+   "fieldtype": "Text",
+   "label": "What was agreed at the end"
+  },
+  {
+   "fieldname": "closed_by",
+   "fieldtype": "Link",
+   "label": "Closed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "closed_on",
+   "fieldtype": "Date",
+   "label": "Closed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Performance Improvement Plan",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-23 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Performance Improvement Plan",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Employee",
+   "if_owner": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

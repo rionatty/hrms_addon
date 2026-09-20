@@ -119,3 +119,10 @@ def after_install():
     seed_masters(MASTERS)
     flag_certification_types()
     seed_onboarding_masters()
+
+def seed_appraisal_masters():
+    """Section A of the Supervisory Skills Evaluation Form (LPL/HR/18),
+    seeded once as the Appraisal Factor list; HR adds to it after that."""
+    from hrms_addon.hrms_addon import appraisal_rules
+
+    seed_masters(appraisal_rules.APPRAISAL_MASTERS)

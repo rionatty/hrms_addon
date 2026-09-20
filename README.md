@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_js.py && python scripts/verify_positions.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
+python scripts/verify_js.py && python scripts/verify_positions.py && python scripts/verify_performance.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -385,6 +385,28 @@ its plant chosen per intern. The Legal Manager role the renewal and salary
 letters witness with is created on migrate. The check exercises the rules
 without a bench, walks the signatures, and holds every letter to the words
 on the paper and to fields that exist.
+
+`verify_performance.py` covers the appraisal round (the flowchart and
+test cases 1 to 10), on the shape of the **Supervisory Skills Evaluation
+Form** (LPL/HR/18): twelve ratable factors worth 60, up to eight
+objectives worth 40, the form's bands, and comments and signatures from
+the Employee, the Supervisor, the HR Manager, the Production Manager and
+the General Manager. It is built on Frappe HR's own Appraisal Cycle and
+Appraisal — the form is added to the Appraisal as custom fields rather
+than replacing it — so the round keeps its appraisee list and the
+Appraisal Overview chart fills as appraisals are scored. The **Appraisal
+Plan** is the HR Officer's year: four quarters with their windows, a soft
+deadline on the 25th and a hard one at the month's end. The daily job
+tells the HR Officer when a quarter closes and reminds everyone
+appraising a week, a day and on the day before. A quarter opens an
+Appraisal Cycle and an Appraisal per employee. The supervisor rates in
+the system, or the sheet is downloaded, filled away from it and uploaded
+back. The **Performance Review** is the report shared with top
+management, and its decisions are carried out: a promotion or a salary
+increase raises an Employee Position Change, a score below 60 a
+**Performance Improvement Plan** — an agreement with a standard to reach,
+the support the company gives, how it is measured and when it is looked
+at again, reviewed while it runs and closed with an outcome.
 
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
