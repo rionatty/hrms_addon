@@ -1,0 +1,374 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-25 09:00:00.000000",
+ "description": "LPL/HR/25: an employee asks for a day off, signed by the Supervisor and the Section Manager with remarks for the HR Manager.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "badge_no",
+  "column_break_1",
+  "department",
+  "section",
+  "branch",
+  "request_date",
+  "request_section",
+  "off_date",
+  "kind",
+  "column_break_2",
+  "reason",
+  "status",
+  "supervisor_section",
+  "supervisor_remarks",
+  "column_break_3",
+  "supervisor_by",
+  "supervisor_on",
+  "manager_section",
+  "manager_remarks",
+  "column_break_4",
+  "manager_by",
+  "manager_on",
+  "hr_section",
+  "hr_remarks",
+  "column_break_5",
+  "hr_by",
+  "hr_on",
+  "return_section",
+  "return_remarks",
+  "attendance",
+  "amended_from",
+  "workflow_state"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "HR-ODR-.YYYY.-",
+   "reqd": 1,
+   "default": "HR-ODR-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "badge_no",
+   "fieldtype": "Data",
+   "label": "Badge No.",
+   "fetch_from": "employee.attendance_device_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Dept.",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section",
+   "fieldtype": "Data",
+   "label": "Section"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "request_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "request_section",
+   "fieldtype": "Section Break",
+   "label": "The day off"
+  },
+  {
+   "fieldname": "off_date",
+   "fieldtype": "Date",
+   "label": "Absent Date On",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "kind",
+   "fieldtype": "Select",
+   "label": "Paid / Ungranted / Compensation / Annual leave / Compassionate",
+   "options": "Paid\nUngranted\nCompensation\nAnnual Leave\nCompassionate",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Supervisor\nPending Section Manager\nPending HR Manager\nApproved\nRejected\nCancelled",
+   "read_only": 1,
+   "default": "Draft",
+   "in_standard_filter": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "supervisor_section",
+   "fieldtype": "Section Break",
+   "label": "Supervisor"
+  },
+  {
+   "fieldname": "supervisor_remarks",
+   "fieldtype": "Small Text",
+   "label": "Supervisor's Remarks"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor_by",
+   "fieldtype": "Link",
+   "label": "Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "supervisor_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "manager_section",
+   "fieldtype": "Section Break",
+   "label": "Section Manager"
+  },
+  {
+   "fieldname": "manager_remarks",
+   "fieldtype": "Small Text",
+   "label": "Section Manager's Remarks"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "manager_by",
+   "fieldtype": "Link",
+   "label": "Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "manager_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hr_section",
+   "fieldtype": "Section Break",
+   "label": "Remarks for Human Resource Manager"
+  },
+  {
+   "fieldname": "hr_remarks",
+   "fieldtype": "Small Text",
+   "label": "HR Manager's Remarks"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hr_by",
+   "fieldtype": "Link",
+   "label": "Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hr_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_section",
+   "fieldtype": "Section Break",
+   "label": "Returned",
+   "depends_on": "return_remarks",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "attendance",
+   "fieldtype": "Link",
+   "label": "Attendance",
+   "options": "Attendance",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "The day's attendance this request accounts for."
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Off Duty Request",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-25 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Off Duty Request",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Employee",
+   "write": 1,
+   "create": 1,
+   "if_owner": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

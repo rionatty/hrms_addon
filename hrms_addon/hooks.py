@@ -266,6 +266,9 @@ after_migrate = [
     # Production Manager and General Manager need on it.
     # See appraisal_approval.py.
     "hrms_addon.hrms_addon.appraisals.setup_workflows_on_migrate",
+    # The Off Duty Request (LPL/HR/25): the Supervisor then the Section
+    # Manager, with remarks for the HR Manager. See off_duty_approval.py.
+    "hrms_addon.hrms_addon.attendance.setup_workflows_on_migrate",
     # Employee Onboarding: started by the branch HR Officer, approved by the
     # HR Manager. See onboarding_approval.py.
     "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate",
@@ -680,6 +683,7 @@ fixtures = [
                     "Appraisal-custom_development_cb2",
                     "Appraisal-custom_start",
                     "Appraisal-custom_development_actions",
+                    "Employee-custom_automatic_attendance",
                 ],
             ]
         ],
@@ -851,6 +855,16 @@ scheduler_events = {
         "hrms_addon.hrms_addon.appraisals.daily",
         # A Performance Improvement Plan's review dates and its end
         "hrms_addon.hrms_addon.pips.daily",
+        # Attendance: top management marked present without punching, and
+        # a gate pass nobody closed (attendance.py)
+        "hrms_addon.hrms_addon.attendance.daily",
+        # The punches that never landed, pushed again (devices.py)
+        "hrms_addon.hrms_addon.devices.daily",
+    ],
+    "hourly": [
+        # Every enabled ZKTeco machine read and pushed into Employee
+        # Checkin. See devices.py.
+        "hrms_addon.hrms_addon.devices.pull_all",
     ],
 }
 

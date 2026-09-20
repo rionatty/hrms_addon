@@ -656,7 +656,9 @@ if by_dt.get(EM):
                  "custom_bank_declared_on": ("Salary", "custom_bank_declaration_section"),
                  "custom_bank_witness": ("Salary", "custom_bank_declared_on"),
                  "custom_bank_declaration_cb": ("Salary", "custom_bank_witness"),
-                 "custom_signed_bank_form": ("Salary", "custom_bank_declaration_cb")}
+                 "custom_signed_bank_form": ("Salary", "custom_bank_declaration_cb"),
+                 # attendance: the badge is Frappe HR's own field and these sit beside it
+                 "custom_automatic_attendance": ("Attendance & Leaves", "attendance_device_id")}
     for hrms_first in (True, False):
         order, fields = simulate_layout(EM, hrms_first=hrms_first)
         positions = positions_of(order, fields)

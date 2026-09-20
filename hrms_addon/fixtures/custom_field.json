@@ -4426,5 +4426,20 @@
   "creation": "2026-09-24 09:00:00.000000",
   "modified": "2026-09-24 09:00:00.000000",
   "options": "Development Action"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Employee",
+  "fieldname": "custom_automatic_attendance",
+  "fieldtype": "Check",
+  "label": "Automatic Attendance",
+  "insert_after": "attendance_device_id",
+  "module": "HRMS Addon",
+  "name": "Employee-custom_automatic_attendance",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-25 09:00:00.000000",
+  "modified": "2026-09-25 09:00:00.000000",
+  "description": "Marked present each day without clocking in: for top management, as both minutes ask."
  }
 ]

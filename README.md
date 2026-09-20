@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_js.py && python scripts/verify_positions.py && python scripts/verify_performance.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
+python scripts/verify_js.py && python scripts/verify_positions.py && python scripts/verify_performance.py && python scripts/verify_attendance.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -424,6 +424,27 @@ kept but left inactive with the reason on it, because the numbers are
 theirs to correct. Their workbook also divides a quarter by a further ten,
 which scores a perfect quarter 8 of 80; Luuka confirmed the quarterly
 score is real, so that stray tenth is dropped here.
+
+`verify_attendance.py` covers attendance and shift management. Luuka clock
+in on **ZKTeco** machines and keep a paper register beside them, because
+the machines are unreliable. **Attendance Device** holds each machine and
+**Pull Now** reads it: every punch is written down as an **Attendance
+Device Log** before anything is made of it, then pushed into Frappe HR's
+Employee Checkin through its own `add_log_based_on_employee_field`. Two
+faults the minutes report are handled by name. A face read twice within
+ninety seconds is one arrival, collapsed across machines because Luuka's
+stand side by side; and a punch that never landed keeps its row, so **Push
+What Never Landed** sends it again without going back to the machine. A
+badge nobody owns is reported rather than dropped. The pyzk driver is
+imported only when a machine is really reached, so a site without it still
+installs. The attendance month runs **26 to 25**, as both minutes and
+LPL/HR/07's own columns do, and the register prints that cycle with M, N,
+A, S, WO, L and O in its cells and the day and night tallies underneath.
+The three forms are **LPL/HR/25** off duty (Supervisor, then Section
+Manager, then HR), **LPL/HR/14** overtime with the food coupons HR issues
+afterwards, and the **Gate Pass**, which is chased when nobody records a
+return. Top management are marked present without punching, as both
+minutes ask.
 
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event

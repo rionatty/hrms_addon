@@ -106,6 +106,19 @@ CARDS = {
             ("KRA", "KRA", DOCTYPE),
         ]),
     ],
+    # Frappe HR's own attendance page gains Luuka's three forms and the
+    # machines they are reconciled against (attendance.py, devices.py)
+    "Shift & Attendance": [
+        ("Attendance Forms", [
+            ("Off Duty Request", "Off Duty Request", DOCTYPE),
+            ("Overtime Request", "Overtime Request", DOCTYPE),
+            ("Gate Pass", "Gate Pass", DOCTYPE),
+        ]),
+        ("Clocking Machines", [
+            ("Attendance Device", "Attendance Device", DOCTYPE),
+            ("Attendance Device Log", "Attendance Device Log", DOCTYPE),
+        ]),
+    ],
     "HR Setup": [
         ("Job Description Lists", [
             ("KRA Perspective", "KRA Perspective", DOCTYPE),
@@ -150,6 +163,13 @@ SIDEBAR = {
         ("BSC Appraisal Template", "BSC Appraisal Template", DOCTYPE, "Setup", None),
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
+    ],
+    "Shift & Attendance": [
+        ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
+        ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
+        ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
+        ("Attendance Device", "Attendance Device", DOCTYPE, "Setup", None),
+        ("Attendance Device Log", "Attendance Device Log", DOCTYPE, "Setup", None),
     ],
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),
