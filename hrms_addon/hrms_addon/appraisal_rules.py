@@ -187,7 +187,7 @@ def plan_errors(facts):
     """Problems with an Annual Appraisal Plan as it is submitted.
 
     facts: "year", "quarters" ([{"quarter", "from_date", "to_date",
-    "soft_deadline", "hard_deadline"}]), "appraisal_template", "company".
+    "soft_deadline", "hard_deadline"}]), "company".
     """
     errors = []
     year = facts.get("year")

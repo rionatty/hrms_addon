@@ -13,7 +13,6 @@
   "column_break_1",
   "branch",
   "department",
-  "appraisal_template",
   "status",
   "quarters_section",
   "quarters",
@@ -76,13 +75,6 @@
    "label": "Department",
    "options": "Department",
    "description": "Left blank, it covers every department."
-  },
-  {
-   "fieldname": "appraisal_template",
-   "fieldtype": "Link",
-   "label": "Appraisal Template",
-   "options": "Appraisal Template",
-   "description": "Frappe HR's template the cycles are opened with, where one is used."
   },
   {
    "fieldname": "status",

@@ -64,7 +64,7 @@ def plan_validate(doc, method=None):
     if doc.docstatus == 0:
         doc.status = "Draft"
     errors = rules.plan_errors({
-        "year": doc.get("year"), "company": doc.get("company"), "appraisal_template": doc.get("appraisal_template"),
+        "year": doc.get("year"), "company": doc.get("company"),
         "quarters": [row.as_dict() for row in doc.get("quarters") or []],
     })
     if errors and doc.docstatus == 1:
@@ -170,7 +170,7 @@ def _raise_appraisal(plan, row, cycle, employee):
         "doctype": "Appraisal", "employee": employee.name, "employee_name": employee.employee_name,
         "appraisal_cycle": cycle.name, "company": plan.company, "department": employee.department,
         "designation": employee.designation, "start_date": row.from_date, "end_date": row.to_date,
-        "appraisal_template": plan.get("appraisal_template"), "rate_goals_manually": 1,
+        "rate_goals_manually": 1,
         "custom_plan": plan.name, "custom_quarter": row.quarter, "custom_supervisor": employee.reports_to,
         "custom_appraisal_status": approval.DRAFT, "workflow_state": approval.DRAFT,
     })
