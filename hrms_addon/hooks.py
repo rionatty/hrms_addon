@@ -79,10 +79,13 @@ app_include_css = "hrms_addon.bundle.css"
 #  - form_sidebar_toggle.js: collapse/expand the right-hand form panel
 #  - hrms_addon_branding.js: the few labels that are rendered client-side
 #    from each app's own hooks and so cannot be set server-side
+#  - hrms_addon_alerts.js: My Alerts, the user's own assignments and unread
+#    notifications down the right of the desk (hrms_addon/hrms_addon/alerts.py)
 app_include_js = [
     "/assets/hrms_addon/js/hrms_addon_theme.js",
     "/assets/hrms_addon/js/form_sidebar_toggle.js",
     "/assets/hrms_addon/js/hrms_addon_branding.js",
+    "/assets/hrms_addon/js/hrms_addon_alerts.js",
 ]
 
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout

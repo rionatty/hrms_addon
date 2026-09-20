@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -322,6 +322,25 @@ Executive Director's decision, with each step's checks and signature.
 It also checks what the decision does to the Employee — confirmed,
 extended (which makes the next evaluation) or not confirmed, which hands
 HR the termination process.
+
+`verify_alerts.py` covers **My Alerts**, the column down the right of the
+desk (`public/js/hrms_addon_alerts.js`, `hrms_addon/alerts.py`). It shows
+one person their own work — the assignments on their ToDo list and the
+notifications they have not read — coloured by how soon each matters:
+overdue red, due today or tomorrow amber, due within the week blue, the
+rest grey, and a High priority assignment never quieter than amber. New
+ones arrive by Frappe's own realtime `notification` event and are
+announced with a toast in the same colour.
+
+It is a **flex column of the desk body**, not an overlay: Frappe lays the
+desk out as a flex row (`scss/desk/main.scss`), so a third child takes its
+width from the page rather than covering it. Below 992px there is no room
+for a third column and it steps aside. The check exercises the bands
+without a bench and then pins the contracts between the parts: every query
+filtered on `frappe.session.user` and no function taking a user to look
+at, the methods the script calls whitelisted (and the two that change
+something POST-only), titles escaped, a colour for every band in the
+stylesheet, and the script's toast colours identical to the rules'.
 
 `verify_contracts.py` covers contract management: a contract's status on a
 day, the alerts a year, a quarter and a month before its end (each sent

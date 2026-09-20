@@ -654,6 +654,173 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
   stroke: var(--hra-ink) !important;
 }
 
+/* ============================================================
+   MY ALERTS RAIL — public/js/hrms_addon_alerts.js
+   ------------------------------------------------------------
+   A column down the right of the desk with the logged-in user's
+   own assignments and unread notifications, coloured by how soon
+   each matters.
+
+   It is a FLEX ITEM of <body>, not an overlay. Frappe lays the
+   desk out as a flex row (scss/desk/main.scss: `body { display:
+   flex; flex-direction: row }` with `.main-section { width: 100% }`),
+   so a third child takes its width from the page instead of
+   covering it — no fixed positioning, nothing hidden underneath.
+
+   Colours come from Frappe's own variables where they exist, so
+   the rail follows light and dark mode without a second block.
+   To revert, delete this block and the app_include_js entry.
+   ============================================================ */
+:root {
+  --ha-rail-width: 288px;
+}
+
+.ha-rail {
+  flex: 0 0 var(--ha-rail-width);
+  width: var(--ha-rail-width);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg, #FFFFFF);
+  border-left: 1px solid var(--border-color, var(--hra-border));
+  color: var(--text-color, var(--hra-ink));
+  font-size: var(--text-sm, 12px);
+}
+
+.ha-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color, var(--hra-border));
+}
+.ha-rail-title {
+  font-weight: 600;
+  letter-spacing: .2px;
+  flex: 1 1 auto;
+}
+.ha-rail-toggle,
+.ha-rail-read-all {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted, var(--hra-ink-muted));
+  cursor: pointer;
+  font-size: var(--text-sm, 12px);
+}
+.ha-rail-toggle {
+  font-size: 18px;
+  line-height: 1;
+}
+.ha-rail-toggle:hover,
+.ha-rail-read-all:hover {
+  color: var(--text-color, var(--hra-ink));
+  text-decoration: underline;
+}
+.ha-rail-actions {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color, var(--hra-border));
+  text-align: right;
+}
+
+/* The count, coloured by the most urgent thing in the list. */
+.ha-rail-count,
+.ha-rail-open-count {
+  min-width: 22px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 11px;
+  color: #FFFFFF;
+  background: var(--ha-band, var(--hra-ink-muted));
+}
+
+.ha-rail-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.ha-rail-empty {
+  padding: 18px 14px;
+  color: var(--text-muted, var(--hra-ink-muted));
+}
+
+.ha-alert {
+  display: flex;
+  gap: 8px;
+  padding: 9px 12px 9px 9px;
+  border-left: 3px solid var(--ha-band, transparent);
+  color: inherit;
+  text-decoration: none;
+}
+.ha-alert:hover {
+  background: var(--fg-hover-color, var(--hra-pale));
+  text-decoration: none;
+  color: inherit;
+}
+.ha-alert-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--ha-band, var(--hra-ink-muted));
+}
+.ha-alert-text {
+  min-width: 0;
+}
+.ha-alert-title {
+  display: block;
+  line-height: 1.35;
+}
+.ha-alert-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted, var(--hra-ink-muted));
+}
+
+/* The bands: one variable per row, read by the dot, the edge and the count. */
+.ha-band-overdue { --ha-band: var(--hra-danger); }
+.ha-band-today   { --ha-band: var(--hra-amber-text); }
+.ha-band-soon    { --ha-band: var(--hra-accent); }
+.ha-band-later   { --ha-band: var(--hra-primary-soft); }
+.ha-band-none    { --ha-band: var(--hra-ink-muted); }
+
+/* Collapsed: the column gives its width back and leaves a tab to reopen. */
+.ha-rail-open {
+  display: none;
+  position: fixed;
+  top: calc(var(--navbar-height, 48px) + 12px);
+  right: 0;
+  z-index: 1021;
+  padding: 6px 8px 6px 6px;
+  border: 1px solid var(--border-color, var(--hra-border));
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
+  background: var(--card-bg, #FFFFFF);
+  cursor: pointer;
+}
+html.ha-rail-collapsed .ha-rail {
+  flex-basis: 0;
+  width: 0;
+  border-left: 0;
+  overflow: hidden;
+}
+html.ha-rail-collapsed .ha-rail-open {
+  display: block;
+}
+
+/* Too narrow for a third column: the rail steps aside and Frappe's own
+   notification panel is the way in. */
+@media (max-width: 991px) {
+  .ha-rail,
+  .ha-rail-open {
+    display: none !important;
+  }
+}
+
 /* Subtle leaf watermark on the form canvas — the one nod to agriculture */
 .form-page::before {
   content: "🌱";
