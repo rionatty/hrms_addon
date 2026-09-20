@@ -21,8 +21,7 @@ frappe.ui.form.on("Training Requisition", {
 						}
 						frm.refresh_field("target_employees");
 						if (!frm.doc.required_skills) {
-							frm.set_value("required_skills", rows.map((r) => r.skill_areas).filter(Boolean).join("
-"));
+							frm.set_value("required_skills", rows.map((r) => r.skill_areas).filter(Boolean).join("\n"));
 						}
 					})
 			);
