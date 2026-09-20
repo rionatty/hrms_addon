@@ -291,7 +291,7 @@ def _approve(doc):
     reviews.create_reviews(doc.employee, doc.date_of_joining, doc.name, doc.custom_hr_officer)
     if not frappe.db.exists("Probation Evaluation", {"employee": doc.employee, "docstatus": ["!=", 2]}):
         probation.create_evaluation(doc.employee, probation_end, onboarding=doc.name, hr_officer=doc.custom_hr_officer)
-    contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get("custom_base_salary")))
+    contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get("custom_base_salary")), doc.name)
 
 
 def _update_employee(doc, probation_end):
@@ -476,14 +476,9 @@ def setup_workflow_on_migrate():
     workflows.setup_on_migrate(approval, "Employee Onboarding workflow")
 
 
-def employee_dashboard(data):
-    """The Employee's Connections: its reviews, probation evaluations and
-    contracts (override_doctype_dashboards)."""
-    data.setdefault("transactions", []).append({
-        "label": _("Probation and Contracts"),
-        "items": ["Onboarding Review", "Probation Evaluation", "Employee Contract"],
-    })
-    return data
+# The Employee's Connections, and those of the other standard documents this
+# app hangs things off, moved to connections.py — one place that answers
+# "what of ours is reached from where".
 
 
 def seed_onboarding():

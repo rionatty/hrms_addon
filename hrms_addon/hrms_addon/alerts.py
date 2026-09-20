@@ -35,10 +35,14 @@ def my_alerts(limit=LIMIT):
     the logged-in user."""
     limit = max(1, min(cint(limit) or LIMIT, 100))
     day = today()
-    alerts = _assignments(day) + _notifications(day)
-    alerts = rules.order(alerts, day)
-    total, band = rules.badge(alerts)
-    return {"alerts": alerts[:limit], "counts": rules.counts(alerts), "total": total, "band": band}
+    alerts = rules.order(_assignments(day) + _notifications(day), day)
+    _, band = rules.badge(alerts)
+    # the header counts what is still to be dealt with — every assignment and
+    # the notifications not yet read — not the whole list, which keeps the
+    # ones already read for the sake of what happened
+    outstanding = [alert for alert in alerts if alert["kind"] == rules.ASSIGNMENT or alert.get("unread")]
+    return {"alerts": alerts[:limit], "counts": rules.counts(alerts), "total": len(outstanding),
+            "band": rules.badge(outstanding)[1] if outstanding else band}
 
 
 def _assignments(day):
@@ -65,11 +69,13 @@ def _assignments(day):
 
 
 def _notifications(day):
-    """Unread Notification Logs: what the user has been told."""
+    """The user's own notifications, newest first — the same ones Frappe's
+    panel shows, read or not, because a read one is still what happened. The
+    unread are marked, and counted in the header on their own."""
     rows = frappe.get_all(
         "Notification Log",
-        filters={"for_user": frappe.session.user, "read": 0},
-        fields=["name", "subject", "type", "document_type", "document_name", "from_user", "creation"],
+        filters={"for_user": frappe.session.user},
+        fields=["name", "subject", "type", "document_type", "document_name", "from_user", "creation", "read"],
         order_by="creation desc",
         limit=LIMIT,
     )
@@ -85,6 +91,7 @@ def _notifications(day):
         "urgency": rules.urgency(None, day),
         "when": "",
         "type": row.type,
+        "unread": 0 if row.read else 1,
     } for row in rows]
 
 

@@ -643,7 +643,7 @@ for needle, why in (
     ("reviews.create_reviews(doc.employee, doc.date_of_joining, doc.name, doc.custom_hr_officer)", "the 30-60-90 reviews"),
     ("probation.create_evaluation(doc.employee, probation_end, onboarding=doc.name, hr_officer=doc.custom_hr_officer)",
      "the probation evaluation"),
-    ("contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get(\"custom_base_salary\")))",
+    ("contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get(\"custom_base_salary\")), doc.name)",
      "the contract, drafted"),
     ("if doc.get(\"custom_training_required\"):\n        _schedule_training(doc)", "the training, when required"),
     ('activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})',

@@ -153,10 +153,11 @@ def daily():
             frappe.db.set_value("Employee Contract", contract.name, updates, update_modified=False)
 
 
-def draft_for_new_employee(employee, hr_officer=None, base_salary=None):
+def draft_for_new_employee(employee, hr_officer=None, base_salary=None, onboarding=None):
     """The new employee's contract, drafted when the HR Manager approves the
     onboarding (unless there is one): from the joining date, for the
-    Employment Type's usual length. None when there is nothing to draft."""
+    Employment Type's usual length. It keeps the onboarding it came from, so
+    each is reachable from the other. None when there is nothing to draft."""
     if frappe.db.exists("Employee Contract", {"employee": employee, "docstatus": ["!=", 2]}):
         return None
     placed = frappe.db.get_value("Employee", employee, ["employment_type", "date_of_joining", "branch", "department"],
@@ -165,7 +166,7 @@ def draft_for_new_employee(employee, hr_officer=None, base_salary=None):
         return None
     contract = frappe.new_doc("Employee Contract")
     contract.update({"employee": employee, "employment_type": placed.employment_type,
-                     "start_date": placed.date_of_joining, "base_salary": base_salary})
+                     "start_date": placed.date_of_joining, "base_salary": base_salary, "onboarding": onboarding})
     contract.insert(ignore_permissions=True)
     users = [hr_officer] if hr_officer else people.hr_officers(placed.branch, placed.department)
     people.assign("Employee Contract", contract.name, users,

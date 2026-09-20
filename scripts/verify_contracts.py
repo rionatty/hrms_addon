@@ -225,8 +225,9 @@ for node in ast.parse(read("hrms_addon", "hooks.py")).body:
 if "hrms_addon.hrms_addon.contracts.daily" not in ((hooks.get("scheduler_events") or {}).get("daily") or []) \
         or not re.search(r"^def daily\(\):", glue, re.M):
     fail.append("the scheduler runs contracts.daily every day")
-if (hooks.get("override_doctype_dashboards") or {}).get("Employee") != "hrms_addon.hrms_addon.onboarding.employee_dashboard" \
-        or '"items": ["Onboarding Review", "Probation Evaluation", "Employee Contract"]' not in read("hrms_addon", "hrms_addon", "onboarding.py"):
+if (hooks.get("override_doctype_dashboards") or {}).get("Employee") != "hrms_addon.hrms_addon.connections.employee_dashboard" \
+        or 'ONBOARDING_DOCS = ["Onboarding Review", "Probation Evaluation", "Employee Contract"]' \
+        not in read("hrms_addon", "hrms_addon", "connections.py"):
     fail.append("the Employee's Connections list its reviews, evaluations and contracts")
 report_dir = os.path.join(APP, "report", "contract_expiry_status")
 report = json.load(open(os.path.join(report_dir, "contract_expiry_status.json"), encoding="utf-8"))

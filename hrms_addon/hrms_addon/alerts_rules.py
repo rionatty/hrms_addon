@@ -71,16 +71,18 @@ def when(due, today):
 
 def order(alerts, today):
     """The alerts most urgent first: by band, then by the soonest due date,
-    then the newest. `alerts`: [{"urgency", "due", "created"}]."""
+    and the newest first among equals — which is the order the notifications
+    themselves read in, since none of them is due on a date.
+    `alerts`: [{"urgency", "due", "created"}]."""
     def key(alert):
         due = alert.get("due")
         return (
             BANDS.index(alert.get("urgency") or NONE),
             days_left(due, today) if due else 10 ** 6,
-            _text(alert.get("created")),
         )
 
-    return sorted(alerts, key=key)
+    newest_first = sorted(alerts, key=lambda alert: _text(alert.get("created")), reverse=True)
+    return sorted(newest_first, key=key)  # a stable sort keeps the newest first within a band
 
 
 def counts(alerts):

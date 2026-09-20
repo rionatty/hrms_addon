@@ -29,6 +29,7 @@
   "column_break_3",
   "signed_contract",
   "renewal_section",
+  "onboarding",
   "renewal_of",
   "renewed_by",
   "column_break_4",
@@ -187,6 +188,15 @@
    "label": "Renewal"
   },
   {
+   "fieldname": "onboarding",
+   "fieldtype": "Link",
+   "label": "From Onboarding",
+   "options": "Employee Onboarding",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "The onboarding whose approval drafted this contract. Set by the system."
+  },
+  {
    "fieldname": "renewal_of",
    "fieldtype": "Link",
    "label": "Renewal Of",
@@ -235,7 +245,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-20 09:00:00.000000",
+ "modified": "2026-09-20 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Contract",

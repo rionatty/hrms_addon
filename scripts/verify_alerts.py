@@ -76,20 +76,24 @@ for due, want in ((None, ""), ("2026-09-17", "overdue by 3 days"), ("2026-09-19"
 print("bands: overdue, today (or High), soon, later, none; and how soon each reads")
 
 # ── 2. Order, counts and titles ───────────────────────────────────────
+# b was made after c but is due later, and e after d with nothing due at all:
+# between them they tell the due date and the newest-first tie apart
 ROWS = [
-    {"key": "d", "urgency": R.NONE, "due": None, "created": "2026-09-19 10:00:00"},
-    {"key": "b", "urgency": R.SOON, "due": "2026-09-25", "created": "2026-09-02 10:00:00"},
+    {"key": "d", "urgency": R.NONE, "due": None, "created": "2026-09-05 10:00:00"},
+    {"key": "b", "urgency": R.SOON, "due": "2026-09-25", "created": "2026-09-10 10:00:00"},
     {"key": "a", "urgency": R.OVERDUE, "due": "2026-09-18", "created": "2026-09-03 10:00:00"},
-    {"key": "c", "urgency": R.SOON, "due": "2026-09-22", "created": "2026-09-04 10:00:00"},
+    {"key": "e", "urgency": R.NONE, "due": None, "created": "2026-09-19 10:00:00"},
+    {"key": "c", "urgency": R.SOON, "due": "2026-09-22", "created": "2026-09-02 10:00:00"},
 ]
-if [row["key"] for row in R.order(ROWS, TODAY)] != ["a", "c", "b", "d"]:
-    fail.append("most urgent first, then the soonest due: %s" % [row["key"] for row in R.order(ROWS, TODAY)])
+if [row["key"] for row in R.order(ROWS, TODAY)] != ["a", "c", "b", "e", "d"]:
+    fail.append("most urgent first, then the soonest due, then the newest: %s"
+                % [row["key"] for row in R.order(ROWS, TODAY)])
 if R.order([], TODAY) != []:
     fail.append("an empty list orders to an empty list")
 tally = R.counts(ROWS)
-if (tally["total"], tally[R.OVERDUE], tally[R.SOON], tally[R.LATER]) != (4, 1, 2, 0) or set(tally) != set(R.BANDS) | {"total"}:
+if (tally["total"], tally[R.OVERDUE], tally[R.SOON], tally[R.LATER]) != (5, 1, 2, 0) or set(tally) != set(R.BANDS) | {"total"}:
     fail.append("counts every band, present or not, plus the total: %s" % tally)
-if R.badge(ROWS) != (4, R.OVERDUE) or R.badge([]) != (0, R.NONE):
+if R.badge(ROWS) != (5, R.OVERDUE) or R.badge([]) != (0, R.NONE):
     fail.append("the badge counts them all and takes the most urgent band: %s" % (R.badge(ROWS),))
 if R.title("  Issue   the tools  ") != "Issue the tools":
     fail.append("a title is one tidy line: %r" % R.title("  Issue   the tools  "))
@@ -117,6 +121,12 @@ if not re.search(r"@frappe\.whitelist\(\)\ndef my_alerts\(", glue):
     fail.append("my_alerts must be whitelisted for the rail to read it")
 if 'filters={"allocated_to": frappe.session.user, "status": "Open"}' not in glue:
     fail.append("alerts.py: the user's own open assignments (allocated_to, status Open)")
+if 'filters={"for_user": frappe.session.user},' not in glue:
+    fail.append("alerts.py: the notifications are the ones Frappe's own panel shows, read or not, not only the unread")
+if '"unread": 0 if row.read else 1' not in glue:
+    fail.append("alerts.py: an unread notification must be marked, or the panel cannot show which is new")
+if 'alert["kind"] == rules.ASSIGNMENT or alert.get("unread")' not in glue:
+    fail.append("alerts.py: the count is what is still to be dealt with, not the whole list")
 
 
 def calls_of(source, name):
@@ -168,8 +178,12 @@ if "frappe.utils.escape_html" not in js:
     fail.append("the rail prints what people typed: it must escape it")
 if 'frappe.realtime.on("notification", load)' not in js:
     fail.append("the rail must reload when Frappe says a notification arrived")
-if "document.body.appendChild(rail)" not in js:
-    fail.append("the rail is a column of the desk body (frappe lays it out as a flex row)")
+if 'querySelectorAll(".layout-side-section")' not in js or "side.appendChild(panel)" not in js:
+    fail.append("the panel goes in the page's own right-hand sidebar (.layout-side-section)")
+if 'frappe.router.on("change"' not in js:
+    fail.append("the sidebar is rebuilt page by page: the panel must be put back on a route change")
+if "Alerts could not be loaded." not in js:
+    fail.append("a failure must say so in the panel: an empty one reads as nothing to do")
 if 'frappe.session.user === "Guest"' not in js:
     fail.append("the rail is for a signed-in user")
 indicators = re.search(r"const INDICATORS = \{(.*?)\};", js, re.S)
@@ -183,30 +197,23 @@ print("script: whitelisted calls, escaped titles, live reload, the rules' own co
 
 # ── 5. The stylesheet ─────────────────────────────────────────────────
 css = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
-rail_block = re.search(r"\n\.ha-rail \{(.*?)\n\}", css, re.S)
-if not rail_block:
-    fail.append("the stylesheet has no .ha-rail")
-else:
-    if "position: fixed" in rail_block.group(1) or "position: absolute" in rail_block.group(1):
-        fail.append("the rail takes its width from the page as a flex column, never covers it")
-    if "flex:" not in rail_block.group(1):
-        fail.append("the rail must be a flex item of the desk body")
+panel_block = re.search(r"\n\.ha-alerts \{(.*?)\n\}", css, re.S)
+if not panel_block:
+    fail.append("the stylesheet has no .ha-alerts")
+elif "position: fixed" in panel_block.group(1) or "position: absolute" in panel_block.group(1):
+    fail.append("the panel sits in the sidebar's flow, never pinned over the page")
+body_block = re.search(r"\n\.ha-alerts-body \{(.*?)\n\}", css, re.S)
+if not body_block or "max-height" not in body_block.group(1) or "overflow-y" not in body_block.group(1):
+    fail.append("the list is a box of its own height that scrolls inside itself")
 for band in R.BANDS:
     if not re.search(r"\.ha-band-%s\s*\{[^}]*--ha-band:" % band, css):
         fail.append("the %s band has no colour in the stylesheet" % band)
-for needle, why in ((".ha-rail-collapsed .ha-rail", "collapsing gives the width back"),
-                    (".ha-rail-collapsed .ha-rail-open", "and leaves a tab to bring it back")):
-    if needle not in css:
-        fail.append("the stylesheet: %s (%r not found)" % (why, needle))
-narrow = re.search(r"@media \(max-width: (\d+)px\) \{\s*\n\s*\.ha-rail,\s*\n\s*\.ha-rail-open", css)
-if not narrow:
-    fail.append("a narrow screen has no room for a third column: the rail must step aside in a media query")
-elif not 600 <= int(narrow.group(1)) <= 1200:
-    fail.append("the rail steps aside at %spx, which is not a narrow screen" % narrow.group(1))
+if ".ha-alert-unread .ha-alert-dot" not in css:
+    fail.append("an unread alert must stand out from one already read")
 classes = set(re.findall(r'class="(ha-[\w -]+)"', js)) | set(re.findall(r'className = "(ha-[\w -]+)"', js))
 for name in sorted({cls for group in classes for cls in group.split() if cls.startswith("ha-")}):
     if "." + name not in css:
-        fail.append("the rail draws .%s, which the stylesheet does not style" % name)
+        fail.append("the panel draws .%s, which the stylesheet does not style" % name)
 hooks = {}
 for node in ast.parse(read("hrms_addon", "hooks.py")).body:
     if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
@@ -215,8 +222,8 @@ for node in ast.parse(read("hrms_addon", "hooks.py")).body:
         except ValueError:
             pass
 if "/assets/hrms_addon/js/hrms_addon_alerts.js" not in (hooks.get("app_include_js") or []):
-    fail.append("app_include_js must load the rail")
-print("stylesheet: a column with a colour for every band, collapsible, out of the way on a narrow screen")
+    fail.append("app_include_js must load the panel")
+print("stylesheet: a sidebar box with a colour for every band, the unread standing out")
 
 print()
 if fail:

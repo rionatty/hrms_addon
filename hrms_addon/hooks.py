@@ -245,6 +245,11 @@ after_migrate = [
     # probation_approval.py.
     "hrms_addon.hrms_addon.reviews.setup_workflow_on_migrate",
     "hrms_addon.hrms_addon.probation.setup_workflow_on_migrate",
+    # What this app adds, on Frappe HR's own workspace pages and sidebars, so
+    # it is reached where people already work (navigation.py). Added to what
+    # Frappe HR ships, and re-applied here because an update rewrites those
+    # records; it must run after Frappe has re-imported them.
+    "hrms_addon.hrms_addon.navigation.setup_on_migrate",
 ]
 
 # Fixtures
@@ -681,10 +686,13 @@ override_whitelisted_methods = {
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 
-# The Employee's Connections list its onboarding reviews, probation
-# evaluations and contracts (onboarding.employee_dashboard)
+# What this app adds, on the Connections of the standard documents it hangs
+# off, so nothing has to be found by searching for its DocType. Our own
+# DocTypes carry their own <doctype>_dashboard.py instead. See connections.py.
 override_doctype_dashboards = {
-    "Employee": "hrms_addon.hrms_addon.onboarding.employee_dashboard",
+    "Employee": "hrms_addon.hrms_addon.connections.employee_dashboard",
+    "Employee Onboarding": "hrms_addon.hrms_addon.connections.employee_onboarding_dashboard",
+    "Job Opening": "hrms_addon.hrms_addon.connections.job_opening_dashboard",
 }
 
 # exempt linked doctypes from being automatically cancelled

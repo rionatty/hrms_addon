@@ -655,78 +655,45 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 }
 
 /* ============================================================
-   MY ALERTS RAIL — public/js/hrms_addon_alerts.js
+   MY ALERTS — public/js/hrms_addon_alerts.js
    ------------------------------------------------------------
-   A column down the right of the desk with the logged-in user's
-   own assignments and unread notifications, coloured by how soon
-   each matters.
+   A panel at the foot of the page's right-hand sidebar, under
+   Assign / Attachments / Tags / Share and the edited-by lines,
+   with the logged-in user's own assignments and notifications,
+   coloured by how soon each matters.
 
-   It is a FLEX ITEM of <body>, not an overlay. Frappe lays the
-   desk out as a flex row (scss/desk/main.scss: `body { display:
-   flex; flex-direction: row }` with `.main-section { width: 100% }`),
-   so a third child takes its width from the page instead of
-   covering it — no fixed positioning, nothing hidden underneath.
+   It sits in `.layout-side-section`, the column Frappe builds
+   for the sidebar on forms and lists, so it takes that column's
+   width and scrolls within its own height rather than running
+   down the whole window.
 
    Colours come from Frappe's own variables where they exist, so
-   the rail follows light and dark mode without a second block.
+   the panel follows light and dark mode without a second block.
    To revert, delete this block and the app_include_js entry.
    ============================================================ */
-:root {
-  --ha-rail-width: 288px;
-}
-
-.ha-rail {
-  flex: 0 0 var(--ha-rail-width);
-  width: var(--ha-rail-width);
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--card-bg, #FFFFFF);
-  border-left: 1px solid var(--border-color, var(--hra-border));
-  color: var(--text-color, var(--hra-ink));
+.ha-alerts {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, var(--hra-border));
   font-size: var(--text-sm, 12px);
 }
 
-.ha-rail-head {
+.ha-alerts-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color, var(--hra-border));
+  margin-bottom: 6px;
 }
-.ha-rail-title {
-  font-weight: 600;
-  letter-spacing: .2px;
+.ha-alerts-title {
   flex: 1 1 auto;
-}
-.ha-rail-toggle,
-.ha-rail-read-all {
-  background: none;
-  border: 0;
-  padding: 0;
+  font-weight: 600;
   color: var(--text-muted, var(--hra-ink-muted));
-  cursor: pointer;
-  font-size: var(--text-sm, 12px);
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: .4px;
 }
-.ha-rail-toggle {
-  font-size: 18px;
-  line-height: 1;
-}
-.ha-rail-toggle:hover,
-.ha-rail-read-all:hover {
-  color: var(--text-color, var(--hra-ink));
-  text-decoration: underline;
-}
-.ha-rail-actions {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border-color, var(--hra-border));
-  text-align: right;
-}
-
-/* The count, coloured by the most urgent thing in the list. */
-.ha-rail-count,
-.ha-rail-open-count {
-  min-width: 22px;
+.ha-alerts-count {
+  min-width: 20px;
   padding: 1px 6px;
   border-radius: 10px;
   text-align: center;
@@ -736,20 +703,38 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
   background: var(--ha-band, var(--hra-ink-muted));
 }
 
-.ha-rail-body {
-  flex: 1 1 auto;
+/* The box: about as tall as the space under the sidebar's own
+   panels, scrolling inside itself when there is more. */
+.ha-alerts-body {
+  max-height: 320px;
   overflow-y: auto;
-  padding: 4px 0;
+  margin: 0 -8px;
 }
-.ha-rail-empty {
-  padding: 18px 14px;
+.ha-alerts-empty {
+  padding: 10px 8px;
   color: var(--text-muted, var(--hra-ink-muted));
+}
+.ha-alerts-foot {
+  margin-top: 8px;
+  text-align: right;
+}
+.ha-alerts-read-all {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted, var(--hra-ink-muted));
+  cursor: pointer;
+  font-size: 11px;
+}
+.ha-alerts-read-all:hover {
+  color: var(--text-color, var(--hra-ink));
+  text-decoration: underline;
 }
 
 .ha-alert {
   display: flex;
-  gap: 8px;
-  padding: 9px 12px 9px 9px;
+  gap: 7px;
+  padding: 7px 8px 7px 5px;
   border-left: 3px solid var(--ha-band, transparent);
   color: inherit;
   text-decoration: none;
@@ -761,11 +746,15 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 }
 .ha-alert-dot {
   flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   margin-top: 5px;
   border-radius: 50%;
   background: var(--ha-band, var(--hra-ink-muted));
+  opacity: .35;
+}
+.ha-alert-unread .ha-alert-dot {
+  opacity: 1;
 }
 .ha-alert-text {
   min-width: 0;
@@ -773,6 +762,9 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 .ha-alert-title {
   display: block;
   line-height: 1.35;
+}
+.ha-alert-unread .ha-alert-title {
+  font-weight: 600;
 }
 .ha-alert-meta {
   display: block;
@@ -787,39 +779,6 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 .ha-band-soon    { --ha-band: var(--hra-accent); }
 .ha-band-later   { --ha-band: var(--hra-primary-soft); }
 .ha-band-none    { --ha-band: var(--hra-ink-muted); }
-
-/* Collapsed: the column gives its width back and leaves a tab to reopen. */
-.ha-rail-open {
-  display: none;
-  position: fixed;
-  top: calc(var(--navbar-height, 48px) + 12px);
-  right: 0;
-  z-index: 1021;
-  padding: 6px 8px 6px 6px;
-  border: 1px solid var(--border-color, var(--hra-border));
-  border-right: 0;
-  border-radius: 14px 0 0 14px;
-  background: var(--card-bg, #FFFFFF);
-  cursor: pointer;
-}
-html.ha-rail-collapsed .ha-rail {
-  flex-basis: 0;
-  width: 0;
-  border-left: 0;
-  overflow: hidden;
-}
-html.ha-rail-collapsed .ha-rail-open {
-  display: block;
-}
-
-/* Too narrow for a third column: the rail steps aside and Frappe's own
-   notification panel is the way in. */
-@media (max-width: 991px) {
-  .ha-rail,
-  .ha-rail-open {
-    display: none !important;
-  }
-}
 
 /* Subtle leaf watermark on the form canvas — the one nod to agriculture */
 .form-page::before {
