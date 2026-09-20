@@ -147,20 +147,36 @@ def card_row(label):
 
 
 def merge_links(rows, cards):
-    """The Workspace's `links` with our cards in it: a card it already has is
-    added to (never rewritten), a card it does not have is appended, and a
-    link already there is left alone. Every Card Break's link_count is worked
-    out again at the end, which is what the page counts by."""
-    rows = [dict(row) for row in rows]
+    """The Workspace's `links` with our cards in it. What Frappe HR ships is
+    never rewritten: a card it already has is added to, a card it does not
+    have is appended. Each link of ours ends up once, at the end of its own
+    card, in our order, wherever a copy of it was found: one sitting in
+    another card, or a second one, is what a faulty write leaves behind
+    (numbered()), and is cleared away here. Every Card Break's link_count is
+    worked out again at the end, which is what the page counts by."""
+    ours = {link[1] for _card, links in cards for link in links}
+    rows = [dict(row) for row in rows if not (row.get("type") == LINK and row.get("link_to") in ours)]
     for card, links in cards:
         start = next((i for i, row in enumerate(rows) if row.get("type") == CARD_BREAK and row.get("label") == card), None)
         if start is None:
             rows.append(card_row(card))
             start = len(rows) - 1
         end = next((i for i in range(start + 1, len(rows)) if rows[i].get("type") == CARD_BREAK), len(rows))
-        have = {row.get("link_to") for row in rows[start + 1:end]}
-        rows[end:end] = [link_row(*link) for link in links if link[1] not in have]
+        rows[end:end] = [link_row(*link) for link in links]
     return count_links(rows)
+
+
+def numbered(rows):
+    """The rows as they must be written: numbered 1, 2, 3... in `idx`, the
+    order Frappe reads them back in.
+
+    A row taken from the database brings its old number with it, and Frappe
+    keeps a number it is given (only a row without one gets its place in the
+    list). So without this, a row put in the middle shares its number with
+    the one it pushed down and the two come back in either order: in
+    September 2026 the Training links landed in the cards after theirs, were
+    not found in their own on the next migrate, and were added again."""
+    return [dict(row, idx=number) for number, row in enumerate(rows, 1)]
 
 
 def count_links(rows):
@@ -200,11 +216,12 @@ def sidebar_row(label, link_to, kind, child=0):
 def merge_sidebar(items, entries):
     """The sidebar's items with ours among them: under the section each names
     where there is one, else after the entry it follows, else before the
-    first section. One already there is left where it is."""
-    items = [dict(item) for item in items]
+    first section. Ours are always seated afresh, in our order, so one found
+    out of place (numbered()) goes back where it belongs; Frappe HR's own
+    stay exactly as they are."""
+    ours = {entry[1] for entry in entries}
+    items = [dict(item) for item in items if not (item.get("type") == LINK and item.get("link_to") in ours)]
     for label, link_to, kind, section, after in entries:
-        if any(item.get("link_to") == link_to and item.get("type") == LINK for item in items):
-            continue
         at = _seat(items, section, after)
         items.insert(at, sidebar_row(label, link_to, kind, child=1 if section else 0))
     return items

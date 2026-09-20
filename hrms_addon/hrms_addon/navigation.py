@@ -15,6 +15,9 @@ them whenever it is updated. So this never rewrites one: it adds a card, a
 link or a sidebar entry where it is missing and leaves everything else as
 it found it. Run again, it changes nothing (navigation_rules gives our
 card blocks a name of their own rather than the random id Frappe uses).
+What it does put right is its own: a link of ours found twice, or in a card
+that is not its own, goes back once into the right one, and the rows are
+numbered afresh whenever they are written (navigation_rules.numbered).
 
 A workspace that is not installed is skipped, so the app still installs on
 a site without Frappe HR.
@@ -62,9 +65,7 @@ def _apply_cards(workspace, cards):
     content = rules.merge_content(json.loads(doc.content or "[]"), cards)
     if _same(links, [row.as_dict() for row in doc.links]) and json.loads(doc.content or "[]") == content:
         return  # re-saving would only churn `modified` on every migrate
-    doc.set("links", [])
-    for row in links:
-        doc.append("links", row)
+    _write(doc, "links", links)
     doc.content = json.dumps(content)
     doc.flags.ignore_permissions = True
     doc.save()
@@ -77,19 +78,28 @@ def _apply_sidebar(workspace, entries):
     items = rules.merge_sidebar([row.as_dict() for row in doc.items], entries)
     if _same(items, [row.as_dict() for row in doc.items]):
         return
-    doc.set("items", [])
-    for row in items:
-        doc.append("items", row)
+    _write(doc, "items", items)
     doc.flags.ignore_permissions = True
     doc.save()
 
 
+def _write(doc, table, rows):
+    """Replace the table's rows, numbered afresh: a row read from the
+    database keeps the idx it had, so one put in before it would share its
+    number and the two come back in either order (navigation_rules.numbered)."""
+    doc.set(table, [])
+    for row in rules.numbered(rows):
+        doc.append(table, row)
+
+
 def _same(wanted, current):
     """Whether the rows say the same thing, ignoring what the database adds
-    (names, timestamps, the row order Frappe keeps in idx)."""
+    (names, timestamps), and are numbered 1, 2, 3... as they must be to come
+    back in this order every time."""
     keys = ("type", "label", "link_type", "link_to", "child", "link_count")
 
     def shape(rows):
         return [tuple(row.get(key) for key in keys) for row in rows]
 
-    return shape(wanted) == shape(current)
+    in_order = [row.get("idx") for row in current] == list(range(1, len(current) + 1))
+    return in_order and shape(wanted) == shape(current)

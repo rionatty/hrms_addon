@@ -342,6 +342,17 @@ at, the methods the script calls whitelisted (and the two that change
 something POST-only), titles escaped, a colour for every band in the
 stylesheet, and the script's toast colours identical to the rules'.
 
+`verify_navigation.py` also runs `navigation.py` against a stand-in site
+that keeps child rows the way Frappe does: `append` keeps the number a row
+already carries, and rows come back ordered by `idx`. A row put into the
+middle of a table therefore takes a number already in use, and the two come
+back interleaved — which is how the training links ended up in the wrong
+cards and added again on each migrate. So the rows are numbered afresh
+whenever they are written, and each link of ours is cleared from wherever
+it is found and put back once at the end of its own card. The simulation
+runs on a fresh site and on one already spoilt, in both read orders, and
+checks a second migrate writes nothing.
+
 `verify_js.py` covers every script the app ships. A form script that does
 not parse is not a small fault: Frappe stops setting the form up where the
 script throws, and the form comes up with its sections empty and nowhere to

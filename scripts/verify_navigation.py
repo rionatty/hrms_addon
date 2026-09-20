@@ -92,7 +92,44 @@ if [item["child"] for item in sidebar] != [0, 0, 0, 0, 0, 1, 1, 0]:
     fail.append("only the entries under a section are its children: %s" % [item["child"] for item in sidebar])
 if R.merge_sidebar(sidebar, ENTRIES) != sidebar:
     fail.append("merging the same sidebar entries again must change nothing")
-print("merging: cards added to and appended, counts, blocks kept once, sidebar placement")
+# what a faulty write left behind is put right: a link of ours in another
+# card, or there twice, goes back once into its own; theirs are not touched
+STRAY = [
+    {"type": "Card Break", "label": "Reports"},
+    {"type": "Link", "label": "Employee Exits", "link_to": "Employee Exits", "link_type": "Report"},
+    {"type": "Link", "label": "Tool of Work", "link_to": "Tool of Work", "link_type": "DocType"},
+    {"type": "Card Break", "label": "Onboarding Setup"},
+    {"type": "Link", "label": "Tool of Work", "link_to": "Tool of Work", "link_type": "DocType"},
+    {"type": "Link", "label": "Tool of Work", "link_to": "Tool of Work", "link_type": "DocType"},
+    {"type": "Card Break", "label": "Grievance"},
+    {"type": "Link", "label": "Contract Expiry Status", "link_to": "Contract Expiry Status", "link_type": "Report"},
+    {"type": "Link", "label": "Employee Grievance", "link_to": "Employee Grievance", "link_type": "DocType"},
+]
+healed = [(row["type"], row["label"]) for row in R.merge_links(STRAY, CARDS)]
+if healed != [("Card Break", "Reports"), ("Link", "Employee Exits"), ("Link", "Contract Expiry Status"),
+              ("Card Break", "Onboarding Setup"), ("Link", "Tool of Work"),
+              ("Card Break", "Grievance"), ("Link", "Employee Grievance")]:
+    fail.append("a link of ours found twice, or in a card not its own, goes back once into the right one: %s" % healed)
+shuffled = [sidebar[i] for i in (0, 2, 1, 4, 3, 6, 5, 7)]
+if R.merge_sidebar(shuffled, ENTRIES) != sidebar:
+    fail.append("a sidebar entry of ours found out of place is seated again where it belongs: %s"
+                % [item["label"] for item in R.merge_sidebar(shuffled, ENTRIES)])
+if [row.get("idx") for row in R.numbered([{"idx": 7, "label": "a"}, {"label": "b"}, {"idx": 7, "label": "c"}])] != [1, 2, 3]:
+    fail.append("numbered() numbers the rows 1, 2, 3..., whatever number they came with")
+for workspace, cards in R.CARDS.items():
+    links = [link[1] for _card, card_links in cards for link in card_links]
+    if len(links) != len(set(links)):
+        fail.append("CARDS[%r]: a link can be in one card only: %s"
+                    % (workspace, sorted({link for link in links if links.count(link) > 1})))
+for workspace, entries in R.SIDEBAR.items():
+    seen = []
+    for label, link_to, _kind, _section, after in entries:
+        if after in [entry[0] for entry in entries] and after not in seen:
+            fail.append("SIDEBAR[%r]: %s follows %s, which must come before it in the list" % (workspace, label, after))
+        seen.append(label)
+    if len({entry[1] for entry in entries}) != len(entries):
+        fail.append("SIDEBAR[%r]: an entry can be listed once only" % workspace)
+print("merging: cards added to and appended, counts, blocks kept once, sidebar placement, strays put right, rows numbered")
 
 # ── 2. Against Frappe HR's own records ────────────────────────────────
 def upstream_workspace(label):
@@ -129,6 +166,10 @@ for label, cards in R.CARDS.items():
             fail.append("%s: %s missing from the %s card" % (label, missing, card))
     if R.merge_links(merged, cards) != merged:
         fail.append("%s: a second migrate would change the workspace again" % label)
+    theirs = {row.get("link_to") for row in shipped["links"]} & {link[1] for _card, links in cards for link in links}
+    if theirs:
+        fail.append("%s: Frappe HR ships %s itself now: take it out of CARDS, ours are cleared and re-added"
+                    % (label, sorted(theirs)))
     content = R.merge_content(json.loads(shipped.get("content") or "[]"), cards)
     if R.merge_content(content, cards) != content:
         fail.append("%s: a second migrate would add the card blocks again" % label)
@@ -151,6 +192,9 @@ for label, entries in R.SIDEBAR.items():
                 fail.append("%s sidebar: %s must sit under %s" % (label, link_to, section))
     if R.merge_sidebar(merged, entries) != merged:
         fail.append("%s sidebar: a second migrate would add them again" % label)
+    theirs = {item.get("link_to") for item in shipped["items"]} & {entry[1] for entry in entries}
+    if theirs:
+        fail.append("%s sidebar: Frappe HR ships %s itself now: take it out of SIDEBAR" % (label, sorted(theirs)))
 print("against Frappe HR's own %d workspaces: our cards land, theirs are kept, running twice changes nothing" % checked)
 
 # ── 3. Nothing this app ships is left unreachable ─────────────────────
@@ -274,7 +318,220 @@ for what in ("links", "items"):
     if not re.search(r"^    if _same\(%s, " % what, glue, re.M):
         fail.append("navigation.py must return early when the %s say the same thing, or every migrate churns the record"
                     % what)
+for needle, why in (("for row in rules.numbered(rows):", "rows are numbered afresh whenever they are written"),
+                    ('in_order = [row.get("idx") for row in current] == list(range(1, len(current) + 1))',
+                     "rows numbered out of order are written again")):
+    if needle not in glue:
+        fail.append("navigation.py: %s (%r not found)" % (why, needle))
+if re.search(r'doc\.append\("(links|items)"', glue):
+    fail.append("navigation.py must write rows through _write, which numbers them, never doc.append on its own")
 print("wiring: applied after every migrate, skipping what is not installed, writing only when something changed")
+
+# ── 6. As Frappe writes and reads the rows ────────────────────────────
+# navigation.py itself, run against a stand-in site that keeps child rows the
+# way Frappe does: append() keeps the number a row brings and numbers only a
+# row without one (base_document.append), and rows come back ordered by idx,
+# two sharing a number in no promised order (both orders are tried). This is
+# the September 2026 fault: links put inside Frappe HR's own Training card
+# took numbers already used by the rows below them, came back interleaved,
+# were not found in their card on the next migrate, and were added again.
+import types
+
+
+class Row(dict):
+    __getattr__ = dict.get
+
+    def as_dict(self):
+        return dict(self)
+
+
+class Site:
+    """The child tables of the Workspace and Workspace Sidebar records."""
+
+    def __init__(self, newest_first):
+        self.tables, self.content, self.saves, self.made, self.newest_first = {}, {}, 0, 0, newest_first
+
+    def put(self, doctype, name, table, rows, content=None):
+        self.tables[(doctype, name)] = (table, [self.named(dict(row, idx=number)) for number, row in enumerate(rows, 1)])
+        self.content[(doctype, name)] = content
+
+    def named(self, row):
+        if not row.get("name"):
+            self.made += 1
+            row["name"] = "row%05d" % self.made
+        return row
+
+    def rows(self, doctype, name):
+        """Ordered by idx, as Frappe reads a child table back; rows sharing a
+        number come in whichever order this site was made with."""
+        _table, rows = self.tables[(doctype, name)]
+        newest = -1 if self.newest_first else 1
+        return sorted(rows, key=lambda row: (row["idx"], newest * int(row["name"][3:])))
+
+
+class Doc:
+    def __init__(self, site, doctype, name):
+        self.site, self.doctype, self.name, self.flags = site, doctype, name, types.SimpleNamespace()
+        self.table = site.tables[(doctype, name)][0]
+        setattr(self, self.table, [Row(row) for row in site.rows(doctype, name)])
+        self.content = site.content[(doctype, name)]
+
+    def set(self, table, value):
+        setattr(self, table, [Row(row) for row in value])
+
+    def append(self, table, value):
+        rows = getattr(self, table)
+        row = Row(value)
+        rows.append(row)
+        if not row.get("idx"):
+            row["idx"] = len(rows)  # a number the row brought is kept
+        return row
+
+    def save(self):
+        self.site.saves += 1
+        self.site.tables[(self.doctype, self.name)] = (self.table, [self.site.named(dict(row)) for row in getattr(self, self.table)])
+        self.site.content[(self.doctype, self.name)] = self.content
+
+
+def run_glue(site):
+    """navigation.apply_navigation() against the stand-in site."""
+    fake = types.ModuleType("frappe")
+    fake.db = types.SimpleNamespace(exists=lambda doctype, name: (doctype, name) in site.tables,
+                                    savepoint=lambda name: None, commit=lambda: None, rollback=lambda **kw: None)
+    fake.get_doc = lambda doctype, name: Doc(site, doctype, name)
+    fake.log_error = lambda **kw: fail.append("navigation.py failed on the stand-in site: %s" % kw)
+    package, inner = types.ModuleType("hrms_addon"), types.ModuleType("hrms_addon.hrms_addon")
+    inner.navigation_rules = R
+    names = ("frappe", "hrms_addon", "hrms_addon.hrms_addon", "hrms_addon.hrms_addon.navigation_rules")
+    saved = {name: sys.modules.get(name) for name in names}
+    sys.modules.update({"frappe": fake, "hrms_addon": package, "hrms_addon.hrms_addon": inner,
+                        "hrms_addon.hrms_addon.navigation_rules": R})
+    try:
+        spec = importlib.util.spec_from_file_location("navigation_under_test", os.path.join(APP, "navigation.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.apply_navigation()
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = value
+
+
+def faulty_migrate(site, workspace, cards):
+    """What 283b803 did: each link added at the end of its card, looked for
+    inside that card only, written with the numbers the old rows brought."""
+    doc = Doc(site, "Workspace", workspace)
+    rows = [row.as_dict() for row in doc.links]
+    for card, links in cards:
+        start = next((i for i, row in enumerate(rows) if row.get("type") == "Card Break" and row.get("label") == card), None)
+        if start is None:
+            rows.append(R.card_row(card))
+            start = len(rows) - 1
+        end = next((i for i in range(start + 1, len(rows)) if rows[i].get("type") == "Card Break"), len(rows))
+        have = {row.get("link_to") for row in rows[start + 1:end]}
+        rows[end:end] = [R.link_row(*link) for link in links if link[1] not in have]
+    doc.set("links", [])
+    for row in rows:
+        doc.append("links", row)
+    doc.save()
+
+
+def cards_of(rows):
+    """{card: [the links under it]}, as the workspace page shows them."""
+    out, card = {}, None
+    for row in rows:
+        if row.get("type") == "Card Break":
+            card = row.get("label")
+            out.setdefault(card, [])
+        elif card is not None:
+            out[card].append(row.get("link_to"))
+    return out
+
+
+def fresh_site(newest_first):
+    site = Site(newest_first)
+    for label in R.CARDS:
+        shipped = upstream_workspace(label)
+        if shipped:
+            site.put("Workspace", label, "links", shipped["links"], shipped.get("content"))
+    for label in R.SIDEBAR:
+        shipped = upstream_sidebar(label)
+        if shipped:
+            site.put("Workspace Sidebar", label, "items", shipped["items"])
+    return site
+
+
+simulated, reproduced = 0, False
+for newest_first in (False, True):
+    for damaged in (False, True):
+        site = fresh_site(newest_first)
+        if not site.tables:
+            continue
+        if damaged:
+            for _ in range(3):  # three deploys of the faulty writer
+                for label, cards in R.CARDS.items():
+                    if ("Workspace", label) in site.tables:
+                        faulty_migrate(site, label, cards)
+            for label, cards in R.CARDS.items():
+                if ("Workspace", label) not in site.tables:
+                    continue
+                shown = cards_of(site.rows("Workspace", label))
+                for card, links in cards:
+                    for link in [link[1] for link in links]:
+                        if sum(under.count(link) for under in shown.values()) > 1 or link not in shown.get(card, []):
+                            reproduced = True
+        what = "%s site, rows sharing a number read %s first" % ("a spoilt" if damaged else "a fresh",
+                                                                 "newest" if newest_first else "oldest")
+        run_glue(site)
+        simulated += 1
+        for label, cards in R.CARDS.items():
+            if ("Workspace", label) not in site.tables:
+                continue
+            rows = site.rows("Workspace", label)
+            if [row["idx"] for row in rows] != list(range(1, len(rows) + 1)):
+                fail.append("%s: the %s links are not numbered 1, 2, 3..." % (what, label))
+            shown = cards_of(rows)
+            for card, links in cards:
+                wanted = [link[1] for link in links]
+                got = [link for link in shown.get(card, []) if link in wanted]
+                if got != wanted:
+                    fail.append("%s: the %s card of %s must show %s once each, in order; it shows %s"
+                                % (what, card, label, wanted, got))
+                for other, others in shown.items():
+                    strays = [link for link in others if link in wanted and other != card]
+                    if strays:
+                        fail.append("%s: %s of the %s card turned up under %s in %s" % (what, strays, card, other, label))
+            shipped = upstream_workspace(label)
+            theirs = [(row.get("type"), row.get("label"), row.get("link_to")) for row in shipped["links"]]
+            ours = {link[1] for _card, links in cards for link in links}
+            their_cards = {row.get("label") for row in shipped["links"] if row.get("type") == "Card Break"}
+            kept = [(row.get("type"), row.get("label"), row.get("link_to")) for row in rows
+                    if row.get("link_to") not in ours
+                    and not (row.get("type") == "Card Break" and row.get("label") not in their_cards)]
+            if kept != theirs:
+                fail.append("%s: what Frappe HR ships in %s must stay as it was, in its order" % (what, label))
+        for label, entries in R.SIDEBAR.items():
+            if ("Workspace Sidebar", label) not in site.tables:
+                continue
+            items = site.rows("Workspace Sidebar", label)
+            if [item["idx"] for item in items] != list(range(1, len(items) + 1)):
+                fail.append("%s: the %s sidebar items are not numbered 1, 2, 3..." % (what, label))
+            wanted = [item["label"] for item in R.merge_sidebar(upstream_sidebar(label)["items"], entries)]
+            if [item["label"] for item in items] != wanted:
+                fail.append("%s: the %s sidebar reads %s, not %s" % (what, label, [item["label"] for item in items], wanted))
+        saves = site.saves
+        run_glue(site)
+        if site.saves != saves:
+            fail.append("%s: a second migrate wrote %d record(s) again" % (what, site.saves - saves))
+if not simulated:
+    print("as Frappe writes it: NOT RUN, Frappe HR's workspaces were not found under %s" % APPS_ROOT)
+else:
+    if not reproduced:
+        fail.append("the stand-in site no longer reproduces the duplication it is there to catch: check Site.rows and Doc.append")
+    print("as Frappe writes it: fresh and spoilt sites, either read order: every link once in its own card, "
+          "theirs untouched, rows numbered, a second migrate writes nothing")
 
 print()
 if fail:
