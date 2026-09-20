@@ -108,6 +108,13 @@ CARDS = {
             ("KRA", "KRA", DOCTYPE),
         ]),
     ],
+    # Frappe HR's own leave page gains the plan the year is drawn up on:
+    # the application itself is theirs, carrying LPL/HR/15 (leave.py)
+    "Leaves": [
+        ("Application", [
+            ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE),
+        ]),
+    ],
     # Frappe HR's own attendance page gains Luuka's three forms and the
     # machines they are reconciled against (attendance.py, devices.py)
     "Shift & Attendance": [
@@ -166,6 +173,9 @@ SIDEBAR = {
         # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
+    ],
+    "Leaves": [
+        ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
     ],
     "Shift & Attendance": [
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),

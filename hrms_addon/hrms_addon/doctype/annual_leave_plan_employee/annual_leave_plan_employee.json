@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "department",
+  "designation",
+  "entitlement_days",
+  "planned_from",
+  "planned_to",
+  "planned_days",
+  "remarks",
+  "leave_application",
+  "informed",
+  "informed_on",
+  "alerts_sent"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "entitlement_days",
+   "fieldtype": "Float",
+   "label": "Entitled",
+   "precision": "2",
+   "description": "Days the employee is owed for the year, from their Leave Allocation."
+  },
+  {
+   "fieldname": "planned_from",
+   "fieldtype": "Date",
+   "label": "From",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "planned_to",
+   "fieldtype": "Date",
+   "label": "To",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "planned_days",
+   "fieldtype": "Float",
+   "label": "Days",
+   "precision": "2",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Leave Application",
+   "options": "Leave Application",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "informed",
+   "fieldtype": "Check",
+   "label": "Told",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "informed_on",
+   "fieldtype": "Date",
+   "label": "Told On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "alerts_sent",
+   "fieldtype": "Data",
+   "label": "Alerts Sent",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1,
+   "print_hide": 1,
+   "description": "The horizons already notified, so nobody is told twice."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-21 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Annual Leave Plan Employee",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

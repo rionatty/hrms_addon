@@ -449,6 +449,37 @@ afterwards, and the **Gate Pass**, which is chased when nobody records a
 return. Top management are marked present without punching, as both
 minutes ask.
 
+`verify_leave.py` covers leave management (4.1), the leave advance (4.2)
+and the salary advance (4.10), built on Frappe HR's own **Leave
+Application** and **Employee Advance** rather than beside them. The year
+starts with the **Annual Leave Plan**: the HR Officer draws it up at the
+end of a year from what each employee is owed, the HODs approve it for
+their own people, the HR Officer tells everyone their dates, and the
+system then watches — a month, a fortnight and a week before a planned
+leave the employee and the immediate supervisor are told, once each.
+**LPL/HR/15** sits on their Leave Application: Part 1 the applicant's,
+Part 2 the HR Officer's balances before and after, Part 3 the three
+signatures (Manager in line, HOD, HR Officer) and Part 4 what Accounts
+advanced. Their own `status` stays Open until the chain decides, because
+their controller and their leave ledger read it. Maternity, paternity and
+sick leave ask for the certificate the form marks; compassionate leave
+asks for the precise reason.
+
+All three of Luuka's advances are one document — their **Employee
+Advance** — because all three are the same thing: money paid before it is
+earned. The Advance Type says which, and one Workflow carries all three
+chains, the way the Appraisal carries both appraisal forms. A leave
+advance goes Accounts Manager, Payroll, Finance; a salary advance goes HR
+Officer (who confirms attendance and leave), Payroll, Finance; a special
+advance follows **LPL/HR/21**, sanctioned by the Section Head and then the
+Executive Director, and the lower of the two sanctions stands. "Qualify
+for advance?" is worked out on every save and written onto the form —
+three months' service, half a month's gross, nothing while an earlier
+advance is still owed — and the workflow will not move one that does not.
+The recovery is what makes an advance an advance: each instalment becomes
+an **Additional Salary** deduction, so the payroll run takes it without a
+list kept by hand.
+
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
 and Training Feedback. Before a session: the employee's **Training Needs

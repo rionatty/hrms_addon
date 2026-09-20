@@ -135,6 +135,11 @@ doctype_js = {
     # Luuka's scorecard is built on Frappe HR's own Appraisal Template:
     # the weights headline and Import PMS Workbook sit on their form
     "Appraisal Template": "public/js/appraisal_template.js",
+    # LPL/HR/15 on their Leave Application: the balances headline, the
+    # advance the form asks for, and the report back (leave.py)
+    "Leave Application": "public/js/leave_application.js",
+    # Luuka's three advances on their Employee Advance (advances.py)
+    "Employee Advance": "public/js/employee_advance.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -203,6 +208,8 @@ after_install = [
     "hrms_addon.hrms_addon.pick_lists.seed_training_masters",
     "hrms_addon.hrms_addon.pick_lists.seed_appraisal_masters",
     "hrms_addon.hrms_addon.pick_lists.seed_bsc_masters",
+    # the five kinds of leave LPL/HR/15 offers
+    "hrms_addon.hrms_addon.leave.seed_leave_types",
 ]
 
 # Uninstallation
@@ -284,6 +291,13 @@ after_migrate = [
     # Training Calendar (General Manager). See tna_approval.py and
     # calendar_approval.py.
     "hrms_addon.hrms_addon.training.setup_workflows_on_migrate",
+    # The Annual Leave Plan (HODs, then the HR Officer) and LPL/HR/15's own
+    # three signatures on Frappe HR's Leave Application. See leave_approval.py
+    # and leave_plan_approval.py.
+    "hrms_addon.hrms_addon.leave.setup_workflows_on_migrate",
+    # Luuka's three advances on one Workflow, the Advance Type deciding whose
+    # desk each lands on. See advance_approval.py.
+    "hrms_addon.hrms_addon.advances.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -707,6 +721,115 @@ fixtures = [
                     "Appraisal Template-custom_source_cb",
                     "Appraisal Template-custom_source_sheet",
                     "Appraisal Template-custom_import_remarks",
+                    "Leave Application-custom_lpl_section",
+                    "Leave Application-custom_work_section",
+                    "Leave Application-custom_designation",
+                    "Leave Application-custom_branch",
+                    "Leave Application-custom_lpl_cb",
+                    "Leave Application-custom_date_of_appointment",
+                    "Leave Application-custom_medical_certificate",
+                    "Leave Application-custom_salary_requested_in_advance",
+                    "Leave Application-custom_advance",
+                    "Leave Application-custom_plan",
+                    "Leave Application-custom_hro_section",
+                    "Leave Application-custom_last_leave_type",
+                    "Leave Application-custom_last_leave_from",
+                    "Leave Application-custom_last_leave_to",
+                    "Leave Application-custom_last_leave_days",
+                    "Leave Application-custom_hro_cb",
+                    "Leave Application-custom_balance_before",
+                    "Leave Application-custom_balance_after",
+                    "Leave Application-custom_sick_balance_before",
+                    "Leave Application-custom_sick_balance_after",
+                    "Leave Application-custom_hro_cb2",
+                    "Leave Application-custom_hro_by",
+                    "Leave Application-custom_hro_on",
+                    "Leave Application-custom_approval_section",
+                    "Leave Application-custom_leave_status",
+                    "Leave Application-custom_supervisor_remarks",
+                    "Leave Application-custom_supervisor_by",
+                    "Leave Application-custom_supervisor_on",
+                    "Leave Application-custom_approval_cb",
+                    "Leave Application-custom_hod_remarks",
+                    "Leave Application-custom_hod_by",
+                    "Leave Application-custom_hod_on",
+                    "Leave Application-custom_approval_cb2",
+                    "Leave Application-custom_hr_remarks",
+                    "Leave Application-custom_hr_by",
+                    "Leave Application-custom_hr_on",
+                    "Leave Application-custom_return_remarks",
+                    "Leave Application-custom_accounts_section",
+                    "Leave Application-custom_advance_amount",
+                    "Leave Application-custom_accounts_cb",
+                    "Leave Application-custom_accounts_by",
+                    "Leave Application-custom_accounts_on",
+                    "Leave Application-custom_back_section",
+                    "Leave Application-custom_reported_back",
+                    "Leave Application-custom_back_cb",
+                    "Leave Application-custom_reported_back_on",
+                    "Employee Advance-custom_lpl_section",
+                    "Employee Advance-custom_advance_type",
+                    "Employee Advance-custom_badge_no",
+                    "Employee Advance-custom_work_section",
+                    "Employee Advance-custom_branch",
+                    "Employee Advance-custom_lpl_cb",
+                    "Employee Advance-custom_date_of_appointment",
+                    "Employee Advance-custom_gross_pay",
+                    "Employee Advance-custom_outstanding_before",
+                    "Employee Advance-custom_leave_application",
+                    "Employee Advance-custom_reason",
+                    "Employee Advance-custom_advance_status",
+                    "Employee Advance-custom_eligibility_section",
+                    "Employee Advance-custom_qualifies",
+                    "Employee Advance-custom_limit",
+                    "Employee Advance-custom_eligibility_cb",
+                    "Employee Advance-custom_eligibility_remarks",
+                    "Employee Advance-custom_attendance_section",
+                    "Employee Advance-custom_attendance_confirmed",
+                    "Employee Advance-custom_attendance_cb",
+                    "Employee Advance-custom_attendance_remarks",
+                    "Employee Advance-custom_sanction_section",
+                    "Employee Advance-custom_section_head_amount",
+                    "Employee Advance-custom_section_head_remarks",
+                    "Employee Advance-custom_section_head_by",
+                    "Employee Advance-custom_section_head_on",
+                    "Employee Advance-custom_sanction_cb",
+                    "Employee Advance-custom_ed_amount",
+                    "Employee Advance-custom_ed_remarks",
+                    "Employee Advance-custom_ed_by",
+                    "Employee Advance-custom_ed_on",
+                    "Employee Advance-custom_signoff_section",
+                    "Employee Advance-custom_accounts_manager_remarks",
+                    "Employee Advance-custom_accounts_manager_by",
+                    "Employee Advance-custom_accounts_manager_on",
+                    "Employee Advance-custom_hr_remarks",
+                    "Employee Advance-custom_hr_by",
+                    "Employee Advance-custom_hr_on",
+                    "Employee Advance-custom_signoff_cb",
+                    "Employee Advance-custom_payroll_remarks",
+                    "Employee Advance-custom_payroll_by",
+                    "Employee Advance-custom_payroll_on",
+                    "Employee Advance-custom_finance_remarks",
+                    "Employee Advance-custom_finance_by",
+                    "Employee Advance-custom_finance_on",
+                    "Employee Advance-custom_return_remarks",
+                    "Employee Advance-custom_recovery_section",
+                    "Employee Advance-custom_approved_amount",
+                    "Employee Advance-custom_instalments",
+                    "Employee Advance-custom_first_recovery_month",
+                    "Employee Advance-custom_recovery_cb",
+                    "Employee Advance-custom_recovered_amount",
+                    "Employee Advance-custom_outstanding",
+                    "Employee Advance-custom_recovery_component",
+                    "Employee Advance-custom_recoveries",
+                    "Employee Advance-custom_consent_section",
+                    "Employee Advance-custom_consent",
+                    "Employee Advance-custom_consent_cb",
+                    "Employee Advance-custom_consent_on",
+                    "Employee Advance-custom_paid_section",
+                    "Employee Advance-custom_paid_on",
+                    "Employee Advance-custom_paid_cb",
+                    "Employee Advance-custom_bank_reference",
                 ],
             ]
         ],
@@ -839,6 +962,22 @@ doc_events = {
         # template: the weights total 80 and 20 before it goes active (bsc.py)
         "validate": "hrms_addon.hrms_addon.bsc.template_validate",
     },
+    # LPL/HR/15 on Frappe HR's own Leave Application: the balances of
+    # Part 2, the three signatures of Part 3, and the advance of Part 4
+    # (leave.py)
+    "Leave Application": {
+        "validate": "hrms_addon.hrms_addon.leave.application_validate",
+        "on_submit": "hrms_addon.hrms_addon.leave.application_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.leave.application_on_cancel",
+    },
+    # Luuka's three advances on Frappe HR's own Employee Advance: who may
+    # take one, the two sanctions LPL/HR/21 carries, and the instalments it
+    # is recovered in (advances.py)
+    "Employee Advance": {
+        "validate": "hrms_addon.hrms_addon.advances.advance_validate",
+        "on_submit": "hrms_addon.hrms_addon.advances.advance_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.advances.advance_on_cancel",
+    },
     "Employee Onboarding": {
         # Defaults from the candidate, the workflow step's checks and stamp,
         # and each activity given to the branch's own people, not every
@@ -896,6 +1035,12 @@ scheduler_events = {
         "hrms_addon.hrms_addon.attendance.daily",
         # The punches that never landed, pushed again (devices.py)
         "hrms_addon.hrms_addon.devices.daily",
+        # Leave: a planned leave falling due told to the employee and their
+        # supervisor, and a leave nobody has reported back from (leave.py)
+        "hrms_addon.hrms_addon.leave.daily",
+        # Advances: one waiting to be paid, and one still owed after its
+        # last instalment should have been taken (advances.py)
+        "hrms_addon.hrms_addon.advances.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee
