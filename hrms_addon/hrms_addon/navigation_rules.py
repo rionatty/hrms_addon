@@ -57,6 +57,16 @@ CARDS = {
             ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE),
             ("Intern Placement", "Intern Placement", DOCTYPE),
         ]),
+        # Frappe HR's Tenure page carries onboarding, grievances and
+        # training but nothing about leaving, though their sidebar lists
+        # the Employee Separation. Both exits run on their documents; the
+        # clearance form is the one they do not have (exits.py)
+        ("Leaving", [
+            ("Employee Separation", "Employee Separation", DOCTYPE),
+            ("Exit Interview", "Exit Interview", DOCTYPE),
+            ("Clearance Form", "Clearance Form", DOCTYPE),
+            ("Full and Final Statement", "Full and Final Statement", DOCTYPE),
+        ]),
         ("Onboarding Setup", [
             ("Onboarding Settings", "Onboarding Settings", DOCTYPE),
             ("Tool of Work", "Tool of Work", DOCTYPE),
@@ -169,6 +179,11 @@ SIDEBAR = {
         ("Interview Report", "Interview Report", DOCTYPE, None, "Interview"),
         ("Interview Criterion", "Interview Criterion", DOCTYPE, "Setup", None),
         ("Interview Criteria Group", "Interview Criteria Group", DOCTYPE, "Setup", None),
+        # Employee Separation is their own sidebar entry: it stays where
+        # they put it, and the rest of the exit follows it
+        ("Exit Interview", "Exit Interview", DOCTYPE, None, "Employee Separation"),
+        ("Clearance Form", "Clearance Form", DOCTYPE, None, "Exit Interview"),
+        ("Full and Final Statement", "Full and Final Statement", DOCTYPE, None, "Clearance Form"),
         ("Qualification Type", "Qualification Type", DOCTYPE, "Setup", None),
     ],
     # a promotion follows an appraisal, so it is reachable from here too

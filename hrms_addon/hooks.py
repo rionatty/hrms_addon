@@ -144,6 +144,11 @@ doctype_js = {
     "Travel Request": "public/js/travel_request.js",
     # LPL/HR/27 on their Expense Claim (benefits.py)
     "Expense Claim": "public/js/expense_claim.js",
+    # Both exits on their Employee Separation, with the two buttons the
+    # charts draw: draw up LPL/HR/22, then the settlement (exits.py)
+    "Employee Separation": "public/js/employee_separation.js",
+    # LPL/HR/20 on their Full and Final Statement (settlements.py)
+    "Full and Final Statement": "public/js/full_and_final_statement.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -313,6 +318,13 @@ after_migrate = [
     # The staff loan: HOD, Executive Director, General Manager, the terms
     # Accounts settle and the employee's own consent. See loan_approval.py.
     "hrms_addon.hrms_addon.loans.setup_workflows_on_migrate",
+    # The exit interview's three signatures and the Clearance Form's two
+    # chains, one per exit. See exit_interview_approval.py and
+    # clearance_approval.py.
+    "hrms_addon.hrms_addon.exits.setup_workflows_on_migrate",
+    # The full and final settlement: Accounts, the employee, the Executive
+    # Director, then payroll. See settlement_approval.py.
+    "hrms_addon.hrms_addon.settlements.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -929,6 +941,87 @@ fixtures = [
                     "Expense Claim Type-custom_occasion",
                     "Expense Claim Type-custom_requires_evidence",
                     "Expense Claim Type-custom_is_allowance_line",
+                    "Employee Separation-custom_lpl_section",
+                    "Employee Separation-custom_exit_type",
+                    "Employee Separation-custom_reason",
+                    "Employee Separation-custom_branch",
+                    "Employee Separation-custom_date_of_joining",
+                    "Employee Separation-custom_lpl_cb",
+                    "Employee Separation-custom_notice_given",
+                    "Employee Separation-custom_notice_days",
+                    "Employee Separation-custom_relieving_date",
+                    "Employee Separation-custom_notice_served",
+                    "Employee Separation-custom_notice_short_days",
+                    "Employee Separation-custom_letter_section",
+                    "Employee Separation-custom_termination_date",
+                    "Employee Separation-custom_termination_reason",
+                    "Employee Separation-custom_letter_cb",
+                    "Employee Separation-custom_summoned_on",
+                    "Employee Separation-custom_letter_signed_on",
+                    "Employee Separation-custom_property_handed_on",
+                    "Employee Separation-custom_progress_section",
+                    "Employee Separation-custom_exit_interview",
+                    "Employee Separation-custom_clearance",
+                    "Employee Separation-custom_progress_cb",
+                    "Employee Separation-custom_settlement",
+                    "Employee Separation-custom_tools_handed",
+                    "Employee Separation-custom_status_updated",
+                    "Exit Interview-custom_lpl_section",
+                    "Exit Interview-custom_exit_status",
+                    "Exit Interview-custom_separation",
+                    "Exit Interview-custom_branch",
+                    "Exit Interview-custom_supervisor_remarks",
+                    "Exit Interview-custom_supervisor_by",
+                    "Exit Interview-custom_supervisor_on",
+                    "Exit Interview-custom_lpl_cb",
+                    "Exit Interview-custom_hod_remarks",
+                    "Exit Interview-custom_hod_by",
+                    "Exit Interview-custom_hod_on",
+                    "Exit Interview-custom_lpl_cb2",
+                    "Exit Interview-custom_hr_remarks",
+                    "Exit Interview-custom_hr_by",
+                    "Exit Interview-custom_hr_on",
+                    "Exit Interview-custom_return_remarks",
+                    "Full and Final Statement-custom_lpl_section",
+                    "Full and Final Statement-custom_settlement_status",
+                    "Full and Final Statement-custom_separation",
+                    "Full and Final Statement-custom_clearance",
+                    "Full and Final Statement-custom_exit_type",
+                    "Full and Final Statement-custom_branch",
+                    "Full and Final Statement-custom_lpl_cb",
+                    "Full and Final Statement-custom_gross_pay",
+                    "Full and Final Statement-custom_months_served",
+                    "Full and Final Statement-custom_notice_short_days",
+                    "Full and Final Statement-custom_leave_balance",
+                    "Full and Final Statement-custom_net_payable",
+                    "Full and Final Statement-custom_net_in_words",
+                    "Full and Final Statement-custom_bank_section",
+                    "Full and Final Statement-custom_account_name",
+                    "Full and Final Statement-custom_bank_name",
+                    "Full and Final Statement-custom_bank_cb",
+                    "Full and Final Statement-custom_bank_branch",
+                    "Full and Final Statement-custom_account_number",
+                    "Full and Final Statement-custom_approval_section",
+                    "Full and Final Statement-custom_accounts_remarks",
+                    "Full and Final Statement-custom_accounts_by",
+                    "Full and Final Statement-custom_accounts_on",
+                    "Full and Final Statement-custom_employee_signed",
+                    "Full and Final Statement-custom_employee_remarks",
+                    "Full and Final Statement-custom_employee_signed_by",
+                    "Full and Final Statement-custom_employee_signed_on",
+                    "Full and Final Statement-custom_approval_cb",
+                    "Full and Final Statement-custom_ed_remarks",
+                    "Full and Final Statement-custom_ed_by",
+                    "Full and Final Statement-custom_ed_on",
+                    "Full and Final Statement-custom_payroll_remarks",
+                    "Full and Final Statement-custom_payroll_by",
+                    "Full and Final Statement-custom_payroll_on",
+                    "Full and Final Statement-custom_return_remarks",
+                    "Full and Final Statement-custom_payroll_section",
+                    "Full and Final Statement-custom_payroll_date",
+                    "Full and Final Statement-custom_salary_component",
+                    "Full and Final Statement-custom_payroll_cb",
+                    "Full and Final Statement-custom_additional_salary",
                 ],
             ]
         ],
@@ -1092,6 +1185,28 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.benefits.claim_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.benefits.claim_on_cancel",
     },
+    # Both exits on Frappe HR's own Employee Separation: the notice the Act
+    # asks for, whether it was served, and the letter an involuntary exit
+    # carries (exits.py)
+    "Employee Separation": {
+        "validate": "hrms_addon.hrms_addon.exits.separation_validate",
+        "on_submit": "hrms_addon.hrms_addon.exits.separation_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.exits.separation_on_cancel",
+    },
+    # The exit interview's three signatures (4.5, step 4)
+    "Exit Interview": {
+        "validate": "hrms_addon.hrms_addon.exits.interview_validate",
+        "on_submit": "hrms_addon.hrms_addon.exits.interview_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.exits.interview_on_cancel",
+    },
+    # LPL/HR/20 on their Full and Final Statement: what is due, what comes
+    # off, the employee's own signature and the payroll run it is paid in
+    # (settlements.py)
+    "Full and Final Statement": {
+        "validate": "hrms_addon.hrms_addon.settlements.settlement_validate",
+        "on_submit": "hrms_addon.hrms_addon.settlements.settlement_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.settlements.settlement_on_cancel",
+    },
     "Employee Onboarding": {
         # Defaults from the candidate, the workflow step's checks and stamp,
         # and each activity given to the branch's own people, not every
@@ -1162,6 +1277,9 @@ scheduler_events = {
         "hrms_addon.hrms_addon.benefits.daily",
         # Loans: a repayment falling due, and one fully repaid (loans.py)
         "hrms_addon.hrms_addon.loans.daily",
+        # Exits: a notice period that has run out, and an exit with no
+        # clearance form drawn up (exits.py)
+        "hrms_addon.hrms_addon.exits.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee

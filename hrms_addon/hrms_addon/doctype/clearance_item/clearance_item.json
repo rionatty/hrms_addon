@@ -1,0 +1,84 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 18:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section",
+  "section_name",
+  "item",
+  "returned",
+  "cost",
+  "remarks",
+  "tool"
+ ],
+ "fields": [
+  {
+   "fieldname": "section",
+   "fieldtype": "Select",
+   "label": "Box",
+   "options": "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "section_name",
+   "fieldtype": "Data",
+   "label": "Department",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Data",
+   "label": "Item",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "returned",
+   "fieldtype": "Check",
+   "label": "Returned",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Cost If Not Returned",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Data",
+   "label": "Remarks",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "tool",
+   "fieldtype": "Link",
+   "label": "Tool of Work",
+   "options": "Tool of Work",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Where the line is one of the employee's own tools of work."
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-21 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Clearance Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

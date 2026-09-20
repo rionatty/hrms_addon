@@ -521,6 +521,38 @@ happened rather than what was planned, and a loan whose last instalment
 has been taken closes itself. Luuka's loans carry no interest by default;
 a rate set here is flat over the term.
 
+`verify_exits.py` covers both exits (4.5 and 4.6) and the cessation
+benefits (4.9), built on Frappe HR's own **Employee Separation**, **Exit
+Interview** and **Full and Final Statement**. The separation knows which
+chart is being followed and works out the notice the Employment Act asks
+for at that length of service, whether it was served, and by how many days
+it fell short — which is what the settlement deducts. A voluntary exit
+carries the resignation letter's date; an involuntary one carries the
+termination letter, when the employee was summoned, when they signed and
+when they handed company property to the HOD.
+
+The **Clearance Form (LPL/HR/22)** is the one document neither Frappe HR
+nor ERPNext has: ten boxes, A to J, each with its own items and its own
+signature. It is drawn up from the paper with the employee's own **tools
+of work** already on box A, and an item not returned needs a remark or a
+cost — the costs adding into box I and then into the settlement. Every box
+that has anything in it must be accounted for and signed before the form
+goes up. The two charts sign the same form with different people, so one
+workflow carries both chains: voluntary goes HR Officer, Finance, General
+Manager; involuntary goes General Manager, Accounts, HR Manager.
+
+The **Full and Final Settlement Agreement (LPL/HR/20)** follows. Accounts
+work out what the paper names — final salary, leave encashment, notice
+pay, severance and net claims — less the notice not served, the advances
+and loans still owed and the items not returned, from the employee's own
+pay, leave balance, advances, loans and clearance form. The employee
+confirms and signs, the **Executive Director** approves, and the Payroll
+Officer schedules it: the net becomes an **Additional Salary** in the run
+they choose, so the payroll process pays it like anything else. Step 2 of
+the chart — the employee made inactive and taken off the payroll — really
+does come before step 3, because their statement reads its relieving date
+straight off the Employee record.
+
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
 and Training Feedback. Before a session: the employee's **Training Needs
