@@ -409,9 +409,12 @@ the support the company gives, how it is measured and when it is looked
 at again, reviewed while it runs and closed with an outcome.
 
 Luuka runs **two appraisal forms side by side**, so the same check covers
-the **balanced scorecard** (LPL PMS FY 2026) as well. A graded role whose
-job title has an active **BSC Appraisal Template** is appraised on it; a
-supervisor stays on LPL/HR/18. The scorecard weights the four balanced
+the **balanced scorecard** (LPL PMS FY 2026) as well. The scorecard is carried on
+Frappe HR's own **Appraisal Template**, the way both forms are carried on
+their Appraisal, so there is one template document per role and the
+appraisal finds it through their own template link. A graded role whose
+job title has an active template is appraised on it; a supervisor stays
+on LPL/HR/18. The scorecard weights the four balanced
 scorecard perspectives to 80 between them (the weight is set once per
 perspective, not per KPI), scores each quarter on the percentage achieved
 and the year out of ten, adds five competencies weighted to 20, and bands

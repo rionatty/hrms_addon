@@ -24,7 +24,7 @@ frappe.ui.form.on("Appraisal", {
 					frappe
 						.xcall("hrms_addon.hrms_addon.bsc.get_scorecard", {
 							appraisal: frm.doc.name,
-							template: frm.doc.custom_bsc_template,
+							template: frm.doc.appraisal_template,
 						})
 						.then((added) => {
 							frappe.show_alert({

@@ -97,12 +97,11 @@ CARDS = {
             ("Employee Position Change", "Employee Position Change", DOCTYPE),
             ("Employee Promotion", "Employee Promotion", DOCTYPE),
         ]),
-        # Luuka's two forms are the balanced scorecard and LPL/HR/18, so
-        # "Appraisal Template" on this page means the role's scorecard.
-        # Frappe HR's own stock template is neither of them and is left to
-        # their sidebar, where it already sits under Setup.
+        # The role's balanced scorecard is carried on Frappe HR's own
+        # Appraisal Template (bsc.py), so there is one template document,
+        # not two: their page never listed it, and this puts it on the page.
         ("Appraisal Setup", [
-            ("Appraisal Template (LPL PMS)", "BSC Appraisal Template", DOCTYPE),
+            ("Appraisal Template", "Appraisal Template", DOCTYPE),
             ("BSC Competency", "BSC Competency", DOCTYPE),
             ("Appraisal Factor (LPL/HR/18)", "Appraisal Factor", DOCTYPE),
             ("Employee Feedback Criteria", "Employee Feedback Criteria", DOCTYPE),
@@ -163,7 +162,8 @@ SIDEBAR = {
         ("Performance Review", "Performance Review", DOCTYPE, None, "Appraisal"),
         ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Performance Review"),
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
-        ("Appraisal Template (LPL PMS)", "BSC Appraisal Template", DOCTYPE, "Setup", None),
+        # Appraisal Template is Frappe HR's own entry, already under Setup,
+        # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
     ],

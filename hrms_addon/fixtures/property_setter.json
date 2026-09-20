@@ -371,17 +371,6 @@
  },
  {
   "doctype": "Property Setter",
-  "name": "Appraisal-appraisal_template-hidden",
-  "doc_type": "Appraisal",
-  "doctype_or_field": "DocField",
-  "property": "hidden",
-  "property_type": "Check",
-  "value": "1",
-  "module": "HRMS Addon",
-  "field_name": "appraisal_template"
- },
- {
-  "doctype": "Property Setter",
   "name": "Appraisal-appraisal_kra-hidden",
   "doc_type": "Appraisal",
   "doctype_or_field": "DocField",
@@ -412,5 +401,49 @@
   "value": "1",
   "module": "HRMS Addon",
   "field_name": "self_ratings"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal Template-goals-hidden",
+  "doc_type": "Appraisal Template",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "goals"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal Template-rating_criteria-hidden",
+  "doc_type": "Appraisal Template",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "rating_criteria"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal Template-section_break_7-hidden",
+  "doc_type": "Appraisal Template",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "section_break_7"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal-appraisal_template-description",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "property": "description",
+  "property_type": "Text",
+  "value": "The role's balanced scorecard. It attaches itself from the employee's designation; Get Scorecard fills Section A and Section B from it.",
+  "module": "HRMS Addon",
+  "field_name": "appraisal_template"
  }
 ]

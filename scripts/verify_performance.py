@@ -97,6 +97,7 @@ def print_format(name):
 
 
 CUSTOM = json.load(open(os.path.join(PACKAGE, "fixtures", "custom_field.json"), encoding="utf-8"))
+SETTERS = json.load(open(os.path.join(PACKAGE, "fixtures", "property_setter.json"), encoding="utf-8"))
 R, A, P = load("appraisal_rules"), load("appraisal_approval"), load("pip_rules")
 S = load("bsc_rules")
 print("loaded appraisal_rules.py, appraisal_approval.py, pip_rules.py and bsc_rules.py without Frappe")
@@ -795,10 +796,50 @@ for role, ptypes in (("Executive Director", ("read", "write")), ("Head of Depart
 print("two forms: each route walked, each signed by its own people, the junctions conditional")
 
 # ── 9. The scorecard's DocTypes and glue ──────────────────────────────
+# Frappe HR ships an Appraisal Template. Luuka's scorecard is carried on
+# it, the way both appraisal forms are carried on their Appraisal, so
+# there must be no second template DocType standing beside it.
+if doctype("BSC Appraisal Template"):
+    fail.append("the scorecard belongs on Frappe HR's Appraisal Template, not a DocType beside it")
+if not upstream_doctype("Appraisal Template"):
+    fail.append("Frappe HR's Appraisal Template is not where it was: the scorecard is built on it")
+theirs = custom_fields("Appraisal Template")
+for fieldname in ("custom_designation", "custom_review_year", "custom_department", "custom_grade",
+                  "custom_review_period", "custom_company", "custom_is_active", "custom_perspectives",
+                  "custom_kpis", "custom_competencies", "custom_objectives_weight",
+                  "custom_competencies_weight", "custom_source_file", "custom_source_sheet",
+                  "custom_import_remarks"):
+    if fieldname not in theirs:
+        fail.append("Appraisal Template has no %s, which the scorecard asks for" % fieldname)
+for fieldname, options in (("custom_perspectives", "BSC Template Perspective"),
+                           ("custom_kpis", "BSC Template KPI"),
+                           ("custom_competencies", "BSC Template Competency")):
+    if (theirs.get(fieldname) or {}).get("options") != options:
+        fail.append("Appraisal Template.%s must be a table of %s" % (fieldname, options))
+for fieldname in ("custom_objectives_weight", "custom_competencies_weight", "custom_source_file",
+                  "custom_source_sheet", "custom_import_remarks"):
+    if not (theirs.get(fieldname) or {}).get("read_only"):
+        fail.append("Appraisal Template.%s is worked out, not typed" % fieldname)
+if (theirs.get("custom_designation") or {}).get("options") != "Designation":
+    fail.append("a scorecard is one role's: Appraisal Template.custom_designation links a Designation")
+# their own KRA table and rating criteria are neither of Luuka's forms
+setter_names = {row["name"] for row in SETTERS}
+for fieldname in ("goals", "rating_criteria"):
+    if "Appraisal Template-%s-hidden" % fieldname not in setter_names:
+        fail.append("Appraisal Template.%s is not part of either Luuka form and must be put away" % fieldname)
+# the appraisal names its template through their own link, not one of ours
+if "Appraisal-appraisal_template-hidden" in setter_names:
+    fail.append("Appraisal.appraisal_template IS Luuka's template now: it must not be hidden")
+if "Appraisal-appraisal_template-description" not in setter_names:
+    fail.append("Appraisal.appraisal_template should say which template it means")
+if "custom_bsc_template" in custom_fields("Appraisal"):
+    fail.append("the Appraisal must name its template once, through Frappe HR's own appraisal_template")
+if (hooks.get("doc_events", {}).get("Appraisal Template", {}).get("validate")
+        != "hrms_addon.hrms_addon.bsc.template_validate"):
+    fail.append("the scorecard's weights are checked when their template is saved")
+if "hrms_addon.patches.v1_0.scorecard_onto_appraisal_template" not in read("hrms_addon", "patches.txt"):
+    fail.append("a site that already imported scorecards must have them carried across")
 for name, wanted in (
-    ("BSC Appraisal Template", ("designation", "review_year", "grade", "review_period", "is_active",
-                                "perspectives", "kpis", "competencies", "objectives_weight",
-                                "competencies_weight", "source_file", "source_sheet", "import_remarks")),
     ("BSC Template Perspective", ("perspective", "weight")),
     ("BSC Template KPI", ("perspective", "kpi", "timing")),
     ("BSC Template Competency", ("competency", "indicators", "weight")),
@@ -823,7 +864,7 @@ for name, fieldname in (("BSC Appraisal Perspective", "q1_score"), ("BSC Apprais
     if not (fields_of(doctype(name)).get(fieldname) or {}).get("read_only"):
         fail.append("%s.%s is worked out, not typed" % (name, fieldname))
 ours = custom_fields("Appraisal")
-for fieldname in ("custom_form_type", "custom_bsc_template", "custom_period", "custom_bsc_perspectives",
+for fieldname in ("custom_form_type", "custom_period", "custom_bsc_perspectives",
                   "custom_bsc_kpis", "custom_bsc_competencies", "custom_assignments",
                   "custom_bsc_section_a_score", "custom_bsc_section_b_score", "custom_bsc_overall",
                   "custom_bsc_band", "custom_bsc_band_meaning", "custom_hod_by", "custom_hod_on",
@@ -848,11 +889,15 @@ for fieldname in ("custom_bsc_perspectives", "custom_bsc_competencies", "custom_
         fail.append("Appraisal.%s belongs to the scorecard and must be hidden on the supervisory form" % fieldname)
 
 glue_bsc = read("hrms_addon", "hrms_addon", "bsc.py")
-appraisal_fields = all_fields("Appraisal")
+# it writes the appraisal and the template, both of them Frappe HR's own
+both = dict(all_fields("Appraisal"), **all_fields("Appraisal Template"))
 for fieldname in sorted(set(re.findall(r'doc\.get\("(custom_\w+)"\)', glue_bsc))
-                        | set(re.findall(r"doc\.(custom_\w+)\b", glue_bsc))):
-    if fieldname not in appraisal_fields:
-        fail.append("bsc.py reads or writes Appraisal.%s, which does not exist" % fieldname)
+                        | set(re.findall(r"doc\.(custom_\w+)\b", glue_bsc))
+                        | set(re.findall(r'card\.(custom_\w+)\b', glue_bsc))):
+    if fieldname not in both:
+        fail.append("bsc.py reads or writes %s, which is on neither the Appraisal nor its Template" % fieldname)
+if 'TEMPLATE = "Appraisal Template"' not in glue_bsc:
+    fail.append("bsc.py must name Frappe HR's own Appraisal Template as the scorecard's home")
 for needle, why in (
     ("rules.template_errors(", "a scorecard is judged by the rules"),
     ("rules.quarter_score(", "each quarter is scored by the rules"),
@@ -862,9 +907,11 @@ for needle, why in (
     ("rules.band(", "and the band"),
     ("rules.parse_sheet(", "Luuka's workbook is read by the rules"),
     ("load_workbook(", "the importer opens the workbook"),
-    ('frappe.has_permission("BSC Appraisal Template", "create")', "the importer makes documents: it checks first"),
-    ("doc.is_active = 1 if (activate and not problems) else 0",
+    ('frappe.has_permission(TEMPLATE, "create")', "the importer makes documents: it checks first"),
+    ("doc.custom_is_active = 1 if (activate and not problems) else 0",
      "a sheet whose weights do not add up is imported but left inactive"),
+    ("doc.template_title = _title(designation, year, sheet)",
+     "their template is named after the role, because that is its autoname"),
 ):
     if needle not in glue_bsc:
         fail.append("bsc.py: %s (%r not found)" % (why, needle))
@@ -876,6 +923,8 @@ for name in ("get_scorecard", "import_workbook"):
 glue_appraisals = read("hrms_addon", "hrms_addon", "appraisals.py")
 for needle, why in (
     ("bsc.template_for(", "the role's scorecard decides which form an employee is on"),
+    ("doc.appraisal_template = bsc.template_for(",
+     "the role's template attaches itself, on Frappe HR's own link"),
     ("bsc.fill(", "a scorecard appraisal is filled from the template"),
     ("bsc.score(", "and scored by the scorecard's own rules"),
     ("bsc_rules.appraisal_errors(", "and judged by them"),
@@ -888,7 +937,11 @@ if "hrms_addon.hrms_addon.pick_lists.seed_bsc_masters" not in (hooks.get("after_
     fail.append("a fresh install seeds the scorecard's competencies")
 if "seed_bsc_masters()" not in read("hrms_addon", "patches", "v1_0", "seed_performance.py"):
     fail.append("and so does the patch, on a site that has the app already")
-for name in ("BSC Appraisal Template", "BSC Competency"):
+if "Appraisal Template" not in carded:
+    fail.append("Appraisal Template is on no workspace card")
+if "Appraisal Template" in sidebarred:
+    fail.append("Frappe HR already lists Appraisal Template under Setup: leave their entry where it is")
+for name in ("BSC Competency",):
     if name not in carded:
         fail.append("%s is on no workspace card" % name)
     if name not in sidebarred:

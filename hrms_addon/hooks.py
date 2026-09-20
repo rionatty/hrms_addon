@@ -132,12 +132,11 @@ doctype_js = {
     # HR's Appraisal; the cycle carries the sheet for appraising offline
     "Appraisal": "public/js/appraisal.js",
     "Appraisal Cycle": "public/js/appraisal_cycle.js",
-    # Frappe HR's own template is neither of Luuka's forms, and their
-    # sidebar lists it above ours: say so where someone lands on it
+    # Luuka's scorecard is built on Frappe HR's own Appraisal Template:
+    # the weights headline and Import PMS Workbook sit on their form
     "Appraisal Template": "public/js/appraisal_template.js",
 }
-# List views. Same reason as the form above.
-doctype_list_js = {"Appraisal Template": "public/js/appraisal_template_list.js"}
+# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -654,7 +653,6 @@ fixtures = [
                     "Appraisal Cycle-custom_hard_deadline",
                     "Appraisal Cycle-custom_reminders_sent",
                     "Appraisal-custom_form_type",
-                    "Appraisal-custom_bsc_template",
                     "Appraisal-custom_period",
                     "Appraisal-custom_bsc_section_a",
                     "Appraisal-custom_bsc_perspectives",
@@ -688,6 +686,27 @@ fixtures = [
                     "Appraisal-custom_start",
                     "Appraisal-custom_development_actions",
                     "Employee-custom_automatic_attendance",
+                    "Appraisal Template-custom_role_section",
+                    "Appraisal Template-custom_designation",
+                    "Appraisal Template-custom_review_year",
+                    "Appraisal Template-custom_department",
+                    "Appraisal Template-custom_role_cb",
+                    "Appraisal Template-custom_grade",
+                    "Appraisal Template-custom_review_period",
+                    "Appraisal Template-custom_company",
+                    "Appraisal Template-custom_is_active",
+                    "Appraisal Template-custom_section_a",
+                    "Appraisal Template-custom_perspectives",
+                    "Appraisal Template-custom_objectives_weight",
+                    "Appraisal Template-custom_kpis",
+                    "Appraisal Template-custom_section_b",
+                    "Appraisal Template-custom_competencies",
+                    "Appraisal Template-custom_competencies_weight",
+                    "Appraisal Template-custom_source_section",
+                    "Appraisal Template-custom_source_file",
+                    "Appraisal Template-custom_source_cb",
+                    "Appraisal Template-custom_source_sheet",
+                    "Appraisal Template-custom_import_remarks",
                 ],
             ]
         ],
@@ -733,10 +752,13 @@ fixtures = [
                     "Interview Type-expected_skill_set-hidden",
                     "Interview Type-expected_average_rating-description",
                     "Appraisal-appraisal_template-mandatory_depends_on",
-                    "Appraisal-appraisal_template-hidden",
+                    "Appraisal-appraisal_template-description",
                     "Appraisal-appraisal_kra-hidden",
                     "Appraisal-goals-hidden",
                     "Appraisal-self_ratings-hidden",
+                    "Appraisal Template-goals-hidden",
+                    "Appraisal Template-rating_criteria-hidden",
+                    "Appraisal Template-section_break_7-hidden",
                 ],
             ]
         ],
@@ -811,6 +833,11 @@ doc_events = {
         # signatures, and the year to date (appraisals.py)
         "validate": "hrms_addon.hrms_addon.appraisals.appraisal_validate",
         "on_cancel": "hrms_addon.hrms_addon.appraisals.appraisal_on_cancel",
+    },
+    "Appraisal Template": {
+        # the role's balanced scorecard, carried on Frappe HR's own
+        # template: the weights total 80 and 20 before it goes active (bsc.py)
+        "validate": "hrms_addon.hrms_addon.bsc.template_validate",
     },
     "Employee Onboarding": {
         # Defaults from the candidate, the workflow step's checks and stamp,

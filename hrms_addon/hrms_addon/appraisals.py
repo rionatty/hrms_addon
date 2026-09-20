@@ -179,7 +179,7 @@ def _raise_appraisal(plan, row, cycle, employee):
     card = bsc.template_for(designation=employee.get("designation"), year=plan.get("year"))
     if card:
         appraisal.custom_form_type = approval.FORM_BSC
-        appraisal.custom_bsc_template = card
+        appraisal.appraisal_template = card
         appraisal.custom_period = row.quarter if row.quarter in bsc_rules.QUARTERS else bsc_rules.ANNUAL
         bsc.fill(appraisal, card)
     else:
@@ -260,13 +260,13 @@ def _attach_scorecard(doc):
     """
     if doc.docstatus != 0 or not doc.get("employee"):
         return
-    if not doc.get("custom_bsc_template"):
+    if not doc.get("appraisal_template"):
         year = None
         if doc.get("start_date"):
             year = getdate(doc.start_date).year
-        doc.custom_bsc_template = bsc.template_for(employee=doc.employee, year=year)
-    if doc.get("custom_bsc_template") and not doc.get("custom_bsc_perspectives"):
-        bsc.fill(doc, doc.custom_bsc_template)
+        doc.appraisal_template = bsc.template_for(employee=doc.employee, year=year)
+    if doc.get("appraisal_template") and not doc.get("custom_bsc_perspectives"):
+        bsc.fill(doc, doc.appraisal_template)
 
 
 def _carry_scores(doc, total, band):
