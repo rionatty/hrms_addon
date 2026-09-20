@@ -132,8 +132,12 @@ doctype_js = {
     # HR's Appraisal; the cycle carries the sheet for appraising offline
     "Appraisal": "public/js/appraisal.js",
     "Appraisal Cycle": "public/js/appraisal_cycle.js",
+    # Frappe HR's own template is neither of Luuka's forms, and their
+    # sidebar lists it above ours: say so where someone lands on it
+    "Appraisal Template": "public/js/appraisal_template.js",
 }
-# doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
+# List views. Same reason as the form above.
+doctype_list_js = {"Appraisal Template": "public/js/appraisal_template_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
