@@ -657,40 +657,56 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 /* ============================================================
    MY ALERTS — public/js/hrms_addon_alerts.js
    ------------------------------------------------------------
-   A panel at the foot of the page's right-hand sidebar, under
-   Assign / Attachments / Tags / Share and the edited-by lines,
-   with the logged-in user's own assignments and notifications,
-   coloured by how soon each matters.
+   A small panel floating at the bottom right of the desk with
+   the logged-in user's own assignments and notifications,
+   coloured by how soon each matters. Its header shrinks it to a
+   bar and opens it again.
 
-   It sits in `.layout-side-section`, the column Frappe builds
-   for the sidebar on forms and lists, so it takes that column's
-   width and scrolls within its own height rather than running
-   down the whole window.
+   Fixed to the window, not placed in the page: Frappe rebuilds
+   the page between routes, so a panel in the page would go with
+   it, and floating keeps it in the same place on a form, a list
+   and a workspace alike. It sits under Frappe's dialogs (1050)
+   and over the page.
 
    Colours come from Frappe's own variables where they exist, so
    the panel follows light and dark mode without a second block.
    To revert, delete this block and the app_include_js entry.
    ============================================================ */
 .ha-alerts {
-  margin-top: 18px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color, var(--hra-border));
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1030;
+  width: 310px;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg, #FFFFFF);
+  border: 1px solid var(--border-color, var(--hra-border));
+  border-radius: var(--hra-radius);
+  box-shadow: var(--hra-shadow-lg);
+  color: var(--text-color, var(--hra-ink));
   font-size: var(--text-sm, 12px);
+  overflow: hidden;
 }
 
+/* The header is the button that shrinks and opens it. */
 .ha-alerts-head {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border-color, var(--hra-border));
+  background: var(--hra-shell);
+  color: var(--hra-shell-text);
+  cursor: pointer;
+  text-align: left;
 }
 .ha-alerts-title {
   flex: 1 1 auto;
   font-weight: 600;
-  color: var(--text-muted, var(--hra-ink-muted));
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: .4px;
+  letter-spacing: .3px;
 }
 .ha-alerts-count {
   min-width: 20px;
@@ -702,21 +718,40 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
   color: #FFFFFF;
   background: var(--ha-band, var(--hra-ink-muted));
 }
+/* The chevron turns over when the panel is shrunk. */
+.ha-alerts-toggle {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--hra-shell-text);
+}
+.ha-alerts-minimised .ha-alerts-toggle {
+  border-top: 0;
+  border-bottom: 6px solid var(--hra-shell-text);
+}
+/* Shrunk: the header bar alone, left sitting in the corner. */
+.ha-alerts-minimised .ha-alerts-body,
+.ha-alerts-minimised .ha-alerts-foot {
+  display: none;
+}
+.ha-alerts-minimised .ha-alerts-head {
+  border-bottom: 0;
+}
 
-/* The box: about as tall as the space under the sidebar's own
-   panels, scrolling inside itself when there is more. */
 .ha-alerts-body {
   max-height: 320px;
   overflow-y: auto;
-  margin: 0 -8px;
+  padding: 4px 0;
 }
 .ha-alerts-empty {
-  padding: 10px 8px;
+  padding: 12px;
   color: var(--text-muted, var(--hra-ink-muted));
 }
 .ha-alerts-foot {
-  margin-top: 8px;
+  padding: 6px 12px 8px;
   text-align: right;
+  border-top: 1px solid var(--border-color, var(--hra-border));
 }
 .ha-alerts-read-all {
   background: none;
@@ -734,7 +769,7 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 .ha-alert {
   display: flex;
   gap: 7px;
-  padding: 7px 8px 7px 5px;
+  padding: 8px 12px 8px 9px;
   border-left: 3px solid var(--ha-band, transparent);
   color: inherit;
   text-decoration: none;
@@ -779,6 +814,20 @@ html:not([data-theme="dark"]) .navbar .dropdown-menu .icon use {
 .ha-band-soon    { --ha-band: var(--hra-accent); }
 .ha-band-later   { --ha-band: var(--hra-primary-soft); }
 .ha-band-none    { --ha-band: var(--hra-ink-muted); }
+
+/* On a phone it spans the foot of the screen rather than hanging
+   in a corner too small to read. */
+@media (max-width: 575px) {
+  .ha-alerts {
+    right: 10px;
+    left: 10px;
+    bottom: 10px;
+    width: auto;
+  }
+  .ha-alerts-body {
+    max-height: 220px;
+  }
+}
 
 /* Subtle leaf watermark on the form canvas — the one nod to agriculture */
 .form-page::before {

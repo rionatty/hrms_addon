@@ -1,17 +1,17 @@
 // HRMS Addon — My Alerts.
 //
-// A panel in the page's right-hand sidebar, under what Frappe already puts
-// there (Assign, Attachments, Tags, Share, who edited it), showing the
-// logged-in user their own work: the assignments on their ToDo list (an
-// onboarding task, a 30-60-90 review, a probation evaluation, a contract
-// coming to its end) and their notifications, newest first.
+// A small panel floating at the bottom right of the desk with the logged-in
+// user's own work: the assignments on their ToDo list (an onboarding task, a
+// 30-60-90 review, a probation evaluation, a contract coming to its end) and
+// their notifications, newest first. It can be shrunk to its header bar and
+// opened again, and stays as it was left.
 //
-// WHERE IT GOES
+// WHY IT FLOATS
 //
-// Into `.layout-side-section` — the column Frappe builds for the sidebar on
-// forms and on list views (frappe/public/js/frappe/views/page.js). It is
-// rebuilt as you move between pages, so the panel is put back on every route
-// change, and never twice on the same one.
+// It is fixed to the window rather than put in the page, so it is in the same
+// place on a form, a list and a workspace, and nothing is pushed aside to
+// make room for it: Frappe rebuilds the page as you move between routes, and
+// a panel in the page goes with it.
 //
 // WHAT REFRESHES IT
 //
@@ -28,39 +28,57 @@
 	if (frappe.session && frappe.session.user === "Guest") return;
 
 	const PANEL = "ha-alerts";
+	const MINIMISED = "ha-alerts-minimised";
+	const STORE = "hrms_addon:alerts_minimised";
 	const POLL_MS = 5 * 60 * 1000;
 	const INDICATORS = { overdue: "red", today: "orange", soon: "blue", later: "blue", none: "gray" };
 
-	let answer = null; // the last one from the server, so a new page draws at once
+	let panel = null;
+	let answer = null; // the last one from the server
 	let known = null; // the keys of that answer: null until the first one lands
 	let busy = false;
 
-	function panel_html() {
-		return `
-			<div class="ha-alerts-head">
-				<span class="ha-alerts-title">${__("My Alerts")}</span>
-				<span class="ha-alerts-count ha-band-none">0</span>
-			</div>
-			<div class="ha-alerts-body"><div class="ha-alerts-empty">${__("Nothing due.")}</div></div>
-			<div class="ha-alerts-foot"><button class="ha-alerts-read-all" type="button">${__("Mark notifications read")}</button></div>`;
+	function minimised() {
+		try {
+			return window.localStorage.getItem(STORE) === "1";
+		} catch (e) {
+			return false; // private windows and blocked storage: open is the default
+		}
 	}
 
-	// The sidebar is rebuilt page by page: put the panel back where it is missing.
-	function mount() {
-		const sides = document.querySelectorAll(".layout-side-section");
-		for (const side of sides) {
-			if (side.querySelector("." + PANEL)) continue;
-			const panel = document.createElement("div");
-			panel.className = PANEL;
-			panel.innerHTML = panel_html();
-			side.appendChild(panel);
-			panel.querySelector(".ha-alerts-body").addEventListener("click", clicked);
-			panel.querySelector(".ha-alerts-read-all").addEventListener("click", read_all);
+	function remember(state) {
+		try {
+			window.localStorage.setItem(STORE, state ? "1" : "0");
+		} catch (e) {
+			/* nothing to remember it in; the panel still works for this visit */
 		}
-		if (sides.length) {
-			if (answer) render(answer);
-			else load();
-		}
+	}
+
+	function build() {
+		if (document.querySelector("." + PANEL)) return;
+		panel = document.createElement("div");
+		panel.className = PANEL + (minimised() ? " " + MINIMISED : "");
+		panel.innerHTML = `
+			<button class="ha-alerts-head" type="button" title="${__("Minimise")}" aria-expanded="true">
+				<span class="ha-alerts-title">${__("My Alerts")}</span>
+				<span class="ha-alerts-count ha-band-none">0</span>
+				<span class="ha-alerts-toggle" aria-hidden="true"></span>
+			</button>
+			<div class="ha-alerts-body"><div class="ha-alerts-empty">${__("Nothing due.")}</div></div>
+			<div class="ha-alerts-foot"><button class="ha-alerts-read-all" type="button">${__("Mark notifications read")}</button></div>`;
+		document.body.appendChild(panel);
+		panel.querySelector(".ha-alerts-head").addEventListener("click", toggle);
+		panel.querySelector(".ha-alerts-body").addEventListener("click", clicked);
+		panel.querySelector(".ha-alerts-read-all").addEventListener("click", read_all);
+		if (answer) render(answer);
+	}
+
+	function toggle() {
+		const now = !panel.classList.contains(MINIMISED);
+		panel.classList.toggle(MINIMISED, now);
+		panel.querySelector(".ha-alerts-head").setAttribute("aria-expanded", now ? "false" : "true");
+		panel.querySelector(".ha-alerts-head").title = now ? __("Show alerts") : __("Minimise");
+		remember(now);
 	}
 
 	function clicked(event) {
@@ -94,26 +112,23 @@
 				busy = false;
 				// say so in the panel rather than leaving an empty one that
 				// looks like there is nothing to do
-				for (const body of document.querySelectorAll("." + PANEL + " .ha-alerts-body")) {
-					body.innerHTML = `<div class="ha-alerts-empty">${__("Alerts could not be loaded.")}</div>`;
-				}
+				const body = panel && panel.querySelector(".ha-alerts-body");
+				if (body) body.innerHTML = `<div class="ha-alerts-empty">${__("Alerts could not be loaded.")}</div>`;
 				console.error("hrms_addon: my_alerts failed", error);
 			});
 	}
 
 	function render(data) {
+		if (!panel) return;
 		const alerts = data.alerts || [];
 		const count = data.total || 0;
-		const band = data.band || "none";
-		for (const panel of document.querySelectorAll("." + PANEL)) {
-			const badge = panel.querySelector(".ha-alerts-count");
-			badge.textContent = count > 99 ? "99+" : String(count);
-			badge.className = "ha-alerts-count ha-band-" + band;
-			const body = panel.querySelector(".ha-alerts-body");
-			body.innerHTML = alerts.length
-				? alerts.map(row_html).join("")
-				: `<div class="ha-alerts-empty">${__("Nothing due.")}</div>`;
-		}
+		const badge = panel.querySelector(".ha-alerts-count");
+		badge.textContent = count > 99 ? "99+" : String(count);
+		badge.className = "ha-alerts-count ha-band-" + (data.band || "none");
+		const body = panel.querySelector(".ha-alerts-body");
+		body.innerHTML = alerts.length
+			? alerts.map(row_html).join("")
+			: `<div class="ha-alerts-empty">${__("Nothing due.")}</div>`;
 		announce(alerts);
 	}
 
@@ -159,11 +174,12 @@
 	}
 
 	function start() {
-		mount();
+		build();
+		load();
+		// the desk replaces the body's contents on some routes: put it back
 		if (frappe.router && frappe.router.on) {
-			frappe.router.on("change", () => setTimeout(mount, 100));
+			frappe.router.on("change", () => setTimeout(build, 100));
 		}
-		$(document).on("page-change form-refresh", () => setTimeout(mount, 100));
 		if (frappe.realtime && frappe.realtime.on) {
 			frappe.realtime.on("notification", load);
 		}

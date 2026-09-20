@@ -178,10 +178,17 @@ if "frappe.utils.escape_html" not in js:
     fail.append("the rail prints what people typed: it must escape it")
 if 'frappe.realtime.on("notification", load)' not in js:
     fail.append("the rail must reload when Frappe says a notification arrived")
-if 'querySelectorAll(".layout-side-section")' not in js or "side.appendChild(panel)" not in js:
-    fail.append("the panel goes in the page's own right-hand sidebar (.layout-side-section)")
+if "document.body.appendChild(panel)" not in js:
+    fail.append("the panel floats free of the page, which Frappe rebuilds between routes")
+if 'if (document.querySelector("." + PANEL)) return;' not in js:
+    fail.append("building it again must find the one already there, or a route change leaves two")
 if 'frappe.router.on("change"' not in js:
-    fail.append("the sidebar is rebuilt page by page: the panel must be put back on a route change")
+    fail.append("a route that rebuilds the body must put the panel back")
+for needle, why in (('const MINIMISED = "ha-alerts-minimised";', "the class the stylesheet shrinks it by"),
+                    ("classList.toggle(MINIMISED", "the header shrinks it and opens it again"),
+                    ("localStorage.setItem(STORE", "and it comes back as it was left")):
+    if needle not in js:
+        fail.append("the panel must shrink to its header: %s (%r not found)" % (why, needle))
 if "Alerts could not be loaded." not in js:
     fail.append("a failure must say so in the panel: an empty one reads as nothing to do")
 if 'frappe.session.user === "Guest"' not in js:
@@ -200,8 +207,17 @@ css = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
 panel_block = re.search(r"\n\.ha-alerts \{(.*?)\n\}", css, re.S)
 if not panel_block:
     fail.append("the stylesheet has no .ha-alerts")
-elif "position: fixed" in panel_block.group(1) or "position: absolute" in panel_block.group(1):
-    fail.append("the panel sits in the sidebar's flow, never pinned over the page")
+else:
+    floating = panel_block.group(1)
+    if "position: fixed" not in floating:
+        fail.append("the panel floats over the page, fixed to the window")
+    if not re.search(r"right: \d+px", floating) or not re.search(r"bottom: \d+px", floating):
+        fail.append("it floats in the bottom right corner")
+    z = re.search(r"z-index: (\d+)", floating)
+    if not z or not 1000 <= int(z.group(1)) < 1050:
+        fail.append("it must sit over the page and under Frappe's dialogs, which are 1050")
+if ".ha-alerts-minimised .ha-alerts-body" not in css:
+    fail.append("minimised, the panel is its header bar alone")
 body_block = re.search(r"\n\.ha-alerts-body \{(.*?)\n\}", css, re.S)
 if not body_block or "max-height" not in body_block.group(1) or "overflow-y" not in body_block.group(1):
     fail.append("the list is a box of its own height that scrolls inside itself")
