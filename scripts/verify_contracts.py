@@ -199,7 +199,10 @@ for needle, why in (
     ("start, end = rules.renewal_dates(old.end_date, _usual_months(old.employment_type))", "the renewal's dates"),
     ('frappe.throw(_("Say why the contract is not renewed."))', "a reason for not renewing"),
     ('doc.db_set({"status": rules.NOT_RENEWED, "decision_remarks": remarks.strip()})', "Not Renewed is recorded"),
-    ("print the Expiry of Contract letter and follow the ", "HR is told the next steps"),
+    ("_raise_separation(", "the No branch follows a real termination process, not a note"),
+    ('"custom_exit_type": "Involuntary"', "and the exit it raises is the involuntary one"),
+    ('"custom_reason": "End of Contract"', "for the reason the chart gives"),
+    ("The termination process is open on", "and HR is told where it is"),
     ('filters={"docstatus": 1, "status": ["in", LIVE]}', "the daily job watches the live contracts"),
     ("due = [] if contract.employee in gone else rules.alerts_due(contract.end_date, day, alert_days, contract.alerts_sent)",
      "the alerts due, none for an employee who has left"),
@@ -212,7 +215,22 @@ for needle, why in (
 ):
     if needle not in glue:
         fail.append("contracts.py: %s (%r not found)" % (why, needle))
-print("glue: end dates, overlaps, the Employee's end, renew, do not renew, the daily alerts, the onboarding's draft")
+for needle, why in (
+    ("_fill_evaluation(", "step 3: the evaluation is recorded before anyone decides"),
+    ("last_appraisal_band", "and the last appraisal is read off the employee's own record"),
+    ("_update_employee(", "the chart's last step: the Employee is updated from the signed contract"),
+    ("_assign_salary(", "and a new base becomes a Salary Structure Assignment"),
+):
+    if needle not in glue:
+        fail.append("contracts.py: %s (%r not found)" % (why, needle))
+contract_fields = {f["fieldname"] for f in EC.get("fields", [])}
+for fieldname in ("evaluated_on", "evaluated_by", "last_appraisal", "last_appraisal_score",
+                  "last_appraisal_band", "performance_remarks", "conduct_remarks", "recommendation",
+                  "engaged_on", "engaged_by", "terms_discussed", "employee_response", "response_on",
+                  "separation"):
+    if fieldname not in contract_fields:
+        fail.append("Employee Contract has no %s, which steps 3 and 4 of 4.8 ask for" % fieldname)
+print("glue: end dates, overlaps, the evaluation, the engagement, renew, do not renew, the daily alerts, the onboarding's draft")
 
 # ── 5. Hooks and the report ───────────────────────────────────────────
 hooks = {}

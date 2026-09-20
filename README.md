@@ -521,6 +521,21 @@ happened rather than what was planned, and a loan whose last instalment
 has been taken closes itself. Luuka's loans carry no interest by default;
 a rate set here is flat over the term.
 
+Contract management (4.8) gains the three steps of its chart the contract
+did not yet carry. Step 3, **the evaluation**: the last appraisal is read
+off the employee's own record, the HR Officer writes what they make of the
+performance and the conduct, and the recommendation is the chart's
+"Renewal Required?". Step 4, **engaging the employee**: when a renewal is
+wanted, the date, the terms discussed and what the employee said, and the
+renewal is drawn up carrying those terms. And the No branch, **"Follow the
+Termination Process"**, is now a real process rather than a note: a
+contract not renewed raises an involuntary **Employee Separation** for the
+day it ends, with End of Contract as the reason, so the clearance and the
+settlement follow it. When a signed contract is submitted, the Employee's
+own record is updated from it — designation, department, plant — and a new
+base becomes a Salary Structure Assignment on the structure they are
+already on.
+
 `verify_exits.py` covers both exits (4.5 and 4.6) and the cessation
 benefits (4.9), built on Frappe HR's own **Employee Separation**, **Exit
 Interview** and **Full and Final Statement**. The separation knows which

@@ -12,9 +12,13 @@ scripts/verify_contracts.py):
   on_submit         the Employee's Contract End Date; a renewal marks the
                     contract it renews Renewed
   on_cancel         both undone
+  evaluate          step 3: the appraisal, the conduct and the HR
+                    Officer's recommendation, recorded before anyone decides
   make_renewal      Renew: a draft from the day after the end, for the
-                    Employment Type's usual length (a year by default)
-  mark_not_renewed  Do Not Renew: HR is told to follow the termination process
+                    Employment Type's usual length (a year by default), with
+                    the terms the HR Officer discussed with the employee
+  mark_not_renewed  Do Not Renew: an Employee Separation is raised, so the
+                    termination process really does follow (exits.py)
   daily             the scheduler: each contract's status, and the HR
                     Officer told a year, a quarter and a month before its end
   draft_for_new_employee  made when the HR Manager approves an onboarding
@@ -22,7 +26,7 @@ scripts/verify_contracts.py):
 
 import frappe
 from frappe import _
-from frappe.utils import cint, date_diff, getdate, today
+from frappe.utils import cint, date_diff, flt, getdate, today
 
 from hrms_addon.hrms_addon import contract_rules as rules
 from hrms_addon.hrms_addon import people
@@ -37,6 +41,7 @@ def _usual_months(employment_type):
 
 
 def validate(doc):
+    _fill_evaluation(doc)
     months = _usual_months(doc.get("employment_type"))
     if not doc.get("end_date") and months and doc.get("start_date") and doc.is_new():
         doc.end_date = rules.end_for(doc.start_date, months)
@@ -63,11 +68,74 @@ def validate(doc):
     doc.status = rules.contract_status(doc.docstatus, doc.get("end_date"), today())
 
 
+def _fill_evaluation(doc):
+    """Step 3: the last appraisal, read off the employee's own record so
+    the decision is made against something rather than from memory."""
+    if doc.get("evaluated_on") and not doc.get("evaluated_by"):
+        doc.evaluated_by = frappe.session.user
+    if doc.get("employee_response") and not doc.get("response_on"):
+        doc.response_on = today()
+    if doc.get("engaged_on") and not doc.get("engaged_by"):
+        doc.engaged_by = frappe.session.user
+    if doc.get("last_appraisal") or not doc.get("employee"):
+        return
+    found = frappe.get_all("Appraisal",
+                           filters={"employee": doc.employee, "docstatus": 1},
+                           fields=["name", "custom_total_score", "custom_band"],
+                           order_by="end_date desc", limit=1)
+    if found:
+        doc.last_appraisal = found[0].name
+        doc.last_appraisal_score = found[0].custom_total_score
+        doc.last_appraisal_band = found[0].custom_band
+
+
 def on_submit(doc):
     frappe.db.set_value("Employee", doc.employee, "contract_end_date", doc.get("end_date"))
     if doc.get("renewal_of"):
         frappe.db.set_value("Employee Contract", doc.renewal_of, {"renewed_by": doc.name, "status": rules.RENEWED},
                             update_modified=False)
+    _update_employee(doc)
+
+
+def _update_employee(doc):
+    """The chart's last step: "HRO Updates Employee data in the system".
+    What the signed contract says about the job is what the employee
+    record should say, and a change of pay becomes a new Salary Structure
+    Assignment on the structure they are already on."""
+    values = {field: doc.get(field) for field in ("designation", "department", "branch")
+              if doc.get(field)}
+    current = frappe.db.get_value("Employee", doc.employee, list(values) or ["name"], as_dict=True) or {}
+    changed = {field: value for field, value in values.items() if current.get(field) != value}
+    if changed:
+        frappe.db.set_value("Employee", doc.employee, changed, update_modified=False)
+    _assign_salary(doc)
+
+
+def _assign_salary(doc):
+    """A new base on a signed contract is a new assignment from its start
+    date, on whatever structure the employee is already on. Nothing is
+    assumed where they are on none."""
+    if not doc.get("base_salary"):
+        return
+    latest = frappe.get_all("Salary Structure Assignment",
+                            filters={"employee": doc.employee, "docstatus": 1},
+                            fields=["name", "salary_structure", "base", "from_date"],
+                            order_by="from_date desc", limit=1)
+    if not latest or flt(latest[0].base) == flt(doc.base_salary):
+        return
+    if getdate(latest[0].from_date) >= getdate(doc.start_date):
+        return  # already assigned from this contract's start or later
+    try:
+        assignment = frappe.get_doc({
+            "doctype": "Salary Structure Assignment", "employee": doc.employee,
+            "salary_structure": latest[0].salary_structure, "from_date": doc.start_date,
+            "base": flt(doc.base_salary), "company": doc.company,
+        })
+        assignment.flags.ignore_permissions = True
+        assignment.insert()
+        assignment.submit()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: contract salary assignment")
 
 
 def on_cancel(doc):
@@ -97,7 +165,15 @@ def make_renewal(contract):
     start, end = rules.renewal_dates(old.end_date, _usual_months(old.employment_type))
     renewal = frappe.copy_doc(old)
     renewal.update({"start_date": start, "end_date": end, "renewal_of": old.name, "signed_on": None,
-                    "signed_contract": None, "decision_remarks": None, "alerts_sent": None})
+                    "signed_contract": None, "decision_remarks": None, "alerts_sent": None,
+                    "evaluated_on": None, "evaluated_by": None, "last_appraisal": None,
+                    "last_appraisal_score": None, "last_appraisal_band": None,
+                    "recommendation": None, "engaged_on": None, "engaged_by": None,
+                    "employee_response": None, "response_on": None, "separation": None})
+    if old.get("terms_discussed"):
+        # step 4: what the HR Officer agreed with the employee is what the
+        # renewal is drawn up on
+        renewal.terms_discussed = old.terms_discussed
     renewal.insert()
     return renewal.name
 
@@ -114,11 +190,42 @@ def mark_not_renewed(contract, remarks):
         frappe.throw(_("Say why the contract is not renewed."))
     doc.db_set({"status": rules.NOT_RENEWED, "decision_remarks": remarks.strip()})
     doc.add_comment("Info", _("Not renewed: {0}").format(remarks.strip()))
+    separation = _raise_separation(doc, remarks.strip())
     users = people.hr_officers(doc.get("branch"), doc.get("department"))
-    message = _("The contract of {0} ending {1} is not renewed: print the Expiry of Contract letter and follow the "
-                "termination process.").format(doc.employee_name, doc.end_date)
+    message = _("The contract of {0} ending {1} is not renewed. The termination process is open on {2}."
+                ).format(doc.employee_name, doc.end_date, separation) if separation else _(
+        "The contract of {0} ending {1} is not renewed: follow the termination process."
+    ).format(doc.employee_name, doc.end_date)
     people.assign("Employee Contract", doc.name, users, message, date=doc.end_date)
     people.notify(users, "Employee Contract", doc.name, message)
+    return separation
+
+
+def _raise_separation(doc, remarks):
+    """The chart's "Follow the Termination Process": an exit on the day the
+    contract ends, so the clearance and the settlement follow it
+    (exits.py). One already open is left alone."""
+    existing = frappe.db.get_value("Employee Separation",
+                                   {"employee": doc.employee, "docstatus": ["<", 2]}, "name")
+    if existing:
+        doc.db_set("separation", existing, update_modified=False)
+        return existing
+    try:
+        exit_doc = frappe.get_doc({
+            "doctype": "Employee Separation", "employee": doc.employee, "company": doc.company,
+            "department": doc.get("department"), "designation": doc.get("designation"),
+            "boarding_status": "Pending", "custom_exit_type": "Involuntary",
+            "custom_reason": "End of Contract", "custom_relieving_date": doc.end_date,
+            "custom_termination_date": doc.end_date, "custom_termination_reason": remarks,
+        })
+        exit_doc.flags.ignore_permissions = True
+        exit_doc.flags.ignore_mandatory = True
+        exit_doc.insert()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: separation from an unrenewed contract")
+        return None
+    doc.db_set("separation", exit_doc.name, update_modified=False)
+    return exit_doc.name
 
 
 def daily():

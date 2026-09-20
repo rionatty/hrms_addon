@@ -35,6 +35,25 @@
   "column_break_4",
   "decision_remarks",
   "alerts_sent",
+  "evaluation_section",
+  "evaluated_on",
+  "evaluated_by",
+  "last_appraisal",
+  "last_appraisal_score",
+  "last_appraisal_band",
+  "evaluation_cb",
+  "performance_remarks",
+  "conduct_remarks",
+  "recommendation",
+  "engagement_section",
+  "engaged_on",
+  "engaged_by",
+  "terms_discussed",
+  "engagement_cb",
+  "employee_response",
+  "response_on",
+  "response_remarks",
+  "separation",
   "amended_from"
  ],
  "fields": [
@@ -232,6 +251,124 @@
    "allow_on_submit": 1,
    "no_copy": 1,
    "description": "The expiry alerts the HR Officer has had for this contract."
+  },
+  {
+   "fieldname": "evaluation_section",
+   "fieldtype": "Section Break",
+   "label": "Evaluation (step 3)",
+   "description": "What was looked at before deciding whether to renew. The appraisal is read from the employee's own record; the rest is the HR Officer's judgement."
+  },
+  {
+   "fieldname": "evaluated_on",
+   "fieldtype": "Date",
+   "label": "Evaluated On"
+  },
+  {
+   "fieldname": "evaluated_by",
+   "fieldtype": "Link",
+   "label": "Evaluated By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_appraisal",
+   "fieldtype": "Link",
+   "label": "Last Appraisal",
+   "options": "Appraisal",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_appraisal_score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "read_only": 1,
+   "no_copy": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "last_appraisal_band",
+   "fieldtype": "Data",
+   "label": "Band",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "evaluation_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "performance_remarks",
+   "fieldtype": "Small Text",
+   "label": "Performance"
+  },
+  {
+   "fieldname": "conduct_remarks",
+   "fieldtype": "Small Text",
+   "label": "Conduct and Attendance"
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "label": "Recommendation",
+   "options": "\nRenew\nDo Not Renew",
+   "description": "The chart's \"Renewal Required?\"."
+  },
+  {
+   "fieldname": "engagement_section",
+   "fieldtype": "Section Break",
+   "label": "Renewal engagement (step 4)",
+   "depends_on": "eval:doc.recommendation==\"Renew\""
+  },
+  {
+   "fieldname": "engaged_on",
+   "fieldtype": "Date",
+   "label": "Employee Engaged On"
+  },
+  {
+   "fieldname": "engaged_by",
+   "fieldtype": "Link",
+   "label": "Engaged By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "terms_discussed",
+   "fieldtype": "Small Text",
+   "label": "Terms Discussed"
+  },
+  {
+   "fieldname": "engagement_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee_response",
+   "fieldtype": "Select",
+   "label": "Employee's Response",
+   "options": "\nAccepts\nNegotiating\nDeclines"
+  },
+  {
+   "fieldname": "response_on",
+   "fieldtype": "Date",
+   "label": "Responded On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "response_remarks",
+   "fieldtype": "Small Text",
+   "label": "Employee's Remarks"
+  },
+  {
+   "fieldname": "separation",
+   "fieldtype": "Link",
+   "label": "Employee Separation",
+   "options": "Employee Separation",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Raised when the contract is not renewed, so the termination process follows."
   },
   {
    "fieldname": "amended_from",
