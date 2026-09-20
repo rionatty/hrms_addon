@@ -44,6 +44,16 @@ def employee_onboarding_dashboard(data=None):
     return data
 
 
+def training_event_dashboard(data=None):
+    """Training Event: the requisitions it answers, on top of Frappe HR's
+    own Training Result and Training Feedback. The schedule that booked it
+    is a Link on the event itself."""
+    data = data or {}
+    data.setdefault("non_standard_fieldnames", {}).update({"Training Requisition": "training_event"})
+    data.setdefault("transactions", []).append({"label": _("Requested By"), "items": ["Training Requisition"]})
+    return data
+
+
 def job_opening_dashboard(data=None):
     """Job Opening: the shortlist and the interview report for the post.
     Frappe HR's own dashboard counts Job Applicants through `job_title`, so

@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "topic",
+  "section",
+  "target_group",
+  "method",
+  "month",
+  "budget",
+  "objectives",
+  "trainer",
+  "duration",
+  "requisition"
+ ],
+ "fields": [
+  {
+   "fieldname": "topic",
+   "fieldtype": "Data",
+   "label": "Training Topic",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "section",
+   "fieldtype": "Link",
+   "label": "Department / Section",
+   "options": "Department",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "target_group",
+   "fieldtype": "Data",
+   "label": "Target Group",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Who is trained, as the planner says it: e.g. Machine Operators and Helpers, Kawempe."
+  },
+  {
+   "fieldname": "method",
+   "fieldtype": "Select",
+   "label": "Method",
+   "options": "\nInternal\nExternal\nOn the Job\nOnline\nWorkshop\nCoaching",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "month",
+   "fieldtype": "Select",
+   "label": "Month",
+   "options": "\nJanuary\nFebruary\nMarch\nApril\nMay\nJune\nJuly\nAugust\nSeptember\nOctober\nNovember\nDecember",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "budget",
+   "fieldtype": "Currency",
+   "label": "Budget",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "objectives",
+   "fieldtype": "Small Text",
+   "label": "Objectives"
+  },
+  {
+   "fieldname": "trainer",
+   "fieldtype": "Data",
+   "label": "Trainer"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "requisition",
+   "fieldtype": "Link",
+   "label": "Training Requisition",
+   "options": "Training Requisition"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-21 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Need",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

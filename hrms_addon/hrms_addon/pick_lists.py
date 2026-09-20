@@ -27,7 +27,7 @@ after_migrate (runs every migrate). Instead:
 
 import frappe
 
-from hrms_addon.hrms_addon import bio_data_rules, jd_rules, onboarding_rules, org_rules, probation_rules
+from hrms_addon.hrms_addon import bio_data_rules, jd_rules, onboarding_rules, org_rules, probation_rules, training_rules
 
 # Every pick list, and every (DocType, field) that picks from one
 MASTERS = {**jd_rules.MASTERS, **bio_data_rules.BIO_DATA_MASTERS, **org_rules.ORG_MASTERS}
@@ -74,6 +74,11 @@ def seed_onboarding_masters():
         if (frappe.db.exists("Role", role) and frappe.db.exists("Tool Provider", provider)
                 and not frappe.db.get_value("Tool Provider", provider, "responsible_role")):
             frappe.db.set_value("Tool Provider", provider, "responsible_role", role)
+
+
+def seed_training_masters():
+    """The items of Section A of the Training Evaluation Form (LPL/TRG/FRM05)."""
+    seed_masters(training_rules.TRAINING_MASTERS)
 
 
 def seed_masters(masters):

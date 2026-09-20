@@ -124,6 +124,10 @@ doctype_js = {
     # accepted offer starts one
     "Employee Onboarding": "public/js/employee_onboarding.js",
     "Job Offer": "public/js/job_offer.js",
+    # The session and the evaluation form (training.py): print the attendance
+    # list and the evaluation forms, key the evaluations in, the summary
+    "Training Event": "public/js/training_event.js",
+    "Training Feedback": "public/js/training_feedback.js",
 }
 # doctype_list_js = {"Leave Application": "public/js/leave_application_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -159,7 +163,11 @@ doctype_js = {
 # (templates/generators/job_opening.html) shows the Job Title's Job
 # Description through it. See hrms_addon/careers.py.
 jinja = {
-    "methods": ["hrms_addon.hrms_addon.careers.job_posting_details"],
+    "methods": [
+        "hrms_addon.hrms_addon.careers.job_posting_details",
+        # the Training Evaluation Summary print: every evaluation of a session consolidated
+        "hrms_addon.hrms_addon.training.consolidated",
+    ],
 }
 
 # Installation
@@ -181,6 +189,8 @@ after_install = [
     "hrms_addon.hrms_addon.interviews.after_install",
     "hrms_addon.hrms_addon.onboarding.after_install",
     "hrms_addon.hrms_addon.probation.after_install",
+    # the items of the Training Evaluation Form (LPL/TRG/FRM05)
+    "hrms_addon.hrms_addon.pick_lists.seed_training_masters",
 ]
 
 # Uninstallation
@@ -245,6 +255,10 @@ after_migrate = [
     # probation_approval.py.
     "hrms_addon.hrms_addon.reviews.setup_workflow_on_migrate",
     "hrms_addon.hrms_addon.probation.setup_workflow_on_migrate",
+    # The Training Needs Assessment (HR Manager, then General Manager) and the
+    # Training Calendar (General Manager). See tna_approval.py and
+    # calendar_approval.py.
+    "hrms_addon.hrms_addon.training.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -512,6 +526,36 @@ fixtures = [
                     "Interview Feedback-custom_score_percent",
                     "Interview Feedback-custom_score_band",
                     "Interview Feedback-custom_recommendation",
+                    "Training Event-custom_branch",
+                    "Training Event-custom_department",
+                    "Training Event-custom_schedule",
+                    "Training Event-custom_calendar_entry",
+                    "Training Event-custom_trainer_2",
+                    "Training Event-custom_trainer_3",
+                    "Training Event-custom_shift",
+                    "Training Event-custom_memo_approved_by",
+                    "Training Event-custom_memo_approved_on",
+                    "Training Event-custom_after_section",
+                    "Training Event-custom_signed_attendance",
+                    "Training Event-custom_reminders_sent",
+                    "Training Event-custom_after_cb",
+                    "Training Event-custom_evaluations",
+                    "Training Event-custom_evaluation_score",
+                    "Training Event-custom_evaluation_band",
+                    "Training Feedback-custom_ratings_section",
+                    "Training Feedback-custom_ratings",
+                    "Training Feedback-custom_score",
+                    "Training Feedback-custom_score_cb",
+                    "Training Feedback-custom_band",
+                    "Training Feedback-custom_questions_section",
+                    "Training Feedback-custom_expectations",
+                    "Training Feedback-custom_learnt",
+                    "Training Feedback-custom_application",
+                    "Training Feedback-custom_questions_cb",
+                    "Training Feedback-custom_remaining_gaps",
+                    "Training Feedback-custom_trainer_recommendations",
+                    "Training Feedback-custom_hr_recommendations",
+                    "Training Feedback-custom_signed_on",
                 ],
             ]
         ],
@@ -552,6 +596,8 @@ fixtures = [
                     "Interview Feedback-main-default_print_format",
                     "Employee Onboarding-main-default_print_format",
                     "Interview Type-expected_skill_set-reqd",
+                    "Training Feedback-feedback-label",
+                    "Training Feedback-feedback-reqd",
                     "Interview Type-expected_skill_set-hidden",
                     "Interview Type-expected_average_rating-description",
                 ],
@@ -641,6 +687,18 @@ doc_events = {
         # are all done, which Frappe HR's own link skips (onboarding.py)
         "on_update": "hrms_addon.hrms_addon.onboarding.link_onboarding",
     },
+    # The session and the evaluation form of Luuka's training process
+    # (training.py): submitting the event says the training was held; each
+    # evaluation scores itself and the event keeps the consolidated score
+    "Training Event": {
+        "on_submit": "hrms_addon.hrms_addon.training.event_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.training.event_on_cancel",
+    },
+    "Training Feedback": {
+        "validate": "hrms_addon.hrms_addon.training.feedback_validate",
+        "on_submit": "hrms_addon.hrms_addon.training.feedback_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.training.feedback_on_cancel",
+    },
 }
 
 # Scheduled Tasks
@@ -651,6 +709,10 @@ doc_events = {
 scheduler_events = {
     "daily": [
         "hrms_addon.hrms_addon.contracts.daily",
+        # Training: the HR Officer reminded a month before a calendar training
+        # to schedule it; everyone booked reminded a week, a day and the
+        # morning before a session (training.py)
+        "hrms_addon.hrms_addon.training.daily",
     ],
 }
 
@@ -693,6 +755,7 @@ override_doctype_dashboards = {
     "Employee": "hrms_addon.hrms_addon.connections.employee_dashboard",
     "Employee Onboarding": "hrms_addon.hrms_addon.connections.employee_onboarding_dashboard",
     "Job Opening": "hrms_addon.hrms_addon.connections.job_opening_dashboard",
+    "Training Event": "hrms_addon.hrms_addon.connections.training_event_dashboard",
 }
 
 # exempt linked doctypes from being automatically cancelled

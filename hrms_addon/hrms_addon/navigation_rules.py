@@ -56,6 +56,17 @@ CARDS = {
             ("Tool Provider", "Tool Provider", DOCTYPE),
             ("Probation Factor", "Probation Factor", DOCTYPE),
         ]),
+        # Frappe HR's own Training card gains the steps before a session and
+        # what is made of it after (training.py)
+        ("Training", [
+            ("Training Needs Form", "Training Needs Form", DOCTYPE),
+            ("Training Requisition", "Training Requisition", DOCTYPE),
+            ("Training Needs Assessment", "Training Needs Assessment", DOCTYPE),
+            ("Training Calendar", "Training Calendar", DOCTYPE),
+            ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE),
+            ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE),
+            ("Meeting Record", "Meeting Record", DOCTYPE),
+        ]),
     ],
     "HR Setup": [
         ("Job Description Lists", [
@@ -97,6 +108,14 @@ SIDEBAR = {
         ("Probation Evaluation", "Probation Evaluation", DOCTYPE, None, "Onboarding Review"),
         ("Employee Contract", "Employee Contract", DOCTYPE, None, "Probation Evaluation"),
         ("Contract Expiry Status", "Contract Expiry Status", REPORT, "Reports", None),
+        # the training process, in the order it runs
+        ("Training Requisition", "Training Requisition", DOCTYPE, None, "Employee Contract"),
+        ("Training Needs Assessment", "Training Needs Assessment", DOCTYPE, None, "Training Requisition"),
+        ("Training Calendar", "Training Calendar", DOCTYPE, None, "Training Needs Assessment"),
+        ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE, None, "Training Calendar"),
+        ("Training Needs Form", "Training Needs Form", DOCTYPE, "Setup", None),
+        ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
+        ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),
         ("Onboarding Settings", "Onboarding Settings", DOCTYPE, "Setup", None),
         ("Tool of Work", "Tool of Work", DOCTYPE, "Setup", None),
         ("Tool Provider", "Tool Provider", DOCTYPE, "Setup", None),

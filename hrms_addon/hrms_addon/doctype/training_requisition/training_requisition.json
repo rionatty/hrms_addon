@@ -1,0 +1,308 @@
+{
+ "actions": [],
+ "autoname": "HR-TRQ-.YYYY.-.#####",
+ "creation": "2026-09-21 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "requested_by",
+  "requester_name",
+  "department",
+  "branch",
+  "column_break_1",
+  "request_date",
+  "priority",
+  "preferred_month",
+  "preferred_year",
+  "status",
+  "training_section",
+  "training_topic",
+  "required_skills",
+  "justification",
+  "column_break_2",
+  "proposed_method",
+  "proposed_trainer",
+  "estimated_budget",
+  "duration",
+  "employees_section",
+  "target_employees",
+  "hr_section",
+  "hr_officer",
+  "assessment",
+  "column_break_3",
+  "training_event",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested By",
+   "options": "User",
+   "reqd": 1,
+   "default": "__user",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "requester_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "requested_by.full_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "The department the training is for. Its Head of Department raises the requisition."
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "description": "The branch's HR Officer is told, and prepares the assessment."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "request_date",
+   "fieldtype": "Date",
+   "label": "Request Date",
+   "default": "Today",
+   "reqd": 1
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "label": "Priority",
+   "options": "\nHigh\nMedium\nLow",
+   "default": "Medium",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "preferred_month",
+   "fieldtype": "Select",
+   "label": "Preferred Month",
+   "options": "\nJanuary\nFebruary\nMarch\nApril\nMay\nJune\nJuly\nAugust\nSeptember\nOctober\nNovember\nDecember"
+  },
+  {
+   "fieldname": "preferred_year",
+   "fieldtype": "Int",
+   "label": "Preferred Year"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nDraft\nSubmitted\nIn Assessment\nScheduled\nClosed\nCancelled",
+   "read_only": 1,
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "training_section",
+   "fieldtype": "Section Break",
+   "label": "The Training"
+  },
+  {
+   "fieldname": "training_topic",
+   "fieldtype": "Data",
+   "label": "Training Topic",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "What the training is on, e.g. Good Manufacturing Practices, Machine settings, First Aid."
+  },
+  {
+   "fieldname": "required_skills",
+   "fieldtype": "Small Text",
+   "label": "Required Skills / Knowledge",
+   "reqd": 1,
+   "description": "The skills or knowledge the training must give the people below."
+  },
+  {
+   "fieldname": "justification",
+   "fieldtype": "Text",
+   "label": "Gaps Identified / Justification",
+   "description": "What was seen: targets missed, machine settings, maintenance, audit findings, new equipment."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "proposed_method",
+   "fieldtype": "Select",
+   "label": "Proposed Method",
+   "options": "\nInternal\nExternal\nOn the Job\nOnline\nWorkshop\nCoaching"
+  },
+  {
+   "fieldname": "proposed_trainer",
+   "fieldtype": "Data",
+   "label": "Proposed Trainer"
+  },
+  {
+   "fieldname": "estimated_budget",
+   "fieldtype": "Currency",
+   "label": "Estimated Budget"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "Duration",
+   "description": "e.g. 2 hours, 1 day, 3 days"
+  },
+  {
+   "fieldname": "employees_section",
+   "fieldtype": "Section Break",
+   "label": "Target Employees",
+   "description": "Get Needs Forms brings in the employees of the department who filled in a Training Needs Form for the year, with what they asked for; add others by hand."
+  },
+  {
+   "fieldname": "target_employees",
+   "fieldtype": "Table",
+   "label": "Target Employees",
+   "options": "Training Requisition Employee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "hr_section",
+   "fieldtype": "Section Break",
+   "label": "HR"
+  },
+  {
+   "fieldname": "hr_officer",
+   "fieldtype": "Link",
+   "label": "HR Officer Notified",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "assessment",
+   "fieldtype": "Link",
+   "label": "Training Needs Assessment",
+   "options": "Training Needs Assessment",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1,
+   "description": "The assessment that took this requisition up."
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "training_event",
+   "fieldtype": "Link",
+   "label": "Training Event",
+   "options": "Training Event",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1,
+   "description": "The session booked for it."
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Training Requisition",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Requisition",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR User"
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "print": 1,
+   "email": 1,
+   "report": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "print": 1,
+   "email": 1,
+   "report": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "training_topic",
+ "track_changes": 1
+}

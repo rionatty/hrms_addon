@@ -134,6 +134,8 @@ MODULES = {
     "hrms_addon.hrms_addon.connections": read("hrms_addon/hrms_addon/connections.py"),
     "hrms_addon.hrms_addon.navigation": read("hrms_addon/hrms_addon/navigation.py"),
     "hrms_addon.hrms_addon.alerts": read("hrms_addon/hrms_addon/alerts.py"),
+    "hrms_addon.hrms_addon.training": read("hrms_addon/hrms_addon/training.py"),
+    "hrms_addon.hrms_addon.pick_lists": read("hrms_addon/hrms_addon/pick_lists.py"),
 }
 hook_paths = re.findall(r'"(hrms_addon\.[\w.]+)"', block(hooks_live, "after_migrate = [", "]"))
 hook_paths.append(re.search(r'extend_bootinfo = "([\w.]+)"', hooks_live).group(1))

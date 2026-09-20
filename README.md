@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py
+python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -341,6 +341,29 @@ filtered on `frappe.session.user` and no function taking a user to look
 at, the methods the script calls whitelisted (and the two that change
 something POST-only), titles escaped, a colour for every band in the
 stylesheet, and the script's toast colours identical to the rules'.
+
+`verify_training.py` covers the training process (the To-Be flowchart, test
+cases 1 to 10), built on Frappe HR's own Training Program, Training Event
+and Training Feedback. Before a session: the employee's **Training Needs
+Form** (LPL/TRG/FRM06), the Head of Department's **Training Requisition**
+(topic, required skills, target employees; the branch HR Officer told), the
+HR Officer's **Training Needs Assessment** (objectives, methods; approved by
+the HR Manager then the General Manager, or returned to amend), the
+**Training Calendar** (the planner, LPL/TRAINING/01, drawn from the approved
+needs and approved by the General Manager) and the **Monthly Training
+Schedule**, which books a draft Training Event per line with the
+requisition's people as participants and tells the HODs, trainers and
+trainees. The HR Officer is reminded a month before a calendar training;
+everyone booked is reminded a week, a day and the morning before. The
+event stays a draft while scheduled — Frappe HR lets a submitted event's
+participants change but not their attendance — so attendance is marked and
+the signed sheet attached on the draft, and submitting it says the training
+was held. Then **Create Evaluations** drafts a Training Feedback per
+participant present, carrying LPL/TRG/FRM05's ten rated items and six
+questions; each scores itself and the event keeps the consolidated score.
+The check exercises the rules without a bench, walks both workflows, and
+pins what the glue relies on upstream (the event's mandatory fields, that
+attendance is not allow_on_submit, that feedback needs a submitted event).
 
 `verify_contracts.py` covers contract management: a contract's status on a
 day, the alerts a year, a quarter and a month before its end (each sent

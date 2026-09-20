@@ -316,6 +316,28 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Training Feedback-feedback-label",
+  "doc_type": "Training Feedback",
+  "doctype_or_field": "DocField",
+  "property": "label",
+  "property_type": "Data",
+  "value": "General Comments",
+  "module": "HRMS Addon",
+  "field_name": "feedback"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Training Feedback-feedback-reqd",
+  "doc_type": "Training Feedback",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon",
+  "field_name": "feedback"
+ },
+ {
+  "doctype": "Property Setter",
   "name": "Interview Type-expected_skill_set-hidden",
   "doc_type": "Interview Type",
   "doctype_or_field": "DocField",
