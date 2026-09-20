@@ -1,0 +1,227 @@
+{
+ "actions": [],
+ "autoname": "format:{designation}-{review_year}",
+ "creation": "2026-09-24 09:00:00.000000",
+ "description": "One role's balanced scorecard: the perspectives and their weights out of 80, the KPIs under each, and the Section B competencies weighted out of 20. Imported from Luuka's own PMS workbook.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "designation",
+  "review_year",
+  "department",
+  "column_break_1",
+  "grade",
+  "review_period",
+  "company",
+  "is_active",
+  "objectives_section",
+  "perspectives",
+  "objectives_weight",
+  "kpis",
+  "competencies_section",
+  "competencies",
+  "competencies_weight",
+  "source_section",
+  "source_file",
+  "column_break_2",
+  "source_sheet",
+  "import_remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Role / Position",
+   "options": "Designation",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "review_year",
+   "fieldtype": "Int",
+   "label": "Review Year",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Data",
+   "label": "Grade"
+  },
+  {
+   "fieldname": "review_period",
+   "fieldtype": "Data",
+   "label": "Review Period"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "default": "1",
+   "in_list_view": 1,
+   "description": "Only an active template is offered when an appraisal is raised."
+  },
+  {
+   "fieldname": "objectives_section",
+   "fieldtype": "Section Break",
+   "label": "Section A — Objectives & KPIs (80%)"
+  },
+  {
+   "fieldname": "perspectives",
+   "fieldtype": "Table",
+   "label": "Perspectives and their weights",
+   "options": "BSC Template Perspective"
+  },
+  {
+   "fieldname": "objectives_weight",
+   "fieldtype": "Float",
+   "label": "Total Weight",
+   "read_only": 1,
+   "precision": "2",
+   "description": "Must be 80."
+  },
+  {
+   "fieldname": "kpis",
+   "fieldtype": "Table",
+   "label": "KPIs",
+   "options": "BSC Template KPI"
+  },
+  {
+   "fieldname": "competencies_section",
+   "fieldtype": "Section Break",
+   "label": "Section B — Competencies (20%)"
+  },
+  {
+   "fieldname": "competencies",
+   "fieldtype": "Table",
+   "label": "Competencies",
+   "options": "BSC Template Competency"
+  },
+  {
+   "fieldname": "competencies_weight",
+   "fieldtype": "Float",
+   "label": "Total Weight",
+   "read_only": 1,
+   "precision": "2",
+   "description": "Must be 20."
+  },
+  {
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Where it came from",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "source_file",
+   "fieldtype": "Data",
+   "label": "Source Workbook",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source_sheet",
+   "fieldtype": "Data",
+   "label": "Source Sheet",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "import_remarks",
+   "fieldtype": "Small Text",
+   "label": "Import Remarks",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "What the importer found wrong with the sheet, if anything."
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-24 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "BSC Appraisal Template",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "General Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "designation",
+ "track_changes": 1
+}

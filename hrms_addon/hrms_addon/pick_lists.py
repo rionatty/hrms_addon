@@ -126,3 +126,21 @@ def seed_appraisal_masters():
     from hrms_addon.hrms_addon import appraisal_rules
 
     seed_masters(appraisal_rules.APPRAISAL_MASTERS)
+
+def seed_bsc_masters():
+    """The Section B competencies most roles carry, with their
+    behavioural indicators and usual weights (bsc_rules.COMPETENCIES).
+
+    The rest of the fifteen Luuka uses arrive with the PMS workbooks
+    (bsc.import_workbook), which adds any competency it meets."""
+    import frappe
+
+    from hrms_addon.hrms_addon import bsc_rules
+
+    for name, indicators, weight in bsc_rules.COMPETENCIES:
+        if frappe.db.exists("BSC Competency", name):
+            continue
+        frappe.get_doc({
+            "doctype": "BSC Competency", "competency_name": name, "indicators": indicators,
+            "default_weight": weight,
+        }).insert(ignore_permissions=True)

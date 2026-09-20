@@ -40,6 +40,8 @@ from frappe.utils import flt, getdate, today
 from hrms_addon.hrms_addon import (
     appraisal_approval as approval,
     appraisal_rules as rules,
+    bsc,
+    bsc_rules,
     people,
     pip_rules,
     position_rules,
@@ -171,9 +173,19 @@ def _raise_appraisal(plan, row, cycle, employee):
         "appraisal_template": plan.get("appraisal_template"), "rate_goals_manually": 1,
         "custom_plan": plan.name, "custom_quarter": row.quarter, "custom_supervisor": employee.reports_to,
         "custom_appraisal_status": approval.DRAFT, "workflow_state": approval.DRAFT,
-        "custom_factors": [{"item": factor} for factor in _factors()],
-        "custom_objectives": [{"item": objective} for objective in _objectives(employee)],
     })
+    # the role's scorecard decides which form: a graded role with an active
+    # BSC template is appraised on it, everyone else on LPL/HR/18
+    card = bsc.template_for(designation=employee.get("designation"), year=plan.get("year"))
+    if card:
+        appraisal.custom_form_type = approval.FORM_BSC
+        appraisal.custom_bsc_template = card
+        appraisal.custom_period = row.quarter if row.quarter in bsc_rules.QUARTERS else bsc_rules.ANNUAL
+        bsc.fill(appraisal, card)
+    else:
+        appraisal.custom_form_type = approval.FORM_SUPERVISORY
+        appraisal.set("custom_factors", [{"item": factor} for factor in _factors()])
+        appraisal.set("custom_objectives", [{"item": objective} for objective in _objectives(employee)])
     appraisal.flags.ignore_permissions = True
     appraisal.flags.ignore_mandatory = True
     appraisal.insert()
@@ -217,12 +229,32 @@ def _tell_about(appraisal, employee):
 def appraisal_validate(doc, method=None):
     if not doc.get("custom_supervisor") and doc.get("employee"):
         doc.custom_supervisor = frappe.db.get_value("Employee", doc.employee, "reports_to")
-    if not doc.get("custom_factors"):
-        for factor in _factors():
-            doc.append("custom_factors", {"item": factor})
-    _score(doc)
+    if not doc.get("custom_form_type"):
+        doc.custom_form_type = approval.FORM_BSC if bsc.template_for(employee=doc.get("employee")) \
+            else approval.FORM_SUPERVISORY
+    if _is_bsc(doc):
+        bsc.score(doc)
+        _carry_scores(doc, doc.get("custom_bsc_overall"), doc.get("custom_bsc_band"))
+    else:
+        if not doc.get("custom_factors"):
+            for factor in _factors():
+                doc.append("custom_factors", {"item": factor})
+        _score(doc)
     _check_step(doc)
     doc.custom_appraisal_status = doc.get("workflow_state") or doc.get("custom_appraisal_status") or approval.DRAFT
+
+
+def _is_bsc(doc):
+    return doc.get("custom_form_type") == approval.FORM_BSC
+
+
+def _carry_scores(doc, total, band):
+    """The scorecard's overall is the appraisal's score, so one review, one
+    report and one chart read both forms the same way."""
+    doc.custom_total_score = total
+    doc.custom_band = band
+    doc.final_score = flt(total or 0)
+    doc.custom_annual_score = _annual(doc)
 
 
 def _score(doc):
@@ -256,13 +288,13 @@ def _annual(doc):
 
 def _facts(doc, step=None):
     return {
-        "step": step,
+        "step": step, "form_type": doc.get("custom_form_type"),
         "factors": [row.as_dict() for row in doc.get("custom_factors") or []],
         "objectives": [row.as_dict() for row in doc.get("custom_objectives") or []],
         "roles": doc.get("custom_roles"), "skills": doc.get("custom_skills"),
         "achievements": doc.get("custom_achievements"), "challenges": doc.get("custom_challenges"),
         "return_remarks": doc.get("custom_return_remarks"),
-        **{field: doc.get(field) for field, _who in approval.REMARK_FIELDS.values()},
+        **{field: doc.get(field) for field in approval.ALL_REMARK_FIELDS},
     }
 
 
@@ -270,28 +302,36 @@ def _check_step(doc):
     before = doc.get_doc_before_save()
     old_state = before.get(approval.STATE_FIELD) if before else None
     new_state = doc.get(approval.STATE_FIELD)
+    form_type = doc.get("custom_form_type")
     if old_state != new_state:
-        step = {approval.PENDING_SUPERVISOR: "self", approval.PENDING_HRM: "supervisor"}.get(new_state) \
-            if old_state in (None, approval.DRAFT, approval.PENDING_SUPERVISOR) else None
         errors = approval.step_errors(old_state, new_state, _facts(doc))
-        if step and new_state != approval.DRAFT:
-            errors = rules.appraisal_errors(_facts(doc, step)) + errors
+        if new_state != approval.DRAFT and old_state in (None, approval.DRAFT, approval.PENDING_SUPERVISOR):
+            if _is_bsc(doc):
+                # the scorecard is scored by the appraiser, not self-assessed
+                if old_state == approval.PENDING_SUPERVISOR:
+                    errors = bsc_rules.appraisal_errors(bsc.facts(doc, "appraiser")) + errors
+            else:
+                step = {approval.PENDING_SUPERVISOR: "self", approval.PENDING_HRM: "supervisor"}.get(new_state)
+                if step:
+                    errors = rules.appraisal_errors(_facts(doc, step)) + errors
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_("Appraisal"))
         if new_state != approval.DRAFT:
             doc.custom_return_remarks = None
     current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
-    for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current).items():
+    for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current,
+                                                form_type).items():
         doc.set(field, value)
     if old_state != new_state and new_state in approval.PENDING_STATES:
         _tell_next(doc, new_state)
 
 
 def _tell_next(doc, state):
-    role = {approval.PENDING_SUPERVISOR: approval.SUPERVISORS[0], approval.PENDING_HRM: approval.HRM,
-            approval.PENDING_PRODUCTION: approval.PRODUCTION, approval.PENDING_GM: approval.GM}[state]
+    role = approval.ROLE_WAITING[state]
     if state == approval.PENDING_SUPERVISOR and doc.get("custom_supervisor"):
         users = [frappe.db.get_value("Employee", doc.custom_supervisor, "user_id")]
+    elif state == approval.PENDING_EMPLOYEE:
+        users = [frappe.db.get_value("Employee", doc.employee, "user_id")]
     else:
         users = people.people_for(role, doc.get("custom_branch"), doc.get("department"))
     message = _("Appraisal of {0}: your rating and signature are needed.").format(

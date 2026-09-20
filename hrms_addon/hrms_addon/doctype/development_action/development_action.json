@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "creation": "2026-09-24 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "action",
+  "duration",
+  "by_when",
+  "by_whom",
+  "estimated_cost"
+ ],
+ "fields": [
+  {
+   "fieldname": "action",
+   "fieldtype": "Small Text",
+   "label": "Development Action",
+   "in_list_view": 1,
+   "columns": 4,
+   "reqd": 1
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Data",
+   "label": "Duration",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "by_when",
+   "fieldtype": "Date",
+   "label": "By When",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "by_whom",
+   "fieldtype": "Data",
+   "label": "By Whom",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "estimated_cost",
+   "fieldtype": "Currency",
+   "label": "Est. Cost",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-24 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Development Action",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

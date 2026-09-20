@@ -3106,7 +3106,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "description": "Rating scale: Excellent=5 (90-100%), Very Good=4 (75-89%), Good=3 (60-74%), Average=2 (50-59%), Below Average=1 (40% and below). Write N/A on a factor that does not fit the job."
+  "description": "Rating scale: Excellent=5 (90-100%), Very Good=4 (75-89%), Good=3 (60-74%), Average=2 (50-59%), Below Average=1 (40% and below). Write N/A on a factor that does not fit the job.",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3121,7 +3122,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "options": "Appraisal Factor Rating"
+  "options": "Appraisal Factor Rating",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3136,7 +3138,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "description": "The objectives and KPIs for the period just ended, in line with the department's."
+  "description": "The objectives and KPIs for the period just ended, in line with the department's.",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3151,7 +3154,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "options": "Appraisal Objective Rating"
+  "options": "Appraisal Objective Rating",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3165,7 +3169,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3181,7 +3186,8 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "read_only": 1,
-  "precision": "1"
+  "precision": "1",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3197,7 +3203,8 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "read_only": 1,
-  "precision": "1"
+  "precision": "1",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3227,7 +3234,8 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "read_only": 1,
-  "in_list_view": 1
+  "in_list_view": 1,
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3242,7 +3250,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "read_only": 1
+  "read_only": 1,
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3258,7 +3267,8 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "read_only": 1,
-  "description": "The average of the quarters appraised so far this year."
+  "description": "The average of the quarters appraised so far this year.",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3273,7 +3283,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "collapsible": 1
+  "collapsible": 1,
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3287,7 +3298,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3301,7 +3313,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3315,7 +3328,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3329,7 +3343,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3568,7 +3583,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3582,7 +3598,8 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
-  "modified": "2026-09-23 09:00:00.000000"
+  "modified": "2026-09-23 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3613,7 +3630,8 @@
   "modified": "2026-09-23 09:00:00.000000",
   "options": "User",
   "read_only": 1,
-  "no_copy": 1
+  "no_copy": 1,
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3629,7 +3647,8 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "read_only": 1,
-  "no_copy": 1
+  "no_copy": 1,
+  "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3877,5 +3896,535 @@
   "read_only": 1,
   "no_copy": 1,
   "print_hide": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_form_type",
+  "fieldtype": "Select",
+  "label": "Form Type",
+  "insert_after": "custom_round_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_form_type",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "Supervisory Skills (LPL/HR/18)\nBalanced Scorecard",
+  "reqd": 1,
+  "default": "Supervisory Skills (LPL/HR/18)",
+  "in_standard_filter": 1,
+  "description": "The supervisory form for supervisors; the balanced scorecard for graded roles."
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_template",
+  "fieldtype": "Link",
+  "label": "Scorecard Template",
+  "insert_after": "custom_form_type",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_template",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "BSC Appraisal Template",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
+  "description": "The role's scorecard. Get Scorecard fills Section A and B from it."
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_period",
+  "fieldtype": "Select",
+  "label": "Period Being Scored",
+  "insert_after": "custom_bsc_template",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_period",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "Q1\nQ2\nQ3\nAnnual",
+  "default": "Annual",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
+  "description": "Which column of the scorecard this round fills in."
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_section_a",
+  "fieldtype": "Section Break",
+  "label": "Section A — Objectives & KPIs (80%)",
+  "insert_after": "custom_objectives",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_section_a",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
+  "description": "The weight is set once per perspective and the four total 80. Record the percentage achieved against target each quarter, and a score out of ten for the year."
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_perspectives",
+  "fieldtype": "Table",
+  "label": "Perspectives",
+  "insert_after": "custom_bsc_section_a",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_perspectives",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "BSC Appraisal Perspective",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_kpis",
+  "fieldtype": "Table",
+  "label": "KPIs",
+  "insert_after": "custom_bsc_perspectives",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_kpis",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "BSC Appraisal KPI",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
+  "description": "What the percentage achieved is judged against."
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_assignments_section",
+  "fieldtype": "Section Break",
+  "label": "Other Assignments / Special Tasks",
+  "insert_after": "custom_bsc_kpis",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_assignments_section",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
+  "collapsible": 1,
+  "description": "Recorded, not scored separately."
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_assignments",
+  "fieldtype": "Table",
+  "label": "Assignments",
+  "insert_after": "custom_assignments_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_assignments",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "Appraisal Assignment",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_section_b",
+  "fieldtype": "Section Break",
+  "label": "Section B — Competencies (20%)",
+  "insert_after": "custom_assignments",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_section_b",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_competencies",
+  "fieldtype": "Table",
+  "label": "Competencies",
+  "insert_after": "custom_bsc_section_b",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_competencies",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "BSC Appraisal Competency",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_scores_section",
+  "fieldtype": "Section Break",
+  "label": "Overall Performance Score",
+  "insert_after": "custom_bsc_competencies",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_scores_section",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_section_a_score",
+  "fieldtype": "Float",
+  "label": "Section A Score (of 80)",
+  "insert_after": "custom_bsc_scores_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_section_a_score",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "precision": "2",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_section_b_score",
+  "fieldtype": "Float",
+  "label": "Section B Score (of 20)",
+  "insert_after": "custom_bsc_section_a_score",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_section_b_score",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "precision": "2",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_scores_cb",
+  "fieldtype": "Column Break",
+  "label": null,
+  "insert_after": "custom_bsc_section_b_score",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_scores_cb",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_overall",
+  "fieldtype": "Percent",
+  "label": "Overall Score",
+  "insert_after": "custom_bsc_scores_cb",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_overall",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_band",
+  "fieldtype": "Data",
+  "label": "Rating",
+  "insert_after": "custom_bsc_overall",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_band",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_bsc_band_meaning",
+  "fieldtype": "Small Text",
+  "label": "What it means",
+  "insert_after": "custom_bsc_band",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_bsc_band_meaning",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_hod_section",
+  "fieldtype": "Section Break",
+  "label": "HOD / Reviewing Manager",
+  "insert_after": "custom_hrm_on",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_hod_section",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_hod_remarks",
+  "fieldtype": "Small Text",
+  "label": "HOD's Comments",
+  "insert_after": "custom_hod_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_hod_remarks",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_hod_cb",
+  "fieldtype": "Column Break",
+  "label": null,
+  "insert_after": "custom_hod_remarks",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_hod_cb",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_hod_by",
+  "fieldtype": "Link",
+  "label": "HOD Signed By",
+  "insert_after": "custom_hod_cb",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_hod_by",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "User",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_hod_on",
+  "fieldtype": "Date",
+  "label": "Signed On",
+  "insert_after": "custom_hod_by",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_hod_on",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_ed_section",
+  "fieldtype": "Section Break",
+  "label": "Executive Director",
+  "insert_after": "custom_hod_on",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_ed_section",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_ed_remarks",
+  "fieldtype": "Small Text",
+  "label": "Executive Director's Comments",
+  "insert_after": "custom_ed_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_ed_remarks",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_ed_cb",
+  "fieldtype": "Column Break",
+  "label": null,
+  "insert_after": "custom_ed_remarks",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_ed_cb",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_ed_by",
+  "fieldtype": "Link",
+  "label": "Executive Director Signed By",
+  "insert_after": "custom_ed_cb",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_ed_by",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "User",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_ed_on",
+  "fieldtype": "Date",
+  "label": "Signed On",
+  "insert_after": "custom_ed_by",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_ed_on",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_development_section",
+  "fieldtype": "Section Break",
+  "label": "Development Plan",
+  "insert_after": "custom_ed_on",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_development_section",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "collapsible": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_continue",
+  "fieldtype": "Small Text",
+  "label": "Continue / Strengths",
+  "insert_after": "custom_development_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_continue",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_development_cb1",
+  "fieldtype": "Column Break",
+  "label": null,
+  "insert_after": "custom_continue",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_development_cb1",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_stop",
+  "fieldtype": "Small Text",
+  "label": "Stop / Weaknesses",
+  "insert_after": "custom_development_cb1",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_stop",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_development_cb2",
+  "fieldtype": "Column Break",
+  "label": null,
+  "insert_after": "custom_stop",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_development_cb2",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_start",
+  "fieldtype": "Small Text",
+  "label": "Start / Gaps to Fill",
+  "insert_after": "custom_development_cb2",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_start",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal",
+  "fieldname": "custom_development_actions",
+  "fieldtype": "Table",
+  "label": "Development Actions",
+  "insert_after": "custom_start",
+  "module": "HRMS Addon",
+  "name": "Appraisal-custom_development_actions",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-09-24 09:00:00.000000",
+  "modified": "2026-09-24 09:00:00.000000",
+  "options": "Development Action"
  }
 ]

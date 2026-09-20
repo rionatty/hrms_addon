@@ -98,6 +98,8 @@ CARDS = {
             ("Employee Promotion", "Employee Promotion", DOCTYPE),
         ]),
         ("Appraisal Setup", [
+            ("BSC Appraisal Template", "BSC Appraisal Template", DOCTYPE),
+            ("BSC Competency", "BSC Competency", DOCTYPE),
             ("Appraisal Factor", "Appraisal Factor", DOCTYPE),
             ("Appraisal Template", "Appraisal Template", DOCTYPE),
             ("Employee Feedback Criteria", "Employee Feedback Criteria", DOCTYPE),
@@ -145,6 +147,8 @@ SIDEBAR = {
         ("Performance Review", "Performance Review", DOCTYPE, None, "Appraisal"),
         ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Performance Review"),
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
+        ("BSC Appraisal Template", "BSC Appraisal Template", DOCTYPE, "Setup", None),
+        ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
     ],
     "Tenure": [

@@ -408,6 +408,23 @@ increase raises an Employee Position Change, a score below 60 a
 the support the company gives, how it is measured and when it is looked
 at again, reviewed while it runs and closed with an outcome.
 
+Luuka runs **two appraisal forms side by side**, so the same check covers
+the **balanced scorecard** (LPL PMS FY 2026) as well. A graded role whose
+job title has an active **BSC Appraisal Template** is appraised on it; a
+supervisor stays on LPL/HR/18. The scorecard weights the four balanced
+scorecard perspectives to 80 between them (the weight is set once per
+perspective, not per KPI), scores each quarter on the percentage achieved
+and the year out of ten, adds five competencies weighted to 20, and bands
+at 90/80/70/60 rather than 90/75/60/50. It is signed by the Appraiser, the
+Employee, the Head of Department, the HR Manager and the Executive
+Director, so the workflow carries both chains and the two junctions that
+differ turn on the Form Type. Luuka's own PMS workbooks import straight
+in, one sheet per role: a sheet whose weights do not total 80 and 20 is
+kept but left inactive with the reason on it, because the numbers are
+theirs to correct. Their workbook also divides a quarter by a further ten,
+which scores a perfect quarter 8 of 80; Luuka confirmed the quarterly
+score is real, so that stray tenth is dropped here.
+
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
 and Training Feedback. Before a session: the employee's **Training Needs

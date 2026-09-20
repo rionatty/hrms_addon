@@ -1,0 +1,127 @@
+{
+ "actions": [],
+ "creation": "2026-09-24 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "perspective",
+  "weight",
+  "q1_comments",
+  "q1_percent",
+  "q1_score",
+  "q2_comments",
+  "q2_percent",
+  "q2_score",
+  "q3_comments",
+  "q3_percent",
+  "q3_score",
+  "annual_score",
+  "annual_weighted"
+ ],
+ "fields": [
+  {
+   "fieldname": "perspective",
+   "fieldtype": "Link",
+   "label": "Perspective",
+   "options": "KRA Perspective",
+   "in_list_view": 1,
+   "columns": 2,
+   "reqd": 1
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "q1_comments",
+   "fieldtype": "Small Text",
+   "label": "Q1 Comments"
+  },
+  {
+   "fieldname": "q1_percent",
+   "fieldtype": "Percent",
+   "label": "Q1 % Achieved",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "q1_score",
+   "fieldtype": "Float",
+   "label": "Q1 Score",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "q2_comments",
+   "fieldtype": "Small Text",
+   "label": "Q2 Comments"
+  },
+  {
+   "fieldname": "q2_percent",
+   "fieldtype": "Percent",
+   "label": "Q2 % Achieved",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "q2_score",
+   "fieldtype": "Float",
+   "label": "Q2 Score",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "q3_comments",
+   "fieldtype": "Small Text",
+   "label": "Q3 Comments"
+  },
+  {
+   "fieldname": "q3_percent",
+   "fieldtype": "Percent",
+   "label": "Q3 % Achieved",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "q3_score",
+   "fieldtype": "Float",
+   "label": "Q3 Score",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "annual_score",
+   "fieldtype": "Float",
+   "label": "Annual Score (0-10)",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "annual_weighted",
+   "fieldtype": "Float",
+   "label": "Annual Weighted",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-24 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "BSC Appraisal Perspective",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

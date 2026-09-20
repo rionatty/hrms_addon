@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "creation": "2026-09-24 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "task",
+  "assignment_given",
+  "expected_outcome",
+  "employee_comments",
+  "supervisor_comments"
+ ],
+ "fields": [
+  {
+   "fieldname": "task",
+   "fieldtype": "Data",
+   "label": "Task",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "assignment_given",
+   "fieldtype": "Small Text",
+   "label": "Assignment Given",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "expected_outcome",
+   "fieldtype": "Small Text",
+   "label": "Expected Outcome",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "employee_comments",
+   "fieldtype": "Small Text",
+   "label": "Employee Comments"
+  },
+  {
+   "fieldname": "supervisor_comments",
+   "fieldtype": "Small Text",
+   "label": "Supervisor Comments",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-24 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Appraisal Assignment",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
