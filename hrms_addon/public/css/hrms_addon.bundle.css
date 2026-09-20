@@ -486,16 +486,16 @@ html:not([data-theme="dark"]) .desk-sidebar {
    panels kept their own pale background while the text around them went
    light, which is the dark-on-dark you saw. Interactive states and
    dropdowns get their backgrounds restored below, on higher specificity. */
-html:not([data-theme="dark"]) .body-sidebar-container * {
+html:not([data-theme="dark"]) .body-sidebar-container *:not(:where(.notifications-list, .notifications-list *)) {
   background-color: transparent !important;
 }
 
 /* Text: the container, not just .body-sidebar. Missing the container was
    the bug — its direct children got the navy fill but never the light ink. */
 html:not([data-theme="dark"]) .body-sidebar-container,
-html:not([data-theme="dark"]) .body-sidebar-container *,
+html:not([data-theme="dark"]) .body-sidebar-container *:not(:where(.notifications-list, .notifications-list *)),
 html:not([data-theme="dark"]) .body-sidebar,
-html:not([data-theme="dark"]) .body-sidebar *,
+html:not([data-theme="dark"]) .body-sidebar *:not(:where(.notifications-list, .notifications-list *)),
 html:not([data-theme="dark"]) .desk-sidebar,
 html:not([data-theme="dark"]) .desk-sidebar * {
   color: var(--hra-shell-text) !important;
@@ -512,6 +512,37 @@ html:not([data-theme="dark"]) .desk-sidebar {
 html:not([data-theme="dark"]) .body-sidebar-container .icon use,
 html:not([data-theme="dark"]) .desk-sidebar .icon use {
   stroke: var(--hra-shell-text) !important;
+}
+
+/* THE NOTIFICATIONS PANEL IS NOT PART OF THE SHELL.
+   Frappe v16 puts it inside the sidebar markup (ui/sidebar/sidebar.html:
+   .body-sidebar > .standard-items-sections > .dropdown-notifications >
+   .notifications-list) but paints it as a 360px page-height panel that
+   opens BESIDE the sidebar, over the page, with its own background.
+   The blanket rules above reach it: its background went transparent and
+   its text went near-white, so the list showed through onto the form
+   underneath. The shell's paint stops at its edge — it keeps Frappe's
+   own surface, and the items below restore the ink the blanket rule
+   would otherwise leave pale. */
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list {
+  background-color: var(--card-bg, #FFFFFF) !important;
+  border-right: 1px solid var(--hra-border) !important;
+  --icon-stroke: var(--hra-ink);
+  --icon-fill: transparent;
+}
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list,
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list * {
+  color: var(--hra-ink) !important;
+  border-color: var(--hra-border) !important;
+}
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list .text-muted,
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list .notification-timestamp,
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list small {
+  color: var(--hra-ink-muted) !important;
+  letter-spacing: normal;
+}
+html:not([data-theme="dark"]) .body-sidebar-container .notifications-list .icon use {
+  stroke: var(--hra-ink) !important;
 }
 
 /* Section captions sit back; item labels come forward. */

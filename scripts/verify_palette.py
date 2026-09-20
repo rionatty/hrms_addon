@@ -163,6 +163,25 @@ if not os.path.exists(BASE + "/hrms_addon/public/css/" + bundle):
     fail.append("app_include_css bundle %s not found" % bundle)
 print("hooks.py asset paths resolve")
 
+# 12. the navy shell stops at the notifications panel.
+#     Frappe v16 renders it inside the sidebar markup (ui/sidebar/sidebar.html)
+#     but shows it over the page, so the blanket "everything in the sidebar is
+#     transparent" rule left the list see-through on top of the form. The
+#     exclusion must be in :where(), which adds no specificity: with :not()
+#     the blanket rule outweighs the dropdown-menu exceptions below it and
+#     those panels go transparent instead. scratchpad/test_sidebar_css.py
+#     reads the computed styles in a browser.
+css = read("hrms_addon/public/css/hrms_addon.bundle.css")
+blanket = re.search(r"\.body-sidebar-container ([^\n{]*)\{\s*\n\s*background-color: transparent !important;", css)
+if not blanket:
+    fail.append("the sidebar's blanket transparent rule is gone: re-check what paints the shell")
+elif ":where(.notifications-list, .notifications-list *)" not in blanket.group(1):
+    fail.append("the blanket sidebar rule must skip the notifications panel through :where(), which adds no "
+                "specificity: %s" % blanket.group(1).strip())
+if not re.search(r"\.body-sidebar-container \.notifications-list \{\s*\n\s*background-color:", css):
+    fail.append("the notifications panel needs its own opaque background, or the page shows through it")
+print("the navy shell stops at the notifications panel")
+
 
 print()
 if fail:
