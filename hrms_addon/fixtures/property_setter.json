@@ -357,5 +357,60 @@
   "value": "The pass mark in stars on the LPL/HR/17 scale: 3 = Good (60%), 4 = Very Good (75%).",
   "module": "HRMS Addon",
   "field_name": "expected_average_rating"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal-appraisal_template-mandatory_depends_on",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "property": "mandatory_depends_on",
+  "property_type": "Data",
+  "value": "",
+  "module": "HRMS Addon",
+  "field_name": "appraisal_template"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal-appraisal_template-hidden",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "appraisal_template"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal-appraisal_kra-hidden",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "appraisal_kra"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal-goals-hidden",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "goals"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal-self_ratings-hidden",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "self_ratings"
  }
 ]

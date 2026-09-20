@@ -47,6 +47,9 @@ DOCFIELD_PROPERTIES = {
     "hidden": "Check",
     "show_dashboard": "Check",
     "depends_on": "Data",
+    # Frappe lists it among a field's own properties
+    # (frappe/custom/doctype/customize_form/customize_form.json)
+    "mandatory_depends_on": "Data",
     "options": "Text",
     "description": "Text",
     "allow_bulk_edit": "Check",

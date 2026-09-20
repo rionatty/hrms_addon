@@ -732,6 +732,11 @@ fixtures = [
                     "Training Feedback-feedback-reqd",
                     "Interview Type-expected_skill_set-hidden",
                     "Interview Type-expected_average_rating-description",
+                    "Appraisal-appraisal_template-mandatory_depends_on",
+                    "Appraisal-appraisal_template-hidden",
+                    "Appraisal-appraisal_kra-hidden",
+                    "Appraisal-goals-hidden",
+                    "Appraisal-self_ratings-hidden",
                 ],
             ]
         ],

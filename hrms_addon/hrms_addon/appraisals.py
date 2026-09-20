@@ -233,6 +233,7 @@ def appraisal_validate(doc, method=None):
         doc.custom_form_type = approval.FORM_BSC if bsc.template_for(employee=doc.get("employee")) \
             else approval.FORM_SUPERVISORY
     if _is_bsc(doc):
+        _attach_scorecard(doc)
         bsc.score(doc)
         _carry_scores(doc, doc.get("custom_bsc_overall"), doc.get("custom_bsc_band"))
     else:
@@ -246,6 +247,26 @@ def appraisal_validate(doc, method=None):
 
 def _is_bsc(doc):
     return doc.get("custom_form_type") == approval.FORM_BSC
+
+
+def _attach_scorecard(doc):
+    """The role's scorecard, attached and filled in without being asked for.
+
+    Luuka: "these templates will be already attached to the
+    employee/designation and will automatically populate the information."
+    The plan already did this when it raised an appraisal; an appraisal made
+    by hand gets it here too. Nothing already scored is touched, and a
+    submitted appraisal is left exactly as it was approved.
+    """
+    if doc.docstatus != 0 or not doc.get("employee"):
+        return
+    if not doc.get("custom_bsc_template"):
+        year = None
+        if doc.get("start_date"):
+            year = getdate(doc.start_date).year
+        doc.custom_bsc_template = bsc.template_for(employee=doc.employee, year=year)
+    if doc.get("custom_bsc_template") and not doc.get("custom_bsc_perspectives"):
+        bsc.fill(doc, doc.custom_bsc_template)
 
 
 def _carry_scores(doc, total, band):
