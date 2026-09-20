@@ -504,6 +504,23 @@ claim is held to it, and **birthdays** are told to the HR Officer and the
 supervisor a week before and on the day — counting the 29th of February on
 the 28th in a year that has no 29th.
 
+`verify_loans.py` covers the staff loan (4.4), which is the one document
+in these processes the site does not already have: Frappe's lending app is
+not installed at Luuka, and a loan recovered from the payroll is not a bank
+loan. Everything it touches afterwards is Frappe HR's own. The employee
+asks; the **HOD**, the **Executive Director** and the **General Manager**
+approve, any of whom can send it back, which is the chart's "Approved?
+No"; **Accounts** set the terms actually discussed — the amount, the rate
+and the months — which cannot exceed what was asked for; the employee
+**consents** to the deduction on **LPL/HR/39**, which must say the
+liability, the amount, the instalments and from when. Only then does the
+loan run, and each repayment becomes an **Additional Salary** deduction so
+the payroll takes it without a list kept by hand. What the payroll really
+took is read back off the Salary Slip, so the outstanding balance is what
+happened rather than what was planned, and a loan whose last instalment
+has been taken closes itself. Luuka's loans carry no interest by default;
+a rate set here is flat over the term.
+
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
 and Training Feedback. Before a session: the employee's **Training Needs

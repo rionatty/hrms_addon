@@ -310,6 +310,9 @@ after_migrate = [
     # allowance_approval.py and claim_approval.py.
     "hrms_addon.hrms_addon.allowances.setup_workflows_on_migrate",
     "hrms_addon.hrms_addon.benefits.setup_workflows_on_migrate",
+    # The staff loan: HOD, Executive Director, General Manager, the terms
+    # Accounts settle and the employee's own consent. See loan_approval.py.
+    "hrms_addon.hrms_addon.loans.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -1157,6 +1160,8 @@ scheduler_events = {
         # A claim waiting on Accounts, and whose birthday is coming — the
         # second recommendation of the test script (benefits.py)
         "hrms_addon.hrms_addon.benefits.daily",
+        # Loans: a repayment falling due, and one fully repaid (loans.py)
+        "hrms_addon.hrms_addon.loans.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee

@@ -327,7 +327,7 @@ def _tell_recovery():
 def mark_recovered(payroll_date=None):
     """Whatever the payroll actually took, marked back onto the advances.
     A deduction that was submitted and paid is the proof."""
-    filters = {"parenttype": DOCTYPE, "recovered": 0, "additional_salary": ["is", "set"]}
+    filters = {"parenttype": DOCTYPE, "recovered": ["!=", 1], "additional_salary": ["is", "set"]}
     if payroll_date:
         filters["payroll_date"] = payroll_date
     rows = frappe.get_all("Advance Recovery", filters=filters,

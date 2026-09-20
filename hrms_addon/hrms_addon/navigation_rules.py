@@ -108,6 +108,14 @@ CARDS = {
             ("KRA", "KRA", DOCTYPE),
         ]),
     ],
+    # Frappe HR's Expenses page already lists their Employee Advance and
+    # Travel Request, which carry Luuka's advances and LPL.HR.31; the staff
+    # loan is the one document it does not have (loans.py)
+    "Expenses": [
+        ("Loans", [
+            ("Employee Loan", "Employee Loan", DOCTYPE),
+        ]),
+    ],
     # Frappe HR's own leave page gains the plan the year is drawn up on:
     # the application itself is theirs, carrying LPL/HR/15 (leave.py)
     "Leaves": [
@@ -173,6 +181,9 @@ SIDEBAR = {
         # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
+    ],
+    "Expenses": [
+        ("Employee Loan", "Employee Loan", DOCTYPE, None, "Employee Advance"),
     ],
     "Leaves": [
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),

@@ -1,0 +1,82 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 16:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "payroll_date",
+  "principal",
+  "interest",
+  "total",
+  "additional_salary",
+  "recovered",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "payroll_date",
+   "fieldtype": "Date",
+   "label": "Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "principal",
+   "fieldtype": "Currency",
+   "label": "Principal",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "interest",
+   "fieldtype": "Currency",
+   "label": "Interest",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Currency",
+   "label": "Instalment",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "additional_salary",
+   "fieldtype": "Link",
+   "label": "Deduction",
+   "options": "Additional Salary",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "recovered",
+   "fieldtype": "Check",
+   "label": "Recovered",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Data",
+   "label": "Remarks"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-21 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Loan Repayment",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
