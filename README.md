@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
+python scripts/verify_js.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -341,6 +341,19 @@ filtered on `frappe.session.user` and no function taking a user to look
 at, the methods the script calls whitelisted (and the two that change
 something POST-only), titles escaped, a colour for every band in the
 stylesheet, and the script's toast colours identical to the rules'.
+
+`verify_js.py` covers every script the app ships. A form script that does
+not parse is not a small fault: Frappe stops setting the form up where the
+script throws, and the form comes up with its sections empty and nowhere to
+type (the Training Requisition once shipped with a line break inside a
+string). Form scripts are served as they are, not built, so nothing else
+notices. The check scans each file for a string or regular expression
+running past its line, an open comment or template and unmatched brackets;
+really parses it where node or Chrome is at hand; and holds every form
+script (a DocType's own, or one `doctype_js` attaches to a Frappe HR form)
+to its DocType: handlers registered on it, and only fields, tables and
+child columns that exist named in `set_value`, `set_query`, `add_child`,
+`frm.doc.…` and the like.
 
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
