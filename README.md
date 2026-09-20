@@ -480,6 +480,30 @@ The recovery is what makes an advance an advance: each instalment becomes
 an **Additional Salary** deduction, so the payroll run takes it without a
 list kept by hand.
 
+`verify_benefits.py` covers the allowance application (4.3) and benefits
+administration (4.7), built on Frappe HR's own **Travel Request** and
+**Expense Claim**. The Employee Travel Allowance form (**LPL.HR.31**) is
+their Travel Request: its costing lines gain the number of days and the
+rate, so each line is days times rate, and the foot of the form — total,
+less any advance already taken, balance due or refundable — follows from
+them. The five lines the paper prints are **Expense Claim Types**, shared
+with the claim form, so there is one list. "Qualified?" is worked out on
+every save and written onto the request; the chain is Supervisor, HR
+Officer, General Manager, then Accounts, who cannot pay more than is due.
+
+The Employees Claim Form (**LPL/HR/27**) is their Expense Claim, so the
+accounting that follows is theirs. The supervisor's own line — "Genuine-to
+be paid or not approved" — must be answered before the claim goes up, and
+a claim found not genuine needs the reason. The chain is Supervisor, HOD,
+HR, General Manager, then Accounts: the chart draws three approvers and
+the test script written after it adds the supervisor first, so all four
+are here in their order. Their own `approval_status` stays Draft until the
+chain decides. Both recommendations from the script are built: a claim
+type may carry a **standard amount** (wedding gifts and the like) and a
+claim is held to it, and **birthdays** are told to the HR Officer and the
+supervisor a week before and on the day — counting the 29th of February on
+the 28th in a year that has no 29th.
+
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
 and Training Feedback. Before a session: the employee's **Training Needs

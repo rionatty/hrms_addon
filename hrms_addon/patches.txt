@@ -26,3 +26,4 @@ hrms_addon.patches.v1_0.seed_position_roles
 hrms_addon.patches.v1_0.seed_performance
 hrms_addon.patches.v1_0.scorecard_onto_appraisal_template
 hrms_addon.patches.v1_0.seed_leave
+hrms_addon.patches.v1_0.seed_benefits

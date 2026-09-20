@@ -140,6 +140,10 @@ doctype_js = {
     "Leave Application": "public/js/leave_application.js",
     # Luuka's three advances on their Employee Advance (advances.py)
     "Employee Advance": "public/js/employee_advance.js",
+    # LPL.HR.31 on their Travel Request (allowances.py)
+    "Travel Request": "public/js/travel_request.js",
+    # LPL/HR/27 on their Expense Claim (benefits.py)
+    "Expense Claim": "public/js/expense_claim.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -210,6 +214,9 @@ after_install = [
     "hrms_addon.hrms_addon.pick_lists.seed_bsc_masters",
     # the five kinds of leave LPL/HR/15 offers
     "hrms_addon.hrms_addon.leave.seed_leave_types",
+    # the five lines LPL.HR.31 prints, and the standard claims Luuka pay
+    "hrms_addon.hrms_addon.allowances.seed_allowance_lines",
+    "hrms_addon.hrms_addon.benefits.seed_standard_claims",
 ]
 
 # Uninstallation
@@ -298,6 +305,11 @@ after_migrate = [
     # Luuka's three advances on one Workflow, the Advance Type deciding whose
     # desk each lands on. See advance_approval.py.
     "hrms_addon.hrms_addon.advances.setup_workflows_on_migrate",
+    # The allowance application (Supervisor, HR Officer, General Manager,
+    # then Accounts) and the Employees Claim Form's five desks. See
+    # allowance_approval.py and claim_approval.py.
+    "hrms_addon.hrms_addon.allowances.setup_workflows_on_migrate",
+    "hrms_addon.hrms_addon.benefits.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -830,6 +842,90 @@ fixtures = [
                     "Employee Advance-custom_paid_on",
                     "Employee Advance-custom_paid_cb",
                     "Employee Advance-custom_bank_reference",
+                    "Travel Request-custom_lpl_section",
+                    "Travel Request-custom_badge_no",
+                    "Travel Request-custom_grade",
+                    "Travel Request-custom_department",
+                    "Travel Request-custom_branch",
+                    "Travel Request-custom_lpl_cb",
+                    "Travel Request-custom_start_date",
+                    "Travel Request-custom_start_time",
+                    "Travel Request-custom_end_date",
+                    "Travel Request-custom_end_time",
+                    "Travel Request-custom_allowance_status",
+                    "Travel Request-custom_totals_section",
+                    "Travel Request-custom_total",
+                    "Travel Request-custom_advance",
+                    "Travel Request-custom_less_advance",
+                    "Travel Request-custom_totals_cb",
+                    "Travel Request-custom_balance_due",
+                    "Travel Request-custom_qualifies",
+                    "Travel Request-custom_eligibility_remarks",
+                    "Travel Request-custom_approval_section",
+                    "Travel Request-custom_supervisor_remarks",
+                    "Travel Request-custom_supervisor_by",
+                    "Travel Request-custom_supervisor_on",
+                    "Travel Request-custom_approval_cb",
+                    "Travel Request-custom_hr_remarks",
+                    "Travel Request-custom_hr_by",
+                    "Travel Request-custom_hr_on",
+                    "Travel Request-custom_approval_cb2",
+                    "Travel Request-custom_gm_remarks",
+                    "Travel Request-custom_gm_by",
+                    "Travel Request-custom_gm_on",
+                    "Travel Request-custom_return_remarks",
+                    "Travel Request-custom_payment_section",
+                    "Travel Request-custom_paid_amount",
+                    "Travel Request-custom_paid_on",
+                    "Travel Request-custom_payment_cb",
+                    "Travel Request-custom_payment_reference",
+                    "Travel Request-custom_accounts_remarks",
+                    "Travel Request-custom_accounts_by",
+                    "Travel Request-custom_accounts_on",
+                    "Travel Request Costing-custom_days",
+                    "Travel Request Costing-custom_rate",
+                    "Travel Request Costing-custom_remarks",
+                    "Expense Claim-custom_lpl_section",
+                    "Expense Claim-custom_badge_no",
+                    "Expense Claim-custom_work_section",
+                    "Expense Claim-custom_branch",
+                    "Expense Claim-custom_occasion",
+                    "Expense Claim-custom_lpl_cb",
+                    "Expense Claim-custom_claim_details",
+                    "Expense Claim-custom_reason",
+                    "Expense Claim-custom_evidence",
+                    "Expense Claim-custom_claim_status",
+                    "Expense Claim-custom_approval_section",
+                    "Expense Claim-custom_genuine",
+                    "Expense Claim-custom_supervisor_remarks",
+                    "Expense Claim-custom_supervisor_by",
+                    "Expense Claim-custom_supervisor_on",
+                    "Expense Claim-custom_approval_cb",
+                    "Expense Claim-custom_hod_remarks",
+                    "Expense Claim-custom_hod_by",
+                    "Expense Claim-custom_hod_on",
+                    "Expense Claim-custom_hr_remarks",
+                    "Expense Claim-custom_hr_by",
+                    "Expense Claim-custom_hr_on",
+                    "Expense Claim-custom_approval_cb2",
+                    "Expense Claim-custom_gm_remarks",
+                    "Expense Claim-custom_gm_by",
+                    "Expense Claim-custom_gm_on",
+                    "Expense Claim-custom_return_remarks",
+                    "Expense Claim-custom_payment_section",
+                    "Expense Claim-custom_paid_on",
+                    "Expense Claim-custom_payment_cb",
+                    "Expense Claim-custom_payment_reference",
+                    "Expense Claim-custom_accounts_remarks",
+                    "Expense Claim-custom_accounts_by",
+                    "Expense Claim-custom_accounts_on",
+                    "Expense Claim Type-custom_lpl_section",
+                    "Expense Claim Type-custom_is_standard",
+                    "Expense Claim Type-custom_standard_amount",
+                    "Expense Claim Type-custom_lpl_cb",
+                    "Expense Claim Type-custom_occasion",
+                    "Expense Claim Type-custom_requires_evidence",
+                    "Expense Claim Type-custom_is_allowance_line",
                 ],
             ]
         ],
@@ -978,6 +1074,21 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.advances.advance_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.advances.advance_on_cancel",
     },
+    # LPL.HR.31, the travel allowance, on Frappe HR's own Travel Request:
+    # the days and the rate on each line, the totals, and the four
+    # signatures the chart gives (allowances.py)
+    "Travel Request": {
+        "validate": "hrms_addon.hrms_addon.allowances.allowance_validate",
+        "on_submit": "hrms_addon.hrms_addon.allowances.allowance_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.allowances.allowance_on_cancel",
+    },
+    # LPL/HR/27, the Employees Claim Form, on their own Expense Claim: the
+    # supervisor's "genuine" line and the chain above it (benefits.py)
+    "Expense Claim": {
+        "validate": "hrms_addon.hrms_addon.benefits.claim_validate",
+        "on_submit": "hrms_addon.hrms_addon.benefits.claim_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.benefits.claim_on_cancel",
+    },
     "Employee Onboarding": {
         # Defaults from the candidate, the workflow step's checks and stamp,
         # and each activity given to the branch's own people, not every
@@ -1041,6 +1152,11 @@ scheduler_events = {
         # Advances: one waiting to be paid, and one still owed after its
         # last instalment should have been taken (advances.py)
         "hrms_addon.hrms_addon.advances.daily",
+        # An allowance approved and waiting on Accounts (allowances.py)
+        "hrms_addon.hrms_addon.allowances.daily",
+        # A claim waiting on Accounts, and whose birthday is coming — the
+        # second recommendation of the test script (benefits.py)
+        "hrms_addon.hrms_addon.benefits.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee
