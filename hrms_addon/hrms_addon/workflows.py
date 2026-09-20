@@ -61,6 +61,25 @@ def setup_on_migrate(rules, label):
         print("HRMS Addon: %s setup FAILED — see Error Log" % label)
 
 
+def grant_on_migrate(rules, label):
+    """after_migrate: only the NEW_ROLES and PERMISSIONS of a rules module,
+    for documents that have no workflow here (training_rules.py: Frappe HR's
+    Training Event and Training Feedback). Never fails the deploy either."""
+    savepoint = "hrms_addon_grants"
+    frappe.db.savepoint(savepoint)
+    try:
+        _ensure_roles(rules)
+        _ensure_permissions(rules)
+        frappe.db.commit()
+    except Exception:
+        try:
+            frappe.db.rollback(save_point=savepoint)
+        except Exception:
+            pass
+        frappe.log_error(title="HRMS Addon: %s failed" % label)
+        print("HRMS Addon: %s FAILED — see Error Log" % label)
+
+
 def ensure_workflow(rules):
     _ensure_roles(rules)
     _ensure_permissions(rules)

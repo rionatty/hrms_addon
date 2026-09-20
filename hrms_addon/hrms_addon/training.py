@@ -552,6 +552,9 @@ def _check_step(doc, approval, facts, title):
 
 
 def setup_workflows_on_migrate():
-    """after_migrate: the assessment's and the calendar's workflows (workflows.py)."""
+    """after_migrate: the assessment's and the calendar's workflows, and the
+    HR Officer's and the HOD's rights on Frappe HR's training documents
+    (workflows.py)."""
     workflows.setup_on_migrate(tna_approval, "Training Needs Assessment workflow")
     workflows.setup_on_migrate(calendar_approval, "Training Calendar workflow")
+    workflows.grant_on_migrate(rules, "training permissions")

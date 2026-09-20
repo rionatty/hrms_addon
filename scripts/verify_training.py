@@ -345,9 +345,41 @@ for needle, why in (
     ('frappe.delete_doc("Training Event", line.training_event, ignore_permissions=True)', "a cancelled schedule drops a session not held"),
     ("workflows.setup_on_migrate(tna_approval,", "the assessment workflow is built"),
     ("workflows.setup_on_migrate(calendar_approval,", "and the calendar's"),
+    ("workflows.grant_on_migrate(rules,", "the HR Officer's and the HOD's rights on Frappe HR's training documents are granted"),
 ):
     if needle not in glue:
         fail.append("training.py: %s (%r not found)" % (why, needle))
+# Frappe HR keeps creating and submitting its training documents to the HR
+# Manager: the branch HR Officer and the HOD are granted what the process asks
+for name, role, ptypes in (("Training Event", "HR User", ("read", "write", "create", "submit")),
+                           ("Training Event", "Head of Department", ("read", "write")),
+                           ("Training Event", "Supervisor", ("read", "write")),
+                           ("Training Feedback", "HR User", ("read", "write", "create", "submit")),
+                           ("Training Program", "HR User", ("read", "write", "create"))):
+    granted = (R.PERMISSIONS.get(name) or {}).get(role) or ()
+    missing = [ptype for ptype in ptypes if ptype not in granted]
+    if missing:
+        fail.append("training_rules.PERMISSIONS must give %s %s on %s: the process stops at that step otherwise"
+                    % (role, ", ".join(missing), name))
+    if granted and granted[0] != "read":
+        fail.append("training_rules.PERMISSIONS[%r][%r] must start with read: workflows.py adds the rule with its first right" % (name, role))
+for role in ("Head of Department", "Supervisor"):
+    if "submit" in ((R.PERMISSIONS.get("Training Event") or {}).get(role) or ()):
+        fail.append("the %s confirms the participants; the HR Officer submits the Training Event once held" % role)
+granted_roles = {role for grants in R.PERMISSIONS.values() for role in grants}
+if not granted_roles - {"HR User", "HR Manager"} <= set(R.NEW_ROLES):
+    fail.append("training_rules.NEW_ROLES must name every granted role Frappe HR does not ship: %s"
+                % sorted(granted_roles - {"HR User", "HR Manager"} - set(R.NEW_ROLES)))
+for name, grants in R.PERMISSIONS.items():
+    spec = upstream_doctype(name)
+    if spec is None:
+        continue
+    if any("submit" in ptypes for ptypes in grants.values()) and not spec.get("is_submittable"):
+        fail.append("training_rules.PERMISSIONS grants submit on %s, which is not submittable upstream" % name)
+granting = re.search(r"\ndef grant_on_migrate\(rules, label\):\n(.*?)\n\n\ndef ", read("hrms_addon", "hrms_addon", "workflows.py"), re.S)
+if not granting or "_ensure_roles(rules)" not in granting.group(1) or "_ensure_permissions(rules)" not in granting.group(1) \
+        or "frappe.db.savepoint(" not in granting.group(1):
+    fail.append("workflows.grant_on_migrate must create the roles and grant the permissions, inside a savepoint")
 for name in ("get_needs_forms", "get_requisitions", "get_approved_needs", "get_calendar_trainings"):
     if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % name, glue):
         fail.append("%s must be whitelisted for the form buttons" % name)

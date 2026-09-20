@@ -78,6 +78,23 @@ EVENT_TYPES = {"Internal": "Workshop", "External": "Seminar", "On the Job": "Wor
                "Workshop": "Workshop", "Coaching": "Theory"}
 SESSION_STARTS, SESSION_ENDS = datetime.time(7, 0), datetime.time(9, 0)  # the usual 07:00 to 09:00
 
+# ── Who works on Frappe HR's training documents ──────────────────────
+# Frappe HR leaves creating and submitting them to the HR Manager. At Luuka
+# the branch HR Officer (HR User) books a session, submits it once held and
+# keys in and submits each evaluation; the Head of Department, or the
+# supervisor who raised the requisition, confirms the participants on the
+# draft session. Granted on every migrate, never revoked (workflows.py).
+NEW_ROLES = ("Head of Department", "Supervisor")
+PERMISSIONS = {
+    "Training Event": {
+        "HR User": ("read", "write", "create", "submit"),
+        "Head of Department": ("read", "write"),
+        "Supervisor": ("read", "write"),
+    },
+    "Training Feedback": {"HR User": ("read", "write", "create", "submit")},
+    "Training Program": {"HR User": ("read", "write", "create")},
+}
+
 
 def score(ratings):
     """The evaluation's Section A as a percentage: the ratings given,
