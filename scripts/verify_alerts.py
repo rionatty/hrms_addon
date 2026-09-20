@@ -184,6 +184,8 @@ if 'if (document.querySelector("." + PANEL)) return;' not in js:
     fail.append("building it again must find the one already there, or a route change leaves two")
 if 'frappe.router.on("change"' not in js:
     fail.append("a route that rebuilds the body must put the panel back")
+if "new MutationObserver(" not in js or "observe(document.body, { childList: true })" not in js:
+    fail.append("the panel must be watched for: whatever takes it out of the page, it goes straight back")
 for needle, why in (('const MINIMISED = "ha-alerts-minimised";', "the class the stylesheet shrinks it by"),
                     ("classList.toggle(MINIMISED", "the header shrinks it and opens it again"),
                     ("localStorage.setItem(STORE", "and it comes back as it was left")):

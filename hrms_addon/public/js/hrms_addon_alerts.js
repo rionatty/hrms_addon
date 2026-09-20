@@ -173,12 +173,22 @@
 		return frappe.utils.escape_html(String(value == null ? "" : value));
 	}
 
+	// It is never gone for long: whatever takes it out of the page — a route
+	// that rebuilds the body, another app's script, a stray refresh — the
+	// watcher puts it straight back, drawn from the answer already in hand.
+	function watch() {
+		if (!window.MutationObserver) return;
+		new MutationObserver(() => {
+			if (!document.querySelector("." + PANEL)) build();
+		}).observe(document.body, { childList: true });
+	}
+
 	function start() {
 		build();
+		watch();
 		load();
-		// the desk replaces the body's contents on some routes: put it back
 		if (frappe.router && frappe.router.on) {
-			frappe.router.on("change", () => setTimeout(build, 100));
+			frappe.router.on("change", build);
 		}
 		if (frappe.realtime && frappe.realtime.on) {
 			frappe.realtime.on("notification", load);
@@ -187,10 +197,19 @@
 	}
 
 	// app_ready fires once the desk is up; if this file lands after it did
-	// (a cached bundle, a slow route), start straight away instead.
-	if (frappe.app) {
+	// (a cached bundle, a slow route), start straight away instead. Either
+	// way there must be a body to put the panel in.
+	function begin() {
+		if (!document.body) {
+			document.addEventListener("DOMContentLoaded", begin, { once: true });
+			return;
+		}
 		start();
+	}
+
+	if (frappe.app) {
+		begin();
 	} else {
-		$(document).on("app_ready", start);
+		$(document).on("app_ready", begin);
 	}
 })();
