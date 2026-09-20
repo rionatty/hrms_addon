@@ -75,6 +75,27 @@ CARDS = {
             ("Meeting Record", "Meeting Record", DOCTYPE),
         ]),
     ],
+    # Frappe HR ships the Performance page with its Appraisal Overview chart
+    # and nothing else — no cards, no links — so it reads as an empty page
+    # until someone knows to use the sidebar. These are the documents the
+    # appraisal round runs on, and what an appraisal ends in (positions.py).
+    "Performance": [
+        ("Appraisal", [
+            ("Appraisal Cycle", "Appraisal Cycle", DOCTYPE),
+            ("Appraisal", "Appraisal", DOCTYPE),
+            ("Employee Performance Feedback", "Employee Performance Feedback", DOCTYPE),
+            ("Goal", "Goal", DOCTYPE),
+        ]),
+        ("After the Appraisal", [
+            ("Employee Position Change", "Employee Position Change", DOCTYPE),
+            ("Employee Promotion", "Employee Promotion", DOCTYPE),
+        ]),
+        ("Appraisal Setup", [
+            ("Appraisal Template", "Appraisal Template", DOCTYPE),
+            ("Employee Feedback Criteria", "Employee Feedback Criteria", DOCTYPE),
+            ("KRA", "KRA", DOCTYPE),
+        ]),
+    ],
     "HR Setup": [
         ("Job Description Lists", [
             ("KRA Perspective", "KRA Perspective", DOCTYPE),
@@ -109,6 +130,10 @@ SIDEBAR = {
         ("Interview Criterion", "Interview Criterion", DOCTYPE, "Setup", None),
         ("Interview Criteria Group", "Interview Criteria Group", DOCTYPE, "Setup", None),
         ("Qualification Type", "Qualification Type", DOCTYPE, "Setup", None),
+    ],
+    # a promotion follows an appraisal, so it is reachable from here too
+    "Performance": [
+        ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
     ],
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),
