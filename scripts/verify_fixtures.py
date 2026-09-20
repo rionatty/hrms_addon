@@ -642,7 +642,21 @@ if by_dt.get(EM):
                  "custom_probation_status": ("Joining", "custom_probation_end_date"),
                  # the tools register, a tab after Joining
                  "custom_tools_tab": ("Tools of Work", None),
-                 "custom_employee_tools": ("Tools of Work", "custom_tools_tab")}
+                 "custom_employee_tools": ("Tools of Work", "custom_tools_tab"),
+                 # LPL/HR/26 (the bank account, NSSF and TIN form) and LPL/HR/33
+                 # (the wages phone number) sit with Frappe's own bank details
+                 "custom_bank_branch": ("Salary", "bank_name"),
+                 "custom_bank_account_name": ("Salary", "custom_bank_branch"),
+                 "custom_salary_from_month": ("Salary", "bank_ac_no"),
+                 "custom_wages_phone_section": ("Salary", "custom_salary_from_month"),
+                 "custom_wages_phone": ("Salary", "custom_wages_phone_section"),
+                 "custom_wages_phone_cb": ("Salary", "custom_wages_phone"),
+                 "custom_wages_phone_names": ("Salary", "custom_wages_phone_cb"),
+                 "custom_bank_declaration_section": ("Salary", "custom_wages_phone_names"),
+                 "custom_bank_declared_on": ("Salary", "custom_bank_declaration_section"),
+                 "custom_bank_witness": ("Salary", "custom_bank_declared_on"),
+                 "custom_bank_declaration_cb": ("Salary", "custom_bank_witness"),
+                 "custom_signed_bank_form": ("Salary", "custom_bank_declaration_cb")}
     for hrms_first in (True, False):
         order, fields = simulate_layout(EM, hrms_first=hrms_first)
         positions = positions_of(order, fields)

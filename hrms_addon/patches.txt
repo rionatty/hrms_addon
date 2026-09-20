@@ -22,3 +22,4 @@ hrms_addon.patches.v1_0.seed_onboarding
 hrms_addon.patches.v1_0.branch_on_applicants_and_offers
 hrms_addon.patches.v1_0.seed_onboarding_phase2
 hrms_addon.patches.v1_0.seed_training
+hrms_addon.patches.v1_0.seed_position_roles

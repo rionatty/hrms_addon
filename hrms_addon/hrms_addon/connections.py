@@ -26,12 +26,17 @@ Interview.
 from frappe import _
 
 ONBOARDING_DOCS = ["Onboarding Review", "Probation Evaluation", "Employee Contract"]
+# what follows afterwards: a promotion, a change of designation or a salary
+# review, and where the pay is sent
+SERVICE_DOCS = ["Employee Position Change", "Employee Data Change Request"]
 
 
 def employee_dashboard(data=None):
     """Employee: everything that follows the person through their service."""
     data = data or {}
-    data.setdefault("transactions", []).append({"label": _("Probation and Contracts"), "items": list(ONBOARDING_DOCS)})
+    transactions = data.setdefault("transactions", [])
+    transactions.append({"label": _("Probation and Contracts"), "items": list(ONBOARDING_DOCS)})
+    transactions.append({"label": _("Position and Pay"), "items": list(SERVICE_DOCS)})
     return data
 
 

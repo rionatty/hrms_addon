@@ -167,6 +167,9 @@ jinja = {
         "hrms_addon.hrms_addon.careers.job_posting_details",
         # the Training Evaluation Summary print: every evaluation of a session consolidated
         "hrms_addon.hrms_addon.training.consolidated",
+        # the promotion, designation and salary letters print the gross both
+        # in figures and in words
+        "hrms_addon.hrms_addon.positions.in_words",
     ],
 }
 
@@ -247,6 +250,11 @@ after_migrate = [
     # Interview Shortlist screening: HR, then the HOD's second and final
     # screening. See interview_shortlist_approval.py.
     "hrms_addon.hrms_addon.interviews.setup_shortlist_workflow_on_migrate",
+    # Promotions, changes of designation and salary reviews: the Candidate
+    # Preamble's own signatures, Supervisor to Executive Director, and the
+    # Legal Manager role the renewal and salary letters witness with.
+    # See position_approval.py.
+    "hrms_addon.hrms_addon.positions.setup_workflows_on_migrate",
     # Employee Onboarding: started by the branch HR Officer, approved by the
     # HR Manager. See onboarding_approval.py.
     "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate",
@@ -556,6 +564,18 @@ fixtures = [
                     "Training Feedback-custom_trainer_recommendations",
                     "Training Feedback-custom_hr_recommendations",
                     "Training Feedback-custom_signed_on",
+                    "Employee-custom_bank_branch",
+                    "Employee-custom_bank_account_name",
+                    "Employee-custom_salary_from_month",
+                    "Employee-custom_wages_phone_section",
+                    "Employee-custom_wages_phone",
+                    "Employee-custom_wages_phone_cb",
+                    "Employee-custom_wages_phone_names",
+                    "Employee-custom_bank_declaration_section",
+                    "Employee-custom_bank_declared_on",
+                    "Employee-custom_bank_witness",
+                    "Employee-custom_bank_declaration_cb",
+                    "Employee-custom_signed_bank_form",
                 ],
             ]
         ],
@@ -713,6 +733,9 @@ scheduler_events = {
         # to schedule it; everyone booked reminded a week, a day and the
         # morning before a session (training.py)
         "hrms_addon.hrms_addon.training.daily",
+        # An internship whose end date has passed is marked Completed
+        # (positions.py)
+        "hrms_addon.hrms_addon.positions.daily",
     ],
 }
 

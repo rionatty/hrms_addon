@@ -50,6 +50,13 @@ CARDS = {
             ("Employee Contract", "Employee Contract", DOCTYPE),
             ("Contract Expiry Status", "Contract Expiry Status", REPORT),
         ]),
+        # promotions, changes of designation and salary reviews, and the
+        # employee's own records (positions.py, employee_data.py)
+        ("Position and Pay Changes", [
+            ("Employee Position Change", "Employee Position Change", DOCTYPE),
+            ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE),
+            ("Intern Placement", "Intern Placement", DOCTYPE),
+        ]),
         ("Onboarding Setup", [
             ("Onboarding Settings", "Onboarding Settings", DOCTYPE),
             ("Tool of Work", "Tool of Work", DOCTYPE),
@@ -107,9 +114,14 @@ SIDEBAR = {
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),
         ("Probation Evaluation", "Probation Evaluation", DOCTYPE, None, "Onboarding Review"),
         ("Employee Contract", "Employee Contract", DOCTYPE, None, "Probation Evaluation"),
+        # what follows the contract: a promotion, a change of designation or a
+        # salary review, where the pay is sent, and internship placements
+        ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Contract"),
+        ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE, None, "Employee Position Change"),
+        ("Intern Placement", "Intern Placement", DOCTYPE, None, "Employee Data Change Request"),
         ("Contract Expiry Status", "Contract Expiry Status", REPORT, "Reports", None),
         # the training process, in the order it runs
-        ("Training Requisition", "Training Requisition", DOCTYPE, None, "Employee Contract"),
+        ("Training Requisition", "Training Requisition", DOCTYPE, None, "Intern Placement"),
         ("Training Needs Assessment", "Training Needs Assessment", DOCTYPE, None, "Training Requisition"),
         ("Training Calendar", "Training Calendar", DOCTYPE, None, "Training Needs Assessment"),
         ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE, None, "Training Calendar"),

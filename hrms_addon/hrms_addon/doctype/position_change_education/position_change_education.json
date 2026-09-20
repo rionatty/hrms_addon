@@ -1,0 +1,55 @@
+{
+ "actions": [],
+ "creation": "2026-09-22 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "certification",
+  "institution",
+  "field_of_study",
+  "graduation_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "certification",
+   "fieldtype": "Data",
+   "label": "Certification Achieved",
+   "in_list_view": 1,
+   "columns": 3,
+   "reqd": 1
+  },
+  {
+   "fieldname": "institution",
+   "fieldtype": "Data",
+   "label": "Name of Institution",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "field_of_study",
+   "fieldtype": "Data",
+   "label": "Major or Field of Study",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "graduation_date",
+   "fieldtype": "Date",
+   "label": "Graduation Date",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-22 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Position Change Education",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

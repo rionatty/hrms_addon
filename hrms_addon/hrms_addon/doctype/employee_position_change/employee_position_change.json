@@ -1,0 +1,663 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-22 09:00:00.000000",
+ "description": "A promotion, a change of designation or a salary review: the Candidate Preamble Promotion Form and the letter it ends in.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "change_type",
+  "employee",
+  "employee_name",
+  "employee_number",
+  "employee_contact",
+  "column_break_1",
+  "company",
+  "branch",
+  "department",
+  "date_of_joining",
+  "status",
+  "current_section",
+  "current_designation",
+  "current_supervisor",
+  "column_break_2",
+  "current_salary",
+  "contract",
+  "contract_end",
+  "change_section",
+  "new_designation",
+  "new_supervisor",
+  "job_description",
+  "column_break_3",
+  "new_salary",
+  "new_salary_in_words",
+  "effective_date",
+  "contract_section",
+  "contract_action",
+  "new_contract_months",
+  "column_break_4",
+  "new_contract",
+  "salary_structure",
+  "salary_structure_assignment",
+  "preamble_section",
+  "desired_position",
+  "column_break_5",
+  "appraisal_score",
+  "education_section",
+  "education",
+  "a_level",
+  "o_level",
+  "experience_section",
+  "experience",
+  "supervisor_section",
+  "supervisor_remarks",
+  "column_break_6",
+  "supervisor_by",
+  "supervisor_on",
+  "hrm_section",
+  "hrm_remarks",
+  "column_break_7",
+  "hrm_by",
+  "hrm_on",
+  "gm_section",
+  "gm_remarks",
+  "column_break_8",
+  "gm_by",
+  "gm_on",
+  "ed_section",
+  "ed_remarks",
+  "column_break_9",
+  "ed_by",
+  "ed_on",
+  "return_section",
+  "return_remarks",
+  "signed_section",
+  "letter_signed_on",
+  "column_break_10",
+  "signed_letter",
+  "amended_from",
+  "workflow_state"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "HR-EPC-.YYYY.-",
+   "reqd": 1,
+   "default": "HR-EPC-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "change_type",
+   "fieldtype": "Select",
+   "label": "Change Type",
+   "options": "Promotion\nChange of Designation\nSalary Increment",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "default": "Promotion",
+   "description": "Which letter this ends in."
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Section 1 of the preamble: whom the letter is for."
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_number",
+   "fieldtype": "Data",
+   "label": "Employee ID",
+   "fetch_from": "employee.employee_number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "employee_contact",
+   "fieldtype": "Data",
+   "label": "Employee Contact",
+   "fetch_from": "employee.cell_number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department / Section",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Hire",
+   "fetch_from": "employee.date_of_joining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Supervisor\nPending HR Manager\nPending General Manager\nPending Executive Director\nApproved\nCancelled",
+   "read_only": 1,
+   "default": "Draft",
+   "in_standard_filter": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "current_section",
+   "fieldtype": "Section Break",
+   "label": "Current Position",
+   "description": "Section 2 of the preamble."
+  },
+  {
+   "fieldname": "current_designation",
+   "fieldtype": "Link",
+   "label": "Current Job Title",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "current_supervisor",
+   "fieldtype": "Link",
+   "label": "Current Manager / Supervisor",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "current_salary",
+   "fieldtype": "Currency",
+   "label": "Current Gross Salary",
+   "read_only": 1,
+   "description": "The base salary on the running contract, or the last Salary Structure Assignment."
+  },
+  {
+   "fieldname": "contract",
+   "fieldtype": "Link",
+   "label": "Running Contract",
+   "options": "Employee Contract",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "contract_end",
+   "fieldtype": "Date",
+   "label": "Contract Ends",
+   "fetch_from": "contract.end_date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "change_section",
+   "fieldtype": "Section Break",
+   "label": "The Change"
+  },
+  {
+   "fieldname": "new_designation",
+   "fieldtype": "Link",
+   "label": "New Designation",
+   "options": "Designation",
+   "depends_on": "eval:doc.change_type != \"Salary Increment\"",
+   "mandatory_depends_on": "eval:doc.change_type != \"Salary Increment\""
+  },
+  {
+   "fieldname": "new_supervisor",
+   "fieldtype": "Link",
+   "label": "Reports To",
+   "options": "Employee",
+   "depends_on": "eval:doc.change_type != \"Salary Increment\"",
+   "mandatory_depends_on": "eval:doc.change_type != \"Salary Increment\"",
+   "description": "The letter names whom the employee reports to for assignment of duties."
+  },
+  {
+   "fieldname": "job_description",
+   "fieldtype": "Link",
+   "label": "Job Description",
+   "options": "Job Description",
+   "depends_on": "eval:doc.change_type == \"Promotion\"",
+   "description": "Attached to the Promotion Letter, which refers to it."
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "new_salary",
+   "fieldtype": "Currency",
+   "label": "New Gross Salary",
+   "description": "Subject to statutory deductions, as the letter says."
+  },
+  {
+   "fieldname": "new_salary_in_words",
+   "fieldtype": "Small Text",
+   "label": "New Gross in Words",
+   "read_only": 1
+  },
+  {
+   "fieldname": "effective_date",
+   "fieldtype": "Date",
+   "label": "Effective Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "contract_section",
+   "fieldtype": "Section Break",
+   "label": "The Contract",
+   "description": "The letters say all other terms and conditions remain the same, so the running contract is amended by default. Issue a new contract instead where the terms really change."
+  },
+  {
+   "fieldname": "contract_action",
+   "fieldtype": "Select",
+   "label": "What happens to the contract",
+   "options": "Amend the current contract\nIssue a new contract\nLeave the contract alone",
+   "default": "Amend the current contract",
+   "reqd": 1
+  },
+  {
+   "fieldname": "new_contract_months",
+   "fieldtype": "Int",
+   "label": "New Contract Runs For (months)",
+   "depends_on": "eval:doc.contract_action == \"Issue a new contract\"",
+   "description": "Left at 0, the new contract ends when the one it replaces would have."
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "new_contract",
+   "fieldtype": "Link",
+   "label": "New Contract",
+   "options": "Employee Contract",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "salary_structure",
+   "fieldtype": "Link",
+   "label": "Salary Structure",
+   "options": "Salary Structure",
+   "description": "The assignment made from the effective date. Left blank, the employee's current structure is used."
+  },
+  {
+   "fieldname": "salary_structure_assignment",
+   "fieldtype": "Link",
+   "label": "Salary Structure Assignment",
+   "options": "Salary Structure Assignment",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "preamble_section",
+   "fieldtype": "Section Break",
+   "label": "Candidate Preamble",
+   "depends_on": "eval:doc.change_type == \"Promotion\"",
+   "description": "Sections 3 to 6 of the Candidate Preamble Promotion Form."
+  },
+  {
+   "fieldname": "desired_position",
+   "fieldtype": "Data",
+   "label": "Desired Position",
+   "depends_on": "eval:doc.change_type == \"Promotion\""
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "appraisal_score",
+   "fieldtype": "Percent",
+   "label": "Appraisal Score",
+   "depends_on": "eval:doc.change_type == \"Promotion\"",
+   "description": "Section 6: the performance evaluation the promotion rests on."
+  },
+  {
+   "fieldname": "education_section",
+   "fieldtype": "Section Break",
+   "label": "Education",
+   "depends_on": "eval:doc.change_type == \"Promotion\"",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "education",
+   "fieldtype": "Table",
+   "label": "Certifications",
+   "options": "Position Change Education"
+  },
+  {
+   "fieldname": "a_level",
+   "fieldtype": "Data",
+   "label": "A'level"
+  },
+  {
+   "fieldname": "o_level",
+   "fieldtype": "Data",
+   "label": "O'level"
+  },
+  {
+   "fieldname": "experience_section",
+   "fieldtype": "Section Break",
+   "label": "Work Experience",
+   "depends_on": "eval:doc.change_type == \"Promotion\"",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "experience",
+   "fieldtype": "Table",
+   "label": "Work Experience",
+   "options": "Position Change Experience"
+  },
+  {
+   "fieldname": "supervisor_section",
+   "fieldtype": "Section Break",
+   "label": "Comments by the Supervisor"
+  },
+  {
+   "fieldname": "supervisor_remarks",
+   "fieldtype": "Small Text",
+   "label": "Supervisor's Comments"
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor_by",
+   "fieldtype": "Link",
+   "label": "Supervisor Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "supervisor_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_section",
+   "fieldtype": "Section Break",
+   "label": "Comments by the Human Resource Manager"
+  },
+  {
+   "fieldname": "hrm_remarks",
+   "fieldtype": "Small Text",
+   "label": "HR Manager's Comments"
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hrm_by",
+   "fieldtype": "Link",
+   "label": "HR Manager Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "gm_section",
+   "fieldtype": "Section Break",
+   "label": "Comments by the General Manager"
+  },
+  {
+   "fieldname": "gm_remarks",
+   "fieldtype": "Small Text",
+   "label": "General Manager's Comments"
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gm_by",
+   "fieldtype": "Link",
+   "label": "General Manager Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "gm_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_section",
+   "fieldtype": "Section Break",
+   "label": "Comments by the Executive Director"
+  },
+  {
+   "fieldname": "ed_remarks",
+   "fieldtype": "Small Text",
+   "label": "Executive Director's Comments"
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ed_by",
+   "fieldtype": "Link",
+   "label": "Executive Director Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_on",
+   "fieldtype": "Date",
+   "label": "Signed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_section",
+   "fieldtype": "Section Break",
+   "label": "Returned",
+   "depends_on": "return_remarks",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1,
+   "description": "Why the form was sent back; clears every signature."
+  },
+  {
+   "fieldname": "signed_section",
+   "fieldtype": "Section Break",
+   "label": "Signed Letter",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "letter_signed_on",
+   "fieldtype": "Date",
+   "label": "Letter Accepted On",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_10",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signed_letter",
+   "fieldtype": "Attach",
+   "label": "Signed Letter",
+   "no_copy": 1,
+   "description": "The letter the employee signed, scanned for the personal file."
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Employee Position Change",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-22 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Position Change",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "General Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Executive Director",
+   "write": 1,
+   "submit": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

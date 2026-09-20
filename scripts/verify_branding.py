@@ -133,6 +133,8 @@ MODULES = {
     "hrms_addon.hrms_addon.probation": read("hrms_addon/hrms_addon/probation.py"),
     "hrms_addon.hrms_addon.connections": read("hrms_addon/hrms_addon/connections.py"),
     "hrms_addon.hrms_addon.navigation": read("hrms_addon/hrms_addon/navigation.py"),
+    "hrms_addon.hrms_addon.positions": read("hrms_addon/hrms_addon/positions.py"),
+    "hrms_addon.hrms_addon.employee_data": read("hrms_addon/hrms_addon/employee_data.py"),
     "hrms_addon.hrms_addon.alerts": read("hrms_addon/hrms_addon/alerts.py"),
     "hrms_addon.hrms_addon.training": read("hrms_addon/hrms_addon/training.py"),
     "hrms_addon.hrms_addon.pick_lists": read("hrms_addon/hrms_addon/pick_lists.py"),

@@ -167,7 +167,7 @@ stylesheet). Two scripts assert they still agree. Neither needs a bench,
 a site or a database:
 
 ```bash
-python scripts/verify_js.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
+python scripts/verify_js.py && python scripts/verify_positions.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -365,6 +365,26 @@ script (a DocType's own, or one `doctype_js` attaches to a Frappe HR form)
 to its DocType: handlers registered on it, and only fields, tables and
 child columns that exist named in `set_value`, `set_query`, `add_child`,
 `frm.doc.…` and the like.
+
+`verify_positions.py` covers contract management (the Contract Management
+forms). **Employee Position Change** carries all three letters, told apart
+by its Change Type: a promotion, a change of designation or a salary
+review. Every one of them says the other terms stand, so it amends the
+running contract by default; Luuka asked for both, so it can issue a new
+one instead, from the effective date, closing the old one the day before.
+The Candidate Preamble Promotion Form is filled for a promotion and signed
+by the Supervisor, the HR Manager, the General Manager and the Executive
+Director, whose approval submits it and applies the change: the Employee
+master, a Salary Structure Assignment from the effective date, and the
+contract. Cancelling puts back what was there. **Employee Data Change
+Request** is LPL/HR/34 and LPL/HR/33 in one: the old bank account or wages
+phone number is read off the employee, the new one is typed, and the
+Employee is written to only when HR approves, so there is a record of who
+asked and who agreed. **Intern Placement** is the Intern Placement Letter,
+its plant chosen per intern. The Legal Manager role the renewal and salary
+letters witness with is created on migrate. The check exercises the rules
+without a bench, walks the signatures, and holds every letter to the words
+on the paper and to fields that exist.
 
 `verify_training.py` covers the training process (the To-Be flowchart, test
 cases 1 to 10), built on Frappe HR's own Training Program, Training Event
