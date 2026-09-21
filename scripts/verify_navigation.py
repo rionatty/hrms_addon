@@ -442,6 +442,10 @@ class Site:
         self.tables, self.content, self.saves, self.made, self.newest_first = {}, {}, 0, 0, newest_first
         self.inserts = 0
         self.dropped = []
+        # every DocType, Report and Workspace the site has: navigation.py
+        # drops a link whose target is gone, and without this the fake
+        # would answer "gone" to all of them
+        self.known = set()
 
     def put(self, doctype, name, table, rows, content=None):
         self.tables[(doctype, name)] = (table, [self.named(dict(row, idx=number)) for number, row in enumerate(rows, 1)])
@@ -505,8 +509,9 @@ class Doc:
 def run_glue(site):
     """navigation.apply_navigation() against the stand-in site."""
     fake = types.ModuleType("frappe")
-    fake.db = types.SimpleNamespace(exists=lambda doctype, name: (doctype, name) in site.tables,
-                                    savepoint=lambda name: None, commit=lambda: None, rollback=lambda **kw: None)
+    fake.db = types.SimpleNamespace(
+        exists=lambda doctype, name: (doctype, name) in site.tables or (doctype, name) in site.known,
+        savepoint=lambda name: None, commit=lambda: None, rollback=lambda **kw: None)
     fake.get_doc = lambda first, name=None: (Doc(site, values=first) if isinstance(first, dict)
                                              else Doc(site, first, name))
     fake.log_error = lambda **kw: fail.append("navigation.py failed on the stand-in site: %s" % kw)
@@ -561,8 +566,28 @@ def cards_of(rows):
     return out
 
 
+def _know(site):
+    """Everything the site's pages point at really exists on it — every
+    target Frappe HR already ships and every one this app adds. Without
+    this the fake answers "gone" to all of them and navigation.py, which
+    drops a link whose target is gone, would empty every page. The one
+    dead row is added afterwards, on purpose."""
+    for (_doctype, _name), (_table, rows) in list(site.tables.items()):
+        for row in rows:
+            if row.get("link_to") and row.get("link_type"):
+                site.known.add((row["link_type"], row["link_to"]))
+    for cards in R.CARDS.values():
+        for _card, links in cards:
+            for link in links:
+                site.known.add((link[2], link[1]))
+    for entries in R.SIDEBAR.values():
+        for entry in entries:
+            site.known.add((entry[2], entry[1]))
+
+
 def fresh_site(newest_first):
     site = Site(newest_first)
+    _know(site)
     # the launcher grid is Desktop Icon rows; a page of ours needs one, and
     # it sits under the app tile the page names
     site.put("DocType", "Desktop Icon", "roles", [])
@@ -577,6 +602,7 @@ def fresh_site(newest_first):
         shipped = upstream_sidebar(label)
         if shipped:
             site.put("Workspace Sidebar", label, "items", shipped["items"])
+    _know(site)
     return site
 
 
@@ -586,6 +612,16 @@ for newest_first in (False, True):
         site = fresh_site(newest_first)
         if not site.tables:
             continue
+        # A link to a DocType this app removed. On the real site this one
+        # row made the whole Performance page unwritable, and the run that
+        # would have filled Leaves and Tenure was rolled back with it.
+        dead = ("Workspace", "Performance")
+        if dead in site.tables:
+            table, rows = site.tables[dead]
+            rows.append(site.named({"type": "Link", "label": "Appraisal Template (LPL PMS)",
+                                    "link_type": "DocType", "link_to": "BSC Appraisal Template",
+                                    "hidden": 0, "onboard": 0, "link_count": 0,
+                                    "is_query_report": 0, "idx": len(rows) + 1}))
         if damaged:
             for _ in range(3):  # three deploys of the faulty writer
                 for label, cards in R.CARDS.items():
@@ -638,6 +674,11 @@ for newest_first in (False, True):
             wanted = [item["label"] for item in R.merge_sidebar(base_sidebar(label)["items"], entries)]
             if [item["label"] for item in items] != wanted:
                 fail.append("%s: the %s sidebar reads %s, not %s" % (what, label, [item["label"] for item in items], wanted))
+        if dead in site.tables:
+            left = [row.get("link_to") for row in site.rows(*dead)]
+            if "BSC Appraisal Template" in left:
+                fail.append("%s: a link to a deleted DocType was kept; Frappe would refuse to save "
+                            "the page at all while it is there" % what)
         for page in R.PAGES:
             for doctype in ("Workspace", "Workspace Sidebar", "Desktop Icon"):
                 if (doctype, page["label"]) not in site.tables:

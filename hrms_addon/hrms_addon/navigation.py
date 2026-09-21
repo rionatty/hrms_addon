@@ -147,9 +147,10 @@ def _apply_cards(workspace, cards):
     if not frappe.db.exists("Workspace", workspace):
         return
     doc = frappe.get_doc("Workspace", workspace)
-    links = rules.merge_links([row.as_dict() for row in doc.links], cards)
+    current = [row.as_dict() for row in doc.links]
+    links = rules.merge_links(_prune(current), cards)
     content = rules.merge_content(json.loads(doc.content or "[]"), cards)
-    if _same(links, [row.as_dict() for row in doc.links]) and json.loads(doc.content or "[]") == content:
+    if _same(links, current) and json.loads(doc.content or "[]") == content:
         return  # re-saving would only churn `modified` on every migrate
     _write(doc, "links", links)
     doc.content = json.dumps(content)
@@ -161,8 +162,9 @@ def _apply_sidebar(workspace, entries):
     if not frappe.db.exists("Workspace Sidebar", workspace):
         return
     doc = frappe.get_doc("Workspace Sidebar", workspace)
-    items = rules.merge_sidebar([row.as_dict() for row in doc.items], entries)
-    if _same(items, [row.as_dict() for row in doc.items]):
+    current = [row.as_dict() for row in doc.items]
+    items = rules.merge_sidebar(_prune(current), entries)
+    if _same(items, current):
         return
     _write(doc, "items", items)
     doc.flags.ignore_permissions = True
@@ -211,6 +213,34 @@ def show():
     report = "\n".join(lines)
     print(report)
     return report
+
+
+# what a row can point at, and the doctype each kind is a name in
+LINK_KINDS = ("DocType", "Report", "Page", "Workspace", "Dashboard")
+
+
+def _prune(rows):
+    """The rows whose target is gone.
+
+    Frappe validates every row of a child table when the parent is saved,
+    so one link to a deleted DocType makes the whole page unwritable:
+
+        LinkValidationError: Could not find Row #14:
+        Link To: BSC Appraisal Template
+
+    That was this app's own doctype until the scorecard moved onto Frappe
+    HR's Appraisal Template. Deleting a doctype does not take the rows
+    that point at it, and until they go nothing else can be written to the
+    page — which is why Leaves and Tenure sat without their links while
+    the run that would have added them was rolled back by this one row.
+    """
+    kept = []
+    for row in rows:
+        target, kind = row.get("link_to"), row.get("link_type")
+        if kind in LINK_KINDS and target and not frappe.db.exists(kind, target):
+            continue
+        kept.append(row)
+    return kept
 
 
 def _write(doc, table, rows):
