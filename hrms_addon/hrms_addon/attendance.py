@@ -134,6 +134,10 @@ def overtime_validate(doc, method=None):
         if row.employee and not row.section:
             row.section = doc.get("section") or frappe.db.get_value("Employee", row.employee, "department")
     doc.total_hours = sum(flt(row.hours) for row in doc.get("employees") or [])
+    # what sort of day it is, and so what it is worth (overtime.py)
+    from hrms_addon.hrms_addon import overtime
+
+    overtime.fill_day_and_rate(doc)
     counted = rules.coupons([row.as_dict() for row in doc.get("employees") or []])
     doc.coupons_permanent = counted.get("Permanent", 0)
     doc.coupons_casual = counted.get("Casual", 0)
@@ -183,8 +187,10 @@ def authorise_overtime(name, remarks=None):
                 "authority_remarks": remarks or doc.get("authority_remarks")}, update_modified=False)
     officers = people.hr_officers(doc.get("branch"), doc.get("department"))
     people.notify(officers, doc.doctype, doc.name,
-                  _("Overtime authorised for {0}: {1} permanent and {2} casual coupon(s) to issue.").format(
-                      frappe.utils.format_date(doc.overtime_date), doc.coupons_permanent, doc.coupons_casual))
+                  _("Overtime authorised for {0}: {1} permanent and {2} casual coupon(s) to "
+                    "issue, and the cost to check before payroll.").format(
+                      frappe.utils.format_date(doc.overtime_date), doc.coupons_permanent,
+                      doc.coupons_casual))
     return doc.status
 
 

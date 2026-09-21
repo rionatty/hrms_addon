@@ -339,6 +339,10 @@ after_migrate = [
     # position and the graduate trainee. See talent_approval.py,
     # talent_program_approval.py, succession_approval.py, trainee_approval.py.
     "hrms_addon.hrms_addon.talent.setup_workflows_on_migrate",
+    # The three kinds of overtime day, at the Employment Act's floor, and a
+    # word on the deploy if somebody has edited one below it. See
+    # overtime_rules.py.
+    "hrms_addon.hrms_addon.overtime.setup_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those

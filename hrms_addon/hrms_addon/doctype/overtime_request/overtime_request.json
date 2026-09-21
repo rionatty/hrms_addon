@@ -28,6 +28,20 @@
   "column_break_6",
   "authorised_by",
   "authorised_on",
+  "day_section",
+  "day_kind",
+  "overtime_type",
+  "column_break_8",
+  "multiplier",
+  "cost_centre",
+  "cost_section",
+  "total_cost",
+  "costed_by",
+  "costed_on",
+  "column_break_9",
+  "cost_remarks",
+  "over_the_cap",
+  "sent_to_payroll_on",
   "coupon_section",
   "coupons_permanent",
   "coupons_casual",
@@ -96,7 +110,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nRequested\nAuthorised\nRejected\nCancelled",
+   "options": "Draft\nRequested\nAuthorised\nCosted\nSent to Payroll\nRejected\nCancelled",
    "read_only": 1,
    "default": "Draft",
    "in_standard_filter": 1,
@@ -173,6 +187,95 @@
    "fieldname": "authorised_on",
    "fieldtype": "Date",
    "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "day_section",
+   "fieldtype": "Section Break",
+   "label": "The day it falls on",
+   "description": "Read from the employee's holiday list and roster, not typed: a public holiday, a rest day or a weekday, which is what sets the rate."
+  },
+  {
+   "fieldname": "day_kind",
+   "fieldtype": "Select",
+   "label": "Kind of Day",
+   "options": "\nWeekday\nRest Day\nPublic Holiday\nLeave Day",
+   "read_only": 1
+  },
+  {
+   "fieldname": "overtime_type",
+   "fieldtype": "Link",
+   "label": "Overtime Type",
+   "options": "Overtime Type",
+   "read_only": 1,
+   "description": "Frappe HR's own Overtime Type carries the multiplier and the salary component: the hours are priced and paid through it."
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "multiplier",
+   "fieldtype": "Float",
+   "label": "Rate Multiplier",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "cost_centre",
+   "fieldtype": "Link",
+   "label": "Cost Centre",
+   "options": "Cost Center",
+   "description": "Which cost centre carries this overtime."
+  },
+  {
+   "fieldname": "cost_section",
+   "fieldtype": "Section Break",
+   "label": "HR cost check",
+   "description": "What the overtime comes to, checked by HR before it is passed to payroll."
+  },
+  {
+   "fieldname": "total_cost",
+   "fieldtype": "Currency",
+   "label": "Total Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "costed_by",
+   "fieldtype": "Link",
+   "label": "Costed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "costed_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_remarks",
+   "fieldtype": "Small Text",
+   "label": "HR Remarks"
+  },
+  {
+   "fieldname": "over_the_cap",
+   "fieldtype": "Check",
+   "label": "Over the Type's Ceiling",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sent_to_payroll_on",
+   "fieldtype": "Date",
+   "label": "Sent to Payroll",
    "read_only": 1,
    "no_copy": 1
   },

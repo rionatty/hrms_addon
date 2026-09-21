@@ -10,7 +10,10 @@
   "section",
   "hours",
   "employment",
-  "remarks"
+  "remarks",
+  "hourly_rate",
+  "amount",
+  "attendance"
  ],
  "fields": [
   {
@@ -59,6 +62,30 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "hourly_rate",
+   "fieldtype": "Currency",
+   "label": "Hourly Rate",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "attendance",
+   "fieldtype": "Link",
+   "label": "Attendance",
+   "options": "Attendance",
+   "read_only": 1,
+   "no_copy": 1
   }
  ],
  "istable": 1,

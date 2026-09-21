@@ -1,0 +1,342 @@
+"""Verify overtime, without a bench:
+
+    python scripts/verify_overtime.py
+
+The Overtime Management sheet of Luuka's revised testing scripts, all five
+cases: the types and their multipliers (1), capture from attendance (2),
+the Supervisor to HOD to HR cost check (3), the feed into payroll (4), and
+work on a leave day or public holiday as special overtime (5).
+
+  1  what sort of day it is, and what that is worth
+  2  what HR must have before the cost is accepted, and before it is paid
+  3  the paper carries the day, the rate, the cost and where it went
+  4  the glue reads and writes fields that exist, and really reaches
+     Frappe HR's own Overtime Type and Overtime Slip rather than pricing
+     the work itself
+  5  wiring: the types seeded on migrate, the buttons whitelisted, the way in
+
+Frappe HR's and ERPNext's own fields are read from FRAPPE_APPS_ROOT
+(default ../ERPNext).
+"""
+import ast
+import glob
+import importlib.util
+import json
+import os
+import re
+import sys
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PACKAGE = os.path.join(REPO, "hrms_addon")
+APP = os.path.join(PACKAGE, "hrms_addon")
+APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
+fail = []
+
+
+def read(*parts):
+    return open(os.path.join(REPO, *parts), encoding="utf-8").read()
+
+
+def load(name):
+    spec = importlib.util.spec_from_file_location(name, os.path.join(APP, name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # proves it has no Frappe import
+    return module
+
+
+def doctype(name):
+    folder = name.lower().replace(" ", "_").replace("'", "")
+    path = os.path.join(APP, "doctype", folder, folder + ".json")
+    return json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+
+
+def upstream_doctype(name):
+    folder = name.lower().replace(" ", "_")
+    for app in ("frappe", "erpnext", "hrms"):
+        hits = glob.glob(os.path.join(APPS_ROOT, app, app, "**", "doctype", folder,
+                                      folder + ".json"), recursive=True)
+        if hits:
+            return json.load(open(hits[0], encoding="utf-8"))
+    return None
+
+
+def fields_of(spec):
+    return {f["fieldname"]: f for f in (spec or {}).get("fields", [])}
+
+
+def expect(label, got, *needles):
+    if not needles:
+        if got:
+            fail.append("%s: expected no errors, got %s" % (label, got))
+        return
+    if len(got) != len(needles):
+        fail.append("%s: expected %d error(s), got %s" % (label, len(needles), got))
+    for needle in needles:
+        if not any(needle in message for message in got):
+            fail.append("%s: expected an error containing %r, got %s" % (label, needle, got))
+
+
+def hooks_dict():
+    tree = ast.parse(read("hrms_addon", "hooks.py"))
+    out = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+            try:
+                out[node.targets[0].id] = ast.literal_eval(node.value)
+            except ValueError:
+                pass
+    return out
+
+
+R = load("overtime_rules")
+A = load("attendance_rules")
+hooks = hooks_dict()
+print("loaded overtime_rules.py without Frappe")
+
+# ── 1. The day, and what it is worth ──────────────────────────────────
+if R.KINDS != ("Weekday", "Rest Day", "Public Holiday", "Leave Day"):
+    fail.append("the four kinds of day: %s" % (R.KINDS,))
+# the Employment Act's floor (Cap 219, s.53 and s.54)
+if R.ACT_MULTIPLIERS[R.WEEKDAY] != 1.5:
+    fail.append("overtime on a normal day is one and a half times")
+for kind in (R.REST_DAY, R.PUBLIC_HOLIDAY):
+    if R.ACT_MULTIPLIERS[kind] != 2.0:
+        fail.append("work on a %s is twice" % kind.lower())
+
+if R.kind_of_day({}) != R.WEEKDAY:
+    fail.append("an ordinary day is a weekday")
+if R.kind_of_day({"is_weekly_off": True}) != R.REST_DAY:
+    fail.append("the employee's weekly off is a rest day")
+if R.kind_of_day({"on_holiday_list": True}) != R.PUBLIC_HOLIDAY:
+    fail.append("a day on their holiday list is a public holiday")
+# a public holiday that falls on the weekly off is still their rest day
+if R.kind_of_day({"on_holiday_list": True, "is_weekly_off": True}) != R.REST_DAY:
+    fail.append("a holiday list carries the weekly offs too: a weekly off is a rest day")
+# test case 5: work on a leave day is its own thing, whatever the date is
+if R.kind_of_day({"on_leave": True}) != R.LEAVE_DAY:
+    fail.append("test case 5: work on a leave day is special overtime")
+if R.kind_of_day({"on_leave": True, "on_holiday_list": True}) != R.LEAVE_DAY:
+    fail.append("being on leave is read before the calendar is")
+
+# test case 1: the type on the site carries the policy, not this module
+if R.multiplier_for(R.WEEKDAY) != 1.5:
+    fail.append("with no type on the site the Act's floor stands")
+site_type = {"standard_multiplier": 1.75, "applicable_for_weekend": 1, "weekend_multiplier": 2.5,
+             "applicable_for_public_holiday": 1, "public_holiday_multiplier": 3.0}
+if R.multiplier_for(R.WEEKDAY, site_type) != 1.75:
+    fail.append("a weekday reads the type's standard multiplier")
+if R.multiplier_for(R.REST_DAY, site_type) != 2.5:
+    fail.append("a rest day reads the weekend multiplier")
+if R.multiplier_for(R.PUBLIC_HOLIDAY, site_type) != 3.0:
+    fail.append("a public holiday reads the holiday multiplier")
+if R.multiplier_for(R.LEAVE_DAY, site_type) != 2.5:
+    fail.append("a leave day is paid as a rest day")
+off = {"standard_multiplier": 1.75, "applicable_for_weekend": 0,
+       "applicable_for_public_holiday": 0}
+if R.multiplier_for(R.PUBLIC_HOLIDAY, off) != 1.75:
+    fail.append("a type that does not separate holidays pays its standard rate on one")
+if not R.below_the_act(R.WEEKDAY, 1.25):
+    fail.append("a rate under the Act must be noticed")
+if R.below_the_act(R.WEEKDAY, 1.5) or R.below_the_act(R.WEEKDAY, None):
+    fail.append("the floor itself is not below the floor")
+
+# Luuka's month: 26 days of ten standard hours (attendance_rules)
+if R.STANDARD_HOURS_PER_DAY != A.STANDARD_HOURS:
+    fail.append("the standard day here and in attendance_rules must be the same: %s vs %s"
+                % (R.STANDARD_HOURS_PER_DAY, A.STANDARD_HOURS))
+if R.DAYS_PER_MONTH != 26:
+    fail.append("the attendance cycle is twenty-six days")
+if R.hourly_rate(1040000) != 4000.0:
+    fail.append("a million and forty thousand over 260 hours is four thousand an hour: %s"
+                % R.hourly_rate(1040000))
+if R.hourly_rate(None) != 0.0:
+    fail.append("no base is no rate, not a crash")
+if R.amount(3, 4000, 1.5) != 18000.0:
+    fail.append("three hours at four thousand and a half again is eighteen thousand")
+if R.amount(3, 0, 1.5) != 0.0:
+    fail.append("no rate is no amount")
+print("the day: read, not typed, and priced at the Act's floor or the type's own rate")
+
+# ── 2. Pricing a request, and the two gates ───────────────────────────
+rows = [{"employee": "HR-EMP-1", "employee_name": "A", "hours": 3},
+        {"employee": "HR-EMP-2", "employee_name": "B", "hours": 2}]
+costed = R.priced(rows, {"HR-EMP-1": 1040000, "HR-EMP-2": 520000}, R.WEEKDAY)
+if costed["total"] != 18000.0 + 6000.0:
+    fail.append("the request totals its rows: %s" % costed["total"])
+if costed["multiplier"] != 1.5:
+    fail.append("at the day's rate")
+if costed["unpriced"]:
+    fail.append("both were priced")
+unpaid = R.priced(rows, {"HR-EMP-1": 1040000}, R.WEEKDAY)
+if unpaid["unpriced"] != ["B"]:
+    fail.append("somebody with no salary on record is named, not dropped: %s" % unpaid)
+if len(unpaid["rows"]) != 2:
+    fail.append("and their row is still shown, at nothing")
+holiday = R.priced(rows, {"HR-EMP-1": 1040000, "HR-EMP-2": 520000}, R.PUBLIC_HOLIDAY)
+if holiday["total"] <= costed["total"]:
+    fail.append("a public holiday costs more than a weekday")
+
+good = {"status": "Authorised", "rows": costed["rows"], "unpriced": [],
+        "cost_centre": "Kawempe - LPL"}
+expect("a proper cost check", R.cost_check_errors(good))
+expect("costing before the officer signed", R.cost_check_errors(dict(good, status="Requested")),
+       "once the authorising officer has signed")
+expect("costing with nobody on it", R.cost_check_errors(dict(good, rows=[])), "nobody on the request")
+expect("costing somebody with no salary", R.cost_check_errors(dict(good, unpriced=["B"])),
+       "no salary on record for B")
+expect("costing with no cost centre", R.cost_check_errors(dict(good, cost_centre=None)),
+       "which cost centre")
+
+paid = {"status": "Costed", "rows": [dict(row, attendance="HR-ATT-1") for row in rows]}
+expect("a proper hand-off", R.payroll_errors(paid))
+expect("paying before HR costed it", R.payroll_errors(dict(paid, status="Authorised")),
+       "after HR have checked")
+expect("paying hours with no attendance to sit on",
+       R.payroll_errors(dict(paid, rows=[dict(rows[0], attendance=None)])),
+       "no attendance for A")
+
+if not R.over_the_cap(20, 16) or R.over_the_cap(12, 16) or R.over_the_cap(99, 0):
+    fail.append("the type's ceiling is compared, and no ceiling is no complaint")
+print("the two gates: the cost is checked before it is paid, and nothing is paid unattended")
+
+# ── 3. What goes onto the attendance ──────────────────────────────────
+# test cases 2 and 4: Frappe HR's Overtime Slip reads the Attendance row,
+# so that is what the authorised hours are written onto
+update = R.attendance_update({"hours": 3}, R.PUBLIC_HOLIDAY)
+attendance = fields_of(upstream_doctype("Attendance"))
+for fieldname in update:
+    if fieldname not in attendance:
+        fail.append("Attendance has no %s: the overtime slip would never see the hours"
+                    % fieldname)
+if update["overtime_type"] != R.type_name_for(R.PUBLIC_HOLIDAY):
+    fail.append("the row carries the type the day falls under")
+if update["actual_overtime_duration"] != 3.0:
+    fail.append("and the hours authorised")
+slip = fields_of(upstream_doctype("Overtime Slip"))
+for fieldname in ("employee", "start_date", "end_date", "overtime_details"):
+    if fieldname not in slip:
+        fail.append("Overtime Slip has no %s" % fieldname)
+details = fields_of(upstream_doctype("Overtime Details"))
+for fieldname in ("reference_document", "overtime_type", "overtime_duration"):
+    if fieldname not in details:
+        fail.append("Overtime Details has no %s" % fieldname)
+overtime_type = fields_of(upstream_doctype("Overtime Type"))
+for fieldname in ("standard_multiplier", "weekend_multiplier", "public_holiday_multiplier",
+                  "overtime_salary_component", "maximum_overtime_hours_allowed"):
+    if fieldname not in overtime_type:
+        fail.append("Overtime Type has no %s: test case 1 is not theirs after all" % fieldname)
+window = R.slip_window("2026-05-26", "2026-06-25")
+if window != {"start_date": "2026-05-26", "end_date": "2026-06-25"}:
+    fail.append("a slip covers the attendance cycle: %s" % window)
+print("capture and payment: Frappe HR's own Attendance, Overtime Type and Overtime Slip")
+
+# ── 4. The paper ──────────────────────────────────────────────────────
+request = fields_of(doctype("Overtime Request"))
+for fieldname in ("day_kind", "overtime_type", "multiplier", "cost_centre", "total_cost",
+                  "costed_by", "costed_on", "cost_remarks", "over_the_cap",
+                  "sent_to_payroll_on"):
+    if fieldname not in request:
+        fail.append("the overtime request has no %s" % fieldname)
+for fieldname in ("day_kind", "overtime_type", "multiplier", "total_cost", "over_the_cap"):
+    if not request.get(fieldname, {}).get("read_only"):
+        fail.append("%s is worked out, not typed: it must be read-only" % fieldname)
+if request.get("overtime_type", {}).get("options") != "Overtime Type":
+    fail.append("the request points at Frappe HR's own Overtime Type")
+if request.get("cost_centre", {}).get("options") != "Cost Center":
+    fail.append("the cost centre is a real Cost Center (Organisation & Setup, case 9)")
+statuses = (request.get("status", {}).get("options") or "").split("\n")
+for status in R.STATUSES:
+    if status not in statuses:
+        fail.append("the request cannot reach %s" % status)
+if statuses.index("Costed") < statuses.index("Authorised"):
+    fail.append("the cost is checked after the authority signs, not before")
+row = fields_of(doctype("Overtime Request Employee"))
+for fieldname in ("hourly_rate", "amount", "attendance"):
+    if fieldname not in row:
+        fail.append("a name on the request has no %s" % fieldname)
+if row.get("attendance", {}).get("options") != "Attendance":
+    fail.append("each row remembers the attendance its hours were written onto")
+print("the paper: the day, the rate, the cost centre, the cost and where it went")
+
+# ── 5. The glue ───────────────────────────────────────────────────────
+glue = read("hrms_addon", "hrms_addon", "overtime.py")
+known = set(request) | set(row) | {"doctype", "name", "docstatus", "employee", "company",
+                                   "flags", "employees"}
+for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
+                        | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
+    if fieldname in ("get", "set", "append", "db_set", "get_doc_before_save", "check_permission",
+                     "insert", "submit", "cancel", "save", "as_dict", "update", "name"):
+        continue
+    if fieldname not in known:
+        fail.append("overtime.py reads or writes %s, which is not on the request" % fieldname)
+for needle, why in (
+    ("rules.kind_of_day(", "what sort of day it is comes from the rules (case 5)"),
+    ("rules.multiplier_for(", "and what that is worth (case 1)"),
+    ("rules.priced(", "the request is priced for the cost check (case 3)"),
+    ("rules.cost_check_errors(", "which has to be complete before HR sign it"),
+    ("rules.payroll_errors(", "and complete again before it is paid (case 4)"),
+    ("rules.attendance_update(", "the hours go onto the attendance (case 2)"),
+    ("Salary Structure Assignment", "an hour of pay comes off the employee's own base"),
+    ('"Holiday"', "a public holiday is read from the holiday list, not guessed"),
+    ("Leave Application", "and a leave day from the leave itself (case 5)"),
+    ("SLIP", "the slip is Frappe HR's, and it is really drawn"),
+    ("attendance_rules.cycle_window", "over the attendance cycle it belongs to"),
+):
+    if needle not in glue:
+        fail.append("overtime.py: %s (%r not found)" % (why, needle))
+# Nothing here prices the payslip itself: that is the slip's job. The
+# prose says so, so the check reads the code with the docstrings taken
+# out rather than the file as written.
+def code_only(source):
+    tree = ast.parse(source)
+    lines = source.split("\n")
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        body = node.body
+        if not (body and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)):
+            continue
+        for number in range(body[0].lineno - 1, body[0].end_lineno):
+            lines[number] = ""
+    return "\n".join(line.split("#")[0] for line in lines)
+
+
+body = code_only(glue)
+for forbidden, why in (
+    ("Additional Salary", "the Overtime Slip writes the Additional Salary, not this module"),
+    ("Salary Slip", "and nothing here touches a payslip"),
+):
+    if forbidden in body:
+        fail.append("overtime.py: %s (%r found in the code)" % (why, forbidden))
+for name in ("cost_check", "send_to_payroll"):
+    if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue):
+        fail.append("overtime.%s changes something: a whitelisted POST method" % name)
+if glue.count("check_permission(") < 2:
+    fail.append("each whitelisted method must check the caller may act")
+if "fill_day_and_rate" not in read("hrms_addon", "hrms_addon", "attendance.py"):
+    fail.append("the request must learn what day it falls on as it validates")
+print("glue: the day read, the cost checked, the hours landed, the slip drawn")
+
+# ── 6. Wiring ─────────────────────────────────────────────────────────
+if "hrms_addon.hrms_addon.overtime.setup_on_migrate" not in hooks.get("after_migrate", []):
+    fail.append("the three overtime types must be seeded on every migrate")
+if "warn_below_the_act" not in glue:
+    fail.append("a rate edited under the Act is said out loud on the deploy")
+form = read("hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.js")
+for needle in ("overtime.cost_check", "overtime.send_to_payroll"):
+    if needle not in form:
+        fail.append("the form has no way to call %s" % needle)
+nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
+if "Overtime Request" not in nav:
+    fail.append("the request has no way in")
+print("wiring: seeded on migrate, the Act watched, both buttons on the form")
+
+if fail:
+    print("\nFAILURES:")
+    for message in fail:
+        print("  -", message)
+    sys.exit(1)
+print("\nALL OVERTIME CHECKS PASSED")

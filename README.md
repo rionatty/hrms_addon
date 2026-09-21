@@ -613,6 +613,26 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_overtime.py` covers overtime. Frappe HR already ships the pricing
+and the payroll route — an Overtime Type carries the multipliers, an
+Attendance row carries the hours, and an Overtime Slip gathers those rows,
+prices them and writes the Additional Salary payroll reads — so none of
+that is rebuilt. What was missing is Luuka's own middle: LPL/HR/14 is
+raised and authorised *before* the work, and nothing carried the authorised
+hours onto the attendance the slip reads, so approved overtime and paid
+overtime were two separate stories. The request now reads what sort of day
+it falls on (a public holiday off the employee's own holiday list, their
+weekly off, a day they are on leave, or a weekday), shows the rate before
+anybody signs, and after the authorising officer signs it goes to HR for
+the cost check — each person's own hourly pay out of their salary
+structure, times the day's rate, against a named cost centre. Sending it on
+writes the hours onto the Attendance rows with the right Overtime Type and
+draws the slips for the cycle. The checker asserts the multipliers seeded
+are the Employment Act's floor (one and a half on a normal day, twice on a
+rest day or public holiday), that the standard day agrees with
+`attendance_rules.STANDARD_HOURS`, and that nothing in the module writes an
+Additional Salary or a Salary Slip itself.
+
 `verify_talent.py` covers talent management: the nine-box review,
 succession and the graduate trainee scheme. Performance is never re-entered
 — it is the Appraisal's own score, and the line between Low and Meeting is
