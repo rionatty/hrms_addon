@@ -456,16 +456,23 @@ for dt in ("Employee Separation", "Full and Final Statement"):
     if dt not in (hooks.get("doctype_js") or {}):
         fail.append("%s needs its form script" % dt)
 navigation = load("navigation_rules")
-carded = {link[1] for cards in navigation.CARDS.values() for _card, links in cards for link in links}
-sidebarred = {entry[1] for entries in navigation.SIDEBAR.values() for entry in entries}
+# the page each thing is on, not merely whether it is on SOME page: the
+# exit documents were listed in Recruitment's sidebar while their card sat
+# on Tenure, each anchored after an entry only Tenure has, so none of them
+# could seat where it was meant to
+carded = {link[1]: page for page, cards in navigation.CARDS.items()
+          for _card, links in cards for link in links}
+sidebarred = {entry[1]: page for page, entries in navigation.SIDEBAR.items() for entry in entries}
 for name in ("Clearance Form", "Employee Separation", "Exit Interview", "Full and Final Statement"):
-    if name not in carded:
-        fail.append("%s is on no workspace card: their Tenure page lists nothing about leaving" % name)
+    if carded.get(name) != "Tenure":
+        fail.append("%s belongs on the Tenure page, where leaving belongs; it is on %r"
+                    % (name, carded.get(name)))
 if "Employee Separation" in sidebarred:
     fail.append("Employee Separation is their own sidebar entry: leave it where they put it")
 for name in ("Clearance Form", "Exit Interview", "Full and Final Statement"):
-    if name not in sidebarred:
-        fail.append("%s is in no sidebar" % name)
+    if sidebarred.get(name) != "Tenure":
+        fail.append("%s's sidebar entry belongs on Tenure, beside Employee Separation; it is on %r"
+                    % (name, sidebarred.get(name)))
 print("wiring: the doc events, both workflows on migrate, the daily job, the way in")
 
 print()

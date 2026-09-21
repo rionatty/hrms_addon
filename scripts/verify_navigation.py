@@ -247,6 +247,20 @@ for label, cards in R.CARDS.items():
     content = R.merge_content(json.loads(shipped.get("content") or "[]"), cards)
     if R.merge_content(content, cards) != content:
         fail.append("%s: a second migrate would add the card blocks again" % label)
+# An entry that follows something its own page does not have can never
+# seat where it was meant to: _seat gives up and puts it at the end of the
+# list instead, silently. That is how the exit documents came to be listed
+# under Recruitment, each following an entry only Tenure has.
+for label, entries in R.SIDEBAR.items():
+    base = base_sidebar(label) or {"items": []}
+    here = {entry[1] for entry in entries}
+    here |= {item.get("link_to") for item in base["items"] if item.get("link_to")}
+    here |= {item.get("label") for item in base["items"] if item.get("label")}
+    for _label, link_to, _kind, _section, after in entries:
+        if after and after not in here:
+            fail.append("SIDEBAR[%r]: %s follows %s, which is on no entry of that page"
+                        % (label, link_to, after))
+
 for label, entries in R.SIDEBAR.items():
     shipped = base_sidebar(label)
     if not shipped:

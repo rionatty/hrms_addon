@@ -220,11 +220,6 @@ SIDEBAR = {
         ("Interview Report", "Interview Report", DOCTYPE, None, "Interview"),
         ("Interview Criterion", "Interview Criterion", DOCTYPE, "Setup", None),
         ("Interview Criteria Group", "Interview Criteria Group", DOCTYPE, "Setup", None),
-        # Employee Separation is their own sidebar entry: it stays where
-        # they put it, and the rest of the exit follows it
-        ("Exit Interview", "Exit Interview", DOCTYPE, None, "Employee Separation"),
-        ("Clearance Form", "Clearance Form", DOCTYPE, None, "Exit Interview"),
-        ("Full and Final Statement", "Full and Final Statement", DOCTYPE, None, "Clearance Form"),
         ("Qualification Type", "Qualification Type", DOCTYPE, "Setup", None),
     ],
     # a promotion follows an appraisal, so it is reachable from here too
@@ -256,6 +251,11 @@ SIDEBAR = {
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),
         ("Probation Evaluation", "Probation Evaluation", DOCTYPE, None, "Onboarding Review"),
+        # Employee Separation is their own sidebar entry: it stays where
+        # they put it, and the rest of the exit follows it
+        ("Exit Interview", "Exit Interview", DOCTYPE, None, "Employee Separation"),
+        ("Clearance Form", "Clearance Form", DOCTYPE, None, "Exit Interview"),
+        ("Full and Final Statement", "Full and Final Statement", DOCTYPE, None, "Clearance Form"),
         ("Employee Contract", "Employee Contract", DOCTYPE, None, "Probation Evaluation"),
         # what follows the contract: a promotion, a change of designation or a
         # salary review, where the pay is sent, and internship placements
