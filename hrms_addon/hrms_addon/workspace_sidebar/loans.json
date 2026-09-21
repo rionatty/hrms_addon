@@ -1,0 +1,81 @@
+{
+ "app": "hrms_addon",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "loan",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "home",
+   "idx": 1,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Home",
+   "link_to": "Loans",
+   "link_type": "Workspace",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "",
+   "idx": 2,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Employee Loan",
+   "link_to": "Employee Loan",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "",
+   "idx": 3,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Employee Advance",
+   "link_to": "Employee Advance",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "database",
+   "idx": 4,
+   "indent": 1,
+   "keep_closed": 1,
+   "label": "Setup",
+   "link_to": null,
+   "link_type": null,
+   "show_arrow": 0,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "",
+   "idx": 5,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Salary Component",
+   "link_to": "Salary Component",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-09-21 20:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Loans",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "Loans"
+}

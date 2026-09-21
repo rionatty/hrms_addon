@@ -22,9 +22,13 @@ migrate, so anything of theirs that moved or was renamed survives.
 """
 
 DOCTYPE, REPORT, WORKSPACE = "DocType", "Report", "Workspace"
-# the app the pages belong to, so they appear in Frappe HR's own grid, and
-# the module they are ours through, so Frappe exports them to this app
-HOST_APP, MODULE = "hrms", "HRMS Addon"
+# A page of ours belongs to this app, not to Frappe HR's. That is not
+# cosmetic: remove_orphan_entities() looks for the file behind a record in
+# the app the record NAMES, and deletes it where there is none. Putting
+# Frappe HR's name on our records would send it looking in their app and
+# find nothing. Which grid the tile lands on is settled by the Desktop
+# Icon's parent_icon, not by this.
+OWN_APP, MODULE = "hrms_addon", "HRMS Addon"
 
 # Pages this app makes of its own, where Frappe HR has none to add to.
 # Lending is the only one: everything else Luuka do has a page already.
@@ -36,6 +40,11 @@ HOST_APP, MODULE = "hrms", "HRMS Addon"
 # puts it on the launcher grid: get_desktop_icons() reads those rows and
 # nothing else, so a page without one exists, opens by name, and appears
 # on no grid at all (apps_screen.py has the whole story).
+# All three are shipped as files — hrms_addon/workspace/<name>/,
+# workspace_sidebar/ and desktop_icon/ — because Frappe imports those
+# folders on every migrate and sweeps away any such record that has no
+# file behind it. The sweep runs BEFORE after_migrate, so a record only a
+# hook of ours creates is deleted at the start of the next deploy.
 #   label, icon (a desk icon name), sequence_id (where it sits: 8 falls
 #   between Performance and Payroll, among the money pages), sections (the
 #   sidebar headers it starts with), under (the app tile it sits in)

@@ -22,9 +22,11 @@ numbered afresh whenever they are written (navigation_rules.numbered).
 A workspace that is not installed is skipped, so the app still installs on
 a site without Frappe HR. The exception is a page this app makes of its
 own (navigation_rules.PAGES): Frappe HR has no page for lending, so the
-Loans page is created here and then filled the same way as theirs. Such a
-page is three records — the Workspace, its Workspace Sidebar, and the
-Desktop Icon that puts it on the launcher grid.
+Loans page is one of ours. Such a page is three records — the Workspace,
+its Workspace Sidebar, and the Desktop Icon that puts it on the launcher
+grid — and all three are SHIPPED AS FILES, which Frappe imports on every
+migrate. What is here is only a fallback for a site whose sync did not
+bring them in; it makes nothing that is already there.
 """
 
 import json
@@ -71,7 +73,7 @@ def _ensure_page(page):
     if not frappe.db.exists("Workspace", label):
         doc = frappe.get_doc({
             "doctype": "Workspace", "name": label, "label": label, "title": label,
-            "type": "Workspace", "app": rules.HOST_APP, "module": rules.MODULE,
+            "type": "Workspace", "app": rules.OWN_APP, "module": rules.MODULE,
             "icon": page["icon"], "sequence_id": page["sequence_id"],
             "public": 1, "parent_page": "", "content": "[]",
         })
@@ -80,10 +82,8 @@ def _ensure_page(page):
     if not frappe.db.exists("Workspace Sidebar", label):
         doc = frappe.get_doc({
             "doctype": "Workspace Sidebar", "name": label, "title": label,
-            "app": rules.HOST_APP, "module": rules.MODULE, "header_icon": page["icon"],
-            # not standard: a standard sidebar is exported into the app its
-            # `app` names, which is Frappe HR's and not ours to write in
-            "standard": 0,
+            "app": rules.OWN_APP, "module": rules.MODULE, "header_icon": page["icon"],
+            "standard": 1,
             "items": rules.new_sidebar(label, page.get("sections") or ()),
         })
         doc.flags.ignore_permissions = True
@@ -102,10 +102,9 @@ def _ensure_icon(page):
     under = page.get("under")
     doc = frappe.get_doc({
         "doctype": "Desktop Icon", "name": label, "label": label,
-        # the app is ours, so a developer-mode export writes the row into
-        # this app rather than Frappe HR's; the grid it lands on is the one
-        # `parent_icon` names, not the one `app` does
-        "app": "hrms_addon", "standard": 1, "hidden": 0,
+        # the app is ours, so the orphan sweep looks for the file where we
+        # keep it; the grid it lands on is the one `parent_icon` names
+        "app": rules.OWN_APP, "standard": 1, "hidden": 0,
         "icon_type": "Link", "link_type": "Workspace Sidebar", "link_to": label,
         "icon": page["icon"], "bg_color": "blue",
         "parent_icon": under if under and frappe.db.exists("Desktop Icon", under) else None,

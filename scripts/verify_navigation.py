@@ -177,6 +177,46 @@ for page in R.PAGES:
     if [row.get("idx") for row in start] != list(range(1, len(start) + 1)):
         fail.append("PAGES: a new sidebar is numbered 1, 2, 3...")
 
+    # All three records are shipped as files. remove_orphan_entities() runs
+    # BEFORE the after_migrate hooks and deletes a public Workspace with a
+    # module and an app, or a standard Workspace Sidebar or Desktop Icon,
+    # that has no file behind it in the app the record names. A record only
+    # a hook creates is swept at the start of the next deploy.
+    folder = page["label"].lower().replace(" ", "_")
+    files = {
+        "Workspace": os.path.join(APP, "workspace", folder, folder + ".json"),
+        "Workspace Sidebar": os.path.join(APP, "workspace_sidebar", folder + ".json"),
+        "Desktop Icon": os.path.join(APP, "desktop_icon", folder + ".json"),
+    }
+    for what, path in files.items():
+        if not os.path.exists(path):
+            fail.append("PAGES: %s has no %s file: the orphan sweep would delete the record"
+                        % (page["label"], what))
+    if all(os.path.exists(path) for path in files.values()):
+        shipped = {what: json.load(open(path, encoding="utf-8")) for what, path in files.items()}
+        for what, doc in shipped.items():
+            if doc.get("app") != R.OWN_APP:
+                fail.append("PAGES: the %s %s names app %r; the sweep would look for its file in "
+                            "that app and find none" % (page["label"], what, doc.get("app")))
+        wanted = R.merge_links([], R.CARDS[page["label"]])
+        if shipped["Workspace"]["links"] != wanted:
+            fail.append("PAGES: %s's workspace file is out of step with CARDS" % page["label"])
+        if shipped["Workspace"].get("content") != json.dumps(
+                R.merge_content([], R.CARDS[page["label"]])):
+            fail.append("PAGES: %s's workspace file has no blocks for its cards" % page["label"])
+        wanted = R.numbered(R.merge_sidebar(start, R.SIDEBAR[page["label"]]))
+        if shipped["Workspace Sidebar"]["items"] != wanted:
+            fail.append("PAGES: %s's sidebar file is out of step with SIDEBAR" % page["label"])
+        if not shipped["Workspace Sidebar"].get("standard"):
+            fail.append("PAGES: %s's sidebar is shipped, so it is standard" % page["label"])
+        icon = shipped["Desktop Icon"]
+        if icon.get("link_type") != "Workspace Sidebar" or icon.get("link_to") != page["label"]:
+            fail.append("PAGES: %s's tile must point at its own sidebar" % page["label"])
+        if icon.get("parent_icon") != page["under"]:
+            fail.append("PAGES: %s's tile must sit under %s" % (page["label"], page["under"]))
+        if not shipped["Workspace"].get("public"):
+            fail.append("PAGES: %s is a public page or nobody but its maker sees it" % page["label"])
+
 checked = 0
 for label, cards in R.CARDS.items():
     shipped = base_workspace(label)
