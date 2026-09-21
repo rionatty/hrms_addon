@@ -143,9 +143,43 @@ def upstream_sidebar(label):
     return json.load(open(path, encoding="utf-8")) if os.path.exists(path) else None
 
 
+def base_workspace(label):
+    """What a page starts from: what Frappe HR ships, or nothing at all
+    where this app makes the page itself (navigation_rules.PAGES)."""
+    return upstream_workspace(label) or (
+        {"links": [], "content": "[]"} if label in R.PAGE_LABELS else None)
+
+
+def base_sidebar(label):
+    page = next((row for row in R.PAGES if row["label"] == label), None)
+    return upstream_sidebar(label) or (
+        {"items": R.new_sidebar(label, page.get("sections") or ())} if page else None)
+
+
+# a page this app makes of its own starts empty, and is filled the same
+# way as one of theirs
+for page in R.PAGES:
+    for field in ("label", "icon", "sequence_id"):
+        if not page.get(field):
+            fail.append("PAGES: a page of ours needs a %s" % field)
+    if page["label"] not in R.CARDS or page["label"] not in R.SIDEBAR:
+        fail.append("PAGES: %s is made but nothing is put on it" % page["label"])
+    if upstream_workspace(page["label"]):
+        fail.append("Frappe HR ships a %s workspace now: add to theirs instead of making one"
+                    % page["label"])
+    start = R.new_sidebar(page["label"], page.get("sections") or ())
+    if start[0].get("link_to") != page["label"] or start[0].get("link_type") != "Workspace":
+        fail.append("PAGES: %s's sidebar must start with Home, pointing at the page" % page["label"])
+    for name in page.get("sections") or ():
+        if not [row for row in start if row.get("type") == "Section Break" and row.get("label") == name]:
+            fail.append("PAGES: %s's sidebar has no %s header for its entries to sit under"
+                        % (page["label"], name))
+    if [row.get("idx") for row in start] != list(range(1, len(start) + 1)):
+        fail.append("PAGES: a new sidebar is numbered 1, 2, 3...")
+
 checked = 0
 for label, cards in R.CARDS.items():
-    shipped = upstream_workspace(label)
+    shipped = base_workspace(label)
     if not shipped:
         fail.append("Frappe HR has no %s workspace to add to any more" % label)
         continue
@@ -174,7 +208,7 @@ for label, cards in R.CARDS.items():
     if R.merge_content(content, cards) != content:
         fail.append("%s: a second migrate would add the card blocks again" % label)
 for label, entries in R.SIDEBAR.items():
-    shipped = upstream_sidebar(label)
+    shipped = base_sidebar(label)
     if not shipped:
         fail.append("Frappe HR has no %s sidebar to add to any more" % label)
         continue
@@ -195,7 +229,8 @@ for label, entries in R.SIDEBAR.items():
     theirs = {item.get("link_to") for item in shipped["items"]} & {entry[1] for entry in entries}
     if theirs:
         fail.append("%s sidebar: Frappe HR ships %s itself now: take it out of SIDEBAR" % (label, sorted(theirs)))
-print("against Frappe HR's own %d workspaces: our cards land, theirs are kept, running twice changes nothing" % checked)
+print("against %d workspace pages (theirs and the %d this app makes): our cards land, theirs are kept, "
+      "running twice changes nothing" % (checked, len(R.PAGES)))
 
 # ── 3. Nothing this app ships is left unreachable ─────────────────────
 ours, reports = {}, set()
@@ -350,6 +385,7 @@ class Site:
 
     def __init__(self, newest_first):
         self.tables, self.content, self.saves, self.made, self.newest_first = {}, {}, 0, 0, newest_first
+        self.inserts = 0
 
     def put(self, doctype, name, table, rows, content=None):
         self.tables[(doctype, name)] = (table, [self.named(dict(row, idx=number)) for number, row in enumerate(rows, 1)])
@@ -370,8 +406,18 @@ class Site:
 
 
 class Doc:
-    def __init__(self, site, doctype, name):
+    TABLES = {"Workspace": "links", "Workspace Sidebar": "items"}
+
+    def __init__(self, site, doctype=None, name=None, values=None):
+        if values is not None:
+            doctype, name = values["doctype"], values.get("name") or values.get("title")
         self.site, self.doctype, self.name, self.flags = site, doctype, name, types.SimpleNamespace()
+        if values is not None:
+            self.table = self.TABLES[doctype]
+            setattr(self, self.table, [Row(row) for row in values.get(self.table) or []])
+            self.content = values.get("content")
+            self.values = values
+            return
         self.table = site.tables[(doctype, name)][0]
         setattr(self, self.table, [Row(row) for row in site.rows(doctype, name)])
         self.content = site.content[(doctype, name)]
@@ -387,6 +433,13 @@ class Doc:
             row["idx"] = len(rows)  # a number the row brought is kept
         return row
 
+    def insert(self):
+        """A record made rather than read: _ensure_page makes the pages
+        Frappe HR does not ship."""
+        self.site.put(self.doctype, self.name, self.table, getattr(self, self.table), self.content)
+        self.site.inserts += 1
+        return self
+
     def save(self):
         self.site.saves += 1
         self.site.tables[(self.doctype, self.name)] = (self.table, [self.site.named(dict(row)) for row in getattr(self, self.table)])
@@ -398,7 +451,8 @@ def run_glue(site):
     fake = types.ModuleType("frappe")
     fake.db = types.SimpleNamespace(exists=lambda doctype, name: (doctype, name) in site.tables,
                                     savepoint=lambda name: None, commit=lambda: None, rollback=lambda **kw: None)
-    fake.get_doc = lambda doctype, name: Doc(site, doctype, name)
+    fake.get_doc = lambda first, name=None: (Doc(site, values=first) if isinstance(first, dict)
+                                             else Doc(site, first, name))
     fake.log_error = lambda **kw: fail.append("navigation.py failed on the stand-in site: %s" % kw)
     package, inner = types.ModuleType("hrms_addon"), types.ModuleType("hrms_addon.hrms_addon")
     inner.navigation_rules = R
@@ -503,7 +557,7 @@ for newest_first in (False, True):
                     strays = [link for link in others if link in wanted and other != card]
                     if strays:
                         fail.append("%s: %s of the %s card turned up under %s in %s" % (what, strays, card, other, label))
-            shipped = upstream_workspace(label)
+            shipped = base_workspace(label)
             theirs = [(row.get("type"), row.get("label"), row.get("link_to")) for row in shipped["links"]]
             ours = {link[1] for _card, links in cards for link in links}
             their_cards = {row.get("label") for row in shipped["links"] if row.get("type") == "Card Break"}
@@ -518,13 +572,19 @@ for newest_first in (False, True):
             items = site.rows("Workspace Sidebar", label)
             if [item["idx"] for item in items] != list(range(1, len(items) + 1)):
                 fail.append("%s: the %s sidebar items are not numbered 1, 2, 3..." % (what, label))
-            wanted = [item["label"] for item in R.merge_sidebar(upstream_sidebar(label)["items"], entries)]
+            wanted = [item["label"] for item in R.merge_sidebar(base_sidebar(label)["items"], entries)]
             if [item["label"] for item in items] != wanted:
                 fail.append("%s: the %s sidebar reads %s, not %s" % (what, label, [item["label"] for item in items], wanted))
-        saves = site.saves
+        for page in R.PAGES:
+            for doctype in ("Workspace", "Workspace Sidebar"):
+                if (doctype, page["label"]) not in site.tables:
+                    fail.append("%s: the %s %s was never made" % (what, page["label"], doctype))
+        saves, inserts = site.saves, site.inserts
         run_glue(site)
         if site.saves != saves:
             fail.append("%s: a second migrate wrote %d record(s) again" % (what, site.saves - saves))
+        if site.inserts != inserts:
+            fail.append("%s: a second migrate made %d page(s) again" % (what, site.inserts - inserts))
 if not simulated:
     print("as Frappe writes it: NOT RUN, Frappe HR's workspaces were not found under %s" % APPS_ROOT)
 else:

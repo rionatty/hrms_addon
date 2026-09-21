@@ -276,8 +276,10 @@ carded = {link[1] for cards in navigation.CARDS.values() for _card, links in car
 sidebarred = {entry[1] for entries in navigation.SIDEBAR.values() for entry in entries}
 if "Employee Loan" not in carded or "Employee Loan" not in sidebarred:
     fail.append("the Employee Loan needs a way in")
-if "Expenses" not in navigation.CARDS:
-    fail.append("the loan belongs on Frappe HR's own Expenses page, beside their Employee Advance")
+if "Loans" not in navigation.CARDS or "Loans" not in navigation.SIDEBAR:
+    fail.append("loan management has a page of its own under HR")
+if "Loans" not in [page["label"] for page in navigation.PAGES]:
+    fail.append("and this app makes it: Frappe HR has no page for lending")
 print("wiring: the workflow on migrate, the daily job, the way in")
 
 print()

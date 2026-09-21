@@ -21,7 +21,25 @@ update rewrites those records and navigation.py puts these back on the next
 migrate, so anything of theirs that moved or was renamed survives.
 """
 
-DOCTYPE, REPORT = "DocType", "Report"
+DOCTYPE, REPORT, WORKSPACE = "DocType", "Report", "Workspace"
+# the app the pages belong to, so they appear in Frappe HR's own grid, and
+# the module they are ours through, so Frappe exports them to this app
+HOST_APP, MODULE = "hrms", "HRMS Addon"
+
+# Pages this app makes of its own, where Frappe HR has none to add to.
+# Lending is the only one: everything else Luuka do has a page already.
+# A page is made once and then left alone — what goes on it is merged in
+# like any other page, so a card someone adds by hand survives a migrate.
+#   label, icon (a desk icon name), sequence_id (where it sits in the
+#   grid: 8 falls between Performance and Payroll, among the money pages),
+#   sections (the sidebar headers it starts with)
+PAGES = (
+    {"label": "Loans", "icon": "loan", "sequence_id": 8.0, "sections": ("Setup",)},
+)
+PAGE_LABELS = tuple(page["label"] for page in PAGES)
+
+# the icon each standard sidebar section header carries
+SECTION_ICONS = {"Reports": "notepad-text", "Setup": "database", "Settings": "settings"}
 
 # workspace -> [(card, [(label, what it opens, kind)])]. A card that Frappe
 # HR already has (Reports, Onboarding) is added to, not replaced.
@@ -118,12 +136,19 @@ CARDS = {
             ("KRA", "KRA", DOCTYPE),
         ]),
     ],
-    # Frappe HR's Expenses page already lists their Employee Advance and
-    # Travel Request, which carry Luuka's advances and LPL.HR.31; the staff
-    # loan is the one document it does not have (loans.py)
-    "Expenses": [
+    # Luuka's staff loans are a process of their own (4.4) and Frappe HR
+    # has no page for lending, so this app makes one (PAGES). The advance
+    # is listed here too, because LPL/HR/21 calls it a loan and it is
+    # recovered like one; their Expenses page keeps its own entry.
+    "Loans": [
         ("Loans", [
             ("Employee Loan", "Employee Loan", DOCTYPE),
+        ]),
+        ("Advances", [
+            ("Employee Advance", "Employee Advance", DOCTYPE),
+        ]),
+        ("Setup", [
+            ("Salary Component", "Salary Component", DOCTYPE),
         ]),
     ],
     # Frappe HR's own leave page gains the plan the year is drawn up on:
@@ -197,8 +222,10 @@ SIDEBAR = {
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
     ],
-    "Expenses": [
-        ("Employee Loan", "Employee Loan", DOCTYPE, None, "Employee Advance"),
+    "Loans": [
+        ("Employee Loan", "Employee Loan", DOCTYPE, None, None),
+        ("Employee Advance", "Employee Advance", DOCTYPE, None, "Employee Loan"),
+        ("Salary Component", "Salary Component", DOCTYPE, "Setup", None),
     ],
     "Leaves": [
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
@@ -318,6 +345,18 @@ def merge_content(blocks, cards):
         if card not in have:
             blocks.append({"id": block_id(card), "type": "card", "data": {"card_name": card, "col": 4}})
     return blocks
+
+
+def new_sidebar(label, sections=()):
+    """The sidebar a page of ours starts with: Home, and a header for each
+    section its entries are seated under. Without the headers `_seat` has
+    nothing to put a Setup entry beneath and it would land at the end."""
+    rows = [dict(sidebar_row("Home", label, WORKSPACE), icon="home")]
+    for name in sections:
+        rows.append({"type": SECTION, "label": name, "link_type": None, "link_to": None,
+                     "icon": SECTION_ICONS.get(name, "database"), "child": 0, "indent": 1,
+                     "collapsible": 1, "keep_closed": 1, "show_arrow": 0})
+    return numbered(rows)
 
 
 def sidebar_row(label, link_to, kind, child=0):

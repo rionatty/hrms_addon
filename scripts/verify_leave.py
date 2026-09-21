@@ -486,9 +486,21 @@ if "Leaves" not in navigation.CARDS:
     fail.append("the plan belongs on Frappe HR's own leave page")
 if not os.path.exists(os.path.join(APPS_ROOT, "hrms", "hrms", "hr", "workspace", "leaves", "leaves.json")):
     fail.append("Frappe HR no longer ships the Leaves workspace")
-for name in ("Leave Application", "Employee Advance"):
-    if name in carded or name in sidebarred:
-        fail.append("%s is Frappe HR's own and already on their page: leave their entry alone" % name)
+if "Leave Application" in carded or "Leave Application" in sidebarred:
+    fail.append("Leave Application is Frappe HR's own and already on their page: leave their entry alone")
+# The advance is listed again on the Loans page this app makes, because
+# LPL/HR/21 calls it a loan and it is recovered like one. That is an
+# addition, not a move: merge_links only clears our links from the page it
+# is merging, so their own Expenses entry is untouched.
+for where in (navigation.CARDS, navigation.SIDEBAR):
+    for page, rows in where.items():
+        if page in navigation.PAGE_LABELS:
+            continue
+        listed = ([link[1] for _card, links in rows for link in links] if where is navigation.CARDS
+                  else [row[1] for row in rows])
+        if "Employee Advance" in listed:
+            fail.append("Employee Advance is Frappe HR's own: it belongs on their page and ours, "
+                        "not added to a third (%s)" % page)
 print("wiring: the doc events, the two workflows on migrate, the daily jobs, the seed, the way in")
 
 print()

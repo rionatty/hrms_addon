@@ -20,7 +20,9 @@ that is not its own, goes back once into the right one, and the rows are
 numbered afresh whenever they are written (navigation_rules.numbered).
 
 A workspace that is not installed is skipped, so the app still installs on
-a site without Frappe HR.
+a site without Frappe HR. The exception is a page this app makes of its
+own (navigation_rules.PAGES): Frappe HR has no page for lending, so the
+Loans page is created here and then filled the same way as theirs.
 """
 
 import json
@@ -50,11 +52,40 @@ def setup_on_migrate():
 
 
 def apply_navigation():
+    for page in rules.PAGES:
+        _ensure_page(page)
     for workspace, cards in rules.CARDS.items():
         _apply_cards(workspace, cards)
     for workspace, entries in rules.SIDEBAR.items():
         _apply_sidebar(workspace, entries)
     frappe.db.commit()
+
+
+def _ensure_page(page):
+    """A page of our own, made once. What goes on it is merged in like any
+    other page afterwards, so this never rewrites one that is already
+    there — a card someone added by hand survives the next migrate."""
+    label = page["label"]
+    if not frappe.db.exists("Workspace", label):
+        doc = frappe.get_doc({
+            "doctype": "Workspace", "name": label, "label": label, "title": label,
+            "type": "Workspace", "app": rules.HOST_APP, "module": rules.MODULE,
+            "icon": page["icon"], "sequence_id": page["sequence_id"],
+            "public": 1, "parent_page": "", "content": "[]",
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+    if not frappe.db.exists("Workspace Sidebar", label):
+        doc = frappe.get_doc({
+            "doctype": "Workspace Sidebar", "name": label, "title": label,
+            "app": rules.HOST_APP, "module": rules.MODULE, "header_icon": page["icon"],
+            # not standard: a standard sidebar is exported into the app its
+            # `app` names, which is Frappe HR's and not ours to write in
+            "standard": 0,
+            "items": rules.new_sidebar(label, page.get("sections") or ()),
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
 
 
 def _apply_cards(workspace, cards):

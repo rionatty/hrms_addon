@@ -536,6 +536,17 @@ own record is updated from it — designation, department, plant — and a new
 base becomes a Salary Structure Assignment on the structure they are
 already on.
 
+Loan management has a **page of its own under HR**, between Performance
+and Payroll. It is the only page this app makes rather than adds to:
+everything else Luuka do already has one of Frappe HR's, but they have
+none for lending. It is created once on migrate and then filled the same
+way as theirs, so a card added to it by hand survives the next deploy. It
+carries the **Employee Loan**, the **Employee Advance** — LPL/HR/21 calls
+that a loan in so many words, and it is recovered like one — and the
+**Salary Component** the repayments are posted to. Their own Expenses
+entry for the advance is untouched: the merge only clears our links from
+the page it is merging.
+
 `verify_exits.py` covers both exits (4.5 and 4.6) and the cessation
 benefits (4.9), built on Frappe HR's own **Employee Separation**, **Exit
 Interview** and **Full and Final Statement**. The separation knows which
