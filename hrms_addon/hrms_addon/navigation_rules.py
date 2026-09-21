@@ -222,6 +222,12 @@ CARDS = {
         ("Access", [
             ("Role and Access Matrix", "Role and Access Matrix", REPORT),
         ]),
+        # what an employee has to hold, and what is running out
+        # (documents.py)
+        ("Employee Documents", [
+            ("Employee Document Type", "Employee Document Type", DOCTYPE),
+            ("Document Expiry", "Document Expiry", REPORT),
+        ]),
         ("Job Description Lists", [
             ("KRA Perspective", "KRA Perspective", DOCTYPE),
             ("KRA Level", "KRA Level", DOCTYPE),
@@ -243,7 +249,8 @@ CARDS = {
 # The report each report link is for, so Frappe opens it on the right list
 REPORT_DOCTYPES = {"Contract Expiry Status": "Employee Contract",
                    "Succession Coverage": "Succession Position",
-                   "Role and Access Matrix": "Custom DocPerm"}
+                   "Role and Access Matrix": "Custom DocPerm",
+                   "Document Expiry": "Employee"}
 
 # workspace -> [(label, what it opens, kind, section, after)]
 #   section: the sidebar section it goes under ("Setup", "Reports"), or None

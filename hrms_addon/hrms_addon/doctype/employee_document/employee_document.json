@@ -1,0 +1,100 @@
+{
+ "actions": [],
+ "creation": "2026-09-22 04:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_type",
+  "number",
+  "issued_on",
+  "expires_on",
+  "status",
+  "days_left",
+  "attachment",
+  "alerted_at",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "label": "Document",
+   "options": "Employee Document Type",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "number",
+   "fieldtype": "Data",
+   "label": "Number",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "issued_on",
+   "fieldtype": "Date",
+   "label": "Issued",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "expires_on",
+   "fieldtype": "Date",
+   "label": "Runs Out",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nValid\nExpiring Soon\nExpired\nMissing\nNot Required",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "days_left",
+   "fieldtype": "Int",
+   "label": "Days Left",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Attach",
+   "label": "Copy",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "alerted_at",
+   "fieldtype": "Int",
+   "label": "Alerted At (Days)",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1,
+   "description": "The widest threshold an alert has gone out for, so a document first seen inside several raises one alert, not four."
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-22 04:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Document",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

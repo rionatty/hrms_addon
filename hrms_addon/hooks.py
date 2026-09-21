@@ -356,6 +356,9 @@ after_migrate = [
     # permission level one on Employee's salary and bank fields for HR and
     # Payroll alone. See security_rules.py.
     "hrms_addon.hrms_addon.security.setup_on_migrate",
+    # The documents an employee has to hold: the national ID, a work
+    # permit, a driving permit. See document_rules.py.
+    "hrms_addon.hrms_addon.documents.setup_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -1094,6 +1097,19 @@ fixtures = [
                     "Travel Request-custom_per_diem_rate",
                     "Travel Request-custom_scale_remarks",
                     "Travel Request Costing-custom_from_scale",
+                    "Employee-custom_documents_tab",
+                    "Employee-custom_documents_section",
+                    "Employee-custom_documents",
+                    "Employee-custom_documents_status",
+                    "Employee-custom_flags_section",
+                    "Employee-custom_is_foreign",
+                    "Employee-custom_drives",
+                    "Employee-custom_operates_machinery",
+                    "Employee-custom_flags_cb",
+                    "Employee-custom_sacco_member",
+                    "Employee-custom_union_member",
+                    "Employee-custom_ppe_size",
+                    "Employee-custom_plant_cost_centre",
                 ],
             ]
         ],
@@ -1316,6 +1332,9 @@ doc_events = {
         "on_cancel": "hrms_addon.hrms_addon.onboarding.on_cancel",
     },
     "Employee": {
+        # Each document's status and the days left on it, worked out on
+        # the employee's own form (documents.py)
+        "validate": "hrms_addon.hrms_addon.documents.employee_validate",
         # the candidate's onboarding learns its Employee even once its tasks
         # are all done, which Frappe HR's own link skips (onboarding.py)
         "on_update": "hrms_addon.hrms_addon.onboarding.link_onboarding",
@@ -1387,6 +1406,9 @@ scheduler_events = {
         # shift allowances are drawn for the cycle that closed (shifts.py)
         "hrms_addon.hrms_addon.shifts.daily",
         "hrms_addon.hrms_addon.shifts.monthly",
+        # A document running out: three months, a month, a week, and the
+        # day it goes, each threshold crossed once (documents.py)
+        "hrms_addon.hrms_addon.documents.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee

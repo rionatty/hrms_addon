@@ -613,6 +613,27 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_documents.py` covers the documents an employee has to hold and the
+alerts when they run out. They are rows on the employee, not a field per
+kind: a field per kind means a schema change every time Luuka add one, and
+a driver with two permits has nowhere to put the second. An **Employee
+Document Type** carries the policy — who has to hold one, whether it runs
+out, and how long before it does somebody is told — so a work permit is
+asked of foreign nationals, a driving permit of drivers, and a medical
+certificate of machine operators, and of nobody else. Each document is
+chased three months out, a month out, a week out and on the day it goes,
+and each rung is crossed once: a document first seen inside several of them
+raises one alert, for the nearest, not four. Once it has gone it is not
+chased again, because an expired permit is a different problem from one
+running out. The **Document Expiry** report lists what has gone, what is
+about to, and what a person should be holding and is not.
+
+The same tab carries the user-defined fields Organisation & System Setup
+case 10 asks for — SACCO membership, union membership, PPE size and the
+plant cost centre — because they sit beside the flags the document rules
+read. The biometric ID is Frappe HR's own `attendance_device_id` and is not
+duplicated.
+
 `verify_security.py` covers access control. Employee's salary and bank
 fields — `ctc`, `salary_currency`, `salary_mode`, `bank_name`, `bank_ac_no`
 and `iban` — are moved to permission level one by Property Setters, and

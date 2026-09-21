@@ -155,7 +155,24 @@ MODULES = {
     "hrms_addon.hrms_addon.shifts": read("hrms_addon/hrms_addon/shifts.py"),
     "hrms_addon.hrms_addon.grades": read("hrms_addon/hrms_addon/grades.py"),
     "hrms_addon.hrms_addon.security": read("hrms_addon/hrms_addon/security.py"),
+    "hrms_addon.hrms_addon.documents": read("hrms_addon/hrms_addon/documents.py"),
 }
+# A dict literal keeps the LAST of two equal keys, so a doctype named
+# twice in doc_events silently loses the first block's handlers. Nothing
+# errors; the hook simply never runs.
+for name in ("doc_events", "doctype_js", "scheduler_events", "fixtures"):
+    opener = "%s = {" % name
+    if opener not in hooks_live:
+        continue
+    body = block(hooks_live, opener, "\n}")
+    keys = re.findall(r'^    "([^"]+)": ', body, re.M)
+    seen = set()
+    for key in keys:
+        if key in seen:
+            fail.append("hooks.py %s names %r twice: the second block silently replaces "
+                        "the first" % (name, key))
+        seen.add(key)
+
 hook_paths = re.findall(r'"(hrms_addon\.[\w.]+)"', block(hooks_live, "after_migrate = [", "]"))
 hook_paths.append(re.search(r'extend_bootinfo = "([\w.]+)"', hooks_live).group(1))
 for path in hook_paths:

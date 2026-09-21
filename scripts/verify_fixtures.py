@@ -649,6 +649,21 @@ if by_dt.get(EM):
                  # the tools register, a tab after Joining
                  "custom_tools_tab": ("Tools of Work", None),
                  "custom_employee_tools": ("Tools of Work", "custom_tools_tab"),
+                 # the documents an employee has to hold, and the flags
+                 # that say which of them apply to them (documents.py)
+                 "custom_documents_tab": ("Documents", None),
+                 "custom_documents_section": ("Documents", "custom_documents_tab"),
+                 "custom_documents": ("Documents", "custom_documents_section"),
+                 "custom_documents_status": ("Documents", "custom_documents"),
+                 "custom_flags_section": ("Documents", "custom_documents_status"),
+                 "custom_is_foreign": ("Documents", "custom_flags_section"),
+                 "custom_drives": ("Documents", "custom_is_foreign"),
+                 "custom_operates_machinery": ("Documents", "custom_drives"),
+                 "custom_flags_cb": ("Documents", "custom_operates_machinery"),
+                 "custom_sacco_member": ("Documents", "custom_flags_cb"),
+                 "custom_union_member": ("Documents", "custom_sacco_member"),
+                 "custom_ppe_size": ("Documents", "custom_union_member"),
+                 "custom_plant_cost_centre": ("Documents", "custom_ppe_size"),
                  # LPL/HR/26 (the bank account, NSSF and TIN form) and LPL/HR/33
                  # (the wages phone number) sit with Frappe's own bank details
                  "custom_bank_branch": ("Salary", "bank_name"),
@@ -682,6 +697,8 @@ if by_dt.get(EM):
             fail.append("Employee tab %r must sit between Personal Details and Profile; tabs are %s" % (BIO_TAB, tabs))
         if "Tools of Work" not in tabs or tabs[tabs.index("Tools of Work") - 1] != "Joining":
             fail.append("Employee tab 'Tools of Work' must follow Joining; tabs are %s" % tabs)
+        if "Documents" not in tabs:
+            fail.append("Employee tab 'Documents' is missing; tabs are %s" % tabs)
         for fn in by_dt[EM]:
             if fn in ids:
                 continue

@@ -9501,5 +9501,141 @@
   "label": "From the Scale",
   "read_only": 1,
   "description": "Ticked where the rate was read off the per-diem scale rather than typed."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_documents_tab",
+  "dt": "Employee",
+  "fieldname": "custom_documents_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "old_parent",
+  "module": "HRMS Addon",
+  "label": "Documents"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_documents_section",
+  "dt": "Employee",
+  "fieldname": "custom_documents_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_documents_tab",
+  "module": "HRMS Addon",
+  "label": "What They Hold"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_documents",
+  "dt": "Employee",
+  "fieldname": "custom_documents",
+  "fieldtype": "Table",
+  "insert_after": "custom_documents_section",
+  "module": "HRMS Addon",
+  "options": "Employee Document",
+  "label": "Documents",
+  "description": "The national ID, a work permit, a driving permit. Each is chased as it runs out (documents.py)."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_documents_status",
+  "dt": "Employee",
+  "fieldname": "custom_documents_status",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_documents",
+  "module": "HRMS Addon",
+  "label": "What Is Wrong",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_flags_section",
+  "dt": "Employee",
+  "fieldname": "custom_flags_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_documents_status",
+  "module": "HRMS Addon",
+  "label": "Who They Are For This Purpose",
+  "description": "What sort of documents this employee has to hold, and the fields Luuka asked for beyond the standard ones."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_is_foreign",
+  "dt": "Employee",
+  "fieldname": "custom_is_foreign",
+  "fieldtype": "Check",
+  "insert_after": "custom_flags_section",
+  "module": "HRMS Addon",
+  "label": "Foreign National"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_drives",
+  "dt": "Employee",
+  "fieldname": "custom_drives",
+  "fieldtype": "Check",
+  "insert_after": "custom_is_foreign",
+  "module": "HRMS Addon",
+  "label": "Drives for Work"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_operates_machinery",
+  "dt": "Employee",
+  "fieldname": "custom_operates_machinery",
+  "fieldtype": "Check",
+  "insert_after": "custom_drives",
+  "module": "HRMS Addon",
+  "label": "Operates Machinery"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_flags_cb",
+  "dt": "Employee",
+  "fieldname": "custom_flags_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_operates_machinery",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_sacco_member",
+  "dt": "Employee",
+  "fieldname": "custom_sacco_member",
+  "fieldtype": "Check",
+  "insert_after": "custom_flags_cb",
+  "module": "HRMS Addon",
+  "label": "SACCO Member"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_union_member",
+  "dt": "Employee",
+  "fieldname": "custom_union_member",
+  "fieldtype": "Check",
+  "insert_after": "custom_sacco_member",
+  "module": "HRMS Addon",
+  "label": "Union Member"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_ppe_size",
+  "dt": "Employee",
+  "fieldname": "custom_ppe_size",
+  "fieldtype": "Data",
+  "insert_after": "custom_union_member",
+  "module": "HRMS Addon",
+  "label": "PPE Size"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee-custom_plant_cost_centre",
+  "dt": "Employee",
+  "fieldname": "custom_plant_cost_centre",
+  "fieldtype": "Link",
+  "insert_after": "custom_ppe_size",
+  "module": "HRMS Addon",
+  "options": "Cost Center",
+  "label": "Plant Cost Centre",
+  "description": "Which cost centre this employee's labour is reported against (Organisation & System Setup, case 9)."
  }
 ]
