@@ -1,0 +1,54 @@
+{
+ "cards": [],
+ "chart_options": "",
+ "charts": [
+  {
+   "chart": "LPL Headcount by Plant",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Headcount by Employment Type",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Joiners by Month",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Leavers by Month",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Wage Bill by Grade",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Leave Liability by Type",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Appraisal Bands",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Appraisals by Department",
+   "width": "Half"
+  },
+  {
+   "chart": "LPL Overtime Cost by Month",
+   "width": "Half"
+  }
+ ],
+ "creation": "2026-09-22 05:00:00.000000",
+ "dashboard_name": "Luuka HR",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-09-22 05:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Luuka HR",
+ "owner": "Administrator"
+}

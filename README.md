@@ -613,6 +613,33 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_dashboards.py` covers the dashboard and the two LPL reports. Nine
+**Dashboard Charts** ship as files, the way Frappe HR ships its own, and a
+**Luuka HR** dashboard carries them: headcount by plant and by employment
+type, joiners and leavers by month, the wage bill by grade, the leave
+liability by type, the appraisal bands and the overtime bill. Each reads a
+document and a field that already exist, and the checker asserts every one
+of them against the real schemas — a chart that groups by a field nobody
+has is a blank tile on a live site and nothing else.
+
+**Monthly Manpower and Headcount** is the report that replaces the manual
+extract: per plant and department, who was there at the start of the month,
+who joined, who left, who is there now, and what the establishment costs.
+The wage bill comes off the salary structure assignments in force, not off
+a payroll run, so it answers before a run as well as after one — and the
+month may be the calendar one or Luuka's own 26th-to-25th cycle.
+**Performance Analytics** counts completion against the people who were due
+an appraisal rather than against the appraisals that exist, so a department
+where nobody has started reads nought per cent instead of reading as an
+empty list; it takes its bands and its pass mark from `appraisal_rules`, so
+it cannot disagree with the form that set them, and it groups by plant as
+well as by department.
+
+Two things that sheet asks for are not here and are not pretended to be.
+Labour cost per kilogram waits on the production feed, which is Integration
+case 3. And Frappe exports a report to Excel, CSV and PDF from the report
+view; Word and PowerPoint it does not.
+
 `verify_documents.py` covers the documents an employee has to hold and the
 alerts when they run out. They are rows on the employee, not a field per
 kind: a field per kind means a schema change every time Luuka add one, and
