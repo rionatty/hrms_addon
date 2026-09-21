@@ -81,11 +81,14 @@ app_include_css = "hrms_addon.bundle.css"
 #    from each app's own hooks and so cannot be set server-side
 #  - hrms_addon_alerts.js: My Alerts, the user's own assignments and unread
 #    notifications down the right of the desk (hrms_addon/hrms_addon/alerts.py)
+#  - e_signature.js: the Sign button and the signatures a document already
+#    carries, on every signable form at once (signature_rules.SIGNABLE)
 app_include_js = [
     "/assets/hrms_addon/js/hrms_addon_theme.js",
     "/assets/hrms_addon/js/form_sidebar_toggle.js",
     "/assets/hrms_addon/js/hrms_addon_branding.js",
     "/assets/hrms_addon/js/hrms_addon_alerts.js",
+    "/assets/hrms_addon/js/e_signature.js",
 ]
 
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout
@@ -1303,6 +1306,14 @@ doc_events = {
     },
     "Salary Structure Assignment": {
         "validate": "hrms_addon.hrms_addon.grades.assignment_validate",
+    },
+    # Submitting a signable document is itself an approval, and an
+    # approval nobody can point at is not much of one, so it is written
+    # into the Signature Log. Frappe reads "*" alongside a doctype's own
+    # handlers; signatures.log_submission filters on SIGNABLE, so one
+    # entry covers all of them and none of the blocks above is disturbed.
+    "*": {
+        "on_submit": "hrms_addon.hrms_addon.signatures.log_submission",
     },
     # watches (discipline.py)
     "Employee Grievance": {

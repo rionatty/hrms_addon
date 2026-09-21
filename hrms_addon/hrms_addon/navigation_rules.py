@@ -228,6 +228,11 @@ CARDS = {
         ("Manpower", [
             ("Monthly Manpower and Headcount", "Monthly Manpower and Headcount", REPORT),
         ]),
+        # the specimen on file and the signatures given (signatures.py)
+        ("Signatures", [
+            ("Employee Signature", "Employee Signature", DOCTYPE),
+            ("Signature Log", "Signature Log", DOCTYPE),
+        ]),
         # what an employee has to hold, and what is running out
         # (documents.py)
         ("Employee Documents", [

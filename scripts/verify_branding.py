@@ -156,6 +156,7 @@ MODULES = {
     "hrms_addon.hrms_addon.grades": read("hrms_addon/hrms_addon/grades.py"),
     "hrms_addon.hrms_addon.security": read("hrms_addon/hrms_addon/security.py"),
     "hrms_addon.hrms_addon.documents": read("hrms_addon/hrms_addon/documents.py"),
+    "hrms_addon.hrms_addon.signatures": read("hrms_addon/hrms_addon/signatures.py"),
 }
 # A dict literal keeps the LAST of two equal keys, so a doctype named
 # twice in doc_events silently loses the first block's handlers. Nothing

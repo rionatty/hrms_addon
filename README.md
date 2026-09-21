@@ -613,6 +613,28 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_signatures.py` covers electronic signatures. Every workflow in this
+app already stamps who moved a document and on what day; what was missing
+is the other half of a signature — the specimen, and a record saying in
+words what the person put their name to. So a signature is its own record:
+an **Employee Signature** holds one current specimen per person, and a
+**Signature Log** names the document, the signatory, the step they signed
+at, the wording they agreed to, the moment, and the specimen copied as it
+stood. Copied, not linked: somebody who changes their signature has not
+changed what they signed last year, and the role is kept as text so a
+promotion does not rewrite who signed what. Nobody may delete a log row —
+that is what makes it a signature. The Sign button is one desk-wide script
+rather than seventeen form scripts, so a new signable document needs one
+line in `signature_rules.SIGNABLE` and nothing else, and submitting a
+signable document writes its own approval into the log through a single
+`doc_events["*"]` entry — a block per doctype would have silently replaced
+the handlers already there.
+
+Nothing records where anybody was. "Regardless of location" in that test
+case means a person may sign from wherever they are, not that the system
+follows them there, and the checker fails the build if `request_ip`,
+`geolocation` or `user_agent` ever appears in the module.
+
 `verify_dashboards.py` covers the dashboard and the two LPL reports. Nine
 **Dashboard Charts** ship as files, the way Frappe HR ships its own, and a
 **Luuka HR** dashboard carries them: headcount by plant and by employment
