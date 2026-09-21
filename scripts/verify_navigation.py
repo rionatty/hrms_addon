@@ -401,6 +401,8 @@ for needle, why in (("for row in rules.numbered(rows):", "rows are numbered afre
 if re.search(r'doc\.append\("(links|items)"', glue):
     fail.append("navigation.py must write rows through _write, which numbers them, never doc.append on its own")
 for needle, why in (
+    ("def _units(", "each navigation step stands alone: one that fails must not undo the rest"),
+    ("type(error).__name__", "and says what went wrong in the migrate output, not only the Error Log"),
     ("_ensure_icon(", "a page is on no launcher grid until it has a Desktop Icon"),
     ('"link_type": "Workspace Sidebar"', "which points at its sidebar, as Frappe HR's ten do"),
     ('"parent_icon"', "and sits under the app tile the page names"),

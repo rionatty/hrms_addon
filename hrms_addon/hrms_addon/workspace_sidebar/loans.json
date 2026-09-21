@@ -1,5 +1,6 @@
 {
  "app": "hrms_addon",
+ "creation": "2026-09-21 20:00:00.000000",
  "docstatus": 0,
  "doctype": "Workspace Sidebar",
  "header_icon": "loan",

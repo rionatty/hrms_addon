@@ -61,7 +61,8 @@ for page in rules.PAGES:
     # ── its left-hand list ────────────────────────────────────────────
     items = rules.merge_sidebar(rules.new_sidebar(label, page.get("sections") or ()), entries)
     write(os.path.join(APP, "workspace_sidebar", folder + ".json"), {
-        "app": OWN_APP, "docstatus": 0, "doctype": "Workspace Sidebar", "header_icon": page["icon"],
+        "app": OWN_APP, "creation": STAMP, "docstatus": 0, "doctype": "Workspace Sidebar",
+        "header_icon": page["icon"],
         "idx": 0, "items": rules.numbered(items), "modified": STAMP, "modified_by": "Administrator",
         "module": rules.MODULE, "name": label, "owner": "Administrator", "standard": 1,
         "title": label,

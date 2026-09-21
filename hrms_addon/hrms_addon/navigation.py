@@ -39,23 +39,49 @@ from hrms_addon.hrms_addon import navigation_rules as rules
 def setup_on_migrate():
     """after_migrate: the cards and sidebar entries, never failing the deploy.
 
-    Not quiet either: HR losing its way to a document is worth noticing, so
-    the reason goes to the migrate output as well as the Error Log.
+    One page at a time, each inside its own savepoint. A page that will
+    not write costs only itself: doing them together meant one bad one
+    undid every good one in the same run.
+
+    Not quiet either. The reason goes to the migrate output, not only to
+    the Error Log — the Error Log is on the server and so is the person
+    reading the output, but only one of the two is in front of them.
     """
-    savepoint = "hrms_addon_navigation"
-    frappe.db.savepoint(savepoint)
-    try:
-        apply_navigation()
-    except Exception:
+    units = _units()
+    failed = []
+    for number, (what, run) in enumerate(units):
+        savepoint = "ha_nav_%d" % number
+        frappe.db.savepoint(savepoint)
         try:
-            frappe.db.rollback(save_point=savepoint)
-        except Exception:
-            pass
-        frappe.log_error(title="HRMS Addon: workspace links setup failed")
-        print("HRMS Addon: workspace links setup FAILED — see Error Log")
+            run()
+            frappe.db.commit()
+        except Exception as error:
+            try:
+                frappe.db.rollback(save_point=savepoint)
+            except Exception:
+                pass
+            failed.append(what)
+            frappe.log_error(title="HRMS Addon: %s" % what)
+            print("HRMS Addon: %s FAILED — %s: %s" % (what, type(error).__name__, error))
+    if failed:
+        print("HRMS Addon: %d of %d navigation steps failed (%s). The rest were applied."
+              % (len(failed), len(units), ", ".join(failed)))
+
+
+def _units():
+    """Every navigation step, named, so one can fail without the others."""
+    units = [("the %s page itself" % page["label"], lambda page=page: _ensure_page(page))
+             for page in rules.PAGES]
+    units += [("links on %s" % workspace, lambda w=workspace, c=cards: _apply_cards(w, c))
+              for workspace, cards in rules.CARDS.items()]
+    units += [("the %s sidebar" % workspace, lambda w=workspace, e=entries: _apply_sidebar(w, e))
+              for workspace, entries in rules.SIDEBAR.items()]
+    return units
 
 
 def apply_navigation():
+    """The same work in one go, raising rather than logging. This is what
+    `bench execute` is for when something did not land."""
     for page in rules.PAGES:
         _ensure_page(page)
     for workspace, cards in rules.CARDS.items():
@@ -175,6 +201,13 @@ def show():
         missing = [link for link in wanted if link not in on_it]
         lines.append("%-22s %-17s %s" % (workspace + " (sidebar)", "ok" if not missing else "MISSING",
                                          ", ".join(missing) or "all %d there" % len(wanted)))
+    for page in rules.PAGES:
+        label = page["label"]
+        for doctype in ("Workspace", "Workspace Sidebar", "Desktop Icon"):
+            there = frappe.db.exists(doctype, label)
+            lines.append("%-22s %-17s %s" % ("%s (%s)" % (label, doctype.lower()),
+                                             "ok" if there else "NOT THERE",
+                                             "" if there else "the file was not imported"))
     report = "\n".join(lines)
     print(report)
     return report
