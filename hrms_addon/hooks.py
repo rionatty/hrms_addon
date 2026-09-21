@@ -343,6 +343,9 @@ after_migrate = [
     # word on the deploy if somebody has edited one below it. See
     # overtime_rules.py.
     "hrms_addon.hrms_addon.overtime.setup_on_migrate",
+    # Luuka's own three shifts: the office day, and the twelve-hour day and
+    # night the register's M and N stand for. See shift_rules.py.
+    "hrms_addon.hrms_addon.shifts.setup_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -1062,6 +1065,10 @@ fixtures = [
                     "Grievance Type-custom_timeline_days",
                     "Grievance Type-custom_lpl_cb",
                     "Grievance Type-custom_default_handler",
+                    "Shift Type-custom_allowance_section",
+                    "Shift Type-custom_shift_allowance",
+                    "Shift Type-custom_allowance_cb",
+                    "Shift Type-custom_allowance_component",
                 ],
             ]
         ],
@@ -1335,6 +1342,11 @@ scheduler_events = {
         # trainee milestone that has fallen due, top talent flagged a
         # flight risk (talent.py)
         "hrms_addon.hrms_addon.talent.daily",
+        # Shifts: every active rotation whose period has turned gets its
+        # Shift Assignments for the period ahead, and on the 25th the
+        # shift allowances are drawn for the cycle that closed (shifts.py)
+        "hrms_addon.hrms_addon.shifts.daily",
+        "hrms_addon.hrms_addon.shifts.monthly",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee

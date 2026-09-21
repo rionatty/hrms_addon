@@ -1,0 +1,93 @@
+{
+ "actions": [],
+ "creation": "2026-09-22 01:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "member_designation",
+  "offset",
+  "current_shift",
+  "hold_until",
+  "held_shift",
+  "reason"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "member_designation",
+   "fieldtype": "Link",
+   "label": "Role",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "offset",
+   "fieldtype": "Int",
+   "label": "Starts at Position",
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "Which position of the cycle this person begins on. It is what staggers one crew against another."
+  },
+  {
+   "fieldname": "current_shift",
+   "fieldtype": "Link",
+   "label": "This Period",
+   "options": "Shift Type",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "hold_until",
+   "fieldtype": "Date",
+   "label": "Held on One Shift Until",
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "Somebody asked to stay on a shift for a while sits out the rotation until this day, then rejoins where the cycle has got to."
+  },
+  {
+   "fieldname": "held_shift",
+   "fieldtype": "Link",
+   "label": "Held On",
+   "options": "Shift Type",
+   "depends_on": "hold_until"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-22 01:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Shift Rotation Member",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -613,6 +613,25 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_shifts.py` covers shifts and scheduling. The shifts themselves are
+Frappe HR's — a Shift Type with its hours and its auto-attendance, a Shift
+Assignment, and the Shift Assignment Tool for a whole plant at once — so
+only the two things it does not ship are built here. A **Shift Rotation**
+is an ordered cycle of shifts and a period: whoever is on the first
+position this week is on the second next week, and with three shifts they
+are back where they started after three. It rolls itself every night into
+real Shift Assignments, so attendance is marked against the right shift.
+Somebody asked to stay on one shift for a while is held off the rotation
+until the day they were promised and then rejoins where the cycle has got
+to, not where they left it. A **Shift Allowance** is what the shifts
+actually worked in a cycle come to — counted from the Attendance, not from
+the roster, so a shift planned and missed is not paid — at the rate that
+sits on the Shift Type itself, paid through a salary component as an
+Additional Salary, the way every other payment in this app reaches
+payroll. The checker asserts a production shift is the same twelve hours
+`attendance_rules` knows and that the allowance window is the register's
+own 26th-to-25th cycle.
+
 `verify_overtime.py` covers overtime. Frappe HR already ships the pricing
 and the payroll route — an Overtime Type carries the multipliers, an
 Attendance row carries the hours, and an Overtime Slip gathers those rows,

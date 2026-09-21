@@ -200,6 +200,8 @@ CARDS = {
         ("Attendance Forms", [
             ("Off Duty Request", "Off Duty Request", DOCTYPE),
             ("Overtime Request", "Overtime Request", DOCTYPE),
+            ("Shift Rotation", "Shift Rotation", DOCTYPE),
+            ("Shift Allowance", "Shift Allowance", DOCTYPE),
             ("Gate Pass", "Gate Pass", DOCTYPE),
         ]),
         ("Clocking Machines", [
@@ -272,6 +274,8 @@ SIDEBAR = {
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
+        ("Shift Rotation", "Shift Rotation", DOCTYPE, None, "Gate Pass"),
+        ("Shift Allowance", "Shift Allowance", DOCTYPE, None, "Shift Rotation"),
         ("Attendance Device", "Attendance Device", DOCTYPE, "Setup", None),
         ("Attendance Device Log", "Attendance Device Log", DOCTYPE, "Setup", None),
     ],

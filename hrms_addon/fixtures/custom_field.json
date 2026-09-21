@@ -9290,5 +9290,49 @@
   "creation": "2026-09-21 22:00:00.000000",
   "modified": "2026-09-21 22:00:00.000000",
   "options": "User"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Shift Type-custom_allowance_section",
+  "dt": "Shift Type",
+  "fieldname": "custom_allowance_section",
+  "fieldtype": "Section Break",
+  "insert_after": "color",
+  "label": "Shift Allowance",
+  "collapsible": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Shift Type-custom_shift_allowance",
+  "dt": "Shift Type",
+  "fieldname": "custom_shift_allowance",
+  "fieldtype": "Currency",
+  "insert_after": "custom_allowance_section",
+  "label": "Allowance a Shift",
+  "description": "What one shift of this kind carries. A night shift carries more than a day one; an office day carries nothing. The allowance is counted from the shifts actually worked (shifts.py).",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Shift Type-custom_allowance_cb",
+  "dt": "Shift Type",
+  "fieldname": "custom_allowance_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_shift_allowance",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Shift Type-custom_allowance_component",
+  "dt": "Shift Type",
+  "fieldname": "custom_allowance_component",
+  "fieldtype": "Link",
+  "options": "Salary Component",
+  "insert_after": "custom_allowance_cb",
+  "label": "Paid Through",
+  "description": "The earning the shift allowance is paid on.",
+  "depends_on": "custom_shift_allowance",
+  "module": "HRMS Addon"
  }
 ]
