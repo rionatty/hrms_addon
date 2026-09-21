@@ -114,6 +114,43 @@ def _apply_sidebar(workspace, entries):
     doc.save()
 
 
+def show():
+    """What is on the site's pages right now, and what is missing.
+
+        bench --site <site> execute hrms_addon.hrms_addon.navigation.show
+
+    Run it when a link this app adds is not on the page: it says whether
+    the workspace is there at all (the app was never migrated), whether
+    the link is on it (the page is cached in the browser) or whether it is
+    missing (apply_navigation did not run, or failed into the Error Log).
+    """
+    lines = []
+    for workspace, cards in rules.CARDS.items():
+        wanted = [link[1] for _card, links in cards for link in links]
+        if not frappe.db.exists("Workspace", workspace):
+            lines.append("%-22s NO WORKSPACE      wanted: %s" % (workspace, ", ".join(wanted)))
+            continue
+        on_it = set(frappe.get_all("Workspace Link", filters={"parent": workspace, "parenttype": "Workspace"},
+                                   pluck="link_to"))
+        missing = [link for link in wanted if link not in on_it]
+        lines.append("%-22s %-17s %s" % (workspace, "page ok" if not missing else "MISSING",
+                                         ", ".join(missing) or "all %d there" % len(wanted)))
+    for workspace, entries in rules.SIDEBAR.items():
+        wanted = [entry[1] for entry in entries]
+        if not frappe.db.exists("Workspace Sidebar", workspace):
+            lines.append("%-22s NO SIDEBAR        wanted: %s" % (workspace, ", ".join(wanted)))
+            continue
+        on_it = set(frappe.get_all("Workspace Sidebar Item",
+                                   filters={"parent": workspace, "parenttype": "Workspace Sidebar"},
+                                   pluck="link_to"))
+        missing = [link for link in wanted if link not in on_it]
+        lines.append("%-22s %-17s %s" % (workspace + " (sidebar)", "ok" if not missing else "MISSING",
+                                         ", ".join(missing) or "all %d there" % len(wanted)))
+    report = "\n".join(lines)
+    print(report)
+    return report
+
+
 def _write(doc, table, rows):
     """Replace the table's rows, numbered afresh: a row read from the
     database keeps the idx it had, so one put in before it would share its

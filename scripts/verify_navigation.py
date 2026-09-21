@@ -360,7 +360,15 @@ for needle, why in (("for row in rules.numbered(rows):", "rows are numbered afre
         fail.append("navigation.py: %s (%r not found)" % (why, needle))
 if re.search(r'doc\.append\("(links|items)"', glue):
     fail.append("navigation.py must write rows through _write, which numbers them, never doc.append on its own")
-print("wiring: applied after every migrate, skipping what is not installed, writing only when something changed")
+for needle, why in (
+    ("def show(", "there is a way to see what is really on the site's pages"),
+    ('"Workspace Link"', "which reads the workspace's own link rows"),
+    ('"Workspace Sidebar Item"', "and the sidebar's own item rows"),
+):
+    if needle not in glue:
+        fail.append("navigation.py: %s (%r not found)" % (why, needle))
+print("wiring: applied after every migrate, skipping what is not installed, writing only when something "
+      "changed, and a way to see what landed")
 
 # ── 6. As Frappe writes and reads the rows ────────────────────────────
 # navigation.py itself, run against a stand-in site that keeps child rows the
