@@ -119,6 +119,8 @@ doctype_js = {
     # A hired graduate becomes a Graduate Trainee Program from their own
     # applicant record (talent.py)
     "Job Applicant": "public/js/job_applicant_trainee.js",
+    # The Gradar band and its ten steps on Frappe HR's own Employee Grade
+    "Employee Grade": "public/js/employee_grade.js",
     "Designation": "public/js/designation.js",
     # Submit Feedback opens the score sheet (LPL/HR/17) instead of HRMS's star dialog
     "Interview": "public/js/interview.js",
@@ -346,6 +348,14 @@ after_migrate = [
     # Luuka's own three shifts: the office day, and the twelve-hour day and
     # night the register's M and N stand for. See shift_rules.py.
     "hrms_addon.hrms_addon.shifts.setup_on_migrate",
+    # The nineteen Gradar grades, G2 to G20. The bands are Luuka's to
+    # price; a grade seeded with figures nobody agreed would be worse than
+    # a grade with none. See grade_rules.py.
+    "hrms_addon.hrms_addon.grades.setup_on_migrate",
+    # The Auditor and Management Viewer roles, their read-only grants, and
+    # permission level one on Employee's salary and bank fields for HR and
+    # Payroll alone. See security_rules.py.
+    "hrms_addon.hrms_addon.security.setup_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -1069,6 +1079,21 @@ fixtures = [
                     "Shift Type-custom_shift_allowance",
                     "Shift Type-custom_allowance_cb",
                     "Shift Type-custom_allowance_component",
+                    "Employee Grade-custom_gradar_section",
+                    "Employee Grade-custom_grade_code",
+                    "Employee Grade-custom_gradar_points",
+                    "Employee Grade-custom_min_salary",
+                    "Employee Grade-custom_gradar_cb",
+                    "Employee Grade-custom_max_salary",
+                    "Employee Grade-custom_step_count",
+                    "Employee Grade-custom_second_approval",
+                    "Employee Grade-custom_steps_section",
+                    "Employee Grade-custom_steps",
+                    "Travel Request-custom_destination",
+                    "Travel Request-custom_currency",
+                    "Travel Request-custom_per_diem_rate",
+                    "Travel Request-custom_scale_remarks",
+                    "Travel Request Costing-custom_from_scale",
                 ],
             ]
         ],
@@ -1121,6 +1146,12 @@ fixtures = [
                     "Appraisal Template-goals-hidden",
                     "Appraisal Template-rating_criteria-hidden",
                     "Appraisal Template-section_break_7-hidden",
+                    "Employee-ctc-permlevel",
+                    "Employee-salary_currency-permlevel",
+                    "Employee-salary_mode-permlevel",
+                    "Employee-bank_name-permlevel",
+                    "Employee-bank_ac_no-permlevel",
+                    "Employee-iban-permlevel",
                 ],
             ]
         ],
@@ -1248,6 +1279,15 @@ doc_events = {
     },
     # The non-disciplinary concern (5.4) on Frappe HR's own Employee
     # Grievance: the HOD it is assigned to and the timeline the system
+    # The Gradar band and its ten steps on Frappe HR's own Employee Grade,
+    # and a word where a salary is set outside the band it belongs to
+    # (grades.py)
+    "Employee Grade": {
+        "validate": "hrms_addon.hrms_addon.grades.grade_validate",
+    },
+    "Salary Structure Assignment": {
+        "validate": "hrms_addon.hrms_addon.grades.assignment_validate",
+    },
     # watches (discipline.py)
     "Employee Grievance": {
         "validate": "hrms_addon.hrms_addon.discipline.concern_validate",

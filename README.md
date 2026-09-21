@@ -613,6 +613,47 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_security.py` covers access control. Employee's salary and bank
+fields — `ctc`, `salary_currency`, `salary_mode`, `bank_name`, `bank_ac_no`
+and `iban` — are moved to permission level one by Property Setters, and
+only HR Manager, HR User and Payroll Officer are granted that level. A
+permission level, not a hidden field and not a form script: a hidden field
+is still in the API response, and anybody who can open the list view can
+read it. An **Auditor** role and a **Management Viewer** role are created
+with read, report and export across this app's documents and Frappe HR's,
+and with nothing else; a migrate that finds one of them holding write, or
+anybody outside HR and Payroll holding level one, says so in the deploy
+output and in the Error Log. Nothing here ever revokes a permission —
+deciding what Luuka's own administrators may not do is not this app's
+business — and the **Role and Access Matrix** report reads the permissions
+the site actually has rather than the ones the app asked for, which is the
+only version worth auditing. There is no smoke walk for this one: almost
+all of it is Frappe's own permission API, and a walk against a fake of it
+would prove nothing the checker does not.
+
+`verify_grades.py` covers the Gradar structure and the per-diem scale.
+Nineteen grades, G2 to G20, are seeded unpriced — a grade seeded with
+figures nobody agreed would be worse than a grade with none — and the band
+and its ten steps are custom fields on Frappe HR's own **Employee Grade**
+rather than a second grade master beside it, so the salary structure and
+everything else already on that record stay where they are. Give the band
+a bottom and a top and the steps lay themselves out evenly between them,
+step one at the bottom and step ten at the top, which is what makes an
+increment a step and a promotion a grade. The grade also carries the
+second-approval threshold, so a workflow asks it rather than keeping its
+own copy of the rule. A salary set outside its band is said on the Salary
+Structure Assignment where it is set, and not refused: an exception may be
+deliberate, and payroll is not this module's to block.
+
+The travel allowance is no longer typed by the traveller. A **Per Diem
+Rate** is this grade, to this **Travel Destination**, from this date, and a
+newer row supersedes an older one; the travel form reads the one in force
+on the day of travel and fills the blank rates on LPL.HR.31 with it. A rate
+somebody typed is left alone — the scale is a default, not a ceiling — and
+a line the scale says nothing about is named on the form rather than
+quietly paid at whatever was entered. Foreign travel is priced in the
+destination's own currency, which for Luuka means USD.
+
 `verify_shifts.py` covers shifts and scheduling. The shifts themselves are
 Frappe HR's — a Shift Type with its hours and its auto-attendance, a Shift
 Assignment, and the Shift Assignment Tool for a whole plant at once — so

@@ -210,6 +210,18 @@ CARDS = {
         ]),
     ],
     "HR Setup": [
+        # The scale the travel form reads its rates off (grades.py). The
+        # Gradar band and its steps are custom fields on Frappe HR's own
+        # Employee Grade, which is already on this page and is left where
+        # they put it.
+        ("Travel Allowance Scale", [
+            ("Travel Destination", "Travel Destination", DOCTYPE),
+            ("Per Diem Rate", "Per Diem Rate", DOCTYPE),
+        ]),
+        # who may see what, and the matrix that says so (security.py)
+        ("Access", [
+            ("Role and Access Matrix", "Role and Access Matrix", REPORT),
+        ]),
         ("Job Description Lists", [
             ("KRA Perspective", "KRA Perspective", DOCTYPE),
             ("KRA Level", "KRA Level", DOCTYPE),
@@ -229,7 +241,9 @@ CARDS = {
 }
 
 # The report each report link is for, so Frappe opens it on the right list
-REPORT_DOCTYPES = {"Contract Expiry Status": "Employee Contract"}
+REPORT_DOCTYPES = {"Contract Expiry Status": "Employee Contract",
+                   "Succession Coverage": "Succession Position",
+                   "Role and Access Matrix": "Custom DocPerm"}
 
 # workspace -> [(label, what it opens, kind, section, after)]
 #   section: the sidebar section it goes under ("Setup", "Reports"), or None
@@ -276,6 +290,8 @@ SIDEBAR = {
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
         ("Shift Rotation", "Shift Rotation", DOCTYPE, None, "Gate Pass"),
         ("Shift Allowance", "Shift Allowance", DOCTYPE, None, "Shift Rotation"),
+        ("Travel Destination", "Travel Destination", DOCTYPE, "Setup", None),
+        ("Per Diem Rate", "Per Diem Rate", DOCTYPE, "Setup", None),
         ("Attendance Device", "Attendance Device", DOCTYPE, "Setup", None),
         ("Attendance Device Log", "Attendance Device Log", DOCTYPE, "Setup", None),
     ],

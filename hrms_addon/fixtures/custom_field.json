@@ -9334,5 +9334,172 @@
   "description": "The earning the shift allowance is paid on.",
   "depends_on": "custom_shift_allowance",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_gradar_section",
+  "dt": "Employee Grade",
+  "fieldname": "custom_gradar_section",
+  "fieldtype": "Section Break",
+  "insert_after": "default_salary_structure",
+  "module": "HRMS Addon",
+  "label": "Gradar Band"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_grade_code",
+  "dt": "Employee Grade",
+  "fieldname": "custom_grade_code",
+  "fieldtype": "Data",
+  "insert_after": "custom_gradar_section",
+  "module": "HRMS Addon",
+  "label": "Grade Code",
+  "description": "Luuka's evaluated structure runs G2 to G20.",
+  "in_list_view": 1,
+  "in_standard_filter": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_gradar_points",
+  "dt": "Employee Grade",
+  "fieldname": "custom_gradar_points",
+  "fieldtype": "Int",
+  "insert_after": "custom_grade_code",
+  "module": "HRMS Addon",
+  "label": "Gradar Points"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_min_salary",
+  "dt": "Employee Grade",
+  "fieldname": "custom_min_salary",
+  "fieldtype": "Currency",
+  "insert_after": "custom_gradar_points",
+  "module": "HRMS Addon",
+  "label": "Bottom of the Band"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_gradar_cb",
+  "dt": "Employee Grade",
+  "fieldname": "custom_gradar_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_min_salary",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_max_salary",
+  "dt": "Employee Grade",
+  "fieldname": "custom_max_salary",
+  "fieldtype": "Currency",
+  "insert_after": "custom_gradar_cb",
+  "module": "HRMS Addon",
+  "label": "Top of the Band"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_step_count",
+  "dt": "Employee Grade",
+  "fieldname": "custom_step_count",
+  "fieldtype": "Int",
+  "insert_after": "custom_max_salary",
+  "module": "HRMS Addon",
+  "label": "Steps",
+  "default": "10",
+  "description": "Set the two ends and the steps are laid out evenly between them."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_second_approval",
+  "dt": "Employee Grade",
+  "fieldname": "custom_second_approval",
+  "fieldtype": "Check",
+  "insert_after": "custom_step_count",
+  "module": "HRMS Addon",
+  "label": "Second Approval Above This Grade",
+  "description": "A transaction raised by somebody on this grade or above takes a second signature (Organisation & System Setup, case 8)."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_steps_section",
+  "dt": "Employee Grade",
+  "fieldname": "custom_steps_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_second_approval",
+  "module": "HRMS Addon",
+  "label": "The Steps"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Grade-custom_steps",
+  "dt": "Employee Grade",
+  "fieldname": "custom_steps",
+  "fieldtype": "Table",
+  "insert_after": "custom_steps_section",
+  "module": "HRMS Addon",
+  "options": "Grade Step",
+  "label": "Steps"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Travel Request-custom_destination",
+  "dt": "Travel Request",
+  "fieldname": "custom_destination",
+  "fieldtype": "Link",
+  "insert_after": "custom_grade",
+  "module": "HRMS Addon",
+  "options": "Travel Destination",
+  "label": "Destination",
+  "description": "The per-diem scale is read for this destination and the traveller's grade. Foreign travel is paid in the destination's own currency."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Travel Request-custom_currency",
+  "dt": "Travel Request",
+  "fieldname": "custom_currency",
+  "fieldtype": "Link",
+  "insert_after": "custom_destination",
+  "module": "HRMS Addon",
+  "options": "Currency",
+  "label": "Paid In",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Travel Request-custom_per_diem_rate",
+  "dt": "Travel Request",
+  "fieldname": "custom_per_diem_rate",
+  "fieldtype": "Link",
+  "insert_after": "custom_currency",
+  "module": "HRMS Addon",
+  "options": "Per Diem Rate",
+  "label": "Scale Applied",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Travel Request-custom_scale_remarks",
+  "dt": "Travel Request",
+  "fieldname": "custom_scale_remarks",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_eligibility_remarks",
+  "module": "HRMS Addon",
+  "label": "What the Scale Says",
+  "read_only": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Travel Request Costing-custom_from_scale",
+  "dt": "Travel Request Costing",
+  "fieldname": "custom_from_scale",
+  "fieldtype": "Check",
+  "insert_after": "custom_rate",
+  "module": "HRMS Addon",
+  "label": "From the Scale",
+  "read_only": 1,
+  "description": "Ticked where the rate was read off the per-diem scale rather than typed."
  }
 ]

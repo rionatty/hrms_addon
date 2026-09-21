@@ -53,6 +53,9 @@ DOCFIELD_PROPERTIES = {
     "options": "Text",
     "description": "Text",
     "allow_bulk_edit": "Check",
+    # how a field is put out of reach of everybody but the roles granted
+    # that level; Customize Form writes exactly this setter
+    "permlevel": "Int",
 }
 DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not

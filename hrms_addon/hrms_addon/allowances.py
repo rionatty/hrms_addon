@@ -29,6 +29,11 @@ DOCTYPE = "Travel Request"
 def allowance_validate(doc, method=None):
     from hrms_addon.hrms_addon import allowance_approval as approval
 
+    # the rates come off the per-diem scale for the grade and the
+    # destination before anything is costed (grades.py)
+    from hrms_addon.hrms_addon import grades
+
+    grades.apply_scale(doc)
     _cost_lines(doc)
     _check_eligibility(doc)
     _check_step(doc)

@@ -445,5 +445,71 @@
   "value": "The role's balanced scorecard. It attaches itself from the employee's designation; Get Scorecard fills Section A and Section B from it.",
   "module": "HRMS Addon",
   "field_name": "appraisal_template"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "ctc",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "name": "Employee-ctc-permlevel",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "salary_currency",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "name": "Employee-salary_currency-permlevel",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "salary_mode",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "name": "Employee-salary_mode-permlevel",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "bank_name",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "name": "Employee-bank_name-permlevel",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "bank_ac_no",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "name": "Employee-bank_ac_no-permlevel",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "iban",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "name": "Employee-iban-permlevel",
+  "module": "HRMS Addon"
  }
 ]
