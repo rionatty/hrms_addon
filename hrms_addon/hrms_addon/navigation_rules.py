@@ -30,11 +30,18 @@ HOST_APP, MODULE = "hrms", "HRMS Addon"
 # Lending is the only one: everything else Luuka do has a page already.
 # A page is made once and then left alone — what goes on it is merged in
 # like any other page, so a card someone adds by hand survives a migrate.
-#   label, icon (a desk icon name), sequence_id (where it sits in the
-#   grid: 8 falls between Performance and Payroll, among the money pages),
-#   sections (the sidebar headers it starts with)
+#
+# A page is three records, not one. The Workspace is the page, the
+# Workspace Sidebar is its left-hand list, and the Desktop Icon is what
+# puts it on the launcher grid: get_desktop_icons() reads those rows and
+# nothing else, so a page without one exists, opens by name, and appears
+# on no grid at all (apps_screen.py has the whole story).
+#   label, icon (a desk icon name), sequence_id (where it sits: 8 falls
+#   between Performance and Payroll, among the money pages), sections (the
+#   sidebar headers it starts with), under (the app tile it sits in)
 PAGES = (
-    {"label": "Loans", "icon": "loan", "sequence_id": 8.0, "sections": ("Setup",)},
+    {"label": "Loans", "icon": "loan", "sequence_id": 8.0, "sections": ("Setup",),
+     "under": "Frappe HR"},
 )
 PAGE_LABELS = tuple(page["label"] for page in PAGES)
 

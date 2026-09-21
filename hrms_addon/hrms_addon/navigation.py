@@ -22,7 +22,9 @@ numbered afresh whenever they are written (navigation_rules.numbered).
 A workspace that is not installed is skipped, so the app still installs on
 a site without Frappe HR. The exception is a page this app makes of its
 own (navigation_rules.PAGES): Frappe HR has no page for lending, so the
-Loans page is created here and then filled the same way as theirs.
+Loans page is created here and then filled the same way as theirs. Such a
+page is three records — the Workspace, its Workspace Sidebar, and the
+Desktop Icon that puts it on the launcher grid.
 """
 
 import json
@@ -86,6 +88,34 @@ def _ensure_page(page):
         })
         doc.flags.ignore_permissions = True
         doc.insert()
+    _ensure_icon(page)
+
+
+def _ensure_icon(page):
+    """The launcher tile. get_desktop_icons() builds the grid from Desktop
+    Icon rows alone, so without one the page is on no grid however well
+    the Workspace is set up. It sits under the app tile the page names,
+    and only where that tile is really there."""
+    label = page["label"]
+    if not frappe.db.exists("DocType", "Desktop Icon") or frappe.db.exists("Desktop Icon", label):
+        return
+    under = page.get("under")
+    doc = frappe.get_doc({
+        "doctype": "Desktop Icon", "name": label, "label": label,
+        # the app is ours, so a developer-mode export writes the row into
+        # this app rather than Frappe HR's; the grid it lands on is the one
+        # `parent_icon` names, not the one `app` does
+        "app": "hrms_addon", "standard": 1, "hidden": 0,
+        "icon_type": "Link", "link_type": "Workspace Sidebar", "link_to": label,
+        "icon": page["icon"], "bg_color": "blue",
+        "parent_icon": under if under and frappe.db.exists("Desktop Icon", under) else None,
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    # both are read straight from cache by get_desktop_icons(); without
+    # this the row is right and the launcher keeps serving the old grid
+    frappe.cache.delete_key("desktop_icons")
+    frappe.cache.delete_key("bootinfo")
 
 
 def _apply_cards(workspace, cards):

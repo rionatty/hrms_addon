@@ -539,8 +539,13 @@ already on.
 Loan management has a **page of its own under HR**, between Performance
 and Payroll. It is the only page this app makes rather than adds to:
 everything else Luuka do already has one of Frappe HR's, but they have
-none for lending. It is created once on migrate and then filled the same
-way as theirs, so a card added to it by hand survives the next deploy. It
+none for lending. It is three records, not one: the **Workspace** is the page, the
+**Workspace Sidebar** is its left-hand list, and the **Desktop Icon** is
+what puts it on the launcher grid — `get_desktop_icons()` reads those rows
+and nothing else, so a page without one exists, opens by name, and appears
+on no grid at all. All three are created once on migrate and then left
+alone; what goes on the page is merged in the same way as on theirs, so a
+card added by hand survives the next deploy. It
 carries the **Employee Loan**, the **Employee Advance** — LPL/HR/21 calls
 that a loan in so many words, and it is recovered like one — and the
 **Salary Component** the repayments are posted to. Their own Expenses

@@ -159,7 +159,7 @@ def base_sidebar(label):
 # a page this app makes of its own starts empty, and is filled the same
 # way as one of theirs
 for page in R.PAGES:
-    for field in ("label", "icon", "sequence_id"):
+    for field in ("label", "icon", "sequence_id", "under"):
         if not page.get(field):
             fail.append("PAGES: a page of ours needs a %s" % field)
     if page["label"] not in R.CARDS or page["label"] not in R.SIDEBAR:
@@ -361,6 +361,11 @@ for needle, why in (("for row in rules.numbered(rows):", "rows are numbered afre
 if re.search(r'doc\.append\("(links|items)"', glue):
     fail.append("navigation.py must write rows through _write, which numbers them, never doc.append on its own")
 for needle, why in (
+    ("_ensure_icon(", "a page is on no launcher grid until it has a Desktop Icon"),
+    ('"link_type": "Workspace Sidebar"', "which points at its sidebar, as Frappe HR's ten do"),
+    ('"parent_icon"', "and sits under the app tile the page names"),
+    ('frappe.cache.delete_key("desktop_icons")',
+     "the grid is served from cache, so it is dropped when the row is made"),
     ("def show(", "there is a way to see what is really on the site's pages"),
     ('"Workspace Link"', "which reads the workspace's own link rows"),
     ('"Workspace Sidebar Item"', "and the sidebar's own item rows"),
@@ -394,6 +399,7 @@ class Site:
     def __init__(self, newest_first):
         self.tables, self.content, self.saves, self.made, self.newest_first = {}, {}, 0, 0, newest_first
         self.inserts = 0
+        self.dropped = []
 
     def put(self, doctype, name, table, rows, content=None):
         self.tables[(doctype, name)] = (table, [self.named(dict(row, idx=number)) for number, row in enumerate(rows, 1)])
@@ -414,7 +420,7 @@ class Site:
 
 
 class Doc:
-    TABLES = {"Workspace": "links", "Workspace Sidebar": "items"}
+    TABLES = {"Workspace": "links", "Workspace Sidebar": "items", "Desktop Icon": "roles"}
 
     def __init__(self, site, doctype=None, name=None, values=None):
         if values is not None:
@@ -462,6 +468,7 @@ def run_glue(site):
     fake.get_doc = lambda first, name=None: (Doc(site, values=first) if isinstance(first, dict)
                                              else Doc(site, first, name))
     fake.log_error = lambda **kw: fail.append("navigation.py failed on the stand-in site: %s" % kw)
+    fake.cache = types.SimpleNamespace(delete_key=lambda key: site.dropped.append(key))
     package, inner = types.ModuleType("hrms_addon"), types.ModuleType("hrms_addon.hrms_addon")
     inner.navigation_rules = R
     names = ("frappe", "hrms_addon", "hrms_addon.hrms_addon", "hrms_addon.hrms_addon.navigation_rules")
@@ -514,6 +521,12 @@ def cards_of(rows):
 
 def fresh_site(newest_first):
     site = Site(newest_first)
+    # the launcher grid is Desktop Icon rows; a page of ours needs one, and
+    # it sits under the app tile the page names
+    site.put("DocType", "Desktop Icon", "roles", [])
+    for page in R.PAGES:
+        if page.get("under"):
+            site.put("Desktop Icon", page["under"], "roles", [])
     for label in R.CARDS:
         shipped = upstream_workspace(label)
         if shipped:
@@ -584,9 +597,11 @@ for newest_first in (False, True):
             if [item["label"] for item in items] != wanted:
                 fail.append("%s: the %s sidebar reads %s, not %s" % (what, label, [item["label"] for item in items], wanted))
         for page in R.PAGES:
-            for doctype in ("Workspace", "Workspace Sidebar"):
+            for doctype in ("Workspace", "Workspace Sidebar", "Desktop Icon"):
                 if (doctype, page["label"]) not in site.tables:
                     fail.append("%s: the %s %s was never made" % (what, page["label"], doctype))
+            if not site.dropped:
+                fail.append("%s: the launcher grid is served from cache and it was not dropped" % what)
         saves, inserts = site.saves, site.inserts
         run_glue(site)
         if site.saves != saves:
