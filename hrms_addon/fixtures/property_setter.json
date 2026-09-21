@@ -511,5 +511,27 @@
   "value": "1",
   "name": "Employee-iban-permlevel",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal Template-goals-reqd",
+  "doc_type": "Appraisal Template",
+  "doctype_or_field": "DocField",
+  "field_name": "goals",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Appraisal Template-goals-description",
+  "doc_type": "Appraisal Template",
+  "doctype_or_field": "DocField",
+  "field_name": "goals",
+  "property": "description",
+  "property_type": "Text",
+  "value": "Frappe HR's own KRA table. Luuka's scorecard puts the objectives in Section A below, so leave this empty on a scorecard template — filling both is the same work twice.",
+  "module": "HRMS Addon"
  }
 ]

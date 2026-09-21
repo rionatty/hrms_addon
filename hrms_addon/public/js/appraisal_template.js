@@ -87,15 +87,44 @@ frappe.ui.form.on("Appraisal Template", {
 		);
 		frm.trigger("show_weights");
 	},
+	// Frappe HR's own KRA and rating tables are hidden on a scorecard
+	// template, but hiding a table does not stop its rows being checked:
+	// one blank row left in it refuses the save with "KRA is required in
+	// every row", about a table nobody can see. A blank row is dropped
+	// here, before Frappe's mandatory check runs (form.js runs validate
+	// and before_save first, save.js checks afterwards). A row with
+	// anything in it is left alone — a plain Frappe HR template keeps its
+	// KRAs.
+	before_save(frm) {
+		if (!(frm.doc.custom_perspectives || []).length && !(frm.doc.custom_competencies || []).length) {
+			return;
+		}
+		const drop = (table, filled) => {
+			const rows = frm.doc[table] || [];
+			const kept = rows.filter(filled);
+			if (kept.length === rows.length) return;
+			frm.doc[table] = kept;
+			frm.refresh_field(table);
+		};
+		drop("goals", (row) => row.key_result_area || row.per_weightage);
+		drop("rating_criteria", (row) => row.criteria || row.per_weightage);
+	},
 	// The headline says at a glance whether this role's scorecard adds up.
 	// A template with no scorecard on it yet says nothing, so a plain
 	// Frappe HR KRA template is left as it is.
+	//
+	// The totals are summed from the rows on screen rather than read off
+	// custom_objectives_weight, which the server only fills on save: a
+	// template being typed for the first time would otherwise read 0/80
+	// while the rows plainly say otherwise.
 	show_weights(frm) {
 		frm.dashboard.clear_headline();
-		const rows = (frm.doc.custom_perspectives || []).length + (frm.doc.custom_competencies || []).length;
-		if (!rows) return;
-		const a = frm.doc.custom_objectives_weight || 0;
-		const b = frm.doc.custom_competencies_weight || 0;
+		const perspectives = frm.doc.custom_perspectives || [];
+		const competencies = frm.doc.custom_competencies || [];
+		if (!perspectives.length && !competencies.length) return;
+		const total = (rows) => rows.reduce((sum, row) => sum + (row.weight || 0), 0);
+		const a = total(perspectives);
+		const b = total(competencies);
 		const good = a === 80 && b === 20;
 		frm.dashboard.set_headline(
 			`<span>${__("Section A")} <b>${a}</b>/80 &nbsp;|&nbsp; ${__("Section B")} <b>${b}</b>/20</span>` +
@@ -103,5 +132,24 @@ frappe.ui.form.on("Appraisal Template", {
 					good ? __("Adds up") : __("Does not add up")
 				}</span>`
 		);
+	},
+});
+
+// and it moves as the weights are typed, not only when the form is saved
+frappe.ui.form.on("BSC Template Perspective", {
+	weight(frm) {
+		frm.trigger("show_weights");
+	},
+	custom_perspectives_remove(frm) {
+		frm.trigger("show_weights");
+	},
+});
+
+frappe.ui.form.on("BSC Template Competency", {
+	weight(frm) {
+		frm.trigger("show_weights");
+	},
+	custom_competencies_remove(frm) {
+		frm.trigger("show_weights");
 	},
 });

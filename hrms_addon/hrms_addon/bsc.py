@@ -45,6 +45,7 @@ def template_validate(doc, method=None):
         # a plain Frappe HR template, with KRAs on it and no scorecard
         doc.custom_import_remarks = None
         return
+    _drop_blank_upstream_rows(doc)
     errors = rules.template_errors({
         "designation": doc.get("custom_designation"),
         "perspectives": [row.as_dict() for row in doc.get("custom_perspectives") or []],
@@ -59,6 +60,23 @@ def template_validate(doc, method=None):
                      ("<br><br>" + _("Untick Active to save it as it stands and put the weights right later.")),
                      title=_("Scorecard Template"))
     doc.custom_import_remarks = "; ".join(errors) if errors else None
+
+
+def _drop_blank_upstream_rows(doc):
+    """Frappe HR's own KRA and rating tables are hidden on a scorecard
+    template and Luuka do not fill them, but a blank row left in one
+    refuses the save over a table nobody can see. The form drops them too;
+    this covers an import or an API call, which never runs a form script.
+
+    A row with anything in it is left alone: a template that really does
+    carry KRAs keeps them.
+    """
+    for table, fields in (("goals", ("key_result_area", "per_weightage")),
+                          ("rating_criteria", ("criteria", "per_weightage"))):
+        rows = doc.get(table) or []
+        kept = [row for row in rows if any(row.get(field) for field in fields)]
+        if len(kept) != len(rows):
+            doc.set(table, kept)
 
 
 def template_for(employee=None, designation=None, year=None):

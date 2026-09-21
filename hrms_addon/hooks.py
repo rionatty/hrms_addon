@@ -1171,6 +1171,8 @@ fixtures = [
                     "Employee-bank_name-permlevel",
                     "Employee-bank_ac_no-permlevel",
                     "Employee-iban-permlevel",
+                    "Appraisal Template-goals-reqd",
+                    "Appraisal Template-goals-description",
                 ],
             ]
         ],

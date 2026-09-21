@@ -67,6 +67,10 @@ def fields_of(spec):
     return {f["fieldname"]: f for f in (spec or {}).get("fields", [])}
 
 
+def upstream_fields(name):
+    return {f["fieldname"]: f for f in (upstream_doctype(name) or {}).get("fields", [])}
+
+
 def custom_fields(dt):
     return {row["fieldname"]: row for row in CUSTOM if row.get("dt") == dt}
 
@@ -827,6 +831,27 @@ setter_names = {row["name"] for row in SETTERS}
 for fieldname in ("goals", "rating_criteria"):
     if "Appraisal Template-%s-hidden" % fieldname not in setter_names:
         fail.append("Appraisal Template.%s is not part of either Luuka form and must be put away" % fieldname)
+# Hiding a table does not stop it being mandatory, and it does not stop a
+# blank row in it refusing the save. Frappe HR ships goals as reqd, so the
+# flag has to be cleared as well, or a scorecard template cannot be saved
+# at all.
+if (upstream_fields("Appraisal Template").get("goals") or {}).get("reqd"):
+    if "Appraisal Template-goals-reqd" not in setter_names:
+        fail.append("Frappe HR's goals table is mandatory: a scorecard template will not save "
+                    "until a Property Setter clears reqd on it")
+    else:
+        cleared = [row for row in SETTERS if row["name"] == "Appraisal Template-goals-reqd"]
+        if str(cleared[0].get("value")) != "0":
+            fail.append("Appraisal Template-goals-reqd must clear the flag, not set it")
+# and a blank row in either hidden table is dropped, on the form and on the
+# server, so neither can refuse a save over a table nobody can see
+form = read("hrms_addon", "public", "js", "appraisal_template.js")
+if "before_save(frm)" not in form or '"goals"' not in form:
+    fail.append("the template form must drop a blank row from the hidden KRA table before "
+                "Frappe's mandatory check runs")
+glue = read("hrms_addon", "hrms_addon", "bsc.py")
+if "_drop_blank_upstream_rows" not in glue:
+    fail.append("and the server must do it too, for an import or an API call")
 # the appraisal names its template through their own link, not one of ours
 if "Appraisal-appraisal_template-hidden" in setter_names:
     fail.append("Appraisal.appraisal_template IS Luuka's template now: it must not be hidden")
