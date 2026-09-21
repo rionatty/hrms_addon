@@ -151,6 +151,16 @@ CARDS = {
             ("Employee Position Change", "Employee Position Change", DOCTYPE),
             ("Employee Promotion", "Employee Promotion", DOCTYPE),
         ]),
+        # Talent management reads the appraisal and never re-enters it, so
+        # it belongs on the page the appraisal is run from (talent.py).
+        ("Talent Management", [
+            ("Talent Review", "Talent Review", DOCTYPE),
+            ("Talent Placement", "Talent Placement", DOCTYPE),
+            ("Talent Program", "Talent Program", DOCTYPE),
+            ("Succession Position", "Succession Position", DOCTYPE),
+            ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE),
+            ("Succession Coverage", "Succession Coverage", REPORT),
+        ]),
         # The role's balanced scorecard is carried on Frappe HR's own
         # Appraisal Template (bsc.py), so there is one template document,
         # not two: their page never listed it, and this puts it on the page.
@@ -238,6 +248,13 @@ SIDEBAR = {
         ("Performance Review", "Performance Review", DOCTYPE, None, "Appraisal"),
         ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Performance Review"),
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
+        ("Talent Review", "Talent Review", DOCTYPE, None, "Employee Position Change"),
+        ("Talent Placement", "Talent Placement", DOCTYPE, None, "Talent Review"),
+        ("Talent Program", "Talent Program", DOCTYPE, None, "Talent Placement"),
+        ("Succession Position", "Succession Position", DOCTYPE, None, "Talent Program"),
+        ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE, None,
+         "Succession Position"),
+        ("Succession Coverage", "Succession Coverage", REPORT, "Reports", None),
         # Appraisal Template is Frappe HR's own entry, already under Setup,
         # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),

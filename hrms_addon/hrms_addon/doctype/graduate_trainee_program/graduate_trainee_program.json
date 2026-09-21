@@ -1,0 +1,402 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-21 23:30:00.000000",
+ "description": "A graduate trainee from the day they are hired: induction, rotations across the plants, milestone assessments, and confirmation or exit.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "job_applicant",
+  "trainee_name",
+  "cohort",
+  "column_break_1",
+  "status",
+  "company",
+  "start_date",
+  "end_date",
+  "induction_section",
+  "mentor",
+  "mentor_name",
+  "home_department",
+  "designation",
+  "column_break_2",
+  "home_branch",
+  "employee_onboarding",
+  "checklist",
+  "rotation_section",
+  "rotations",
+  "milestone_section",
+  "milestones",
+  "milestones_passed",
+  "column_break_3",
+  "average_score",
+  "last_result",
+  "outcome_section",
+  "employee",
+  "placement",
+  "column_break_4",
+  "succession_position",
+  "exit_reason",
+  "signoff_section",
+  "inducted_by",
+  "inducted_on",
+  "column_break_5",
+  "confirmed_by",
+  "confirmed_on",
+  "return_remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-GT-.YYYY.-",
+   "reqd": 1,
+   "default": "LPL-GT-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "job_applicant",
+   "fieldtype": "Link",
+   "label": "From Applicant",
+   "options": "Job Applicant",
+   "in_list_view": 1,
+   "description": "The applicant in resourcing this trainee was hired from."
+  },
+  {
+   "fieldname": "trainee_name",
+   "fieldtype": "Data",
+   "label": "Trainee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cohort",
+   "fieldtype": "Data",
+   "label": "Cohort",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "For example, Graduate Intake 2026."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Recruited\nIn Induction\nIn Rotation\nUnder Assessment\nConfirmed\nExited\nCancelled",
+   "default": "Recruited",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Starts",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Programme Ends"
+  },
+  {
+   "fieldname": "induction_section",
+   "fieldtype": "Section Break",
+   "label": "Induction"
+  },
+  {
+   "fieldname": "mentor",
+   "fieldtype": "Link",
+   "label": "Mentor",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "mentor_name",
+   "fieldtype": "Data",
+   "label": "Mentor Name",
+   "fetch_from": "mentor.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "home_department",
+   "fieldtype": "Link",
+   "label": "Home Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "description": "Carried from the job opening; the Employee record created on confirmation takes it."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "home_branch",
+   "fieldtype": "Link",
+   "label": "Home Plant",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "employee_onboarding",
+   "fieldtype": "Link",
+   "label": "Employee Onboarding",
+   "options": "Employee Onboarding",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "checklist",
+   "fieldtype": "Table",
+   "label": "Onboarding Checklist",
+   "options": "Trainee Induction Item"
+  },
+  {
+   "fieldname": "rotation_section",
+   "fieldtype": "Section Break",
+   "label": "Rotations",
+   "description": "Stints across plants and functions, one at a time, each with objectives."
+  },
+  {
+   "fieldname": "rotations",
+   "fieldtype": "Table",
+   "label": "Rotations",
+   "options": "Trainee Rotation"
+  },
+  {
+   "fieldname": "milestone_section",
+   "fieldtype": "Section Break",
+   "label": "Milestones",
+   "description": "At each one an appraisal is raised in the performance module with a competency check from L&D."
+  },
+  {
+   "fieldname": "milestones",
+   "fieldtype": "Table",
+   "label": "Milestones",
+   "options": "Trainee Milestone"
+  },
+  {
+   "fieldname": "milestones_passed",
+   "fieldtype": "Int",
+   "label": "Passed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "average_score",
+   "fieldtype": "Float",
+   "label": "Average Score",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "last_result",
+   "fieldtype": "Select",
+   "label": "Last Result",
+   "options": "\nPass\nFinal Pass\nFail",
+   "read_only": 1
+  },
+  {
+   "fieldname": "outcome_section",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee Record",
+   "options": "Employee",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Created on confirmation."
+  },
+  {
+   "fieldname": "placement",
+   "fieldtype": "Link",
+   "label": "Nine-Box Placement",
+   "options": "Talent Placement",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "succession_position",
+   "fieldtype": "Link",
+   "label": "Entered Succession Pool",
+   "options": "Succession Position",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "exit_reason",
+   "fieldtype": "Small Text",
+   "label": "Reason for Exit",
+   "depends_on": "eval:doc.status=='Exited'"
+  },
+  {
+   "fieldname": "signoff_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-off"
+  },
+  {
+   "fieldname": "inducted_by",
+   "fieldtype": "Link",
+   "label": "Inducted By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "inducted_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Confirmed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "confirmed_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Graduate Trainee Program",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Graduate Trainee Program",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Mentor",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "trainee_name",
+ "track_changes": 1
+}

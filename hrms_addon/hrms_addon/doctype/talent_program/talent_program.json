@@ -1,0 +1,422 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-21 23:30:00.000000",
+ "description": "The development plan an employee is put on: leadership, mentoring and coaching, or learning and development — and afterwards, whether it worked.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "designation",
+  "department",
+  "column_break_1",
+  "branch",
+  "grade",
+  "company",
+  "status",
+  "program_section",
+  "program_type",
+  "mentor",
+  "start_date",
+  "end_date",
+  "column_break_2",
+  "placement",
+  "talent_review",
+  "box_name",
+  "objectives",
+  "actions_section",
+  "actions",
+  "training_requisition",
+  "review_section",
+  "score_before",
+  "score_after",
+  "movement",
+  "column_break_3",
+  "effectiveness",
+  "decision",
+  "outcome_notes",
+  "signoff_section",
+  "enrolled_by",
+  "enrolled_on",
+  "column_break_4",
+  "reviewed_by",
+  "reviewed_on",
+  "return_remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-TMP-.YYYY.-",
+   "reqd": 1,
+   "default": "LPL-TMP-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Link",
+   "label": "Grade",
+   "options": "Employee Grade",
+   "fetch_from": "employee.grade",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nEnrolled\nIn Programme\nUnder Review\nClosed\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "program_section",
+   "fieldtype": "Section Break",
+   "label": "The programme"
+  },
+  {
+   "fieldname": "program_type",
+   "fieldtype": "Select",
+   "label": "Programme",
+   "options": "Leadership Development\nMentoring and Coaching\nLearning and Development",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "mentor",
+   "fieldtype": "Link",
+   "label": "Mentor or Coach",
+   "options": "Employee",
+   "depends_on": "eval:doc.program_type=='Mentoring and Coaching'"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Starts",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Ends"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "placement",
+   "fieldtype": "Link",
+   "label": "From Placement",
+   "options": "Talent Placement",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "talent_review",
+   "fieldtype": "Link",
+   "label": "Talent Review",
+   "options": "Talent Review",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "box_name",
+   "fieldtype": "Data",
+   "label": "Box",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "objectives",
+   "fieldtype": "Text",
+   "label": "Objectives"
+  },
+  {
+   "fieldname": "actions_section",
+   "fieldtype": "Section Break",
+   "label": "What is to be done",
+   "description": "Part E of the appraisal, kept in the same shape: the action, by when, by whom and what it costs."
+  },
+  {
+   "fieldname": "actions",
+   "fieldtype": "Table",
+   "label": "Development Actions",
+   "options": "Development Action"
+  },
+  {
+   "fieldname": "training_requisition",
+   "fieldtype": "Link",
+   "label": "Sent to L&D",
+   "options": "Training Requisition",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "review_section",
+   "fieldtype": "Section Break",
+   "label": "Did it work",
+   "description": "The HR Officer's review: the appraisal before, the appraisal after, and what came of it."
+  },
+  {
+   "fieldname": "score_before",
+   "fieldtype": "Float",
+   "label": "Score Before",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "score_after",
+   "fieldtype": "Float",
+   "label": "Score After",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "movement",
+   "fieldtype": "Float",
+   "label": "Movement",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "effectiveness",
+   "fieldtype": "Select",
+   "label": "Effectiveness",
+   "options": "\nHighly Effective\nEffective\nSome Effect\nNo Effect",
+   "read_only": 1
+  },
+  {
+   "fieldname": "decision",
+   "fieldtype": "Select",
+   "label": "Decision",
+   "options": "\nSuccession Pipeline\nPromotion\nReplacement\nRetain in Role\nImprove",
+   "description": "What management decide from the outcome: the succession pipeline, a promotion, or a replacement."
+  },
+  {
+   "fieldname": "outcome_notes",
+   "fieldtype": "Text",
+   "label": "What came of it"
+  },
+  {
+   "fieldname": "signoff_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-off"
+  },
+  {
+   "fieldname": "enrolled_by",
+   "fieldtype": "Link",
+   "label": "Enrolled By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "enrolled_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reviewed_by",
+   "fieldtype": "Link",
+   "label": "Reviewed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reviewed_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Talent Program",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Talent Program",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "Talent Council"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Mentor",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Employee"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

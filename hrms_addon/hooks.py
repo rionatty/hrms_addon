@@ -116,6 +116,9 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # Result Areas table of the Job Description tab.
 doctype_js = {
     "Job Requisition": "public/js/job_requisition.js",
+    # A hired graduate becomes a Graduate Trainee Program from their own
+    # applicant record (talent.py)
+    "Job Applicant": "public/js/job_applicant_trainee.js",
     "Designation": "public/js/designation.js",
     # Submit Feedback opens the score sheet (LPL/HR/17) instead of HRMS's star dialog
     "Interview": "public/js/interview.js",
@@ -332,6 +335,10 @@ after_migrate = [
     # The disciplinary case: investigated by one person, decided by another
     # (5.3). See discipline_approval.py.
     "hrms_addon.hrms_addon.discipline.setup_workflows_on_migrate",
+    # The nine-box placement, the development programme, the succession
+    # position and the graduate trainee. See talent_approval.py,
+    # talent_program_approval.py, succession_approval.py, trainee_approval.py.
+    "hrms_addon.hrms_addon.talent.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -1320,6 +1327,10 @@ scheduler_events = {
         # Employee relations: an appeal window that lapses, a concern past
         # its timeline, a suspension that ends today (discipline.py)
         "hrms_addon.hrms_addon.discipline.daily",
+        # Talent: a review cycle that opens and drafts its placements, a
+        # trainee milestone that has fallen due, top talent flagged a
+        # flight risk (talent.py)
+        "hrms_addon.hrms_addon.talent.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee

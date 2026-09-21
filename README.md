@@ -613,6 +613,24 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_talent.py` covers talent management: the nine-box review,
+succession and the graduate trainee scheme. Performance is never re-entered
+— it is the Appraisal's own score, and the line between Low and Meeting is
+the same sixty the performance module puts a PIP below, which the checker
+asserts against `appraisal_rules.PIP_BELOW` so the two cannot drift apart.
+Potential is the line manager's rating of ability, aspiration and
+engagement, with the competency levels carried over from the scorecard as
+evidence rather than as a fourth score. The two bands resolve to one of
+nine cells, and the cell is at permission level 1: HR and the Talent
+Council see the grid, while an employee sees only their development
+themes. Finalising a placement draws up the development plan and sends its
+training to L&D as a real Training Requisition; a succession gap the
+council confirms raises a real Job Opening; a confirmed graduate trainee
+gets a real Employee record. The checker walks all four workflows end to
+end and pins what the glue relies on upstream — a Job Applicant carries
+neither company nor department, so both are read from the Job Opening they
+applied against.
+
 `verify_discipline.py` covers employee relations and welfare: the
 disciplinary ladder (5.3), the non-disciplinary concern (5.4) and the
 safety incident. It checks the ladder climbs one rung per live sanction

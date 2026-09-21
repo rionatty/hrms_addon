@@ -1,0 +1,207 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:title",
+ "creation": "2026-09-21 23:30:00.000000",
+ "description": "A round of nine-box talent reviews: who is eligible, when it opens, and the calibration that follows.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "review_year",
+  "appraisal_cycle",
+  "column_break_1",
+  "opens_on",
+  "closes_on",
+  "status",
+  "scope_section",
+  "company",
+  "branch",
+  "column_break_2",
+  "department",
+  "placements_created",
+  "drafted_on",
+  "calibration_section",
+  "calibration",
+  "council_section",
+  "council_remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "description": "For example, Talent Review 2026."
+  },
+  {
+   "fieldname": "review_year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "appraisal_cycle",
+   "fieldtype": "Link",
+   "label": "Appraisal Cycle",
+   "options": "Appraisal Cycle",
+   "reqd": 1,
+   "description": "Where the performance scores are read from. Nothing is re-entered."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "opens_on",
+   "fieldtype": "Date",
+   "label": "Opens",
+   "reqd": 1,
+   "description": "On this day the scheduler drafts a placement for everyone eligible."
+  },
+  {
+   "fieldname": "closes_on",
+   "fieldtype": "Date",
+   "label": "Closes"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nOpen\nIn Calibration\nFinalised\nCancelled",
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Who is in it"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "description": "Leave empty to review every plant in one round."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "placements_created",
+   "fieldtype": "Int",
+   "label": "Placements Drafted",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "drafted_on",
+   "fieldtype": "Date",
+   "label": "Drafted On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "calibration_section",
+   "fieldtype": "Section Break",
+   "label": "Calibration",
+   "description": "Every box the peer group moved, and why. HR records the movers."
+  },
+  {
+   "fieldname": "calibration",
+   "fieldtype": "Table",
+   "label": "Movers",
+   "options": "Talent Calibration Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "council_section",
+   "fieldtype": "Section Break",
+   "label": "Talent Council"
+  },
+  {
+   "fieldname": "council_remarks",
+   "fieldtype": "Text",
+   "label": "Council Remarks"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Talent Review",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Talent Council"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

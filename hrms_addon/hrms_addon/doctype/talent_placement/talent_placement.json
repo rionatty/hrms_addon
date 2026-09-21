@@ -1,0 +1,578 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-21 23:30:00.000000",
+ "description": "One employee in the nine-box grid: their appraisal score, the line manager's potential assessment, and the cell the two resolve to.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "talent_review",
+  "employee",
+  "employee_name",
+  "designation",
+  "department",
+  "column_break_1",
+  "branch",
+  "grade",
+  "company",
+  "status",
+  "performance_section",
+  "appraisal",
+  "performance_score",
+  "column_break_2",
+  "appraisal_band",
+  "performance_band",
+  "potential_section",
+  "ability",
+  "aspiration",
+  "engagement",
+  "column_break_3",
+  "potential_score",
+  "potential_band",
+  "competency_average",
+  "competencies",
+  "box_section",
+  "box",
+  "box_name",
+  "box_colour",
+  "column_break_4",
+  "default_action",
+  "suggested_decision",
+  "top_talent",
+  "submitted_box",
+  "rationale",
+  "calibration_reason",
+  "risk_section",
+  "flight_risk",
+  "risk_notes",
+  "column_break_5",
+  "risk_notified",
+  "impact_of_loss",
+  "development_section",
+  "themes",
+  "development_plan",
+  "signoff_section",
+  "submitted_by",
+  "submitted_on",
+  "column_break_6",
+  "calibrated_by",
+  "calibrated_on",
+  "finalised_by",
+  "finalised_on",
+  "return_remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-TP-.YYYY.-",
+   "reqd": 1,
+   "default": "LPL-TP-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "talent_review",
+   "fieldtype": "Link",
+   "label": "Talent Review",
+   "options": "Talent Review",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Link",
+   "label": "Grade",
+   "options": "Employee Grade",
+   "fetch_from": "employee.grade",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nIn Calibration\nCouncil Review\nFinalised\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "performance_section",
+   "fieldtype": "Section Break",
+   "label": "Performance",
+   "description": "Read from the appraisal. It is not typed in here."
+  },
+  {
+   "fieldname": "appraisal",
+   "fieldtype": "Link",
+   "label": "Appraisal",
+   "options": "Appraisal",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "performance_score",
+   "fieldtype": "Float",
+   "label": "Score out of 100",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "appraisal_band",
+   "fieldtype": "Data",
+   "label": "Appraisal Band",
+   "read_only": 1
+  },
+  {
+   "fieldname": "performance_band",
+   "fieldtype": "Select",
+   "label": "Performance Band",
+   "options": "\nLow\nMeeting\nExceeding",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "potential_section",
+   "fieldtype": "Section Break",
+   "label": "Potential",
+   "description": "The line manager's judgement, each out of ten."
+  },
+  {
+   "fieldname": "ability",
+   "fieldtype": "Float",
+   "label": "Ability",
+   "precision": "2",
+   "description": "Can they do the bigger job?"
+  },
+  {
+   "fieldname": "aspiration",
+   "fieldtype": "Float",
+   "label": "Aspiration",
+   "precision": "2",
+   "description": "Do they want it?"
+  },
+  {
+   "fieldname": "engagement",
+   "fieldtype": "Float",
+   "label": "Engagement",
+   "precision": "2",
+   "description": "Are they with us for it?"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "potential_score",
+   "fieldtype": "Float",
+   "label": "Potential out of 100",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "potential_band",
+   "fieldtype": "Select",
+   "label": "Potential Band",
+   "options": "\nLow\nModerate\nHigh",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "competency_average",
+   "fieldtype": "Float",
+   "label": "Competency Average",
+   "read_only": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "competencies",
+   "fieldtype": "Table",
+   "label": "Competency Evidence",
+   "options": "Talent Competency Level",
+   "description": "Carried over from the appraisal. Evidence for the rating, not a score in it."
+  },
+  {
+   "fieldname": "box_section",
+   "fieldtype": "Section Break",
+   "label": "Nine-Box Placement",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "box",
+   "fieldtype": "Int",
+   "label": "Box",
+   "read_only": 1,
+   "permlevel": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "box_name",
+   "fieldtype": "Data",
+   "label": "Box Name",
+   "read_only": 1,
+   "permlevel": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "box_colour",
+   "fieldtype": "Data",
+   "label": "Colour",
+   "read_only": 1,
+   "permlevel": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_action",
+   "fieldtype": "Data",
+   "label": "Default Action",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "suggested_decision",
+   "fieldtype": "Select",
+   "label": "Suggested Decision",
+   "options": "\nSuccession Pipeline\nPromotion\nReplacement\nRetain in Role\nImprove",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "top_talent",
+   "fieldtype": "Check",
+   "label": "Top Talent",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "submitted_box",
+   "fieldtype": "Int",
+   "label": "Box at Submission",
+   "read_only": 1,
+   "permlevel": 1,
+   "no_copy": 1,
+   "print_hide": 1,
+   "description": "What the line manager submitted, kept so calibration can say who moved."
+  },
+  {
+   "fieldname": "rationale",
+   "fieldtype": "Text",
+   "label": "Rationale",
+   "reqd": 1,
+   "description": "Why this placement. The council reads this, not the grid."
+  },
+  {
+   "fieldname": "calibration_reason",
+   "fieldtype": "Small Text",
+   "label": "Reason for the Move",
+   "no_copy": 1,
+   "depends_on": "eval:doc.status=='In Calibration'",
+   "description": "A box moved in calibration is recorded in the cycle with this reason."
+  },
+  {
+   "fieldname": "risk_section",
+   "fieldtype": "Section Break",
+   "label": "Retention"
+  },
+  {
+   "fieldname": "flight_risk",
+   "fieldtype": "Select",
+   "label": "Flight Risk",
+   "options": "\nHigh\nMedium\nLow"
+  },
+  {
+   "fieldname": "risk_notes",
+   "fieldtype": "Small Text",
+   "label": "Risk Notes"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "risk_notified",
+   "fieldtype": "Check",
+   "label": "Council Notified",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "impact_of_loss",
+   "fieldtype": "Select",
+   "label": "Impact of Loss",
+   "options": "\nHigh\nMedium\nLow"
+  },
+  {
+   "fieldname": "development_section",
+   "fieldtype": "Section Break",
+   "label": "Development",
+   "description": "The part an employee sees: what to work on, not where they sit."
+  },
+  {
+   "fieldname": "themes",
+   "fieldtype": "Table",
+   "label": "Development Themes",
+   "options": "Development Theme"
+  },
+  {
+   "fieldname": "development_plan",
+   "fieldtype": "Link",
+   "label": "Development Plan",
+   "options": "Talent Program",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "signoff_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-off"
+  },
+  {
+   "fieldname": "submitted_by",
+   "fieldtype": "Link",
+   "label": "Line Manager",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "submitted_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "calibrated_by",
+   "fieldtype": "Link",
+   "label": "Calibrated By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "calibrated_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "finalised_by",
+   "fieldtype": "Link",
+   "label": "Council",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "finalised_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Talent Placement",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Talent Placement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "Talent Council"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "permlevel": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "permlevel": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "permlevel": 1,
+   "role": "Talent Council"
+  },
+  {
+   "read": 1,
+   "permlevel": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

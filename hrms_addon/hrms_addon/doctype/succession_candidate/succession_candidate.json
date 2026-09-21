@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "creation": "2026-09-21 23:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "candidate_designation",
+  "readiness",
+  "placement",
+  "box_name",
+  "nominated_by",
+  "development_needs",
+  "training_requisition"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Successor",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "candidate_designation",
+   "fieldtype": "Link",
+   "label": "Current Role",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "readiness",
+   "fieldtype": "Select",
+   "label": "Readiness",
+   "options": "Ready Now\nReady in 1-2 Years\nEmerging\nGap",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "default": "Emerging"
+  },
+  {
+   "fieldname": "placement",
+   "fieldtype": "Link",
+   "label": "Nine-Box Placement",
+   "options": "Talent Placement"
+  },
+  {
+   "fieldname": "box_name",
+   "fieldtype": "Data",
+   "label": "Box",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
+   "fieldname": "nominated_by",
+   "fieldtype": "Link",
+   "label": "Nominated By",
+   "options": "User"
+  },
+  {
+   "fieldname": "development_needs",
+   "fieldtype": "Small Text",
+   "label": "Development Needs",
+   "in_list_view": 1,
+   "columns": 3,
+   "description": "What stands between this person and the role. It is what goes to L&D."
+  },
+  {
+   "fieldname": "training_requisition",
+   "fieldtype": "Link",
+   "label": "Sent to L&D",
+   "options": "Training Requisition",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Succession Candidate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

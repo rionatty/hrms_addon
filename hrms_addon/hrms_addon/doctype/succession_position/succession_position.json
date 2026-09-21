@@ -1,0 +1,414 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-21 23:30:00.000000",
+ "description": "A critical role, who holds it, what it would cost to lose them, and who could step in.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "designation",
+  "department",
+  "branch",
+  "column_break_1",
+  "company",
+  "status",
+  "review_year",
+  "incumbent_section",
+  "incumbent",
+  "incumbent_name",
+  "single_person_role",
+  "column_break_2",
+  "risk_level",
+  "criticality_notes",
+  "retirement_or_exit_due",
+  "bench_section",
+  "candidates",
+  "ready_now",
+  "ready_soon",
+  "column_break_3",
+  "emerging",
+  "bench_depth",
+  "coverage",
+  "gap",
+  "gap_section",
+  "gap_confirmed",
+  "job_opening",
+  "column_break_4",
+  "needs_sent_on",
+  "gap_notes",
+  "signoff_section",
+  "nominated_by",
+  "nominated_on",
+  "column_break_5",
+  "confirmed_by",
+  "confirmed_on",
+  "return_remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-SUC-.YYYY.-",
+   "reqd": 1,
+   "default": "LPL-SUC-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Role",
+   "options": "Designation",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nNominations Open\nCouncil Review\nConfirmed\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "review_year",
+   "fieldtype": "Int",
+   "label": "Year"
+  },
+  {
+   "fieldname": "incumbent_section",
+   "fieldtype": "Section Break",
+   "label": "The role today"
+  },
+  {
+   "fieldname": "incumbent",
+   "fieldtype": "Link",
+   "label": "Incumbent",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "incumbent_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "incumbent.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "single_person_role",
+   "fieldtype": "Check",
+   "label": "Single-Person Technical Role",
+   "description": "Extrusion, printing, blow moulding: roles one person holds and nobody else can do."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "label": "Risk if Lost",
+   "options": "\nHigh\nMedium\nLow",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "criticality_notes",
+   "fieldtype": "Small Text",
+   "label": "Why the role is critical"
+  },
+  {
+   "fieldname": "retirement_or_exit_due",
+   "fieldtype": "Date",
+   "label": "Known Exit Due"
+  },
+  {
+   "fieldname": "bench_section",
+   "fieldtype": "Section Break",
+   "label": "The bench"
+  },
+  {
+   "fieldname": "candidates",
+   "fieldtype": "Table",
+   "label": "Successors",
+   "options": "Succession Candidate",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "ready_now",
+   "fieldtype": "Int",
+   "label": "Ready Now",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "ready_soon",
+   "fieldtype": "Int",
+   "label": "Ready in 1-2 Years",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "emerging",
+   "fieldtype": "Int",
+   "label": "Emerging",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "bench_depth",
+   "fieldtype": "Int",
+   "label": "Bench Depth",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "coverage",
+   "fieldtype": "Select",
+   "label": "Coverage",
+   "options": "\nCovered\nAt Risk\nGap",
+   "read_only": 1,
+   "in_list_view": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "gap",
+   "fieldtype": "Check",
+   "label": "Gap",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "gap_section",
+   "fieldtype": "Section Break",
+   "label": "Where there is a gap",
+   "depends_on": "gap"
+  },
+  {
+   "fieldname": "gap_confirmed",
+   "fieldtype": "Check",
+   "label": "Gap Confirmed by the Council",
+   "no_copy": 1,
+   "description": "On confirmation a job opening is raised in resourcing and the development needs go to L&D."
+  },
+  {
+   "fieldname": "job_opening",
+   "fieldtype": "Link",
+   "label": "Job Opening",
+   "options": "Job Opening",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "needs_sent_on",
+   "fieldtype": "Date",
+   "label": "Development Needs Sent",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "gap_notes",
+   "fieldtype": "Small Text",
+   "label": "Council's Note"
+  },
+  {
+   "fieldname": "signoff_section",
+   "fieldtype": "Section Break",
+   "label": "Sign-off"
+  },
+  {
+   "fieldname": "nominated_by",
+   "fieldtype": "Link",
+   "label": "Nominated By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "nominated_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Council",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "confirmed_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Succession Position",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 23:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Succession Position",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "Talent Council"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department",
+   "write": 1,
+   "create": 1
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "permlevel": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "permlevel": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "permlevel": 1,
+   "role": "Talent Council"
+  },
+  {
+   "read": 1,
+   "permlevel": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "designation",
+ "track_changes": 1
+}
