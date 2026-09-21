@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:action_name",
+ "creation": "2026-09-21 22:00:00.000000",
+ "description": "One rung of the disciplinary ladder, and how long it stands.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "action_name",
+  "rung",
+  "column_break_2",
+  "validity_months",
+  "suspension_days",
+  "enabled",
+  "about_section",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "action_name",
+   "fieldtype": "Data",
+   "label": "Action",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rung",
+   "fieldtype": "Select",
+   "label": "Rung of the Ladder",
+   "options": "Verbal Warning\nFirst Warning Letter\nSecond Warning Letter\nSuspension\nDismissal",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "The chart's ladder: a verbal warning, two written ones, suspension, dismissal."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "validity_months",
+   "fieldtype": "Int",
+   "label": "Stands For (months)",
+   "default": "12",
+   "description": "After this it is spent, and a fresh case starts at the bottom again."
+  },
+  {
+   "fieldname": "suspension_days",
+   "fieldtype": "Int",
+   "label": "Suspension Days",
+   "depends_on": "eval:doc.rung==\"Suspension\"",
+   "default": "3"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1"
+  },
+  {
+   "fieldname": "about_section",
+   "fieldtype": "Section Break",
+   "label": "About"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-21 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Disciplinary Action Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "write": 1,
+   "create": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

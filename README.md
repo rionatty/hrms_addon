@@ -161,13 +161,12 @@ file is a plain asset and loads without it.
 
 ### Verifying
 
-The palette, density and branding contracts are each declared in three or
-four places by necessity (server boot, form script, doctype schema,
-stylesheet). Two scripts assert they still agree. Neither needs a bench,
-a site or a database:
+Every module ships a checker beside it. They read the app's own files and
+the upstream apps' doctype JSON; none of them needs a bench, a site or a
+database, so they run on a laptop in a couple of seconds:
 
 ```bash
-python scripts/verify_js.py && python scripts/verify_positions.py && python scripts/verify_performance.py && python scripts/verify_attendance.py && python scripts/verify_palette.py && python scripts/verify_branding.py && python scripts/verify_fixtures.py && python scripts/verify_requisition_workflow.py && python scripts/verify_job_description.py && python scripts/verify_bio_data.py && python scripts/verify_careers.py && python scripts/verify_interviews.py && python scripts/verify_onboarding.py && python scripts/verify_probation.py && python scripts/verify_contracts.py && python scripts/verify_alerts.py && python scripts/verify_navigation.py && python scripts/verify_training.py
+for check in scripts/verify_*.py; do python "$check" || break; done
 ```
 
 `verify_careers.py` covers the careers portal: the Job Opening page
@@ -613,6 +612,18 @@ once, a contract first seen inside several thresholds getting one alert),
 the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
+
+`verify_discipline.py` covers employee relations and welfare: the
+disciplinary ladder (5.3), the non-disciplinary concern (5.4) and the
+safety incident. It checks the ladder climbs one rung per live sanction
+and starts again once a sanction is spent, that gross misconduct may go
+straight to dismissal, that the investigating officer never sits on the
+panel that decides, that a hearing is called at least 48 hours ahead, that
+nobody is judged without their own response on the record, that an appeal
+goes to someone who has not already acted, and that a dismissal really
+opens the involuntary exit. It pins what the glue relies on upstream —
+Employee Grievance and Grievance Type are Frappe HR's own forms, so the
+concern is custom fields on them rather than a form of its own.
 
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch

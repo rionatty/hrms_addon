@@ -149,6 +149,8 @@ doctype_js = {
     "Employee Separation": "public/js/employee_separation.js",
     # LPL/HR/20 on their Full and Final Statement (settlements.py)
     "Full and Final Statement": "public/js/full_and_final_statement.js",
+    # The non-disciplinary concern's timeline on their Employee Grievance
+    "Employee Grievance": "public/js/employee_grievance.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -222,6 +224,8 @@ after_install = [
     # the five lines LPL.HR.31 prints, and the standard claims Luuka pay
     "hrms_addon.hrms_addon.allowances.seed_allowance_lines",
     "hrms_addon.hrms_addon.benefits.seed_standard_claims",
+    # the disciplinary ladder and the misconduct the HR manual lists
+    "hrms_addon.hrms_addon.discipline.seed_discipline_masters",
 ]
 
 # Uninstallation
@@ -325,6 +329,9 @@ after_migrate = [
     # The full and final settlement: Accounts, the employee, the Executive
     # Director, then payroll. See settlement_approval.py.
     "hrms_addon.hrms_addon.settlements.setup_workflows_on_migrate",
+    # The disciplinary case: investigated by one person, decided by another
+    # (5.3). See discipline_approval.py.
+    "hrms_addon.hrms_addon.discipline.setup_workflows_on_migrate",
     # What this app adds, on Frappe HR's own workspace pages and sidebars, so
     # it is reached where people already work (navigation.py). Added to what
     # Frappe HR ships, and re-applied here because an update rewrites those
@@ -1022,6 +1029,28 @@ fixtures = [
                     "Full and Final Statement-custom_salary_component",
                     "Full and Final Statement-custom_payroll_cb",
                     "Full and Final Statement-custom_additional_salary",
+                    "Employee Grievance-custom_lpl_section",
+                    "Employee Grievance-custom_reported_to",
+                    "Employee Grievance-custom_assigned_hod",
+                    "Employee Grievance-custom_booked_on",
+                    "Employee Grievance-custom_branch",
+                    "Employee Grievance-custom_lpl_cb",
+                    "Employee Grievance-custom_due_on",
+                    "Employee Grievance-custom_overdue",
+                    "Employee Grievance-custom_informal_notes",
+                    "Employee Grievance-custom_outcome_section",
+                    "Employee Grievance-custom_meeting_notes",
+                    "Employee Grievance-custom_remedy",
+                    "Employee Grievance-custom_outcome_cb",
+                    "Employee Grievance-custom_outcome_accepted",
+                    "Employee Grievance-custom_appeal_filed",
+                    "Employee Grievance-custom_appealed_on",
+                    "Employee Grievance-custom_appeals_authority",
+                    "Employee Grievance-custom_appeal_outcome",
+                    "Grievance Type-custom_lpl_section",
+                    "Grievance Type-custom_timeline_days",
+                    "Grievance Type-custom_lpl_cb",
+                    "Grievance Type-custom_default_handler",
                 ],
             ]
         ],
@@ -1199,6 +1228,14 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.exits.interview_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.exits.interview_on_cancel",
     },
+    # The non-disciplinary concern (5.4) on Frappe HR's own Employee
+    # Grievance: the HOD it is assigned to and the timeline the system
+    # watches (discipline.py)
+    "Employee Grievance": {
+        "validate": "hrms_addon.hrms_addon.discipline.concern_validate",
+        "on_submit": "hrms_addon.hrms_addon.discipline.concern_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.discipline.concern_on_cancel",
+    },
     # LPL/HR/20 on their Full and Final Statement: what is due, what comes
     # off, the employee's own signature and the payroll run it is paid in
     # (settlements.py)
@@ -1280,6 +1317,9 @@ scheduler_events = {
         # Exits: a notice period that has run out, and an exit with no
         # clearance form drawn up (exits.py)
         "hrms_addon.hrms_addon.exits.daily",
+        # Employee relations: an appeal window that lapses, a concern past
+        # its timeline, a suspension that ends today (discipline.py)
+        "hrms_addon.hrms_addon.discipline.daily",
     ],
     "hourly": [
         # Every enabled ZKTeco machine read and pushed into Employee

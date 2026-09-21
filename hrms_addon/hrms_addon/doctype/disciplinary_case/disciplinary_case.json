@@ -1,0 +1,695 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-21 22:00:00.000000",
+ "description": "A disciplinary case, from the incident the supervisor reports to the decision the panel takes (LPL/HR/30, LPL/HR/03).",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "badge_no",
+  "department",
+  "designation",
+  "column_break_1",
+  "branch",
+  "section",
+  "company",
+  "status",
+  "incident_section",
+  "misconduct_type",
+  "severity",
+  "incident_date",
+  "reported_by",
+  "column_break_2",
+  "allegation",
+  "incident_evidence",
+  "ladder_section",
+  "live_sanctions",
+  "column_break_3",
+  "starts_at",
+  "previous_case",
+  "investigation_section",
+  "investigating_officer",
+  "investigation_report",
+  "investigation_evidence",
+  "column_break_4",
+  "recommendation",
+  "investigated_by",
+  "investigated_on",
+  "charge_section",
+  "charge_issued_on",
+  "charge_remarks",
+  "column_break_5",
+  "charged_by",
+  "charged_on",
+  "hearing_section",
+  "hearing_on",
+  "hearing_notified_on",
+  "hearing_location",
+  "column_break_6",
+  "hearing_notice_hours",
+  "panel",
+  "hearing_minutes",
+  "employee_response",
+  "decision_section",
+  "outcome",
+  "action_type",
+  "rung",
+  "sanction_valid_until",
+  "column_break_7",
+  "suspension_days",
+  "suspension_from",
+  "suspension_to",
+  "report_back_on",
+  "decided_by",
+  "decided_on",
+  "letter_section",
+  "letter_issued_on",
+  "employee_signed",
+  "column_break_8",
+  "signed_letter",
+  "letter_remarks",
+  "appeal_section",
+  "appeal_window_days",
+  "appeal_filed",
+  "appeal_grounds",
+  "column_break_9",
+  "appeals_authority",
+  "appeal_outcome",
+  "appeal_closed_on",
+  "outcome_section",
+  "separation",
+  "training_need",
+  "column_break_10",
+  "performance_review",
+  "return_remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-DISC-.YYYY.-",
+   "reqd": 1,
+   "default": "LPL-DISC-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "badge_no",
+   "fieldtype": "Data",
+   "label": "ID No",
+   "fetch_from": "employee.attendance_device_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "section",
+   "fieldtype": "Data",
+   "label": "Section"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nUnder Investigation\nCharge Issued\nHearing Scheduled\nDecided\nClosed\nCancelled",
+   "read_only": 1,
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "incident_section",
+   "fieldtype": "Section Break",
+   "label": "The incident"
+  },
+  {
+   "fieldname": "misconduct_type",
+   "fieldtype": "Link",
+   "label": "Misconduct",
+   "options": "Misconduct Type",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "options": "Minor\nSerious\nGross",
+   "fetch_from": "misconduct_type.severity",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "incident_date",
+   "fieldtype": "Date",
+   "label": "Date of Offence",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reported_by",
+   "fieldtype": "Link",
+   "label": "Reported By",
+   "options": "User",
+   "description": "The chart has the supervisor report the incident to the HR Officer."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allegation",
+   "fieldtype": "Small Text",
+   "label": "Nature of the Offence",
+   "reqd": 1
+  },
+  {
+   "fieldname": "incident_evidence",
+   "fieldtype": "Attach",
+   "label": "Evidence"
+  },
+  {
+   "fieldname": "ladder_section",
+   "fieldtype": "Section Break",
+   "label": "Where this case starts",
+   "description": "A fresh case inside a live sanction starts one rung higher than the last; gross misconduct may be dismissed on the first offence."
+  },
+  {
+   "fieldname": "live_sanctions",
+   "fieldtype": "Small Text",
+   "label": "What Still Stands Against Them",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "starts_at",
+   "fieldtype": "Select",
+   "label": "Ladder Starts At",
+   "options": "Verbal Warning\nFirst Warning Letter\nSecond Warning Letter\nSuspension\nDismissal",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "previous_case",
+   "fieldtype": "Link",
+   "label": "Previous Case",
+   "options": "Disciplinary Case",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "investigation_section",
+   "fieldtype": "Section Break",
+   "label": "Investigation"
+  },
+  {
+   "fieldname": "investigating_officer",
+   "fieldtype": "Link",
+   "label": "Investigating Officer",
+   "options": "User",
+   "description": "Never a member of the panel: the person who gathers the evidence does not decide the case."
+  },
+  {
+   "fieldname": "investigation_report",
+   "fieldtype": "Text Editor",
+   "label": "Investigation Report"
+  },
+  {
+   "fieldname": "investigation_evidence",
+   "fieldtype": "Attach",
+   "label": "Evidence Bundle"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "label": "Recommendation",
+   "options": "\nCase to answer\nNo case"
+  },
+  {
+   "fieldname": "investigated_by",
+   "fieldtype": "Link",
+   "label": "Investigated By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "investigated_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "charge_section",
+   "fieldtype": "Section Break",
+   "label": "Notice to answer"
+  },
+  {
+   "fieldname": "charge_issued_on",
+   "fieldtype": "Date",
+   "label": "Notice Issued On"
+  },
+  {
+   "fieldname": "charge_remarks",
+   "fieldtype": "Small Text",
+   "label": "Charge"
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "charged_by",
+   "fieldtype": "Link",
+   "label": "Issued By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "charged_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hearing_section",
+   "fieldtype": "Section Break",
+   "label": "Hearing (LPL/HR/03)"
+  },
+  {
+   "fieldname": "hearing_on",
+   "fieldtype": "Datetime",
+   "label": "Date and Time"
+  },
+  {
+   "fieldname": "hearing_notified_on",
+   "fieldtype": "Datetime",
+   "label": "Employee Notified On",
+   "description": "A hearing is called at least 48 hours ahead."
+  },
+  {
+   "fieldname": "hearing_location",
+   "fieldtype": "Data",
+   "label": "Location",
+   "default": "Human Resource Office"
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hearing_notice_hours",
+   "fieldtype": "Float",
+   "label": "Notice Given (hours)",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "panel",
+   "fieldtype": "Table",
+   "label": "Panel",
+   "options": "Disciplinary Panel Member"
+  },
+  {
+   "fieldname": "hearing_minutes",
+   "fieldtype": "Text Editor",
+   "label": "Hearing Record"
+  },
+  {
+   "fieldname": "employee_response",
+   "fieldtype": "Small Text",
+   "label": "Employee's Response"
+  },
+  {
+   "fieldname": "decision_section",
+   "fieldtype": "Section Break",
+   "label": "Decision"
+  },
+  {
+   "fieldname": "outcome",
+   "fieldtype": "Select",
+   "label": "Outcome",
+   "options": "\nSanctioned\nDismissed\nPardoned",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "action_type",
+   "fieldtype": "Link",
+   "label": "Sanction",
+   "options": "Disciplinary Action Type"
+  },
+  {
+   "fieldname": "rung",
+   "fieldtype": "Select",
+   "label": "Rung",
+   "options": "Verbal Warning\nFirst Warning Letter\nSecond Warning Letter\nSuspension\nDismissal",
+   "fetch_from": "action_type.rung",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sanction_valid_until",
+   "fieldtype": "Date",
+   "label": "Stands Until",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "suspension_days",
+   "fieldtype": "Int",
+   "label": "Suspension Days"
+  },
+  {
+   "fieldname": "suspension_from",
+   "fieldtype": "Date",
+   "label": "From",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "suspension_to",
+   "fieldtype": "Date",
+   "label": "To",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "report_back_on",
+   "fieldtype": "Date",
+   "label": "Reports Back On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "decided_by",
+   "fieldtype": "Link",
+   "label": "Decided By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "decided_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "letter_section",
+   "fieldtype": "Section Break",
+   "label": "The letter (LPL/HR/30)"
+  },
+  {
+   "fieldname": "letter_issued_on",
+   "fieldtype": "Date",
+   "label": "Issued On"
+  },
+  {
+   "fieldname": "employee_signed",
+   "fieldtype": "Check",
+   "label": "Employee Signed the Letter",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "signed_letter",
+   "fieldtype": "Attach",
+   "label": "Signed Copy",
+   "no_copy": 1,
+   "description": "Steps 7 and 11: the HR Officer files the copy the employee signed."
+  },
+  {
+   "fieldname": "letter_remarks",
+   "fieldtype": "Small Text",
+   "label": "Management Decision"
+  },
+  {
+   "fieldname": "appeal_section",
+   "fieldtype": "Section Break",
+   "label": "Appeal",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "appeal_window_days",
+   "fieldtype": "Int",
+   "label": "Appeal Window (days)",
+   "default": "14"
+  },
+  {
+   "fieldname": "appeal_filed",
+   "fieldtype": "Check",
+   "label": "Appeal Filed",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "appeal_grounds",
+   "fieldtype": "Small Text",
+   "label": "Grounds"
+  },
+  {
+   "fieldname": "column_break_9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "appeals_authority",
+   "fieldtype": "Link",
+   "label": "Heard By",
+   "options": "User",
+   "description": "Someone who has not already acted in this case."
+  },
+  {
+   "fieldname": "appeal_outcome",
+   "fieldtype": "Small Text",
+   "label": "Appeal Outcome"
+  },
+  {
+   "fieldname": "appeal_closed_on",
+   "fieldtype": "Date",
+   "label": "Closed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "outcome_section",
+   "fieldtype": "Section Break",
+   "label": "What follows"
+  },
+  {
+   "fieldname": "separation",
+   "fieldtype": "Link",
+   "label": "Employee Separation",
+   "options": "Employee Separation",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Raised where the case ends in dismissal, so the termination process follows."
+  },
+  {
+   "fieldname": "training_need",
+   "fieldtype": "Link",
+   "label": "Training Needs Form",
+   "options": "Training Needs Form",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_10",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "performance_review",
+   "fieldtype": "Link",
+   "label": "Performance Improvement Plan",
+   "options": "Performance Improvement Plan",
+   "description": "Where the case is about performance rather than conduct."
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Disciplinary Case",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Disciplinary Case",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Investigating Officer",
+   "write": 1,
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Disciplinary Panel",
+   "write": 1,
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

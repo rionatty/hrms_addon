@@ -91,6 +91,16 @@ CARDS = {
             ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE),
             ("Intern Placement", "Intern Placement", DOCTYPE),
         ]),
+        # Employee relations and welfare: the disciplinary case (5.3), the
+        # safety incident, and the two lists they are judged by. The
+        # non-disciplinary concern is Frappe HR's own Employee Grievance,
+        # already on their Grievance card (discipline.py)
+        ("Discipline and Safety", [
+            ("Disciplinary Case", "Disciplinary Case", DOCTYPE),
+            ("Safety Incident", "Safety Incident", DOCTYPE),
+            ("Misconduct Type", "Misconduct Type", DOCTYPE),
+            ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE),
+        ]),
         # Frappe HR's Tenure page carries onboarding, grievances and
         # training but nothing about leaving, though their sidebar lists
         # the Employee Separation. Both exits run on their documents; the
@@ -271,6 +281,10 @@ SIDEBAR = {
         ("Training Needs Form", "Training Needs Form", DOCTYPE, "Setup", None),
         ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
         ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),
+        ("Disciplinary Case", "Disciplinary Case", DOCTYPE, None, "Employee Grievance"),
+        ("Safety Incident", "Safety Incident", DOCTYPE, None, "Disciplinary Case"),
+        ("Misconduct Type", "Misconduct Type", DOCTYPE, "Setup", None),
+        ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE, "Setup", None),
         ("Onboarding Settings", "Onboarding Settings", DOCTYPE, "Setup", None),
         ("Tool of Work", "Tool of Work", DOCTYPE, "Setup", None),
         ("Tool Provider", "Tool Provider", DOCTYPE, "Setup", None),

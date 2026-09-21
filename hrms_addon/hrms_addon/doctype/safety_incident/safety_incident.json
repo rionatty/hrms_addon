@@ -1,0 +1,347 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-21 22:00:00.000000",
+ "description": "An accident at work: what the first aid team and the EHS Officer report, the sick leave it becomes, and the separation on medical grounds where the sickness persists.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "department",
+  "column_break_1",
+  "branch",
+  "company",
+  "status",
+  "incident_section",
+  "incident_on",
+  "location",
+  "nature",
+  "column_break_2",
+  "first_aid_by",
+  "ehs_officer",
+  "ehs_report",
+  "care_section",
+  "manageable",
+  "hospital",
+  "doctor_report",
+  "column_break_3",
+  "day_off_required",
+  "sick_leave",
+  "sick_from",
+  "sick_days",
+  "after_section",
+  "sickness_persists",
+  "separation",
+  "column_break_4",
+  "compensation_required",
+  "compensation_amount",
+  "compensation_status",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-EHS-.YYYY.-",
+   "reqd": 1,
+   "default": "LPL-EHS-.YYYY.-",
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nRecorded\nOn Sick Leave\nBack at Work\nSeparated\nCancelled",
+   "read_only": 1,
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "incident_section",
+   "fieldtype": "Section Break",
+   "label": "The accident"
+  },
+  {
+   "fieldname": "incident_on",
+   "fieldtype": "Datetime",
+   "label": "When",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "label": "Where"
+  },
+  {
+   "fieldname": "nature",
+   "fieldtype": "Small Text",
+   "label": "What Happened",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "first_aid_by",
+   "fieldtype": "Link",
+   "label": "First Aid Given By",
+   "options": "User"
+  },
+  {
+   "fieldname": "ehs_officer",
+   "fieldtype": "Link",
+   "label": "EHS Officer",
+   "options": "User"
+  },
+  {
+   "fieldname": "ehs_report",
+   "fieldtype": "Attach",
+   "label": "EHS Report"
+  },
+  {
+   "fieldname": "care_section",
+   "fieldtype": "Section Break",
+   "label": "Care"
+  },
+  {
+   "fieldname": "manageable",
+   "fieldtype": "Check",
+   "label": "Manageable On Site",
+   "default": "1",
+   "description": "Untick where the employee was taken to hospital."
+  },
+  {
+   "fieldname": "hospital",
+   "fieldtype": "Data",
+   "label": "Hospital",
+   "depends_on": "eval:!doc.manageable"
+  },
+  {
+   "fieldname": "doctor_report",
+   "fieldtype": "Attach",
+   "label": "Doctor's Report",
+   "depends_on": "eval:!doc.manageable"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "day_off_required",
+   "fieldtype": "Check",
+   "label": "Day Off Required"
+  },
+  {
+   "fieldname": "sick_leave",
+   "fieldtype": "Link",
+   "label": "Sick Leave",
+   "options": "Leave Application",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sick_from",
+   "fieldtype": "Date",
+   "label": "Sick Leave From",
+   "depends_on": "day_off_required"
+  },
+  {
+   "fieldname": "sick_days",
+   "fieldtype": "Int",
+   "label": "Days",
+   "depends_on": "day_off_required"
+  },
+  {
+   "fieldname": "after_section",
+   "fieldtype": "Section Break",
+   "label": "After the sick leave"
+  },
+  {
+   "fieldname": "sickness_persists",
+   "fieldtype": "Check",
+   "label": "Sickness Persists",
+   "no_copy": 1,
+   "description": "The chart's last question: if it does, the separation is on medical grounds."
+  },
+  {
+   "fieldname": "separation",
+   "fieldtype": "Link",
+   "label": "Employee Separation",
+   "options": "Employee Separation",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "compensation_required",
+   "fieldtype": "Check",
+   "label": "Compensation Required"
+  },
+  {
+   "fieldname": "compensation_amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "depends_on": "compensation_required"
+  },
+  {
+   "fieldname": "compensation_status",
+   "fieldtype": "Data",
+   "label": "Compensation Status",
+   "depends_on": "compensation_required"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Safety Incident",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-21 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Safety Incident",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User",
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "EHS Officer",
+   "write": 1,
+   "create": 1,
+   "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Head of Department"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "Supervisor"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}
