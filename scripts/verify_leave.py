@@ -215,7 +215,12 @@ if V.months_served("2026-01-15", "2026-04-15") != 3:
 if V.limit_for(1000000) != 500000:
     fail.append("the ceiling is half a month's gross")
 
-ok = {"advance_type": "Salary Advance", "status": "Active", "date_of_joining": "2025-01-01",
+# These are LPL/HR/21's rules — half a month's gross, three months' service,
+# recovered in at most three — so they are asked of the special advance.
+# They were once asked of the salary advance too, which the minutes (§4.9)
+# say is 40% of gross, recovered from the same month's pay, with no service
+# rule at all: scripts/verify_salary_advance.py pins those.
+ok = {"advance_type": "Special Advance", "status": "Active", "date_of_joining": "2025-01-01",
       "today": "2026-09-21", "gross_pay": 1000000, "amount": 300000, "outstanding": 0, "instalments": 2}
 expect("an employee who qualifies", V.eligibility_errors(ok))
 expect("someone who left", V.eligibility_errors(dict(ok, status="Left")), "active employee")

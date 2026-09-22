@@ -19,8 +19,26 @@ which, and the workflow carries all three chains (advance_approval.py).
               needs no list kept by hand.
   from_leave  step 7 of the leave process: the Leave Advance raised from an
               approved LPL/HR/15 (leave.py).
-  daily       the monitoring both charts ask for: an advance due to be paid,
-              and one whose recovery has not started.
+  daily       the monitoring both charts ask for: the salary advance run
+              (chart 4.10 step 2, "System monitoring Advance payment
+              date"), an advance due to be paid, and one whose recovery
+              has not started.
+
+THE RULES ARE SETTINGS
+
+Every number the minutes give — 40% and 60% of gross, the Per Meter
+standard rate, the 15th, three days of absence — lives on Advance
+Settings, and advance_rules.DEFAULTS is what each one is until somebody
+changes it. settings() reads them once per advance.
+
+A SALARY ADVANCE IS PROCESSED ON A DAY
+
+It joins the run on the 15th (or the working day before) if it was asked
+for before that run closed, otherwise the next one. Its absences are
+counted from the start of the payroll period — the 26th — to the
+processing date; until that day they are counted to today, and on the day
+the whole run is worked out again, because three days of absence can
+become four in the week between asking and being paid.
 """
 
 import frappe
@@ -31,6 +49,38 @@ from hrms_addon.hrms_addon import advance_rules as rules, people
 
 DOCTYPE = "Employee Advance"
 DEFAULT_COMPONENT = "Advance Recovery"
+SETTINGS = "Advance Settings"
+NOT_REGULAR = "Advance Employment Type"
+
+
+# ── 0. The rules, as Luuka has set them ───────────────────────────────
+def settings():
+    """Advance Settings merged over the minutes' own numbers.
+
+    Read from the database rather than through the document, so a stored
+    nought stays a nought and anything never saved takes its default.
+    """
+    stored = {}
+    if frappe.db.exists("DocType", SETTINGS):
+        stored = dict(frappe.db.get_singles_dict(SETTINGS) or {})
+        stored["not_regular_types"] = frappe.get_all(
+            NOT_REGULAR, filters={"parent": SETTINGS, "parenttype": SETTINGS},
+            pluck="employment_type", limit_page_length=0)
+    return rules.settings_from(stored)
+
+
+def settings_validate(doc, method=None):
+    values = {key: doc.get(key) for key in rules.DEFAULTS}
+    values["not_regular_types"] = [row.employment_type for row in doc.get("not_regular_types") or []]
+    errors = rules.settings_errors(rules.settings_from(values))
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(SETTINGS))
+
+
+def _has(doctype, fieldname):
+    """A custom field that a fresh site may not have yet: fixtures are
+    synced after patches, and this runs inside both."""
+    return frappe.get_meta(doctype).has_field(fieldname)
 
 
 # ── 1. The advance itself ─────────────────────────────────────────────
@@ -39,22 +89,144 @@ def advance_validate(doc, method=None):
 
     if not doc.get("custom_advance_type"):
         doc.custom_advance_type = rules.SALARY_ADVANCE
-    _fill_money(doc)
-    _check_eligibility(doc)
+    s = settings()
+    _stamp_requested(doc)
+    if doc.custom_advance_type == rules.SALARY_ADVANCE:
+        _plan_salary(doc, s)
+    _fill_money(doc, s)
+    _check_eligibility(doc, s)
     _build_recovery(doc)
-    _check_step(doc)
+    _check_step(doc, s)
     doc.custom_advance_status = doc.get("workflow_state") or doc.get("custom_advance_status") or approval.DRAFT
     if doc.get("custom_consent") and not doc.get("custom_consent_on"):
         doc.custom_consent_on = today()
 
 
-def _fill_money(doc):
-    """What the employee earns, what they still owe, and the ceiling that
-    follows from the two."""
+def _stamp_requested(doc):
+    """The day the request left Draft: "submitted the required Salary
+    Advance Request Form in time" is about when it was handed in, not when
+    somebody started filling it in."""
+    from hrms_addon.hrms_addon import advance_approval as approval
+
+    if doc.get("custom_requested_on"):
+        return
+    state = doc.get("workflow_state")
+    if state and state != approval.DRAFT:
+        doc.custom_requested_on = today()
+
+
+def _plan_salary(doc, s):
+    """The run this request joins, and what the attendance says so far."""
+    from hrms_addon.hrms_addon import attendance
+
+    asked_on = getdate(doc.get("custom_requested_on") or today())
+    closed = _closed_days(doc.get("company"), asked_on, add_days(asked_on, 70))
+    processed_on = rules.run_for(asked_on, s, closed)
+    start, end = rules.payroll_period(processed_on)
+    doc.custom_processing_date = processed_on
+    doc.custom_period_start = start
+    upto = min(getdate(today()), processed_on)
+    absent, off_duty = set(), set()
+    if doc.get("employee") and upto >= start:
+        absent = _absent_days(doc.employee, start, upto)
+        off_duty = {day for _who, day in attendance._off_duty_between([doc.employee], start, upto)}
+    doc.custom_days_absent = rules.days_absent(absent, off_duty, s)
+    doc.custom_off_duty_days = len(absent & off_duty) if cint(s["salary_off_duty_not_absent"]) else 0
+    # taken back from the same month's pay, which closes on the 25th
+    if not doc.get("custom_first_recovery_month"):
+        doc.custom_first_recovery_month = end
+    if not cint(doc.get("custom_instalments")):
+        doc.custom_instalments = s["salary_instalments"]
+
+
+def _closed_days(company, start, end):
+    """The company's holiday list between two days: its public holidays,
+    and any weekly offs it keeps."""
+    company = company or frappe.defaults.get_user_default("Company")
+    listed = frappe.db.get_value("Company", company, "default_holiday_list") if company else None
+    if not listed:
+        return set()
+    return {getdate(day) for day in frappe.get_all(
+        "Holiday", filters={"parent": listed, "parenttype": "Holiday List",
+                            "holiday_date": ["between", [start, end]]},
+        pluck="holiday_date", limit_page_length=0)}
+
+
+def _absent_days(employee, start, end):
+    return {getdate(day) for day in frappe.get_all(
+        "Attendance", filters={"employee": employee, "docstatus": 1, "status": "Absent",
+                               "attendance_date": ["between", [start, end]]},
+        pluck="attendance_date", limit_page_length=0)}
+
+
+def _on_leave(employee, day):
+    """The approved leave that covers a day, if any."""
+    rows = frappe.get_all("Leave Application",
+                          filters={"employee": employee, "docstatus": 1, "status": "Approved",
+                                   "from_date": ["<=", day], "to_date": [">=", day]},
+                          pluck="name", limit=1)
+    return rows[0] if rows else None
+
+
+def _bank_loan(employee, day):
+    """Has a bank loan on the day, from the employee's own record. A loan
+    with an end date that has passed is no longer a loan."""
+    if not employee or not _has("Employee", "custom_has_bank_loan"):
+        return False
+    has, until = frappe.db.get_value("Employee", employee,
+                                     ["custom_has_bank_loan", "custom_bank_loan_until"]) or (0, None)
+    return bool(cint(has)) and (not until or getdate(until) >= getdate(day))
+
+
+def _company_loan(employee):
+    """What is still owed on the company's own loans (loans.py)."""
+    if not employee or not frappe.db.exists("DocType", "Employee Loan"):
+        return 0
+    return flt(sum(flt(value) for value in frappe.get_all(
+        "Employee Loan", filters={"employee": employee, "docstatus": 1},
+        pluck="outstanding", limit_page_length=0)))
+
+
+def _pay_category(employee):
+    if not employee or not _has("Employee", "custom_pay_category"):
+        return rules.MONTHLY
+    return frappe.db.get_value("Employee", employee, "custom_pay_category") or rules.MONTHLY
+
+
+def _average_gross(employee, months):
+    """The average gross over the last few paid months: a Per Meter
+    employee's pay follows their output, so one month is not a fair base
+    (minutes §4.4). None when nothing has been paid yet."""
+    rows = frappe.get_all("Salary Slip", filters={"employee": employee, "docstatus": 1},
+                          fields=["gross_pay"], order_by="end_date desc", limit=max(int(months or 0), 1))
+    if not rows:
+        return None
+    return round(sum(flt(row.gross_pay) for row in rows) / len(rows), 2)
+
+
+def _leave_days(doc):
+    if not doc.get("custom_leave_application"):
+        return None
+    return frappe.db.get_value("Leave Application", doc.custom_leave_application, "total_leave_days")
+
+
+def _fill_money(doc, s):
+    """What the employee earns, what they still owe, and the most this kind
+    of advance may be (Advance Settings)."""
+    kind = doc.get("custom_advance_type")
     if doc.get("employee"):
         doc.custom_gross_pay = _gross_pay(doc.employee)
         doc.custom_outstanding_before = _outstanding_elsewhere(doc.employee, doc.name)
-    doc.custom_limit = rules.limit_for(doc.get("custom_gross_pay"))
+        doc.custom_pay_category = _pay_category(doc.employee)
+    average = None
+    if kind == rules.LEAVE_ADVANCE and doc.get("custom_pay_category") == rules.PER_METER and doc.get("employee"):
+        average = _average_gross(doc.employee, s["leave_per_meter_months"])
+    doc.custom_limit = rules.entitled(kind, doc.get("custom_gross_pay"), doc.get("custom_pay_category"),
+                                      s, average) or 0
+    # the minutes give the salary advance as a figure, not a ceiling: left
+    # blank, it is that figure
+    if not flt(doc.get("advance_amount")) and doc.custom_limit and kind == rules.SALARY_ADVANCE:
+        doc.advance_amount = doc.custom_limit
     recovered = sum(flt(row.amount) for row in doc.get("custom_recoveries") or [] if row.recovered)
     doc.custom_recovered_amount = recovered
     doc.custom_outstanding = rules.outstanding(doc.get("custom_approved_amount") or doc.get("advance_amount"),
@@ -78,19 +250,28 @@ def _outstanding_elsewhere(employee, exclude):
     return flt(sum(flt(row.custom_outstanding) for row in rows))
 
 
-def _check_eligibility(doc):
+def _check_eligibility(doc, s=None):
     """The charts' "Qualify for advance?". It is written onto the form
     rather than thrown, so the HR Officer can see why and act on it; the
     workflow refuses to move an advance that does not qualify."""
-    errors = rules.eligibility_errors(_facts(doc))
+    s = s or settings()
+    errors = rules.eligibility_errors(_facts(doc, s), s)
     doc.custom_qualifies = 0 if errors else 1
     doc.custom_eligibility_remarks = "; ".join(errors) or None
 
 
-def _facts(doc):
-    return {
-        "advance_type": doc.get("custom_advance_type"),
-        "status": frappe.db.get_value("Employee", doc.employee, "status") if doc.get("employee") else None,
+def _facts(doc, s=None):
+    s = s or settings()
+    employee = doc.get("employee")
+    status, employment_type = (frappe.db.get_value("Employee", employee, ["status", "employment_type"])
+                               if employee else (None, None)) or (None, None)
+    kind = doc.get("custom_advance_type")
+    on = doc.get("custom_processing_date") or today()
+    facts = {
+        "advance_type": kind,
+        "status": status,
+        "employment_type": employment_type,
+        "pay_category": doc.get("custom_pay_category"),
         "date_of_joining": doc.get("custom_date_of_appointment"),
         "today": today(),
         "gross_pay": doc.get("custom_gross_pay"),
@@ -98,6 +279,22 @@ def _facts(doc):
         "outstanding": doc.get("custom_outstanding_before"),
         "instalments": doc.get("custom_instalments"),
     }
+    if kind == rules.SALARY_ADVANCE:
+        facts.update({
+            "processing_date": on, "window_start": doc.get("custom_period_start"),
+            "days_absent": doc.get("custom_days_absent"),
+            "on_leave": _on_leave(employee, on) if employee else None,
+            "bank_loan": _bank_loan(employee, on),
+        })
+    elif kind == rules.LEAVE_ADVANCE:
+        facts.update({
+            "bank_loan": _bank_loan(employee, today()),
+            "company_loan": _company_loan(employee),
+            "leave_days": _leave_days(doc),
+            "average_gross": (_average_gross(employee, s["leave_per_meter_months"])
+                              if doc.get("custom_pay_category") == rules.PER_METER and employee else None),
+        })
+    return facts
 
 
 def _build_recovery(doc):
@@ -120,9 +317,10 @@ def _build_recovery(doc):
                                          "currency": doc.get("currency")})
 
 
-def _check_step(doc):
+def _check_step(doc, s=None):
     from hrms_addon.hrms_addon import advance_approval as approval
 
+    s = s or settings()
     before = doc.get_doc_before_save()
     old_state = before.get("workflow_state") if before else None
     new_state = doc.get("workflow_state")
@@ -137,7 +335,16 @@ def _check_step(doc):
             **{field: doc.get(field) for field in approval.ALL_REMARK_FIELDS},
         })
         if new_state and new_state != approval.DRAFT and old_state in (None, approval.DRAFT):
-            errors = rules.eligibility_errors(_facts(doc)) + errors
+            errors = rules.eligibility_errors(_facts(doc, s), s) + errors
+        # the Payroll Officer "ticks the qualifying employees" (§4.9): on
+        # the day, with the whole period's attendance counted, somebody
+        # who has stopped qualifying is rejected rather than paid
+        if (doc.get("custom_advance_type") == rules.SALARY_ADVANCE
+                and old_state == approval.PENDING_PAYROLL and new_state == approval.PENDING_FINANCE):
+            errors = rules.eligibility_errors(_facts(doc, s), s) + errors
+            held = rules.held_until(doc.get("custom_processing_date"), today(), s)
+            if held:
+                errors.append(held)
         errors += rules.sanction_errors({
             "amount": doc.get("advance_amount"),
             "section_head_amount": doc.get("custom_section_head_amount"),
@@ -279,8 +486,81 @@ def from_leave(leave_application):
 
 # ── 3. The monitoring both charts draw ────────────────────────────────
 def daily():
+    _watch_salary_run()
     _tell_due_to_pay()
     _tell_recovery()
+
+
+def _watch_salary_run(day=None):
+    """Step 2 of chart 4.10: "System monitoring Advance payment date".
+
+    The day a run closes, the HR Officers are told which requests are
+    waiting on them to confirm attendance and leave. On the processing
+    date itself every request in the run is worked out again against the
+    whole period's attendance — three days absent can be four by then —
+    and the Payroll Officer is given the ones that still qualify.
+    """
+    s = settings()
+    day = getdate(day or today())
+    rows = frappe.get_all(DOCTYPE,
+                          filters={"docstatus": 0, "custom_advance_type": rules.SALARY_ADVANCE,
+                                   "custom_processing_date": [">=", day]},
+                          fields=["name", "custom_processing_date"], limit_page_length=0)
+    for row in rows:
+        processed_on = getdate(row.custom_processing_date)
+        if day == rules.request_deadline(processed_on, s):
+            _tell_run_closed(row.name, processed_on)
+        elif day == processed_on:
+            _work_out_again(row.name, s)
+    frappe.db.commit()
+
+
+def _tell_run_closed(name, processed_on):
+    from hrms_addon.hrms_addon import advance_approval as approval
+
+    doc = frappe.get_doc(DOCTYPE, name)
+    if doc.get("workflow_state") != approval.PENDING_HR:
+        return
+    # a notification, not a task: the request is already on the HR
+    # Officer's list from the day it reached them, and people.assign
+    # rightly refuses to put it there twice. This is the reminder.
+    users = people.hr_officers(doc.get("custom_branch"), doc.get("department"))
+    if users:
+        people.notify(users, DOCTYPE, name, _(
+            "Salary advances for {0} have closed. Confirm {1}'s attendance and leave.").format(
+            frappe.utils.format_date(processed_on), doc.get("employee_name") or doc.employee))
+
+
+def _work_out_again(name, s):
+    """The processing date: the eligibility again, on the final count."""
+    from hrms_addon.hrms_addon import advance_approval as approval
+
+    doc = frappe.get_doc(DOCTYPE, name)
+    _plan_salary(doc, s)
+    _fill_money(doc, s)
+    _check_eligibility(doc, s)
+    doc.db_set({field: doc.get(field) for field in (
+        "custom_days_absent", "custom_off_duty_days", "custom_limit", "custom_gross_pay",
+        "custom_outstanding_before", "custom_pay_category", "custom_qualifies",
+        "custom_eligibility_remarks")}, update_modified=False)
+    if doc.get("workflow_state") != approval.PENDING_PAYROLL:
+        return
+    who = doc.get("employee_name") or doc.employee
+    payroll = people.people_for("Payroll Officer", doc.get("custom_branch"), doc.get("department"))
+    if doc.custom_qualifies:
+        # a notification, not a task: the Payroll Officer has held this
+        # request on their list since it reached them, and people.assign
+        # rightly will not put it there twice — so a task here would be
+        # silently dropped on exactly the day it matters
+        if payroll:
+            people.notify(payroll, DOCTYPE, name,
+                          _("Salary advance to process today for {0}.").format(who))
+        return
+    users = list(dict.fromkeys(payroll + people.hr_officers(doc.get("custom_branch"),
+                                                             doc.get("department"))))
+    if users:
+        people.notify(users, DOCTYPE, name, _("{0} no longer qualifies for today's salary advance: {1}").format(
+            who, doc.custom_eligibility_remarks))
 
 
 def _tell_due_to_pay():

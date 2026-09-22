@@ -184,6 +184,8 @@ CARDS = {
         ]),
         ("Advances", [
             ("Employee Advance", "Employee Advance", DOCTYPE),
+            # the minutes' rules for all three advances (advances.py)
+            ("Advance Settings", "Advance Settings", DOCTYPE),
         ]),
         ("Setup", [
             ("Salary Component", "Salary Component", DOCTYPE),
@@ -306,6 +308,7 @@ SIDEBAR = {
     "Loans": [
         ("Employee Loan", "Employee Loan", DOCTYPE, None, None),
         ("Employee Advance", "Employee Advance", DOCTYPE, None, "Employee Loan"),
+        ("Advance Settings", "Advance Settings", DOCTYPE, "Setup", None),
         ("Salary Component", "Salary Component", DOCTYPE, "Setup", None),
     ],
     "Leaves": [

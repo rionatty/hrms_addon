@@ -1,0 +1,270 @@
+{
+ "actions": [],
+ "creation": "2026-09-23 09:00:00.000000",
+ "description": "Luuka's rules for the three advances, as settings: the minutes of 16 and 20 July 2026 (Reward and Compensation, §4.4 and §4.9) and LPL/HR/21. Every advance is checked against these when it is raised, and a salary advance again on the day it is processed.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "salary_section",
+  "salary_percent",
+  "per_meter_amount",
+  "salary_processing_day",
+  "salary_move_before",
+  "salary_request_days_before",
+  "salary_hold_until_processing",
+  "salary_instalments",
+  "salary_cb",
+  "salary_regular_only",
+  "salary_not_on_leave",
+  "salary_max_absent_days",
+  "salary_off_duty_not_absent",
+  "salary_no_bank_loan",
+  "salary_no_outstanding",
+  "salary_min_months",
+  "leave_section",
+  "leave_percent",
+  "leave_per_meter_months",
+  "leave_cb",
+  "leave_more_than_days",
+  "leave_regular_only",
+  "leave_no_loans",
+  "special_section",
+  "special_percent",
+  "special_cb",
+  "special_max_instalments",
+  "special_min_months",
+  "regular_section",
+  "not_regular_types"
+ ],
+ "fields": [
+  {
+   "fieldname": "salary_section",
+   "fieldtype": "Section Break",
+   "label": "Salary Advance",
+   "description": "Minutes §4.9: 40% of gross, or a standard rate for the Per Meter category; processed on the 15th, or the working day before when that is a weekend or public holiday."
+  },
+  {
+   "fieldname": "salary_percent",
+   "fieldtype": "Percent",
+   "label": "Advance, % of Gross",
+   "default": "40",
+   "reqd": 1
+  },
+  {
+   "fieldname": "per_meter_amount",
+   "fieldtype": "Currency",
+   "label": "Per Meter Standard Rate",
+   "default": "110000",
+   "description": "What a Per Meter employee is advanced, whatever their gross. Nought means the percentage applies to them too."
+  },
+  {
+   "fieldname": "salary_processing_day",
+   "fieldtype": "Int",
+   "label": "Processed on Day",
+   "default": "15",
+   "reqd": 1,
+   "description": "Day of the month, 1 to 28."
+  },
+  {
+   "fieldname": "salary_move_before",
+   "fieldtype": "Check",
+   "label": "Weekend or Public Holiday: the Working Day Before",
+   "default": "1",
+   "description": "Public holidays are read from the company's default Holiday List; Saturday and Sunday are always skipped because the bank does not process on them."
+  },
+  {
+   "fieldname": "salary_request_days_before",
+   "fieldtype": "Int",
+   "label": "Requests Close (Days Before)",
+   "default": "3",
+   "description": "A request made after this joins the next month's run instead. The minutes say only \"in time\" — confirm the day with Luuka."
+  },
+  {
+   "fieldname": "salary_hold_until_processing",
+   "fieldtype": "Check",
+   "label": "Finance Waits for the Processing Date",
+   "default": "1",
+   "description": "The Payroll Officer cannot pass a salary advance to Finance before the day it is processed, because the absences are only final on that day."
+  },
+  {
+   "fieldname": "salary_instalments",
+   "fieldtype": "Int",
+   "label": "Recovered In (Months)",
+   "default": "1",
+   "description": "From the same month's payroll, which closes on the 25th."
+  },
+  {
+   "fieldname": "salary_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "salary_regular_only",
+   "fieldtype": "Check",
+   "label": "Regular Employees Only",
+   "default": "1",
+   "description": "Who is not regular is set at the bottom of this page."
+  },
+  {
+   "fieldname": "salary_not_on_leave",
+   "fieldtype": "Check",
+   "label": "Not on Leave",
+   "default": "1",
+   "description": "On an approved leave on the processing date."
+  },
+  {
+   "fieldname": "salary_max_absent_days",
+   "fieldtype": "Int",
+   "label": "Most Days Absent",
+   "default": "3",
+   "description": "Counted from the start of the payroll period (the 26th) to the processing date. Nought means no absence at all."
+  },
+  {
+   "fieldname": "salary_off_duty_not_absent",
+   "fieldtype": "Check",
+   "label": "Approved Off-Duty Days Are Not Absences",
+   "default": "1",
+   "description": "A day marked absent that an approved Off Duty Request (LPL/HR/25) covers is not counted."
+  },
+  {
+   "fieldname": "salary_no_bank_loan",
+   "fieldtype": "Check",
+   "label": "No Bank Loan",
+   "default": "1",
+   "description": "Read from Has a Bank Loan on the employee."
+  },
+  {
+   "fieldname": "salary_no_outstanding",
+   "fieldtype": "Check",
+   "label": "Nothing Owed on an Earlier Advance",
+   "default": "1"
+  },
+  {
+   "fieldname": "salary_min_months",
+   "fieldtype": "Int",
+   "label": "Least Months Served",
+   "default": "0",
+   "description": "The minutes set no such rule; nought leaves it off."
+  },
+  {
+   "fieldname": "leave_section",
+   "fieldtype": "Section Break",
+   "label": "Leave Advance",
+   "description": "Minutes §4.4: 60% of gross — for the Per Meter category, of the average gross over the previous months — for regular employees with no bank or company loan, taking more than 19 days of leave."
+  },
+  {
+   "fieldname": "leave_percent",
+   "fieldtype": "Percent",
+   "label": "Advance, % of Gross",
+   "default": "60",
+   "reqd": 1
+  },
+  {
+   "fieldname": "leave_per_meter_months",
+   "fieldtype": "Int",
+   "label": "Per Meter: Average Gross Over (Months)",
+   "default": "2",
+   "description": "Their pay is output-based, so one month's gross is not a fair base."
+  },
+  {
+   "fieldname": "leave_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "leave_more_than_days",
+   "fieldtype": "Int",
+   "label": "Leave Must Be More Than (Days)",
+   "default": "19"
+  },
+  {
+   "fieldname": "leave_regular_only",
+   "fieldtype": "Check",
+   "label": "Regular Employees Only",
+   "default": "1"
+  },
+  {
+   "fieldname": "leave_no_loans",
+   "fieldtype": "Check",
+   "label": "No Bank or Company Loan",
+   "default": "1"
+  },
+  {
+   "fieldname": "special_section",
+   "fieldtype": "Section Break",
+   "label": "Special Advance (LPL/HR/21)"
+  },
+  {
+   "fieldname": "special_percent",
+   "fieldtype": "Percent",
+   "label": "Advance, % of Gross",
+   "default": "50",
+   "reqd": 1
+  },
+  {
+   "fieldname": "special_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "special_max_instalments",
+   "fieldtype": "Int",
+   "label": "Recovered In at Most (Months)",
+   "default": "3"
+  },
+  {
+   "fieldname": "special_min_months",
+   "fieldtype": "Int",
+   "label": "Least Months Served",
+   "default": "3"
+  },
+  {
+   "fieldname": "regular_section",
+   "fieldtype": "Section Break",
+   "label": "Who Is Regular",
+   "description": "Anyone whose Employment Type is listed here is not a regular employee for the salary and leave advances. Casuals were put here when this page was made; add Probation, Intern or anything else Luuka does not advance."
+  },
+  {
+   "fieldname": "not_regular_types",
+   "fieldtype": "Table MultiSelect",
+   "label": "Employment Types That Are Not Regular",
+   "options": "Advance Employment Type"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-23 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Advance Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

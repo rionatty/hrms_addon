@@ -678,6 +678,16 @@ if by_dt.get(EM):
                  "custom_bank_witness": ("Salary", "custom_bank_declared_on"),
                  "custom_bank_declaration_cb": ("Salary", "custom_bank_witness"),
                  "custom_signed_bank_form": ("Salary", "custom_bank_declaration_cb"),
+                 # a bank loan, which a salary or leave advance is not given
+                 # alongside (advances.py, minutes §4.4 and §4.9)
+                 "custom_bank_loan_section": ("Salary", "custom_signed_bank_form"),
+                 "custom_has_bank_loan": ("Salary", "custom_bank_loan_section"),
+                 "custom_bank_loan_bank": ("Salary", "custom_has_bank_loan"),
+                 "custom_bank_loan_cb": ("Salary", "custom_bank_loan_bank"),
+                 "custom_bank_loan_until": ("Salary", "custom_bank_loan_cb"),
+                 # how gross is earned, beside Frappe HR's own Employment Type
+                 # (minutes §4.6; the Per Meter salary advance reads it)
+                 "custom_pay_category": ("Overview", "employment_type"),
                  # attendance: the badge is Frappe HR's own field and these sit beside it
                  "custom_automatic_attendance": ("Attendance & Leaves", "attendance_device_id")}
     for hrms_first in (True, False):
