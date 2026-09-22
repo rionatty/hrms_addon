@@ -127,10 +127,14 @@ if "Resignation" not in E.reasons_for(E.VOLUNTARY) or "Dismissal" in E.reasons_f
 if "Dismissal" not in E.reasons_for(E.INVOLUNTARY) or "Desertion" not in E.reasons_for(E.INVOLUNTARY):
     fail.append("desertion and dismissal are involuntary, as the print-out list says")
 
-if E.notice_days(3) != 0 or E.notice_days(7) != 14 or E.notice_days(24) != 30 \
+# the minutes of 16 and 20 July 2026, §4.13: 0-6 months 7 days, 6-12
+# months 14, 1-5 years a month, 5-10 years two, above 10 years three
+if E.notice_days(3) != 7 or E.notice_days(7) != 14 or E.notice_days(24) != 30 \
         or E.notice_days(72) != 60 or E.notice_days(130) != 90:
-    fail.append("the Employment Act's notice periods: %s"
+    fail.append("Luuka's notice periods (minutes §4.13): %s"
                 % [E.notice_days(n) for n in (3, 7, 24, 72, 130)])
+if E.notice_days(0) != 7:
+    fail.append("even the first months of service carry seven days' notice")
 if E.months_served("2020-01-15", "2026-01-14") != 71:
     fail.append("a month is not served until the day of the month comes round")
 if E.days_worked("2026-01-01", "2026-01-31") != 31:
@@ -210,22 +214,39 @@ if S.leave_encashment(1300000, 21) != 1050000:
     fail.append("untaken leave is worth the daily rate a day")
 if S.notice_pay(1300000, 30) != 1500000:
     fail.append("pay in lieu is the daily rate a day")
-if S.severance_pay(1300000, 24) != 2600000:
-    fail.append("severance is a month a year, pro-rated: %s" % S.severance_pay(1300000, 24))
-if S.severance_pay(1300000, 3) != 0:
-    fail.append("severance is earned after six months of continuous service")
-if S.severance_pay(1300000, 18) != 1950000:
-    fail.append("and part of a year counts pro-rata: %s" % S.severance_pay(1300000, 18))
+# severance (minutes §4.13): whole months of gross by length of
+# service, for somebody who served their notice
+for months, expected, why in (
+    (24, 0, "under three years there is no severance"),
+    (36, 1300000, "three to five years: one month's gross"),
+    (59, 1300000, "still one month just short of five years"),
+    (60, 2600000, "five to ten years: two months"),
+    (120, 3900000, "above ten years: three months"),
+    (240, 3900000, "and three is the most"),
+):
+    if S.severance_pay(1300000, months) != expected:
+        fail.append("severance after %d months should be %s: %s (it is %s)"
+                    % (months, expected, why, S.severance_pay(1300000, months)))
+if S.severance_pay(1300000, 72, notice_served=False) != 0:
+    fail.append("somebody who did not serve their notice has the shortfall deducted, not severance paid")
 
 figures = S.totals([{"amount": 1000000}, {"amount": 500000}], [{"amount": 200000}])
 if figures != {"payable": 1500000, "receivable": 200000, "net": 1300000}:
     fail.append("the foot of the computation: due, off, net: %s" % figures)
+served = S.suggest({"gross_pay": 1300000, "days_worked_in_month": 10, "leave_balance": 21,
+                    "months_served": 48, "notice_short_days": 0})
+served_payable = {row["component"]: row["amount"] for row in served["payables"]}
+if served_payable.get(S.SEVERANCE_PAY) != 1300000:
+    fail.append("four years served and the notice served: one month's gross in severance (%s)"
+                % served_payable)
 found = S.suggest({"gross_pay": 1300000, "days_worked_in_month": 10, "leave_balance": 21,
-                   "months_served": 24, "notice_short_days": 20, "advances_outstanding": 100000,
+                   "months_served": 48, "notice_short_days": 20, "advances_outstanding": 100000,
                    "loans_outstanding": 0, "unreturned_cost": 800000})
 payable = {row["component"] for row in found["payables"]}
-if S.FINAL_SALARY not in payable or S.SEVERANCE_PAY not in payable:
+if S.FINAL_SALARY not in payable or S.LEAVE_ENCASHMENT not in payable:
     fail.append("what Accounts work out must cover the paper's own list: %s" % sorted(payable))
+if S.SEVERANCE_PAY in payable:
+    fail.append("notice not served: the shortfall comes off and no severance is paid (minutes §4.13)")
 if S.NOTICE_PAY in payable:
     fail.append("pay in lieu is only where the COMPANY cut the notice short")
 receivable = {row["component"] for row in found["receivables"]}

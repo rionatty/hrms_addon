@@ -156,6 +156,29 @@ if R.amount(3, 4000, 1.5) != 18000.0:
     fail.append("three hours at four thousand and a half again is eighteen thousand")
 if R.amount(3, 0, 1.5) != 0.0:
     fail.append("no rate is no amount")
+# the minutes of 16 and 20 July 2026, §4.12: a weekday pays 1x above a
+# gross of UGX 500,000 and 1.5x below it; a public holiday 2x
+if R.GROSS_THRESHOLD != 500000 or R.HIGHER_EARNER_MULTIPLIER != 1.0:
+    fail.append("the line is UGX 500,000, and above it a weekday pays 1x")
+if R.type_name_for(R.WEEKDAY, 600000) != R.HIGHER_EARNERS:
+    fail.append("a weekday for somebody grossing 600,000 goes under the higher earners' type")
+if R.type_name_for(R.WEEKDAY, 500000) != R.TYPE_NAMES[R.WEEKDAY]:
+    fail.append("and one for somebody at exactly 500,000 does not: the minutes say 'above'")
+if R.type_name_for(R.PUBLIC_HOLIDAY, 900000) != R.TYPE_NAMES[R.PUBLIC_HOLIDAY]:
+    fail.append("a public holiday pays its own rate whatever the gross")
+if R.type_name_for(R.WEEKDAY) != R.TYPE_NAMES[R.WEEKDAY]:
+    fail.append("with no gross known, a weekday is an ordinary weekday")
+TYPES = {"Weekday Overtime": {"standard_multiplier": 1.5},
+         R.HIGHER_EARNERS: {"standard_multiplier": 1.0}}
+costed = R.priced([{"employee": "HIGH", "hours": 2}, {"employee": "LOW", "hours": 2}],
+                  {"HIGH": 2600000, "LOW": 260000}, R.WEEKDAY, TYPES["Weekday Overtime"], TYPES)
+rows = {row["employee"]: row for row in costed["rows"]}
+if rows["HIGH"]["multiplier"] != 1.0 or rows["LOW"]["multiplier"] != 1.5:
+    fail.append("each person on a request is priced under their own gross's type: %s"
+                % {k: v["multiplier"] for k, v in rows.items()})
+if R.attendance_update({"hours": 2}, R.WEEKDAY, 10, gross=2600000)["overtime_type"] != R.HIGHER_EARNERS:
+    fail.append("and their attendance carries that type, so the Overtime Slip pays it — not only the "
+                "cost check")
 print("the day: read, not typed, and priced at the Act's floor or the type's own rate")
 
 # ── 2. Pricing a request, and the two gates ───────────────────────────
@@ -318,6 +341,12 @@ if glue.count("check_permission(") < 2:
     fail.append("each whitelisted method must check the caller may act")
 if "fill_day_and_rate" not in read("hrms_addon", "hrms_addon", "attendance.py"):
     fail.append("the request must learn what day it falls on as it validates")
+landed = glue.split("def send_to_payroll(")[1].split(chr(10) + "def ")[0]
+if "gross=bases.get(" not in landed:
+    fail.append("the hours land on each attendance under the type their own gross puts them in, or "
+                "the Overtime Slip pays a higher earner one and a half times (minutes §4.12)")
+if "rules.HIGHER_EARNERS" not in glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0]:
+    fail.append("the higher earners' weekday type is made on migrate")
 print("glue: the day read, the cost checked, the hours landed, the slip drawn")
 
 # ── 6. Wiring ─────────────────────────────────────────────────────────

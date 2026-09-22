@@ -12,6 +12,7 @@
   "employment",
   "remarks",
   "hourly_rate",
+  "multiplier",
   "amount",
   "attendance"
  ],
@@ -70,6 +71,14 @@
    "read_only": 1,
    "in_list_view": 1,
    "columns": 1
+  },
+  {
+   "fieldname": "multiplier",
+   "fieldtype": "Float",
+   "label": "Rate (x)",
+   "read_only": 1,
+   "in_list_view": 1,
+   "description": "Their own rate for the day: on a weekday it depends on their gross (minutes §4.12)."
   },
   {
    "fieldname": "amount",

@@ -198,6 +198,38 @@ if L.leave_stage(1, "2026-10-01", "2026-10-05", "2026-10-06") != L.REPORTED_BACK
     fail.append("once the last day has passed the employee is due back")
 if L.leave_stage(0, "2026-10-01", "2026-10-05", "2026-10-03") is not None:
     fail.append("a draft application is not leave yet")
+# the minutes of 16 and 20 July 2026, §4.3
+for kind, days, why in (
+    ("Maternity Leave", 60, "maternity is 60 days"),
+    ("Paternity Leave", 4, "paternity is 4"),
+    ("Sick Leave", 60, "sick leave is 60 days at full pay"),
+    ("Sick Leave (Half Pay)", 120, "and 120 more at half pay, on a hospital document"),
+    ("Compassionate Leave", 4, "compassionate leave is 4 days"),
+    ("Leave Without Pay", 60, "and without pay at most 60"),
+):
+    if L.LEAVE_DAYS.get(kind) != days:
+        fail.append("%s should be set up with %s days: %s (it has %r)" % (kind, days, why, L.LEAVE_DAYS.get(kind)))
+if L.LEAVE_DAYS.get("Annual Leave") != 0:
+    fail.append("Annual Leave must carry no maximum: Frappe HR refuses an allocation over a type's "
+                "maximum and cuts carried-forward days back to it, so a cap of 21 would block the 28 "
+                "and 30 the minutes reserve for particular people and eat the carry-forward")
+if L.ANNUAL_OPTIONS != (21, 28, 30):
+    fail.append("annual leave is 21, 28 or 30 days")
+if "Sick Leave (Half Pay)" not in L.EXTRA_TYPES or "Sick Leave (Half Pay)" not in L.NEEDS_CERTIFICATE:
+    fail.append("half-pay sick leave is its own type, and it needs the hospital's document")
+if L.HALF_PAY_FRACTION != 0.5:
+    fail.append("and it pays half")
+seed = read("hrms_addon", "hrms_addon", "leave.py").split("def leave_type_values(")[1].split("\ndef ")[0]
+for needle, why in (("is_ppl", "half-pay leave is Frappe HR's partially paid leave"),
+                    ("fraction_of_daily_salary_per_leave", "paid at its fraction"),
+                    ("max_continuous_days_allowed", "unpaid leave is limited by the length of one leave"),
+                    ("maximum_carry_forwarded_leaves", "and annual leave carries forward with no maximum")):
+    if needle not in seed:
+        fail.append("leave_type_values: %s" % why)
+patch = read("hrms_addon", "patches", "v1_0", "leave_days_from_minutes.py")
+if "FORMER_DAYS" not in patch or "hrms_addon.patches.v1_0.leave_days_from_minutes" not in read("hrms_addon", "patches.txt"):
+    fail.append("the live site's leave types are corrected on migrate, but only where they still hold "
+                "what the seed first wrote")
 print("leave: the five kinds, the plan, the balances of Part 2, the horizons, the report back")
 
 # ── 2. The advance rules ──────────────────────────────────────────────

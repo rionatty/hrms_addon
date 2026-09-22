@@ -50,10 +50,11 @@ STATUTORY = (NSSF, PAYE, LST)
 
 # Luuka's working month, the same one the attendance register counts by
 WORKING_DAYS_A_MONTH = 26
-# a month's pay for each year served, pro-rated for part of a year
-SEVERANCE_MONTHS_A_YEAR = 1.0
-# severance is earned after six months of continuous service
-SEVERANCE_AFTER_MONTHS = 6
+# Severance, from the minutes of 16 and 20 July 2026 (Reward and
+# Compensation, §4.13): for an employee who serves the appropriate
+# notice, one month's gross after 3 to 5 years, two after 5 to 10, three
+# above 10. Under three years there is none. months served -> months of gross
+SEVERANCE_TIERS = ((120, 3), (60, 2), (36, 1))
 
 DRAFT, PENDING, APPROVED, SCHEDULED, PAID, CANCELLED = (
     "Draft", "Pending", "Approved", "Scheduled", "Paid", "Cancelled")
@@ -78,13 +79,17 @@ def notice_pay(gross, days_short, working_days=WORKING_DAYS_A_MONTH):
     return round(daily_rate(gross, working_days) * _num(days_short), 2)
 
 
-def severance_pay(gross, months_of_service, months_a_year=SEVERANCE_MONTHS_A_YEAR):
-    """A month's pay for each year served, pro-rated, once six months of
-    continuous service are behind them."""
-    months = int(months_of_service or 0)
-    if months < SEVERANCE_AFTER_MONTHS:
+def severance_pay(gross, months_of_service, notice_served=True):
+    """Severance, in whole months of gross by length of service, for an
+    employee who served their notice (minutes §4.13). One who did not
+    has the unserved part deducted instead, and no severance."""
+    if not notice_served:
         return 0.0
-    return round(_num(gross) * float(months_a_year) * (months / 12.0), 2)
+    months = int(months_of_service or 0)
+    for threshold, multiple in SEVERANCE_TIERS:
+        if months >= threshold:
+            return round(_num(gross) * multiple, 2)
+    return 0.0
 
 
 def totals(payables, receivables):
@@ -111,7 +116,9 @@ def suggest(facts):
         {"component": LEAVE_ENCASHMENT,
          "amount": leave_encashment(gross, facts.get("leave_balance"))},
         {"component": NOTICE_PAY, "amount": notice_pay(gross, facts.get("notice_cut_days"))},
-        {"component": SEVERANCE_PAY, "amount": severance_pay(gross, facts.get("months_served"))},
+        {"component": SEVERANCE_PAY,
+         "amount": severance_pay(gross, facts.get("months_served"),
+                                 notice_served=not _num(facts.get("notice_short_days")))},
         {"component": NET_CLAIMS, "amount": _num(facts.get("net_claims"))},
     ]
     receivables = [

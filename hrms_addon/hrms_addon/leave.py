@@ -348,20 +348,35 @@ def setup_workflows_on_migrate():
 
 
 def seed_leave_types():
-    """The five kinds LPL/HR/15 offers, as Leave Types on the site. An
-    existing one is left exactly as Luuka has set it up."""
+    """The kinds LPL/HR/15 offers, and the half-pay sick leave the minutes
+    add, as Leave Types on the site (minutes §4.3). An existing one is
+    left exactly as Luuka has set it up."""
     made = []
-    for name in rules.LEAVE_TYPES:
+    for name in rules.LEAVE_TYPES + rules.EXTRA_TYPES:
         if frappe.db.exists("Leave Type", name):
             continue
         doc = frappe.new_doc("Leave Type")
         doc.leave_type_name = name
-        doc.max_leaves_allowed = rules.STATUTORY_DAYS.get(name, 0)
-        if name == rules.UNPAID:
-            doc.is_lwp = 1
-        if name == rules.ANNUAL:
-            doc.is_carry_forward = 1
-            doc.allow_encashment = 1
+        for field, value in leave_type_values(name).items():
+            doc.set(field, value)
         doc.insert(ignore_permissions=True)
         made.append(name)
     return made
+
+
+def leave_type_values(name):
+    """What a Leave Type is set up with, from the minutes.
+
+    Without pay is limited by the length of one leave rather than by an
+    allocation, since nobody is allocated unpaid leave.
+    """
+    days = rules.LEAVE_DAYS.get(name, 0)
+    if name == rules.UNPAID:
+        return {"is_lwp": 1, "max_leaves_allowed": 0, "max_continuous_days_allowed": days}
+    values = {"max_leaves_allowed": days}
+    if name == rules.ANNUAL:
+        values.update({"is_carry_forward": 1, "allow_encashment": 1,
+                       "maximum_carry_forwarded_leaves": 0})
+    if name == rules.SICK_HALF_PAY:
+        values.update({"is_ppl": 1, "fraction_of_daily_salary_per_leave": rules.HALF_PAY_FRACTION})
+    return values

@@ -32,6 +32,18 @@ a constant here.
 A day is read, not typed: a date on the employee's holiday list is a
 public holiday, their weekly off is a rest day, a day they are on approved
 leave is a leave day, and anything else is a weekday.
+
+WHAT A WEEKDAY PAYS DEPENDS ON THE GROSS
+
+The minutes of 16 and 20 July 2026 (Reward and Compensation, §4.12)
+record Luuka's practice: "the overtime multiplier is 1 for gross salaries
+above UGX 500,000, 1.5 for those below UGX 500,000, and 2 for public
+holidays". So a weekday has two Overtime Types, and each person's hours go
+under the one their own gross puts them in — on the attendance the
+Overtime Slip reads, so it is what they are paid, not only what the cost
+check shows. The 1x is under the Act's 1.5x floor this module was built
+to; it is Luuka's minuted practice and it stays a figure on the type,
+where it can be changed, not a constant here.
 """
 
 WEEKDAY = "Weekday"
@@ -47,6 +59,10 @@ ACT_MULTIPLIERS = {WEEKDAY: 1.5, REST_DAY: 2.0, PUBLIC_HOLIDAY: 2.0, LEAVE_DAY: 
 # The names the three Overtime Types are seeded under
 TYPE_NAMES = {WEEKDAY: "Weekday Overtime", REST_DAY: "Rest Day Overtime",
               PUBLIC_HOLIDAY: "Public Holiday Overtime", LEAVE_DAY: "Rest Day Overtime"}
+# and the weekday type for those whose gross is above the line (§4.12)
+GROSS_THRESHOLD = 500000.0
+HIGHER_EARNERS = "Weekday Overtime (Above UGX 500,000)"
+HIGHER_EARNER_MULTIPLIER = 1.0
 
 # Luuka's month: the attendance cycle runs 26 to 25 and is worked as 26
 # days of ten standard hours (attendance_rules.STANDARD_HOURS), which is
@@ -74,7 +90,11 @@ def kind_of_day(facts):
     return WEEKDAY
 
 
-def type_name_for(kind):
+def type_name_for(kind, gross=None, threshold=GROSS_THRESHOLD):
+    """The Overtime Type a day falls under for one person. On a weekday it
+    depends on what they earn: above the line, the higher earners' type."""
+    if kind == WEEKDAY and gross is not None and float(gross or 0) > float(threshold):
+        return HIGHER_EARNERS
     return TYPE_NAMES.get(kind, TYPE_NAMES[WEEKDAY])
 
 
@@ -116,8 +136,12 @@ def amount(hours, rate, multiplier):
     return round(float(hours) * float(rate) * float(multiplier), 2)
 
 
-def priced(rows, rates, kind, overtime_type=None):
+def priced(rows, rates, kind, overtime_type=None, types=None):
     """Price a request's rows. rates: {employee: monthly base}.
+
+    types: {Overtime Type name: its row}. Each person is priced under the
+    type their own gross puts them in (minutes §4.12); `overtime_type`
+    is the day's own type, used where theirs is not on the site.
 
     A row whose employee has no base yet is priced at nothing and says so,
     rather than being dropped: HR are checking the cost, and a line they
@@ -126,11 +150,14 @@ def priced(rows, rates, kind, overtime_type=None):
     multiplier = multiplier_for(kind, overtime_type)
     out, total, unpriced = [], 0.0, []
     for row in rows or []:
-        rate = hourly_rate(rates.get(row.get("employee")))
-        cost = amount(row.get("hours"), rate, multiplier)
+        base = rates.get(row.get("employee"))
+        theirs = (types or {}).get(type_name_for(kind, base))
+        own = multiplier_for(kind, theirs) if theirs else multiplier
+        rate = hourly_rate(base)
+        cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))
-        out.append(dict(row, hourly_rate=rate, multiplier=multiplier, amount=cost))
+        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost))
         total += cost
     return {"rows": out, "total": round(total, 2), "multiplier": multiplier,
             "unpriced": unpriced}
@@ -172,11 +199,11 @@ def payroll_errors(facts):
     return errors
 
 
-def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY):
+def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None):
     """What goes onto the employee's Attendance row so Frappe HR's own
-    Overtime Slip picks the hours up: the type, the duration and the
-    standard day it is measured against."""
-    return {"overtime_type": type_name_for(kind),
+    Overtime Slip picks the hours up: the type their gross puts them in,
+    the duration, and the standard day it is measured against."""
+    return {"overtime_type": type_name_for(kind, gross),
             "actual_overtime_duration": float(row.get("hours") or 0),
             "standard_working_hours": float(standard_hours)}
 

@@ -103,6 +103,13 @@ def _type_row(name):
          "maximum_overtime_hours_allowed", "overtime_salary_component"], as_dict=True)
 
 
+def _types_for(kind):
+    """The Overtime Types a day of this kind can price under: its own and,
+    on a weekday, the higher earners' (minutes §4.12)."""
+    names = {rules.type_name_for(kind), rules.type_name_for(kind, rules.GROSS_THRESHOLD + 1)}
+    return {name: _type_row(name) for name in names if frappe.db.exists(TYPE, name)}
+
+
 def _monthly_bases(employees):
     """Each employee's monthly base, from their Salary Structure
     Assignment. The one in force, not the newest ever written."""
@@ -127,15 +134,15 @@ def cost_check(name, cost_centre=None, remarks=None):
     overtime_type = _type_row(doc.get("overtime_type") or type_for(kind, doc.get("company")))
     rows = [row.as_dict() for row in doc.get("employees") or []]
     bases = _monthly_bases([row.get("employee") for row in rows if row.get("employee")])
-    costed = rules.priced(rows, bases, kind, overtime_type)
+    costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind))
     errors = rules.cost_check_errors({
         "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
         "cost_centre": cost_centre or doc.get("cost_centre")})
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Cost Check"))
     for row, priced_row in zip(doc.employees, costed["rows"]):
-        row.db_set({"hourly_rate": priced_row["hourly_rate"], "amount": priced_row["amount"]},
-                   update_modified=False)
+        row.db_set({"hourly_rate": priced_row["hourly_rate"], "multiplier": priced_row["multiplier"],
+                    "amount": priced_row["amount"]}, update_modified=False)
     doc.db_set({
         "day_kind": kind, "overtime_type": doc.get("overtime_type") or type_for(kind),
         "multiplier": costed["multiplier"], "total_cost": costed["total"],
@@ -174,9 +181,11 @@ def send_to_payroll(name):
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Payroll"))
     kind = doc.get("day_kind") or rules.WEEKDAY
+    bases = _monthly_bases([row["employee"] for row in rows])
     marked = 0
     for row in rows:
-        values = rules.attendance_update(row, kind, attendance_rules.STANDARD_HOURS)
+        values = rules.attendance_update(row, kind, attendance_rules.STANDARD_HOURS,
+                                         gross=bases.get(row["employee"]))
         if not frappe.db.exists(TYPE, values["overtime_type"]):
             values.pop("overtime_type")
         frappe.db.set_value("Attendance", row["attendance"], values, update_modified=False)
@@ -249,6 +258,23 @@ def seed_overtime_types():
             doc.insert()
         except Exception:
             frappe.log_error(title="HRMS Addon: seeding the overtime types")
+    # a weekday for those whose gross is above the line pays 1x (§4.12)
+    if not frappe.db.exists(TYPE, rules.HIGHER_EARNERS):
+        try:
+            doc = frappe.get_doc({
+                "doctype": TYPE, "__newname": rules.HIGHER_EARNERS,
+                "overtime_salary_component": component,
+                "standard_multiplier": rules.HIGHER_EARNER_MULTIPLIER,
+                "applicable_for_weekend": 1,
+                "weekend_multiplier": rules.ACT_MULTIPLIERS[rules.REST_DAY],
+                "applicable_for_public_holiday": 1,
+                "public_holiday_multiplier": rules.ACT_MULTIPLIERS[rules.PUBLIC_HOLIDAY],
+                "overtime_calculation_method": "Salary Component Based",
+            })
+            doc.flags.ignore_permissions = True
+            doc.insert()
+        except Exception:
+            frappe.log_error(title="HRMS Addon: seeding the higher earners' overtime type")
 
 
 def _overtime_component():

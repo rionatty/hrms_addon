@@ -30,9 +30,11 @@ Involuntary:
   8. It is approved by the General Manager, Accounts and the HR Manager.
   9. The termination process follows.
 
-The notice periods are the Employment Act (Uganda) minima and are defaults
-Luuka may change, not a rule this module enforces: what the employee is
-actually owed is what their contract says.
+The notice periods are Luuka's own, from the minutes of 16 and 20 July
+2026 (Reward and Compensation, §4.13), which sit at or above the
+Employment Act's: 0 to 6 months of service, 7 days; 6 to 12 months, 14;
+1 to 5 years, a month; 5 to 10 years, two; above 10 years, three. What the
+employee is actually owed is still what their contract says.
 """
 
 import datetime
@@ -55,8 +57,8 @@ REASONS = {
     INVOLUNTARY: (DISMISSAL, REDUNDANCY, DESERTION, MEDICAL, END_OF_CONTRACT, DEATH),
 }
 
-# Employment Act (Uganda) s.58: months served -> days of notice
-NOTICE_PERIODS = ((120, 90), (60, 60), (12, 30), (6, 14), (0, 0))
+# minutes §4.13: months served -> days of notice
+NOTICE_PERIODS = ((120, 90), (60, 60), (12, 30), (6, 14), (0, 7))
 
 # the ten boxes LPL/HR/22 prints, in its own order
 SECTIONS = (
@@ -85,7 +87,7 @@ def reasons_for(exit_type):
 
 
 def notice_days(months_served):
-    """The notice the Employment Act asks for at this length of service."""
+    """The notice Luuka asks for at this length of service (minutes §4.13)."""
     months = int(months_served or 0)
     for threshold, days in NOTICE_PERIODS:
         if months >= threshold:

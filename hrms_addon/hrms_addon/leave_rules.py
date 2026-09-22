@@ -35,16 +35,41 @@ SICK = "Sick Leave"
 COMPASSIONATE = "Compassionate Leave"
 UNPAID = "Leave Without Pay"
 LEAVE_TYPES = (ANNUAL, MATERNITY, PATERNITY, SICK, COMPASSIONATE, UNPAID)
+# sick leave past its sixty days: another 120 at half pay, on an official
+# document from the hospital (minutes §4.3). Its own Leave Type, because
+# that is how Frappe HR pays part of a day (Is Partially Paid Leave).
+SICK_HALF_PAY = "Sick Leave (Half Pay)"
+EXTRA_TYPES = (SICK_HALF_PAY,)
+HALF_PAY_FRACTION = 0.5
 
 # what the form asks for beside the dates
-NEEDS_CERTIFICATE = (MATERNITY, PATERNITY, SICK)
+NEEDS_CERTIFICATE = (MATERNITY, PATERNITY, SICK, SICK_HALF_PAY)
 NEEDS_REASON = (COMPASSIONATE,)
 UNPAID_TYPES = (UNPAID,)
 
-# The Employment Act (Uganda) minima Luuka's leave types are set up from.
-# They are defaults for the seed, not a rule the module enforces: what an
-# employee is actually owed is the Leave Allocation on the site.
-STATUTORY_DAYS = {ANNUAL: 21, MATERNITY: 60, PATERNITY: 4, SICK: 30, COMPASSIONATE: 7, UNPAID: 0}
+# Luuka's own leave, from the minutes of 16 and 20 July 2026 (Reward and
+# Compensation, §4.3). What each Leave Type is set up with; what an
+# employee is actually owed is still their Leave Allocation.
+#
+#   Annual           21 days, or 28 or 30 for the people Management names
+#                    — and administration staff carry unused days forward
+#                    with no maximum. Frappe HR refuses any allocation over
+#                    a type's maximum and cuts carried-forward days back to
+#                    it, so Annual Leave carries no maximum at all (0): a
+#                    cap of 21 would block the 28 and 30 and eat the
+#                    carry-forward.
+#   Maternity        60 days
+#   Paternity         4 days
+#   Sick             60 days at full pay, and 120 more at half pay on an
+#                    official document from the hospital
+#   Compassionate     4 days
+#   Without pay      at most 60 days, as the individual's situation allows
+LEAVE_DAYS = {ANNUAL: 0, MATERNITY: 60, PATERNITY: 4, SICK: 60, SICK_HALF_PAY: 120,
+              COMPASSIONATE: 4, UNPAID: 60}
+ANNUAL_OPTIONS = (21, 28, 30)
+# what the seed wrote before the minutes were read, so a migrate can tell a
+# type nobody has touched from one Luuka set up themselves
+FORMER_DAYS = {ANNUAL: 21, SICK: 30, COMPASSIONATE: 7, UNPAID: 0}
 
 # ── the annual plan ───────────────────────────────────────────────────
 PLAN_DRAFT, PLAN_PENDING_HOD, PLAN_PENDING_HR = "Draft", "Pending HOD", "Pending HR Officer"
