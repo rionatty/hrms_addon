@@ -22,6 +22,7 @@ migrate, so anything of theirs that moved or was renamed survives.
 """
 
 DOCTYPE, REPORT, WORKSPACE = "DocType", "Report", "Workspace"
+PAGE = "Page"
 # A page of ours belongs to this app, not to Frappe HR's. That is not
 # cosmetic: remove_orphan_entities() looks for the file behind a record in
 # the app the record NAMES, and deletes it where there is none. Putting
@@ -198,6 +199,10 @@ CARDS = {
     # Frappe HR's own attendance page gains Luuka's three forms and the
     # machines they are reconciled against (attendance.py, devices.py)
     "Shift & Attendance": [
+        # LPL/HR/07 on screen, filled from the punches (attendance_board.py)
+        ("The Floor", [
+            ("Attendance Board", "attendance-board", PAGE),
+        ]),
         ("Attendance Forms", [
             ("Off Duty Request", "Off Duty Request", DOCTYPE),
             ("Overtime Request", "Overtime Request", DOCTYPE),
@@ -307,6 +312,7 @@ SIDEBAR = {
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
     ],
     "Shift & Attendance": [
+        ("Attendance Board", "attendance-board", PAGE, None, None),
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
