@@ -16,6 +16,7 @@
   "first_pull_days",
   "column_break_2",
   "auth_path",
+  "token_prefix",
   "transactions_path",
   "state_section",
   "last_sync",
@@ -93,6 +94,14 @@
    "label": "Sign-in Path",
    "default": "/api-token-auth/",
    "description": "BioTime 8.5's own. A different version is a setting, not a code change."
+  },
+  {
+   "fieldname": "token_prefix",
+   "fieldtype": "Select",
+   "label": "Token Prefix",
+   "options": "JWT\nBearer\nToken",
+   "default": "JWT",
+   "description": "What the Authorization header calls the token. BioTime 8.5 says JWT; a newer one guarded by SimpleJWT usually wants Bearer."
   },
   {
    "fieldname": "transactions_path",

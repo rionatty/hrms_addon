@@ -140,9 +140,10 @@ def _session(doc):
         frappe.throw(_("BioTime would not sign us in: {0}").format(errors[0]),
                      title=_("BioTime"))
     session = requests.Session()
-    session.headers.update({"Authorization": "JWT %s" % payload["token"],
-                            "Accept": "application/json"})
-    session.verify = bool(doc.get("verify_tls"))
+    session.headers.update(rules.header(rules.token_of(payload),
+                                        doc.get("token_prefix") or rules.DEFAULT_PREFIX))
+    session.headers.update({"Accept": "application/json"})
+    session.verify = verify
     return session
 
 
@@ -165,14 +166,112 @@ def _transactions(doc, session, start, end):
                                 timeout=120),
             url, bool(doc.get("verify_tls")))
         if answer.status_code >= 400:
-            frappe.throw(_("BioTime answered {0} for page {1}: {2}").format(
-                answer.status_code, page, (answer.text or "")[:200]), title=_("BioTime"))
+            _explain_refusal(doc, answer, page)
         payload = _payload(answer)
         found = rules.rows_of(payload)
         rows.extend(found)
         seen += len(found)
         page = rules.next_page(payload, page, seen, total=seen)
     return rows
+
+
+def _explain_refusal(doc, answer, page):
+    """Why BioTime turned a page down.
+
+    The one worth naming is a 401 carrying SimpleJWT's token_not_valid: the
+    sign-in worked and handed us a token this API will not accept, which
+    means the Sign-in Path is the wrong one for this BioTime rather than
+    anything being wrong with the password.
+    """
+    payload = _payload(answer)
+    if answer.status_code == 401 and rules.token_rejected(payload):
+        frappe.throw(
+            _("BioTime signed us in and then refused the token on {0}. That means the Sign-in "
+              "Path is the wrong one for this BioTime, not that the password is wrong — the "
+              "two endpoints do not mint the same kind of token."
+              "<br><br>Press <b>Find the Sign-in Path</b>: it tries the ones BioTime has "
+              "shipped and says which of them gives a token this server will take.")
+            .format(doc.get("transactions_path") or rules.TRANSACTIONS_PATH),
+            title=_("BioTime"))
+    if answer.status_code == 401:
+        frappe.throw(_("BioTime would not accept the sign-in on page {0}. Check the user name "
+                       "and password, and that the account may read transactions.").format(page),
+                     title=_("BioTime"))
+    if answer.status_code == 403:
+        frappe.throw(_("BioTime signed us in but will not let that account read transactions. "
+                       "Give it permission, or use one that has it."), title=_("BioTime"))
+    if answer.status_code == 404:
+        frappe.throw(_("There is nothing at {0} on this BioTime. Check the Transactions Path.")
+                     .format(doc.get("transactions_path") or rules.TRANSACTIONS_PATH),
+                     title=_("BioTime"))
+    frappe.throw(_("BioTime answered {0} for page {1}: {2}").format(
+        answer.status_code, page, (answer.text or "")[:200]), title=_("BioTime"))
+
+
+@frappe.whitelist(methods=["POST"])
+def find_sign_in():
+    """Try the sign-in endpoints BioTime has shipped and say which one
+    gives a token the transactions API will actually accept.
+
+    It changes nothing. It signs in, asks for a single transaction, and
+    reports — so somebody can put the answer in the form themselves rather
+    than have this app quietly rewrite their settings.
+    """
+    import requests
+
+    doc = frappe.get_single(SETTINGS)
+    doc.check_permission("write")
+    password = doc.get_password("password", raise_exception=False)
+    verify = bool(doc.get("verify_tls"))
+    span = rules.window(None, now_datetime(), first_pull_days=1)
+    reading = rules.endpoint(doc.base_url,
+                             doc.get("transactions_path") or rules.TRANSACTIONS_PATH)
+    if not reading:
+        frappe.throw(_("BioTime's address must start http:// or https://."))
+
+    tried = []
+    for auth_path in rules.AUTH_PATH_CANDIDATES:
+        url = rules.endpoint(doc.base_url, auth_path)
+        try:
+            answer = _reach(
+                lambda: requests.post(url, json={"username": doc.username,
+                                                 "password": password},
+                                      timeout=30, verify=verify), url, verify)
+        except Exception:  # noqa: BLE001
+            tried.append({"auth_path": auth_path, "prefix": None,
+                          "result": _("could not be reached")})
+            continue
+        token = rules.token_of(_payload(answer))
+        if not token:
+            tried.append({"auth_path": auth_path, "prefix": None,
+                          "result": _("no token here ({0})").format(answer.status_code)})
+            continue
+        for prefix in rules.PREFIXES:
+            # not through _reach: one endpoint refusing must not end the
+            # search, so a failure here is written down and the next one
+            # is tried
+            try:
+                probe = requests.get(reading,
+                                     params=rules.query(span["start"], span["end"], 1, 1),
+                                     headers=rules.header(token, prefix), timeout=60,
+                                     verify=verify)
+            except requests.exceptions.RequestException as error:
+                tried.append({"auth_path": auth_path, "prefix": prefix,
+                              "result": str(error)[:100]})
+                continue
+            if probe.status_code < 400:
+                doc.db_set({"last_status": _("Sign-in path {0} with {1} works").format(
+                    auth_path, prefix), "last_error": None, "last_run": now_datetime()},
+                    update_modified=False)
+                frappe.db.commit()
+                return {"found": True, "auth_path": auth_path, "prefix": prefix,
+                        "tried": tried}
+            tried.append({"auth_path": auth_path, "prefix": prefix,
+                          "result": _("token refused ({0})").format(probe.status_code)})
+    doc.db_set({"last_status": _("No sign-in path worked"), "last_run": now_datetime()},
+               update_modified=False)
+    frappe.db.commit()
+    return {"found": False, "tried": tried}
 
 
 @frappe.whitelist(methods=["POST"])

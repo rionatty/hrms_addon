@@ -358,6 +358,86 @@ if "raise" not in tested:
     fail.append("and still reach the person who pressed the button")
 print("failure: a server that will not answer is explained, and written down")
 
+# ── 7c. The sign-in, and a token the server will not take back ────────
+# Luuka's BioTime signed us in and then answered the transactions call
+# 401 token_not_valid. SimpleJWT only says that after it has read the
+# header, so the token was the wrong SORT, which means the sign-in path
+# was wrong — not the password. None of that is guessable from a raw 401,
+# so it has to be said.
+for payload, expected, why in (
+    ({"token": "a"}, "a", "BioTime 8.5 calls it token"),
+    ({"access": "b"}, "b", "SimpleJWT calls it access"),
+    ({"access_token": "c"}, "c", "and some builds spell it out"),
+    ({"detail": "no"}, None, "an answer with no token in it has none"),
+    ("not a dict", None, "and neither has something that is not an answer"),
+):
+    if B.token_of(payload) != expected:
+        fail.append("token_of(%r) should be %r: %s" % (payload, expected, why))
+if B.header("a", "Bearer") != {"Authorization": "Bearer a"}:
+    fail.append("the header must carry the prefix it was given")
+if B.header("a", None) != {"Authorization": "%s a" % B.DEFAULT_PREFIX}:
+    fail.append("and fall back to the one BioTime 8.5 uses when none was chosen")
+if not B.token_rejected({"code": "token_not_valid"}):
+    fail.append("SimpleJWT's own code for a refused token must be recognised")
+if not B.token_rejected({"detail": "Given token not valid for any token type"}):
+    fail.append("and so must the sentence, for a build that omits the code")
+if B.token_rejected({"detail": "No active account found"}):
+    fail.append("a wrong password is not a refused token, and must not be read as one")
+if len(B.AUTH_PATH_CANDIDATES) < 3 or B.AUTH_PATH not in B.AUTH_PATH_CANDIDATES:
+    fail.append("the sign-in endpoints to try must include the one on the form by default")
+if "JWT" not in B.PREFIXES or "Bearer" not in B.PREFIXES:
+    fail.append("both prefixes BioTime has used must be tried")
+
+if 'payload["token"]' in glue:
+    fail.append("the glue must read the token through B.token_of, because this BioTime "
+                "does not always call it token")
+if "rules.header(" not in glue:
+    fail.append("and build the Authorization header through rules.header")
+if "token_prefix" not in glue:
+    fail.append("the prefix is a setting: a BioTime guarded by SimpleJWT wants Bearer")
+
+if "def _explain_refusal(" not in glue:
+    fail.append("a 4xx from BioTime must be explained rather than handed over as JSON")
+refusal = glue.split("def _explain_refusal(")[1].split(chr(10) + "def ")[0]
+if "rules.token_rejected(" not in refusal:
+    fail.append("_explain_refusal must tell a refused token from a refused password")
+for needle, why in (
+    ("Sign-in Path", "the fix is the sign-in path, and the message must say so"),
+    ("Find the Sign-in Path", "and name the button that finds it"),
+    ("403", "a permission the account lacks is not a bad password"),
+    ("404", "and a wrong transactions path is not either"),
+):
+    if needle not in refusal:
+        fail.append("_explain_refusal does not mention %s: %s" % (needle, why))
+
+if "def find_sign_in(" not in glue:
+    fail.append("there must be a way to find the right sign-in path without editing code")
+finder = glue.split("def find_sign_in(")[1].split(chr(10) + "@frappe")[0]
+if "AUTH_PATH_CANDIDATES" not in finder or "PREFIXES" not in finder:
+    fail.append("the finder must try every path against every prefix")
+for saved in re.findall(r"db_set\((.*?)\)", finder, re.S):
+    if "auth_path" in saved or "token_prefix" in saved:
+        fail.append("the finder reports, it does not rewrite the settings — somebody should "
+                    "see what changed and type it in")
+if "check_permission" not in finder:
+    fail.append("and it signs in as the site's BioTime user, so it is not for everybody")
+if "RequestException" not in finder:
+    fail.append("one endpoint refusing must not end the search: the finder has to carry on "
+                "to the next one and say what happened at this")
+
+spec = json.load(open(os.path.join(APP, "doctype", "biotime_server",
+                                   "biotime_server.json"), encoding="utf-8"))
+prefix_field = [f for f in spec["fields"] if f["fieldname"] == "token_prefix"]
+if not prefix_field:
+    fail.append("the form needs a Token Prefix, because the two BioTime APIs disagree on it")
+elif sorted((prefix_field[0].get("options") or "").split(chr(10))) != sorted(B.PREFIXES):
+    fail.append("and it must offer exactly the prefixes the code knows how to send")
+form = open(os.path.join(APP, "doctype", "biotime_server", "biotime_server.js"),
+            encoding="utf-8").read()
+if "find_sign_in" not in form:
+    fail.append("the finder needs a button, or nobody will ever run it")
+print("sign-in: the token is found wherever it sits, and a refusal says what to do")
+
 print("wiring: hourly, beside the direct poll, and never reading a punch twice")
 
 if fail:

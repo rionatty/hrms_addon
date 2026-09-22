@@ -54,6 +54,43 @@ frappe.ui.form.on("BioTime Server", {
 				frm.reload_doc();
 			})
 		);
+		frm.add_custom_button(__("Find the Sign-in Path"), () =>
+			frappe
+				.xcall("hrms_addon.hrms_addon.biotime.find_sign_in")
+				.then((found) => {
+					const tried = (found.tried || [])
+						.map(
+							(row) =>
+								`<li><code>${frappe.utils.escape_html(row.auth_path)}</code>` +
+								(row.prefix ? ` ${frappe.utils.escape_html(row.prefix)}` : "") +
+								` <span class="text-muted">${frappe.utils.escape_html(row.result)}</span></li>`
+						)
+						.join("");
+					if (found.found) {
+						frappe.msgprint({
+							title: __("Found it"),
+							indicator: "green",
+							message:
+								__(
+									"Sign-in Path <b>{0}</b> with Token Prefix <b>{1}</b> gives a token this BioTime accepts. Put those two in the form and save.",
+									[
+										frappe.utils.escape_html(found.auth_path),
+										frappe.utils.escape_html(found.prefix),
+									]
+								) + (tried ? `<br><br>${__("What else was tried:")}<ul>${tried}</ul>` : ""),
+						});
+						return;
+					}
+					frappe.msgprint({
+						title: __("None of them worked"),
+						indicator: "red",
+						message:
+							__(
+								"No sign-in endpoint on this BioTime gave a token the transactions API would accept. Check the user name and password, and that the account is allowed to use the API."
+							) + (tried ? `<ul>${tried}</ul>` : ""),
+					});
+				})
+		);
 		frm.add_custom_button(__("Punches"), () => frappe.set_route("List", "Attendance Device Log"));
 	},
 	say_where_it_got_to(frm) {

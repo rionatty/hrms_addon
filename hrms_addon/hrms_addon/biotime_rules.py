@@ -53,6 +53,29 @@ AUTH_PATH = "/api-token-auth/"
 TRANSACTIONS_PATH = "/iclock/api/transactions/"
 TERMINALS_PATH = "/iclock/api/terminals/"
 
+# BioTime has shipped more than one sign-in endpoint, and they do not mint
+# the same kind of token. /api-token-auth/ is the old one; the newer API is
+# guarded by Django REST Framework's SimpleJWT, which refuses a token it
+# did not mint with "Given token not valid for any token type". When that
+# happens the sign-in worked and the token is simply the wrong sort — the
+# answer is a different path, not a different password.
+AUTH_PATH_CANDIDATES = (
+    "/api-token-auth/",
+    "/jwt-api-token-auth/",
+    "/api/token/",
+    "/api-token-auth/token/",
+)
+# where the token sits in the answer, in the order they are looked for
+TOKEN_KEYS = ("token", "access", "access_token")
+# what the Authorization header calls it. SimpleJWT's own default is
+# Bearer; BioTime has used JWT.
+PREFIXES = ("JWT", "Bearer", "Token")
+DEFAULT_PREFIX = "JWT"
+# SimpleJWT's own code for a token it will not accept, and the sentence it
+# sends with it — a build that drops the code still says the sentence
+TOKEN_REJECTED = "token_not_valid"
+TOKEN_REJECTED_SAID = "not valid for any token type"
+
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 PAGE_SIZE = 200
 # a runaway page count is a bug, not a big site: BioTime pages at whatever
@@ -221,11 +244,42 @@ def settings_errors(facts):
     return errors
 
 
+def token_of(payload):
+    """The token in a sign-in answer, wherever this BioTime puts it."""
+    if not isinstance(payload, dict):
+        return None
+    for key in TOKEN_KEYS:
+        value = payload.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def header(token, prefix=DEFAULT_PREFIX):
+    return {"Authorization": "%s %s" % (prefix or DEFAULT_PREFIX, token)}
+
+
+def token_rejected(payload):
+    """Whether a 401 means the token was refused rather than missing.
+
+    SimpleJWT answers {"detail": ..., "code": "token_not_valid"} when it
+    parsed the header and would not accept what was in it — which, right
+    after a sign-in that worked, means the sign-in minted the wrong sort of
+    token.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("code") == TOKEN_REJECTED:
+        return True
+    said = str(payload.get("detail") or "")
+    return TOKEN_REJECTED in said or TOKEN_REJECTED_SAID in said
+
+
 def token_errors(payload):
     """What BioTime said when it would not hand over a token."""
     if not isinstance(payload, dict):
         return ["BioTime did not answer with anything we could read."]
-    if payload.get("token"):
+    if token_of(payload):
         return []
     for key in ("non_field_errors", "detail", "error", "message"):
         said = payload.get(key)
