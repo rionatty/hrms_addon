@@ -67,21 +67,13 @@ frappe.ui.form.on("BioTime Server", {
 						)
 						.join("");
 					if (found.found) {
-						const dialog = frappe.msgprint({
+						frm.reload_doc();
+						frappe.msgprint({
 							title: __("Found it"),
 							indicator: "green",
-							primary_action: {
-								label: __("Use These Settings"),
-								action() {
-									frm.set_value("auth_path", found.auth_path);
-									frm.set_value("token_prefix", found.prefix);
-									dialog.hide();
-									frm.save();
-								},
-							},
 							message:
 								__(
-									"Sign-in Path <b>{0}</b> with Token Prefix <b>{1}</b> gives a token this BioTime accepts. Put those two in the form and save.",
+									"Sign-in Path <b>{0}</b> with Token Prefix <b>{1}</b> gives a token this BioTime accepts, and both are saved. Press Test the Connection.",
 									[
 										frappe.utils.escape_html(found.auth_path),
 										frappe.utils.escape_html(found.prefix),
@@ -95,7 +87,7 @@ frappe.ui.form.on("BioTime Server", {
 						indicator: "red",
 						message:
 							__(
-								"No sign-in endpoint on this BioTime gave a token the transactions API would accept. Check the user name and password, and that the account is allowed to use the API."
+								"No sign-in endpoint on this BioTime gave a token the transactions API would accept. The password is being taken, so this is about what the account is allowed to do: give it API access in BioTime, or use one that has it."
 							) + (tried ? `<ul>${tried}</ul>` : ""),
 					});
 				})
@@ -110,15 +102,6 @@ frappe.ui.form.on("BioTime Server", {
 				`<span class="indicator-pill gray">${__(
 					"Off — each machine is dialled directly, as before"
 				)}</span>`
-			);
-			return;
-		}
-		if (!frm.doc.token_prefix) {
-			frm.dashboard.set_headline(
-				`<span class="indicator-pill orange">${__("No Token Prefix")}</span>` +
-					` <span>${__(
-						"The Authorization header will say JWT. If this BioTime refuses the token, press Find the Sign-in Path."
-					)}</span>`
 			);
 			return;
 		}

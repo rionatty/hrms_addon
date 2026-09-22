@@ -402,11 +402,9 @@ refusal = glue.split("def _explain_refusal(")[1].split(chr(10) + "def ")[0]
 if "rules.token_rejected(" not in refusal:
     fail.append("_explain_refusal must tell a refused token from a refused password")
 for needle, why in (
-    ("Sign-in Path", "one half of the fix is the sign-in path"),
-    ("Token Prefix", "and the other half is the prefix — Luuka's BioTime wanted the path it "
-                     "already had with a different prefix, so naming only the path sends "
-                     "somebody looking in the wrong place"),
-    ("Find the Sign-in Path", "and the button that finds the pair must be named"),
+    ("every way of signing in", "by the time this is said the app has tried them all, so it "
+                                "must not send somebody back to the settings"),
+    ("API access", "what is left is what the account is allowed to do, and that is said"),
     ("403", "a permission the account lacks is not a bad password"),
     ("404", "and a wrong transactions path is not either"),
 ):
@@ -416,17 +414,42 @@ for needle, why in (
 if "def find_sign_in(" not in glue:
     fail.append("there must be a way to find the right sign-in path without editing code")
 finder = glue.split("def find_sign_in(")[1].split(chr(10) + "@frappe")[0]
-if "AUTH_PATH_CANDIDATES" not in finder or "PREFIXES" not in finder:
-    fail.append("the finder must try every path against every prefix")
-for saved in re.findall(r"db_set\((.*?)\)", finder, re.S):
-    if "auth_path" in saved or "token_prefix" in saved:
-        fail.append("the finder reports, it does not rewrite the settings — somebody should "
-                    "see what changed and type it in")
+if "_ways_in(" not in finder:
+    fail.append("the finder and the pull must search the same way, or one of them will find "
+                "something the other cannot use")
+ways = glue.split("def _ways_in(")[1].split(chr(10) + "def ")[0]
+if "AUTH_PATH_CANDIDATES" not in ways or "PREFIXES" not in ways:
+    fail.append("every path must be tried against every prefix")
+if 'doc.get("auth_path")' not in ways or 'doc.get("token_prefix")' not in ways:
+    fail.append("and the pair already on the form must be tried first, so a server that is "
+                "set up right costs nothing to talk to")
 if "check_permission" not in finder:
-    fail.append("and it signs in as the site's BioTime user, so it is not for everybody")
-if "RequestException" not in finder:
-    fail.append("one endpoint refusing must not end the search: the finder has to carry on "
-                "to the next one and say what happened at this")
+    fail.append("the finder signs in as the site's BioTime user, so it is not for everybody")
+if "RequestException" not in glue.split("def _accepted(")[1].split(chr(10) + "def ")[0]:
+    fail.append("one endpoint refusing must not end the search")
+
+# the pair that works is found and kept, not asked for
+if "def _heal(" not in glue:
+    fail.append("a token this BioTime will not take is a thing to go and fix, once, rather "
+                "than a thing to tell somebody about every hour")
+healing = glue.split("def _heal(")[1].split(chr(10) + "def ")[0]
+if "_ways_in(" not in healing or "_keep(" not in healing:
+    fail.append("the pull must search the same ways in and keep the one that worked")
+if "session.headers.update(" not in healing:
+    fail.append("and carry on with it rather than starting the pull again")
+kept = glue.split("def _keep(")[1].split(chr(10) + "def ")[0]
+saved = "".join(re.findall(r"db_set\((.*?)\)", kept, re.S))
+if '"auth_path"' not in saved or '"token_prefix"' not in saved:
+    fail.append("what worked is WRITTEN on the record — comparing it and not saving it means "
+                "the search happens every hour and nobody ever sees the answer")
+if "frappe.db.commit()" not in kept:
+    fail.append("and committed, or it is lost with the next rollback")
+paging = glue.split("def _transactions(")[1].split(chr(10) + "def ")[0]
+if "_heal(doc, session)" not in paging:
+    fail.append("the refusal the live server gave is the one that must trigger it")
+if "healed = True" not in paging:
+    fail.append("and the flag must actually be set, or a server that refuses every pair is "
+                "signed into for ever instead of being told about")
 
 spec = json.load(open(os.path.join(APP, "doctype", "biotime_server",
                                    "biotime_server.json"), encoding="utf-8"))
@@ -439,12 +462,9 @@ form = open(os.path.join(APP, "doctype", "biotime_server", "biotime_server.js"),
             encoding="utf-8").read()
 if "find_sign_in" not in form:
     fail.append("the finder needs a button, or nobody will ever run it")
-if "Use These Settings" not in form:
-    fail.append("and having found the pair it must offer to put it in the form, rather than "
-                "make somebody copy two values out of a dialog")
-if "token_prefix" not in form:
-    fail.append("a prefix left blank is read as JWT, and the form must say so rather than "
-                "let an empty box mean something")
+if "saved" not in form:
+    fail.append("having found the pair the app keeps it, and the dialog must say so rather "
+                "than ask somebody to copy two values into the form")
 patches = read("hrms_addon", "patches.txt")
 if "biotime_token_prefix" not in patches:
     fail.append("a BioTime Server record that existed before the prefix field did never got "

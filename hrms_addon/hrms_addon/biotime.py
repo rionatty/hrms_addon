@@ -153,6 +153,86 @@ def _session(doc):
     return session
 
 
+def _ways_in(doc, password, verify, tried=None):
+    """Every (sign-in path, prefix, token) worth trying, the pair on the
+    form first.
+
+    BioTime has shipped more than one sign-in endpoint and more than one
+    Authorization scheme, and they do not pair up the same way on every
+    install. Which pair this server wants is a thing that can be found
+    out, so it is found out rather than asked for.
+    """
+    import requests
+
+    paths = [doc.get("auth_path") or rules.AUTH_PATH]
+    paths += [path for path in rules.AUTH_PATH_CANDIDATES if path not in paths]
+    chosen = doc.get("token_prefix") or rules.DEFAULT_PREFIX
+    prefixes = [chosen] + [prefix for prefix in rules.PREFIXES if prefix != chosen]
+
+    for auth_path in paths:
+        url = rules.endpoint(doc.base_url, auth_path)
+        try:
+            answer = _reach(
+                lambda: requests.post(url, json={"username": doc.username,
+                                                 "password": password},
+                                      timeout=30, verify=verify), url, verify)
+        except Exception:  # noqa: BLE001 — one dead endpoint is not the end
+            if tried is not None:
+                tried.append({"auth_path": auth_path, "prefix": None,
+                              "result": _("could not be reached")})
+            continue
+        token = rules.token_of(_payload(answer))
+        if not token:
+            if tried is not None:
+                tried.append({"auth_path": auth_path, "prefix": None,
+                              "result": _("no token here ({0})").format(answer.status_code)})
+            continue
+        for prefix in prefixes:
+            yield auth_path, prefix, token
+
+
+def _accepted(doc, token, prefix, verify):
+    """Whether this BioTime will read transactions for that token."""
+    import requests
+
+    reading = rules.endpoint(doc.base_url,
+                             doc.get("transactions_path") or rules.TRANSACTIONS_PATH)
+    span = rules.window(None, now_datetime(), first_pull_days=1)
+    try:
+        answer = requests.get(reading, params=rules.query(span["start"], span["end"], 1, 1),
+                              headers=rules.header(token, prefix), timeout=60, verify=verify)
+    except requests.exceptions.RequestException:
+        return None
+    return answer
+
+
+def _keep(doc, auth_path, prefix):
+    """The pair that worked, written on the record so the next run starts
+    with it rather than searching again."""
+    if doc.get("auth_path") == auth_path and doc.get("token_prefix") == prefix:
+        return
+    doc.db_set({"auth_path": auth_path, "token_prefix": prefix}, update_modified=False)
+    frappe.db.commit()
+
+
+def _heal(doc, session):
+    """BioTime refused the token. Find a pair it will take, and keep it.
+
+    Nobody should have to read a dialog and copy two settings into a form:
+    a sign-in that can be found by trying should be found by trying. What
+    worked is written down, so this happens once and not every hour.
+    """
+    password = doc.get_password("password", raise_exception=False)
+    verify = bool(doc.get("verify_tls"))
+    for auth_path, prefix, token in _ways_in(doc, password, verify):
+        answer = _accepted(doc, token, prefix, verify)
+        if answer is not None and answer.status_code < 400:
+            session.headers.update(rules.header(token, prefix))
+            _keep(doc, auth_path, prefix)
+            return True
+    return False
+
+
 def _payload(answer):
     try:
         return answer.json()
@@ -163,7 +243,7 @@ def _payload(answer):
 def _transactions(doc, session, start, end):
     """Every transaction in the window, page by page."""
     url = rules.endpoint(doc.base_url, doc.get("transactions_path") or rules.TRANSACTIONS_PATH)
-    page, seen, rows = 1, 0, []
+    page, seen, rows, healed = 1, 0, [], False
     while page:
         answer = _reach(
             lambda: session.get(url, params=rules.query(start, end, page,
@@ -172,6 +252,13 @@ def _transactions(doc, session, start, end):
                                 timeout=120),
             url, bool(doc.get("verify_tls")))
         if answer.status_code >= 400:
+            # a token this server will not take is a thing to go and fix,
+            # once, rather than a thing to tell somebody about every hour
+            if (not healed and answer.status_code == 401
+                    and rules.token_rejected(_payload(answer))):
+                healed = True
+                if _heal(doc, session):
+                    continue
             _explain_refusal(doc, answer, page)
         payload = _payload(answer)
         found = rules.rows_of(payload)
@@ -184,21 +271,21 @@ def _transactions(doc, session, start, end):
 def _explain_refusal(doc, answer, page):
     """Why BioTime turned a page down.
 
-    The one worth naming is a 401 carrying SimpleJWT's token_not_valid: the
-    sign-in worked and handed us a token this API will not accept, which
-    means the Sign-in Path is the wrong one for this BioTime rather than
-    anything being wrong with the password.
+    A 401 carrying SimpleJWT's token_not_valid only reaches here after
+    _heal has tried every way in this app knows — each sign-in endpoint
+    BioTime has shipped, each under every Authorization scheme. So there
+    is no setting left to suggest: the password is being taken and the
+    account is not allowed to read transactions.
     """
     payload = _payload(answer)
     if answer.status_code == 401 and rules.token_rejected(payload):
         frappe.throw(
-            _("BioTime signed us in and then refused the token on {0}. The password is "
-              "right: what is wrong is the pair of settings that decide which token gets "
-              "minted and what the header calls it: <b>Sign-in Path</b> and "
-              "<b>Token Prefix</b>. BioTime has shipped more than one sign-in endpoint and "
-              "more than one scheme, and they do not go together in every combination."
-              "<br><br>Press <b>Find the Sign-in Path</b>: it tries each pair and says which "
-              "of them gives a token this server will take.")
+            _("BioTime refused the token on {0}, and every way of signing in that this app "
+              "knows was tried: each endpoint BioTime has shipped, each under every "
+              "Authorization scheme. The password is being accepted — the account simply is "
+              "not allowed to read transactions through the API.<br><br>In BioTime, give "
+              "this user API access, or use one that has it. Press <b>Find the Sign-in "
+              "Path</b> to see what each endpoint answered.")
             .format(doc.get("transactions_path") or rules.TRANSACTIONS_PATH),
             title=_("BioTime"))
     if answer.status_code == 401:
@@ -218,65 +305,38 @@ def _explain_refusal(doc, answer, page):
 
 @frappe.whitelist(methods=["POST"])
 def find_sign_in():
-    """Try the sign-in endpoints BioTime has shipped and say which one
-    gives a token the transactions API will actually accept.
+    """Try the ways in until one gives a token this BioTime will take, and
+    keep it.
 
-    It changes nothing. It signs in, asks for a single transaction, and
-    reports — so somebody can put the answer in the form themselves rather
-    than have this app quietly rewrite their settings.
+    The pull does this for itself when it is refused; this is the same
+    search with a button on it, for somebody who would rather see what
+    happened than watch a pull fail.
     """
-    import requests
-
     doc = frappe.get_single(SETTINGS)
     doc.check_permission("write")
     password = doc.get_password("password", raise_exception=False)
     verify = bool(doc.get("verify_tls"))
-    span = rules.window(None, now_datetime(), first_pull_days=1)
-    reading = rules.endpoint(doc.base_url,
-                             doc.get("transactions_path") or rules.TRANSACTIONS_PATH)
-    if not reading:
+    if not rules.endpoint(doc.base_url, doc.get("transactions_path")
+                          or rules.TRANSACTIONS_PATH):
         frappe.throw(_("BioTime's address must start http:// or https://."))
 
     tried = []
-    for auth_path in rules.AUTH_PATH_CANDIDATES:
-        url = rules.endpoint(doc.base_url, auth_path)
-        try:
-            answer = _reach(
-                lambda: requests.post(url, json={"username": doc.username,
-                                                 "password": password},
-                                      timeout=30, verify=verify), url, verify)
-        except Exception:  # noqa: BLE001
-            tried.append({"auth_path": auth_path, "prefix": None,
+    for auth_path, prefix, token in _ways_in(doc, password, verify, tried):
+        answer = _accepted(doc, token, prefix, verify)
+        if answer is None:
+            tried.append({"auth_path": auth_path, "prefix": prefix,
                           "result": _("could not be reached")})
             continue
-        token = rules.token_of(_payload(answer))
-        if not token:
-            tried.append({"auth_path": auth_path, "prefix": None,
-                          "result": _("no token here ({0})").format(answer.status_code)})
-            continue
-        for prefix in rules.PREFIXES:
-            # not through _reach: one endpoint refusing must not end the
-            # search, so a failure here is written down and the next one
-            # is tried
-            try:
-                probe = requests.get(reading,
-                                     params=rules.query(span["start"], span["end"], 1, 1),
-                                     headers=rules.header(token, prefix), timeout=60,
-                                     verify=verify)
-            except requests.exceptions.RequestException as error:
-                tried.append({"auth_path": auth_path, "prefix": prefix,
-                              "result": str(error)[:100]})
-                continue
-            if probe.status_code < 400:
-                doc.db_set({"last_status": _("Sign-in path {0} with {1} works").format(
-                    auth_path, prefix), "last_error": None, "last_run": now_datetime()},
-                    update_modified=False)
-                frappe.db.commit()
-                return {"found": True, "auth_path": auth_path, "prefix": prefix,
-                        "tried": tried}
-            tried.append({"auth_path": auth_path, "prefix": prefix,
-                          "result": _("token refused ({0})").format(probe.status_code)})
-    doc.db_set({"last_status": _("No sign-in path worked"), "last_run": now_datetime()},
+        if answer.status_code < 400:
+            _keep(doc, auth_path, prefix)
+            doc.db_set({"last_status": _("Signed in with {0} and {1}").format(
+                auth_path, prefix), "last_error": None, "last_run": now_datetime()},
+                update_modified=False)
+            frappe.db.commit()
+            return {"found": True, "auth_path": auth_path, "prefix": prefix, "tried": tried}
+        tried.append({"auth_path": auth_path, "prefix": prefix,
+                      "result": _("token refused ({0})").format(answer.status_code)})
+    doc.db_set({"last_status": _("No sign-in worked"), "last_run": now_datetime()},
                update_modified=False)
     frappe.db.commit()
     return {"found": False, "tried": tried}
