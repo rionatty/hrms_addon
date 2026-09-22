@@ -79,6 +79,47 @@ def _settings():
 
 
 # ── 1. Talking to BioTime ─────────────────────────────────────────────
+def _reach(call, url, verify_tls):
+    """Every request to BioTime goes through here, so a server that is off,
+    unreachable or speaking a different protocol is explained in words
+    rather than thrown at somebody as a Python traceback.
+
+    The exceptions are matched on their own classes, not on the text of
+    the message, because that text is written by OpenSSL and changes
+    between versions.
+    """
+    import requests
+
+    try:
+        return call()
+    except requests.exceptions.SSLError as error:
+        if "WRONG_VERSION_NUMBER" in str(error):
+            frappe.throw(
+                _("{0} answered in plain HTTP, but the address says https://. Change the "
+                  "address to http:// and untick Verify the Certificate.").format(url),
+                title=_("BioTime"))
+        frappe.throw(
+            _("The certificate at {0} could not be verified. If BioTime uses a self-signed "
+              "certificate, untick Verify the Certificate; the connection is then private "
+              "but not proven.").format(url), title=_("BioTime"))
+    except requests.exceptions.ConnectTimeout:
+        frappe.throw(_("{0} did not answer in time. Check that BioTime is running and that "
+                       "this server can reach it.").format(url), title=_("BioTime"))
+    except requests.exceptions.ReadTimeout:
+        frappe.throw(_("{0} accepted the connection but sent nothing back in time. It may be "
+                       "working through a very large window — try a smaller page size or a "
+                       "shorter first pull.").format(url), title=_("BioTime"))
+    except requests.exceptions.ConnectionError:
+        frappe.throw(_("Nothing answered at {0}. Check the address, the port, and that this "
+                       "server is allowed to reach BioTime.").format(url), title=_("BioTime"))
+    except requests.exceptions.MissingSchema:
+        frappe.throw(_("BioTime's address must start http:// or https://."),
+                     title=_("BioTime"))
+    except requests.exceptions.RequestException as error:
+        frappe.throw(_("BioTime could not be reached: {0}").format(str(error)[:200]),
+                     title=_("BioTime"))
+
+
 def _session(doc):
     """A signed-in session. A fresh token each run: one extra request an
     hour is cheaper than reasoning about when a JWT went stale."""
@@ -88,8 +129,11 @@ def _session(doc):
     if not url:
         frappe.throw(_("BioTime's address must start http:// or https://."))
     password = doc.get_password("password", raise_exception=False)
-    answer = requests.post(url, json={"username": doc.username, "password": password},
-                           timeout=30, verify=bool(doc.get("verify_tls")))
+    verify = bool(doc.get("verify_tls"))
+    answer = _reach(
+        lambda: requests.post(url, json={"username": doc.username, "password": password},
+                              timeout=30, verify=verify),
+        url, verify)
     payload = _payload(answer)
     errors = rules.token_errors(payload)
     if errors:
@@ -114,10 +158,12 @@ def _transactions(doc, session, start, end):
     url = rules.endpoint(doc.base_url, doc.get("transactions_path") or rules.TRANSACTIONS_PATH)
     page, seen, rows = 1, 0, []
     while page:
-        answer = session.get(url, params=rules.query(start, end, page,
-                                                     cint(doc.get("page_size"))
-                                                     or rules.PAGE_SIZE),
-                             timeout=120)
+        answer = _reach(
+            lambda: session.get(url, params=rules.query(start, end, page,
+                                                        cint(doc.get("page_size"))
+                                                        or rules.PAGE_SIZE),
+                                timeout=120),
+            url, bool(doc.get("verify_tls")))
         if answer.status_code >= 400:
             frappe.throw(_("BioTime answered {0} for page {1}: {2}").format(
                 answer.status_code, page, (answer.text or "")[:200]), title=_("BioTime"))
@@ -134,9 +180,18 @@ def test_connection():
     """BioTime answered, and what it is holding."""
     doc = frappe.get_single(SETTINGS)
     doc.check_permission("write")
-    session = _session(doc)
     span = rules.window(None, now_datetime(), first_pull_days=1)
-    rows = _transactions(doc, session, span["start"], span["end"])
+    try:
+        session = _session(doc)
+        rows = _transactions(doc, session, span["start"], span["end"])
+    except Exception as error:  # noqa: BLE001
+        # the same courtesy a pull gets: the record says what went wrong,
+        # so somebody reading it later does not have to find the log
+        doc.db_set({"last_status": _("Could not reach BioTime"),
+                    "last_error": str(error)[:500], "last_run": now_datetime()},
+                   update_modified=False)
+        frappe.db.commit()
+        raise
     found = rules.readings(rows)
     terminals = rules.terminals_of(found["readings"])
     doc.db_set({"last_status": _("Answered: {0} punch(es) in the last day").format(len(rows)),

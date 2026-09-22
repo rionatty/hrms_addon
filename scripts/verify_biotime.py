@@ -323,6 +323,41 @@ if "BioTime Server" not in nav:
     fail.append("the server record has no way in")
 if not os.path.exists(os.path.join(APP, "doctype", "biotime_server", "biotime_server.js")):
     fail.append("the server record has no form script, so nobody can test the connection")
+# ── 7b. A server that will not answer says so in words ────────────────
+# A raw SSLError or ConnectionError reaches the desk as a Python traceback,
+# which is what happened the first time this was pointed at a BioTime
+# speaking plain HTTP on an https:// address.
+if "def _reach(" not in glue:
+    fail.append("every request must go through one place that explains a failure")
+reach = glue.split("def _reach(")[1].split(chr(10) + "def ")[0]
+for needle, why in (
+    ("SSLError", "a TLS mismatch is the one people hit first"),
+    ("WRONG_VERSION_NUMBER", "and https:// onto a plain-HTTP server is named by its symptom"),
+    ("ConnectTimeout", "a server that never picks up"),
+    ("ReadTimeout", "and one that picks up and says nothing are different problems"),
+    ("ConnectionError", "a wrong address or a closed port"),
+    ("RequestException", "and anything else still gets a sentence rather than a traceback"),
+):
+    if needle not in reach:
+        fail.append("_reach does not handle %s: %s" % (needle, why))
+if "frappe.throw" not in reach:
+    fail.append("_reach must throw a message, not re-raise the library's exception")
+# every outbound request goes through it
+for call in ("requests.post(", "session.get("):
+    for line in glue.split(chr(10)):
+        if call in line and "_reach" not in line and "lambda" not in line:
+            fail.append("%s is called outside _reach, so its failure would reach the desk raw"
+                        % call.rstrip("("))
+            break
+# and a failed test says so on the record, as a pull already does
+tested = glue.split("def test_connection")[1].split(chr(10) + "def ")[0]
+if "last_error" not in tested:
+    fail.append("a failed Test the Connection must be written on the record, so somebody "
+                "reading it later does not have to go to the log")
+if "raise" not in tested:
+    fail.append("and still reach the person who pressed the button")
+print("failure: a server that will not answer is explained, and written down")
+
 print("wiring: hourly, beside the direct poll, and never reading a punch twice")
 
 if fail:
