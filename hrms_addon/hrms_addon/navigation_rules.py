@@ -206,6 +206,7 @@ CARDS = {
             ("Gate Pass", "Gate Pass", DOCTYPE),
         ]),
         ("Clocking Machines", [
+            ("BioTime Server", "BioTime Server", DOCTYPE),
             ("Attendance Device", "Attendance Device", DOCTYPE),
             ("Attendance Device Log", "Attendance Device Log", DOCTYPE),
         ]),
@@ -313,6 +314,7 @@ SIDEBAR = {
         ("Shift Allowance", "Shift Allowance", DOCTYPE, None, "Shift Rotation"),
         ("Travel Destination", "Travel Destination", DOCTYPE, "Setup", None),
         ("Per Diem Rate", "Per Diem Rate", DOCTYPE, "Setup", None),
+        ("BioTime Server", "BioTime Server", DOCTYPE, "Setup", None),
         ("Attendance Device", "Attendance Device", DOCTYPE, "Setup", None),
         ("Attendance Device Log", "Attendance Device Log", DOCTYPE, "Setup", None),
     ],

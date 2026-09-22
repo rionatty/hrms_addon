@@ -198,26 +198,47 @@ def to_push(punches, since_moment=None, known_badges=None):
     return push, unknown
 
 
+# where a machine's punches reach this app from: dialled over the ZK
+# protocol, or read off BioTime, which is where the machines push them
+DIRECT, BIOTIME = "Direct", "BioTime"
+SOURCES = (DIRECT, BIOTIME)
+
+
+def dialled(source):
+    """Whether this app talks to the machine itself. One read through
+    BioTime has no address of its own to give us, and asking for one would
+    be asking for a fiction."""
+    return (source or DIRECT) != BIOTIME
+
+
 def device_errors(facts):
     """Problems with an Attendance Device as it is saved.
 
-    facts: "device_name", "host", "port", "direction", "enabled".
+    facts: "device_name", "source", "host", "port", "direction",
+    "enabled". A machine fed by BioTime is not asked for an address or a
+    port: nothing here dials it.
     """
     errors = []
     if not (facts.get("device_name") or "").strip():
         errors.append("Give the machine a name.")
-    if not (facts.get("host") or "").strip():
-        errors.append("Give the machine's IP address or host name.")
-    port = facts.get("port")
-    if port in (None, ""):
-        errors.append("Give the machine's port (ZKTeco machines listen on 4370 by default).")
-    else:
-        try:
-            number = int(port)
-        except (TypeError, ValueError):
-            number = -1
-        if not 1 <= number <= 65535:
-            errors.append("The port must be between 1 and 65535.")
+    if facts.get("source") and facts["source"] not in SOURCES:
+        errors.append("A machine is read %s." % " or ".join(SOURCES))
+    if dialled(facts.get("source")):
+        if not (facts.get("host") or "").strip():
+            errors.append("Give the machine's IP address or host name.")
+        port = facts.get("port")
+        if port in (None, ""):
+            errors.append("Give the machine's port (ZKTeco machines listen on 4370 by default).")
+        else:
+            try:
+                number = int(port)
+            except (TypeError, ValueError):
+                number = -1
+            if not 1 <= number <= 65535:
+                errors.append("The port must be between 1 and 65535.")
+    elif not (facts.get("serial_number") or "").strip():
+        errors.append("A machine read through BioTime is found by its serial number. Give the "
+                      "one BioTime shows for it.")
     if facts.get("direction") not in DEVICE_DIRECTIONS:
         errors.append("Say which way the machine faces: %s." % ", ".join(DEVICE_DIRECTIONS))
     return errors

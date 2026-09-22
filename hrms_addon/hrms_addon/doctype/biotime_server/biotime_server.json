@@ -1,0 +1,202 @@
+{
+ "actions": [],
+ "creation": "2026-09-22 08:00:00.000000",
+ "description": "Where Luuka's clockings are read from. BioTime holds what every machine pushed to it, so this app asks BioTime once rather than dialling each machine.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "base_url",
+  "column_break_1",
+  "username",
+  "password",
+  "verify_tls",
+  "reading_section",
+  "page_size",
+  "first_pull_days",
+  "column_break_2",
+  "auth_path",
+  "transactions_path",
+  "state_section",
+  "last_sync",
+  "last_status",
+  "last_pulled",
+  "column_break_3",
+  "last_run",
+  "terminals_seen",
+  "last_error"
+ ],
+ "fields": [
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Read from BioTime",
+   "description": "While this is off nothing is pulled, and any machine still set to Direct is polled as before."
+  },
+  {
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Address",
+   "mandatory_depends_on": "enabled",
+   "description": "For example https://biotime.luuka.co.ug:8098 — the address the Frappe server itself can reach, not the one on somebody's desk."
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "BioTime User",
+   "mandatory_depends_on": "enabled",
+   "description": "A BioTime account with permission to read transactions. Give it that and nothing else."
+  },
+  {
+   "fieldname": "password",
+   "fieldtype": "Password",
+   "label": "Password",
+   "mandatory_depends_on": "enabled"
+  },
+  {
+   "fieldname": "verify_tls",
+   "fieldtype": "Check",
+   "label": "Verify the Certificate",
+   "default": "1",
+   "description": "Leave ticked on https. A BioTime with a self-signed certificate needs this off, and then the connection is private but not proven."
+  },
+  {
+   "fieldname": "reading_section",
+   "fieldtype": "Section Break",
+   "label": "What is read",
+   "description": "BioTime answers in its own server's local time and so does this app. If the two disagree the punches land in the wrong hour — check the clocks, not the code."
+  },
+  {
+   "fieldname": "page_size",
+   "fieldtype": "Int",
+   "label": "Transactions a Page",
+   "default": "200"
+  },
+  {
+   "fieldname": "first_pull_days",
+   "fieldtype": "Int",
+   "label": "First Pull Reaches Back (Days)",
+   "default": "7",
+   "description": "Only used the very first time, when there is no last sync to read from."
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "auth_path",
+   "fieldtype": "Data",
+   "label": "Sign-in Path",
+   "default": "/api-token-auth/",
+   "description": "BioTime 8.5's own. A different version is a setting, not a code change."
+  },
+  {
+   "fieldname": "transactions_path",
+   "fieldtype": "Data",
+   "label": "Transactions Path",
+   "default": "/iclock/api/transactions/"
+  },
+  {
+   "fieldname": "state_section",
+   "fieldtype": "Section Break",
+   "label": "Where it got to"
+  },
+  {
+   "fieldname": "last_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Read Up To",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "The next pull starts a minute before this, so a punch recorded just after a run is not lost between two of them."
+  },
+  {
+   "fieldname": "last_status",
+   "fieldtype": "Data",
+   "label": "Last Status",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_pulled",
+   "fieldtype": "Int",
+   "label": "Punches Last Pulled",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_run",
+   "fieldtype": "Datetime",
+   "label": "Last Run",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "terminals_seen",
+   "fieldtype": "Small Text",
+   "label": "Terminals Seen",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-22 08:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "BioTime Server",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

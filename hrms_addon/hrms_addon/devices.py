@@ -50,7 +50,9 @@ BADGE_FIELD = "attendance_device_id"
 # ── the machine and its log, as documents ─────────────────────────────
 def device_validate(doc, method=None):
     errors = rules.device_errors({
-        "device_name": doc.get("device_name"), "host": doc.get("host"), "port": doc.get("port"),
+        "device_name": doc.get("device_name"), "source": doc.get("source"),
+        "host": doc.get("host"), "port": doc.get("port"),
+        "serial_number": doc.get("serial_number"),
         "direction": doc.get("direction"), "enabled": doc.get("enabled"),
     })
     if errors:
@@ -301,7 +303,10 @@ def retry_failed(device=None, limit=500):
 def pull_all():
     """Hourly: every enabled machine, each on its own so one that is off
     does not stop the rest."""
-    for name in frappe.get_all(DEVICE, filters={"enabled": 1}, pluck="name"):
+    # a machine whose punches come from BioTime is read by biotime.py, not
+    # dialled here; one with no source set yet is dialled as it always was
+    for name in frappe.get_all(DEVICE, filters={"enabled": 1,
+                                                "source": ["!=", "BioTime"]}, pluck="name"):
         try:
             _pull(frappe.get_doc(DEVICE, name), read=_read)
         except Exception:  # noqa: BLE001

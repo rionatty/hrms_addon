@@ -613,6 +613,34 @@ the end from the Employment Type's usual length, a renewal's dates, no two
 contracts at once, the signed copy before it is submitted, the daily job,
 the Contract Expiry Status report and the three letters.
 
+`verify_biotime.py` covers reading the clockings out of **BioTime**,
+ZKTeco's own server, rather than dialling each machine over the ZK
+protocol. Only the transport changes: a punch still becomes an Attendance
+Device Log row first and an Employee Checkin second, the same double-read
+collapsing applies, an unknown badge is still listed rather than dropped,
+and `devices.retry_failed` and `devices.unknown_badges` work on BioTime's
+rows unchanged because they are the same rows. The punch codes are the same
+0 to 5, so `zkteco_rules` still decides the direction and nothing about it
+is repeated.
+
+The machine on the wall stays an Attendance Device record, because that is
+where its plant and its direction live and BioTime knows neither — it names
+a terminal, not a door. A terminal seen for the first time gets a record
+made for it, marked as fed by BioTime and left for HR to give a branch and
+a direction; its punches are kept meanwhile, simply undirected until
+somebody says. A machine set to Direct is still dialled hourly by
+`devices.pull_all`, which skips the ones BioTime feeds so no punch is read
+twice.
+
+Each pull overlaps the previous one by a minute, so a punch written to
+BioTime a moment after a run is picked up by the next rather than falling
+between them. Both API paths are settings on the server record with
+BioTime 8.5's defaults, so a different version is a configuration change
+and not a developer's afternoon. Nothing converts a timezone: BioTime
+answers in its own server's local time and so does this app, and if the two
+clocks disagree the punches land in the wrong hour — a deployment check,
+not something code can guess at.
+
 `verify_signatures.py` covers electronic signatures. Every workflow in this
 app already stamps who moved a document and on what day; what was missing
 is the other half of a signature — the specimen, and a record saying in

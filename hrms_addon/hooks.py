@@ -1427,6 +1427,9 @@ scheduler_events = {
         # Every enabled ZKTeco machine read and pushed into Employee
         # Checkin. See devices.py.
         "hrms_addon.hrms_addon.devices.pull_all",
+        # and the punches BioTime is holding, which is where the machines
+        # push them (biotime.py). Nothing happens while it is switched off.
+        "hrms_addon.hrms_addon.biotime.pull_all",
     ],
 }
 

@@ -13,6 +13,7 @@
   "column_break_1",
   "company",
   "location",
+  "source",
   "direction",
   "connection_section",
   "host",
@@ -75,6 +76,16 @@
    "description": "The gate or door, so a punch can be placed."
   },
   {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Punches Come From",
+   "options": "Direct\nBioTime",
+   "default": "Direct",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Direct dials the machine itself over the ZK protocol. BioTime reads the punches off ZKTeco's own server, which is where the machines push them (biotime.py), and the connection details below are then not used."
+  },
+  {
    "fieldname": "direction",
    "fieldtype": "Select",
    "label": "Which way it faces",
@@ -86,13 +97,14 @@
   {
    "fieldname": "connection_section",
    "fieldtype": "Section Break",
-   "label": "Connection"
+   "label": "Connection",
+   "depends_on": "eval:doc.source!='BioTime'"
   },
   {
    "fieldname": "host",
    "fieldtype": "Data",
    "label": "IP Address / Host",
-   "reqd": 1
+   "mandatory_depends_on": "eval:doc.source!='BioTime'"
   },
   {
    "fieldname": "port",
