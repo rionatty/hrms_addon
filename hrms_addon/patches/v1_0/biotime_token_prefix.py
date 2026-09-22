@@ -23,7 +23,9 @@ DEFAULT = "JWT"
 def execute():
     if not frappe.db.exists("DocType", SETTINGS):
         return
-    if not frappe.db.has_column(SETTINGS, "token_prefix"):
+    # a Single has no table of its own, so the field is asked of the meta
+    # rather than of a column that will never exist
+    if not frappe.get_meta(SETTINGS).has_field("token_prefix"):
         return
     if frappe.db.get_single_value(SETTINGS, "token_prefix"):
         return

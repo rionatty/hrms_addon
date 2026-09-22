@@ -842,6 +842,33 @@ for dt_name, records in (("Custom Field", custom_fields), ("Property Setter", se
                     % (dt_name, sorted(actual - listed), sorted(listed - actual)))
 print("hooks.py fixtures lists match the fixture files")
 
+# ── 9. A Single has no table, so nothing may ask it for a column ─────
+# frappe.db.has_column and get_table_columns both go to the database for
+# `tab<DocType>`, and a Single keeps its values in tabSingles instead. The
+# call does not answer False, it raises TableMissingError — which took a
+# migrate down on the live site.
+singles = set()
+for spec_path in glob.glob(os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype", "*", "*.json")):
+    try:
+        spec = json.load(open(spec_path, encoding="utf-8"))
+    except ValueError:
+        continue
+    if spec.get("doctype") == "DocType" and spec.get("issingle"):
+        singles.add(spec["name"])
+asked = []
+for source_path in (glob.glob(os.path.join(REPO, "hrms_addon", "patches", "*", "*.py"))
+                    + glob.glob(os.path.join(REPO, "hrms_addon", "hrms_addon", "*.py"))):
+    source = open(source_path, encoding="utf-8").read()
+    for call in re.findall(r"(?:has_column|get_table_columns)\(\s*[\"']([^\"']+)[\"']",
+                           source):
+        if call in singles:
+            asked.append((os.path.basename(source_path), call))
+for where, name in asked:
+    fail.append("%s asks the database for a column of %s, which is a Single and has no table "
+                "of its own — that raises rather than answering. Ask the meta instead."
+                % (where, name))
+print("singles: %d of them, and nothing asks the database for their columns" % len(singles))
+
 print()
 if fail:
     print("FAILURES:")
