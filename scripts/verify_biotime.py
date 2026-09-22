@@ -439,6 +439,16 @@ form = open(os.path.join(APP, "doctype", "biotime_server", "biotime_server.js"),
             encoding="utf-8").read()
 if "find_sign_in" not in form:
     fail.append("the finder needs a button, or nobody will ever run it")
+if "Use These Settings" not in form:
+    fail.append("and having found the pair it must offer to put it in the form, rather than "
+                "make somebody copy two values out of a dialog")
+if "token_prefix" not in form:
+    fail.append("a prefix left blank is read as JWT, and the form must say so rather than "
+                "let an empty box mean something")
+patches = read("hrms_addon", "patches.txt")
+if "biotime_token_prefix" not in patches:
+    fail.append("a BioTime Server record that existed before the prefix field did never got "
+                "its default, so the box sits empty on exactly the sites that have one")
 print("sign-in: the token is found wherever it sits, and a refusal says what to do")
 
 print("wiring: hourly, beside the direct poll, and never reading a punch twice")

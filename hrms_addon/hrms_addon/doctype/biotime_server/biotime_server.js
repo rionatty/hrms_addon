@@ -67,9 +67,18 @@ frappe.ui.form.on("BioTime Server", {
 						)
 						.join("");
 					if (found.found) {
-						frappe.msgprint({
+						const dialog = frappe.msgprint({
 							title: __("Found it"),
 							indicator: "green",
+							primary_action: {
+								label: __("Use These Settings"),
+								action() {
+									frm.set_value("auth_path", found.auth_path);
+									frm.set_value("token_prefix", found.prefix);
+									dialog.hide();
+									frm.save();
+								},
+							},
 							message:
 								__(
 									"Sign-in Path <b>{0}</b> with Token Prefix <b>{1}</b> gives a token this BioTime accepts. Put those two in the form and save.",
@@ -101,6 +110,15 @@ frappe.ui.form.on("BioTime Server", {
 				`<span class="indicator-pill gray">${__(
 					"Off — each machine is dialled directly, as before"
 				)}</span>`
+			);
+			return;
+		}
+		if (!frm.doc.token_prefix) {
+			frm.dashboard.set_headline(
+				`<span class="indicator-pill orange">${__("No Token Prefix")}</span>` +
+					` <span>${__(
+						"The Authorization header will say JWT. If this BioTime refuses the token, press Find the Sign-in Path."
+					)}</span>`
 			);
 			return;
 		}
