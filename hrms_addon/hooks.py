@@ -677,6 +677,7 @@ fixtures = [
                     "Employee-custom_bank_loan_cb",
                     "Employee-custom_bank_loan_until",
                     "Employee-custom_pay_category",
+                    "Employee-custom_hourly_rate",
                     "Appraisal-custom_round_section",
                     "Appraisal-custom_plan",
                     "Appraisal-custom_quarter",
@@ -1276,6 +1277,20 @@ doc_events = {
     # Luuka's three advances on Frappe HR's own Employee Advance: who may
     # take one, the two sanctions LPL/HR/21 carries, and the instalments it
     # is recovered in (advances.py)
+    # output pay: Per Meter, Per Piece and the hourly casuals (output_pay.py)
+    "Production Machine": {
+        "validate": "hrms_addon.hrms_addon.output_pay.machine_validate",
+    },
+    "Daily Production Report": {
+        "validate": "hrms_addon.hrms_addon.output_pay.report_validate",
+        "on_submit": "hrms_addon.hrms_addon.output_pay.report_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.output_pay.report_on_cancel",
+    },
+    "Output Pay Run": {
+        "validate": "hrms_addon.hrms_addon.output_pay.run_validate",
+        "on_submit": "hrms_addon.hrms_addon.output_pay.run_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.output_pay.run_on_cancel",
+    },
     "Employee Advance": {
         "validate": "hrms_addon.hrms_addon.advances.advance_validate",
         "on_submit": "hrms_addon.hrms_addon.advances.advance_on_submit",

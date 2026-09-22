@@ -218,6 +218,16 @@ CARDS = {
             ("Attendance Device Log", "Attendance Device Log", DOCTYPE),
         ]),
     ],
+    # Frappe HR's own payroll page gains the output-pay sheets: the machines
+    # and their rates, the daily report, and the month's run (output_pay.py)
+    "Payroll": [
+        ("Output Pay", [
+            ("Daily Production Report", "Daily Production Report", DOCTYPE),
+            ("Output Pay Run", "Output Pay Run", DOCTYPE),
+            ("Production Machine", "Production Machine", DOCTYPE),
+            ("Output Pay Settings", "Output Pay Settings", DOCTYPE),
+        ]),
+    ],
     "HR Setup": [
         # The scale the travel form reads its rates off (grades.py). The
         # Gradar band and its steps are custom fields on Frappe HR's own
@@ -326,6 +336,12 @@ SIDEBAR = {
         ("BioTime Server", "BioTime Server", DOCTYPE, "Setup", None),
         ("Attendance Device", "Attendance Device", DOCTYPE, "Setup", None),
         ("Attendance Device Log", "Attendance Device Log", DOCTYPE, "Setup", None),
+    ],
+    "Payroll": [
+        ("Daily Production Report", "Daily Production Report", DOCTYPE, None, "Additional Salary"),
+        ("Output Pay Run", "Output Pay Run", DOCTYPE, None, "Daily Production Report"),
+        ("Production Machine", "Production Machine", DOCTYPE, "Setup", None),
+        ("Output Pay Settings", "Output Pay Settings", DOCTYPE, "Setup", None),
     ],
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),

@@ -688,6 +688,8 @@ if by_dt.get(EM):
                  # how gross is earned, beside Frappe HR's own Employment Type
                  # (minutes §4.6; the Per Meter salary advance reads it)
                  "custom_pay_category": ("Overview", "employment_type"),
+                 # an hourly casual's own rate, beside how they are paid (output_pay.py)
+                 "custom_hourly_rate": ("Overview", "custom_pay_category"),
                  # attendance: the badge is Frappe HR's own field and these sit beside it
                  "custom_automatic_attendance": ("Attendance & Leaves", "attendance_device_id")}
     for hrms_first in (True, False):

@@ -1,0 +1,107 @@
+{
+ "actions": [],
+ "creation": "2026-09-23 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "machine",
+  "width_cm",
+  "piece_category",
+  "output",
+  "unit",
+  "target",
+  "achieved",
+  "rate",
+  "amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "machine",
+   "fieldtype": "Link",
+   "label": "Machine",
+   "options": "Production Machine",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "width_cm",
+   "fieldtype": "Int",
+   "label": "Width (cm)",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "piece_category",
+   "fieldtype": "Data",
+   "label": "Piece Category",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "output",
+   "fieldtype": "Float",
+   "label": "Output",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "target",
+   "fieldtype": "Float",
+   "label": "Target",
+   "description": "Filled from the machine's rate; change it for this person if theirs differs."
+  },
+  {
+   "fieldname": "achieved",
+   "fieldtype": "Percent",
+   "label": "Achieved",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Rate",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-23 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Daily Production Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

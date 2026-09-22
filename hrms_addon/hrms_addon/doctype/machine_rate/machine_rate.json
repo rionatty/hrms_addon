@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "creation": "2026-09-23 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "width_cm",
+  "piece_category",
+  "rate",
+  "daily_target",
+  "valid_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "width_cm",
+   "fieldtype": "Int",
+   "label": "Width (cm)",
+   "in_list_view": 1,
+   "description": "Per Meter: the width of material this rate is for."
+  },
+  {
+   "fieldname": "piece_category",
+   "fieldtype": "Data",
+   "label": "Piece Category",
+   "in_list_view": 1,
+   "description": "Per Piece: the category this price is for."
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Rate",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Per metre, or per piece."
+  },
+  {
+   "fieldname": "daily_target",
+   "fieldtype": "Float",
+   "label": "Daily Target",
+   "in_list_view": 1,
+   "description": "Metres or pieces a shift is expected to make."
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-23 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Machine Rate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}
