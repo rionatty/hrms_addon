@@ -25,7 +25,238 @@ const HRA_MONTHS = [
 	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+// The board's own styles.
+//
+// They live here rather than in hrms_addon.bundle.css because that file
+// only reaches the browser after `bench build`, and a page whose entire
+// layout waits on a build step ships looking like a list of words when
+// the build is skipped or an old bundle is still cached. A page script
+// is served as it is, so these arrive with the page that needs them.
+//
+// Everything is scoped under .hra-board or its own hra- classes. The
+// --hra-* colours it reads are the theme's, declared in the bundle, and
+// a missing one only costs a colour rather than the layout.
+const HRA_BOARD_STYLE = `
+/* ── The attendance board ────────────────────────────────────────
+   page/attendance_board. The middle of it is LPL/HR/07 — the
+   register Luuka already reads, ruled 26th to 25th — so the letters
+   get the colours, and everything else stays out of their way.
+
+   Every custom property below is declared in this block: a var()
+   that resolves to nothing takes its whole declaration with it
+   (rule 2 at the top of this file).
+   ──────────────────────────────────────────────────────────────── */
+:root {
+  --hra-board-gold:       #A9791C;   /* CyveTech gold — off duty     */
+  --hra-board-gold-soft:  #FBF1D9;
+  --hra-board-danger-soft:#FBE7E6;
+  --hra-board-amber-soft: #FCF0DC;
+  --hra-board-grey-soft:  #EDEFF2;
+  --hra-board-night:      #0A2540;   /* the night shift reads dark   */
+  --hra-board-day:        #D6E4F7;
+  --hra-board-gap:        12px;
+  --hra-board-cell:       26px;      /* one day of the register      */
+}
+
+.hra-board { padding: 4px 0 40px; }
+
+.hra-band {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--hra-border, #C3D0E0);
+  border-radius: 8px;
+  margin-bottom: var(--hra-board-gap);
+  overflow: hidden;
+}
+.hra-band-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 10px 14px;
+  background: var(--hra-primary, #14395E);
+  color: #fff;
+}
+.hra-band-head h4 { margin: 0; font-size: 13px; letter-spacing: .04em;
+  text-transform: uppercase; color: #fff; }
+.hra-band-head .text-muted { color: rgba(255,255,255,.72) !important; font-size: 12px; }
+.hra-band-body { padding: 14px; }
+
+/* the big counts */
+.hra-figures { display: flex; flex-wrap: wrap; gap: 10px; }
+.hra-figure {
+  min-width: 104px; padding: 10px 14px;
+  border: 1px solid var(--hra-border, #C3D0E0); border-radius: 6px;
+  background: var(--hra-wash, #F5F8FC);
+}
+.hra-figure-value { font-size: 26px; line-height: 1.1; font-weight: 600; color: var(--hra-ink, #1A2733); }
+.hra-figure-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--hra-ink-muted, #546678); }
+.hra-tone-day   .hra-figure-value { color: var(--hra-primary-mid, #2A5A8C); }
+.hra-tone-night .hra-figure-value { color: var(--hra-board-night); }
+.hra-tone-warn  .hra-figure-value { color: var(--hra-amber-text, #B45309); }
+.hra-tone-bad   .hra-figure-value { color: var(--hra-danger, #A62B25); }
+.hra-tone-soft  .hra-figure-value { color: var(--hra-ink-muted, #546678); }
+
+.hra-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.hra-chip {
+  padding: 3px 10px; border-radius: 12px; font-size: 12px;
+  background: var(--hra-pale, #EEF3F9); border: 1px solid var(--hra-border, #C3D0E0);
+}
+
+/* how far through the cycle */
+.hra-progress {
+  position: relative; height: 22px; margin-bottom: 12px;
+  background: var(--hra-board-grey-soft); border-radius: 11px; overflow: hidden;
+}
+.hra-progress-fill { height: 100%; background: var(--hra-primary-light, #3B78B5); }
+.hra-progress span {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; color: var(--hra-ink, #1A2733);
+}
+
+/* one column per day of the cycle */
+.hra-strip {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 92px; margin-top: 14px; padding-bottom: 14px;
+  border-bottom: 1px solid var(--hra-border, #C3D0E0);
+}
+.hra-day { position: relative; flex: 1 1 0; height: 100%; min-width: 10px; }
+.hra-day-bar {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: var(--hra-primary-light, #3B78B5); border-radius: 2px 2px 0 0;
+}
+.hra-day-night {
+  position: absolute; bottom: 0; left: 25%; right: 25%;
+  background: var(--hra-board-night); border-radius: 2px 2px 0 0; opacity: .85;
+}
+.hra-band-full .hra-day-bar, .hra-day-bar.hra-band-full { background: var(--hra-primary-light, #3B78B5); }
+.hra-day-bar.hra-band-thin { background: var(--hra-amber-text, #B45309); }
+.hra-day-bar.hra-band-short { background: var(--hra-danger, #A62B25); }
+.hra-day-bar.hra-band-none { background: var(--hra-border, #C3D0E0); }
+.hra-day-label {
+  position: absolute; bottom: -14px; left: 0; right: 0;
+  text-align: center; font-size: 9px; color: var(--hra-ink-muted, #546678);
+}
+.hra-day.hra-today .hra-day-label { color: var(--hra-primary, #14395E); font-weight: 700; }
+.hra-warn { margin-top: 18px; font-size: 12px; color: var(--hra-amber-text, #B45309); }
+.hra-clear { color: var(--hra-success, #256F3A); }
+
+/* what needs a person */
+.hra-exceptions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hra-exception {
+  display: grid; grid-template-columns: auto 1fr; gap: 0 10px;
+  align-items: center; text-align: left;
+  min-width: 260px; max-width: 360px; padding: 10px 12px;
+  border: 1px solid var(--hra-border, #C3D0E0); border-left-width: 4px;
+  border-radius: 6px; background: var(--hra-wash, #F5F8FC); cursor: pointer;
+}
+.hra-exception:hover { background: var(--hra-selected, #D6E4F7); }
+.hra-severity-high { border-left-color: var(--hra-danger, #A62B25); }
+.hra-severity-medium { border-left-color: var(--hra-amber-text, #B45309); }
+.hra-exception-count { grid-row: span 2; font-size: 24px; font-weight: 600;
+  color: var(--hra-ink, #1A2733); }
+.hra-exception-label { font-size: 13px; color: var(--hra-ink, #1A2733); }
+.hra-exception-why { font-size: 11px; color: var(--hra-ink-muted, #546678); }
+
+/* the register */
+.hra-legends { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;
+  font-size: 11px; color: var(--hra-ink-muted, #546678); }
+.hra-legend i { display: inline-block; width: 20px; text-align: center;
+  font-style: normal; font-weight: 700; border-radius: 3px; margin-right: 4px; }
+.hra-register-scroll { overflow: auto; max-height: 62vh; border: 1px solid var(--hra-border, #C3D0E0); }
+.hra-register { border-collapse: separate; border-spacing: 0; font-size: 11px;
+  width: 100%; }
+.hra-register th, .hra-register td {
+  border-bottom: 1px solid var(--hra-border, #C3D0E0); padding: 0; text-align: center;
+  height: var(--hra-board-cell); min-width: var(--hra-board-cell);
+}
+.hra-register thead th {
+  position: sticky; top: 0; z-index: 3;
+  background: var(--hra-primary-dark, #0A2540); color: #fff; font-weight: 600;
+}
+.hra-register th.hra-who {
+  position: sticky; left: 0; z-index: 4;
+  min-width: 190px; max-width: 190px; padding: 2px 8px;
+  text-align: left; background: var(--card-bg, #fff);
+}
+.hra-register thead th.hra-who {
+  position: sticky; top: 0; left: 0; z-index: 5;
+  background: var(--hra-primary-dark, #0A2540);
+}
+.hra-register th.hra-who small { display: block; font-weight: 400; font-size: 10px; }
+.hra-register tbody tr:nth-child(even) th.hra-who { background: var(--hra-pale, #EEF3F9); }
+.hra-register tbody tr:nth-child(even) td { background: var(--hra-pale, #EEF3F9); }
+.hra-day-col.hra-today { background: var(--hra-primary-light, #3B78B5); }
+.hra-cell { cursor: pointer; font-weight: 600; }
+.hra-cell:hover { outline: 2px solid var(--hra-accent, #0A6ED1); outline-offset: -2px; }
+.hra-sum { font-weight: 600; background: var(--hra-readonly, #EDF1F7); min-width: 40px; }
+.hra-tally th.hra-who { font-size: 10px; text-transform: uppercase;
+  letter-spacing: .03em; color: var(--hra-ink-muted, #546678); }
+.hra-register tfoot td { background: var(--hra-readonly, #EDF1F7); font-weight: 600; }
+
+/* the letters of LPL/HR/07.
+
+   Written as 'table td.hra-code-X' on purpose: the zebra rule above is
+   '.hra-register tbody tr:nth-child(even) td', which is just as specific
+   and comes first, so a plain '.hra-code-N' lost every second row and
+   the night shift disappeared into the stripe. */
+.hra-register tbody tr td.hra-code-M, .hra-legend i.hra-code-M {
+  background: var(--hra-board-day); color: var(--hra-primary-dark, #0A2540); }
+.hra-register tbody tr td.hra-code-N, .hra-legend i.hra-code-N {
+  background: var(--hra-board-night); color: #fff; }
+.hra-register tbody tr td.hra-code-A, .hra-legend i.hra-code-A {
+  background: var(--hra-board-danger-soft); color: var(--hra-danger, #A62B25); }
+.hra-register tbody tr td.hra-code-S, .hra-legend i.hra-code-S {
+  background: var(--hra-board-amber-soft); color: var(--hra-amber-text, #B45309); }
+.hra-register tbody tr td.hra-code-L, .hra-legend i.hra-code-L {
+  background: var(--hra-pale, #EEF3F9); color: var(--hra-ink-muted, #546678); }
+.hra-register tbody tr td.hra-code-WO, .hra-legend i.hra-code-WO {
+  background: var(--hra-board-grey-soft); color: var(--hra-ink-muted, #546678); }
+.hra-register tbody tr td.hra-code-O, .hra-legend i.hra-code-O {
+  background: var(--hra-board-gold-soft); color: var(--hra-board-gold); }
+
+/* the plants, side by side */
+.hra-plants tbody tr { cursor: pointer; }
+.hra-plants tbody tr:hover td { background: var(--hra-selected, #D6E4F7); }
+.hra-plants small { display: block; font-size: 10px; }
+.hra-meter-cell { display: flex; align-items: center; gap: 8px; }
+.hra-meter { flex: 1 1 auto; min-width: 90px; height: 8px; border-radius: 4px;
+  background: var(--hra-board-grey-soft); overflow: hidden; }
+.hra-meter-fill { height: 100%; background: var(--hra-primary-light, #3B78B5); }
+.hra-meter-fill.hra-band-thin { background: var(--hra-amber-text, #B45309); }
+.hra-meter-fill.hra-band-short { background: var(--hra-danger, #A62B25); }
+.hra-meter-fill.hra-band-none { background: var(--hra-border, #C3D0E0); }
+.hra-plants-note { font-size: 11px; margin-top: 8px; }
+
+/* the machines, and the plain tables */
+.hra-table { width: 100%; font-size: 12px; }
+.hra-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--hra-ink-muted, #546678); font-weight: 600; padding: 4px 6px; }
+.hra-table td { padding: 4px 6px; border-top: 1px solid var(--hra-border, #C3D0E0); }
+.hra-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 6px; }
+.hra-health-healthy { background: var(--hra-success, #256F3A); }
+.hra-health-quiet { background: var(--hra-amber-text, #B45309); }
+.hra-health-silent { background: var(--hra-danger, #A62B25); }
+.hra-health-never-heard-from { background: var(--hra-border-strong, #7E93AD); }
+.hra-standing-into-overtime td { background: var(--hra-board-amber-soft); }
+.hra-standing-over-a-full-shift td { background: var(--hra-board-danger-soft); }
+.hra-board-foot { font-size: 11px; text-align: right; }
+
+/* dark mode: the surfaces come from Frappe, the letters keep their meaning */
+html[data-theme="dark"] .hra-band { background: var(--card-bg); }
+html[data-theme="dark"] .hra-figure,
+html[data-theme="dark"] .hra-exception { background: transparent; }
+html[data-theme="dark"] .hra-register th.hra-who { background: var(--card-bg); }
+`;
+
+function hra_board_style() {
+	if (document.getElementById("hra-board-style")) return;
+	const sheet = document.createElement("style");
+	sheet.id = "hra-board-style";
+	sheet.textContent = HRA_BOARD_STYLE;
+	document.head.appendChild(sheet);
+}
+
 frappe.pages["attendance-board"].on_page_load = function (wrapper) {
+	hra_board_style();
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
 		title: __("Attendance Board"),

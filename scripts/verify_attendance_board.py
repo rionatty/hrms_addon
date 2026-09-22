@@ -43,7 +43,12 @@ glue = read("hrms_addon", "hrms_addon", "attendance_board.py")
 page_js = read("hrms_addon", "hrms_addon", "page", "attendance_board", "attendance_board.js")
 page_json = json.loads(read("hrms_addon", "hrms_addon", "page", "attendance_board",
                             "attendance_board.json"))
-css = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
+bundle = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
+# the board's styles travel with the page, not in the bundle: the bundle
+# only reaches a browser after `bench build`, and the board shipped once
+# looking like a list of words because of exactly that
+css = page_js.split("HRA_BOARD_STYLE = ")[1].split(chr(96) + ";")[0] \
+    if "HRA_BOARD_STYLE = " in page_js else ""
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 
 # ── 1. The reading ────────────────────────────────────────────────────
@@ -216,18 +221,44 @@ if "clearInterval" not in page_js:
 print("the page: its own route, its own roles, and it draws what it is given")
 
 # ── 5. The letters, and a way in ──────────────────────────────────────
+# the call site, not just the function: a checker satisfied by the
+# definition would pass with nothing ever calling it
+loading = page_js.split("on_page_load = function")[1].split(chr(10) + "};")[0] \
+    if "on_page_load = function" in page_js else ""
+if "HRA_BOARD_STYLE" not in page_js or "hra_board_style()" not in loading:
+    fail.append("the board must put its own styles on the head as it loads: "
+                "hrms_addon.bundle.css needs `bench build` to reach a browser, and a page "
+                "whose whole layout waits on a build step ships as a list of words when the "
+                "build is skipped or an old bundle is cached")
+if ".hra-band" in bundle or ".hra-register" in bundle:
+    fail.append("and they must be in ONE place, or the two copies will drift")
 for code in A.CODES:
-    if ".hra-code-%s" % code not in css:
-        fail.append("register letter %s has no colour, so the grid reads as a wall of "
-                    "letters" % code)
+    # the CELL, not just the legend: a letter that is only coloured in the
+    # key leaves the grid a wall of letters, which is what the register is
+    # read instead of
+    if "td.hra-code-%s" % code not in css:
+        fail.append("register letter %s has no colour in the grid itself" % code)
+    if "i.hra-code-%s" % code not in css:
+        fail.append("letter %s has no colour in the key that says what it means" % code)
 if "--hra-board-night" not in css:
     fail.append("the night shift is the one thing somebody looks for on the register, and it "
                 "has to be visible at a glance")
 used = set(re.findall(r"var\((--hra-[a-z0-9-]+)", css))
-declared = set(re.findall(r"^\s*(--hra-[a-z0-9-]+)\s*:", css, re.M))
+mine = set(re.findall(r"^\s*(--hra-[a-z0-9-]+)\s*:", css, re.M))
+declared = mine | set(re.findall(r"^\s*(--hra-[a-z0-9-]+)\s*:", bundle, re.M))
 if used - declared:
     fail.append("a var() that resolves to nothing takes its whole declaration with it, "
                 "silently: %s" % sorted(used - declared))
+if "--hra-board-" not in css:
+    fail.append("the colours the board adds are its own, and are declared beside it")
+# the theme's colours live in the bundle, which the board no longer waits
+# for; without a fallback a theme that has not loaded costs the whole
+# declaration rather than just the colour
+borrowed = re.findall(r"var\((--hra-[a-z0-9-]+)(\s*,[^)]*)?\)", css)
+bare = sorted({name for name, fallback in borrowed if not fallback and name not in mine})
+if bare:
+    fail.append("every theme colour the board reads needs a fallback, or a theme that has "
+                "not loaded takes the layout with it: %s" % bare)
 if 'PAGE = "Page"' not in nav:
     fail.append("a page is a kind of thing a workspace can link to")
 if '"attendance-board", PAGE' not in nav:
