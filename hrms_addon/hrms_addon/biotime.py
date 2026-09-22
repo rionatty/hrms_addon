@@ -186,11 +186,13 @@ def _explain_refusal(doc, answer, page):
     payload = _payload(answer)
     if answer.status_code == 401 and rules.token_rejected(payload):
         frappe.throw(
-            _("BioTime signed us in and then refused the token on {0}. That means the Sign-in "
-              "Path is the wrong one for this BioTime, not that the password is wrong — the "
-              "two endpoints do not mint the same kind of token."
-              "<br><br>Press <b>Find the Sign-in Path</b>: it tries the ones BioTime has "
-              "shipped and says which of them gives a token this server will take.")
+            _("BioTime signed us in and then refused the token on {0}. The password is "
+              "right: what is wrong is the pair of settings that decide which token gets "
+              "minted and what the header calls it: <b>Sign-in Path</b> and "
+              "<b>Token Prefix</b>. BioTime has shipped more than one sign-in endpoint and "
+              "more than one scheme, and they do not go together in every combination."
+              "<br><br>Press <b>Find the Sign-in Path</b>: it tries each pair and says which "
+              "of them gives a token this server will take.")
             .format(doc.get("transactions_path") or rules.TRANSACTIONS_PATH),
             title=_("BioTime"))
     if answer.status_code == 401:

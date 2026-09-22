@@ -402,8 +402,11 @@ refusal = glue.split("def _explain_refusal(")[1].split(chr(10) + "def ")[0]
 if "rules.token_rejected(" not in refusal:
     fail.append("_explain_refusal must tell a refused token from a refused password")
 for needle, why in (
-    ("Sign-in Path", "the fix is the sign-in path, and the message must say so"),
-    ("Find the Sign-in Path", "and name the button that finds it"),
+    ("Sign-in Path", "one half of the fix is the sign-in path"),
+    ("Token Prefix", "and the other half is the prefix — Luuka's BioTime wanted the path it "
+                     "already had with a different prefix, so naming only the path sends "
+                     "somebody looking in the wrong place"),
+    ("Find the Sign-in Path", "and the button that finds the pair must be named"),
     ("403", "a permission the account lacks is not a bad password"),
     ("404", "and a wrong transactions path is not either"),
 ):
