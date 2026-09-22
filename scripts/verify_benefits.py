@@ -356,6 +356,28 @@ for name in ("Travel Request", "Expense Claim"):
 if not os.path.exists(os.path.join(APPS_ROOT, "hrms", "hrms", "hr", "workspace", "expenses",
                                    "expenses.json")):
     fail.append("Frappe HR no longer ships the Expenses workspace, where both forms live")
+# Allowance case 1: the employee raises it, the supervisor is asked to
+# act, and the HR Officer is told it exists — told at the raising, not
+# only when it reaches their own step
+glue = read("hrms_addon", "hrms_addon", "allowances.py")
+if "_tell_hr_it_was_raised" not in glue:
+    fail.append("test case 1: the HR Officer must be told when an allowance request is raised")
+# and actually called, on the step that leaves Draft: a function nobody
+# calls is not a notification
+raising = glue.split("def _check_step")[1].split(chr(10) + "def ")[0]
+if "_tell_hr_it_was_raised(doc)" not in raising:
+    fail.append("and told on the step that leaves Draft, or nothing tells them")
+raised = glue.split("def _tell_hr_it_was_raised")[1].split("\ndef ")[0]
+if "people.hr_officers(" not in raised:
+    fail.append("and it is the branch's own HR Officers who are told")
+if "people.assign(" in raised:
+    fail.append("they are told, not assigned: their turn comes at Pending HR Officer")
+# case 3: Accounts set it to Paid and the HR Officer hears about it
+paid = glue.split("def allowance_on_submit")[1].split("\ndef ")[0]
+if "people.hr_officers(" not in paid or "paid" not in paid.lower():
+    fail.append("test case 3: the HR Officer must be told once Accounts have paid it")
+print("the three allowance cases: raised and told, routed and approved, paid and told")
+
 print("wiring: the doc events, both workflows on migrate, the daily jobs, the seeds")
 
 print()

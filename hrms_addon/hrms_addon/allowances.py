@@ -111,6 +111,26 @@ def _check_step(doc):
         doc.set(field, value)
     if old_state != new_state and new_state in approval.PENDING_STATES:
         _tell(doc, new_state)
+    if old_state in (None, approval.DRAFT) and new_state == approval.PENDING_SUPERVISOR:
+        _tell_hr_it_was_raised(doc)
+
+
+def _tell_hr_it_was_raised(doc):
+    """Step 1 of the chart, and test case 1: the employee raises it, the
+    supervisor is asked to act, and the HR Officer is told it exists.
+
+    Told, not asked. The HR Officer's own turn comes at Pending HR Officer,
+    where they are assigned it like everybody else on the chain; this is
+    so the request is not news to them when it arrives.
+    """
+    users = people.hr_officers(doc.get("custom_branch"), doc.get("custom_department"))
+    if not users:
+        return
+    people.notify(list(users), doc.doctype, doc.name,
+                  _("{0} has raised an allowance request for {1}. It is with their supervisor "
+                    "first and will reach you after that.").format(
+                      doc.get("employee_name") or doc.employee,
+                      frappe.utils.fmt_money(doc.get("custom_total"))))
 
 
 def _tell(doc, state):
