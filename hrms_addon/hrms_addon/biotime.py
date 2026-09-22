@@ -98,10 +98,16 @@ def _reach(call, url, verify_tls):
                 _("{0} answered in plain HTTP, but the address says https://. Change the "
                   "address to http:// and untick Verify the Certificate.").format(url),
                 title=_("BioTime"))
+        if verify_tls:
+            frappe.throw(
+                _("The certificate at {0} could not be verified. If BioTime uses a "
+                  "self-signed certificate, untick Verify the Certificate; the connection is "
+                  "then private but not proven.").format(url), title=_("BioTime"))
         frappe.throw(
-            _("The certificate at {0} could not be verified. If BioTime uses a self-signed "
-              "certificate, untick Verify the Certificate; the connection is then private "
-              "but not proven.").format(url), title=_("BioTime"))
+            _("The secure connection to {0} failed, and the certificate is already not being "
+              "checked — so it is the connection itself, not the certificate. If BioTime is "
+              "not serving https on this port, use an http:// address.").format(url),
+            title=_("BioTime"))
     except requests.exceptions.ConnectTimeout:
         frappe.throw(_("{0} did not answer in time. Check that BioTime is running and that "
                        "this server can reach it.").format(url), title=_("BioTime"))
@@ -352,8 +358,7 @@ def _pull(doc, read):
     try:
         rows = read(doc, span)
     except Exception as error:  # noqa: BLE001
-        doc.db_set({"last_status": _("Could not read"), "last_error": str(error)[:500],
-                    "last_run": started}, update_modified=False)
+        devices._write_failure(doc, error, started)
         raise
     found = rules.readings(rows)
     terminals = rules.terminals_of(found["readings"])
@@ -363,23 +368,34 @@ def _pull(doc, read):
         if device:
             machines[serial] = device
 
-    punches, directions = [], {}
+    punches, directions, held = [], {}, None
     for row in found["readings"]:
         device = machines.get(row.get("terminal_serial"))
         if not device:
+            # kept back rather than skipped: last_sync must not walk past
+            # a punch nothing was written down for
+            if held is None or str(row["punch_time"]) < str(held):
+                held = row["punch_time"]
             continue
         directions[device.name] = device.get("direction") or punch_rules.DIRECTION_BOTH
         punches.append({"device": device.name, "device_user_id": row["device_user_id"],
                         "time": row["punch_time"], "punch": row.get("punch")})
 
+    # the window overlaps the last pull, so some of these have been read
+    # before; they are already written down and must not be given a
+    # direction a second time
+    fresh = rules.unseen(punches, devices._already_logged(punches))
     # a face read twice at the SAME terminal is one reading; two terminals
-    # within a minute and a half are two doors, not one double read
-    clean = punch_rules.dedupe(punches, per_device=True)
+    # within a minute and a half are two doors, not one double read. How
+    # long "twice" is belongs to the machine — a gate that reads slowly is
+    # set on its own record, and the direct poll has always honoured it.
+    clean = _collapse(fresh, machines.values())
     resolved = punch_rules.resolve(
         clean, directions, devices._standing([row["device_user_id"] for row in clean]))
 
     tally = {"read": len(rows), "usable": len(found["readings"]), "skipped": len(found["skipped"]),
-             "collapsed": len(punches) - len(clean), "pushed": 0, "unknown": 0, "duplicate": 0,
+             "again": len(punches) - len(fresh),
+             "collapsed": len(fresh) - len(clean), "pushed": 0, "unknown": 0, "duplicate": 0,
              "failed": 0, "no_terminal": len(found["readings"]) - len(punches)}
     by_name = {device.name: device for device in machines.values()}
     newest = doc.get("last_sync")
@@ -394,15 +410,47 @@ def _pull(doc, read):
         if not newest or moment > get_datetime(newest):
             newest = moment
     doc.db_set({
-        "last_sync": newest or doc.get("last_sync"), "last_run": started,
-        "last_pulled": tally["pushed"],
-        "last_status": _("Read {0}, pushed {1}").format(tally["read"], tally["pushed"]),
+        "last_sync": rules.high_water(newest, held, doc.get("last_sync"))
+                     or doc.get("last_sync"),
+        "last_run": started, "last_pulled": tally["pushed"],
+        "last_status": _status(tally),
         "last_error": None,
         "terminals_seen": ", ".join("%s (%s)" % (name or _("unnamed"), serial)
                                     for serial, name in sorted(terminals.items()))[:500] or None,
     }, update_modified=False)
     frappe.db.commit()
     return tally
+
+
+def _collapse(punches, machines):
+    """A face read twice at one machine is one reading.
+
+    Machine by machine, because the seconds that count as twice are a
+    setting on each one. dedupe() takes a single window, so the punches
+    are grouped first — which is the same thing per_device already meant.
+    """
+    by_name = {device.name: device for device in machines}
+    kept = []
+    for name, device in by_name.items():
+        kept.extend(punch_rules.dedupe(
+            [row for row in punches if row.get("device") == name],
+            within=cint(device.get("double_read_seconds")) or punch_rules.DOUBLE_READ_SECONDS,
+            per_device=True))
+    kept.sort(key=lambda row: (str(row.get("time")), str(row.get("device_user_id"))))
+    return kept
+
+
+def _status(tally):
+    """The line on the record. A terminal nobody has set up holds punches
+    back, and that has to be said where somebody will see it rather than
+    counted into a number that is thrown away."""
+    said = _("Read {0}, pushed {1}").format(tally["read"], tally["pushed"])
+    if tally.get("no_terminal"):
+        said += _(" — {0} held back, waiting on a terminal nobody has set up").format(
+            tally["no_terminal"])
+    if tally.get("failed"):
+        said += _(", {0} failed").format(tally["failed"])
+    return said
 
 
 def pull_all():

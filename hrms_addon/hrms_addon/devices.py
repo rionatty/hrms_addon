@@ -172,7 +172,7 @@ def _pull(doc, read, clear_after=0):
     try:
         punches = read(doc)
     except Exception as error:  # noqa: BLE001
-        doc.db_set({"last_status": _("Could not read"), "last_error": str(error)[:500]}, update_modified=False)
+        _write_failure(doc, error)
         raise
     from_moment = rules.since(doc.get("last_sync"), started, cint(doc.get("first_pull_days")) or rules.FIRST_PULL_DAYS)
     fresh = [row for row in punches if row.get("time") and get_datetime(row["time"]) > from_moment]
@@ -215,6 +215,41 @@ def _standing(badges):
     return standing
 
 
+def _write_failure(doc, error, started=None):
+    """What went wrong, kept.
+
+    A db_set inside a request that then raises is rolled back with the
+    rest of it, so the record would go on showing the last good run in
+    green immediately after somebody watched a pull fail. The rollback is
+    done first, on purpose — nothing half-written from this run is worth
+    keeping — and the failure is committed on its own.
+    """
+    frappe.db.rollback()
+    written = {"last_status": _("Could not read"), "last_error": str(error)[:500]}
+    if started is not None:
+        written["last_run"] = started
+    doc.db_set(written, update_modified=False)
+    frappe.db.commit()
+
+
+def _already_logged(punches):
+    """The punches in this batch that already have a log row.
+
+    One query for the batch rather than one per punch: the window is a
+    span, so the rows that could match are a span too.
+    """
+    if not punches:
+        return set()
+    moments = [get_datetime(row["time"]) for row in punches if row.get("time")]
+    if not moments:
+        return set()
+    rows = frappe.get_all(LOG, filters={
+        "device": ["in", sorted({row["device"] for row in punches})],
+        "punch_time": ["between", [min(moments), max(moments)]],
+    }, fields=["device", "device_user_id", "punch_time"], limit_page_length=0)
+    return {(row.device, str(row.device_user_id), str(row.punch_time)[:19]) for row in rows}
+
+
 def _write_log(device, row):
     """Every punch written down before anything is made of it."""
     moment = get_datetime(row["time"])
@@ -222,7 +257,12 @@ def _write_log(device, row):
                                          "punch_time": moment}, "name")
     if existing:
         log = frappe.get_doc(LOG, existing)
-        if log.status == "Pending":
+        # only a punch that LANDED is a duplicate. One that failed, or that
+        # nobody carries the badge for, keeps its status: retry_failed
+        # looks for exactly those, and marking them Duplicate would take
+        # them out of the queue and leave them claiming they were already
+        # there — which is the one failure this whole module exists for.
+        if log.status != "Pushed":
             return log
         log.db_set("status", "Duplicate", update_modified=False)
         return log

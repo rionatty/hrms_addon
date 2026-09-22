@@ -451,6 +451,83 @@ if "biotime_token_prefix" not in patches:
                 "its default, so the box sits empty on exactly the sites that have one")
 print("sign-in: the token is found wherever it sits, and a refusal says what to do")
 
+# ── 7d. The overlap must not be read as new ───────────────────────────
+# window() starts a minute before the last pull on purpose, so a punch
+# BioTime had not yet stored is caught. That means the previous run's own
+# punches come back every hour — and resolve() alternates IN and OUT from
+# what is standing, so putting one of them through a second time inverts
+# every punch after it. Which punches are new is a question about what is
+# written down, not about the clock.
+punch = {"device": "Gate A", "device_user_id": "101", "time": "2026-09-22 07:14:03"}
+if B.key_of(punch) != ("Gate A", "101", "2026-09-22 07:14:03"):
+    fail.append("a punch is the same punch when the machine, the badge and the second agree")
+if B.key_of(dict(punch, time=datetime.datetime(2026, 9, 22, 7, 14, 3))) != B.key_of(punch):
+    fail.append("and a time is a time whether it arrived as text or as a datetime")
+kept = B.unseen([punch, dict(punch, time="2026-09-22 17:02:00")], {B.key_of(punch)})
+if [row["time"] for row in kept] != ["2026-09-22 17:02:00"]:
+    fail.append("unseen() must drop the punches already written down and keep the rest")
+if len(B.unseen([punch], None)) != 1:
+    fail.append("and keep everything when nothing has been written down yet")
+
+# and the mark must not walk past a punch that was not written down
+if str(B.high_water("2026-09-22 17:02:00")) != "2026-09-22 17:02:00":
+    fail.append("with nothing held back the mark is the newest punch")
+if str(B.high_water("2026-09-22 17:02:00", held="2026-09-22 08:00:00")) \
+        != "2026-09-22 07:59:59":
+    fail.append("a punch nobody could place holds the mark a second short of it, or the next "
+                "window starts past it and it is lost without anybody being told")
+if str(B.high_water("2026-09-22 17:02:00", held="2026-09-22 08:00:00",
+                    floor="2026-09-22 12:00:00")) != "2026-09-22 12:00:00":
+    fail.append("but the mark never goes backwards, or the same days are read for ever")
+if str(B.high_water(None, floor="2026-09-22 12:00:00")) != "2026-09-22 12:00:00":
+    fail.append("and a pull that pushed nothing leaves it where it was")
+
+# a time that is not a time is one bad row
+if not B.row_errors({"emp_code": "101", "punch_time": "0000-00-00 00:00:00"}):
+    fail.append("a punch time that cannot be read must be caught where every other bad row "
+                "is caught — the first thing that parses it is in the middle of the pull, "
+                "and one bad row would take the whole batch and every run after it")
+if B.row_errors({"emp_code": "101", "punch_time": "2026-09-22 07:14:03"}):
+    fail.append("and a time that can be read must not be")
+
+pull = glue.split("def _pull(doc, read)")[1].split(chr(10) + "def ")[0]
+if "rules.unseen(" not in pull:
+    fail.append("the pull must ask what has already been written down before it gives any "
+                "punch a direction")
+if pull.index("rules.unseen(") > pull.index("punch_rules.resolve("):
+    fail.append("and ask it BEFORE resolving, not after")
+if "rules.high_water(" not in pull:
+    fail.append("and the mark it writes must go through high_water")
+if "_already_logged(" not in direct:
+    fail.append("devices must be able to say which punches it has rows for already")
+
+written = direct.split("def _write_log(")[1].split(chr(10) + "def ")[0]
+if 'log.status != "Pushed"' not in written:
+    fail.append("only a punch that LANDED is a duplicate: relabelling a Failed or Unknown "
+                "Employee row takes it out of retry_failed's queue and leaves it claiming it "
+                "was already there")
+
+if "def _write_failure(" not in direct:
+    fail.append("a failure has to be written down in a way that survives the raise")
+failing = direct.split("def _write_failure(")[1].split(chr(10) + "def ")[0]
+if "frappe.db.rollback()" not in failing or "frappe.db.commit()" not in failing:
+    fail.append("a db_set inside a request that then raises is rolled back with it, so the "
+                "record would go on showing the last good run in green: roll back first, "
+                "then write the failure and commit it on its own")
+if failing.index("frappe.db.rollback()") > failing.index("doc.db_set"):
+    fail.append("and roll back BEFORE writing, or the write is what gets discarded")
+for module, name in ((glue, "the BioTime pull"), (direct, "the direct poll")):
+    if "_write_failure(doc, error" not in module:
+        fail.append("%s must record its failure through it" % name)
+if "double_read_seconds" not in glue:
+    fail.append("how long counts as one face read twice is a setting on the machine, and the "
+                "direct poll has always honoured it — reading through BioTime must not throw "
+                "it away")
+if "verify_tls" not in reach:
+    fail.append("_reach tells somebody to untick Verify the Certificate, so it has to know "
+                "whether it is ticked")
+print("the overlap: read twice, resolved once, and nothing left behind the mark")
+
 print("wiring: hourly, beside the direct poll, and never reading a punch twice")
 
 if fail:

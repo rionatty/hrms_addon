@@ -176,13 +176,75 @@ def next_page(payload, page, seen, total=None):
 
 def row_errors(row):
     """What makes a transaction unusable. A punch with no badge or no time
-    is not a punch, and nothing downstream could place it."""
+    is not a punch, and nothing downstream could place it.
+
+    A time that cannot be read is checked HERE rather than left to the
+    first thing that parses it. One transaction carrying an epoch integer
+    or 0000-00-00 would otherwise raise out of the middle of a pull and
+    take the whole batch with it — and then every hourly run after it,
+    because the window would keep reaching back over the same bad row.
+    """
     errors = []
     if not str(row.get(FIELDS["badge"]) or "").strip():
         errors.append("a transaction with no employee code on it")
     if not row.get(FIELDS["punch_time"]):
         errors.append("a transaction with no punch time on it")
+    elif not readable(row.get(FIELDS["punch_time"])):
+        errors.append("a transaction whose punch time could not be read: %s"
+                      % str(row.get(FIELDS["punch_time"]))[:40])
     return errors
+
+
+def readable(value):
+    """Whether a punch time is a time at all."""
+    try:
+        _moment(_punch_time(value))
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
+def key_of(punch):
+    """What makes a punch the same punch: the machine, the badge, the
+    second it happened."""
+    return (punch.get("device"), str(punch.get("device_user_id") or ""),
+            str(punch.get("time"))[:19])
+
+
+def unseen(punches, seen):
+    """Only the punches that have not been written down already.
+
+    The window overlaps the last pull on purpose, so a punch BioTime had
+    not yet stored when we last looked is caught. That overlap means the
+    previous run's own punches come back too, and they must not be put
+    through the direction rules a second time: those rules alternate IN
+    and OUT from what is standing, so re-reading one punch flips every
+    punch after it. Which are new is a question about what is written
+    down, not about the clock.
+    """
+    seen = seen or set()
+    return [punch for punch in punches or [] if key_of(punch) not in seen]
+
+
+def high_water(newest, held=None, floor=None):
+    """How far a pull may say it has read.
+
+    Never past a punch it could not write down — the next window starts
+    where this one stopped, so a punch left behind by a terminal nobody
+    has a record for would fall outside every window after it and be lost
+    without anybody being told. And never backwards, which would read the
+    same days for ever.
+    """
+    if newest is None:
+        return _moment(floor) if floor is not None else None
+    mark = _moment(newest)
+    if held is not None:
+        limit = _moment(held) - datetime.timedelta(seconds=1)
+        if mark > limit:
+            mark = limit
+    if floor is not None and mark < _moment(floor):
+        mark = _moment(floor)
+    return mark
 
 
 def row_to_log(row):
