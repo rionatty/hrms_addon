@@ -154,6 +154,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		this.body.empty();
 		this.floor(board);
 		this.cycle_so_far(board);
+		this.plants(board);
 		this.needs_a_person(board);
 		this.register(board);
 		this.machines(board);
@@ -314,7 +315,77 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		`);
 	}
 
-	// 3. what needs a person
+	// 3. the plants, side by side
+	//
+	// Only when the board is showing all of them: comparing one plant
+	// with itself is a row, not a comparison. Each plant is run by its
+	// own people, so this is the band that says which of them needs
+	// somebody today — and clicking one takes the whole board there.
+	plants(board) {
+		const rows = board.plants || [];
+		if (this.branch && this.branch.get_value()) return;
+		if (rows.length < 2) return;
+		const watching = rows.filter((seat) => seat.machines_watch > 0).length;
+		const band = this.band(
+			__("The plants"),
+			watching
+				? __("{0} plant(s) with a machine to look at", [watching])
+				: __("{0} plants", [rows.length])
+		);
+		const lines = rows
+			.map(
+				(seat) => `
+				<tr class="hra-plant" data-branch="${frappe.utils.escape_html(seat.branch)}">
+					<td><b>${frappe.utils.escape_html(seat.branch)}</b>
+						<small class="text-muted">${__("{0} on the register", [seat.people])}</small></td>
+					<td class="text-right">${seat.inside}
+						<small class="text-muted">${seat.inside_night ? __("{0} on nights", [
+							seat.inside_night,
+						]) : ""}</small></td>
+					<td class="text-right">${seat.worked}</td>
+					<td class="text-right">${seat.night}</td>
+					<td class="text-right">${seat.absent || ""}</td>
+					<td class="hra-meter-cell">
+						<div class="hra-meter">
+							<div class="hra-meter-fill hra-band-${seat.band || "none"}"
+								style="width:${seat.rate === null ? 0 : Math.round(seat.rate * 100)}%"></div>
+						</div>
+						<span>${seat.rate === null ? "—" : Math.round(seat.rate * 100) + "%"}</span>
+					</td>
+					<td class="text-right">${
+						seat.machines_watch
+							? `<span class="hra-dot hra-health-silent"></span>${seat.machines_watch} ${__(
+									"of"
+							  )} ${seat.machines}`
+							: `<span class="text-muted">${seat.machines}</span>`
+					}</td>
+				</tr>`
+			)
+			.join("");
+		band.find(".hra-band-body").html(`
+			<table class="hra-table hra-plants">
+				<thead><tr>
+					<th>${__("Plant")}</th>
+					<th class="text-right">${__("Inside now")}</th>
+					<th class="text-right">${__("Shifts")}</th>
+					<th class="text-right">${__("Nights")}</th>
+					<th class="text-right">${__("Absent")}</th>
+					<th>${__("Turned up")}</th>
+					<th class="text-right">${__("Machines")}</th>
+				</tr></thead>
+				<tbody>${lines}</tbody>
+			</table>
+			<div class="text-muted hra-plants-note">${__(
+				"Worst turnout first. Click a plant to take the whole board there."
+			)}</div>
+		`);
+		band.find(".hra-plant").on("click", (event) => {
+			const plant = $(event.currentTarget).attr("data-branch");
+			if (plant && plant !== "Unplaced") this.branch.set_value(plant);
+		});
+	}
+
+	// 4. what needs a person
 	needs_a_person(board) {
 		const rows = (board.exceptions || []).filter((row) => row.count > 0);
 		const band = this.band(
@@ -346,7 +417,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		});
 	}
 
-	// 4. the register itself — LPL/HR/07, from the punches
+	// 5. the register itself — LPL/HR/07, from the punches
 	register(board) {
 		const days = board.cycle.days || [];
 		const band = this.band(
@@ -433,7 +504,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		});
 	}
 
-	// 5. the machines
+	// 6. the machines
 	machines(board) {
 		const machines = board.machines || [];
 		const band = this.band(__("The machines"), __("{0} on the wall", [machines.length]));

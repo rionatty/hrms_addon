@@ -166,6 +166,59 @@ def by_branch(people):
     return sorted(branches.values(), key=lambda seat: (-seat["inside"], seat["branch"]))
 
 
+def plants(lines, inside=None, machines=None, day_codes=("M", "N"), night_code="N",
+           absent_code="A"):
+    """One line per plant, side by side.
+
+    Luuka's plants are run by their own people — each has its own HODs,
+    its own supervisors and its own HR Officer — so "how is attendance"
+    is a question with one answer per plant, not one for the company. The
+    worst turnout is put first, because a board that sorts alphabetically
+    hides the plant that needs somebody.
+    """
+    seats = {}
+
+    def seat_for(name):
+        return seats.setdefault(name or "Unplaced", {
+            "branch": name or "Unplaced", "people": 0, "worked": 0, "night": 0,
+            "absent": 0, "inside": 0, "inside_night": 0,
+            "machines": 0, "machines_watch": 0, "rate": None})
+
+    for line in lines or []:
+        seat = seat_for(line.get("branch"))
+        seat["people"] += 1
+        for code in line.get("codes") or []:
+            if code in day_codes:
+                seat["worked"] += 1
+            if code == night_code:
+                seat["night"] += 1
+            elif code == absent_code:
+                seat["absent"] += 1
+    for row in inside or []:
+        seat = seat_for(row.get("branch"))
+        seat["inside"] += 1
+        if row.get("night"):
+            seat["inside_night"] += 1
+    for row in machines or []:
+        # a terminal nobody has placed belongs to no plant, and inventing
+        # one for it would put a row on the board with no people in it.
+        # It is already its own line under what needs a person.
+        if not row.get("branch"):
+            continue
+        seat = seat_for(row["branch"])
+        seat["machines"] += 1
+        if row.get("health") in (SILENT, NEVER):
+            seat["machines_watch"] += 1
+    for seat in seats.values():
+        seat["rate"] = rate(seat["worked"], seat["worked"] + seat["absent"])
+        seat["band"] = band(seat["rate"])
+    # the plant in trouble first: nothing to judge it on goes last
+    return sorted(seats.values(),
+                  key=lambda seat: (seat["rate"] is None,
+                                    seat["rate"] if seat["rate"] is not None else 0,
+                                    seat["branch"]))
+
+
 def rate(present, expected):
     """How full a day was, 0 to 1. A day nobody was expected is not empty,
     it is not a working day, and answers None."""

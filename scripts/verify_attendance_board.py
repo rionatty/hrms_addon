@@ -101,6 +101,36 @@ if B.progress([], "2026-09-12")["of"] != 0:
     fail.append("and a cycle with no days does not divide by nothing")
 if B.worked_and_overtime(["M", "M", "N", "A", "WO"]) != {"worked": 3, "overtime": 6.0}:
     fail.append("three shifts worked carry their two hours of overtime each")
+# ── 1b. One line per plant ────────────────────────────────────────────
+# Luuka's plants are run by their own people — each has its own HODs,
+# supervisors and HR Officer — so attendance is a question with one
+# answer per plant, and a plant must never be shown another's problems.
+LINES = [
+    {"branch": "Kawempe", "codes": ["M", "M", "A"]},
+    {"branch": "Kawempe", "codes": ["N", "N", "N"]},
+    {"branch": "Luuka", "codes": ["M", "A", "A"]},
+]
+seats = {seat["branch"]: seat for seat in B.plants(
+    LINES,
+    inside=[{"branch": "Kawempe", "night": True}],
+    machines=[{"branch": "Kawempe", "health": B.HEALTHY},
+              {"branch": "Luuka", "health": B.SILENT},
+              {"branch": None, "health": B.NEVER}])}
+if sorted(seats) != ["Kawempe", "Luuka"]:
+    fail.append("a terminal nobody has placed must not invent a plant with no people in "
+                "it — it is already its own line under what needs a person: %s" % sorted(seats))
+if seats["Kawempe"]["worked"] != 5 or seats["Kawempe"]["night"] != 3:
+    fail.append("each plant counts its own shifts and its own nights: %s" % seats["Kawempe"])
+if seats["Kawempe"]["inside"] != 1 or seats["Kawempe"]["inside_night"] != 1:
+    fail.append("and who is inside it this minute")
+if seats["Luuka"]["machines_watch"] != 1 or seats["Kawempe"]["machines_watch"] != 0:
+    fail.append("a machine to look at belongs to the plant it stands in, and to no other")
+order = [seat["branch"] for seat in B.plants(LINES)]
+if order[0] != "Luuka":
+    fail.append("the plant in trouble comes first: a board sorted alphabetically hides the "
+                "one that needs somebody today (%s)" % order)
+if B.plants([{"branch": "Kawempe", "codes": []}])[0]["rate"] is not None:
+    fail.append("a plant nobody worked at has no turnout, rather than nought per cent")
 print("the reading: machines, who is inside, the shift, and how full a day was")
 
 # ── 2. The glue: every read, nothing written ──────────────────────────
@@ -119,12 +149,33 @@ if "@frappe.whitelist()" not in glue:
     fail.append("the page has to be able to call it")
 
 board = glue.split("def board(")[1].split(chr(10) + "# ")[0]
-for part in ("floor", "cycle_totals", "per_day", "register", "exceptions", "machines"):
+for part in ("floor", "cycle_totals", "per_day", "plants", "register", "exceptions",
+             "machines"):
     if '"%s"' % part not in board:
         fail.append("the board answers in one call, and %s is part of it" % part)
 if '"shown"' not in board or '"of"' not in board:
     fail.append("the register is capped so a screen stays a screen — and a cap that is not "
                 "reported reads as though everybody was shown")
+if "lines[:limit]" not in board:
+    fail.append("only the SHOWING of the register is capped: a footer that tallied the first "
+                "page would quietly disagree with the register it sits under")
+
+# the plant being looked at is the plant being answered about
+for called, why in (
+    ("_machines(now, branch)", "one plant's HR Officer cannot act on another plant's "
+                               "machine, and a red dot they cannot act on is noise"),
+    ("_exceptions(start, end, marked, machines, branch)",
+     "nor fix another plant's failed punches"),
+):
+    if called not in board:
+        fail.append("%s: %s" % (called, why))
+scoped = glue.split("def _exceptions(")[1].split(chr(10) + "def ")[0]
+if "if branch" not in scoped:
+    fail.append("every count on the list must narrow with the plant, or somebody is told to "
+                "go and fix something that is not theirs")
+opening = glue.split("def _open_days(")[1].split(chr(10) + "def ")[0]
+if "employees" not in opening:
+    fail.append("and an open day belongs to the plant whose people left it open")
 print("the glue: one call fills the board, and every one of its reads is a read")
 
 # ── 3. Built on what is already there ─────────────────────────────────

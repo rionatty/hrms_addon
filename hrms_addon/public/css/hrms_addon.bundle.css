@@ -1537,6 +1537,19 @@ html #brand-logo {
 .hra-register tbody tr td.hra-code-O, .hra-legend i.hra-code-O {
   background: var(--hra-board-gold-soft); color: var(--hra-board-gold); }
 
+/* the plants, side by side */
+.hra-plants tbody tr { cursor: pointer; }
+.hra-plants tbody tr:hover td { background: var(--hra-selected); }
+.hra-plants small { display: block; font-size: 10px; }
+.hra-meter-cell { display: flex; align-items: center; gap: 8px; }
+.hra-meter { flex: 1 1 auto; min-width: 90px; height: 8px; border-radius: 4px;
+  background: var(--hra-board-grey-soft); overflow: hidden; }
+.hra-meter-fill { height: 100%; background: var(--hra-primary-light); }
+.hra-meter-fill.hra-band-thin { background: var(--hra-amber-text); }
+.hra-meter-fill.hra-band-short { background: var(--hra-danger); }
+.hra-meter-fill.hra-band-none { background: var(--hra-border); }
+.hra-plants-note { font-size: 11px; margin-top: 8px; }
+
 /* the machines, and the plain tables */
 .hra-table { width: 100%; font-size: 12px; }
 .hra-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .03em;

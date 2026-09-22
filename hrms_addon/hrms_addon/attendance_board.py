@@ -62,11 +62,15 @@ def board(cycle=None, branch=None, department=None, limit=None):
     off_duty = (attendance._off_duty_between(list(people), start, end)
                 if people else set())
     holidays = _holidays(people, start, end)
-    rows = _register_rows(people, marked, off_duty, holidays, days, limit)
+    # every row is worked out, and only the SHOWING of them is capped:
+    # a footer that tallied the first three hundred people would be a
+    # footer that quietly disagreed with the register it sits under
+    rows = _register_rows(people, marked, off_duty, holidays, days)
     tallies = register.tallies(rows, days)
+    lines = [_line(row, days) for row in rows]
 
     floor = _floor(people, now)
-    machines = _machines(now)
+    machines = _machines(now, branch)
     return {
         "cycle": {
             "year": year, "month": month,
@@ -80,13 +84,14 @@ def board(cycle=None, branch=None, department=None, limit=None):
         "floor": floor,
         "cycle_totals": _totals(rows, days),
         "per_day": _per_day(rows, days),
+        "plants": rules.plants(lines, floor["people"], machines),
         "register": {
-            "rows": [_line(row, days) for row in rows],
+            "rows": lines[:limit],
             "tallies": _tally_lines(tallies, days),
-            "shown": len(rows), "of": len(people),
+            "shown": min(len(lines), limit), "of": len(lines),
             "nights_short": [str(day) for day in rules.nights_covered(tallies, days)],
         },
-        "exceptions": _exceptions(start, end, marked, machines),
+        "exceptions": _exceptions(start, end, marked, machines, branch),
         "machines": machines,
         "codes": [{"code": code, "meaning": meaning}
                   for code, meaning in register.CODE_MEANING.items()],
@@ -165,10 +170,10 @@ def _holidays(people, start, end):
 
 
 # ── The register ──────────────────────────────────────────────────────
-def _register_rows(people, marked, off_duty, holidays, days, limit):
+def _register_rows(people, marked, off_duty, holidays, days):
     """One line per person, each day a letter of LPL/HR/07."""
     rows = []
-    for name, person in list(people.items())[:limit]:
+    for name, person in people.items():
         theirs = marked.get(name) or {}
         kept = (holidays["lists"].get(person.holiday_list or holidays["default"])
                 or set())
@@ -280,8 +285,14 @@ def _floor(people, now):
 
 
 # ── What needs a person ───────────────────────────────────────────────
-def _exceptions(start, end, marked, machines):
-    """Each thing somebody has to act on, counted, with where to go."""
+def _exceptions(start, end, marked, machines, branch=None):
+    """Each thing somebody has to act on, counted, with where to go.
+
+    Every count is scoped to the plant being looked at. Luuka's plants
+    have their own HR Officers, and a list that showed one plant's
+    register beside another plant's dead machines would be telling
+    somebody to go and fix something that is not theirs.
+    """
     punched = _days_with_a_punch(start, end, list(marked))
     on_leave, absent = 0, 0
     for employee, days in marked.items():
@@ -293,28 +304,44 @@ def _exceptions(start, end, marked, machines):
             elif row.status == "Absent":
                 absent += 1
 
+    # the punches this plant's machines wrote down; a terminal nobody has
+    # placed belongs to no plant, so it is only counted company-wide
+    theirs = [row["device"] for row in machines]
+    on_theirs = {"device": ["in", theirs]} if branch else {}
+    unplaced = [row for row in _devices() if not row.branch or not row.direction]
     counted = {
         "on_leave_but_punched": on_leave,
         "absent_with_punch": absent,
-        "in_without_out": _open_days(now_datetime()),
-        "unknown_badge": frappe.db.count(LOG, {"status": "Unknown Employee"}),
-        "failed_push": frappe.db.count(LOG, {"status": "Failed"}),
-        "undirected_terminal": len([row for row in _devices()
-                                    if not row.branch or not row.direction]),
+        "in_without_out": _open_days(now_datetime(), list(marked) if branch else None),
+        "unknown_badge": _log_count("Unknown Employee", on_theirs),
+        "failed_push": _log_count("Failed", on_theirs),
+        "undirected_terminal": 0 if branch else len(unplaced),
         "silent_terminal": len([row for row in machines
                                 if row["health"] in (rules.SILENT, rules.NEVER)]),
     }
+    at_plant = {"branch": branch} if branch else {}
     routes = {
-        "unknown_badge": {"doctype": LOG, "filters": {"status": "Unknown Employee"}},
-        "failed_push": {"doctype": LOG, "filters": {"status": "Failed"}},
+        "unknown_badge": {"doctype": LOG, "filters": dict(on_theirs,
+                                                          status="Unknown Employee")},
+        "failed_push": {"doctype": LOG, "filters": dict(on_theirs, status="Failed")},
         "undirected_terminal": {"doctype": DEVICE, "filters": {"branch": ""}},
-        "silent_terminal": {"doctype": DEVICE, "filters": {}},
-        "on_leave_but_punched": {"doctype": ATTENDANCE, "filters": {"status": "On Leave"}},
-        "absent_with_punch": {"doctype": ATTENDANCE, "filters": {"status": "Absent"}},
+        "silent_terminal": {"doctype": DEVICE, "filters": at_plant},
+        "on_leave_but_punched": {"doctype": ATTENDANCE, "filters": dict(at_plant,
+                                                                        status="On Leave")},
+        "absent_with_punch": {"doctype": ATTENDANCE, "filters": dict(at_plant,
+                                                                     status="Absent")},
         "in_without_out": {"doctype": CHECKIN, "filters": {"log_type": "IN"}},
     }
     return [dict(row, count=counted.get(row["kind"], 0), route=routes.get(row["kind"]))
             for row in rules.EXCEPTIONS]
+
+
+def _log_count(status, on_theirs):
+    """How many log rows of a status, at these machines. A plant with no
+    machine of its own has none, rather than all of them."""
+    if on_theirs and not on_theirs.get("device", [None, []])[1]:
+        return 0
+    return frappe.db.count(LOG, dict(on_theirs, status=status))
 
 
 def _days_with_a_punch(start, end, employees):
@@ -331,17 +358,22 @@ def _days_with_a_punch(start, end, employees):
     return seen
 
 
-def _open_days(now):
+def _open_days(now, employees=None):
     """Days somebody clocked in and never clocked out, over the last week.
 
     Only the last few days: an open day from March is history, not
-    something anybody is going to go and fix this morning.
+    something anybody is going to go and fix this morning. And only the
+    people being looked at, so a plant is not handed another's.
     """
     since = add_days(getdate(now), -OPEN_DAYS)
+    filters = {"time": [">=", since]}
+    if employees is not None:
+        if not employees:
+            return 0
+        filters["employee"] = ["in", employees]
     tally = {}
     for row in frappe.get_all(
-            CHECKIN, limit_page_length=0,
-            filters={"time": [">=", since]},
+            CHECKIN, limit_page_length=0, filters=filters,
             fields=["employee", "time", "log_type"], order_by="time asc"):
         day = getdate(row.time)
         # a night shift's OUT lands the next morning, so the day it
@@ -359,16 +391,22 @@ def _open_days(now):
 
 
 # ── The machines ──────────────────────────────────────────────────────
-def _devices():
-    return frappe.get_all(DEVICE, limit_page_length=0,
+def _devices(branch=None):
+    filters = {"branch": branch} if branch else None
+    return frappe.get_all(DEVICE, limit_page_length=0, filters=filters,
                           fields=["name", "device_name", "branch", "direction", "source",
                                   "enabled", "company"],
                           order_by="device_name asc")
 
 
-def _machines(now):
-    """Every clocking machine, and how long since it last said anything."""
-    devices = _devices()
+def _machines(now, branch=None):
+    """Every clocking machine, and how long since it last said anything.
+
+    One plant's machines when a plant is being looked at: its HR Officer
+    cannot do anything about a machine at the other plant, and a red dot
+    they cannot act on is noise.
+    """
+    devices = _devices(branch)
     if not devices:
         return []
     last = {row.device: row.last_seen for row in frappe.get_all(
