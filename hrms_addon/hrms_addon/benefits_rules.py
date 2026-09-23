@@ -48,12 +48,29 @@ OCCASIONS = (WEDDING, BEREAVEMENT, BIRTH, SICKNESS, OTHER)
 # how many days before a birthday the reminder goes out
 BIRTHDAY_HORIZONS = (7, 0)
 
+# The two benefits the minutes price (Reward and Compensation, 16 and 20
+# July 2026, §4.8). They are set on their Expense Claim Types, which is
+# where these are seeded from; the claim type is the setting.
+MATERNITY_BENEFIT = "Maternity Benefit"
+MATERNITY_AMOUNT = 350000.0
+MATERNITY_TIMES = 3
+FEMALE = "Female"
+BEREAVEMENT_SUPPORT = "Bereavement Support"
+BEREAVEMENT_PERCENT = 70.0
+BEREAVEMENT_RELATIONS = ("Mother", "Father", "Child")
+# whose loss a bereavement claim can be for
+RELATIONS = ("Mother", "Father", "Child", "Spouse", "Sibling", "Other")
+
 
 def claim_errors(facts):
     """Problems with a claim, as user-facing messages.
 
     facts: "claim_details", "reason", "amount", "claim_type",
-    "standard_amount", "is_standard", "requires_evidence", "evidence".
+    "standard_amount", "is_standard", "requires_evidence", "evidence", and
+    what the claim type may also set: "percent_of_gross" with the
+    employee's "gross_pay"; "max_times" with "times_before"; "for_gender"
+    with the employee's "gender"; "relations" (comma-separated) with the
+    claim's "relation".
     """
     errors = []
     if not _text(facts.get("claim_details")):
@@ -70,7 +87,52 @@ def claim_errors(facts):
                           % (facts.get("claim_type") or "This", _money(standard), _money(amount)))
     if facts.get("requires_evidence") and not facts.get("evidence"):
         errors.append("%s is paid on evidence: attach it." % (facts.get("claim_type") or "This claim"))
+    return errors + policy_errors(facts)
+
+
+def policy_errors(facts):
+    """What a claim type can say beyond a standard amount (minutes §4.8):
+    a share of gross, how often in an employment, for whom, for whose loss."""
+    errors = []
+    what = facts.get("claim_type") or "This claim"
+    amount = _num(facts.get("amount"))
+    percent = _num(facts.get("percent_of_gross"))
+    if percent:
+        gross = _num(facts.get("gross_pay"))
+        if not gross:
+            errors.append("%s is worth %g%% of gross, and there is no gross on record to work it out from."
+                          % (what, percent))
+        elif round(amount, 2) > round(gross * percent / 100.0, 2):
+            errors.append("%s is worth %g%% of a gross of %s: %s, not %s."
+                          % (what, percent, _money(gross), _money(gross * percent / 100.0), _money(amount)))
+    most = int(_num(facts.get("max_times")))
+    before = int(_num(facts.get("times_before")))
+    if most and before >= most:
+        errors.append("%s is paid at most %d time(s) in an employment; this employee has had it %d."
+                      % (what, most, before))
+    wanted = _text(facts.get("for_gender"))
+    if wanted and _text(facts.get("gender")) != wanted:
+        errors.append("%s is for %s employees." % (what, wanted.lower()))
+    relations = [name.strip() for name in _text(facts.get("relations")).split(",") if name.strip()]
+    if relations and _text(facts.get("relation")) not in relations:
+        errors.append("%s is paid for the loss of a %s: say whose it was."
+                      % (what, _either(relations).lower()))
     return errors
+
+
+def ceiling(facts):
+    """The most a claim of this type may be, or None where it says nothing."""
+    percent = _num(facts.get("percent_of_gross"))
+    if percent and _num(facts.get("gross_pay")):
+        return round(_num(facts.get("gross_pay")) * percent / 100.0, 2)
+    if facts.get("is_standard") and _num(facts.get("standard_amount")):
+        return round(_num(facts.get("standard_amount")), 2)
+    return None
+
+
+def _either(names):
+    names = list(names)
+    return names[0] if len(names) == 1 else "%s or %s" % (", ".join(names[:-1]), names[-1])
 
 
 def standard_amount(claim_type, types):

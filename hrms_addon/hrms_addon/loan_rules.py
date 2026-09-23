@@ -43,8 +43,33 @@ MIN_MONTHS_SERVED = 6
 DEFAULT_RATE = 0.0
 
 
+# What the minutes add (§4.10): "a car loan of a maximum of UGX 30
+# million and a study loan whose amount depends on the selected course of
+# study ... Loans are applicable only to administration team members with no
+# existing loans." The test script's first case says the same: "an admin
+# employee creates a loan request".
+CAR_LOAN, STUDY_LOAN, OTHER_LOAN = "Car Loan", "Study Loan", "Other"
+LOAN_TYPES = (CAR_LOAN, STUDY_LOAN, OTHER_LOAN)
+CAR_LOAN_MAX = 30000000.0
+ADMINISTRATIVE = "Administrative"
+
+
 def limit_for(gross, months=MAX_MONTHS_OF_GROSS):
     return round(_num(gross) * float(months), 2)
+
+
+def limit_for_type(loan_type, gross, months=MAX_MONTHS_OF_GROSS):
+    """The most a loan of this kind may be.
+
+    A car loan, UGX 30 million whatever the gross. A study loan, what the
+    course costs — shown on its fee structure, so no figure here (None).
+    Anything else keeps the ceiling this module has always had.
+    """
+    if loan_type == CAR_LOAN:
+        return CAR_LOAN_MAX
+    if loan_type == STUDY_LOAN:
+        return None
+    return limit_for(gross, months)
 
 
 def months_served(joined, today):
@@ -60,11 +85,18 @@ def eligibility_errors(facts):
     empty list means they qualify — the chart's "Approved?" rests on it.
 
     facts: "status", "date_of_joining", "today", "gross_pay", "amount",
-    "outstanding", "instalments", "purpose".
+    "outstanding", "instalments", "purpose", "loan_type", "category" (the
+    employee's department: Administrative or not), "fee_structure".
     """
     errors = []
     if facts.get("status") and facts["status"] != "Active":
         errors.append("Only an active employee may take a loan; this one is %s." % facts["status"])
+    loan_type = facts.get("loan_type") or OTHER_LOAN
+    if loan_type not in LOAN_TYPES:
+        errors.append("%r is not one of Luuka's loans." % loan_type)
+    if facts.get("category") != ADMINISTRATIVE:
+        errors.append("Loans are for the administration team (minutes \u00a74.10); this employee's "
+                      "department is %s." % (facts.get("category") or "not marked Administrative"))
     served = months_served(facts.get("date_of_joining"), facts.get("today"))
     minimum = facts.get("min_months")
     minimum = MIN_MONTHS_SERVED if minimum is None else int(minimum)
@@ -75,7 +107,13 @@ def eligibility_errors(facts):
     if amount <= 0:
         errors.append("Say how much is being asked for.")
     gross = _num(facts.get("gross_pay"))
-    if gross:
+    if loan_type == CAR_LOAN:
+        if amount > CAR_LOAN_MAX:
+            errors.append("A car loan is at most %s." % _money(CAR_LOAN_MAX))
+    elif loan_type == STUDY_LOAN:
+        if not facts.get("fee_structure"):
+            errors.append("A study loan is what the course costs: attach the course's fee structure.")
+    elif gross:
         ceiling = limit_for(gross, facts.get("max_months") or MAX_MONTHS_OF_GROSS)
         if amount > ceiling:
             errors.append("The most that may be lent is %s, being %d month(s) of a gross of %s."

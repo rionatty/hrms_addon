@@ -48,7 +48,7 @@ def _fill_money(doc):
     if doc.get("employee"):
         doc.gross_pay = _gross_pay(doc.employee)
         doc.outstanding_before = _owed_elsewhere(doc.employee, doc.name)
-    doc.limit = rules.limit_for(doc.get("gross_pay"))
+    doc.limit = rules.limit_for_type(doc.get("loan_type"), doc.get("gross_pay")) or 0
     doc.total_interest = rules.interest_for(doc.get("approved_amount") or doc.get("loan_amount"),
                                             doc.get("interest_rate"), doc.get("instalments"))
     doc.monthly_instalment = rules.monthly_instalment(doc.get("approved_amount") or doc.get("loan_amount"),
@@ -94,6 +94,10 @@ def _facts(doc):
         "amount": doc.get("approved_amount") or doc.get("loan_amount"),
         "outstanding": doc.get("outstanding_before"), "instalments": doc.get("instalments"),
         "purpose": doc.get("purpose"),
+        "loan_type": doc.get("loan_type"),
+        "category": (frappe.db.get_value("Department", doc.department, "custom_position_category")
+                     if doc.get("department") else None),
+        "fee_structure": doc.get("fee_structure"),
     }
 
 

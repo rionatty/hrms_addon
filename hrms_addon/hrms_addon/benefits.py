@@ -42,23 +42,60 @@ def _facts(doc):
     row = (doc.get("expenses") or [None])[0]
     claim_type = row.expense_type if row else None
     settings = _type_settings(claim_type)
-    return {
+    employee = doc.get("employee")
+    facts = {
         "claim_details": doc.get("custom_claim_details"), "reason": doc.get("custom_reason"),
         "amount": doc.get("total_claimed_amount"), "claim_type": claim_type,
         "standard_amount": settings.get("standard_amount"), "is_standard": settings.get("is_standard"),
         "requires_evidence": settings.get("requires_evidence"), "evidence": doc.get("custom_evidence"),
+        "percent_of_gross": settings.get("percent_of_gross"), "max_times": settings.get("max_times"),
+        "for_gender": settings.get("for_gender"), "relations": settings.get("relations"),
+        "relation": doc.get("custom_relation"),
     }
+    if employee and settings.get("percent_of_gross"):
+        facts["gross_pay"] = _gross_pay(employee)
+    if employee and settings.get("max_times"):
+        facts["times_before"] = _times_before(employee, claim_type, doc.name)
+    if employee and settings.get("for_gender"):
+        facts["gender"] = frappe.db.get_value("Employee", employee, "gender")
+    return facts
+
+
+def _gross_pay(employee):
+    rows = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
+                          fields=["base"], order_by="from_date desc", limit=1)
+    return rows[0].base if rows else 0
+
+
+def _times_before(employee, claim_type, exclude):
+    """How many of this benefit the employee has already been paid. A claim
+    that was refused or cancelled was not paid."""
+    claims = frappe.get_all(DOCTYPE, filters={"employee": employee, "docstatus": 1,
+                                              "name": ["!=", exclude or ""]},
+                            pluck="name", limit_page_length=0)
+    if not claims:
+        return 0
+    return len(set(frappe.get_all("Expense Claim Detail",
+                                  filters={"parenttype": DOCTYPE, "parent": ["in", claims],
+                                           "expense_type": claim_type},
+                                  pluck="parent", limit_page_length=0)))
 
 
 def _type_settings(claim_type):
     if not claim_type:
         return {}
-    row = frappe.db.get_value("Expense Claim Type", claim_type,
-                              ["custom_is_standard", "custom_standard_amount",
-                               "custom_requires_evidence"], as_dict=True) or {}
+    wanted = ["custom_is_standard", "custom_standard_amount", "custom_requires_evidence"]
+    newer = ["custom_percent_of_gross", "custom_max_times", "custom_for_gender", "custom_relations"]
+    meta = frappe.get_meta("Expense Claim Type")
+    wanted += [field for field in newer if meta.has_field(field)]
+    row = frappe.db.get_value("Expense Claim Type", claim_type, wanted, as_dict=True) or {}
     return {"is_standard": row.get("custom_is_standard"),
             "standard_amount": row.get("custom_standard_amount"),
-            "requires_evidence": row.get("custom_requires_evidence")}
+            "requires_evidence": row.get("custom_requires_evidence"),
+            "percent_of_gross": row.get("custom_percent_of_gross"),
+            "max_times": row.get("custom_max_times"),
+            "for_gender": row.get("custom_for_gender"),
+            "relations": row.get("custom_relations")}
 
 
 def _check_step(doc):
@@ -187,8 +224,9 @@ def seed_standard_claims():
     """The standard claims Luuka pay, as Expense Claim Types. The amounts
     are Luuka's to set: these are created at nil and marked standard, so HR
     fill in what each is worth."""
-    wanted = ((rules.WEDDING, "Wedding Gift"), (rules.BEREAVEMENT, "Bereavement Support"),
-              (rules.BIRTH, "New Baby Gift"), (rules.SICKNESS, "Medical Support"))
+    wanted = ((rules.WEDDING, "Wedding Gift"), (rules.BEREAVEMENT, rules.BEREAVEMENT_SUPPORT),
+              (rules.BIRTH, "New Baby Gift"), (rules.SICKNESS, "Medical Support"),
+              (rules.BIRTH, rules.MATERNITY_BENEFIT))
     made = []
     for occasion, name in wanted:
         if frappe.db.exists("Expense Claim Type", name):
@@ -198,6 +236,24 @@ def seed_standard_claims():
         doc.custom_is_standard = 1
         doc.custom_occasion = occasion
         doc.description = _("A standard claim. Set the amount Luuka pay before it is used.")
+        for field, value in minutes_values(name).items():
+            doc.set(field, value)
         doc.insert(ignore_permissions=True)
         made.append(name)
     return made
+
+
+def minutes_values(name):
+    """What the minutes set a benefit's claim type to (§4.8)."""
+    if name == rules.MATERNITY_BENEFIT:
+        return {"custom_is_standard": 1, "custom_standard_amount": rules.MATERNITY_AMOUNT,
+                "custom_max_times": rules.MATERNITY_TIMES, "custom_for_gender": rules.FEMALE,
+                "custom_requires_evidence": 1,
+                "description": _("UGX 350,000 for a female employee, for up to three children "
+                                 "born during her employment (minutes §4.8).")}
+    if name == rules.BEREAVEMENT_SUPPORT:
+        return {"custom_is_standard": 0, "custom_percent_of_gross": rules.BEREAVEMENT_PERCENT,
+                "custom_relations": ", ".join(rules.BEREAVEMENT_RELATIONS),
+                "description": _("70% of the employee's gross, for the loss of a biological "
+                                 "mother, father or child (minutes §4.8).")}
+    return {}

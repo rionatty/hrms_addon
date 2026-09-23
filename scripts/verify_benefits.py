@@ -203,6 +203,29 @@ if B.age_on("1990-03-04", "2026-03-04") != 36:
     fail.append("the age is the years since, counted on the day")
 if B.age_on("1990-03-05", "2026-03-04") != 35:
     fail.append("and not a day early")
+# the minutes of 16 and 20 July 2026, §4.8: maternity is UGX 350,000
+# for a female employee, for up to three children; bereavement 70% of gross,
+# for a biological mother, father or child
+if (B.MATERNITY_AMOUNT, B.MATERNITY_TIMES, B.FEMALE) != (350000.0, 3, "Female"):
+    fail.append("maternity is UGX 350,000, for up to three children, for female employees")
+if B.BEREAVEMENT_PERCENT != 70.0 or B.BEREAVEMENT_RELATIONS != ("Mother", "Father", "Child"):
+    fail.append("bereavement is 70% of gross, for a mother, father or child")
+BASE = {"claim_details": "Birth, 3 Oct", "reason": "A new baby", "amount": 350000,
+        "claim_type": "Maternity Benefit", "is_standard": 1, "standard_amount": 350000,
+        "max_times": 3, "times_before": 2, "for_gender": "Female", "gender": "Female"}
+expect("a third child", B.claim_errors(BASE))
+expect("a fourth", B.claim_errors(dict(BASE, times_before=3)), "at most 3 time(s)")
+expect("a male employee", B.claim_errors(dict(BASE, gender="Male")), "for female employees")
+LOSS = {"claim_details": "Funeral, 3 Oct", "reason": "My father died", "amount": 700000,
+        "claim_type": "Bereavement Support", "percent_of_gross": 70, "gross_pay": 1000000,
+        "relations": "Mother, Father, Child", "relation": "Father"}
+expect("a father, at 70% of a million", B.claim_errors(LOSS))
+expect("more than 70%", B.claim_errors(dict(LOSS, amount=700001)), "70% of a gross")
+expect("a cousin", B.claim_errors(dict(LOSS, relation="Other")), "mother, father or child")
+expect("nobody said whose", B.claim_errors(dict(LOSS, relation=None)), "say whose it was")
+expect("no gross on record", B.claim_errors(dict(LOSS, gross_pay=0)), "no gross on record")
+if B.ceiling(LOSS) != 700000 or B.ceiling(BASE) != 350000:
+    fail.append("the most a claim may be: its share of gross, or its standard amount")
 print("claims: what a claim must say, the standard amounts, the genuine line, the birthdays")
 
 # ── 3. The paper is on their forms ────────────────────────────────────
@@ -346,6 +369,22 @@ for needle in ("seed_allowance_lines()", "seed_standard_claims()"):
         fail.append("the patch must seed %s on a site that has the app already" % needle)
 if "hrms_addon.patches.v1_0.seed_benefits" not in read("hrms_addon", "patches.txt"):
     fail.append("the seed patch must be listed in patches.txt")
+# the minutes' figures reach a site that has the app already: made where
+# missing, set where untouched, never over what HR have entered
+patches = read("hrms_addon", "patches.txt")
+if "hrms_addon.patches.v1_0.benefits_from_minutes" not in patches.split("[post_model_sync]")[-1]:
+    fail.append("the minutes' benefits patch must run after the doctypes are migrated")
+minutes = read("hrms_addon", "patches", "v1_0", "benefits_from_minutes.py")
+for needle, why in (("benefits.seed_standard_claims()", "Maternity Benefit is made where it is missing"),
+                    ("_make_fields()", "the claim type's new fields are made before they are written"),
+                    ('"custom_standard_amount", "custom_percent_of_gross"', "only an untouched type is set"),
+                    ("benefits.minutes_values(name)", "Bereavement Support is set to what the minutes say")):
+    if needle not in minutes:
+        fail.append("the minutes' benefits patch: %s" % why)
+for name in (B.MATERNITY_BENEFIT, B.BEREAVEMENT_SUPPORT):
+    if "rules.%s" % ("MATERNITY_BENEFIT" if name == B.MATERNITY_BENEFIT else "BEREAVEMENT_SUPPORT") \
+            not in read("hrms_addon", "hrms_addon", "benefits.py").split("def seed_standard_claims")[1]:
+        fail.append("a fresh install seeds %s" % name)
 navigation = load("navigation_rules")
 carded = {link[1] for cards in navigation.CARDS.values() for _card, links in cards for link in links}
 sidebarred = {entry[1] for entries in navigation.SIDEBAR.values() for entry in entries}

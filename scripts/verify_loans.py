@@ -100,7 +100,8 @@ if R.months_served("2026-01-15", "2026-07-14") != 5:
     fail.append("a month is not served until the day of the month comes round")
 
 ok = {"status": "Active", "date_of_joining": "2024-01-01", "today": "2026-09-21", "gross_pay": 1000000,
-      "amount": 2000000, "outstanding": 0, "instalments": 6, "purpose": "School fees"}
+      "amount": 2000000, "outstanding": 0, "instalments": 6, "purpose": "School fees",
+      "category": "Administrative"}
 expect("an employee who qualifies", R.eligibility_errors(ok))
 expect("someone who left", R.eligibility_errors(dict(ok, status="Left")), "active employee")
 expect("someone just joined", R.eligibility_errors(dict(ok, date_of_joining="2026-08-01")),
@@ -162,6 +163,25 @@ expect("lending more than was asked for", R.terms_errors(dict(terms, approved_am
 expect("no amount settled", R.terms_errors(dict(terms, approved_amount=0)), "amount actually being lent")
 expect("no months", R.terms_errors(dict(terms, instalments=0)), "how many months")
 expect("no first repayment", R.terms_errors(dict(terms, first_repayment=None)), "which month")
+# the minutes of 16 and 20 July 2026, §4.10, and the test script's first
+# case: loans are for the administration team; a car loan is at most UGX 30
+# million; a study loan is what the course costs
+expect("somebody from production", R.eligibility_errors(dict(ok, category="Non-Administrative")),
+       "administration team")
+expect("somebody whose department says nothing", R.eligibility_errors(dict(ok, category=None)),
+       "not marked Administrative")
+car = dict(ok, loan_type="Car Loan", amount=30000000, instalments=12)
+expect("a car loan of UGX 30 million, whatever the gross", R.eligibility_errors(car))
+expect("a car loan over it", R.eligibility_errors(dict(car, amount=30000001)), "at most UGX 30,000,000")
+study = dict(ok, loan_type="Study Loan", amount=9000000, fee_structure="/files/fees.pdf")
+expect("a study loan with its fees, over three months' gross", R.eligibility_errors(study))
+expect("a study loan with no fee structure", R.eligibility_errors(dict(study, fee_structure=None)),
+       "fee structure")
+expect("a loan Luuka do not offer", R.eligibility_errors(dict(ok, loan_type="Holiday Loan")),
+       "not one of Luuka's loans")
+if R.limit_for_type("Car Loan", 500000) != 30000000 or R.limit_for_type("Study Loan", 500000) is not None \
+        or R.limit_for_type("Other", 500000) != 1500000:
+    fail.append("the ceiling follows the kind of loan: 30 million, the course, or three months' gross")
 print("loans: who qualifies, the ceiling, the schedule, the consent, the terms")
 
 # ── 2. The DocTypes ───────────────────────────────────────────────────
