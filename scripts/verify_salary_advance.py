@@ -159,13 +159,18 @@ expect("a request whose last month has passed", V.request_errors(
     "already passed")
 expect("a request whose last month is this month", V.request_errors(
     {"employee": "E1", "first_month": "2026-09-01", "until_month": "2026-09-01", "today": "2026-09-08"}))
+expect("a request dated in the future", V.request_errors(
+    {"employee": "E1", "first_month": "2026-09-01", "request_date": "2026-09-09", "today": "2026-09-08"}),
+    "future")
+expect("a request dated before today", V.request_errors(
+    {"employee": "E1", "first_month": "2026-04-01", "request_date": "2026-04-01", "today": "2026-09-08"}))
 expect("a request for a negative amount", V.request_errors(
     {"employee": "E1", "first_month": "2026-09-01", "amount": -5}), "negative")
 expect("a request with no last month runs until it is stopped", V.request_errors(
     {"employee": "E1", "first_month": "2026-09-01"}))
 expect("a request for one month", V.request_errors(
     {"employee": "E1", "first_month": "2026-09-08", "until_month": "2026-09-01"}))
-ACTIVE = {"status": V.REQUEST_ACTIVE, "approved_on": "2026-09-10", "first_month": "2026-09-01",
+ACTIVE = {"status": V.REQUEST_ACTIVE, "request_date": "2026-09-10", "first_month": "2026-09-01",
           "until_month": "2026-12-01"}
 for request, on, joined, why in (
     (ACTIVE, "2026-09-15", True, "an active request approved in time is paid in its first month"),
@@ -173,18 +178,22 @@ for request, on, joined, why in (
     (ACTIVE, "2026-12-15", True, "up to and including its last month"),
     (dict(ACTIVE, until_month="2026-10-01"), "2026-11-13", False, "but not after its last month"),
     (dict(ACTIVE, first_month="2026-10-01"), "2026-09-15", False, "nor before its first"),
-    (dict(ACTIVE, approved_on="2026-09-13"), "2026-09-15", False, "approved after requests close, it waits"),
-    (dict(ACTIVE, approved_on="2026-09-13"), "2026-10-14", True, "for the next month"),
+    (dict(ACTIVE, request_date="2026-09-13"), "2026-09-15", False, "made after requests close, it waits"),
+    (dict(ACTIVE, request_date="2026-09-13"), "2026-10-14", True, "for the next month"),
+    (dict(ACTIVE, approved_on="2026-09-14"), "2026-09-15", True,
+     "made in time and approved after requests close, it is paid this month"),
+    (dict(ACTIVE, request_date="2026-04-01", first_month="2026-04-01"), "2026-08-14", True,
+     "a request from April is paid in August, whenever it was approved"),
     (dict(ACTIVE, status=V.REQUEST_STOPPED), "2026-10-14", False, "a stopped request is not paid"),
     (dict(ACTIVE, status=V.REQUEST_ENDED), "2026-10-14", False, "nor an ended one"),
-    (dict(ACTIVE, approved_on=None), "2026-09-15", False, "nor one never approved"),
+    (dict(ACTIVE, request_date=None), "2026-09-15", False, "nor one with no request date"),
     (dict(ACTIVE, until_month=None), "2027-06-15", True, "with no last month it carries on"),
 ):
     if V.joins_run(request, on)[0] is not joined:
         fail.append("joins_run: %s (%s)" % (why, V.joins_run(request, on)))
-if "12 Sep 2026" not in (V.joins_run(dict(ACTIVE, approved_on="2026-09-13"), "2026-09-15")[1] or ""):
+if "12 Sep 2026" not in (V.joins_run(dict(ACTIVE, request_date="2026-09-13"), "2026-09-15")[1] or ""):
     fail.append("a late request says when requests closed")
-if V.joins_run(dict(ACTIVE, approved_on="2026-09-13"), "2026-09-15",
+if V.joins_run(dict(ACTIVE, request_date="2026-09-13"), "2026-09-15",
                {"salary_request_days_before": 0})[0] is not True:
     fail.append("the closing day for requests is a setting")
 

@@ -44,9 +44,26 @@ frappe.ui.form.on("Salary Advance Processing", {
 		const fetch = () =>
 			frappe
 				.xcall("hrms_addon.hrms_addon.salary_advances.get_requests", { name: frm.doc.name })
-				.then((added) => {
-					frappe.show_alert({ message: __("{0} request(s) added.", [added]), indicator: "green" });
+				.then((result) => {
 					frm.reload_doc();
+					const left_out = (result.not_added || []).map(
+						([reason, count]) => `${frappe.utils.escape_html(reason)} (${count})`
+					);
+					const added = result.added
+						? __("{0} request(s) added.", [result.added])
+						: __("No request was added.");
+					if (left_out.length) {
+						frappe.msgprint({
+							title: __("Get Requests"),
+							indicator: "orange",
+							message: `<p>${added}</p><p>${__("Not added:")}<br>${left_out.join("<br>")}</p>`,
+						});
+					} else {
+						frappe.show_alert({
+							message: result.added ? added : __("No approved Salary Advance Requests."),
+							indicator: result.added ? "green" : "orange",
+						});
+					}
 				});
 		if (frm.is_dirty() || frm.is_new()) {
 			frm.save().then(fetch);

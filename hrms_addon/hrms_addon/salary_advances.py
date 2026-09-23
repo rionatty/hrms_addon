@@ -51,6 +51,7 @@ def request_validate(doc, method=None):
         if new_state == approval.PENDING_SUPERVISOR:
             errors = rules.request_errors({"employee": doc.get("employee"), "first_month": doc.get("first_month"),
                                            "until_month": doc.get("until_month"), "amount": doc.get("amount"),
+                                           "request_date": doc.get("request_date"),
                                            "today": today()}) + _other_active(doc) + errors
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(REQUEST))
@@ -179,7 +180,7 @@ def _work_out(row, doc, s):
     row.days_absent = rules.days_absent(absent, off_duty, s)
     row.pay_category = advances._pay_category(row.employee)
     row.gross_pay = advances._gross_pay(row.employee)
-    request = frappe.db.get_value(REQUEST, row.request, ["status", "approved_on", "first_month", "until_month",
+    request = frappe.db.get_value(REQUEST, row.request, ["status", "request_date", "first_month", "until_month",
                                                          "amount"], as_dict=True) \
         if row.get("request") else None
     entitlement = rules.entitled(rules.SALARY_ADVANCE, row.gross_pay, row.pay_category, s)
@@ -255,7 +256,8 @@ def _stamp_confirmations(doc):
 
 @frappe.whitelist(methods=["POST"])
 def get_requests(name):
-    """Every active request for the run's month (and plant, if one is set)."""
+    """Every active request for the run's month (and plant, if one is set).
+    Returns how many were added, and why any other active request was not."""
     from hrms_addon.hrms_addon import advances
 
     doc = frappe.get_doc(RUN, name)
@@ -265,15 +267,19 @@ def get_requests(name):
     s = advances.settings()
     _fill_period(doc, s)
     have = {row.employee for row in doc.get("employees") or []}
-    added = 0
+    added, not_added = 0, {}
     for request in frappe.get_all(REQUEST, filters={"docstatus": 1, "company": doc.company},
                                   fields=["name", "employee", "employee_name", "branch", "department", "status",
-                                          "approved_on", "first_month", "until_month"],
+                                          "request_date", "first_month", "until_month"],
                                   order_by="employee_name asc", limit_page_length=0):
-        joined, _why = rules.joins_run(dict(request, status=_standing(request)), doc.processing_date, s)
-        if not joined or request.employee in have:
+        if request.employee in have:
             continue
         if doc.get("branch") and frappe.db.get_value("Employee", request.employee, "branch") != doc.branch:
+            continue
+        joined, why = rules.joins_run(dict(request, status=_standing(request)), doc.processing_date, s)
+        if not joined:
+            if request.status == rules.REQUEST_ACTIVE:
+                not_added[why] = not_added.get(why, 0) + 1
             continue
         doc.append("employees", {"employee": request.employee, "employee_name": request.employee_name,
                                  "branch": request.branch, "department": request.department,
@@ -281,7 +287,7 @@ def get_requests(name):
         have.add(request.employee)
         added += 1
     doc.save()
-    return added
+    return {"added": added, "not_added": sorted(not_added.items())}
 
 
 def run_before_submit(doc, method=None):

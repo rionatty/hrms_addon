@@ -274,7 +274,8 @@ MONTHS = ("January", "February", "March", "April", "May", "June", "July", "Augus
 def request_errors(facts):
     """Problems with a request as it is sent for approval.
 
-    facts: "employee", "first_month", "until_month", "amount", "today".
+    facts: "employee", "request_date", "first_month", "until_month", "amount",
+    "today".
     """
     errors = []
     if not facts.get("employee"):
@@ -287,6 +288,9 @@ def request_errors(facts):
         errors.append("The last month cannot be before the first month.")
     elif until and now and (until.year, until.month) < (now.year, now.month):
         errors.append("The last month has already passed.")
+    asked = _date(facts.get("request_date"))
+    if asked and now and asked > now:
+        errors.append("The request date cannot be in the future.")
     if _num(facts.get("amount")) < 0:
         errors.append("The amount cannot be negative.")
     return errors
@@ -296,8 +300,9 @@ def joins_run(request, processed_on, settings=None):
     """Whether a request is paid in the run processed on this date, and if
     not, why.
 
-    request: "status", "approved_on", "first_month", "until_month".
-    A request approved after the run's closing day waits for the next one.
+    request: "status", "request_date", "first_month", "until_month".
+    A request made after the run's closing day waits for the next one; when
+    the supervisor approves it does not matter.
     """
     processed_on = _date(processed_on)
     month = (processed_on.year, processed_on.month)
@@ -308,10 +313,10 @@ def joins_run(request, processed_on, settings=None):
         return False, "The request starts in %s %d." % (MONTHS[first.month - 1], first.year)
     if until and (until.year, until.month) < month:
         return False, "The request ended in %s %d." % (MONTHS[until.month - 1], until.year)
-    approved = _date(request.get("approved_on"))
+    asked = _date(request.get("request_date"))
     deadline = request_deadline(processed_on, settings)
-    if not approved or approved > deadline:
-        return False, "Approved after requests closed on %s." % _day(deadline)
+    if not asked or asked > deadline:
+        return False, "Requested after requests closed on %s." % _day(deadline)
     return True, None
 
 
