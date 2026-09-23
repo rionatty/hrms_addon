@@ -41,11 +41,14 @@ PAYABLES = (FINAL_SALARY, LEAVE_ENCASHMENT, NOTICE_PAY, SEVERANCE_PAY, NET_CLAIM
 NOTICE_SHORTFALL = "Notice Not Served"
 ADVANCES = "Advances Outstanding"
 LOANS = "Loans Outstanding"
+# LPL/HR/39: what is still owed on a penalty "be recovered in lump sum from
+# my terminal benefits" (penalties.py)
+PENALTIES = "Penalties Outstanding"
 UNRETURNED = "Items Not Returned"
 NSSF = "NSSF"
 PAYE = "PAYE"
 LST = "Local Service Tax"
-RECEIVABLES = (NOTICE_SHORTFALL, ADVANCES, LOANS, UNRETURNED)
+RECEIVABLES = (NOTICE_SHORTFALL, ADVANCES, LOANS, PENALTIES, UNRETURNED)
 STATUTORY = (NSSF, PAYE, LST)
 
 # Luuka's working month, the same one the attendance register counts by
@@ -106,7 +109,7 @@ def suggest(facts):
 
     facts: "gross_pay", "days_worked_in_month", "leave_balance",
     "months_served", "notice_short_days", "notice_cut_days",
-    "advances_outstanding", "loans_outstanding", "unreturned_cost",
+    "advances_outstanding", "loans_outstanding", "penalties_outstanding", "unreturned_cost",
     "net_claims".
     """
     gross = _num(facts.get("gross_pay"))
@@ -125,6 +128,7 @@ def suggest(facts):
         {"component": NOTICE_SHORTFALL, "amount": notice_pay(gross, facts.get("notice_short_days"))},
         {"component": ADVANCES, "amount": _num(facts.get("advances_outstanding"))},
         {"component": LOANS, "amount": _num(facts.get("loans_outstanding"))},
+        {"component": PENALTIES, "amount": _num(facts.get("penalties_outstanding"))},
         {"component": UNRETURNED, "amount": _num(facts.get("unreturned_cost"))},
     ]
     return {"payables": [row for row in payables if row["amount"]],

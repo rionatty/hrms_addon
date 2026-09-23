@@ -246,3 +246,36 @@ def _num(value):
 
 def _text(value):
     return (value or "").strip()
+
+
+# ── Reinstatement (minutes §6.2) ──────────────────────────────────────
+# "Accidentally terminated workers cannot be reinstated; permission rests
+# only with the Executive Director." Ebizframe could not do it at all; here
+# the Executive Director can, and nobody else.
+REINSTATER = "Executive Director"
+LEFT = "Left"
+
+
+def reinstatement_errors(facts):
+    """Problems with reinstating an employee.
+
+    facts: "status" (the employee's), "roles" (the user's), "reason".
+    """
+    errors = []
+    if facts.get("status") != LEFT:
+        errors.append("Only an employee who has left can be reinstated; this one is %s."
+                      % (facts.get("status") or "not marked"))
+    if REINSTATER not in (facts.get("roles") or ()):
+        errors.append("Only the Executive Director reinstates an employee who has left (minutes §6.2).")
+    if not (facts.get("reason") or "").strip():
+        errors.append("Say why the employee is reinstated.")
+    return errors
+
+
+def status_change_errors(old_status, new_status, reinstating=False):
+    """An employee who has left comes back only through the Executive
+    Director's reinstatement, never by editing the record."""
+    if old_status == LEFT and new_status != LEFT and not reinstating:
+        return ["An employee who has left comes back only when the Executive Director reinstates them "
+                "(minutes §6.2): use Reinstate on their record."]
+    return []

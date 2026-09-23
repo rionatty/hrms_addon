@@ -187,6 +187,11 @@ CARDS = {
             # the minutes' rules for all three advances (advances.py)
             ("Advance Settings", "Advance Settings", DOCTYPE),
         ]),
+        # a penalty for property lost or damaged, recovered under the same
+        # LPL/HR/39 as a loan (penalties.py, minutes §4.11)
+        ("Penalties", [
+            ("Employee Penalty", "Employee Penalty", DOCTYPE),
+        ]),
         ("Setup", [
             ("Salary Component", "Salary Component", DOCTYPE),
         ]),
@@ -211,6 +216,8 @@ CARDS = {
             ("Shift Rotation", "Shift Rotation", DOCTYPE),
             ("Shift Allowance", "Shift Allowance", DOCTYPE),
             ("Gate Pass", "Gate Pass", DOCTYPE),
+            # the minutes' recommendation: late, said in advance, a full day
+            ("Late Arrival Notice", "Late Arrival Notice", DOCTYPE),
         ]),
         ("Clocking Machines", [
             ("BioTime Server", "BioTime Server", DOCTYPE),
@@ -318,6 +325,7 @@ SIDEBAR = {
     "Loans": [
         ("Employee Loan", "Employee Loan", DOCTYPE, None, None),
         ("Employee Advance", "Employee Advance", DOCTYPE, None, "Employee Loan"),
+        ("Employee Penalty", "Employee Penalty", DOCTYPE, None, "Employee Advance"),
         ("Advance Settings", "Advance Settings", DOCTYPE, "Setup", None),
         ("Salary Component", "Salary Component", DOCTYPE, "Setup", None),
     ],
@@ -329,7 +337,8 @@ SIDEBAR = {
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
-        ("Shift Rotation", "Shift Rotation", DOCTYPE, None, "Gate Pass"),
+        ("Late Arrival Notice", "Late Arrival Notice", DOCTYPE, None, "Gate Pass"),
+        ("Shift Rotation", "Shift Rotation", DOCTYPE, None, "Late Arrival Notice"),
         ("Shift Allowance", "Shift Allowance", DOCTYPE, None, "Shift Rotation"),
         ("Travel Destination", "Travel Destination", DOCTYPE, "Setup", None),
         ("Per Diem Rate", "Per Diem Rate", DOCTYPE, "Setup", None),

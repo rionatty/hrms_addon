@@ -89,6 +89,9 @@ app_include_js = [
     "/assets/hrms_addon/js/hrms_addon_branding.js",
     "/assets/hrms_addon/js/hrms_addon_alerts.js",
     "/assets/hrms_addon/js/e_signature.js",
+    # "Salary Advance", "Leave Advance" and "Special Advance" by name in the
+    # search bar: each is Frappe HR's Employee Advance with an Advance Type
+    "/assets/hrms_addon/js/hrms_addon_search.js",
 ]
 
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout
@@ -146,6 +149,11 @@ doctype_js = {
     # LPL/HR/15 on their Leave Application: the balances headline, the
     # advance the form asks for, and the report back (leave.py)
     "Leave Application": "public/js/leave_application.js",
+    # The leave worked through, and what a day of it is worth (encashments.py)
+    "Leave Encashment": "public/js/leave_encashment.js",
+    # The Executive Director's Reinstate, for an employee who left by
+    # mistake (minutes §6.2, exits.py)
+    "Employee": "public/js/employee.js",
     # Luuka's three advances on their Employee Advance (advances.py)
     "Employee Advance": "public/js/employee_advance.js",
     # LPL.HR.31 on their Travel Request (allowances.py)
@@ -319,6 +327,11 @@ after_migrate = [
     # three signatures on Frappe HR's Leave Application. See leave_approval.py
     # and leave_plan_approval.py.
     "hrms_addon.hrms_addon.leave.setup_workflows_on_migrate",
+    # Leave encashment on Frappe HR's own Leave Encashment: Supervisor, HR,
+    # General Manager, Executive Director, back to HR, then the Accounts
+    # Manager (minutes §4.5); and the earning it is paid under. See
+    # encashment_approval.py.
+    "hrms_addon.hrms_addon.encashments.setup_on_migrate",
     # Luuka's three advances on one Workflow, the Advance Type deciding whose
     # desk each lands on. See advance_approval.py.
     "hrms_addon.hrms_addon.advances.setup_workflows_on_migrate",
@@ -330,6 +343,11 @@ after_migrate = [
     # The staff loan: HOD, Executive Director, General Manager, the terms
     # Accounts settle and the employee's own consent. See loan_approval.py.
     "hrms_addon.hrms_addon.loans.setup_workflows_on_migrate",
+    # A penalty for property lost or damaged: the supervisor's report, the
+    # HR Officer's hearing, the employee's consent (LPL/HR/39), the HR
+    # Manager, the Executive Director, back to the HR Officer and into the
+    # payroll (minutes §4.11). See penalty_approval.py.
+    "hrms_addon.hrms_addon.penalties.setup_workflows_on_migrate",
     # The exit interview's three signatures and the Clearance Form's two
     # chains, one per exit. See exit_interview_approval.py and
     # clearance_approval.py.
@@ -838,6 +856,38 @@ fixtures = [
                     "Leave Application-custom_reported_back",
                     "Leave Application-custom_back_cb",
                     "Leave Application-custom_reported_back_on",
+                    "Leave Encashment-custom_branch",
+                    "Leave Encashment-custom_encashment_status",
+                    "Leave Encashment-custom_lpl_section",
+                    "Leave Encashment-custom_leave_application",
+                    "Leave Encashment-custom_reason",
+                    "Leave Encashment-custom_lpl_cb",
+                    "Leave Encashment-custom_days_requested",
+                    "Leave Encashment-custom_per_day",
+                    "Leave Encashment-custom_approval_section",
+                    "Leave Encashment-custom_supervisor_remarks",
+                    "Leave Encashment-custom_supervisor_by",
+                    "Leave Encashment-custom_supervisor_on",
+                    "Leave Encashment-custom_approval_cb1",
+                    "Leave Encashment-custom_hr_remarks",
+                    "Leave Encashment-custom_hr_by",
+                    "Leave Encashment-custom_hr_on",
+                    "Leave Encashment-custom_approval_cb2",
+                    "Leave Encashment-custom_gm_remarks",
+                    "Leave Encashment-custom_gm_by",
+                    "Leave Encashment-custom_gm_on",
+                    "Leave Encashment-custom_management_section",
+                    "Leave Encashment-custom_ed_remarks",
+                    "Leave Encashment-custom_ed_by",
+                    "Leave Encashment-custom_ed_on",
+                    "Leave Encashment-custom_approval_cb3",
+                    "Leave Encashment-custom_forwarded_by",
+                    "Leave Encashment-custom_forwarded_on",
+                    "Leave Encashment-custom_approval_cb4",
+                    "Leave Encashment-custom_accounts_remarks",
+                    "Leave Encashment-custom_accounts_by",
+                    "Leave Encashment-custom_accounts_on",
+                    "Leave Encashment-custom_return_remarks",
                     "Employee Advance-custom_lpl_section",
                     "Employee Advance-custom_advance_type",
                     "Employee Advance-custom_badge_no",
@@ -1279,6 +1329,19 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.leave.application_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.leave.application_on_cancel",
     },
+    # Leave worked through, paid instead (minutes §4.5): after Frappe HR's
+    # own validate has read the balance, the chain's checks and the days
+    # priced from the salary where no per-day amount is set (encashments.py)
+    # However the day is marked, a late arrival acknowledged in advance
+    # makes it a full day, not a late one (attendance.py)
+    "Attendance": {
+        "validate": "hrms_addon.hrms_addon.attendance.attendance_validate",
+    },
+    "Leave Encashment": {
+        "validate": "hrms_addon.hrms_addon.encashments.encashment_validate",
+        "on_submit": "hrms_addon.hrms_addon.encashments.encashment_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.encashments.encashment_on_cancel",
+    },
     # Luuka's three advances on Frappe HR's own Employee Advance: who may
     # take one, the two sanctions LPL/HR/21 carries, and the instalments it
     # is recovered in (advances.py)
@@ -1300,6 +1363,13 @@ doc_events = {
         "validate": "hrms_addon.hrms_addon.advances.advance_validate",
         "on_submit": "hrms_addon.hrms_addon.advances.advance_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.advances.advance_on_cancel",
+    },
+    # The slip that takes a loan's, a penalty's or an advance's monthly
+    # deduction marks that month recovered, and a cancelled slip gives it
+    # back (recoveries.py)
+    "Salary Slip": {
+        "on_submit": "hrms_addon.hrms_addon.recoveries.slip_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.recoveries.slip_on_cancel",
     },
     # LPL.HR.31, the travel allowance, on Frappe HR's own Travel Request:
     # the days and the rate on each line, the totals, and the four
@@ -1378,8 +1448,13 @@ doc_events = {
     },
     "Employee": {
         # Each document's status and the days left on it, worked out on
-        # the employee's own form (documents.py)
-        "validate": "hrms_addon.hrms_addon.documents.employee_validate",
+        # the employee's own form (documents.py); and an employee who has
+        # left comes back only through the Executive Director's
+        # reinstatement (minutes §6.2, exits.py)
+        "validate": [
+            "hrms_addon.hrms_addon.documents.employee_validate",
+            "hrms_addon.hrms_addon.exits.employee_validate",
+        ],
         # the candidate's onboarding learns its Employee even once its tasks
         # are all done, which Frappe HR's own link skips (onboarding.py)
         "on_update": "hrms_addon.hrms_addon.onboarding.link_onboarding",
@@ -1436,6 +1511,10 @@ scheduler_events = {
         "hrms_addon.hrms_addon.benefits.daily",
         # Loans: a repayment falling due, and one fully repaid (loans.py)
         "hrms_addon.hrms_addon.loans.daily",
+        # What a slip took that is not marked on its loan, penalty or
+        # advance yet, such as a slip submitted before the hook existed
+        # (recoveries.py)
+        "hrms_addon.hrms_addon.recoveries.daily",
         # Exits: a notice period that has run out, and an exit with no
         # clearance form drawn up (exits.py)
         "hrms_addon.hrms_addon.exits.daily",

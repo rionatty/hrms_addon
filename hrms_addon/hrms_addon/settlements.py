@@ -25,7 +25,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import settlement_rules as rules, people
+from hrms_addon.hrms_addon import penalties, settlement_rules as rules, people
 
 DOCTYPE = "Full and Final Statement"
 DEFAULT_COMPONENT = "Terminal Benefits"
@@ -234,6 +234,7 @@ def draw_up(separation):
         "notice_short_days": cint(exit_doc.get("custom_notice_short_days")),
         "advances_outstanding": _advances(employee),
         "loans_outstanding": _loans(employee),
+        "penalties_outstanding": penalties.owed(employee),
         "unreturned_cost": clearance.get("outstanding_cost"),
     })
     doc = frappe.new_doc(DOCTYPE)

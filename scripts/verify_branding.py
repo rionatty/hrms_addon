@@ -147,6 +147,8 @@ MODULES = {
     "hrms_addon.hrms_addon.allowances": read("hrms_addon/hrms_addon/allowances.py"),
     "hrms_addon.hrms_addon.benefits": read("hrms_addon/hrms_addon/benefits.py"),
     "hrms_addon.hrms_addon.loans": read("hrms_addon/hrms_addon/loans.py"),
+    "hrms_addon.hrms_addon.penalties": read("hrms_addon/hrms_addon/penalties.py"),
+    "hrms_addon.hrms_addon.encashments": read("hrms_addon/hrms_addon/encashments.py"),
     "hrms_addon.hrms_addon.exits": read("hrms_addon/hrms_addon/exits.py"),
     "hrms_addon.hrms_addon.settlements": read("hrms_addon/hrms_addon/settlements.py"),
     "hrms_addon.hrms_addon.discipline": read("hrms_addon/hrms_addon/discipline.py"),

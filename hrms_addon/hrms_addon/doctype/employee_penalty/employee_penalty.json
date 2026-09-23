@@ -1,0 +1,663 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-23 18:00:00.000000",
+ "description": "A penalty for property lost or damaged: reported by the supervisor, heard by the HR Officer with the employee and the supervisor, consented to by the employee (LPL/HR/39), forwarded by the HR Manager, approved by the Executive Director and recovered from the payroll.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "badge_no",
+  "gender",
+  "age",
+  "column_break_1",
+  "department",
+  "designation",
+  "branch",
+  "section",
+  "company",
+  "posting_date",
+  "approval_status",
+  "status",
+  "report_section",
+  "kind",
+  "incident_date",
+  "details",
+  "column_break_2",
+  "estimated_value",
+  "evidence",
+  "disciplinary_case",
+  "reported_by",
+  "reported_on",
+  "hearing_section",
+  "hearing_on",
+  "employee_heard",
+  "supervisor_heard",
+  "hearing_record",
+  "column_break_3",
+  "finding",
+  "heard_by",
+  "heard_on",
+  "agreement_section",
+  "amount",
+  "instalments",
+  "effective_from",
+  "column_break_4",
+  "monthly_instalment",
+  "extent_of_deduction",
+  "recovery_component",
+  "consent_section",
+  "liability",
+  "reason",
+  "declaration",
+  "column_break_5",
+  "consent",
+  "signed_form",
+  "consent_remarks",
+  "consent_by",
+  "consent_on",
+  "approval_section",
+  "hrm_remarks",
+  "hrm_by",
+  "hrm_on",
+  "column_break_6",
+  "ed_remarks",
+  "ed_by",
+  "ed_on",
+  "column_break_7",
+  "sent_by",
+  "sent_on",
+  "return_remarks",
+  "recovery_section",
+  "repayments",
+  "recovered_amount",
+  "column_break_8",
+  "outstanding",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-PEN-.YYYY.-",
+   "default": "LPL-PEN-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "badge_no",
+   "fieldtype": "Data",
+   "label": "Badge No",
+   "fetch_from": "employee.attendance_device_id",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Link",
+   "label": "Sex",
+   "options": "Gender",
+   "fetch_from": "employee.gender",
+   "read_only": 1
+  },
+  {
+   "fieldname": "age",
+   "fieldtype": "Int",
+   "label": "Age",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "section",
+   "fieldtype": "Data",
+   "label": "Section"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "fetch_if_empty": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "default": "Today",
+   "reqd": 1
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Draft\nPending Hearing\nPending Employee Consent\nPending HR Manager\nPending Executive Director\nPending HR Officer\nRecovering\nNot Liable\nRejected\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nRecovering\nRecovered\nNot Liable\nRejected\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "report_section",
+   "fieldtype": "Section Break",
+   "label": "The supervisor's report",
+   "description": "The immediate supervisor reports the case to the HR Officer (minutes §4.11)."
+  },
+  {
+   "fieldname": "kind",
+   "fieldtype": "Select",
+   "label": "Penalty For",
+   "options": "Property Loss\nDamage\nOther",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "incident_date",
+   "fieldtype": "Date",
+   "label": "Date of the Incident",
+   "reqd": 1
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Small Text",
+   "label": "What was lost or damaged, and how",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "estimated_value",
+   "fieldtype": "Currency",
+   "label": "Value of the Loss",
+   "description": "What the supervisor reckons it is worth. The hearing settles what is recovered."
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Attach",
+   "label": "Evidence"
+  },
+  {
+   "fieldname": "disciplinary_case",
+   "fieldtype": "Link",
+   "label": "Disciplinary Case",
+   "options": "Disciplinary Case",
+   "description": "Where the same incident is also a disciplinary case."
+  },
+  {
+   "fieldname": "reported_by",
+   "fieldtype": "Link",
+   "label": "Reported By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reported_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hearing_section",
+   "fieldtype": "Section Break",
+   "label": "The hearing",
+   "description": "The HR Officer hears the case with the employee and the supervisor."
+  },
+  {
+   "fieldname": "hearing_on",
+   "fieldtype": "Datetime",
+   "label": "Held On",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "employee_heard",
+   "fieldtype": "Check",
+   "label": "The employee attended",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "supervisor_heard",
+   "fieldtype": "Check",
+   "label": "The supervisor attended",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hearing_record",
+   "fieldtype": "Text Editor",
+   "label": "What was said",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "finding",
+   "fieldtype": "Select",
+   "label": "Finding",
+   "options": "\nLiable\nNot Liable",
+   "no_copy": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "heard_by",
+   "fieldtype": "Link",
+   "label": "Heard By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "heard_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "agreement_section",
+   "fieldtype": "Section Break",
+   "label": "What was agreed",
+   "depends_on": "eval:doc.finding=='Liable'",
+   "description": "The instalments agreed at the hearing."
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount Liable",
+   "no_copy": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "instalments",
+   "fieldtype": "Int",
+   "label": "Equal Instalments",
+   "default": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "effective_from",
+   "fieldtype": "Date",
+   "label": "Effective From",
+   "no_copy": 1,
+   "description": "The payroll month the first instalment comes off."
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "monthly_instalment",
+   "fieldtype": "Currency",
+   "label": "Each Instalment",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "extent_of_deduction",
+   "fieldtype": "Data",
+   "label": "Extent of Deduction",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "recovery_component",
+   "fieldtype": "Link",
+   "label": "Deduction Component",
+   "options": "Salary Component",
+   "description": "Penalty Recovery unless another is chosen."
+  },
+  {
+   "fieldname": "consent_section",
+   "fieldtype": "Section Break",
+   "label": "Employee Deduction Consent (LPL/HR/39)",
+   "depends_on": "eval:doc.finding=='Liable'"
+  },
+  {
+   "fieldname": "liability",
+   "fieldtype": "Small Text",
+   "label": "Liability",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "declaration",
+   "fieldtype": "Small Text",
+   "label": "Declaration",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "consent",
+   "fieldtype": "Check",
+   "label": "The Employee Consents",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "signed_form",
+   "fieldtype": "Attach",
+   "label": "Signed LPL/HR/39",
+   "no_copy": 1,
+   "description": "Needed when HR record the consent for the employee."
+  },
+  {
+   "fieldname": "consent_remarks",
+   "fieldtype": "Small Text",
+   "label": "Employee's Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "consent_by",
+   "fieldtype": "Link",
+   "label": "Signed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "consent_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval"
+  },
+  {
+   "fieldname": "hrm_remarks",
+   "fieldtype": "Small Text",
+   "label": "HR Manager's Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_by",
+   "fieldtype": "Link",
+   "label": "Head Human Resource",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "hrm_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ed_remarks",
+   "fieldtype": "Small Text",
+   "label": "Executive Director's Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_by",
+   "fieldtype": "Link",
+   "label": "Executive Director",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ed_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sent_by",
+   "fieldtype": "Link",
+   "label": "Sent to Payroll By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "recovery_section",
+   "fieldtype": "Section Break",
+   "label": "Recovery",
+   "depends_on": "eval:doc.finding=='Liable'"
+  },
+  {
+   "fieldname": "repayments",
+   "fieldtype": "Table",
+   "label": "Instalments",
+   "options": "Loan Repayment",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "recovered_amount",
+   "fieldtype": "Currency",
+   "label": "Recovered",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outstanding",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Employee Penalty",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-23 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Penalty",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "search_fields": "employee_name,kind",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "submit": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "create": 1,
+   "role": "Supervisor"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "submit": 1,
+   "role": "Executive Director"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "role": "Employee"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "Payroll Officer"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

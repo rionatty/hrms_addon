@@ -256,6 +256,51 @@ def gate_pass_errors(facts):
     return errors
 
 
+def late_notice_errors(facts):
+    """Problems with a Late Arrival Notice as it is sent.
+
+    facts: "employee", "arrival_date", "expected_time", "reason",
+    "shift_start".
+    """
+    errors = []
+    if not facts.get("employee"):
+        errors.append("Name the employee who will be late.")
+    if not facts.get("arrival_date"):
+        errors.append("Give the day they will be late.")
+    if not facts.get("expected_time"):
+        errors.append("Give the time they expect to arrive.")
+    elif facts.get("shift_start") and _time_on(facts["expected_time"]) <= _time_on(facts["shift_start"]):
+        errors.append("Arriving at %s is not late: the shift starts at %s."
+                      % (str(facts["expected_time"])[:5], str(facts["shift_start"])[:5]))
+    if not (facts.get("reason") or "").strip():
+        errors.append("Give the reason they will be late.")
+    return errors
+
+
+def notified_in_advance(notified_on, arrival_date, shift_start):
+    """A notice is given in advance when it is sent before the shift starts
+    on the day. With no shift known, before the day begins."""
+    if not (notified_on and arrival_date):
+        return False
+    starts = _time_on(shift_start).time() if shift_start else datetime.time(0, 0)
+    return _time_on(notified_on) < datetime.datetime.combine(_date(arrival_date), starts)
+
+
+def full_day(status, late_entry, notice, on_leave=False):
+    """What a day an acknowledged notice covers is recorded as, as
+    (status, late_entry): a half day is a full day and the arrival is not
+    counted late. An absence stays an absence (the notice said late, not
+    away), and a half day of leave is the leave's, not the notice's.
+
+    notice: whether an acknowledged notice given in advance covers the day.
+    """
+    if not notice or on_leave:
+        return status, late_entry
+    if status in ("Present", "Half Day", "Work From Home"):
+        return ("Present" if status == "Half Day" else status), 0
+    return status, late_entry
+
+
 def coupons(rows):
     """The food coupons LPL/HR/14 has HR issue: how many of each employment
     kind worked the overtime."""

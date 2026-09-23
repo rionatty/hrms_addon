@@ -20,6 +20,8 @@ each chart (clearance_approval.py).
                 chain each exit signs them through.
   daily         a notice period running out, and an exit waiting on its
                 clearance.
+  reinstate     the minutes' §6.2: an employee who left by mistake is
+                brought back by the Executive Director, and only by them.
 """
 
 import frappe
@@ -352,3 +354,55 @@ def setup_workflows_on_migrate():
 
     workflows.setup_on_migrate(exit_interview_approval, "Exit Interview workflow")
     workflows.setup_on_migrate(clearance_approval, "Clearance Form workflow")
+
+
+# ── Reinstatement (minutes §6.2) ──────────────────────────────────────
+def employee_validate(doc, method=None):
+    """Nobody moves an employee who has left back to active by editing the
+    record: the Executive Director reinstates them, with a reason."""
+    if doc.is_new() or frappe.flags.in_import or frappe.flags.in_patch or frappe.flags.in_migrate \
+            or frappe.session.user == "Administrator":
+        return
+    before = doc.get_doc_before_save()
+    errors = rules.status_change_errors(before.get("status") if before else None, doc.get("status"),
+                                        reinstating=bool(doc.flags.get("reinstating")))
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Reinstatement"))
+
+
+@frappe.whitelist(methods=["POST"])
+def reinstate(employee, reason):
+    """The Executive Director brings back an employee who left by mistake:
+    active again, the leaving date cleared, their login back, the exit
+    that put them out never applied again, and HR and payroll told."""
+    doc = frappe.get_doc("Employee", employee)
+    errors = rules.reinstatement_errors({"status": doc.status, "roles": frappe.get_roles(), "reason": reason})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Reinstatement"))
+    left_on = doc.get("relieving_date")
+    # Frappe refuses an active employee whose login is disabled
+    if doc.get("user_id") and not frappe.db.get_value("User", doc.user_id, "enabled"):
+        frappe.db.set_value("User", doc.user_id, "enabled", 1)
+    doc.status = "Active"
+    doc.relieving_date = None
+    doc.reason_for_leaving = None
+    doc.flags.reinstating = True
+    doc.flags.ignore_permissions = True
+    doc.flags.ignore_mandatory = True
+    doc.save()
+    doc.add_comment("Info", _("Reinstated by {0}, Executive Director: {1}").format(frappe.session.user, reason))
+    exits_found = frappe.get_all(SEPARATION, filters={"employee": employee, "docstatus": 1}, pluck="name")
+    for name in exits_found:
+        # the daily job makes an employee inactive from a separation it has
+        # not applied yet: this one is not to be applied again
+        frappe.db.set_value(SEPARATION, name, "custom_status_updated", 1, update_modified=False)
+    users = list(people.hr_officers(doc.get("branch"), doc.get("department")))
+    users += people.people_for("Payroll Officer", doc.get("branch"), doc.get("department"))
+    if users:
+        people.notify(list(dict.fromkeys(users)), "Employee", employee,
+                      _("{0} was reinstated by the Executive Director: {1}. They had been marked as leaving on "
+                        "{2}.{3}").format(
+                          doc.get("employee_name") or employee, reason, frappe.utils.format_date(left_on),
+                          (" " + _("Cancel the exit raised by mistake: {0}.").format(", ".join(exits_found)))
+                          if exits_found else ""))
+    return doc.status

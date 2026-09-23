@@ -343,6 +343,18 @@ if nav.count('"Advance Settings"') < 2:
     fail.append("Advance Settings needs a way in from the Advances card and the sidebar")
 print("fields, patch and way in: the employee's pay category and bank loan, the advance's workings")
 
+# "Salary Advance" typed in the search bar found nothing: it is not a
+# DocType, it is Frappe HR's Employee Advance with an Advance Type
+search = read("hrms_addon", "public", "js", "hrms_addon_search.js")
+for kind in ("Salary Advance", "Leave Advance", "Special Advance"):
+    if '"%s"' % kind not in search:
+        fail.append("the search bar must know %s by name" % kind)
+if "make_function_searchable" not in search or "custom_advance_type: kind" not in search:
+    fail.append("each advance's name opens the advances of that type, as Frappe's own searchable names do")
+if "/assets/hrms_addon/js/hrms_addon_search.js" not in read("hrms_addon", "hooks.py"):
+    fail.append("the search names load on every desk page (app_include_js)")
+print("the search bar: the three advances by name")
+
 if fail:
     print("\nFAILURES:")
     for message in fail:

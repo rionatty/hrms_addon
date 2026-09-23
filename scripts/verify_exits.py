@@ -496,6 +496,38 @@ for name in ("Clearance Form", "Exit Interview", "Full and Final Statement"):
                     % (name, sidebarred.get(name)))
 print("wiring: the doc events, both workflows on migrate, the daily job, the way in")
 
+# ── Reinstatement (minutes §6.2) ──────────────────────────────────────
+# "Accidentally terminated workers cannot be reinstated; permission rests
+# only with the Executive Director."
+ER = load("exit_rules")
+ask = {"status": "Left", "roles": ["Executive Director", "Employee"], "reason": "Separated by mistake"}
+if ER.reinstatement_errors(ask):
+    fail.append("the Executive Director reinstates, with a reason: %s" % ER.reinstatement_errors(ask))
+if not any("Only the Executive Director" in e for e in ER.reinstatement_errors(dict(ask, roles=["HR Manager"]))):
+    fail.append("nobody but the Executive Director reinstates, not even the HR Manager")
+if not any("why the employee is reinstated" in e for e in ER.reinstatement_errors(dict(ask, reason=" "))):
+    fail.append("a reinstatement says why")
+if not any("has left" in e for e in ER.reinstatement_errors(dict(ask, status="Active"))):
+    fail.append("only an employee who has left can be reinstated")
+if not ER.status_change_errors("Left", "Active"):
+    fail.append("editing the record does not bring back an employee who has left")
+if ER.status_change_errors("Left", "Active", reinstating=True) or ER.status_change_errors("Active", "Left"):
+    fail.append("the reinstatement itself, and a leaving, are not stopped")
+glue = read("hrms_addon", "hrms_addon", "exits.py")
+for needle, why in (('@frappe.whitelist(methods=["POST"])\ndef reinstate(', "Reinstate is a whitelisted POST"),
+                    ("rules.reinstatement_errors(", "who may reinstate is the rules' to say"),
+                    ('"custom_status_updated", 1', "the exit that put them out is not applied again"),
+                    ('frappe.db.set_value("User", doc.user_id, "enabled", 1)', "their login comes back")):
+    if needle not in glue:
+        fail.append("exits.py: %s (%r not found)" % (why, needle))
+employee_events = ((hooks.get("doc_events") or {}).get("Employee") or {}).get("validate") or []
+if "hrms_addon.hrms_addon.exits.employee_validate" not in employee_events:
+    fail.append("the Employee's validate stops a leaver being made active by hand")
+if (hooks.get("doctype_js") or {}).get("Employee") != "public/js/employee.js" \
+        or "exits.reinstate" not in read("hrms_addon", "public", "js", "employee.js"):
+    fail.append("the Executive Director's Reinstate button is on the Employee")
+print("reinstatement: the Executive Director alone, with a reason; nobody by hand")
+
 print()
 if fail:
     print("FAILURES:")

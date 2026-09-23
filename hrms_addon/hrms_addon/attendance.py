@@ -21,6 +21,11 @@ The rules are in attendance_rules.py, without a Frappe import
   register     the Employee Attendance Form (LPL/HR/07) over a cycle: a
                row per employee, a column per day from the 26th to the
                25th, and the day and night tallies underneath.
+  late_notice_*  the minutes' recommendation: an employee who says before
+               the shift starts that they will be late, acknowledged by
+               their supervisor, is given a full day and is not counted
+               late. attendance_validate applies it to the day's
+               Attendance however it is marked.
   daily        the two things the minutes ask for: top management marked
                present without punching, and a gate pass nobody closed.
 """
@@ -320,6 +325,117 @@ def _off_duty_between(employees, start, end):
         fields=["employee", "off_date"])}
 
 
+# ── The late arrival notice ───────────────────────────────────────────
+def late_notice_validate(doc, method=None):
+    from hrms_addon.hrms_addon import late_notice_approval as approval
+
+    _fill_shift(doc)
+    before = doc.get_doc_before_save()
+    old_state = before.get("workflow_state") if before else None
+    new_state = doc.get("workflow_state")
+    if old_state != new_state:
+        errors = approval.step_errors(old_state, new_state, {"supervisor_remarks": doc.get("supervisor_remarks")})
+        if new_state == approval.PENDING_SUPERVISOR:
+            errors = rules.late_notice_errors({
+                "employee": doc.get("employee"), "arrival_date": doc.get("arrival_date"),
+                "expected_time": doc.get("expected_time"), "reason": doc.get("reason"),
+                "shift_start": doc.get("shift_start")}) + errors
+            # the notice is given when it is sent
+            doc.notified_on = frappe.utils.now_datetime()
+        if errors:
+            frappe.throw("<br>".join(_(message) for message in errors), title=_("Late Arrival Notice"))
+    doc.in_advance = 1 if rules.notified_in_advance(doc.get("notified_on"), doc.get("arrival_date"),
+                                                    doc.get("shift_start")) else 0
+    current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
+    for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(),
+                                                current).items():
+        doc.set(field, value)
+    doc.status = new_state or doc.get("status") or approval.DRAFT
+    if old_state != new_state and new_state == approval.PENDING_SUPERVISOR:
+        users = people.people_for(approval.ROLE_WAITING[new_state], doc.get("branch"), doc.get("department"))
+        if users:
+            message = _("{0} will arrive late on {1}, at about {2}: {3}").format(
+                doc.get("employee_name") or doc.employee, frappe.utils.format_date(doc.arrival_date),
+                str(doc.expected_time)[:5], doc.reason)
+            people.notify(users, doc.doctype, doc.name, message)
+            people.assign(doc.doctype, doc.name, users, message)
+
+
+def _fill_shift(doc):
+    """The shift the employee works that day, and when it starts: the
+    shift assignment for the day, else their default shift."""
+    if not (doc.get("employee") and doc.get("arrival_date")):
+        return
+    rows = frappe.get_all("Shift Assignment",
+                          filters={"employee": doc.employee, "docstatus": 1, "status": "Active",
+                                   "start_date": ["<=", doc.arrival_date]},
+                          fields=["shift_type", "end_date"], order_by="start_date desc")
+    shift = next((row.shift_type for row in rows
+                  if not row.end_date or getdate(row.end_date) >= getdate(doc.arrival_date)), None)
+    shift = shift or frappe.db.get_value("Employee", doc.employee, "default_shift")
+    doc.shift = shift
+    doc.shift_start = frappe.db.get_value("Shift Type", shift, "start_time") if shift else None
+
+
+def late_notice_on_submit(doc, method=None):
+    """Acknowledged: a day already marked is given in full now; one not yet
+    marked is given in full when it is (attendance_validate)."""
+    doc.db_set("status", "Acknowledged", update_modified=False)
+    if doc.get("in_advance"):
+        _give_full_day(doc)
+    user = frappe.db.get_value("Employee", doc.employee, "user_id")
+    if user:
+        said = (_("Your late arrival on {0} was acknowledged: the day counts in full.") if doc.get("in_advance")
+                else _("Your late arrival on {0} was acknowledged, but it was not notified before the shift "
+                       "started, so the day counts as punched."))
+        people.notify([user], doc.doctype, doc.name, said.format(frappe.utils.format_date(doc.arrival_date)))
+
+
+def _give_full_day(doc):
+    name = frappe.db.get_value("Attendance", {"employee": doc.employee, "attendance_date": doc.arrival_date,
+                                              "docstatus": ["!=", 2]}, "name")
+    if not name:
+        return
+    attendance = frappe.get_doc("Attendance", name)
+    status, late_entry = rules.full_day(attendance.status, attendance.get("late_entry"), True,
+                                        on_leave=bool(attendance.get("leave_application")))
+    if (status, late_entry) != (attendance.status, cint(attendance.get("late_entry"))):
+        # as Frappe HR's own Attendance Request changes a marked day
+        values = {"status": status, "late_entry": late_entry}
+        if status != "Half Day" and frappe.get_meta("Attendance").has_field("half_day_status"):
+            values["half_day_status"] = None
+        attendance.db_set(values, update_modified=False)
+        attendance.add_comment("Info", _("A full day: the late arrival was notified in advance ({0}).").format(
+            doc.name))
+    doc.db_set("attendance", name, update_modified=False)
+
+
+def late_notice_on_cancel(doc, method=None):
+    doc.db_set("status", "Cancelled", update_modified=False)
+
+
+def attendance_validate(doc, method=None):
+    """However the day is marked — from the punches, by hand, or by an
+    attendance request — a late arrival acknowledged in advance makes it a
+    full day and not a late one."""
+    if doc.docstatus == 2 or not (doc.get("employee") and doc.get("attendance_date")):
+        return
+    notice = frappe.db.get_value("Late Arrival Notice", {"employee": doc.employee, "docstatus": 1,
+                                                         "arrival_date": doc.attendance_date, "in_advance": 1},
+                                 "name")
+    if not notice:
+        return
+    status, late_entry = rules.full_day(doc.status, doc.get("late_entry"), True,
+                                        on_leave=bool(doc.get("leave_application")))
+    doc.status, doc.late_entry = status, late_entry
+    if status != "Half Day" and doc.get("half_day_status"):
+        doc.half_day_status = None
+    # the name is set before validate on insert, and a failed insert rolls
+    # this back with it
+    if doc.name:
+        frappe.db.set_value("Late Arrival Notice", notice, "attendance", doc.name, update_modified=False)
+
+
 # ── what the minutes ask the system to watch ──────────────────────────
 def daily():
     """Top management marked present without punching, and a gate pass
@@ -367,7 +483,9 @@ def _chase_open_passes():
 
 
 def setup_workflows_on_migrate():
-    """after_migrate: the off-duty request's two signatures (workflows.py)."""
-    from hrms_addon.hrms_addon import off_duty_approval, workflows
+    """after_migrate: the off-duty request's two signatures, and the late
+    arrival notice the supervisor acknowledges (workflows.py)."""
+    from hrms_addon.hrms_addon import late_notice_approval, off_duty_approval, workflows
 
     workflows.setup_on_migrate(off_duty_approval, "Off Duty Request workflow")
+    workflows.setup_on_migrate(late_notice_approval, "Late Arrival Notice workflow")

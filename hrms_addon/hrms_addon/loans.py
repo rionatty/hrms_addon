@@ -288,14 +288,18 @@ def _close_repaid():
                           fields=["name", "employee", "employee_name", "branch", "department"], limit=200)
     for row in rows:
         frappe.db.set_value(DOCTYPE, row.name, "status", "Repaid", update_modified=False)
-        users = list(people.hr_officers(row.branch, row.department))
-        user = frappe.db.get_value("Employee", row.employee, "user_id")
-        if user:
-            users.append(user)
-        if users:
-            people.notify(list(dict.fromkeys(users)), DOCTYPE, row.name,
-                          _("{0}'s loan is fully repaid.").format(row.employee_name or row.employee))
+        _tell_repaid(row)
     frappe.db.commit()
+
+
+def _tell_repaid(loan):
+    users = list(people.hr_officers(loan.branch, loan.department))
+    user = frappe.db.get_value("Employee", loan.employee, "user_id")
+    if user:
+        users.append(user)
+    if users:
+        people.notify(list(dict.fromkeys(users)), DOCTYPE, loan.name,
+                      _("{0}'s loan is fully repaid.").format(loan.employee_name or loan.employee))
 
 
 def mark_recovered(payroll_date=None):
@@ -315,14 +319,27 @@ def mark_recovered(payroll_date=None):
         frappe.db.set_value("Loan Repayment", row.name, "recovered", 1, update_modified=False)
         touched.add(row.parent)
     for name in touched:
-        doc = frappe.get_doc(DOCTYPE, name)
-        recovered = sum(flt(child.total) for child in doc.repayments if child.recovered)
-        total = flt(doc.approved_amount or doc.loan_amount) + flt(doc.total_interest)
-        doc.db_set("recovered_amount", recovered)
-        doc.db_set("outstanding", rules.outstanding(total, recovered))
-        doc.db_set("status", rules.loan_status(1, total, recovered, doc.written_off))
+        refresh_recovered(name)
     frappe.db.commit()
     return len(touched)
+
+
+def refresh_recovered(name):
+    """The recovered and outstanding amounts, from the months marked
+    recovered — by the Salary Slip that took them (recoveries.py) or by
+    mark_recovered. A loan whose last month is taken is Repaid, and one
+    whose slip was cancelled is Running again."""
+    doc = frappe.get_doc(DOCTYPE, name)
+    if doc.docstatus != 1:
+        return
+    was = doc.status
+    recovered = sum(flt(child.total) for child in doc.repayments if child.recovered)
+    total = flt(doc.approved_amount or doc.loan_amount) + flt(doc.total_interest)
+    doc.db_set("recovered_amount", recovered)
+    doc.db_set("outstanding", rules.outstanding(total, recovered))
+    doc.db_set("status", rules.loan_status(1, total, recovered, doc.written_off))
+    if was != rules.REPAID and doc.status == rules.REPAID:
+        _tell_repaid(doc)
 
 
 # ── 3. Wiring ─────────────────────────────────────────────────────────

@@ -269,8 +269,8 @@ if "hrms_addon.hrms_addon.documents.setup_on_migrate" not in hooks.get("after_mi
 if "hrms_addon.hrms_addon.documents.daily" not in \
         hooks.get("scheduler_events", {}).get("daily", []):
     fail.append("a document running out needs the daily job")
-if hooks.get("doc_events", {}).get("Employee", {}).get("validate") \
-        != "hrms_addon.hrms_addon.documents.employee_validate":
+if "hrms_addon.hrms_addon.documents.employee_validate" not in \
+        hooks.get("doc_events", {}).get("Employee", {}).get("validate", []):
     fail.append("each document's status is worked out on the employee's own form")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 for name in ("Employee Document Type", "Document Expiry"):

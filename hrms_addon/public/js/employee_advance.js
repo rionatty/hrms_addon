@@ -14,7 +14,10 @@ frappe.ui.form.on("Employee Advance", {
 		if (frm.doc.docstatus === 1 && frm.doc.custom_outstanding > 0) {
 			frm.add_custom_button(__("Mark Recovered"), () =>
 				frappe
-					.xcall("hrms_addon.hrms_addon.advances.mark_recovered", {})
+					.xcall("hrms_addon.hrms_addon.recoveries.catch_up_for", {
+						doctype: frm.doctype,
+						name: frm.doc.name,
+					})
 					.then(() => frm.reload_doc())
 			);
 		}

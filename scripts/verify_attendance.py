@@ -485,6 +485,72 @@ if set(O.ROLE_WAITING) != set(O.PENDING_STATES):
     fail.append("every pending state must know whose desk it is on")
 print("wiring: the workflow on migrate, the hourly pull, the daily jobs, the way in")
 
+# ── 7. The late arrival notice (the minutes' recommendation) ────────────────────
+# "employees who communicate their late coming in advance should be given a
+# full day" (Reward and Compensation §7, and the attendance test script)
+LN = load("late_notice_approval")
+notice = {"employee": "HR-EMP-00100", "arrival_date": "2026-03-10", "expected_time": "09:00:00",
+          "reason": "Clinic appointment", "shift_start": "07:00:00"}
+expect("a notice that says who, when and why", A.late_notice_errors(notice))
+expect("arriving before the shift starts", A.late_notice_errors(dict(notice, expected_time="06:45:00")),
+       "is not late")
+expect("no reason", A.late_notice_errors(dict(notice, reason=" ")), "reason they will be late")
+expect("no time", A.late_notice_errors(dict(notice, expected_time=None)), "time they expect to arrive")
+if not A.notified_in_advance("2026-03-09 18:00:00", "2026-03-10", "07:00:00"):
+    fail.append("the evening before is in advance")
+if not A.notified_in_advance("2026-03-10 06:59:00", "2026-03-10", "07:00:00"):
+    fail.append("a minute before the shift starts is in advance")
+if A.notified_in_advance("2026-03-10 07:30:00", "2026-03-10", "07:00:00"):
+    fail.append("half an hour into the shift is not in advance")
+if A.notified_in_advance(None, "2026-03-10", "07:00:00"):
+    fail.append("a notice never sent was never given")
+if A.full_day("Half Day", 1, True) != ("Present", 0):
+    fail.append("a half day with a notice given in advance is a full day, not counted late")
+if A.full_day("Present", 1, True) != ("Present", 0):
+    fail.append("a full day punched late is not counted late")
+if A.full_day("Absent", 0, True) != ("Absent", 0):
+    fail.append("the notice said late, not away: an absence stays an absence")
+if A.full_day("Half Day", 1, True, on_leave=True) != ("Half Day", 1):
+    fail.append("a half day of leave is the leave's, not the notice's")
+if A.full_day("Half Day", 1, False) != ("Half Day", 1):
+    fail.append("with no notice, the day is as punched")
+lan = fields_of(doctype("Late Arrival Notice"))
+for fieldname in ("employee", "arrival_date", "expected_time", "reason", "shift", "shift_start", "notified_on",
+                  "in_advance", "supervisor_remarks", "acknowledged_by", "acknowledged_on", "attendance", "status"):
+    if fieldname not in lan:
+        fail.append("Late Arrival Notice has no %s" % fieldname)
+for fieldname in ("shift", "shift_start", "notified_on", "in_advance", "acknowledged_by", "attendance", "status"):
+    if not (lan.get(fieldname) or {}).get("read_only"):
+        fail.append("Late Arrival Notice.%s is worked out or stamped, not typed" % fieldname)
+walked, state = [LN.DRAFT], LN.DRAFT
+for action in (LN.NOTIFY, LN.ACKNOWLEDGE):
+    state = next(t["next_state"] for t in LN.TRANSITIONS if t["state"] == state and t["action"] == action)
+    walked.append(state)
+if walked != [LN.DRAFT, LN.PENDING_SUPERVISOR, LN.ACKNOWLEDGED]:
+    fail.append("the notice goes to the supervisor, who acknowledges it: %s" % walked)
+docstatus = {row["state"]: row.get("doc_status", "0") for row in LN.STATES}
+if docstatus[LN.ACKNOWLEDGED] != "1" or docstatus[LN.DECLINED] != "0":
+    fail.append("an acknowledged notice is submitted; a declined one never is")
+expect("declined without saying why", LN.step_errors(LN.PENDING_SUPERVISOR, LN.DECLINED, {}),
+       "supervisor's remarks")
+if (hooks.get("doc_events") or {}).get("Attendance", {}).get("validate") \
+        != "hrms_addon.hrms_addon.attendance.attendance_validate":
+    fail.append("however the day is marked, the notice is applied to its Attendance")
+controller = open(os.path.join(APP, "doctype", "late_arrival_notice", "late_arrival_notice.py"), encoding="utf-8").read()
+for method in ("validate", "on_submit", "on_cancel"):
+    if "    def %s(self):\n        attendance.late_notice_%s(self)" % (method, method) not in controller:
+        fail.append("the Late Arrival Notice controller must hand %s to attendance.late_notice_%s" % (method, method))
+glue = read("hrms_addon", "hrms_addon", "attendance.py")
+for needle, why in (("workflows.setup_on_migrate(late_notice_approval", "the notice's workflow is built on migrate"),
+                    ("rules.full_day(", "what the day becomes is the rules' to say"),
+                    ("rules.notified_in_advance(", "and whether the notice was in advance"),
+                    ('on_leave=bool(', "a half day of leave is left alone")):
+    if needle not in glue:
+        fail.append("attendance.py: %s (%r not found)" % (why, needle))
+if "Late Arrival Notice" not in carded or "Late Arrival Notice" not in sidebarred:
+    fail.append("the Late Arrival Notice needs a way in, beside the other attendance forms")
+print("the late arrival notice: in advance, acknowledged, a full day; an absence stays one")
+
 print()
 if fail:
     print("FAILURES:")

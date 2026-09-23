@@ -624,13 +624,22 @@ def mark_recovered(payroll_date=None):
         frappe.db.set_value("Advance Recovery", row.name, "recovered", 1, update_modified=False)
         touched.add(row.parent)
     for name in touched:
-        doc = frappe.get_doc(DOCTYPE, name)
-        recovered = sum(flt(child.amount) for child in doc.custom_recoveries if child.recovered)
-        doc.db_set("custom_recovered_amount", recovered)
-        doc.db_set("custom_outstanding", rules.outstanding(
-            doc.get("custom_approved_amount") or doc.advance_amount, recovered))
+        refresh_recovered(name)
     frappe.db.commit()
     return len(touched)
+
+
+def refresh_recovered(name):
+    """The recovered and outstanding amounts, from the months marked
+    recovered — by the Salary Slip that took them (recoveries.py) or by
+    mark_recovered."""
+    doc = frappe.get_doc(DOCTYPE, name)
+    if doc.docstatus != 1:
+        return
+    recovered = sum(flt(child.amount) for child in doc.get("custom_recoveries") or [] if child.recovered)
+    doc.db_set("custom_recovered_amount", recovered)
+    doc.db_set("custom_outstanding", rules.outstanding(
+        doc.get("custom_approved_amount") or doc.advance_amount, recovered))
 
 
 # ── 4. Wiring ─────────────────────────────────────────────────────────
