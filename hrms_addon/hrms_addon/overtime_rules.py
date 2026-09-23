@@ -48,6 +48,8 @@ higher earners' type carries it ("For Monthly Gross Above"), and the gross
 it is compared with is the one the employee's salary structure works out.
 """
 
+import re
+
 WEEKDAY = "Weekday"
 REST_DAY = "Rest Day"
 PUBLIC_HOLIDAY = "Public Holiday"
@@ -127,6 +129,34 @@ def multiplier_for(kind, overtime_type=None):
     else:
         given = overtime_type.get("standard_multiplier")
     return float(given) if given else ACT_MULTIPLIERS[kind]
+
+
+def works_from_base(row):
+    """An earning a salary structure works out from the base (Luuka's
+    Basic: base * 1). An hour of overtime is worked out of these."""
+    return bool(row.get("amount_based_on_formula")) and not row.get("statistical_component") \
+        and not row.get("do_not_include_in_total") \
+        and re.search(r"\bbase\b", str(row.get("formula") or "")) is not None
+
+
+def component_for_rate(rate, components):
+    """The company's own overtime earning for a rate: one named for overtime
+    with the rate in its name ("Overtime 1.5", "Overtime 2.0") or in its
+    abbreviation (OT_15, OT_20). None when there is none.
+
+    components: [{"name", "salary_component_abbr"}]."""
+    rate = float(rate)
+    for component in components or ():
+        name = str(component.get("name") or "")
+        abbr = str(component.get("salary_component_abbr") or "")
+        if "overtime" not in name.lower() and not abbr.lower().startswith("ot"):
+            continue
+        if any(float(number) == rate for number in re.findall(r"\d+(?:\.\d+)?", name)):
+            return name
+        for digits in re.findall(r"\d+", abbr):
+            if float(digits) == rate or (len(digits) > 1 and float(digits[0] + "." + digits[1:]) == rate):
+                return name
+    return None
 
 
 def below_the_act(kind, multiplier):

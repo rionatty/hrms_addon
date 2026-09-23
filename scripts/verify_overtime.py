@@ -160,6 +160,25 @@ if R.amount(3, 0, 1.5) != 0.0:
 # gross of UGX 500,000 and 1.5x below it; a public holiday 2x
 if R.GROSS_THRESHOLD != 500000 or R.HIGHER_EARNER_MULTIPLIER != 1.0:
     fail.append("the line is UGX 500,000, and above it a weekday pays 1x")
+BASIC = {"salary_component": "Basic", "formula": "(base * 1)", "amount_based_on_formula": 1}
+if not R.works_from_base(BASIC):
+    fail.append("Luuka's Basic (base * 1) is what an hour of overtime is worked out of")
+for row, why in ((dict(BASIC, formula="BS + MA + CB"), "a formula without the base"),
+                 (dict(BASIC, statistical_component=1), "a statistical component"),
+                 (dict(BASIC, amount_based_on_formula=0), "an earning not worked out by formula"),
+                 (dict(BASIC, formula="baseline * 2"), "a word that only starts with base")):
+    if R.works_from_base(row):
+        fail.append("not worked out of: %s" % why)
+EARNINGS = [{"name": "Basic", "salary_component_abbr": "B"}, {"name": "Overtime", "salary_component_abbr": "OT"},
+            {"name": "Overtime 1.5", "salary_component_abbr": "OT_15"},
+            {"name": "Overtime 2.0", "salary_component_abbr": "OT_20"}]
+for rate, component in ((1.5, "Overtime 1.5"), (2.0, "Overtime 2.0"), (1.0, None)):
+    if R.component_for_rate(rate, EARNINGS) != component:
+        fail.append("the overtime earning for %sx is %s, not %s" % (rate, component, R.component_for_rate(rate, EARNINGS)))
+if R.component_for_rate(2.0, [{"name": "Holiday Pay", "salary_component_abbr": "OT_20"}]) != "Holiday Pay":
+    fail.append("an overtime earning is found by its abbreviation too")
+if R.component_for_rate(2.0, [{"name": "Allowance 2.0", "salary_component_abbr": "AL2"}]) is not None:
+    fail.append("an earning that is not overtime is never an overtime type's")
 LINES = {R.HIGHER_EARNERS: 500000}
 if R.type_name_for(R.WEEKDAY, 600000, LINES) != R.HIGHER_EARNERS:
     fail.append("a weekday for somebody grossing 600,000 goes under the higher earners' type")
@@ -357,7 +376,10 @@ if "gross=grosses.get(" not in landed or "lines=lines" not in landed:
                 "the Overtime Slip pays a higher earner one and a half times (minutes §4.12)")
 if "rules.HIGHER_EARNERS" not in glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0]:
     fail.append("the higher earners' weekday type is made on migrate")
-if '"custom_gross_above": rules.GROSS_THRESHOLD' not in glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0] \
+seeding = glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0]
+if "_hourly_components()" not in seeding or '"applicable_salary_component": [' not in glue:
+    fail.append("an Overtime Type priced from salary components is refused without them: the seeding gives them")
+if "gross_above=rules.GROSS_THRESHOLD" not in seeding \
         or "fill_gross_line()" not in glue.split("def setup_on_migrate(")[1]:
     fail.append("the higher earners' type carries its line, UGX 500,000 until HR move it")
 if "pay.monthly_gross(employee, day)" not in glue.split("def _monthly_gross(")[1].split(chr(10) + "def ")[0]:

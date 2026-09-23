@@ -246,47 +246,70 @@ def _draw_slips(doc):
 
 # ── 4. The three kinds of day, as masters ─────────────────────────────
 def seed_overtime_types():
-    """The Employment Act's floor, made once. Luuka amend the multipliers
-    and name the salary component; this never writes over a type that is
-    already there."""
-    component = _overtime_component()
-    for kind in (rules.WEEKDAY, rules.REST_DAY, rules.PUBLIC_HOLIDAY):
-        name = rules.type_name_for(kind)
-        if frappe.db.exists(TYPE, name):
-            continue
-        try:
-            doc = frappe.get_doc({
-                "doctype": TYPE, "__newname": name,
-                "overtime_salary_component": component,
-                "standard_multiplier": rules.ACT_MULTIPLIERS[rules.WEEKDAY],
-                "applicable_for_weekend": 1,
-                "weekend_multiplier": rules.ACT_MULTIPLIERS[rules.REST_DAY],
-                "applicable_for_public_holiday": 1,
-                "public_holiday_multiplier": rules.ACT_MULTIPLIERS[rules.PUBLIC_HOLIDAY],
-                "overtime_calculation_method": "Salary Component Based",
-            })
-            doc.flags.ignore_permissions = True
-            doc.insert()
-        except Exception:
-            frappe.log_error(title="HRMS Addon: seeding the overtime types")
+    """The Employment Act's floor, made once. An hour is worked out of the
+    earnings the salary structures work out from the base (Frappe HR asks
+    for them on an Overtime Type), and each type pays through the company's
+    own overtime earning for its rate. Luuka amend them after; this never
+    writes over a type that is already there."""
+    kinds = [kind for kind in (rules.WEEKDAY, rules.REST_DAY, rules.PUBLIC_HOLIDAY)
+             if not frappe.db.exists(TYPE, rules.type_name_for(kind))]
+    higher = not frappe.db.exists(TYPE, rules.HIGHER_EARNERS)
+    if not kinds and not higher:
+        return
+    hourly = _hourly_components()
+    if not hourly:
+        message = ("HRMS Addon: the overtime types are not made yet. No submitted salary structure works "
+                   "an earning out from the base for an hour of overtime to be priced from.")
+        frappe.log_error(title=message)
+        print(message)
+        return
+    earnings = frappe.get_all("Salary Component", filters={"type": "Earning"},
+                              fields=["name", "salary_component_abbr"])
+    weekday_component = rules.component_for_rate(rules.ACT_MULTIPLIERS[rules.WEEKDAY], earnings)
+    for kind in kinds:
+        _make_type(rules.type_name_for(kind),
+                   rules.component_for_rate(rules.ACT_MULTIPLIERS[kind], earnings) or _overtime_component(),
+                   hourly, rules.ACT_MULTIPLIERS[kind])
     # a weekday for those whose gross is above the line pays 1x (§4.12)
-    if not frappe.db.exists(TYPE, rules.HIGHER_EARNERS):
-        try:
-            doc = frappe.get_doc({
-                "doctype": TYPE, "__newname": rules.HIGHER_EARNERS,
-                "overtime_salary_component": component,
-                "standard_multiplier": rules.HIGHER_EARNER_MULTIPLIER,
-                "custom_gross_above": rules.GROSS_THRESHOLD,
-                "applicable_for_weekend": 1,
-                "weekend_multiplier": rules.ACT_MULTIPLIERS[rules.REST_DAY],
-                "applicable_for_public_holiday": 1,
-                "public_holiday_multiplier": rules.ACT_MULTIPLIERS[rules.PUBLIC_HOLIDAY],
-                "overtime_calculation_method": "Salary Component Based",
-            })
-            doc.flags.ignore_permissions = True
-            doc.insert()
-        except Exception:
-            frappe.log_error(title="HRMS Addon: seeding the higher earners' overtime type")
+    if higher:
+        _make_type(rules.HIGHER_EARNERS,
+                   rules.component_for_rate(rules.HIGHER_EARNER_MULTIPLIER, earnings) or weekday_component
+                   or _overtime_component(),
+                   hourly, rules.HIGHER_EARNER_MULTIPLIER, gross_above=rules.GROSS_THRESHOLD)
+
+
+def _hourly_components():
+    """The earnings the active salary structures work out from the base."""
+    structures = set(frappe.get_all("Salary Structure", filters={"docstatus": 1, "is_active": "Yes"},
+                                    pluck="name"))
+    found = []
+    for row in frappe.get_all("Salary Detail", filters={"parenttype": "Salary Structure", "parentfield": "earnings"},
+                              fields=["parent", "salary_component", "formula", "amount_based_on_formula",
+                                      "statistical_component", "do_not_include_in_total"], order_by="idx asc"):
+        if row.parent in structures and rules.works_from_base(row) and row.salary_component not in found:
+            found.append(row.salary_component)
+    return found
+
+
+def _make_type(name, component, hourly, standard, gross_above=None):
+    values = {
+        "doctype": TYPE, "__newname": name, "overtime_salary_component": component,
+        "overtime_calculation_method": "Salary Component Based",
+        "applicable_salary_component": [{"salary_component": earning} for earning in hourly],
+        "standard_multiplier": standard,
+        "applicable_for_weekend": 1, "weekend_multiplier": rules.ACT_MULTIPLIERS[rules.REST_DAY],
+        "applicable_for_public_holiday": 1,
+        "public_holiday_multiplier": rules.ACT_MULTIPLIERS[rules.PUBLIC_HOLIDAY],
+    }
+    if gross_above:
+        values["custom_gross_above"] = gross_above
+    try:
+        doc = frappe.get_doc(values)
+        doc.flags.ignore_permissions = True
+        doc.insert()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: making the %s overtime type" % name)
+        print("HRMS Addon: the %s overtime type could not be made. See the Error Log." % name)
 
 
 def _overtime_component():
