@@ -222,8 +222,9 @@ print("custom fields: names, links, selects, HTML, insert_after chains checked")
 
 # ── 2. Same-name mapping Job Requisition -> Job Opening ──────────────
 jr, jo = by_dt.get("Job Requisition", {}), by_dt.get("Job Opening", {})
-# Job Opening fields about its careers page, not the requisition's content
-JOB_OPENING_ONLY = {"custom_show_job_description"}
+# Job Opening fields about its careers page and its applicants' screening,
+# not the requisition's content
+JOB_OPENING_ONLY = {"custom_show_job_description", "custom_pass_mark", "custom_screening_questions"}
 mapped = 0
 for fn, f in jo.items():
     if f["fieldtype"] in BREAKS or fn in JOB_OPENING_ONLY:
@@ -570,8 +571,10 @@ if by_dt.get(JA):
     # Salary history and expectation, on HRMS's own tab; the score sheet
     # (LPL/HR/17) prints them for every panel member
     SALARY_FIELDS = {"custom_previous_salary", "custom_current_benefits", "custom_expected_benefits", "custom_notice_period"}
-    # the opening's Branch, beside the Job Opening and Designation
-    DETAILS_FIELDS = {"custom_branch"}
+    # the opening's Branch, beside the Job Opening and Designation; the
+    # screening answers and the CV's text, with the CV
+    DETAILS_FIELDS = {"custom_branch", "custom_cv_text", "custom_cv_read_from", "custom_screening_section",
+                      "custom_screening_answers"}
     BIO_SECTIONS = [
         "Personal Information",
         "Parents' Details",

@@ -528,8 +528,10 @@ if not (perms.get("Interviewer") or {}).get("read") or (perms.get("Interviewer")
     fail.append("the panel (Interviewer) may read the shortlist but not change it")
 cand = doctype_json("Interview Shortlist Candidate")
 cand_fields = fields_of(cand)
-if list(cand_fields) != ["job_applicant", "applicant_name", "phone_number", "email_id", "education", "work_experience",
-                         "certifications", "hr_remarks", "hod_remarks", "interview"] or not cand.get("istable"):
+if list(cand_fields) != ["job_applicant", "applicant_name", "match_score", "screening_result", "phone_number",
+                         "email_id", "education", "work_experience", "certifications", "screening_section",
+                         "experience_years", "flags", "screening_cb", "matched", "missing", "to_check",
+                         "remarks_section", "hr_remarks", "hod_remarks", "interview"] or not cand.get("istable"):
     fail.append("Interview Shortlist Candidate's fields are not the shortlist's columns: %s" % list(cand_fields))
 if not (cand_fields.get("interview") or {}).get("allow_on_submit"):
     fail.append("Interview Shortlist Candidate.interview is set after submit, so it needs allow_on_submit")

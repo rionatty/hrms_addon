@@ -6,7 +6,8 @@
  "engine": "InnoDB",
  "field_order": [
   "category",
-  "competency"
+  "competency",
+  "priority"
  ],
  "fields": [
   {
@@ -25,12 +26,21 @@
    "options": "Skill",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 7
+   "columns": 5
+  },
+  {
+   "fieldname": "priority",
+   "fieldtype": "Link",
+   "label": "Priority",
+   "options": "JD Requirement Priority",
+   "default": "Preferred",
+   "in_list_view": 1,
+   "columns": 2
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-16 20:00:00.000000",
+ "modified": "2026-09-24 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "JD Competency",

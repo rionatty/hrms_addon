@@ -227,6 +227,8 @@ jinja = {
 #    see hrms_addon/onboarding.py.
 after_install = [
     "hrms_addon.hrms_addon.pick_lists.after_install",
+    # what each JD priority counts for in the CV screening
+    "hrms_addon.hrms_addon.cv_screening.set_priority_weights",
     "hrms_addon.hrms_addon.bio_data.after_install",
     "hrms_addon.hrms_addon.interviews.after_install",
     "hrms_addon.hrms_addon.onboarding.after_install",
@@ -478,6 +480,9 @@ fixtures = [
                     "Job Opening-custom_reporting_cb",
                     "Job Opening-custom_subordinates",
                     "Job Opening-custom_show_job_description",
+                    "Job Opening-custom_screening_section",
+                    "Job Opening-custom_pass_mark",
+                    "Job Opening-custom_screening_questions",
                     "Department-custom_position_category",
                     "Designation-custom_jd_tab",
                     "Designation-custom_jd_details_section",
@@ -534,6 +539,10 @@ fixtures = [
                     "Job Applicant-custom_current_benefits",
                     "Job Applicant-custom_expected_benefits",
                     "Job Applicant-custom_notice_period",
+                    "Job Applicant-custom_cv_text",
+                    "Job Applicant-custom_cv_read_from",
+                    "Job Applicant-custom_screening_section",
+                    "Job Applicant-custom_screening_answers",
                     "Job Applicant-custom_bio_data_tab",
                     "Job Applicant-custom_personal_section",
                     "Job Applicant-custom_date_of_birth",
@@ -1299,8 +1308,12 @@ doc_events = {
         "validate": "hrms_addon.hrms_addon.designation.validate",
     },
     "Job Applicant": {
-        # Pre-Interview Bio-Data (LPL/HR/19): dates, years, repeated rows
-        "validate": "hrms_addon.hrms_addon.bio_data.validate",
+        # Pre-Interview Bio-Data (LPL/HR/19): dates, years, repeated rows;
+        # then the CV read and the screening answers lined up (cv_screening.py)
+        "validate": [
+            "hrms_addon.hrms_addon.bio_data.validate",
+            "hrms_addon.hrms_addon.cv_screening.applicant_validate",
+        ],
     },
     "Interview Feedback": {
         # Score sheet (LPL/HR/17): totals, rating and result from the scores

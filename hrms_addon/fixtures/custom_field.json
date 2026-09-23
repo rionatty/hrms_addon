@@ -564,6 +564,39 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Job Opening-custom_screening_section",
+  "dt": "Job Opening",
+  "fieldname": "custom_screening_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_show_job_description",
+  "label": "Screening",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_pass_mark",
+  "dt": "Job Opening",
+  "fieldname": "custom_pass_mark",
+  "fieldtype": "Percent",
+  "insert_after": "custom_screening_section",
+  "label": "Pass Mark",
+  "default": "60",
+  "description": "The lowest match score that meets the job.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Opening-custom_screening_questions",
+  "dt": "Job Opening",
+  "fieldname": "custom_screening_questions",
+  "fieldtype": "Table",
+  "insert_after": "custom_pass_mark",
+  "label": "Screening Questions",
+  "options": "Screening Question",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Department-custom_position_category",
   "dt": "Department",
   "fieldname": "custom_position_category",
@@ -1535,6 +1568,55 @@
   "insert_after": "custom_declaration_cb",
   "label": "Signed Bio-Data Form",
   "description": "Scan of the signed form.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_cv_text",
+  "dt": "Job Applicant",
+  "fieldname": "custom_cv_text",
+  "fieldtype": "Long Text",
+  "insert_after": "resume_attachment",
+  "label": "CV Text",
+  "hidden": 1,
+  "read_only": 1,
+  "no_copy": 1,
+  "print_hide": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_cv_read_from",
+  "dt": "Job Applicant",
+  "fieldname": "custom_cv_read_from",
+  "fieldtype": "Data",
+  "insert_after": "custom_cv_text",
+  "label": "CV Read From",
+  "hidden": 1,
+  "read_only": 1,
+  "no_copy": 1,
+  "print_hide": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_screening_section",
+  "dt": "Job Applicant",
+  "fieldname": "custom_screening_section",
+  "fieldtype": "Section Break",
+  "insert_after": "notes",
+  "label": "Screening Questions",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Job Applicant-custom_screening_answers",
+  "dt": "Job Applicant",
+  "fieldname": "custom_screening_answers",
+  "fieldtype": "Table",
+  "insert_after": "custom_screening_section",
+  "label": "Answers",
+  "options": "Screening Answer",
   "module": "HRMS Addon"
  },
  {

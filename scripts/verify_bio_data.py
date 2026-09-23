@@ -434,8 +434,11 @@ for node in ast.parse(hooks_src).body:
         except ValueError:
             pass
 
-if (hooks.get("doc_events") or {}).get("Job Applicant", {}).get("validate") != "hrms_addon.hrms_addon.bio_data.validate":
-    fail.append("doc_events Job Applicant validate must be hrms_addon.hrms_addon.bio_data.validate")
+applicant_validate = (hooks.get("doc_events") or {}).get("Job Applicant", {}).get("validate")
+if isinstance(applicant_validate, str):
+    applicant_validate = [applicant_validate]
+if list(applicant_validate or [])[:1] != ["hrms_addon.hrms_addon.bio_data.validate"]:
+    fail.append("doc_events Job Applicant validate must run hrms_addon.hrms_addon.bio_data.validate first")
 if "bio_data_rules.bio_data_errors(doc.as_dict(), today())" not in glue:
     fail.append("bio_data.validate must apply the tested rules to the whole document, tables included")
 OVERRIDES = {

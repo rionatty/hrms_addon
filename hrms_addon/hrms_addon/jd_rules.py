@@ -96,6 +96,7 @@ JD_FIELD_MASTERS = {
     ("JD Job Specification", "specification_type"): "JD Specification Type",
     ("JD Job Specification", "priority"): "JD Requirement Priority",
     ("JD Competency", "category"): "JD Competency Category",
+    ("JD Competency", "priority"): "JD Requirement Priority",
 }
 
 # Every pick list, and every (DocType, field) that picks from one
@@ -385,6 +386,7 @@ def uploaded_value(fieldtype, value):
     - Percent: a percentage cell is written "25%". Without the "%" it is
       25; anything still not a number comes back unchanged for
       key_result_area_errors to report.
+    - Float: years may be written "5 years"; the word is dropped.
     - Text: Excel's plain "CSV" format is Windows-1252, and Frappe reads a
       file that is not UTF-8 as Latin-1 (get_decoded_string in
       frappe/public/js/frappe/utils/utils.js). The two agree except at
@@ -395,10 +397,15 @@ def uploaded_value(fieldtype, value):
     """
     if not isinstance(value, str):
         return value
-    if fieldtype == "Percent":
+    if fieldtype in ("Percent", "Float"):
         text = value.strip()
-        if text.endswith("%"):
+        if fieldtype == "Percent" and text.endswith("%"):
             text = text[:-1].strip()
+        if fieldtype == "Float":
+            for word in ("years", "year", "yrs", "yr"):
+                if text.lower().endswith(word):
+                    text = text[:-len(word)].strip()
+                    break
         number = _number(text)
         return value if number is None else number
     if fieldtype in TEXT_FIELDTYPES:

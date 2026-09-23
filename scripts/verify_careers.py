@@ -223,11 +223,13 @@ if mandatory != ["applicant_name", "email_id"] or first_page_mandatory != mandat
 ONBOARDING_ONLY = {"custom_parents", "custom_next_of_kin"}
 # The Branch is the Job Opening's (fetched, read-only): never asked
 FROM_THE_OPENING = {"custom_branch"}
+# Read from the uploaded CV: never asked
+FROM_THE_CV = {"custom_cv_text", "custom_cv_read_from"}
 bio_fields = {fn for fn, f in applicant.items()
               if fn.startswith("custom_") and f["fieldtype"] not in ("Section Break", "Column Break", "Tab Break")
               and fn not in ("custom_bio_data_date", "custom_signed_bio_data")}
 on_form = {row.get("fieldname") for row in rows}
-missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING)
+missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING - FROM_THE_CV)
 if missing:
     fail.append("Bio-Data fields missing from the online form: %s" % missing)
 if FROM_THE_OPENING & on_form:

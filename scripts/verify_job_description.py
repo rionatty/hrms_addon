@@ -334,8 +334,8 @@ EXPECTED_TABLE_FIELDS = {
     "JD Decision Authority": ["authority_level", "decisions", "constraints"],
     "JD Planning Horizon": ["horizon", "work_cycle"],
     "JD ISO Responsibility": ["standard", "accountabilities"],
-    "JD Job Specification": ["specification_type", "requirement", "priority"],
-    "JD Competency": ["category", "competency"],
+    "JD Job Specification": ["specification_type", "requirement", "keywords", "minimum_years", "priority"],
+    "JD Competency": ["category", "competency", "priority"],
 }
 if set(rules.TABLES.values()) != set(EXPECTED_TABLE_FIELDS):
     fail.append("jd_rules.TABLES %s differ from the expected tables" % sorted(rules.TABLES.values()))
@@ -738,7 +738,7 @@ if sorted(rules.UPLOADABLE_TABLES) != flagged:
                 % (sorted(rules.UPLOADABLE_TABLES), flagged))
 
 # Every uploaded column is either Frappe's to check (Link) or cleaned
-CLEANED = ("Link", "Percent") + tuple(rules.TEXT_FIELDTYPES)
+CLEANED = ("Link", "Percent", "Float") + tuple(rules.TEXT_FIELDTYPES)
 UPSTREAM_TABLES = {rules.SKILLS_TABLE: "Designation Skill"}  # not ours: checked against hrms/setup.py below
 columns = 0
 for fieldname in rules.UPLOADABLE_TABLES:
@@ -768,6 +768,11 @@ for fieldtype, value, expected in (
     ("Percent", "12,5", "12,5"),      # a decimal comma is not 125
     ("Percent", "#VALUE!", "#VALUE!"),
     ("Percent", "nan", "nan"),
+    ("Float", "5", 5.0),
+    ("Float", " 3 years ", 3.0),
+    ("Float", "1 yr", 1.0),
+    ("Float", "", 0.0),
+    ("Float", "several", "several"),
     ("Small Text", "Bachelor\x92s degree \x96 \x93IMS\x94 \x95 5\x80", "Bachelor’s degree – “IMS” • 5€"),
     ("Data", "PE\x81/Kawempe", "PE/Kawempe"),  # unused in Windows-1252: dropped
     ("Data", "Café – Ōsaka’s", "Café – Ōsaka’s"),  # already right: untouched

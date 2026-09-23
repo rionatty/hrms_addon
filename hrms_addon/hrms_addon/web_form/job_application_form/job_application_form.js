@@ -23,8 +23,32 @@ window.hrms_addon_apply = {
 		frappe.call({
 			method: "hrms_addon.hrms_addon.careers.get_opening_summary",
 			args: { job_opening: job_opening },
-			callback: (r) => this.show_opening(r.message),
+			callback: (r) => {
+				this.show_opening(r.message);
+				this.show_questions(r.message);
+			},
 		});
+	},
+
+	// The opening's screening questions, one row each, to answer: the
+	// applicant neither adds nor removes rows.
+	show_questions(opening) {
+		const field = frappe.web_form.fields_dict.custom_screening_answers;
+		const questions = (opening && opening.screening_questions) || [];
+		if (!field || !questions.length) {
+			return;
+		}
+		field.df.cannot_add_rows = true;
+		field.df.cannot_delete_rows = true;
+		field.df.data = questions.map((question, index) => ({
+			idx: index + 1,
+			question: question.question,
+			question_id: question.name,
+			answer_type: question.answer_type === "Number" ? __("A number") : __("Yes or No"),
+			answer: "",
+		}));
+		frappe.web_form.set_df_property("custom_screening_answers", "hidden", 0);
+		field.grid.refresh();
 	},
 
 	private_uploads() {

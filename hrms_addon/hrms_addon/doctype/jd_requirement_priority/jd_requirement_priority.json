@@ -8,6 +8,8 @@
  "engine": "InnoDB",
  "field_order": [
   "priority",
+  "weight",
+  "must_have",
   "description"
  ],
  "fields": [
@@ -19,13 +21,28 @@
    "reqd": 1
   },
   {
+   "fieldname": "weight",
+   "fieldtype": "Int",
+   "label": "Weight",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "description": "How much it counts in the screening score."
+  },
+  {
+   "fieldname": "must_have",
+   "fieldtype": "Check",
+   "label": "Must Have",
+   "in_list_view": 1,
+   "description": "An applicant who does not meet it does not qualify."
+  },
+  {
    "fieldname": "description",
    "fieldtype": "Small Text",
    "label": "Description"
   }
  ],
  "links": [],
- "modified": "2026-09-17 12:00:00.000000",
+ "modified": "2026-09-24 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "JD Requirement Priority",

@@ -68,4 +68,11 @@ def get_opening_summary(job_opening):
         "is_open": opening.status == "Open",
         "closes_on": format_date(opening.closes_on, "d MMM, YYYY") if opening.closes_on else None,
         "route": "/" + opening.route if opening.route else None,
+        # the questions only: never the answers the job needs
+        "screening_questions": frappe.get_all(
+            "Screening Question",
+            filters={"parent": job_opening, "parenttype": "Job Opening", "parentfield": "custom_screening_questions"},
+            fields=["name", "question", "answer_type"],
+            order_by="idx asc",
+        ),
     }

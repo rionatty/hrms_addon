@@ -33,6 +33,7 @@ frappe.ui.form.on("Interview Shortlist", {
 			frm.add_custom_button(__("Get Applicants"), () => ha_get_applicants(frm));
 			if ((frm.doc.candidates || []).length) {
 				frm.add_custom_button(__("Refresh Details"), () => ha_refresh_details(frm));
+				frm.add_custom_button(__("Sort by Match"), () => ha_sort_by_match(frm));
 			}
 		}
 		const unscheduled = (frm.doc.candidates || []).filter((row) => !row.interview);
@@ -91,8 +92,23 @@ function ha_fill_row(row, details) {
 	if (!details) {
 		return;
 	}
-	["job_applicant", "applicant_name", "phone_number", "email_id", "education", "work_experience", "certifications"]
+	["job_applicant", "applicant_name", "phone_number", "email_id", "education", "work_experience", "certifications",
+		"screening_result", "matched", "missing", "to_check", "flags"]
 		.forEach((field) => (row[field] = details[field] || ""));
+	["match_score", "experience_years"].forEach((field) => (row[field] = details[field] ?? null));
+}
+
+// Meets first, then Below Pass Mark, then Does Not Meet, then the ones
+// nothing could be checked for; the highest match first within each.
+function ha_sort_by_match(frm) {
+	const order = { Meets: 0, "Below Pass Mark": 1, "Does Not Meet": 2 };
+	const rank = (row) => (row.screening_result in order ? order[row.screening_result] : 3);
+	frm.doc.candidates.sort(
+		(a, b) => rank(a) - rank(b) || flt(b.match_score) - flt(a.match_score) || a.idx - b.idx
+	);
+	frm.doc.candidates.forEach((row, index) => (row.idx = index + 1));
+	frm.refresh_field("candidates");
+	frm.dirty();
 }
 
 function ha_schedule_interviews(frm, count) {
