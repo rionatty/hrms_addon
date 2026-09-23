@@ -14,7 +14,19 @@ $(document).on("app_ready", () => {
 	const utils = frappe.search && frappe.search.utils;
 	if (!utils || !utils.make_function_searchable) return;
 	if (!frappe.model.can_read("Employee Advance")) return;
-	for (const kind of ["Salary Advance", "Leave Advance", "Special Advance"]) {
+	if (frappe.model.can_read("Salary Advance Request")) {
+		utils.make_function_searchable(
+			() => frappe.set_route("List", "Salary Advance Request"),
+			__("Salary Advance")
+		);
+		if (frappe.model.can_create("Salary Advance Request")) {
+			utils.make_function_searchable(
+				() => frappe.new_doc("Salary Advance Request"),
+				__("New Salary Advance")
+			);
+		}
+	}
+	for (const kind of ["Leave Advance", "Special Advance"]) {
 		utils.make_function_searchable(
 			() => frappe.set_route("List", "Employee Advance", { custom_advance_type: kind }),
 			__(kind)

@@ -258,6 +258,99 @@ def entitled(kind, gross, pay_category=None, settings=None, average_gross=None):
     return round(gross * _num(s["special_percent"]) / 100.0, 2) if gross else None
 
 
+# ── The Salary Advance Request and the monthly run ────────────────────
+# The employee applies once. The request stays active, month after month,
+# until its last month or until it is stopped; each month's run picks it up
+# and checks the conditions again for that month.
+REQUEST_ACTIVE, REQUEST_STOPPED, REQUEST_ENDED = "Active", "Stopped", "Ended"
+ASK_AMOUNT = "Say how much is being asked for."
+NO_GROSS = "No gross pay on record."
+NO_REQUEST = "No approved Salary Advance Request."
+PAYMENT_METHODS = ("Cheque", "Bank Transfer", "Cash")
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
+
+
+def request_errors(facts):
+    """Problems with a request as it is sent for approval.
+
+    facts: "employee", "first_month", "until_month", "amount", "today".
+    """
+    errors = []
+    if not facts.get("employee"):
+        errors.append("Select the employee.")
+    first, until = _date(facts.get("first_month")), _date(facts.get("until_month"))
+    now = _date(facts.get("today"))
+    if not first:
+        errors.append("Enter the month the advance starts.")
+    elif until and (until.year, until.month) < (first.year, first.month):
+        errors.append("The last month cannot be before the first month.")
+    elif until and now and (until.year, until.month) < (now.year, now.month):
+        errors.append("The last month has already passed.")
+    if _num(facts.get("amount")) < 0:
+        errors.append("The amount cannot be negative.")
+    return errors
+
+
+def joins_run(request, processed_on, settings=None):
+    """Whether a request is paid in the run processed on this date, and if
+    not, why.
+
+    request: "status", "approved_on", "first_month", "until_month".
+    A request approved after the run's closing day waits for the next one.
+    """
+    processed_on = _date(processed_on)
+    month = (processed_on.year, processed_on.month)
+    if request.get("status") != REQUEST_ACTIVE:
+        return False, "The request is %s." % (request.get("status") or "not active").lower()
+    first, until = _date(request.get("first_month")), _date(request.get("until_month"))
+    if first and (first.year, first.month) > month:
+        return False, "The request starts in %s %d." % (MONTHS[first.month - 1], first.year)
+    if until and (until.year, until.month) < month:
+        return False, "The request ended in %s %d." % (MONTHS[until.month - 1], until.year)
+    approved = _date(request.get("approved_on"))
+    deadline = request_deadline(processed_on, settings)
+    if not approved or approved > deadline:
+        return False, "Approved after requests closed on %s." % _day(deadline)
+    return True, None
+
+
+def line_amount(entitlement, requested):
+    """What is paid: the amount asked for, up to what is allowed; the full
+    amount allowed when nothing in particular was asked for; nothing when
+    the allowance cannot be worked out."""
+    entitlement, requested = _num(entitlement), _num(requested)
+    if 0 < requested < entitlement:
+        return round(requested, 2)
+    return round(entitlement, 2)
+
+
+def run_errors(facts, settings=None):
+    """Why the month's run cannot be submitted yet.
+
+    facts: "processing_date", "today", "unconfirmed" (plants not yet
+    confirmed), "included" (lines to pay), "bank_account",
+    "payment_method", "reference_no", "reference_date".
+    """
+    errors = []
+    held = held_until(facts.get("processing_date"), facts.get("today"), settings)
+    if held:
+        errors.append(held)
+    unconfirmed = list(facts.get("unconfirmed") or ())
+    if unconfirmed:
+        errors.append("Attendance and leave are not yet confirmed for: %s." % ", ".join(unconfirmed))
+    if not int(facts.get("included") or 0):
+        errors.append("Nobody in this run is included for payment.")
+    if not facts.get("bank_account"):
+        errors.append("Select the bank or cash account the advances are paid from.")
+    method = facts.get("payment_method")
+    if method not in PAYMENT_METHODS:
+        errors.append("Select the payment method: %s." % ", ".join(PAYMENT_METHODS))
+    elif method != "Cash" and not (facts.get("reference_no") and facts.get("reference_date")):
+        errors.append("Enter the cheque or reference number and its date.")
+    return errors
+
+
 def held_until(processed_on, today, settings=None):
     """Why a salary advance may not go to Finance yet, or None.
 
@@ -301,7 +394,7 @@ def eligibility_errors(facts, settings=None):
         errors += _special_errors(facts, s)
     amount = _num(facts.get("amount"))
     if amount <= 0:
-        errors.append("Say how much is being asked for.")
+        errors.append(ASK_AMOUNT)
     ceiling = entitled(kind, facts.get("gross_pay"), facts.get("pay_category"), s, facts.get("average_gross"))
     if ceiling is not None and amount > ceiling:
         errors.append("The most that may be advanced is %s, %s." % (_money(ceiling), _because(kind, facts, s)))

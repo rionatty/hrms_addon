@@ -9,6 +9,20 @@
 // no `bench build`.
 
 frappe.ui.form.on("Employee Advance", {
+	setup(frm) {
+		// Frappe HR's own filter warns that no employee is selected when the
+		// account is filled from the employee before the employee is stored
+		// on the form. Same filter, without the warning.
+		frm.set_query("advance_account", () => ({
+			filters: {
+				root_type: "Asset",
+				is_group: 0,
+				company: frm.doc.company,
+				account_currency: frm.doc.currency,
+				account_type: "Receivable",
+			},
+		}));
+	},
 	refresh(frm) {
 		frm.trigger("show_eligibility");
 		frm.trigger("show_recovery");

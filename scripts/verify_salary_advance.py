@@ -148,6 +148,72 @@ if V.held_until("2026-09-15", "2026-09-15") is not None:
     fail.append("but it does on the day")
 if V.held_until("2026-09-15", "2026-09-14", {"salary_hold_until_processing": 0}) is not None:
     fail.append("and holding it is a setting")
+
+# the request: one application, paid month after month while it is active
+expect("a request with no employee", V.request_errors({"first_month": "2026-09-01"}), "Select the employee")
+expect("a request with no first month", V.request_errors({"employee": "E1"}), "month the advance starts")
+expect("a request that ends before it starts", V.request_errors(
+    {"employee": "E1", "first_month": "2026-10-01", "until_month": "2026-09-01"}), "before the first month")
+expect("a request whose last month has passed", V.request_errors(
+    {"employee": "E1", "first_month": "2026-07-01", "until_month": "2026-08-01", "today": "2026-09-08"}),
+    "already passed")
+expect("a request whose last month is this month", V.request_errors(
+    {"employee": "E1", "first_month": "2026-09-01", "until_month": "2026-09-01", "today": "2026-09-08"}))
+expect("a request for a negative amount", V.request_errors(
+    {"employee": "E1", "first_month": "2026-09-01", "amount": -5}), "negative")
+expect("a request with no last month runs until it is stopped", V.request_errors(
+    {"employee": "E1", "first_month": "2026-09-01"}))
+expect("a request for one month", V.request_errors(
+    {"employee": "E1", "first_month": "2026-09-08", "until_month": "2026-09-01"}))
+ACTIVE = {"status": V.REQUEST_ACTIVE, "approved_on": "2026-09-10", "first_month": "2026-09-01",
+          "until_month": "2026-12-01"}
+for request, on, joined, why in (
+    (ACTIVE, "2026-09-15", True, "an active request approved in time is paid in its first month"),
+    (ACTIVE, "2026-11-13", True, "and in the months after it, without applying again"),
+    (ACTIVE, "2026-12-15", True, "up to and including its last month"),
+    (dict(ACTIVE, until_month="2026-10-01"), "2026-11-13", False, "but not after its last month"),
+    (dict(ACTIVE, first_month="2026-10-01"), "2026-09-15", False, "nor before its first"),
+    (dict(ACTIVE, approved_on="2026-09-13"), "2026-09-15", False, "approved after requests close, it waits"),
+    (dict(ACTIVE, approved_on="2026-09-13"), "2026-10-14", True, "for the next month"),
+    (dict(ACTIVE, status=V.REQUEST_STOPPED), "2026-10-14", False, "a stopped request is not paid"),
+    (dict(ACTIVE, status=V.REQUEST_ENDED), "2026-10-14", False, "nor an ended one"),
+    (dict(ACTIVE, approved_on=None), "2026-09-15", False, "nor one never approved"),
+    (dict(ACTIVE, until_month=None), "2027-06-15", True, "with no last month it carries on"),
+):
+    if V.joins_run(request, on)[0] is not joined:
+        fail.append("joins_run: %s (%s)" % (why, V.joins_run(request, on)))
+if "12 Sep 2026" not in (V.joins_run(dict(ACTIVE, approved_on="2026-09-13"), "2026-09-15")[1] or ""):
+    fail.append("a late request says when requests closed")
+if V.joins_run(dict(ACTIVE, approved_on="2026-09-13"), "2026-09-15",
+               {"salary_request_days_before": 0})[0] is not True:
+    fail.append("the closing day for requests is a setting")
+
+# the amount on each line
+for entitlement, requested, paid, why in (
+    (400000, 0, 400000, "nothing in particular asked for: the full amount allowed"),
+    (400000, 250000, 250000, "less asked for: what was asked"),
+    (400000, 500000, 400000, "more asked for: no more than allowed"),
+    (None, 250000, 0, "no gross pay on record: nothing paid"),
+    (0, 250000, 0, "nothing allowed: nothing paid"),
+):
+    if V.line_amount(entitlement, requested) != paid:
+        fail.append("line_amount: %s (%s)" % (why, V.line_amount(entitlement, requested)))
+
+# what holds the run back
+READY = {"processing_date": "2026-09-15", "today": "2026-09-15", "unconfirmed": [], "included": 2,
+         "bank_account": "Stanbic - LPL", "payment_method": "Cheque", "reference_no": "004512",
+         "reference_date": "2026-09-15"}
+expect("a run ready to go", V.run_errors(READY))
+expect("a run before its day", V.run_errors(dict(READY, today="2026-09-14")), "processed on 15 Sep 2026")
+expect("a run with a plant not confirmed", V.run_errors(dict(READY, unconfirmed=["Kawempe"])), "Kawempe")
+expect("a run paying nobody", V.run_errors(dict(READY, included=0)), "Nobody in this run")
+expect("a run with no account to pay from", V.run_errors(dict(READY, bank_account=None)), "account")
+expect("a run with no payment method", V.run_errors(dict(READY, payment_method=None)), "payment method")
+expect("a cheque with no number", V.run_errors(dict(READY, reference_no=None)), "reference number")
+expect("a transfer with no date", V.run_errors(dict(READY, payment_method="Bank Transfer",
+                                                    reference_date=None)), "reference number")
+expect("cash needs no reference", V.run_errors(dict(READY, payment_method="Cash", reference_no=None,
+                                                    reference_date=None)))
 print("the day: the 15th or the working day before, the run a request joins, and the hold")
 
 # ── 3. The attendance ─────────────────────────────────────────────────
@@ -272,27 +338,90 @@ if "PENDING_PAYROLL" not in step or "PENDING_FINANCE" not in step or "rules.held
     fail.append("the Payroll Officer ticks only the qualifying (§4.9): on passing a salary advance "
                 "to Finance the eligibility is asked again and the processing date is held to")
 
-if "_watch_salary_run()" not in body("daily"):
-    fail.append("step 2 of chart 4.10, the system monitoring the payment date, runs every day")
-watch = body("_watch_salary_run")
-if "rules.request_deadline(" not in watch or "_work_out_again(" not in watch:
-    fail.append("it tells the HR Officers when a run closes, and works the run out again on the day")
-again = body("_work_out_again")
-for needle in ("_plan_salary(", "_check_eligibility(", "db_set("):
-    if needle not in again:
-        fail.append("on the processing date each request is recounted and its result written down (%s)"
-                    % needle)
-if "Payroll Officer" not in again:
-    fail.append("and the Payroll Officer is given the ones that still qualify")
-# both reminders go to people who already hold the request on their list
-# from the workflow, and people.assign will not put a document there twice
-# — a task would be dropped, silently, on exactly the day it matters
-for name, where in (("_tell_run_closed", "the day requests close"),
-                    ("_work_out_again", "the processing date")):
-    told = body(name)
-    if "people.assign(" in told or "people.notify(" not in told:
-        fail.append("the reminder on %s must be a notification: the person already holds the "
-                    "request as a task, and a second task is silently skipped" % where)
+# a salary advance is requested once and paid through the monthly run,
+# processed the way a payroll is (minutes \u00a74.9)
+if 'doc.custom_advance_type == rules.SALARY_ADVANCE and doc.is_new() and not from_run' not in validate \
+        or "Salary Advance Request" not in validate:
+    fail.append("a salary advance is not raised on the advance form: it comes from the monthly run")
+if "_tell_paid(doc, scheduled)" not in body("advance_on_submit") \
+        or 'if not doc.get("custom_salary_advance_run")' not in body("advance_on_submit"):
+    fail.append("the run tells everyone once, not once for each advance it makes")
+AA = load("advance_approval")
+process = [t for t in AA.TRANSITIONS if t["action"] == AA.PROCESS]
+if not process or any((t["state"], t["next_state"], t["condition"]) != (AA.DRAFT, AA.PAID, AA.FROM_RUN)
+                      for t in process) or {t["allowed"] for t in process} != {AA.PAYROLL, AA.HRM}:
+    fail.append("the run's advances go from Draft to Paid in one step, by the Payroll Officer or HR Manager")
+RA = load("advance_request_approval")
+walked, state = [RA.DRAFT], RA.DRAFT
+for action in (RA.SUBMIT, RA.APPROVE):
+    state = next(t["next_state"] for t in RA.TRANSITIONS if t["state"] == state and t["action"] == action)
+    walked.append(state)
+if walked != [RA.DRAFT, RA.PENDING_SUPERVISOR, RA.APPROVED]:
+    fail.append("the request goes to the Section In-Charge or Supervisor, who approves it: %s" % walked)
+if {t["allowed"] for t in RA.TRANSITIONS if t["state"] == RA.PENDING_SUPERVISOR} != set(RA.SUPERVISORS):
+    fail.append("only a supervisor acts on a request waiting for one")
+run = read("hrms_addon", "hrms_addon", "salary_advances.py")
+
+
+def part(name):
+    if ("def %s(" % name) not in run:
+        fail.append("salary_advances.py has no %s" % name)
+        return ""
+    return run.split("def %s(" % name)[1].split(chr(10) + "def ")[0]
+
+
+for needle, why in (
+    ("rules.eligibility_errors(", "each line is judged by the same conditions as any salary advance"),
+    ("attendance._off_duty_between(", "approved off-duty days are not absences"),
+    ("advances._on_leave(", "somebody on leave on the processing date is removed"),
+    ("advances._bank_loan(", "and somebody with a bank loan"),
+    ("advances._outstanding_elsewhere(", "and somebody still owing an earlier advance"),
+    ("rules.joins_run(", "a request joins only the months it covers, approved in time"),
+    ("min(getdate(today()), processed_on)", "absences are counted to today until the processing date"),
+    ("_paid_this_month(", "nobody is paid twice in a month"),
+):
+    if needle not in part("_work_out"):
+        fail.append("the run's lines: %s" % why)
+if "rules.run_errors(" not in part("run_before_submit") or "_work_out(" not in part("run_before_submit"):
+    fail.append("the run is held to its day, its plants confirmed, and counted again before it is submitted")
+paying = part("run_on_submit")
+if "advance.submit()" not in paying or "approval.PAID" not in paying or "_bank_entry(" not in paying:
+    fail.append("submitting the run makes each advance, passed for payment, and one bank entry for Finance")
+entry = part("_bank_entry")
+if '"reference_type": ADVANCE' not in entry or '"is_advance": "Yes"' not in entry:
+    fail.append("the bank entry pays each advance against itself, so its recovery follows the payment")
+if "people.hr_officers(row.branch)" not in part("_stamp_confirmations"):
+    fail.append("a plant is confirmed by its own HR Officer or the HR Manager")
+migrate_hooks = read("hrms_addon", "hooks.py").split("after_migrate = [", 1)[-1].split(chr(10) + "]", 1)[0]
+if '"hrms_addon.hrms_addon.salary_advances.setup_on_migrate"' not in migrate_hooks:
+    fail.append("the request's workflow is built on migrate")
+if '"hrms_addon.hrms_addon.salary_advances.daily"' not in read("hrms_addon", "hooks.py"):
+    fail.append("requests that have run their course are ended, and the dates are watched, every day")
+if "rules.request_deadline(" not in part("_remind") or "run.save()" not in part("_remind"):
+    fail.append("the day requests close and the processing date are both watched, and the run counted again")
+for name in ("Salary Advance Request", "Salary Advance Processing", "Salary Advance Processing Employee",
+             "Salary Advance Plant Confirmation"):
+    if not os.path.exists(os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype", name.lower().replace(" ", "_"),
+                                       name.lower().replace(" ", "_") + ".json")):
+        fail.append("%s is not there" % name)
+report = os.path.join(REPO, "hrms_addon", "hrms_addon", "report", "advance_payment_report",
+                      "advance_payment_report.py")
+if not os.path.exists(report) or '"include": 1, "qualifies": 1' not in open(report, encoding="utf-8").read():
+    fail.append("the Advance Payment Report lists who is paid in a run, for Finance")
+for form, wanted in (("salary_advance_request", {"stop_request"}),
+                     ("salary_advance_processing", {"get_requests"})):
+    script = read("hrms_addon", "hrms_addon", "doctype", form, form + ".js")
+    calls = re.findall(r'xcall\(\s*"([\w.]+)"', script)
+    if {call.rsplit(".", 1)[1] for call in calls} != wanted:
+        fail.append("%s.js calls %s, expected %s" % (form, calls, sorted(wanted)))
+    for call in calls:
+        module, function = call.rsplit(".", 1)
+        if module != "hrms_addon.hrms_addon.salary_advances" \
+                or ('@frappe.whitelist(methods=["POST"])' + chr(10) + "def %s(" % function) not in run:
+            fail.append("%s.js calls %s, which is not a whitelisted POST function" % (form, call))
+advance_js = read("hrms_addon", "public", "js", "employee_advance.js")
+if 'frm.set_query("advance_account"' not in advance_js or "Please select employee first" in advance_js:
+    fail.append("the Advance Account filter no longer warns about an employee that is already chosen")
 
 controller = read("hrms_addon", "hrms_addon", "doctype", "advance_settings", "advance_settings.py")
 if "advances.settings_validate(self)" not in controller:
@@ -349,6 +478,8 @@ search = read("hrms_addon", "public", "js", "hrms_addon_search.js")
 for kind in ("Salary Advance", "Leave Advance", "Special Advance"):
     if '"%s"' % kind not in search:
         fail.append("the search bar must know %s by name" % kind)
+if 'frappe.set_route("List", "Salary Advance Request")' not in search:
+    fail.append("Salary Advance opens the requests")
 if "make_function_searchable" not in search or "custom_advance_type: kind" not in search:
     fail.append("each advance's name opens the advances of that type, as Frappe's own searchable names do")
 if "/assets/hrms_addon/js/hrms_addon_search.js" not in read("hrms_addon", "hooks.py"):

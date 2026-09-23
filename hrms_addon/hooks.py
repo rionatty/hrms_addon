@@ -335,6 +335,9 @@ after_migrate = [
     # Luuka's three advances on one Workflow, the Advance Type deciding whose
     # desk each lands on. See advance_approval.py.
     "hrms_addon.hrms_addon.advances.setup_workflows_on_migrate",
+    # The Salary Advance Request: the employee applies, the supervisor
+    # approves. See advance_request_approval.py.
+    "hrms_addon.hrms_addon.salary_advances.setup_on_migrate",
     # The allowance application (Supervisor, HR Officer, General Manager,
     # then Accounts) and the Employees Claim Form's five desks. See
     # allowance_approval.py and claim_approval.py.
@@ -898,6 +901,8 @@ fixtures = [
                     "Employee Advance-custom_gross_pay",
                     "Employee Advance-custom_outstanding_before",
                     "Employee Advance-custom_leave_application",
+                    "Employee Advance-custom_salary_advance_request",
+                    "Employee Advance-custom_salary_advance_run",
                     "Employee Advance-custom_reason",
                     "Employee Advance-custom_advance_status",
                     "Employee Advance-custom_eligibility_section",
@@ -1514,6 +1519,10 @@ scheduler_events = {
         # Advances: one waiting to be paid, and one still owed after its
         # last instalment should have been taken (advances.py)
         "hrms_addon.hrms_addon.advances.daily",
+        # Salary advance requests past their last month are ended; the
+        # Payroll Officer and HR are reminded when requests close and on the
+        # processing date (salary_advances.py)
+        "hrms_addon.hrms_addon.salary_advances.daily",
         # An allowance approved and waiting on Accounts (allowances.py)
         "hrms_addon.hrms_addon.allowances.daily",
         # A claim waiting on Accounts, and whose birthday is coming — the

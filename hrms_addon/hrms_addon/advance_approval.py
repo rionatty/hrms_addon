@@ -57,10 +57,12 @@ CANCELLED = "Cancelled"
 SUBMIT = "Submit"
 APPROVE = "Approve"
 PAY = "Pay"
+# a salary advance made by the monthly Salary Advance Processing
+PROCESS = "Process"
 RETURN = "Return"
 REJECT = "Reject"
 CANCEL = "Cancel"
-ACTIONS = (SUBMIT, APPROVE, PAY, RETURN, REJECT, CANCEL)
+ACTIONS = (SUBMIT, APPROVE, PAY, PROCESS, RETURN, REJECT, CANCEL)
 
 PREPARERS = ("HR User", "HR Manager", "Employee")
 HR_OFFICER, HRM = "HR User", "HR Manager"
@@ -87,6 +89,7 @@ IS_LEAVE = 'doc.custom_advance_type == "Leave Advance"'
 IS_SALARY = 'doc.custom_advance_type == "Salary Advance"'
 IS_SPECIAL = 'doc.custom_advance_type == "Special Advance"'
 CONDITIONS = {LEAVE_ADVANCE: IS_LEAVE, SALARY_ADVANCE: IS_SALARY, SPECIAL_ADVANCE: IS_SPECIAL}
+FROM_RUN = "doc.custom_salary_advance_run"
 
 PENDING_STATES = (PENDING_ACCOUNTS_MANAGER, PENDING_HR, PENDING_SECTION_HEAD, PENDING_ED,
                   PENDING_PAYROLL, PENDING_FINANCE)
@@ -126,6 +129,9 @@ TRANSITIONS = (
        "condition": IS_SALARY} for role in PREPARERS),
     *({"state": DRAFT, "action": SUBMIT, "next_state": PENDING_SECTION_HEAD, "allowed": role,
        "condition": IS_SPECIAL} for role in PREPARERS),
+    # a salary advance made by the month's run: the run itself was approved
+    *({"state": DRAFT, "action": PROCESS, "next_state": PAID, "allowed": role, "condition": FROM_RUN}
+      for role in (PAYROLL, HRM)),
     # the leave advance: Accounts Manager, then Payroll
     {"state": PENDING_ACCOUNTS_MANAGER, "action": APPROVE, "next_state": PENDING_PAYROLL,
      "allowed": ACCOUNTS_MANAGER},

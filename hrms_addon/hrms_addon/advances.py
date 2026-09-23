@@ -95,8 +95,12 @@ def advance_validate(doc, method=None):
     if not doc.get("custom_advance_type"):
         doc.custom_advance_type = rules.SALARY_ADVANCE
     s = settings()
+    from_run = doc.get("custom_salary_advance_run")
+    if doc.custom_advance_type == rules.SALARY_ADVANCE and doc.is_new() and not from_run:
+        frappe.throw(_("Salary advances are requested on a Salary Advance Request and paid through the "
+                       "monthly Salary Advance Processing."), title=_("Employee Advance"))
     _stamp_requested(doc)
-    if doc.custom_advance_type == rules.SALARY_ADVANCE:
+    if doc.custom_advance_type == rules.SALARY_ADVANCE and not from_run:
         _plan_salary(doc, s)
     _fill_money(doc, s)
     _check_eligibility(doc, s)
@@ -384,7 +388,9 @@ def advance_on_submit(doc, method=None):
     payment recorded against the advance covers it, which at this point is
     usually nothing yet; everyone the chart names is told."""
     scheduled = schedule_recovery(doc)
-    _tell_paid(doc, scheduled)
+    if not doc.get("custom_salary_advance_run"):
+        # the run tells everyone once, for all its advances
+        _tell_paid(doc, scheduled)
     _mark_leave(doc)
 
 
@@ -607,7 +613,6 @@ def from_leave(leave_application):
 
 # ── 3. The monitoring both charts draw ────────────────────────────────
 def daily():
-    _watch_salary_run()
     _tell_due_to_pay()
     _schedule_paid()
     _tell_recovery()
@@ -624,78 +629,6 @@ def _schedule_paid():
             if scheduled:
                 _tell_scheduled(doc, scheduled)
     frappe.db.commit()
-
-
-def _watch_salary_run(day=None):
-    """Step 2 of chart 4.10: "System monitoring Advance payment date".
-
-    The day a run closes, the HR Officers are told which requests are
-    waiting on them to confirm attendance and leave. On the processing
-    date itself every request in the run is worked out again against the
-    whole period's attendance — three days absent can be four by then —
-    and the Payroll Officer is given the ones that still qualify.
-    """
-    s = settings()
-    day = getdate(day or today())
-    rows = frappe.get_all(DOCTYPE,
-                          filters={"docstatus": 0, "custom_advance_type": rules.SALARY_ADVANCE,
-                                   "custom_processing_date": [">=", day]},
-                          fields=["name", "custom_processing_date"], limit_page_length=0)
-    for row in rows:
-        processed_on = getdate(row.custom_processing_date)
-        if day == rules.request_deadline(processed_on, s):
-            _tell_run_closed(row.name, processed_on)
-        elif day == processed_on:
-            _work_out_again(row.name, s)
-    frappe.db.commit()
-
-
-def _tell_run_closed(name, processed_on):
-    from hrms_addon.hrms_addon import advance_approval as approval
-
-    doc = frappe.get_doc(DOCTYPE, name)
-    if doc.get("workflow_state") != approval.PENDING_HR:
-        return
-    # a notification, not a task: the request is already on the HR
-    # Officer's list from the day it reached them, and people.assign
-    # rightly refuses to put it there twice. This is the reminder.
-    users = people.hr_officers(doc.get("custom_branch"), doc.get("department"))
-    if users:
-        people.notify(users, DOCTYPE, name, _(
-            "Salary advances for {0} have closed. Confirm {1}'s attendance and leave.").format(
-            frappe.utils.format_date(processed_on), doc.get("employee_name") or doc.employee))
-
-
-def _work_out_again(name, s):
-    """The processing date: the eligibility again, on the final count."""
-    from hrms_addon.hrms_addon import advance_approval as approval
-
-    doc = frappe.get_doc(DOCTYPE, name)
-    _plan_salary(doc, s)
-    _fill_money(doc, s)
-    _check_eligibility(doc, s)
-    doc.db_set({field: doc.get(field) for field in (
-        "custom_days_absent", "custom_off_duty_days", "custom_limit", "custom_gross_pay",
-        "custom_outstanding_before", "custom_pay_category", "custom_qualifies",
-        "custom_eligibility_remarks")}, update_modified=False)
-    if doc.get("workflow_state") != approval.PENDING_PAYROLL:
-        return
-    who = doc.get("employee_name") or doc.employee
-    payroll = people.people_for("Payroll Officer", doc.get("custom_branch"), doc.get("department"))
-    if doc.custom_qualifies:
-        # a notification, not a task: the Payroll Officer has held this
-        # request on their list since it reached them, and people.assign
-        # rightly will not put it there twice — so a task here would be
-        # silently dropped on exactly the day it matters
-        if payroll:
-            people.notify(payroll, DOCTYPE, name,
-                          _("Salary advance to process today for {0}.").format(who))
-        return
-    users = list(dict.fromkeys(payroll + people.hr_officers(doc.get("custom_branch"),
-                                                             doc.get("department"))))
-    if users:
-        people.notify(users, DOCTYPE, name, _("{0} no longer qualifies for today's salary advance: {1}").format(
-            who, doc.custom_eligibility_remarks))
 
 
 def _tell_due_to_pay():

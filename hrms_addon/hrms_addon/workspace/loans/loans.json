@@ -38,11 +38,44 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Advances",
-   "link_count": 2,
+   "link_count": 5,
    "link_to": null,
    "link_type": null,
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Salary Advance Request",
+   "link_count": 0,
+   "link_to": "Salary Advance Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "report_ref_doctype": null,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Salary Advance Processing",
+   "link_count": 0,
+   "link_to": "Salary Advance Processing",
+   "link_type": "DocType",
+   "onboard": 0,
+   "report_ref_doctype": null,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Advance Payment Report",
+   "link_count": 0,
+   "link_to": "Advance Payment Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": null,
+   "type": "Link"
   },
   {
    "hidden": 0,

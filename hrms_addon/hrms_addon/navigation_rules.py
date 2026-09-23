@@ -50,7 +50,7 @@ OWN_APP, MODULE = "hrms_addon", "HRMS Addon"
 #   between Performance and Payroll, among the money pages), sections (the
 #   sidebar headers it starts with), under (the app tile it sits in)
 PAGES = (
-    {"label": "Loans", "icon": "loan", "sequence_id": 8.0, "sections": ("Setup",),
+    {"label": "Loans", "icon": "loan", "sequence_id": 8.0, "sections": ("Reports", "Setup"),
      "under": "Frappe HR"},
 )
 PAGE_LABELS = tuple(page["label"] for page in PAGES)
@@ -183,6 +183,9 @@ CARDS = {
             ("Employee Loan", "Employee Loan", DOCTYPE),
         ]),
         ("Advances", [
+            ("Salary Advance Request", "Salary Advance Request", DOCTYPE),
+            ("Salary Advance Processing", "Salary Advance Processing", DOCTYPE),
+            ("Advance Payment Report", "Advance Payment Report", REPORT),
             ("Employee Advance", "Employee Advance", DOCTYPE),
             # the minutes' rules for all three advances (advances.py)
             ("Advance Settings", "Advance Settings", DOCTYPE),
@@ -324,7 +327,10 @@ SIDEBAR = {
     ],
     "Loans": [
         ("Employee Loan", "Employee Loan", DOCTYPE, None, None),
-        ("Employee Advance", "Employee Advance", DOCTYPE, None, "Employee Loan"),
+        ("Salary Advance Request", "Salary Advance Request", DOCTYPE, None, "Employee Loan"),
+        ("Salary Advance Processing", "Salary Advance Processing", DOCTYPE, None, "Salary Advance Request"),
+        ("Employee Advance", "Employee Advance", DOCTYPE, None, "Salary Advance Processing"),
+        ("Advance Payment Report", "Advance Payment Report", REPORT, "Reports", None),
         ("Employee Penalty", "Employee Penalty", DOCTYPE, None, "Employee Advance"),
         ("Advance Settings", "Advance Settings", DOCTYPE, "Setup", None),
         ("Salary Component", "Salary Component", DOCTYPE, "Setup", None),
