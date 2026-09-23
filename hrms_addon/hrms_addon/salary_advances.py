@@ -179,7 +179,7 @@ def _work_out(row, doc, s):
         off_duty = {day for _who, day in attendance._off_duty_between([row.employee], start, upto)}
     row.days_absent = rules.days_absent(absent, off_duty, s)
     row.pay_category = advances._pay_category(row.employee)
-    row.gross_pay = advances._gross_pay(row.employee)
+    row.gross_pay = advances._gross_pay(row.employee, processed_on)
     request = frappe.db.get_value(REQUEST, row.request, ["status", "request_date", "first_month", "until_month",
                                                          "amount"], as_dict=True) \
         if row.get("request") else None
@@ -194,7 +194,7 @@ def _work_out(row, doc, s):
         "days_absent": row.days_absent, "on_leave": advances._on_leave(row.employee, processed_on),
         "bank_loan": advances._bank_loan(row.employee, processed_on)}, s)
     if not row.amount:
-        errors = [rules.NO_GROSS] + [error for error in errors if error != rules.ASK_AMOUNT]
+        errors = [rules.no_gross(processed_on)] + [error for error in errors if error != rules.ASK_AMOUNT]
     if request:
         joined, why = rules.joins_run(dict(request, status=_standing(request)), processed_on, s)
         if not joined:

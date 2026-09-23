@@ -242,9 +242,13 @@ def _fill_money(doc, s):
                                                recovered)
 
 
-def _gross_pay(employee):
-    rows = frappe.get_all("Salary Structure Assignment",
-                          filters={"employee": employee, "docstatus": 1},
+def _gross_pay(employee, on=None):
+    """The monthly gross: the Base of the employee's Salary Structure
+    Assignment, the one in force on `on` when a day is given."""
+    filters = {"employee": employee, "docstatus": 1}
+    if on:
+        filters["from_date"] = ["<=", str(getdate(on))]
+    rows = frappe.get_all("Salary Structure Assignment", filters=filters,
                           fields=["base"], order_by="from_date desc", limit=1)
     return flt(rows[0].base) if rows else 0
 

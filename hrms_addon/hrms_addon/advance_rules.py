@@ -264,11 +264,15 @@ def entitled(kind, gross, pay_category=None, settings=None, average_gross=None):
 # and checks the conditions again for that month.
 REQUEST_ACTIVE, REQUEST_STOPPED, REQUEST_ENDED = "Active", "Stopped", "Ended"
 ASK_AMOUNT = "Say how much is being asked for."
-NO_GROSS = "No gross pay on record."
 NO_REQUEST = "No approved Salary Advance Request."
 PAYMENT_METHODS = ("Cheque", "Bank Transfer", "Cash")
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
           "November", "December")
+
+
+def no_gross(day):
+    """Why a line has no amount: no salary in force on the processing date."""
+    return "No Salary Structure Assignment in force on %s." % _day(day)
 
 
 def request_errors(facts):
