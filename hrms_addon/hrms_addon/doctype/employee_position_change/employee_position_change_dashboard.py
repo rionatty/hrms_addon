@@ -12,11 +12,11 @@ def get_data():
         "internal_links": {
             "Employee": "employee",
             "Employee Contract": "contract",
-            "Job Description": "job_description",
+            "Designation": "job_description",
             "Salary Structure Assignment": "salary_structure_assignment",
         },
         "transactions": [
-            {"label": "Whom It Is For", "items": ["Employee", "Job Description"]},
+            {"label": "Whom It Is For", "items": ["Employee", "Designation"]},
             {"label": "What It Changed", "items": ["Employee Contract", "Salary Structure Assignment"]},
         ],
     }
