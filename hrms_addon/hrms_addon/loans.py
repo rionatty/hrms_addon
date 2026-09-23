@@ -23,7 +23,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import loan_rules as rules, people
+from hrms_addon.hrms_addon import loan_rules as rules, pay, people
 
 DOCTYPE = "Employee Loan"
 DEFAULT_COMPONENT = "Loan Repayment"
@@ -46,7 +46,7 @@ def loan_validate(doc, method=None):
 
 def _fill_money(doc):
     if doc.get("employee"):
-        doc.gross_pay = _gross_pay(doc.employee)
+        doc.gross_pay = pay.monthly_gross(doc.employee)
         doc.outstanding_before = _owed_elsewhere(doc.employee, doc.name)
     doc.limit = rules.limit_for_type(doc.get("loan_type"), doc.get("gross_pay")) or 0
     doc.total_interest = rules.interest_for(doc.get("approved_amount") or doc.get("loan_amount"),
@@ -63,12 +63,6 @@ def _fill_money(doc):
     if doc.get("monthly_instalment") and cint(doc.get("instalments")):
         doc.extent_of_deduction = _("{0} a month for {1} month(s)").format(
             frappe.utils.fmt_money(doc.monthly_instalment), cint(doc.get("instalments")))
-
-
-def _gross_pay(employee):
-    rows = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
-                          fields=["base"], order_by="from_date desc", limit=1)
-    return flt(rows[0].base) if rows else 0
 
 
 def _owed_elsewhere(employee, exclude):

@@ -428,6 +428,18 @@ for form, wanted in (("salary_advance_request", {"stop_request"}),
         if module != "hrms_addon.hrms_addon.salary_advances" \
                 or ('@frappe.whitelist(methods=["POST"])' + chr(10) + "def %s(" % function) not in run:
             fail.append("%s.js calls %s, which is not a whitelisted POST function" % (form, call))
+# the gross pay is the salary structure's, as Frappe HR works it out from its
+# formulas, never the Base read as if it were the gross
+pay_source = read("hrms_addon", "hrms_addon", "pay.py")
+if "assignment.calculate_ctc_and_gross()" not in pay_source or "annual_gross_earning" not in pay_source:
+    fail.append("the gross pay is Frappe HR's own evaluation of the salary structure")
+for module in ("advances", "benefits", "encashments", "exits", "loans", "salary_advances", "settlements"):
+    source = read("hrms_addon", "hrms_addon", module + ".py")
+    if "pay.monthly_gross(" not in source or 'fields=["base"]' in source:
+        fail.append("%s.py takes the gross pay from the salary structure (pay.monthly_gross), not the Base"
+                    % module)
+if "pay.monthly_gross(row.employee, processed_on)" not in part("_work_out"):
+    fail.append("the run's lines take the gross in force on the processing date")
 advance_js = read("hrms_addon", "public", "js", "employee_advance.js")
 if 'frm.set_query("advance_account"' not in advance_js or "Please select employee first" in advance_js:
     fail.append("the Advance Account filter no longer warns about an employee that is already chosen")

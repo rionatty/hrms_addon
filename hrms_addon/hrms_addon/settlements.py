@@ -25,7 +25,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import penalties, settlement_rules as rules, people
+from hrms_addon.hrms_addon import pay, penalties, settlement_rules as rules, people
 
 DOCTYPE = "Full and Final Statement"
 DEFAULT_COMPONENT = "Terminal Benefits"
@@ -51,7 +51,7 @@ def _fill_totals(doc):
     doc.custom_net_payable = figures["net"]
     doc.custom_net_in_words = _in_words(figures["net"], doc.get("company"))
     if doc.get("employee"):
-        doc.custom_gross_pay = _gross_pay(doc.employee)
+        doc.custom_gross_pay = pay.monthly_gross(doc.employee)
         doc.custom_months_served = _months_served(doc)
     if doc.get("custom_separation"):
         exit_doc = frappe.db.get_value("Employee Separation", doc.custom_separation,
@@ -67,12 +67,6 @@ def _in_words(amount, company):
         return frappe.utils.money_in_words(flt(amount), currency or "UGX")
     except Exception:
         return None
-
-
-def _gross_pay(employee):
-    rows = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
-                          fields=["base"], order_by="from_date desc", limit=1)
-    return flt(rows[0].base) if rows else 0
 
 
 def _months_served(doc):
@@ -221,7 +215,7 @@ def draw_up(separation):
         frappe.throw(_("The employee is made inactive first (step 2): submit the separation, and the "
                        "last day of service reaches the statement from their record."))
     employee = exit_doc.employee
-    gross = _gross_pay(employee)
+    gross = pay.monthly_gross(employee)
     clearance = frappe.db.get_value("Clearance Form", exit_doc.custom_clearance,
                                     ["outstanding_cost", "leave_balance", "days_worked"], as_dict=True) or {}
     leaving = getdate(exit_doc.get("custom_relieving_date") or today())

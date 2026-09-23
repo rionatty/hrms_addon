@@ -28,7 +28,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, today
 
-from hrms_addon.hrms_addon import advance_rules as rules, people
+from hrms_addon.hrms_addon import advance_rules as rules, pay, people
 
 REQUEST = "Salary Advance Request"
 RUN = "Salary Advance Processing"
@@ -179,7 +179,7 @@ def _work_out(row, doc, s):
         off_duty = {day for _who, day in attendance._off_duty_between([row.employee], start, upto)}
     row.days_absent = rules.days_absent(absent, off_duty, s)
     row.pay_category = advances._pay_category(row.employee)
-    row.gross_pay = advances._gross_pay(row.employee, processed_on)
+    row.gross_pay = pay.monthly_gross(row.employee, processed_on)
     request = frappe.db.get_value(REQUEST, row.request, ["status", "request_date", "first_month", "until_month",
                                                          "amount"], as_dict=True) \
         if row.get("request") else None

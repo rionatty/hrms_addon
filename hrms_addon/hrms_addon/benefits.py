@@ -21,7 +21,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, today
 
-from hrms_addon.hrms_addon import benefits_rules as rules, people
+from hrms_addon.hrms_addon import benefits_rules as rules, pay, people
 
 DOCTYPE = "Expense Claim"
 
@@ -53,18 +53,12 @@ def _facts(doc):
         "relation": doc.get("custom_relation"),
     }
     if employee and settings.get("percent_of_gross"):
-        facts["gross_pay"] = _gross_pay(employee)
+        facts["gross_pay"] = pay.monthly_gross(employee)
     if employee and settings.get("max_times"):
         facts["times_before"] = _times_before(employee, claim_type, doc.name)
     if employee and settings.get("for_gender"):
         facts["gender"] = frappe.db.get_value("Employee", employee, "gender")
     return facts
-
-
-def _gross_pay(employee):
-    rows = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
-                          fields=["base"], order_by="from_date desc", limit=1)
-    return rows[0].base if rows else 0
 
 
 def _times_before(employee, claim_type, exclude):

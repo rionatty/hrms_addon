@@ -28,7 +28,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import exit_rules as rules, people
+from hrms_addon.hrms_addon import exit_rules as rules, pay, people
 
 SEPARATION = "Employee Separation"
 INTERVIEW = "Exit Interview"
@@ -263,7 +263,7 @@ def draw_up_clearance(separation):
         "leaving_date": exit_doc.get("custom_relieving_date"),
         "notice_date": exit_doc.get("custom_notice_given"),
         "leave_balance": _leave_balance(exit_doc.employee),
-        "salary": _gross_pay(exit_doc.employee),
+        "salary": pay.monthly_gross(exit_doc.employee),
     })
     for row in rules.default_rows(form.exit_type):
         form.append("items", row)
@@ -299,12 +299,6 @@ def _leave_balance(employee):
                            filters={"employee": employee, "docstatus": 1, "status": "Approved"},
                            pluck="total_leave_days")
     return flt(sum(flt(value) for value in rows)) - flt(sum(flt(value) for value in taken))
-
-
-def _gross_pay(employee):
-    rows = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
-                          fields=["base"], order_by="from_date desc", limit=1)
-    return flt(rows[0].base) if rows else 0
 
 
 # ── 4. The watching ───────────────────────────────────────────────────

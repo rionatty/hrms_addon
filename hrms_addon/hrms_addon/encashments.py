@@ -26,7 +26,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, today
 
-from hrms_addon.hrms_addon import encashment_rules as rules, people
+from hrms_addon.hrms_addon import encashment_rules as rules, pay, people
 
 DOCTYPE = "Leave Encashment"
 COMPONENT = "Leave Encashment"
@@ -53,15 +53,9 @@ def _price(doc):
         # a per-day amount on the salary structure, which Frappe HR used
         doc.custom_per_day = round(flt(doc.encashment_amount) / days, 2)
         return
-    gross = _gross_pay(doc.employee) if doc.get("employee") else 0
+    gross = pay.monthly_gross(doc.employee) if doc.get("employee") else 0
     doc.custom_per_day = rules.per_day(gross)
     doc.encashment_amount = rules.amount(gross, days)
-
-
-def _gross_pay(employee):
-    rows = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
-                          fields=["base"], order_by="from_date desc", limit=1)
-    return flt(rows[0].base) if rows else 0
 
 
 def _check_step(doc):

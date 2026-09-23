@@ -50,7 +50,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import advance_rules as rules, people
+from hrms_addon.hrms_addon import advance_rules as rules, pay, people
 
 DOCTYPE = "Employee Advance"
 DEFAULT_COMPONENT = "Advance Recovery"
@@ -224,7 +224,7 @@ def _fill_money(doc, s):
     of advance may be (Advance Settings)."""
     kind = doc.get("custom_advance_type")
     if doc.get("employee"):
-        doc.custom_gross_pay = _gross_pay(doc.employee)
+        doc.custom_gross_pay = pay.monthly_gross(doc.employee)
         doc.custom_outstanding_before = _outstanding_elsewhere(doc.employee, doc.name)
         doc.custom_pay_category = _pay_category(doc.employee)
     average = None
@@ -240,17 +240,6 @@ def _fill_money(doc, s):
     doc.custom_recovered_amount = recovered
     doc.custom_outstanding = rules.outstanding(doc.get("custom_approved_amount") or doc.get("advance_amount"),
                                                recovered)
-
-
-def _gross_pay(employee, on=None):
-    """The monthly gross: the Base of the employee's Salary Structure
-    Assignment, the one in force on `on` when a day is given."""
-    filters = {"employee": employee, "docstatus": 1}
-    if on:
-        filters["from_date"] = ["<=", str(getdate(on))]
-    rows = frappe.get_all("Salary Structure Assignment", filters=filters,
-                          fields=["base"], order_by="from_date desc", limit=1)
-    return flt(rows[0].base) if rows else 0
 
 
 def _outstanding_elsewhere(employee, exclude):
