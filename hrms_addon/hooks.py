@@ -1364,6 +1364,16 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.advances.advance_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.advances.advance_on_cancel",
     },
+    # An advance paid out goes onto the payroll, and a cancelled payment
+    # takes back what the payroll has not taken (advances.py)
+    "Payment Entry": {
+        "on_submit": "hrms_addon.hrms_addon.advances.payment_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.advances.payment_on_cancel",
+    },
+    "Journal Entry": {
+        "on_submit": "hrms_addon.hrms_addon.advances.payment_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.advances.payment_on_cancel",
+    },
     # The slip that takes a loan's, a penalty's or an advance's monthly
     # deduction marks that month recovered, and a cancelled slip gives it
     # back (recoveries.py)

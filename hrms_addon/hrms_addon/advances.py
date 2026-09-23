@@ -16,7 +16,12 @@ which, and the workflow carries all three chains (advance_approval.py).
               signatures of everyone on the chain.
   recovery    an advance is taken back through the payroll: each instalment
               becomes an Additional Salary deduction, so the payroll run
-              needs no list kept by hand.
+              needs no list kept by hand. The instalments go onto the
+              payroll when the payment is recorded against the advance
+              (Create > Payment), because Frappe HR refuses a deduction for
+              more of an advance than has been paid out; and the payroll
+              books each one back against the advance, which Frappe HR then
+              shows as Returned.
   from_leave  step 7 of the leave process: the Leave Advance raised from an
               approved LPL/HR/15 (leave.py).
   daily       the monitoring both charts ask for: the salary advance run
@@ -375,9 +380,11 @@ def _tell(doc, state):
 
 
 def advance_on_submit(doc, method=None):
-    """Paid. The recovery starts, and everyone the chart names is told."""
-    _make_deductions(doc)
-    _tell_paid(doc)
+    """Passed by Finance. The recovery goes onto the payroll as far as the
+    payment recorded against the advance covers it, which at this point is
+    usually nothing yet; everyone the chart names is told."""
+    scheduled = schedule_recovery(doc)
+    _tell_paid(doc, scheduled)
     _mark_leave(doc)
 
 
@@ -391,16 +398,30 @@ def advance_on_cancel(doc, method=None):
     doc.custom_advance_status = "Cancelled"
 
 
-def _make_deductions(doc):
+def schedule_recovery(doc):
     """Each instalment becomes an Additional Salary deduction, so the
     payroll run takes it without a list kept by hand (test case 5 of the
-    loan script, and the same mechanism for every advance)."""
-    component = doc.get("custom_recovery_component") or _component()
+    loan script, and the same mechanism for every advance).
+
+    Only as far as the payment recorded against the advance covers it:
+    Frappe HR refuses a deduction from salary for more of an advance than
+    has been paid out (paid, less what was claimed, less what is already
+    on the payroll). What the payment does not cover waits for the rest of
+    it. Returns how many instalments went onto the payroll.
+    """
+    if doc.docstatus != 1:
+        return 0
+    room = flt(doc.get("paid_amount")) - flt(doc.get("claimed_amount")) - _scheduled(doc.name)
+    waiting = [row for row in doc.get("custom_recoveries") or [] if not (row.additional_salary or row.recovered)]
+    if not waiting or room <= 0:
+        return 0
+    component = doc.get("custom_recovery_component") or _component(doc.get("company"))
     if not component:
-        return
-    for row in doc.get("custom_recoveries") or []:
-        if row.additional_salary or row.recovered:
-            continue
+        return 0
+    made = 0
+    for row in sorted(waiting, key=lambda row: str(row.payroll_date)):
+        if flt(row.amount) > room + 0.005:
+            break
         deduction = frappe.get_doc({
             "doctype": "Additional Salary", "employee": doc.employee, "company": doc.company,
             "salary_component": component, "amount": flt(row.amount), "payroll_date": row.payroll_date,
@@ -411,32 +432,132 @@ def _make_deductions(doc):
         deduction.insert()
         deduction.submit()
         row.db_set("additional_salary", deduction.name, update_modified=False)
+        room -= flt(row.amount)
+        made += 1
+    return made
 
 
-def _component():
-    """The salary component the recovery is posted to, made once."""
-    if frappe.db.exists("Salary Component", DEFAULT_COMPONENT):
-        return DEFAULT_COMPONENT
-    try:
-        doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
-                              "type": "Deduction", "salary_component_abbr": "AR",
-                              "description": "Recovery of an employee advance (LPL/HR/21)."})
-        doc.insert(ignore_permissions=True)
-        return doc.name
-    except Exception:
-        frappe.log_error(title="HRMS Addon: advance recovery component")
-        return None
+def _scheduled(advance):
+    """What is already on the payroll for an advance, as Frappe HR counts
+    it: every submitted deduction that refers to it."""
+    return flt(sum(flt(amount) for amount in frappe.get_all(
+        "Additional Salary", filters={"ref_doctype": DOCTYPE, "ref_docname": advance, "docstatus": 1},
+        pluck="amount", limit_page_length=0)))
 
 
-def _tell_paid(doc):
+def unschedule_beyond_paid(doc):
+    """A payment cancelled: the instalments the payroll has not taken yet
+    come off it, latest first, until what stays is covered by what is still
+    paid. Returns how many came off."""
+    if doc.docstatus != 1:
+        return 0
+    covered = flt(doc.get("paid_amount")) - flt(doc.get("claimed_amount"))
+    scheduled = _scheduled(doc.name)
+    removed = 0
+    rows = [row for row in doc.get("custom_recoveries") or [] if row.additional_salary and not row.recovered]
+    for row in sorted(rows, key=lambda row: str(row.payroll_date), reverse=True):
+        if scheduled <= covered + 0.005:
+            break
+        if frappe.db.exists("Additional Salary", row.additional_salary):
+            deduction = frappe.get_doc("Additional Salary", row.additional_salary)
+            if deduction.docstatus == 1:
+                deduction.flags.ignore_permissions = True
+                deduction.cancel()
+        row.db_set("additional_salary", None, update_modified=False)
+        scheduled -= flt(row.amount)
+        removed += 1
+    return removed
+
+
+def _advances_paid_by(voucher):
+    """The Employee Advances a Payment Entry or Journal Entry pays out."""
+    if voucher.doctype == "Payment Entry":
+        names = [row.reference_name for row in voucher.get("references") or []
+                 if row.get("reference_doctype") == DOCTYPE]
+    else:
+        names = [row.reference_name for row in voucher.get("accounts") or []
+                 if row.get("reference_type") == DOCTYPE and flt(row.get("debit_in_account_currency")) > 0]
+    return list(dict.fromkeys(name for name in names if name))
+
+
+def payment_on_submit(doc, method=None):
+    """Payment Entry and Journal Entry: an advance paid out goes onto the
+    payroll. Frappe HR has already written the paid amount onto it by now
+    (the ledger entries this voucher made)."""
+    for name in _advances_paid_by(doc):
+        advance = frappe.get_doc(DOCTYPE, name)
+        scheduled = schedule_recovery(advance)
+        if scheduled:
+            _tell_scheduled(advance, scheduled)
+
+
+def payment_on_cancel(doc, method=None):
+    for name in _advances_paid_by(doc):
+        unschedule_beyond_paid(frappe.get_doc(DOCTYPE, name))
+
+
+def _component(company=None):
+    """The salary component the recovery is posted to, made once. It
+    credits the company's employee advance account, so the payroll books
+    each deduction back against the advance."""
+    if not frappe.db.exists("Salary Component", DEFAULT_COMPONENT):
+        try:
+            doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
+                                  "type": "Deduction", "salary_component_abbr": "AR",
+                                  "description": "Recovery of an employee advance (LPL/HR/21)."})
+            doc.insert(ignore_permissions=True)
+        except Exception:
+            frappe.log_error(title="HRMS Addon: advance recovery component")
+            return None
+    ensure_recovery_account(company)
+    return DEFAULT_COMPONENT
+
+
+def ensure_recovery_account(company=None):
+    """The Advance Recovery component's account for each company that has a
+    default employee advance account and no account on the component yet.
+    One already set is left as it is."""
+    if not frappe.db.exists("Salary Component", DEFAULT_COMPONENT):
+        return []
+    component = frappe.get_doc("Salary Component", DEFAULT_COMPONENT)
+    have = {row.company for row in component.get("accounts") or []}
+    companies = [company] if company else frappe.get_all("Company", pluck="name")
+    added = []
+    for name in companies:
+        account = frappe.db.get_value("Company", name, "default_employee_advance_account") if name else None
+        if account and name not in have:
+            component.append("accounts", {"company": name, "account": account})
+            added.append(name)
+    if added:
+        component.flags.ignore_permissions = True
+        component.save()
+    return added
+
+
+def _tell_paid(doc, scheduled=0):
     kind = doc.get("custom_advance_type")
     users = people.hr_officers(doc.get("custom_branch"), doc.get("department"))
     users += people.people_for("Payroll Officer", doc.get("custom_branch"), doc.get("department"))
-    message = _("{0} for {1} is paid. Recovery starts {2}.").format(
-        kind, doc.get("employee_name") or doc.employee,
-        frappe.utils.format_date(doc.get("custom_first_recovery_month")))
+    who = doc.get("employee_name") or doc.employee
+    if scheduled:
+        message = _("{0} for {1} is paid. Recovery starts {2}.").format(
+            kind, who, frappe.utils.format_date(doc.get("custom_first_recovery_month")))
+    else:
+        message = _("{0} for {1} is passed for payment. Record the payment on it (Create > Payment): the "
+                    "recovery goes onto the payroll when it is recorded.").format(kind, who)
+        users += people.people_for("Finance Officer", doc.get("custom_branch"), doc.get("department"))
     if users:
         people.notify(list(dict.fromkeys(users)), doc.doctype, doc.name, message)
+
+
+def _tell_scheduled(doc, scheduled):
+    users = people.people_for("Payroll Officer", doc.get("custom_branch"), doc.get("department"))
+    users += people.hr_officers(doc.get("custom_branch"), doc.get("department"))
+    if users:
+        people.notify(list(dict.fromkeys(users)), doc.doctype, doc.name, _(
+            "{0} for {1}: paid, and {2} instalment(s) are on the payroll from {3}.").format(
+            doc.get("custom_advance_type"), doc.get("employee_name") or doc.employee, scheduled,
+            frappe.utils.format_date(doc.get("custom_first_recovery_month"))))
 
 
 def _mark_leave(doc):
@@ -488,7 +609,21 @@ def from_leave(leave_application):
 def daily():
     _watch_salary_run()
     _tell_due_to_pay()
+    _schedule_paid()
     _tell_recovery()
+
+
+def _schedule_paid():
+    """A paid advance with instalments not yet on the payroll: paid before
+    this was installed, or through a voucher nothing hooks."""
+    for name in frappe.get_all(DOCTYPE, filters={"docstatus": 1, "paid_amount": [">", 0]}, pluck="name",
+                               limit_page_length=0):
+        doc = frappe.get_doc(DOCTYPE, name)
+        if any(not (row.additional_salary or row.recovered) for row in doc.get("custom_recoveries") or []):
+            scheduled = schedule_recovery(doc)
+            if scheduled:
+                _tell_scheduled(doc, scheduled)
+    frappe.db.commit()
 
 
 def _watch_salary_run(day=None):
@@ -648,3 +783,8 @@ def setup_workflows_on_migrate():
     from hrms_addon.hrms_addon import advance_approval, workflows
 
     workflows.setup_on_migrate(advance_approval, "Employee Advance workflow")
+    try:
+        ensure_recovery_account()
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: advance recovery account")

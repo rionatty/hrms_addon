@@ -11,6 +11,7 @@
 frappe.ui.form.on("Employee Advance", {
 	refresh(frm) {
 		frm.trigger("show_eligibility");
+		frm.trigger("show_recovery");
 		if (frm.doc.docstatus === 1 && frm.doc.custom_outstanding > 0) {
 			frm.add_custom_button(__("Mark Recovered"), () =>
 				frappe
@@ -42,6 +43,23 @@ frappe.ui.form.on("Employee Advance", {
 					: ` <span class="text-muted">${frappe.utils.escape_html(
 							frm.doc.custom_eligibility_remarks || ""
 					  )}</span>`)
+		);
+	},
+	// the recovery goes onto the payroll once the payment is recorded
+	// against the advance: say where it stands
+	show_recovery(frm) {
+		if (frm.doc.docstatus !== 1) return;
+		const rows = frm.doc.custom_recoveries || [];
+		const waiting = rows.filter((row) => !row.additional_salary && !row.recovered).length;
+		if (!waiting) return;
+		frm.dashboard.add_comment(
+			flt(frm.doc.paid_amount)
+				? __("{0} instalment(s) are waiting for the rest of the payment to be recorded.", [waiting])
+				: __(
+						"Record the payment on this advance (Create > Payment): its recovery goes onto the payroll when it is recorded."
+				  ),
+			"orange",
+			true
 		);
 	},
 	custom_advance_type(frm) {

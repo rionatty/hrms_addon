@@ -538,6 +538,29 @@ for where in (navigation.CARDS, navigation.SIDEBAR):
         if "Employee Advance" in listed:
             fail.append("Employee Advance is Frappe HR's own: it belongs on their page and ours, "
                         "not added to a third (%s)" % page)
+# the advance goes onto the payroll when its payment is recorded: Frappe HR
+# v16 refuses a deduction for more of an advance than has been paid out
+# against it (Additional Salary.validate_employee_advance_return)
+additional = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "additional_salary",
+                          "additional_salary.py")
+if not os.path.exists(additional) or "advance.paid_amount - advance.claimed_amount" not in \
+        open(additional, encoding="utf-8").read():
+    fail.append("Frappe HR no longer holds a deduction to what was paid out: look at schedule_recovery again")
+payment_part = glue_advances.split("def schedule_recovery")[1].split(chr(10) + "def ")[0]
+if 'flt(doc.get("paid_amount")) - flt(doc.get("claimed_amount")) - _scheduled(doc.name)' not in payment_part:
+    fail.append("the recovery goes onto the payroll only as far as the recorded payment covers it")
+if "schedule_recovery(doc)" not in glue_advances.split("def advance_on_submit")[1].split(chr(10) + "def ")[0]:
+    fail.append("the Pay step schedules what the recorded payment covers, and no more")
+for voucher in ("Payment Entry", "Journal Entry"):
+    if (events.get(voucher) or {}).get("on_submit") != "hrms_addon.hrms_addon.advances.payment_on_submit" \
+            or (events.get(voucher) or {}).get("on_cancel") != "hrms_addon.hrms_addon.advances.payment_on_cancel":
+        fail.append("a %s paying an advance puts it on the payroll, and cancelling it takes it off" % voucher)
+if "_schedule_paid()" not in glue_advances.split("def daily")[1].split(chr(10) + "def ")[0]:
+    fail.append("a paid advance whose payment nothing hooked is put on the payroll by the daily job")
+if "ensure_recovery_account()" not in glue_advances.split("def setup_workflows_on_migrate")[1]:
+    fail.append("the recovery component credits the employee advance account, so the payroll books it back")
+print("the advance and the payroll: scheduled from the recorded payment, booked back against the advance")
+
 print("wiring: the doc events, the two workflows on migrate, the daily jobs, the seed, the way in")
 
 print()
