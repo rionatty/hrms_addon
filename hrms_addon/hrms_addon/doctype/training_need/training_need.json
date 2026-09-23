@@ -39,7 +39,7 @@
    "label": "Target Group",
    "in_list_view": 1,
    "columns": 2,
-   "description": "Who is trained, as the planner says it: e.g. Machine Operators and Helpers, Kawempe."
+   "description": "e.g. Machine Operators and Helpers, Kawempe"
   },
   {
    "fieldname": "method",

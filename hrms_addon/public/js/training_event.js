@@ -21,7 +21,7 @@ frappe.ui.form.on("Training Event", {
 						.then((made) => {
 							frappe.show_alert({
 								message: made
-									? __("{0} evaluation form(s) drafted: open each and key in the paper form.", [made])
+									? __("{0} evaluation form(s) created. Open each one to enter the ratings.", [made])
 									: __("Every participant marked Present already has an evaluation."),
 								indicator: made ? "green" : "blue",
 							});

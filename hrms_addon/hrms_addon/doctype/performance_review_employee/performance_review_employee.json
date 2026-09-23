@@ -73,8 +73,7 @@
    "fieldtype": "Data",
    "label": "Suggested",
    "read_only": 1,
-   "columns": 1,
-   "description": "What the score alone suggests; management decides."
+   "columns": 1
   },
   {
    "fieldname": "decision",

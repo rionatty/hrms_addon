@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-22 06:00:00.000000",
- "description": "A signature given on a document: who, when, at what step, to what words, and the specimen as it stood then.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -87,7 +86,7 @@
   {
    "fieldname": "who_section",
    "fieldtype": "Section Break",
-   "label": "Who signed"
+   "label": "Signatory"
   },
   {
    "fieldname": "signatory",
@@ -119,20 +118,18 @@
    "fieldname": "designation",
    "fieldtype": "Data",
    "label": "Role Then",
-   "read_only": 1,
-   "description": "The role they held when they signed, kept as text: a promotion later does not rewrite who signed what."
+   "read_only": 1
   },
   {
    "fieldname": "specimen",
    "fieldtype": "Attach Image",
    "label": "Signature",
-   "read_only": 1,
-   "description": "Copied at the moment of signing. A person who changes their signature has not changed what they signed last year."
+   "read_only": 1
   },
   {
    "fieldname": "what_section",
    "fieldtype": "Section Break",
-   "label": "What was signed to"
+   "label": "Document"
   },
   {
    "fieldname": "statement",

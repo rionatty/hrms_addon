@@ -35,7 +35,7 @@
    "options": "JD Requirement Priority",
    "in_list_view": 1,
    "columns": 2,
-   "description": "e.g. Essential, Desirable. Helps shortlisting."
+   "description": "e.g. Essential, Desirable"
   }
  ],
  "istable": 1,

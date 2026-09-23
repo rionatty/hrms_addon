@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:specification_type",
  "creation": "2026-09-16 20:00:00.000000",
- "description": "A kind of job specification, e.g. Academic Qualification, Work Experience.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

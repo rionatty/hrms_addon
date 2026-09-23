@@ -3,7 +3,6 @@
  "allow_rename": 1,
  "autoname": "field:title",
  "creation": "2026-09-21 23:30:00.000000",
- "description": "A round of nine-box talent reviews: who is eligible, when it opens, and the calibration that follows.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -34,7 +33,7 @@
    "reqd": 1,
    "unique": 1,
    "in_list_view": 1,
-   "description": "For example, Talent Review 2026."
+   "description": "e.g. Talent Review 2026"
   },
   {
    "fieldname": "review_year",
@@ -50,7 +49,7 @@
    "label": "Appraisal Cycle",
    "options": "Appraisal Cycle",
    "reqd": 1,
-   "description": "Where the performance scores are read from. Nothing is re-entered."
+   "description": "Performance scores are taken from this cycle."
   },
   {
    "fieldname": "column_break_1",
@@ -61,7 +60,7 @@
    "fieldtype": "Date",
    "label": "Opens",
    "reqd": 1,
-   "description": "On this day the scheduler drafts a placement for everyone eligible."
+   "description": "Placements are drafted for everyone eligible on this date."
   },
   {
    "fieldname": "closes_on",
@@ -80,7 +79,7 @@
   {
    "fieldname": "scope_section",
    "fieldtype": "Section Break",
-   "label": "Who is in it"
+   "label": "Scope"
   },
   {
    "fieldname": "company",
@@ -94,7 +93,7 @@
    "fieldtype": "Link",
    "label": "Plant",
    "options": "Branch",
-   "description": "Leave empty to review every plant in one round."
+   "description": "Leave empty for all plants."
   },
   {
    "fieldname": "column_break_2",
@@ -123,8 +122,7 @@
   {
    "fieldname": "calibration_section",
    "fieldtype": "Section Break",
-   "label": "Calibration",
-   "description": "Every box the peer group moved, and why. HR records the movers."
+   "label": "Calibration"
   },
   {
    "fieldname": "calibration",

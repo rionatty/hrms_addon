@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 22:00:00.000000",
- "description": "A disciplinary case, from the incident the supervisor reports to the decision the panel takes (LPL/HR/30, LPL/HR/03).",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -178,7 +177,7 @@
   {
    "fieldname": "incident_section",
    "fieldtype": "Section Break",
-   "label": "The incident"
+   "label": "Incident"
   },
   {
    "fieldname": "misconduct_type",
@@ -207,8 +206,7 @@
    "fieldname": "reported_by",
    "fieldtype": "Link",
    "label": "Reported By",
-   "options": "User",
-   "description": "The chart has the supervisor report the incident to the HR Officer."
+   "options": "User"
   },
   {
    "fieldname": "column_break_2",
@@ -228,13 +226,12 @@
   {
    "fieldname": "ladder_section",
    "fieldtype": "Section Break",
-   "label": "Where this case starts",
-   "description": "A fresh case inside a live sanction starts one rung higher than the last; gross misconduct may be dismissed on the first offence."
+   "label": "Previous Sanctions"
   },
   {
    "fieldname": "live_sanctions",
    "fieldtype": "Small Text",
-   "label": "What Still Stands Against Them",
+   "label": "Active Sanctions",
    "read_only": 1,
    "no_copy": 1
   },
@@ -268,7 +265,7 @@
    "fieldtype": "Link",
    "label": "Investigating Officer",
    "options": "User",
-   "description": "Never a member of the panel: the person who gathers the evidence does not decide the case."
+   "description": "Must not be on the panel."
   },
   {
    "fieldname": "investigation_report",
@@ -353,7 +350,7 @@
    "fieldname": "hearing_notified_on",
    "fieldtype": "Datetime",
    "label": "Employee Notified On",
-   "description": "A hearing is called at least 48 hours ahead."
+   "description": "At least 48 hours before the hearing."
   },
   {
    "fieldname": "hearing_location",
@@ -470,7 +467,7 @@
   {
    "fieldname": "letter_section",
    "fieldtype": "Section Break",
-   "label": "The letter (LPL/HR/30)"
+   "label": "Letter (LPL/HR/30)"
   },
   {
    "fieldname": "letter_issued_on",
@@ -491,8 +488,7 @@
    "fieldname": "signed_letter",
    "fieldtype": "Attach",
    "label": "Signed Copy",
-   "no_copy": 1,
-   "description": "Steps 7 and 11: the HR Officer files the copy the employee signed."
+   "no_copy": 1
   },
   {
    "fieldname": "letter_remarks",
@@ -531,7 +527,7 @@
    "fieldtype": "Link",
    "label": "Heard By",
    "options": "User",
-   "description": "Someone who has not already acted in this case."
+   "description": "Someone not yet involved in the case."
   },
   {
    "fieldname": "appeal_outcome",
@@ -548,7 +544,7 @@
   {
    "fieldname": "outcome_section",
    "fieldtype": "Section Break",
-   "label": "What follows"
+   "label": "Follow-up"
   },
   {
    "fieldname": "separation",
@@ -556,8 +552,7 @@
    "label": "Employee Separation",
    "options": "Employee Separation",
    "read_only": 1,
-   "no_copy": 1,
-   "description": "Raised where the case ends in dismissal, so the termination process follows."
+   "no_copy": 1
   },
   {
    "fieldname": "training_need",
@@ -575,8 +570,7 @@
    "fieldname": "performance_review",
    "fieldtype": "Link",
    "label": "Performance Improvement Plan",
-   "options": "Performance Improvement Plan",
-   "description": "Where the case is about performance rather than conduct."
+   "options": "Performance Improvement Plan"
   },
   {
    "fieldname": "return_remarks",

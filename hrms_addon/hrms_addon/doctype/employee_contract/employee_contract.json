@@ -3,7 +3,6 @@
  "autoname": "HR-CON-.YYYY.-.#####",
  "creation": "2026-09-20 09:00:00.000000",
  "default_print_format": "Employment Contract",
- "description": "An employee's contract: prepared by the HR Officer, submitted once the signed copy is attached, watched as its end comes near, then renewed or not.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -119,8 +118,7 @@
    "reqd": 1,
    "in_standard_filter": 1,
    "fetch_from": "employee.employment_type",
-   "fetch_if_empty": 1,
-   "description": "The Employment Type's usual length sets the End Date; none means open-ended."
+   "fetch_if_empty": 1
   },
   {
    "fieldname": "column_break_2",
@@ -138,7 +136,7 @@
    "fieldtype": "Date",
    "label": "End Date",
    "in_list_view": 1,
-   "description": "Blank for an open-ended contract."
+   "description": "Leave empty for an open-ended contract."
   },
   {
    "fieldname": "months",
@@ -184,8 +182,7 @@
   {
    "fieldname": "signing_section",
    "fieldtype": "Section Break",
-   "label": "Signed Contract",
-   "description": "The employee signs the printed contract; HR attaches the signed copy and submits."
+   "label": "Signed Contract"
   },
   {
    "fieldname": "signed_on",
@@ -212,8 +209,7 @@
    "label": "From Onboarding",
    "options": "Employee Onboarding",
    "read_only": 1,
-   "no_copy": 1,
-   "description": "The onboarding whose approval drafted this contract. Set by the system."
+   "no_copy": 1
   },
   {
    "fieldname": "renewal_of",
@@ -249,14 +245,12 @@
    "label": "Alerts Sent (Days Before the End)",
    "read_only": 1,
    "allow_on_submit": 1,
-   "no_copy": 1,
-   "description": "The expiry alerts the HR Officer has had for this contract."
+   "no_copy": 1
   },
   {
    "fieldname": "evaluation_section",
    "fieldtype": "Section Break",
-   "label": "Evaluation (step 3)",
-   "description": "What was looked at before deciding whether to renew. The appraisal is read from the employee's own record; the rest is the HR Officer's judgement."
+   "label": "Evaluation (step 3)"
   },
   {
    "fieldname": "evaluated_on",
@@ -312,8 +306,7 @@
    "fieldname": "recommendation",
    "fieldtype": "Select",
    "label": "Recommendation",
-   "options": "\nRenew\nDo Not Renew",
-   "description": "The chart's \"Renewal Required?\"."
+   "options": "\nRenew\nDo Not Renew"
   },
   {
    "fieldname": "engagement_section",
@@ -367,8 +360,7 @@
    "label": "Employee Separation",
    "options": "Employee Separation",
    "read_only": 1,
-   "no_copy": 1,
-   "description": "Raised when the contract is not renewed, so the termination process follows."
+   "no_copy": 1
   },
   {
    "fieldname": "amended_from",

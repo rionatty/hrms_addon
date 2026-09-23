@@ -160,7 +160,7 @@ def ensure_earning_component():
     if not frappe.db.exists("Salary Component", COMPONENT):
         frappe.get_doc({"doctype": "Salary Component", "salary_component": COMPONENT, "type": "Earning",
                         "salary_component_abbr": "LENC", "depends_on_payment_days": 0,
-                        "description": "Leave days paid instead of taken (minutes §4.5)."}
+                        "description": "Leave days paid instead of taken."}
                        ).insert(ignore_permissions=True)
     types = frappe.get_all("Leave Type", filters={"allow_encashment": 1}, fields=["name", "earning_component"])
     for row in types:

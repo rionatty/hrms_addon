@@ -93,9 +93,9 @@ def eligibility_errors(facts):
         errors.append("Only an active employee may take a loan; this one is %s." % facts["status"])
     loan_type = facts.get("loan_type") or OTHER_LOAN
     if loan_type not in LOAN_TYPES:
-        errors.append("%r is not one of Luuka's loans." % loan_type)
+        errors.append("%r is not a valid loan type." % loan_type)
     if facts.get("category") != ADMINISTRATIVE:
-        errors.append("Loans are for the administration team (minutes \u00a74.10); this employee's "
+        errors.append("Loans are only for the administration team. This employee's "
                       "department is %s." % (facts.get("category") or "not marked Administrative"))
     served = months_served(facts.get("date_of_joining"), facts.get("today"))
     minimum = facts.get("min_months")

@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-23 09:00:00.000000",
- "description": "An agreement with an employee who scored below the pass mark: what must improve, the support the company gives, how it is measured, and when it is looked at again.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -107,8 +106,7 @@
    "fieldtype": "Link",
    "label": "Supervisor",
    "options": "Employee",
-   "reqd": 1,
-   "description": "Who guides the employee through the plan."
+   "reqd": 1
   },
   {
    "fieldname": "status",
@@ -130,8 +128,7 @@
    "fieldname": "appraisal",
    "fieldtype": "Link",
    "label": "Appraisal",
-   "options": "Appraisal",
-   "description": "The appraisal the plan follows from."
+   "options": "Appraisal"
   },
   {
    "fieldname": "appraisal_score",
@@ -188,7 +185,7 @@
   {
    "fieldname": "objectives_section",
    "fieldtype": "Section Break",
-   "label": "What must improve"
+   "label": "Objectives"
   },
   {
    "fieldname": "objectives",
@@ -264,7 +261,7 @@
   {
    "fieldname": "outcome_remarks",
    "fieldtype": "Text",
-   "label": "What was agreed at the end"
+   "label": "Outcome Remarks"
   },
   {
    "fieldname": "closed_by",

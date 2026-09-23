@@ -626,8 +626,7 @@ def _raise_job_opening(doc):
             "doctype": "Job Opening", "job_title": doc.designation, "designation": doc.designation,
             "company": doc.company, "department": doc.get("department"),
             "status": "Open", "posted_on": today(),
-            "description": _("Raised from succession position {0}: the bench has nobody ready "
-                             "now.").format(doc.name),
+            "description": _("Raised from succession position {0}: no successor is ready.").format(doc.name),
         })
         opening.flags.ignore_permissions = True
         opening.flags.ignore_mandatory = True

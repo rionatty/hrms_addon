@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-25 09:00:00.000000",
- "description": "LPL/HR/14: overtime asked for by a requesting officer, authorised, and the food coupons HR issues afterwards.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -193,8 +192,7 @@
   {
    "fieldname": "day_section",
    "fieldtype": "Section Break",
-   "label": "The day it falls on",
-   "description": "Read from the employee's holiday list and roster, not typed: a public holiday, a rest day or a weekday, which is what sets the rate."
+   "label": "Day Type"
   },
   {
    "fieldname": "day_kind",
@@ -208,8 +206,7 @@
    "fieldtype": "Link",
    "label": "Overtime Type",
    "options": "Overtime Type",
-   "read_only": 1,
-   "description": "Frappe HR's own Overtime Type carries the multiplier and the salary component: the hours are priced and paid through it."
+   "read_only": 1
   },
   {
    "fieldname": "column_break_8",
@@ -226,14 +223,12 @@
    "fieldname": "cost_centre",
    "fieldtype": "Link",
    "label": "Cost Centre",
-   "options": "Cost Center",
-   "description": "Which cost centre carries this overtime."
+   "options": "Cost Center"
   },
   {
    "fieldname": "cost_section",
    "fieldtype": "Section Break",
-   "label": "HR cost check",
-   "description": "What the overtime comes to, checked by HR before it is passed to payroll."
+   "label": "HR cost check"
   },
   {
    "fieldname": "total_cost",

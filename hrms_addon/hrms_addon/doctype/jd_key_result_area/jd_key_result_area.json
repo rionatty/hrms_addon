@@ -13,7 +13,6 @@
  "fields": [
   {
    "columns": 3,
-   "description": "Picked from the standard KRA list, the same master Appraisal Templates use.",
    "fieldname": "kra",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -33,7 +32,7 @@
   },
   {
    "columns": 1,
-   "description": "All rows together must total 100%.",
+   "description": "All rows must total 100%.",
    "fieldname": "weighting",
    "fieldtype": "Percent",
    "in_list_view": 1,
@@ -41,7 +40,7 @@
   },
   {
    "columns": 4,
-   "description": "What this role delivers under the KRA. One per line.",
+   "description": "One per line.",
    "fieldname": "key_outputs",
    "fieldtype": "Small Text",
    "in_list_view": 1,

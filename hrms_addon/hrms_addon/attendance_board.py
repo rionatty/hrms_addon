@@ -107,7 +107,7 @@ def _cycle(cycle, now):
         try:
             return int(parts[0]), int(parts[1])
         except (IndexError, ValueError):
-            frappe.throw(_("A cycle is written 2026-09 — the year and the month it ends in."))
+            frappe.throw(_("Enter the cycle as YYYY-MM, for example 2026-09."))
     return register.cycle_of(getdate(now))
 
 

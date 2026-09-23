@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:factor_name",
  "creation": "2026-09-20 09:00:00.000000",
- "description": "A ratable factor of the End of probation evaluation form (LPL/HR/32, Section A).",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

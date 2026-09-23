@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-22 01:00:00.000000",
- "description": "What the shifts an employee actually worked in a cycle come to, paid through a salary component.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -100,8 +99,8 @@
   {
    "fieldname": "cycle_section",
    "fieldtype": "Section Break",
-   "label": "The cycle it covers",
-   "description": "The attendance cycle, 26th to 25th, so the allowance and the register count the same days."
+   "label": "Cycle",
+   "description": "26th to 25th."
   },
   {
    "fieldname": "from_date",
@@ -134,8 +133,8 @@
   {
    "fieldname": "lines_section",
    "fieldtype": "Section Break",
-   "label": "What was worked",
-   "description": "Counted from the attendance, not from the roster: a shift planned and not worked is not paid."
+   "label": "Shifts Worked",
+   "description": "Counted from attendance, not the roster."
   },
   {
    "fieldname": "lines",
@@ -152,14 +151,13 @@
   {
    "fieldname": "payment_section",
    "fieldtype": "Section Break",
-   "label": "How it is paid"
+   "label": "Payment"
   },
   {
    "fieldname": "salary_component",
    "fieldtype": "Link",
    "label": "Salary Component",
-   "options": "Salary Component",
-   "description": "The earning the allowance is paid through."
+   "options": "Salary Component"
   },
   {
    "fieldname": "additional_salary",

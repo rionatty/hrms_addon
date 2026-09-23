@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-23 18:00:00.000000",
- "description": "A penalty for property lost or damaged: reported by the supervisor, heard by the HR Officer with the employee and the supervisor, consented to by the employee (LPL/HR/39), forwarded by the HR Manager, approved by the Executive Director and recovered from the payroll.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -199,8 +198,7 @@
   {
    "fieldname": "report_section",
    "fieldtype": "Section Break",
-   "label": "The supervisor's report",
-   "description": "The immediate supervisor reports the case to the HR Officer (minutes §4.11)."
+   "label": "Supervisor's Report"
   },
   {
    "fieldname": "kind",
@@ -220,7 +218,7 @@
   {
    "fieldname": "details",
    "fieldtype": "Small Text",
-   "label": "What was lost or damaged, and how",
+   "label": "Details",
    "reqd": 1
   },
   {
@@ -230,8 +228,7 @@
   {
    "fieldname": "estimated_value",
    "fieldtype": "Currency",
-   "label": "Value of the Loss",
-   "description": "What the supervisor reckons it is worth. The hearing settles what is recovered."
+   "label": "Value of the Loss"
   },
   {
    "fieldname": "evidence",
@@ -242,8 +239,7 @@
    "fieldname": "disciplinary_case",
    "fieldtype": "Link",
    "label": "Disciplinary Case",
-   "options": "Disciplinary Case",
-   "description": "Where the same incident is also a disciplinary case."
+   "options": "Disciplinary Case"
   },
   {
    "fieldname": "reported_by",
@@ -263,8 +259,7 @@
   {
    "fieldname": "hearing_section",
    "fieldtype": "Section Break",
-   "label": "The hearing",
-   "description": "The HR Officer hears the case with the employee and the supervisor."
+   "label": "Hearing"
   },
   {
    "fieldname": "hearing_on",
@@ -275,19 +270,19 @@
   {
    "fieldname": "employee_heard",
    "fieldtype": "Check",
-   "label": "The employee attended",
+   "label": "Employee Attended",
    "no_copy": 1
   },
   {
    "fieldname": "supervisor_heard",
    "fieldtype": "Check",
-   "label": "The supervisor attended",
+   "label": "Supervisor Attended",
    "no_copy": 1
   },
   {
    "fieldname": "hearing_record",
    "fieldtype": "Text Editor",
-   "label": "What was said",
+   "label": "Hearing Notes",
    "no_copy": 1
   },
   {
@@ -320,9 +315,8 @@
   {
    "fieldname": "agreement_section",
    "fieldtype": "Section Break",
-   "label": "What was agreed",
-   "depends_on": "eval:doc.finding=='Liable'",
-   "description": "The instalments agreed at the hearing."
+   "label": "Agreed Recovery",
+   "depends_on": "eval:doc.finding=='Liable'"
   },
   {
    "fieldname": "amount",
@@ -343,7 +337,7 @@
    "fieldtype": "Date",
    "label": "Effective From",
    "no_copy": 1,
-   "description": "The payroll month the first instalment comes off."
+   "description": "Payroll month of the first instalment."
   },
   {
    "fieldname": "column_break_4",
@@ -368,7 +362,7 @@
    "fieldtype": "Link",
    "label": "Deduction Component",
    "options": "Salary Component",
-   "description": "Penalty Recovery unless another is chosen."
+   "description": "Defaults to Penalty Recovery."
   },
   {
    "fieldname": "consent_section",
@@ -402,7 +396,7 @@
   {
    "fieldname": "consent",
    "fieldtype": "Check",
-   "label": "The Employee Consents",
+   "label": "Employee Consents",
    "no_copy": 1
   },
   {
@@ -410,7 +404,7 @@
    "fieldtype": "Attach",
    "label": "Signed LPL/HR/39",
    "no_copy": 1,
-   "description": "Needed when HR record the consent for the employee."
+   "description": "Required when HR records the consent for the employee."
   },
   {
    "fieldname": "consent_remarks",

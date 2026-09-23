@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:stakeholder_type",
  "creation": "2026-09-16 20:00:00.000000",
- "description": "A kind of stakeholder on a Job Description, e.g. Internal, External.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

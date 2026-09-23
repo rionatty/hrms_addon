@@ -130,7 +130,7 @@ def case_errors(facts):
     if not _text(facts.get("allegation")):
         errors.append("Write the allegation: what the employee is said to have done.")
     if not facts.get("reported_by"):
-        errors.append("Say who reported it — the chart has the supervisor report it to the HR Officer.")
+        errors.append("Say who reported it.")
     severity = facts.get("severity")
     if severity and severity not in SEVERITIES:
         errors.append("%r is not a severity: %s." % (severity, ", ".join(SEVERITIES)))

@@ -223,8 +223,7 @@ def _component():
     try:
         doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
                               "type": "Deduction", "salary_component_abbr": "PEN",
-                              "description": "Recovery of a penalty for property lost or damaged "
-                                             "(LPL/HR/39, minutes §4.11)."})
+                              "description": "Recovery of a penalty for property lost or damaged."})
         doc.insert(ignore_permissions=True)
         return doc.name
     except Exception:

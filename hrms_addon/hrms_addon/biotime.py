@@ -104,17 +104,15 @@ def _reach(call, url, verify_tls):
                   "self-signed certificate, untick Verify the Certificate; the connection is "
                   "then private but not proven.").format(url), title=_("BioTime"))
         frappe.throw(
-            _("The secure connection to {0} failed, and the certificate is already not being "
-              "checked — so it is the connection itself, not the certificate. If BioTime is "
-              "not serving https on this port, use an http:// address.").format(url),
+            _("The secure connection to {0} failed. If BioTime does not use https on this port, "
+              "use an http:// address.").format(url),
             title=_("BioTime"))
     except requests.exceptions.ConnectTimeout:
         frappe.throw(_("{0} did not answer in time. Check that BioTime is running and that "
                        "this server can reach it.").format(url), title=_("BioTime"))
     except requests.exceptions.ReadTimeout:
-        frappe.throw(_("{0} accepted the connection but sent nothing back in time. It may be "
-                       "working through a very large window — try a smaller page size or a "
-                       "shorter first pull.").format(url), title=_("BioTime"))
+        frappe.throw(_("{0} accepted the connection but did not respond in time. Try a smaller "
+                       "page size or a shorter first pull.").format(url), title=_("BioTime"))
     except requests.exceptions.ConnectionError:
         frappe.throw(_("Nothing answered at {0}. Check the address, the port, and that this "
                        "server is allowed to reach BioTime.").format(url), title=_("BioTime"))
@@ -280,12 +278,10 @@ def _explain_refusal(doc, answer, page):
     payload = _payload(answer)
     if answer.status_code == 401 and rules.token_rejected(payload):
         frappe.throw(
-            _("BioTime refused the token on {0}, and every way of signing in that this app "
-              "knows was tried: each endpoint BioTime has shipped, each under every "
-              "Authorization scheme. The password is being accepted — the account simply is "
-              "not allowed to read transactions through the API.<br><br>In BioTime, give "
-              "this user API access, or use one that has it. Press <b>Find the Sign-in "
-              "Path</b> to see what each endpoint answered.")
+            _("BioTime refused the token on {0}. Every sign-in endpoint and token type was tried "
+              "and the password is accepted, so this user cannot read transactions through the "
+              "API.<br><br>In BioTime, give this user API access or use another user. Press "
+              "<b>Find the Sign-in Path</b> to see what each endpoint returned.")
             .format(doc.get("transactions_path") or rules.TRANSACTIONS_PATH),
             title=_("BioTime"))
     if answer.status_code == 401:
@@ -506,7 +502,7 @@ def _status(tally):
     counted into a number that is thrown away."""
     said = _("Read {0}, pushed {1}").format(tally["read"], tally["pushed"])
     if tally.get("no_terminal"):
-        said += _(" — {0} held back, waiting on a terminal nobody has set up").format(
+        said += _(", {0} held back (terminal not set up)").format(
             tally["no_terminal"])
     if tally.get("failed"):
         said += _(", {0} failed").format(tally["failed"])

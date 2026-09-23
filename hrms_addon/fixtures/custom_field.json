@@ -8,7 +8,6 @@
   "insert_after": "department",
   "label": "Branch",
   "options": "Branch",
-  "description": "The branch the position is for. Its Supervisor, HOD, HR Officer and General Manager approve the requisition; the HR Manager and Executive Director serve every branch.",
   "reqd": 1,
   "in_standard_filter": 1,
   "in_list_view": 1,
@@ -24,7 +23,6 @@
   "fieldtype": "Data",
   "insert_after": "custom_branch",
   "label": "Position Category",
-  "description": "From the Department. Administrative: HR Manager, then Executive Director. Non-Administrative: HR Manager, the branch General Manager, then Executive Director.",
   "fetch_from": "department.custom_position_category",
   "read_only": 1,
   "module": "HRMS Addon"
@@ -38,7 +36,6 @@
   "insert_after": "no_of_positions",
   "label": "Permanent or Casual",
   "options": "Employment Type",
-  "description": "The form tick-box: Permanent or Casual(s). Copied to the Job Opening Employment Type.",
   "module": "HRMS Addon"
  },
  {
@@ -179,7 +176,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_approvals_tab",
   "label": "Requesting Department",
-  "description": "Filled in automatically as each approver acts in the Job Requisition Approval workflow.",
+  "description": "Filled in as each approver acts.",
   "module": "HRMS Addon"
  },
  {
@@ -332,7 +329,6 @@
   "insert_after": "custom_hrm",
   "label": "HR Manager Decision",
   "options": "\nRecruitment Authorized\nNot Authorized",
-  "description": "The Recommended Salary is on the Details tab.",
   "read_only": 1,
   "module": "HRMS Addon"
  },
@@ -355,7 +351,6 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_hrm_date",
   "label": "General Manager",
-  "description": "Non-administrative departments only: the branch's General Manager, after the HR Manager.",
   "module": "HRMS Addon"
  },
  {
@@ -562,7 +557,7 @@
   "fieldtype": "Check",
   "insert_after": "job_application_route",
   "label": "Show Job Description on Careers Page",
-  "description": "Adds the Job Title's purpose, responsibilities, requirements and competencies to this job's page. KRA weightings, reporting lines and other internal parts are never shown.",
+  "description": "Shows the job description on the job page. Internal details such as KRA weightings are not shown.",
   "default": "1",
   "depends_on": "publish",
   "module": "HRMS Addon"
@@ -576,7 +571,7 @@
   "insert_after": "company",
   "label": "Position Category",
   "options": "Non-Administrative\nAdministrative",
-  "description": "Routes the requisitions this department raises. Administrative: HR Manager, then Executive Director. Non-Administrative: HR Manager, the branch General Manager, then Executive Director.",
+  "description": "Administrative: HR Manager, then Executive Director. Non-Administrative: HR Manager, the branch General Manager, then Executive Director.",
   "default": "Non-Administrative",
   "reqd": 1,
   "in_list_view": 1,
@@ -663,7 +658,7 @@
   "fieldtype": "Data",
   "insert_after": "custom_jd_grade",
   "label": "JD Date",
-  "description": "Period the JD applies from, e.g. Q2 2026.",
+  "description": "e.g. Q2 2026",
   "module": "HRMS Addon"
  },
  {
@@ -725,7 +720,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_jd_purpose",
   "label": "Key Result Areas (Balanced Scorecard Framework)",
-  "description": "Pick each KRA from the KRA list. Its Balanced Scorecard perspective comes from the KRA, and several KRAs can share one. Weightings across all rows must total 100%.",
+  "description": "Weightings must total 100%.",
   "module": "HRMS Addon"
  },
  {
@@ -748,7 +743,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_jd_key_result_areas",
   "label": "Reporting Relationships",
-  "description": "One row per position that reports to this role, directly or indirectly.",
+  "description": "One row per position reporting to this role.",
   "module": "HRMS Addon"
  },
  {
@@ -862,7 +857,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_jd_iso_responsibilities",
   "label": "Ideal Job Specifications",
-  "description": "One row per qualification, training or certification, or experience requirement.",
+  "description": "One row per requirement.",
   "module": "HRMS Addon"
  },
  {
@@ -885,7 +880,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_jd_specifications",
   "label": "Competency Framework",
-  "description": "One row per competency, picked from the Skill list.",
+  "description": "One row per competency.",
   "module": "HRMS Addon"
  },
  {
@@ -1022,7 +1017,7 @@
   "insert_after": "custom_tools_tab",
   "label": "Tools of Work",
   "options": "Designation Tool",
-  "description": "What a new employee with this Job Title is issued, besides the tools every new employee gets (Tool of Work: Every New Employee). The onboarding lists them.",
+  "description": "Tools issued with this job title, besides those every new employee gets.",
   "module": "HRMS Addon"
  },
  {
@@ -1044,7 +1039,7 @@
   "insert_after": "custom_kpi_section",
   "label": "Balanced Scorecard Perspective",
   "options": "KRA Perspective",
-  "description": "Groups this KRA on Job Descriptions. A KRA needs a perspective before a JD can use it.",
+  "description": "Required before the KRA can be used on a job description.",
   "in_list_view": 1,
   "in_standard_filter": 1,
   "allow_in_quick_entry": 1,
@@ -1132,7 +1127,6 @@
   "insert_after": "designation",
   "label": "Branch",
   "options": "Branch",
-  "description": "From the Job Opening applied for.",
   "fetch_from": "job_title.location",
   "in_standard_filter": 1,
   "read_only": 1,
@@ -1198,7 +1192,6 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_bio_data_tab",
   "label": "Personal Information",
-  "description": "From the Pre-Interview Bio-Data Form (LPL/HR/19). Carried onto the Employee record when the candidate is hired.",
   "module": "HRMS Addon"
  },
  {
@@ -1220,7 +1213,6 @@
   "insert_after": "custom_date_of_birth",
   "label": "Gender",
   "options": "Gender",
-  "description": "Not on the paper form, but the Employee record requires it.",
   "module": "HRMS Addon"
  },
  {
@@ -1385,7 +1377,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_parents",
   "label": "Next of Kin Details",
-  "description": "The first next of kin becomes the Employee's emergency contact.",
+  "description": "The first next of kin becomes the employee's emergency contact.",
   "module": "HRMS Addon"
  },
  {
@@ -1542,7 +1534,7 @@
   "fieldtype": "Attach",
   "insert_after": "custom_declaration_cb",
   "label": "Signed Bio-Data Form",
-  "description": "Scan of the form the candidate signed.",
+  "description": "Scan of the signed form.",
   "module": "HRMS Addon"
  },
  {
@@ -1603,7 +1595,6 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_personal_bio_data_tab",
   "label": "Home and Residence",
-  "description": "From the Personal Bio-Data Form (LPL/HR/16). Print > Personal Bio-Data Form gives the form pre-filled, for the employee to check, complete and sign.",
   "module": "HRMS Addon"
  },
  {
@@ -1799,7 +1790,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_bio_data_declaration_section",
   "label": "Date Signed",
-  "description": "The date on the signed form. The onboarding goes to the HR Manager only once it is recorded.",
+  "description": "Date on the signed form. Required before the onboarding goes to the HR Manager.",
   "module": "HRMS Addon"
  },
  {
@@ -1819,7 +1810,7 @@
   "fieldtype": "Attach",
   "insert_after": "custom_bio_data_declaration_cb",
   "label": "Signed Personal Bio-Data Form",
-  "description": "Scan of the form the employee signed.",
+  "description": "Scan of the signed form.",
   "module": "HRMS Addon"
  },
  {
@@ -1830,7 +1821,7 @@
   "fieldtype": "Section Break",
   "insert_after": "education",
   "label": "Professional Certificates and Memberships",
-  "description": "Certificates or qualifications obtained after formal education, and membership associations.",
+  "description": "Certificates obtained after formal education, and professional memberships.",
   "module": "HRMS Addon"
  },
  {
@@ -1863,7 +1854,7 @@
   "insert_after": "custom_probation_end_date",
   "label": "Probation Status",
   "options": "\nOn Probation\nExtended\nConfirmed\nNot Confirmed",
-  "description": "Set by the End of probation evaluation (Probation Evaluation).",
+  "description": "Set by the probation evaluation.",
   "module": "HRMS Addon"
  },
  {
@@ -1885,7 +1876,6 @@
   "insert_after": "custom_tools_tab",
   "label": "Tools of Work",
   "options": "Employee Tool",
-  "description": "Issued at onboarding (Employee Onboarding, Tools of Work) or since; Returned On at the clearance.",
   "module": "HRMS Addon"
  },
  {
@@ -1897,7 +1887,6 @@
   "insert_after": "company",
   "label": "Branch",
   "options": "Branch",
-  "description": "The candidate's branch, from the Job Opening. The onboarding takes it from here.",
   "fetch_from": "job_applicant.custom_branch",
   "fetch_if_empty": 1,
   "in_standard_filter": 1,
@@ -1912,7 +1901,6 @@
   "insert_after": "company",
   "label": "Branch",
   "options": "Branch",
-  "description": "The branch the new employee joins. Its HR Officer and Head of Department get the tasks.",
   "reqd": 1,
   "fetch_from": "job_offer.custom_branch",
   "fetch_if_empty": 1,
@@ -1929,7 +1917,6 @@
   "insert_after": "boarding_status",
   "label": "Onboarding Status",
   "options": "Draft\nOnboarding\nPending HR Manager Approval\nApproved\nCancelled",
-  "description": "Set by the Employee Onboarding workflow.",
   "default": "Draft",
   "in_standard_filter": 1,
   "read_only": 1,
@@ -1946,7 +1933,7 @@
   "insert_after": "boarding_begins_on",
   "label": "HR Officer",
   "options": "User",
-  "description": "Runs the onboarding and gets the HR tasks. Defaults to the branch's HR Officer.",
+  "description": "Defaults to the branch HR Officer.",
   "module": "HRMS Addon"
  },
  {
@@ -1958,7 +1945,7 @@
   "insert_after": "custom_hr_officer",
   "label": "Head of Department",
   "options": "User",
-  "description": "Receives the new employee (the handover) and gets the department's tasks. Defaults to the HOD who approved the requisition.",
+  "description": "Defaults to the HOD who approved the requisition.",
   "module": "HRMS Addon"
  },
  {
@@ -1970,7 +1957,7 @@
   "insert_after": "custom_head_of_department",
   "label": "Supervisor",
   "options": "Employee",
-  "description": "The new employee reports to this Employee (Reports To, set when the HR Manager approves). Defaults to the Supervisor who signed the requisition.",
+  "description": "Set as Reports To on approval. Defaults to the requisition's supervisor.",
   "allow_on_submit": 1,
   "module": "HRMS Addon"
  },
@@ -1982,7 +1969,6 @@
   "fieldtype": "Section Break",
   "insert_after": "amended_from",
   "label": "Orientation",
-  "description": "Step 2 of the induction, on the first day: print the Workplace Rules and Regulations (LPL/HR/05) from here (Print > Workplace Rules and Regulations) for the new employee to sign.",
   "module": "HRMS Addon"
  },
  {
@@ -1993,7 +1979,7 @@
   "fieldtype": "Date",
   "insert_after": "custom_orientation_section",
   "label": "Workplace Rules Signed On",
-  "description": "Needed before the onboarding goes to the HR Manager.",
+  "description": "Required before the onboarding goes to the HR Manager.",
   "allow_on_submit": 1,
   "no_copy": 1,
   "module": "HRMS Addon"
@@ -2015,7 +2001,7 @@
   "fieldtype": "Attach",
   "insert_after": "custom_orientation_cb",
   "label": "Signed Workplace Rules",
-  "description": "Scan of the rules the new employee signed.",
+  "description": "Scan of the signed rules.",
   "allow_on_submit": 1,
   "no_copy": 1,
   "module": "HRMS Addon"
@@ -2028,7 +2014,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_signed_workplace_rules",
   "label": "Tools of Work",
-  "description": "The tools every new employee gets and the Job Title's own (its Tools of Work tab). Each provider is asked for its tools when the onboarding starts; mark each one Issued, or Not Needed. The HR Manager checks them before approving; the issued ones go on the Employee's register.",
+  "description": "Mark each tool Issued or Not Needed. Issued tools are added to the employee's register.",
   "module": "HRMS Addon"
  },
  {
@@ -2051,7 +2037,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_tools",
   "label": "Salary",
-  "description": "Becomes the Salary Structure Assignment: drafted when the onboarding goes to the HR Manager, submitted when approved.",
+  "description": "Becomes the employee's Salary Structure Assignment when the onboarding is approved.",
   "module": "HRMS Addon"
  },
  {
@@ -2087,7 +2073,7 @@
   "insert_after": "custom_salary_from",
   "label": "Income Tax Slab",
   "options": "Income Tax Slab",
-  "description": "Needed when the Salary Structure deducts income tax.",
+  "description": "Required if the salary structure deducts income tax.",
   "allow_on_submit": 1,
   "module": "HRMS Addon"
  },
@@ -2108,7 +2094,7 @@
   "fieldtype": "Currency",
   "insert_after": "custom_salary_cb",
   "label": "Base",
-  "description": "Monthly, as in the appointment terms. Defaults to the requisition's Recommended Salary.",
+  "description": "Monthly. Defaults to the requisition's recommended salary.",
   "allow_on_submit": 1,
   "module": "HRMS Addon"
  },
@@ -2145,7 +2131,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_salary_structure_assignment",
   "label": "Training",
-  "description": "If training is required: the trainer, scope and duration. The Training Event is made when the HR Manager approves, and the supervisor gets a task to evaluate it.",
+  "description": "If training is required, enter the trainer, scope and duration. The training event is created on approval.",
   "module": "HRMS Addon"
  },
  {
@@ -2340,7 +2326,6 @@
   "fieldtype": "Small Text",
   "insert_after": "custom_hrm_approval_cb",
   "label": "HR Manager's Remarks",
-  "description": "What HR should change, when the HR Manager returns the onboarding. Update, then Return to HR.",
   "allow_on_submit": 1,
   "no_copy": 1,
   "module": "HRMS Addon"
@@ -2353,7 +2338,7 @@
   "fieldtype": "Int",
   "insert_after": "employee_type_name",
   "label": "Usual Contract Length (Months)",
-  "description": "An Employee Contract of this type ends this many months after it starts. Blank or 0: open-ended (e.g. Permanent).",
+  "description": "Contract length in months. Leave empty or 0 for open-ended.",
   "non_negative": 1,
   "module": "HRMS Addon"
  },
@@ -2376,7 +2361,7 @@
   "fieldtype": "Section Break",
   "insert_after": "average_rating",
   "label": "Candidate Interview Evaluation",
-  "description": "Score each criterion: Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (49% and below), or N/A where it does not apply.",
+  "description": "Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (49% and below). N/A where a criterion does not apply.",
   "module": "HRMS Addon"
  },
  {
@@ -2419,7 +2404,6 @@
   "fieldtype": "Int",
   "insert_after": "custom_total_score",
   "label": "Out Of",
-  "description": "5 for every criterion scored; N/A adds nothing.",
   "read_only": 1,
   "module": "HRMS Addon"
  },
@@ -2478,7 +2462,6 @@
   "insert_after": "company",
   "label": "Branch",
   "options": "Branch",
-  "description": "The plant the session is at; its HR Officer and Heads of Department are told.",
   "in_standard_filter": 1,
   "module": "HRMS Addon"
  },
@@ -2491,7 +2474,6 @@
   "insert_after": "custom_branch",
   "label": "Department",
   "options": "Department",
-  "description": "The department trained; its Head of Department confirms the participants.",
   "in_standard_filter": 1,
   "module": "HRMS Addon"
  },
@@ -2504,7 +2486,6 @@
   "insert_after": "custom_department",
   "label": "Monthly Training Schedule",
   "options": "Monthly Training Schedule",
-  "description": "The schedule that booked this session.",
   "read_only": 1,
   "no_copy": 1,
   "module": "HRMS Addon"
@@ -2551,7 +2532,6 @@
   "insert_after": "custom_trainer_3",
   "label": "Shift",
   "options": "\nDay\nNight\nAll",
-  "description": "The shift trained, as the training memo says it.",
   "module": "HRMS Addon"
  },
  {
@@ -2563,7 +2543,6 @@
   "insert_after": "custom_shift",
   "label": "Memo Approved By",
   "options": "User",
-  "description": "The General Manager or Production Manager who signed off the training memo.",
   "module": "HRMS Addon"
  },
  {
@@ -2584,7 +2563,7 @@
   "fieldtype": "Section Break",
   "insert_after": "employees",
   "label": "After the Session",
-  "description": "Mark each participant Present or Absent, attach the signed attendance sheet (LPL/TRG/FRM03) and submit: the training was held. Then print the evaluation forms (LPL/TRG/FRM05), key each one in with Create Evaluations, and print the Training Evaluation Summary.",
+  "description": "Mark attendance, attach the signed attendance sheet, then submit.",
   "module": "HRMS Addon"
  },
  {
@@ -2641,7 +2620,6 @@
   "fieldtype": "Percent",
   "insert_after": "custom_evaluations",
   "label": "Evaluation Score",
-  "description": "The average of the participants' Section A ratings.",
   "read_only": 1,
   "allow_on_submit": 1,
   "no_copy": 1,
@@ -2668,7 +2646,6 @@
   "fieldtype": "Section Break",
   "insert_after": "trainer_name",
   "label": "Section A: Items Assessed",
-  "description": "Excellent, Very Good, Good, Average or Below Average for each item, as the participant ticked it.",
   "module": "HRMS Addon"
  },
  {
@@ -2690,7 +2667,6 @@
   "fieldtype": "Percent",
   "insert_after": "custom_ratings",
   "label": "Score",
-  "description": "Excellent 5 down to Below Average 1, over what the items could score.",
   "read_only": 1,
   "module": "HRMS Addon"
  },
@@ -2801,7 +2777,6 @@
   "fieldtype": "Date",
   "insert_after": "custom_hr_recommendations",
   "label": "Form Signed On",
-  "description": "The date the participant signed the paper form.",
   "module": "HRMS Addon"
  },
  {
@@ -2831,7 +2806,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-22 09:00:00.000000",
   "modified": "2026-09-22 09:00:00.000000",
-  "description": "The name the account is held in, where it is not the employee's own."
+  "description": "Only if the account is not in the employee's name."
  },
  {
   "doctype": "Custom Field",
@@ -2846,7 +2821,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-22 09:00:00.000000",
   "modified": "2026-09-22 09:00:00.000000",
-  "description": "The month the employee instructed the salary to be paid to this account (LPL/HR/26)."
+  "description": "The month salary is first paid to this account."
  },
  {
   "doctype": "Custom Field",
@@ -2875,8 +2850,7 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-22 09:00:00.000000",
-  "modified": "2026-09-22 09:00:00.000000",
-  "description": "The number the wages are sent to."
+  "modified": "2026-09-22 09:00:00.000000"
  },
  {
   "doctype": "Custom Field",
@@ -2905,7 +2879,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-22 09:00:00.000000",
   "modified": "2026-09-22 09:00:00.000000",
-  "description": "The names the number is registered in, where they are not the employee's own."
+  "description": "Only if the number is not registered in the employee's name."
  },
  {
   "doctype": "Custom Field",
@@ -2978,7 +2952,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-22 09:00:00.000000",
   "modified": "2026-09-22 09:00:00.000000",
-  "description": "LPL/HR/26, signed and witnessed."
+  "description": "Scan of the signed LPL/HR/26."
  },
  {
   "doctype": "Custom Field",
@@ -3072,7 +3046,7 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "options": "Employee",
-  "description": "Who rates the employee; taken from Reports To where it is blank."
+  "description": "Defaults to Reports To."
  },
  {
   "doctype": "Custom Field",
@@ -3106,7 +3080,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "description": "Rating scale: Excellent=5 (90-100%), Very Good=4 (75-89%), Good=3 (60-74%), Average=2 (50-59%), Below Average=1 (40% and below). Write N/A on a factor that does not fit the job.",
+  "description": "Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (40% and below). N/A where a factor does not fit the job.",
   "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
@@ -3138,7 +3112,6 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "description": "The objectives and KPIs for the period just ended, in line with the department's.",
   "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
@@ -3267,7 +3240,7 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "read_only": 1,
-  "description": "The average of the quarters appraised so far this year.",
+  "description": "Average of this year's quarters so far.",
   "depends_on": "eval:doc.custom_form_type != \"Balanced Scorecard\""
  },
  {
@@ -3754,8 +3727,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
-  "no_copy": 1,
-  "description": "Why the appraisal was sent back; clears every signature."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -3772,8 +3744,7 @@
   "modified": "2026-09-23 09:00:00.000000",
   "options": "\nPromotion\nSalary Increase\nPerformance Improvement Plan\nClose",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "What management decided on the Performance Review."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -3914,7 +3885,7 @@
   "reqd": 1,
   "default": "Supervisory Skills (LPL/HR/18)",
   "in_standard_filter": 1,
-  "description": "The supervisory form for supervisors; the balanced scorecard for graded roles."
+  "description": "Supervisory form for supervisors; balanced scorecard for graded roles."
  },
  {
   "doctype": "Custom Field",
@@ -3931,15 +3902,14 @@
   "modified": "2026-09-24 09:00:00.000000",
   "options": "Q1\nQ2\nQ3\nAnnual",
   "default": "Annual",
-  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
-  "description": "Which column of the scorecard this round fills in."
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
   "dt": "Appraisal",
   "fieldname": "custom_bsc_section_a",
   "fieldtype": "Section Break",
-  "label": "Section A — Objectives & KPIs (80%)",
+  "label": "Section A: Objectives & KPIs (80%)",
   "insert_after": "custom_objectives",
   "module": "HRMS Addon",
   "name": "Appraisal-custom_bsc_section_a",
@@ -3948,7 +3918,7 @@
   "creation": "2026-09-24 09:00:00.000000",
   "modified": "2026-09-24 09:00:00.000000",
   "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
-  "description": "The weight is set once per perspective and the four total 80. Record the percentage achieved against target each quarter, and a score out of ten for the year."
+  "description": "Perspective weights must total 80. Record the % achieved each quarter and a score out of 10 for the year."
  },
  {
   "doctype": "Custom Field",
@@ -3980,8 +3950,7 @@
   "creation": "2026-09-24 09:00:00.000000",
   "modified": "2026-09-24 09:00:00.000000",
   "options": "BSC Appraisal KPI",
-  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
-  "description": "What the percentage achieved is judged against."
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\""
  },
  {
   "doctype": "Custom Field",
@@ -3998,7 +3967,7 @@
   "modified": "2026-09-24 09:00:00.000000",
   "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
   "collapsible": 1,
-  "description": "Recorded, not scored separately."
+  "description": "Not scored separately."
  },
  {
   "doctype": "Custom Field",
@@ -4021,7 +3990,7 @@
   "dt": "Appraisal",
   "fieldname": "custom_bsc_section_b",
   "fieldtype": "Section Break",
-  "label": "Section B — Competencies (20%)",
+  "label": "Section B: Competencies (20%)",
   "insert_after": "custom_assignments",
   "module": "HRMS Addon",
   "name": "Appraisal-custom_bsc_section_b",
@@ -4147,7 +4116,7 @@
   "dt": "Appraisal",
   "fieldname": "custom_bsc_band_meaning",
   "fieldtype": "Small Text",
-  "label": "What it means",
+  "label": "Band Meaning",
   "insert_after": "custom_bsc_band",
   "module": "HRMS Addon",
   "name": "Appraisal-custom_bsc_band_meaning",
@@ -4423,7 +4392,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-25 09:00:00.000000",
   "modified": "2026-09-25 09:00:00.000000",
-  "description": "Marked present each day without clocking in: for top management, as both minutes ask."
+  "description": "Marked present every day without clocking in."
  },
  {
   "doctype": "Custom Field",
@@ -4453,7 +4422,7 @@
   "creation": "2026-09-21 09:00:00.000000",
   "modified": "2026-09-21 09:00:00.000000",
   "options": "Designation",
-  "description": "One template per role, as the LPL PMS workbook has one sheet per role."
+  "description": "One template per role."
  },
  {
   "doctype": "Custom Field",
@@ -4557,14 +4526,14 @@
   "creation": "2026-09-21 09:00:00.000000",
   "modified": "2026-09-21 09:00:00.000000",
   "default": "1",
-  "description": "Only an active template is attached when an appraisal is raised."
+  "description": "Only active templates are used for new appraisals."
  },
  {
   "doctype": "Custom Field",
   "dt": "Appraisal Template",
   "fieldname": "custom_section_a",
   "fieldtype": "Section Break",
-  "label": "Section A — Objectives & KPIs (80%)",
+  "label": "Section A: Objectives & KPIs (80%)",
   "insert_after": "rating_criteria",
   "module": "HRMS Addon",
   "name": "Appraisal Template-custom_section_a",
@@ -4572,7 +4541,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 09:00:00.000000",
   "modified": "2026-09-21 09:00:00.000000",
-  "description": "The weight is set once per perspective, not per KPI, and the four must total 80."
+  "description": "Perspective weights must total 80."
  },
  {
   "doctype": "Custom Field",
@@ -4626,7 +4595,7 @@
   "dt": "Appraisal Template",
   "fieldname": "custom_section_b",
   "fieldtype": "Section Break",
-  "label": "Section B — Competencies (20%)",
+  "label": "Section B: Competencies (20%)",
   "insert_after": "custom_kpis",
   "module": "HRMS Addon",
   "name": "Appraisal Template-custom_section_b",
@@ -4672,7 +4641,7 @@
   "dt": "Appraisal Template",
   "fieldname": "custom_source_section",
   "fieldtype": "Section Break",
-  "label": "Where it came from",
+  "label": "Source",
   "insert_after": "custom_competencies_weight",
   "module": "HRMS Addon",
   "name": "Appraisal Template-custom_source_section",
@@ -4742,15 +4711,14 @@
   "creation": "2026-09-21 09:00:00.000000",
   "modified": "2026-09-21 09:00:00.000000",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "What the importer found wrong with the sheet, if anything."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
   "dt": "Leave Application",
   "fieldname": "custom_lpl_section",
   "fieldtype": "Section Break",
-  "label": "Part 1 — Applicant (LPL/HR/15)",
+  "label": "Part 1: Applicant (LPL/HR/15)",
   "insert_after": "sb_other_details",
   "module": "HRMS Addon",
   "name": "Leave Application-custom_lpl_section",
@@ -4771,8 +4739,7 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
-  "modified": "2026-09-21 12:00:00.000000",
-  "description": "The section the employee works in, as Part 1 of the form asks for."
+  "modified": "2026-09-21 12:00:00.000000"
  },
  {
   "doctype": "Custom Field",
@@ -4853,7 +4820,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "depends_on": "eval:doc.leave_type==\"Maternity Leave\" || doc.leave_type==\"Paternity Leave\" || doc.leave_type==\"Sick Leave\"",
-  "description": "Maternity, paternity and sick leave are taken on a certificate (LPL/HR/15)."
+  "description": "Required for maternity, paternity and sick leave."
  },
  {
   "doctype": "Custom Field",
@@ -4868,7 +4835,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
-  "description": "Ticked, the HR Officer is asked to raise the Leave Advance once the leave is approved."
+  "description": "HR raises a leave advance once the leave is approved."
  },
  {
   "doctype": "Custom Field",
@@ -4902,15 +4869,14 @@
   "modified": "2026-09-21 12:00:00.000000",
   "options": "Annual Leave Plan",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "The plan this leave was foreseen in, where it was."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
   "dt": "Leave Application",
   "fieldname": "custom_hro_section",
   "fieldtype": "Section Break",
-  "label": "Part 2 — Human Resource / Administration Officer",
+  "label": "Part 2: Human Resource / Administration Officer",
   "insert_after": "custom_plan",
   "module": "HRMS Addon",
   "name": "Leave Application-custom_hro_section",
@@ -5105,7 +5071,7 @@
   "dt": "Leave Application",
   "fieldname": "custom_approval_section",
   "fieldtype": "Section Break",
-  "label": "Part 3 — Approval",
+  "label": "Part 3: Approval",
   "insert_after": "custom_hro_on",
   "module": "HRMS Addon",
   "name": "Leave Application-custom_approval_section",
@@ -5131,8 +5097,7 @@
   "default": "Draft",
   "read_only": 1,
   "no_copy": 1,
-  "in_standard_filter": 1,
-  "description": "Where the application stands on its own approval chain."
+  "in_standard_filter": 1
  },
  {
   "doctype": "Custom Field",
@@ -5316,15 +5281,14 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
-  "no_copy": 1,
-  "description": "Why the application is going back, written before returning it."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
   "dt": "Leave Application",
   "fieldname": "custom_accounts_section",
   "fieldtype": "Section Break",
-  "label": "Part 4 — Accounts Officer",
+  "label": "Part 4: Accounts Officer",
   "insert_after": "custom_return_remarks",
   "module": "HRMS Addon",
   "name": "Leave Application-custom_accounts_section",
@@ -5347,8 +5311,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "What was advanced against this leave (Employee Advance)."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -5425,7 +5388,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "no_copy": 1,
-  "description": "Ticked when the employee is back at work; the leave is then closed."
+  "description": "Tick when the employee is back at work."
  },
  {
   "doctype": "Custom Field",
@@ -5488,7 +5451,7 @@
   "default": "Salary Advance",
   "in_list_view": 1,
   "in_standard_filter": 1,
-  "description": "Which of Luuka's three advances this is; it decides who approves it."
+  "description": "Decides the approval route."
  },
  {
   "doctype": "Custom Field",
@@ -5582,8 +5545,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "From the employee's current salary structure assignment."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -5599,8 +5561,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "What is still owed on earlier advances."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -5616,8 +5577,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "options": "Leave Application",
-  "depends_on": "eval:doc.custom_advance_type==\"Leave Advance\"",
-  "description": "The leave form this advance was raised from (step 1 of the Leave Advance process)."
+  "depends_on": "eval:doc.custom_advance_type==\"Leave Advance\""
  },
  {
   "doctype": "Custom Field",
@@ -5664,8 +5624,7 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
-  "modified": "2026-09-21 12:00:00.000000",
-  "description": "Checked whenever the advance is saved: service, limits and what is still outstanding."
+  "modified": "2026-09-21 12:00:00.000000"
  },
  {
   "doctype": "Custom Field",
@@ -5688,7 +5647,7 @@
   "dt": "Employee Advance",
   "fieldname": "custom_limit",
   "fieldtype": "Currency",
-  "label": "Most That May Be Advanced",
+  "label": "Maximum Advance",
   "insert_after": "custom_qualifies",
   "module": "HRMS Addon",
   "name": "Employee Advance-custom_limit",
@@ -5718,7 +5677,7 @@
   "dt": "Employee Advance",
   "fieldname": "custom_eligibility_remarks",
   "fieldtype": "Small Text",
-  "label": "Why Not",
+  "label": "Eligibility Remarks",
   "insert_after": "custom_eligibility_cb",
   "module": "HRMS Addon",
   "name": "Employee Advance-custom_eligibility_remarks",
@@ -5758,7 +5717,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "no_copy": 1,
-  "description": "Step 3 of the Salary Advance process: the HR Officer checks before it goes to payroll."
+  "description": "The HR Officer confirms attendance and leave before payroll."
  },
  {
   "doctype": "Custom Field",
@@ -5807,7 +5766,7 @@
   "dt": "Employee Advance",
   "fieldname": "custom_section_head_amount",
   "fieldtype": "Currency",
-  "label": "Section Head — Amount Sanctioned",
+  "label": "Amount Sanctioned by Section Head",
   "insert_after": "custom_sanction_section",
   "module": "HRMS Addon",
   "name": "Employee Advance-custom_section_head_amount",
@@ -5882,7 +5841,7 @@
   "dt": "Employee Advance",
   "fieldname": "custom_ed_amount",
   "fieldtype": "Currency",
-  "label": "Executive Director — Amount Sanctioned",
+  "label": "Amount Sanctioned by Executive Director",
   "insert_after": "custom_sanction_cb",
   "module": "HRMS Addon",
   "name": "Employee Advance-custom_ed_amount",
@@ -6181,8 +6140,7 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
-  "modified": "2026-09-21 12:00:00.000000",
-  "description": "An advance is money paid before it is earned: it is taken back through the payroll."
+  "modified": "2026-09-21 12:00:00.000000"
  },
  {
   "doctype": "Custom Field",
@@ -6198,7 +6156,7 @@
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
   "no_copy": 1,
-  "description": "Set by the Payroll Officer; it may be less than was asked for."
+  "description": "Set by the Payroll Officer. May be less than requested."
  },
  {
   "doctype": "Custom Field",
@@ -6288,8 +6246,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
-  "options": "Salary Component",
-  "description": "The salary component the monthly recovery is posted to."
+  "options": "Salary Component"
  },
  {
   "doctype": "Custom Field",
@@ -6333,8 +6290,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 12:00:00.000000",
   "modified": "2026-09-21 12:00:00.000000",
-  "no_copy": 1,
-  "description": "\"...the recovery can be done from my earnings or other benefits.\""
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -6643,7 +6599,7 @@
   "creation": "2026-09-21 14:00:00.000000",
   "modified": "2026-09-21 14:00:00.000000",
   "options": "Employee Advance",
-  "description": "An Employee Advance already paid against this travel, deducted below."
+  "description": "Advance already paid for this trip. Deducted below."
  },
  {
   "doctype": "Custom Field",
@@ -6688,7 +6644,7 @@
   "modified": "2026-09-21 14:00:00.000000",
   "read_only": 1,
   "no_copy": 1,
-  "description": "Negative means the employee refunds the difference."
+  "description": "A negative balance is refunded by the employee."
  },
  {
   "doctype": "Custom Field",
@@ -6711,7 +6667,7 @@
   "dt": "Travel Request",
   "fieldname": "custom_eligibility_remarks",
   "fieldtype": "Small Text",
-  "label": "Why Not",
+  "label": "Eligibility Remarks",
   "insert_after": "custom_qualifies",
   "module": "HRMS Addon",
   "name": "Travel Request-custom_eligibility_remarks",
@@ -7162,8 +7118,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 14:00:00.000000",
   "modified": "2026-09-21 14:00:00.000000",
-  "options": "Wedding\nBereavement\nBirth\nSickness\nOther",
-  "description": "Luuka pay a standard amount for some of these (Expense Claim Type)."
+  "options": "Wedding\nBereavement\nBirth\nSickness\nOther"
  },
  {
   "doctype": "Custom Field",
@@ -7259,7 +7214,7 @@
   "dt": "Expense Claim",
   "fieldname": "custom_genuine",
   "fieldtype": "Check",
-  "label": "Genuine — to be paid",
+  "label": "Genuine (to be paid)",
   "insert_after": "custom_approval_section",
   "module": "HRMS Addon",
   "name": "Expense Claim-custom_genuine",
@@ -7267,8 +7222,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 14:00:00.000000",
   "modified": "2026-09-21 14:00:00.000000",
-  "no_copy": 1,
-  "description": "The supervisor's own line on LPL/HR/27, said before the claim goes up."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -7633,7 +7587,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 14:00:00.000000",
   "modified": "2026-09-21 14:00:00.000000",
-  "description": "\"Wedding gifts and claims that are standard especially for production can be updated on the system\" — the amount below is what Luuka pay."
+  "description": "Paid at the fixed amount below."
  },
  {
   "doctype": "Custom Field",
@@ -7706,7 +7660,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 14:00:00.000000",
   "modified": "2026-09-21 14:00:00.000000",
-  "description": "One of the five lines the travel allowance form prints."
+  "description": "One of the travel allowance lines."
  },
  {
   "doctype": "Custom Field",
@@ -7740,7 +7694,7 @@
   "default": "Voluntary",
   "in_list_view": 1,
   "in_standard_filter": 1,
-  "description": "Voluntary follows 4.5 and involuntary 4.6; it decides who signs the clearance."
+  "description": "Decides who signs the clearance."
  },
  {
   "doctype": "Custom Field",
@@ -7820,7 +7774,7 @@
   "creation": "2026-09-21 18:00:00.000000",
   "modified": "2026-09-21 18:00:00.000000",
   "depends_on": "eval:doc.custom_exit_type==\"Voluntary\"",
-  "description": "The day the resignation letter reached the HR Officer."
+  "description": "Date the resignation letter reached HR."
  },
  {
   "doctype": "Custom Field",
@@ -7836,7 +7790,7 @@
   "creation": "2026-09-21 18:00:00.000000",
   "modified": "2026-09-21 18:00:00.000000",
   "read_only": 1,
-  "description": "The Employment Act minimum at this length of service; the contract may say more."
+  "description": "Minimum notice for this length of service."
  },
  {
   "doctype": "Custom Field",
@@ -7883,7 +7837,7 @@
   "modified": "2026-09-21 18:00:00.000000",
   "read_only": 1,
   "no_copy": 1,
-  "description": "Deducted from the final pay (settlement_rules.py)."
+  "description": "Deducted from the final pay."
  },
  {
   "doctype": "Custom Field",
@@ -7989,7 +7943,7 @@
   "dt": "Employee Separation",
   "fieldname": "custom_progress_section",
   "fieldtype": "Section Break",
-  "label": "The exit",
+  "label": "Exit Progress",
   "insert_after": "custom_property_handed_on",
   "module": "HRMS Addon",
   "name": "Employee Separation-custom_progress_section",
@@ -8092,8 +8046,7 @@
   "creation": "2026-09-21 18:00:00.000000",
   "modified": "2026-09-21 18:00:00.000000",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "Step 7 of 4.6: the employee is made inactive and the Payroll Officer told."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -8407,7 +8360,7 @@
   "creation": "2026-09-21 18:00:00.000000",
   "modified": "2026-09-21 18:00:00.000000",
   "options": "Clearance Form",
-  "description": "LPL/HR/22 comes first: it says what is still outstanding."
+  "description": "The clearance form must be completed first."
  },
  {
   "doctype": "Custom Field",
@@ -8564,8 +8517,7 @@
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-21 18:00:00.000000",
-  "modified": "2026-09-21 18:00:00.000000",
-  "description": "\"I further consent that this amount shall be remitted by the Company to my bank account\" (LPL/HR/20)."
+  "modified": "2026-09-21 18:00:00.000000"
  },
  {
   "doctype": "Custom Field",
@@ -8712,7 +8664,7 @@
   "creation": "2026-09-21 18:00:00.000000",
   "modified": "2026-09-21 18:00:00.000000",
   "no_copy": 1,
-  "description": "Step 4: the employee confirms the computation is the correct amount."
+  "description": "The employee confirms the amount is correct."
  },
  {
   "doctype": "Custom Field",
@@ -8912,7 +8864,7 @@
   "creation": "2026-09-21 18:00:00.000000",
   "modified": "2026-09-21 18:00:00.000000",
   "no_copy": 1,
-  "description": "Step 5: the run the settlement is scheduled in."
+  "description": "Payroll run the settlement is paid in."
  },
  {
   "doctype": "Custom Field",
@@ -8987,8 +8939,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 22:00:00.000000",
   "modified": "2026-09-21 22:00:00.000000",
-  "options": "User",
-  "description": "Step 2: the employee reports the concern to the HR Officer."
+  "options": "User"
  },
  {
   "doctype": "Custom Field",
@@ -9003,8 +8954,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 22:00:00.000000",
   "modified": "2026-09-21 22:00:00.000000",
-  "options": "User",
-  "description": "Step 3: the HR Officer assigns a suitable HOD, who is told and books it."
+  "options": "User"
  },
  {
   "doctype": "Custom Field",
@@ -9065,7 +9015,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 22:00:00.000000",
   "modified": "2026-09-21 22:00:00.000000",
-  "description": "Step 5: the system watches this and tells the HOD as it comes near."
+  "description": "The HOD is reminded as this date nears."
  },
  {
   "doctype": "Custom Field",
@@ -9096,7 +9046,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-21 22:00:00.000000",
   "modified": "2026-09-21 22:00:00.000000",
-  "description": "What was tried before it was put in writing."
+  "description": "What was tried before the formal complaint."
  },
  {
   "doctype": "Custom Field",
@@ -9215,7 +9165,7 @@
   "modified": "2026-09-21 22:00:00.000000",
   "options": "User",
   "depends_on": "custom_appeal_filed",
-  "description": "Someone who has not already handled the concern."
+  "description": "Someone not yet involved in the concern."
  },
  {
   "doctype": "Custom Field",
@@ -9260,7 +9210,7 @@
   "creation": "2026-09-21 22:00:00.000000",
   "modified": "2026-09-21 22:00:00.000000",
   "default": "14",
-  "description": "How long this kind of concern has before the HOD is chased."
+  "description": "Days allowed before the HOD is reminded."
  },
  {
   "doctype": "Custom Field",
@@ -9310,7 +9260,7 @@
   "fieldtype": "Currency",
   "insert_after": "custom_allowance_section",
   "label": "Allowance a Shift",
-  "description": "What one shift of this kind carries. A night shift carries more than a day one; an office day carries nothing. The allowance is counted from the shifts actually worked (shifts.py).",
+  "description": "Amount paid per shift of this type.",
   "module": "HRMS Addon"
  },
  {
@@ -9331,7 +9281,6 @@
   "options": "Salary Component",
   "insert_after": "custom_allowance_cb",
   "label": "Paid Through",
-  "description": "The earning the shift allowance is paid on.",
   "depends_on": "custom_shift_allowance",
   "module": "HRMS Addon"
  },
@@ -9354,7 +9303,7 @@
   "insert_after": "custom_gradar_section",
   "module": "HRMS Addon",
   "label": "Grade Code",
-  "description": "Luuka's evaluated structure runs G2 to G20.",
+  "description": "G2 to G20.",
   "in_list_view": 1,
   "in_standard_filter": 1
  },
@@ -9407,7 +9356,7 @@
   "module": "HRMS Addon",
   "label": "Steps",
   "default": "10",
-  "description": "Set the two ends and the steps are laid out evenly between them."
+  "description": "Steps are spread evenly between the minimum and maximum."
  },
  {
   "doctype": "Custom Field",
@@ -9418,7 +9367,7 @@
   "insert_after": "custom_step_count",
   "module": "HRMS Addon",
   "label": "Second Approval Above This Grade",
-  "description": "A transaction raised by somebody on this grade or above takes a second signature (Organisation & System Setup, case 8)."
+  "description": "Transactions raised at this grade or above need a second approval."
  },
  {
   "doctype": "Custom Field",
@@ -9428,7 +9377,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_second_approval",
   "module": "HRMS Addon",
-  "label": "The Steps"
+  "label": "Steps"
  },
  {
   "doctype": "Custom Field",
@@ -9451,7 +9400,7 @@
   "module": "HRMS Addon",
   "options": "Travel Destination",
   "label": "Destination",
-  "description": "The per-diem scale is read for this destination and the traveller's grade. Foreign travel is paid in the destination's own currency."
+  "description": "Sets the per diem rate with the traveller's grade."
  },
  {
   "doctype": "Custom Field",
@@ -9486,7 +9435,7 @@
   "fieldtype": "Small Text",
   "insert_after": "custom_eligibility_remarks",
   "module": "HRMS Addon",
-  "label": "What the Scale Says",
+  "label": "Scale Remarks",
   "read_only": 1,
   "no_copy": 1
  },
@@ -9500,7 +9449,7 @@
   "module": "HRMS Addon",
   "label": "From the Scale",
   "read_only": 1,
-  "description": "Ticked where the rate was read off the per-diem scale rather than typed."
+  "description": "Rate taken from the per diem scale."
  },
  {
   "doctype": "Custom Field",
@@ -9520,7 +9469,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_documents_tab",
   "module": "HRMS Addon",
-  "label": "What They Hold"
+  "label": "Documents"
  },
  {
   "doctype": "Custom Field",
@@ -9532,7 +9481,7 @@
   "module": "HRMS Addon",
   "options": "Employee Document",
   "label": "Documents",
-  "description": "The national ID, a work permit, a driving permit. Each is chased as it runs out (documents.py)."
+  "description": "e.g. national ID, work permit, driving permit. Alerts are sent before expiry."
  },
  {
   "doctype": "Custom Field",
@@ -9542,7 +9491,7 @@
   "fieldtype": "Small Text",
   "insert_after": "custom_documents",
   "module": "HRMS Addon",
-  "label": "What Is Wrong",
+  "label": "Document Issues",
   "read_only": 1,
   "no_copy": 1
  },
@@ -9554,8 +9503,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_documents_status",
   "module": "HRMS Addon",
-  "label": "Who They Are For This Purpose",
-  "description": "What sort of documents this employee has to hold, and the fields Luuka asked for beyond the standard ones."
+  "label": "Additional Details"
  },
  {
   "doctype": "Custom Field",
@@ -9636,7 +9584,7 @@
   "module": "HRMS Addon",
   "options": "Cost Center",
   "label": "Plant Cost Centre",
-  "description": "Which cost centre this employee's labour is reported against (Organisation & System Setup, case 9)."
+  "description": "Cost centre for this employee's labour."
  },
  {
   "doctype": "Custom Field",
@@ -9652,8 +9600,7 @@
   "modified": "2026-09-23 09:00:00.000000",
   "label": "Pay Category",
   "options": "Monthly\nPer Meter\nPer Piece\nHourly",
-  "default": "Monthly",
-  "description": "How gross is earned (minutes §4.6). A Per Meter employee's salary advance is the standard rate on Advance Settings, and their leave advance is worked out on the average of recent months."
+  "default": "Monthly"
  },
  {
   "doctype": "Custom Field",
@@ -9684,7 +9631,7 @@
   "modified": "2026-09-23 09:00:00.000000",
   "label": "Has a Bank Loan",
   "default": "0",
-  "description": "A salary or leave advance is not given alongside a bank loan (minutes §4.4 and §4.9)."
+  "description": "Employees with a bank loan cannot take a salary or leave advance."
  },
  {
   "doctype": "Custom Field",
@@ -9728,7 +9675,7 @@
   "modified": "2026-09-23 09:00:00.000000",
   "label": "Runs Until",
   "depends_on": "eval:doc.custom_has_bank_loan",
-  "description": "Leave blank if it is not known; the loan then counts until the box is unticked."
+  "description": "Leave empty if not known."
  },
  {
   "doctype": "Custom Field",
@@ -9762,7 +9709,7 @@
   "read_only": 1,
   "no_copy": 1,
   "depends_on": "eval:doc.custom_advance_type=='Salary Advance'",
-  "description": "The run this request joins: the 15th, or the working day before (Advance Settings)."
+  "description": "The 15th, or the working day before."
  },
  {
   "doctype": "Custom Field",
@@ -9779,8 +9726,7 @@
   "label": "Absence Counted From",
   "read_only": 1,
   "no_copy": 1,
-  "depends_on": "eval:doc.custom_advance_type=='Salary Advance'",
-  "description": "The start of the payroll period the run falls in."
+  "depends_on": "eval:doc.custom_advance_type=='Salary Advance'"
  },
  {
   "doctype": "Custom Field",
@@ -9798,7 +9744,7 @@
   "read_only": 1,
   "no_copy": 1,
   "depends_on": "eval:doc.custom_advance_type=='Salary Advance'",
-  "description": "Counted to today, and again in full on the processing date."
+  "description": "Counted to today, then recounted on the processing date."
  },
  {
   "doctype": "Custom Field",
@@ -9816,7 +9762,7 @@
   "read_only": 1,
   "no_copy": 1,
   "depends_on": "eval:doc.custom_advance_type=='Salary Advance'",
-  "description": "Days marked absent that an approved Off Duty Request covers."
+  "description": "Absent days covered by an approved Off Duty Request."
  },
  {
   "doctype": "Custom Field",
@@ -9832,8 +9778,7 @@
   "modified": "2026-09-23 09:00:00.000000",
   "label": "Requested On",
   "read_only": 1,
-  "no_copy": 1,
-  "description": "The day the request was handed in, which decides the run it joins."
+  "no_copy": 1
  },
  {
   "doctype": "Custom Field",
@@ -9849,7 +9794,7 @@
   "modified": "2026-09-23 12:00:00.000000",
   "label": "Hourly Rate",
   "depends_on": "eval:doc.custom_pay_category=='Hourly'",
-  "description": "What this casual is paid for each standard hour. Left blank, the standard hourly rate on Output Pay Settings applies (minutes §4.6)."
+  "description": "Leave empty to use the standard hourly rate."
  },
  {
   "doctype": "Custom Field",
@@ -9864,7 +9809,7 @@
   "creation": "2026-09-23 15:00:00.000000",
   "modified": "2026-09-23 15:00:00.000000",
   "label": "Worth, % of Gross",
-  "description": "A claim worth a share of the employee's gross instead of a fixed amount: bereavement is 70% (minutes §4.8)."
+  "description": "Pay a percentage of gross instead of a fixed amount."
  },
  {
   "doctype": "Custom Field",
@@ -9879,7 +9824,7 @@
   "creation": "2026-09-23 15:00:00.000000",
   "modified": "2026-09-23 15:00:00.000000",
   "label": "At Most (Times in an Employment)",
-  "description": "Maternity is paid for up to three children (minutes §4.8). Nought: no limit."
+  "description": "Most times per employee. 0 = no limit."
  },
  {
   "doctype": "Custom Field",
@@ -9894,8 +9839,7 @@
   "creation": "2026-09-23 15:00:00.000000",
   "modified": "2026-09-23 15:00:00.000000",
   "label": "Only For",
-  "options": "Gender",
-  "description": "Maternity is for female employees."
+  "options": "Gender"
  },
  {
   "doctype": "Custom Field",
@@ -9910,7 +9854,7 @@
   "creation": "2026-09-23 15:00:00.000000",
   "modified": "2026-09-23 15:00:00.000000",
   "label": "For the Loss Of",
-  "description": "The relations a bereavement is paid for, separated by commas: Mother, Father, Child."
+  "description": "Comma separated, e.g. Mother, Father, Child."
  },
  {
   "doctype": "Custom Field",
@@ -9924,7 +9868,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 15:00:00.000000",
   "modified": "2026-09-23 15:00:00.000000",
-  "label": "Whose Loss",
+  "label": "Relation",
   "options": "\nMother\nFather\nChild\nSpouse\nSibling\nOther",
   "depends_on": "eval:doc.custom_occasion=='Bereavement'"
  },
@@ -9979,8 +9923,8 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 20:00:00.000000",
   "modified": "2026-09-23 20:00:00.000000",
-  "label": "The Leave Worked Through",
-  "description": "Encashment is for leave the employee was required to work through (minutes §4.5). Amend or cancel that leave first, so the days worked return to the balance."
+  "label": "Leave Worked",
+  "description": "Cancel or amend the leave first so the days return to the balance."
  },
  {
   "doctype": "Custom Field",
@@ -10009,7 +9953,7 @@
   "modified_by": "Administrator",
   "creation": "2026-09-23 20:00:00.000000",
   "modified": "2026-09-23 20:00:00.000000",
-  "label": "Why the Leave Was Worked"
+  "label": "Reason"
  },
  {
   "doctype": "Custom Field",
@@ -10039,7 +9983,7 @@
   "label": "Days Asked For",
   "read_only": 1,
   "no_copy": 1,
-  "description": "What the employee asked for. Management may pay fewer days, never more."
+  "description": "Days may be reduced but not increased."
  },
  {
   "doctype": "Custom Field",
@@ -10056,7 +10000,7 @@
   "label": "A Day's Pay",
   "read_only": 1,
   "no_copy": 1,
-  "description": "The gross over 26 working days, unless a per-day amount is set on the salary structure."
+  "description": "Gross divided by 26, unless the salary structure sets a daily amount."
  },
  {
   "doctype": "Custom Field",

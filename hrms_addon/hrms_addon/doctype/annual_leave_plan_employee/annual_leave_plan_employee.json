@@ -58,8 +58,7 @@
    "fieldname": "entitlement_days",
    "fieldtype": "Float",
    "label": "Entitled",
-   "precision": "2",
-   "description": "Days the employee is owed for the year, from their Leave Allocation."
+   "precision": "2"
   },
   {
    "fieldname": "planned_from",
@@ -119,8 +118,7 @@
    "read_only": 1,
    "hidden": 1,
    "no_copy": 1,
-   "print_hide": 1,
-   "description": "The horizons already notified, so nobody is told twice."
+   "print_hide": 1
   }
  ],
  "istable": 1,

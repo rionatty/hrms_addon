@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 16:00:00.000000",
- "description": "A staff loan: asked for by the employee, approved by the HOD, the Executive Director and the General Manager, settled by Accounts, consented to by the employee (LPL/HR/39) and recovered from the payroll.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -195,7 +194,7 @@
   {
    "fieldname": "request_section",
    "fieldtype": "Section Break",
-   "label": "The request"
+   "label": "Request"
   },
   {
    "fieldname": "loan_type",
@@ -206,7 +205,7 @@
    "options": "Car Loan\nStudy Loan\nOther",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "A car loan is at most UGX 30 million; a study loan is what the course costs (minutes §4.10)."
+   "description": "Car loan: up to UGX 30,000,000. Study loan: the course fees."
   },
   {
    "fieldname": "loan_amount",
@@ -218,15 +217,14 @@
   {
    "fieldname": "purpose",
    "fieldtype": "Small Text",
-   "label": "What the loan is for",
+   "label": "Purpose",
    "reqd": 1
   },
   {
    "fieldname": "fee_structure",
    "fieldtype": "Attach",
    "label": "Course Fee Structure",
-   "depends_on": "eval:doc.loan_type=='Study Loan'",
-   "description": "What the course costs, which is what a study loan is."
+   "depends_on": "eval:doc.loan_type=='Study Loan'"
   },
   {
    "fieldname": "column_break_2",
@@ -237,13 +235,12 @@
    "fieldtype": "Currency",
    "label": "Gross Pay",
    "read_only": 1,
-   "no_copy": 1,
-   "description": "From the employee's current salary structure assignment."
+   "no_copy": 1
   },
   {
    "fieldname": "limit",
    "fieldtype": "Currency",
-   "label": "Most That May Be Lent",
+   "label": "Maximum Loan Amount",
    "read_only": 1,
    "no_copy": 1
   },
@@ -264,15 +261,14 @@
   {
    "fieldname": "eligibility_remarks",
    "fieldtype": "Small Text",
-   "label": "Why Not",
+   "label": "Eligibility Remarks",
    "read_only": 1,
    "no_copy": 1
   },
   {
    "fieldname": "terms_section",
    "fieldtype": "Section Break",
-   "label": "The terms Accounts settled",
-   "description": "Step 3: what was actually discussed with the employee."
+   "label": "Loan Terms"
   },
   {
    "fieldname": "approved_amount",
@@ -284,7 +280,7 @@
    "fieldtype": "Percent",
    "label": "Interest Rate (a year)",
    "default": "0",
-   "description": "Luuka's staff loans carry no interest; a rate set here is flat over the term."
+   "description": "Flat rate for the whole term. Leave 0 for no interest."
   },
   {
    "fieldname": "instalments",
@@ -317,8 +313,7 @@
    "fieldname": "recovery_component",
    "fieldtype": "Link",
    "label": "Deduction Component",
-   "options": "Salary Component",
-   "description": "The salary component the monthly repayment is posted to."
+   "options": "Salary Component"
   },
   {
    "fieldname": "schedule_section",
@@ -363,8 +358,7 @@
   {
    "fieldname": "liability",
    "fieldtype": "Small Text",
-   "label": "Liability",
-   "description": "What the deduction covers, in the employee's own words on the form."
+   "label": "Liability"
   },
   {
    "fieldname": "extent_of_deduction",
@@ -383,9 +377,8 @@
   {
    "fieldname": "consent",
    "fieldtype": "Check",
-   "label": "The Employee Consents",
-   "no_copy": 1,
-   "description": "\"...I agree that all outstanding balance be recovered in lump sum from my terminal benefits owed to me.\""
+   "label": "Employee Consents",
+   "no_copy": 1
   },
   {
    "fieldname": "consent_remarks",
@@ -537,8 +530,7 @@
    "fieldname": "return_remarks",
    "fieldtype": "Small Text",
    "label": "Return Remarks",
-   "no_copy": 1,
-   "description": "Why the loan is going back, written before returning it."
+   "no_copy": 1
   },
   {
    "fieldname": "amended_from",

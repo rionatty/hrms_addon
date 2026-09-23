@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 23:30:00.000000",
- "description": "The development plan an employee is put on: leadership, mentoring and coaching, or learning and development — and afterwards, whether it worked.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -132,7 +131,7 @@
   {
    "fieldname": "program_section",
    "fieldtype": "Section Break",
-   "label": "The programme"
+   "label": "Programme"
   },
   {
    "fieldname": "program_type",
@@ -196,8 +195,7 @@
   {
    "fieldname": "actions_section",
    "fieldtype": "Section Break",
-   "label": "What is to be done",
-   "description": "Part E of the appraisal, kept in the same shape: the action, by when, by whom and what it costs."
+   "label": "Actions"
   },
   {
    "fieldname": "actions",
@@ -216,8 +214,7 @@
   {
    "fieldname": "review_section",
    "fieldtype": "Section Break",
-   "label": "Did it work",
-   "description": "The HR Officer's review: the appraisal before, the appraisal after, and what came of it."
+   "label": "Did it work"
   },
   {
    "fieldname": "score_before",
@@ -255,13 +252,12 @@
    "fieldname": "decision",
    "fieldtype": "Select",
    "label": "Decision",
-   "options": "\nSuccession Pipeline\nPromotion\nReplacement\nRetain in Role\nImprove",
-   "description": "What management decide from the outcome: the succession pipeline, a promotion, or a replacement."
+   "options": "\nSuccession Pipeline\nPromotion\nReplacement\nRetain in Role\nImprove"
   },
   {
    "fieldname": "outcome_notes",
    "fieldtype": "Text",
-   "label": "What came of it"
+   "label": "Outcome"
   },
   {
    "fieldname": "signoff_section",

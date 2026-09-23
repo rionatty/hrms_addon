@@ -16,8 +16,7 @@
   {
    "fieldname": "components_section",
    "fieldtype": "Section Break",
-   "label": "Salary Components",
-   "description": "The earnings each kind of output pay is written to, on top of the basic salary."
+   "label": "Salary Components"
   },
   {
    "fieldname": "per_meter_component",
@@ -45,14 +44,14 @@
    "fieldname": "standard_hourly_rate",
    "fieldtype": "Currency",
    "label": "Standard Hourly Rate",
-   "description": "What an hourly casual is paid for each standard hour, unless their own Hourly Rate is set on the employee."
+   "description": "Used when the employee has no hourly rate of their own."
   },
   {
    "fieldname": "standard_hours",
    "fieldtype": "Float",
    "label": "Standard Hours a Day",
    "default": "10",
-   "description": "Hours past these are overtime, priced by the overtime module rather than here."
+   "description": "Hours above this are paid as overtime."
   }
  ],
  "links": [],
@@ -104,7 +103,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "description": "How output pay is written to the payroll (minutes §4.6).",
  "issingle": 1,
  "track_changes": 1
 }

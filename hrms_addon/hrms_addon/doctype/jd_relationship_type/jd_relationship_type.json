@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:relationship_type",
  "creation": "2026-09-16 20:00:00.000000",
- "description": "How a position reports to a role on a Job Description, e.g. Direct, Indirect.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

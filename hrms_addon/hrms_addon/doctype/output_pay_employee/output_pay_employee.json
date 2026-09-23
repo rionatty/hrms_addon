@@ -48,14 +48,14 @@
    "fieldname": "hours",
    "fieldtype": "Float",
    "label": "Hours",
-   "description": "Hourly: the standard hours worked, from attendance."
+   "description": "Standard hours from attendance (hourly staff)."
   },
   {
    "fieldname": "overtime_hours",
    "fieldtype": "Float",
    "label": "Overtime Hours",
    "read_only": 1,
-   "description": "Shown, not paid here: the overtime module prices it."
+   "description": "Paid through overtime, not here."
   },
   {
    "fieldname": "rate",

@@ -16,14 +16,14 @@
    "fieldtype": "Int",
    "label": "Width (cm)",
    "in_list_view": 1,
-   "description": "Per Meter: the width of material this rate is for."
+   "description": "Per Meter machines only."
   },
   {
    "fieldname": "piece_category",
    "fieldtype": "Data",
    "label": "Piece Category",
    "in_list_view": 1,
-   "description": "Per Piece: the category this price is for."
+   "description": "Per Piece machines only."
   },
   {
    "fieldname": "rate",
@@ -31,14 +31,14 @@
    "label": "Rate",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "Per metre, or per piece."
+   "description": "Per metre or per piece."
   },
   {
    "fieldname": "daily_target",
    "fieldtype": "Float",
    "label": "Daily Target",
    "in_list_view": 1,
-   "description": "Metres or pieces a shift is expected to make."
+   "description": "Expected metres or pieces per shift."
   },
   {
    "fieldname": "valid_from",

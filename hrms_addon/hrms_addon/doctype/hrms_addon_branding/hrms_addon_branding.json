@@ -20,7 +20,7 @@
  "fields": [
   {
    "default": "0",
-   "description": "Off = whatever Website Settings and Navbar Settings already hold. On = the values below are pushed into them on save and on every migrate.",
+   "description": "When on, the values below replace the Website and Navbar settings.",
    "fieldname": "enabled",
    "fieldtype": "Check",
    "label": "Apply Branding"
@@ -37,14 +37,14 @@
    "label": "Identity"
   },
   {
-   "description": "Replaces \"Frappe\" as the product name: the browser tab on the desk, the heading on the login page, and the subject of login emails. Goes to Website Settings → App Name.",
+   "description": "Shown in the browser tab, the login page and login emails.",
    "fieldname": "product_name",
    "fieldtype": "Data",
    "label": "Product Name"
   },
   {
    "default": "0",
-   "description": "Also rewrite the app name shown in the desk sidebar and on the launcher tiles (e.g. \"Frappe HR\" → your product name). This one is done in the browser, because those labels are rendered client-side from each app's own hooks.",
+   "description": "Also show the product name in the sidebar and on the app tiles.",
    "fieldname": "rebrand_app_labels",
    "fieldtype": "Check",
    "label": "Rebrand App Labels In The Desk"
@@ -54,13 +54,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "The mark in the desk navbar, on the /app/desktop launcher and on the login page. Square-ish reads best — it is drawn into a 52px bar. Goes to Website Settings → App Logo and Navbar Settings → App Logo (both, because they feed different screens).",
+   "description": "Shown in the navbar, the app launcher and the login page. A square image works best.",
    "fieldname": "company_logo",
    "fieldtype": "Attach Image",
    "label": "Company Logo"
   },
   {
-   "description": "Browser tab icon. Goes to Website Settings → FavIcon.",
+   "description": "Browser tab icon.",
    "fieldname": "favicon",
    "fieldtype": "Attach",
    "label": "Favicon"
@@ -72,7 +72,7 @@
    "label": "Other Surfaces"
   },
   {
-   "description": "Shown while the desk is loading. Wider marks are fine here — it is capped at 200px.",
+   "description": "Shown while the desk loads.",
    "fieldname": "splash_image",
    "fieldtype": "Attach Image",
    "label": "Splash Image"
@@ -82,7 +82,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Replaces \"Powered by ERPNext\" in the website footer (the job portal, and every other public page). HTML is allowed, so a link works: Powered by &lt;a href=\"https://cyvetech.com\"&gt;CyveTech&lt;/a&gt;. Goes to Website Settings → Footer \"Powered By\".",
+   "description": "Replaces \"Powered by ERPNext\" in the website footer. HTML is allowed.",
    "fieldname": "footer_powered",
    "fieldtype": "Small Text",
    "label": "Footer \"Powered By\""

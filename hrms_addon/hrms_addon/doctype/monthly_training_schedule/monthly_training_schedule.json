@@ -66,8 +66,7 @@
    "fieldname": "training_calendar",
    "fieldtype": "Link",
    "label": "Training Calendar",
-   "options": "Training Calendar",
-   "description": "The approved calendar the month is drawn from."
+   "options": "Training Calendar"
   },
   {
    "fieldname": "prepared_by",
@@ -81,7 +80,7 @@
    "fieldname": "lines_section",
    "fieldtype": "Section Break",
    "label": "Trainings This Month",
-   "description": "Get Calendar Trainings brings in the calendar's rows for the month; set each one's date, venue and trainer. Submitting the schedule books a Training Event for each, with the requisition's target employees as its participants, and tells the Heads of Department, the trainers and the trainees."
+   "description": "Use Get Calendar Trainings, then set each training's date, venue and trainer."
   },
   {
    "fieldname": "lines",

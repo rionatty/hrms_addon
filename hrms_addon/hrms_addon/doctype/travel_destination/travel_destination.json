@@ -3,7 +3,6 @@
  "allow_rename": 1,
  "autoname": "field:destination_name",
  "creation": "2026-09-22 02:00:00.000000",
- "description": "Somewhere Luuka travel to, and the currency the allowance is paid in there.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -49,7 +48,7 @@
    "label": "Paid In",
    "options": "Currency",
    "in_list_view": 1,
-   "description": "Foreign travel is paid in the destination's own currency, which for Luuka means USD. Left empty, a local destination is paid in shillings."
+   "description": "Leave empty for UGX."
   },
   {
    "fieldname": "enabled",

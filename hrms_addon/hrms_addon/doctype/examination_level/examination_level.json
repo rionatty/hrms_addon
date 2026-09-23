@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:level_name",
  "creation": "2026-09-17 10:00:00.000000",
- "description": "A school examination level, e.g. O-Level (UCE), A-Level (UACE).",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

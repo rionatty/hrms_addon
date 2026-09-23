@@ -19,7 +19,7 @@
    "reqd": 1,
    "in_list_view": 1,
    "columns": 4,
-   "description": "As the planner names them: Production Manager Namanve, Accounts Manager, Head of Sales and Marketing, Chief Finance Officer, ..."
+   "description": "e.g. Production Manager Namanve"
   },
   {
    "fieldname": "employee",

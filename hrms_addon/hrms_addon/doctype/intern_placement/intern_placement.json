@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-22 09:00:00.000000",
- "description": "The Intern Placement Letter: an internship placement, its plant, section and supervisor.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -64,8 +63,7 @@
    "fieldtype": "Data",
    "label": "School / University",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "The letter is addressed there."
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_1",
@@ -85,8 +83,7 @@
   {
    "fieldname": "applied_on",
    "fieldtype": "Date",
-   "label": "Date of Application",
-   "description": "The letter refers to the intern's application of this date."
+   "label": "Date of Application"
   },
   {
    "fieldname": "status",
@@ -123,8 +120,7 @@
    "fieldtype": "Link",
    "label": "Plant",
    "options": "Branch",
-   "reqd": 1,
-   "description": "Which plant the intern is placed at."
+   "reqd": 1
   },
   {
    "fieldname": "column_break_2",
@@ -167,8 +163,7 @@
    "fieldname": "supervisor_designation",
    "fieldtype": "Data",
    "label": "Supervisor's Designation",
-   "reqd": 1,
-   "description": "The letter says the intern reports to this designation for assignment of duties."
+   "reqd": 1
   },
   {
    "fieldname": "signed_section",

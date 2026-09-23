@@ -114,7 +114,7 @@ expect("a complete signature", S.log_errors(good))
 expect("a signature on nothing", S.log_errors(dict(good, reference_name=None)),
        "A signature is given on a document")
 expect("a signature on something nobody signs",
-       S.log_errors(dict(good, reference_doctype="Sales Invoice")), "not a document Luuka sign")
+       S.log_errors(dict(good, reference_doctype="Sales Invoice")), "not set up for signatures")
 expect("a signature by nobody", S.log_errors(dict(good, signatory=None)),
        "given by somebody")
 expect("a signature as nothing real", S.log_errors(dict(good, step="Rubber-Stamped")),

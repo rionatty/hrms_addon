@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:horizon",
  "creation": "2026-09-16 20:00:00.000000",
- "description": "A planning horizon on a Job Description, e.g. Short-Term, Long-Term.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

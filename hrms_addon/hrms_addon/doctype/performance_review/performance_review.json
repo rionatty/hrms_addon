@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-23 09:00:00.000000",
- "description": "The appraisal report the HR Officer shares with top management, and the decision it ends in: a promotion, a salary increase, a Performance Improvement Plan, or closing the appraisal.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -133,8 +132,7 @@
    "fieldname": "completion",
    "fieldtype": "Percent",
    "label": "Completion",
-   "read_only": 1,
-   "description": "How many of the cycle's appraisals are finished."
+   "read_only": 1
   },
   {
    "fieldname": "employees_section",
@@ -155,8 +153,7 @@
   {
    "fieldname": "shared_with",
    "fieldtype": "Small Text",
-   "label": "Shared With",
-   "description": "The top management team the report went to."
+   "label": "Shared With"
   },
   {
    "fieldname": "management_remarks",

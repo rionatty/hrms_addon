@@ -47,7 +47,7 @@
    "label": "Starts at Position",
    "in_list_view": 1,
    "columns": 1,
-   "description": "Which position of the cycle this person begins on. It is what staggers one crew against another."
+   "description": "The position in the cycle this person starts on."
   },
   {
    "fieldname": "current_shift",
@@ -64,7 +64,7 @@
    "label": "Held on One Shift Until",
    "in_list_view": 1,
    "columns": 2,
-   "description": "Somebody asked to stay on a shift for a while sits out the rotation until this day, then rejoins where the cycle has got to."
+   "description": "Stays on the current shift until this date, then rejoins the rotation."
   },
   {
    "fieldname": "held_shift",

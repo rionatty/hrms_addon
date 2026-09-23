@@ -74,7 +74,7 @@
    "options": "January\nFebruary\nMarch\nApril\nMay\nJune\nJuly\nAugust\nSeptember\nOctober\nNovember\nDecember",
    "reqd": 1,
    "in_list_view": 1,
-   "description": "The payroll month: the 26th of the month before to the 25th of this one."
+   "description": "26th of the previous month to the 25th."
   },
   {
    "fieldname": "from_date",
@@ -92,7 +92,7 @@
    "fieldname": "lines_section",
    "fieldtype": "Section Break",
    "label": "Output by Machine",
-   "description": "Per Meter and Per Piece: the month's output per person per machine. Get Output fills it from the submitted daily reports; a line can also be entered by hand."
+   "description": "Use Get Output to fill from the submitted daily reports. Lines can also be added by hand."
   },
   {
    "fieldname": "lines",
@@ -104,7 +104,7 @@
    "fieldname": "employees_section",
    "fieldtype": "Section Break",
    "label": "Pay",
-   "description": "What each person is paid, added on top of their basic salary as an Additional Salary when the run is submitted."
+   "description": "Paid on top of basic salary as Additional Salary when the run is submitted."
   },
   {
    "fieldname": "employees",
@@ -205,7 +205,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "description": "The Per Meter Template, the Per Piece Production File and the hourly casuals' sheet: a month's output pay, written as Additional Salary (minutes §4.6).",
  "autoname": "naming_series:",
  "is_submittable": 1,
  "track_changes": 1

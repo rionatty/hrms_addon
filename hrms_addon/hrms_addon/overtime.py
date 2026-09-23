@@ -289,7 +289,7 @@ def _overtime_component():
         doc = frappe.get_doc({
             "doctype": "Salary Component", "salary_component": "Overtime",
             "salary_component_abbr": "OT", "type": "Earning",
-            "description": "Overtime, paid through Frappe HR's Overtime Slip."})
+            "description": "Overtime, paid through the Overtime Slip."})
         doc.flags.ignore_permissions = True
         doc.flags.ignore_mandatory = True
         doc.insert()

@@ -93,8 +93,7 @@
   {
    "fieldname": "lines_section",
    "fieldtype": "Section Break",
-   "label": "Output",
-   "description": "Each person's output on each machine they ran this shift. The rate is the machine's own, for the width or piece category, on this date."
+   "label": "Output"
   },
   {
    "fieldname": "lines",
@@ -226,7 +225,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "description": "The Daily Loom Production Report (Per Meter) and the Per Piece Production File, filled in by the shift supervisor (minutes §4.6).",
  "autoname": "naming_series:",
  "is_submittable": 1,
  "track_changes": 1

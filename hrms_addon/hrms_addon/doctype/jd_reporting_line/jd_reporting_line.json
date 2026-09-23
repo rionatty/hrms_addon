@@ -26,8 +26,7 @@
    "options": "Designation",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 5,
-   "description": "Picked from the Job Title list, so reporting lines stay consistent across JDs."
+   "columns": 5
   },
   {
    "fieldname": "scope",

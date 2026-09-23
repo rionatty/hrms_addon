@@ -412,14 +412,14 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	floor(board) {
 		const tally = board.floor.tally;
 		const band = this.band(
-			__("On the floor now"),
+			__("Clocked in now"),
 			__("{0} inside", [tally.inside])
 		);
 		const counts = [
 			{ label: __("Inside"), value: tally.inside, tone: "ink" },
 			{ label: __("Day"), value: tally.day, tone: "day" },
 			{ label: __("Night"), value: tally.night, tone: "night" },
-			{ label: __("Into overtime"), value: tally.into_overtime, tone: "warn" },
+			{ label: __("In overtime"), value: tally.into_overtime, tone: "warn" },
 			{ label: __("Over a full shift"), value: tally.over_a_shift, tone: "bad" },
 		];
 		const figures = counts
@@ -477,7 +477,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	cycle_so_far(board) {
 		const cycle = board.cycle;
 		const totals = board.cycle_totals;
-		const band = this.band(__("The cycle"), cycle.label);
+		const band = this.band(__("Cycle"), cycle.label);
 		const through = Math.round((cycle.progress.through || 0) * 100);
 		const strip = (board.per_day || [])
 			.map((day) => {
@@ -532,13 +532,13 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 					<div class="hra-figure-value">${
 						totals.rate === null ? "—" : Math.round(totals.rate * 100) + "%"
 					}</div>
-					<div class="hra-figure-label">${__("Turned up")}</div>
+					<div class="hra-figure-label">${__("Present")}</div>
 				</div>
 			</div>
 			<div class="hra-strip">${strip}</div>
 			${
 				short.length
-					? `<div class="hra-warn">${__("{0} day(s) of this cycle had nobody on nights.", [
+					? `<div class="hra-warn">${__("{0} day(s) this cycle with no night shift.", [
 							short.length,
 					  ])}</div>`
 					: ""
@@ -558,9 +558,9 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		if (rows.length < 2) return;
 		const watching = rows.filter((seat) => seat.machines_watch > 0).length;
 		const band = this.band(
-			__("The plants"),
+			__("Plants"),
 			watching
-				? __("{0} plant(s) with a machine to look at", [watching])
+				? __("{0} plant(s) with machine issues", [watching])
 				: __("{0} plants", [rows.length])
 		);
 		const lines = rows
@@ -601,7 +601,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 					<th class="text-right">${__("Shifts")}</th>
 					<th class="text-right">${__("Nights")}</th>
 					<th class="text-right">${__("Absent")}</th>
-					<th>${__("Turned up")}</th>
+					<th>${__("Present")}</th>
 					<th class="text-right">${__("Machines")}</th>
 				</tr></thead>
 				<tbody>${lines}</tbody>
@@ -620,12 +620,12 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	needs_a_person(board) {
 		const rows = (board.exceptions || []).filter((row) => row.count > 0);
 		const band = this.band(
-			__("Needs a person"),
-			rows.length ? __("{0} kind(s)", [rows.length]) : __("nothing waiting")
+			__("Exceptions"),
+			rows.length ? __("{0} kind(s)", [rows.length]) : __("no exceptions")
 		);
 		if (!rows.length) {
 			band.find(".hra-band-body").html(
-				`<div class="hra-clear">${__("Nothing is waiting. The register is clean.")}</div>`
+				`<div class="hra-clear">${__("No exceptions.")}</div>`
 			);
 			return;
 		}
@@ -652,9 +652,9 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	register(board) {
 		const days = board.cycle.days || [];
 		const band = this.band(
-			__("The register"),
+			__("Register"),
 			board.register.shown < board.register.of
-				? __("{0} of {1} people — narrow by plant or department to see the rest", [
+				? __("Showing {0} of {1} people. Filter by plant or department to see the rest.", [
 						board.register.shown,
 						board.register.of,
 				  ])
@@ -738,7 +738,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	// 6. the machines
 	machines(board) {
 		const machines = board.machines || [];
-		const band = this.band(__("The machines"), __("{0} on the wall", [machines.length]));
+		const band = this.band(__("Machines"), __("{0} on the wall", [machines.length]));
 		if (!machines.length) {
 			band.find(".hra-band-body").html(
 				`<div class="text-muted">${__("No clocking machine has been set up yet.")}</div>`
@@ -771,7 +771,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 			<table class="hra-table">
 				<thead><tr>
 					<th>${__("Machine")}</th><th>${__("Plant")}</th><th>${__("Direction")}</th>
-					<th>${__("Fed by")}</th><th>${__("Last punch")}</th>
+					<th>${__("Source")}</th><th>${__("Last punch")}</th>
 					<th class="text-right">${__("Today")}</th>
 				</tr></thead>
 				<tbody>${rows}</tbody>

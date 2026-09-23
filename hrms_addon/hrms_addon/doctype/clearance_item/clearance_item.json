@@ -66,8 +66,7 @@
    "label": "Tool of Work",
    "options": "Tool of Work",
    "read_only": 1,
-   "no_copy": 1,
-   "description": "Where the line is one of the employee's own tools of work."
+   "no_copy": 1
   }
  ],
  "istable": 1,

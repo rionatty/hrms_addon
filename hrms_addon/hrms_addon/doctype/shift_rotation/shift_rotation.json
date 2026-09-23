@@ -3,7 +3,6 @@
  "allow_rename": 1,
  "autoname": "field:rotation_name",
  "creation": "2026-09-22 01:00:00.000000",
- "description": "An ordered cycle of shifts for a plant or section, and who is on it. The shifts come round on their own.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -34,7 +33,7 @@
    "reqd": 1,
    "unique": 1,
    "in_list_view": 1,
-   "description": "For example, Kawempe Extrusion Three-Shift."
+   "description": "e.g. Kawempe Extrusion Three-Shift"
   },
   {
    "fieldname": "company",
@@ -67,8 +66,7 @@
    "fieldname": "start_date",
    "fieldtype": "Date",
    "label": "Starts",
-   "reqd": 1,
-   "description": "Every position after this is counted from here."
+   "reqd": 1
   },
   {
    "fieldname": "period",
@@ -98,8 +96,8 @@
   {
    "fieldname": "cycle_section",
    "fieldtype": "Section Break",
-   "label": "The cycle",
-   "description": "In this order. Whoever is on the first this period is on the second next period, and so on round."
+   "label": "Cycle",
+   "description": "Staff move to the next shift in this order each period."
   },
   {
    "fieldname": "shifts",
@@ -117,7 +115,7 @@
   {
    "fieldname": "members_section",
    "fieldtype": "Section Break",
-   "label": "Who is on it"
+   "label": "Members"
   },
   {
    "fieldname": "members",

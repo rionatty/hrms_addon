@@ -68,8 +68,7 @@
   {
    "fieldname": "target",
    "fieldtype": "Float",
-   "label": "Target",
-   "description": "Filled from the machine's rate; change it for this person if theirs differs."
+   "label": "Target"
   },
   {
    "fieldname": "achieved",

@@ -33,7 +33,7 @@ frappe.ui.form.on("Attendance Device", {
 							__("{0} repeat readings collapsed.", [found.collapsed]),
 							__("{0} pushed, {1} already there.", [found.pushed, found.duplicate]),
 							found.unknown ? __("{0} belong to no employee.", [found.unknown]) : "",
-							found.failed ? __("{0} could not be pushed — see the device logs.", [found.failed]) : "",
+							found.failed ? __("{0} could not be pushed. See the device logs.", [found.failed]) : "",
 						]
 							.filter(Boolean)
 							.join("<br>"),
@@ -71,7 +71,7 @@ frappe.ui.form.on("Attendance Device", {
 		} else if (frm.doc.last_sync) {
 			frm.dashboard.set_headline(
 				frappe.utils.escape_html(
-					__("Last synced {0} — {1}", [
+					__("Last synced {0}: {1}", [
 						frappe.datetime.str_to_user(frm.doc.last_sync),
 						frm.doc.last_status || "",
 					])

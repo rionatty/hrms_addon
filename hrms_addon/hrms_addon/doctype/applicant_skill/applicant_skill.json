@@ -15,8 +15,7 @@
    "in_list_view": 1,
    "columns": 10,
    "reqd": 1,
-   "options": "Skill",
-   "description": "Picked from the Skill list. A skill not on it yet can be added from here."
+   "options": "Skill"
   }
  ],
  "istable": 1,

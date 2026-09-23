@@ -159,7 +159,7 @@
   "doctype_or_field": "DocField",
   "property": "description",
   "property_type": "Text",
-  "value": "Leave blank to use the Job Application Form with the Pre-Interview Bio-Data steps (/apply).",
+  "value": "Leave empty to use the standard application form.",
   "module": "HRMS Addon",
   "field_name": "job_application_route"
  },
@@ -257,7 +257,7 @@
   "doctype_or_field": "DocField",
   "property": "description",
   "property_type": "Text",
-  "value": "Set from the recommendation: Reject is Rejected, Offer or Shortlist is Cleared.",
+  "value": "Set from the recommendation.",
   "module": "HRMS Addon",
   "field_name": "result"
  },
@@ -354,7 +354,7 @@
   "doctype_or_field": "DocField",
   "property": "description",
   "property_type": "Text",
-  "value": "The pass mark in stars on the LPL/HR/17 scale: 3 = Good (60%), 4 = Very Good (75%).",
+  "value": "3 = Good (60%), 4 = Very Good (75%).",
   "module": "HRMS Addon",
   "field_name": "expected_average_rating"
  },
@@ -442,7 +442,7 @@
   "doctype_or_field": "DocField",
   "property": "description",
   "property_type": "Text",
-  "value": "The role's balanced scorecard. It attaches itself from the employee's designation; Get Scorecard fills Section A and Section B from it.",
+  "value": "Set from the employee's designation.",
   "module": "HRMS Addon",
   "field_name": "appraisal_template"
  },
@@ -531,7 +531,7 @@
   "field_name": "goals",
   "property": "description",
   "property_type": "Text",
-  "value": "Frappe HR's own KRA table. Luuka's scorecard puts the objectives in Section A below, so leave this empty on a scorecard template — filling both is the same work twice.",
+  "value": "Leave empty on a scorecard template.",
   "module": "HRMS Addon"
  }
 ]

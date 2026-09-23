@@ -3,7 +3,6 @@
  "allow_rename": 1,
  "autoname": "field:misconduct_name",
  "creation": "2026-09-21 22:00:00.000000",
- "description": "A kind of misconduct and how serious Luuka treat it.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -33,7 +32,7 @@
    "default": "Minor",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Only gross misconduct may be dismissed on a first offence (the chart's \"Summary Dismissal?\")."
+   "description": "Only gross misconduct allows dismissal on a first offence."
   },
   {
    "fieldname": "column_break_1",
@@ -44,7 +43,7 @@
    "fieldtype": "Link",
    "label": "Usual First Sanction",
    "options": "Disciplinary Action Type",
-   "description": "Where the ladder starts for this misconduct when nothing else stands against the employee."
+   "description": "The first sanction for this misconduct."
   },
   {
    "fieldname": "enabled",

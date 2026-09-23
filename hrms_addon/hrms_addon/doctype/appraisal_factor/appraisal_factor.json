@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:factor_name",
  "creation": "2026-09-23 09:00:00.000000",
- "description": "A ratable factor of Section A of the Supervisory Skills Evaluation Form (LPL/HR/18).",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

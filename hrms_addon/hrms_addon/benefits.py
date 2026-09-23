@@ -235,7 +235,7 @@ def seed_standard_claims():
         doc.expense_type = name
         doc.custom_is_standard = 1
         doc.custom_occasion = occasion
-        doc.description = _("A standard claim. Set the amount Luuka pay before it is used.")
+        doc.description = _("A standard claim. Set its amount before use.")
         for field, value in minutes_values(name).items():
             doc.set(field, value)
         doc.insert(ignore_permissions=True)
@@ -249,11 +249,9 @@ def minutes_values(name):
         return {"custom_is_standard": 1, "custom_standard_amount": rules.MATERNITY_AMOUNT,
                 "custom_max_times": rules.MATERNITY_TIMES, "custom_for_gender": rules.FEMALE,
                 "custom_requires_evidence": 1,
-                "description": _("UGX 350,000 for a female employee, for up to three children "
-                                 "born during her employment (minutes §4.8).")}
+                "description": _("UGX 350,000 for female employees, up to three times.")}
     if name == rules.BEREAVEMENT_SUPPORT:
         return {"custom_is_standard": 0, "custom_percent_of_gross": rules.BEREAVEMENT_PERCENT,
                 "custom_relations": ", ".join(rules.BEREAVEMENT_RELATIONS),
-                "description": _("70% of the employee's gross, for the loss of a biological "
-                                 "mother, father or child (minutes §4.8).")}
+                "description": _("70% of gross, for the loss of a mother, father or child.")}
     return {}

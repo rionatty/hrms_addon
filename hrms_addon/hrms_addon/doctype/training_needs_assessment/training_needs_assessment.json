@@ -55,7 +55,7 @@
    "label": "Branch",
    "options": "Branch",
    "in_standard_filter": 1,
-   "description": "Blank: the whole company."
+   "description": "Leave empty for the whole company."
   },
   {
    "fieldname": "column_break_1",
@@ -93,14 +93,13 @@
    "options": "Training Calendar",
    "read_only": 1,
    "no_copy": 1,
-   "allow_on_submit": 1,
-   "description": "The calendar these needs were consolidated into."
+   "allow_on_submit": 1
   },
   {
    "fieldname": "requisitions_section",
    "fieldtype": "Section Break",
    "label": "Requisitions Taken Up",
-   "description": "Get Requisitions brings in the department requisitions of the branch not yet assessed."
+   "description": "Use Get Requisitions to bring in the branch's requisitions not yet assessed."
   },
   {
    "fieldname": "requisitions",
@@ -129,8 +128,7 @@
    "fieldname": "objectives",
    "fieldtype": "Text",
    "label": "Training Objectives",
-   "reqd": 1,
-   "description": "What the year's training must achieve."
+   "reqd": 1
   },
   {
    "fieldname": "column_break_2",
@@ -140,7 +138,7 @@
    "fieldname": "methods",
    "fieldtype": "Small Text",
    "label": "Proposed Training Methods",
-   "description": "How the trainings will be delivered: internal, external bodies, on the job, online."
+   "description": "e.g. internal, external, on the job, online"
   },
   {
    "fieldname": "approval_section",
@@ -194,8 +192,7 @@
   {
    "fieldname": "return_remarks",
    "fieldtype": "Small Text",
-   "label": "Return Remarks",
-   "description": "Why it was returned to the HR Officer to amend."
+   "label": "Return Remarks"
   },
   {
    "fieldname": "amended_from",

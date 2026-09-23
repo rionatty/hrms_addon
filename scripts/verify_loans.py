@@ -178,7 +178,7 @@ expect("a study loan with its fees, over three months' gross", R.eligibility_err
 expect("a study loan with no fee structure", R.eligibility_errors(dict(study, fee_structure=None)),
        "fee structure")
 expect("a loan Luuka do not offer", R.eligibility_errors(dict(ok, loan_type="Holiday Loan")),
-       "not one of Luuka's loans")
+       "not a valid loan type")
 if R.limit_for_type("Car Loan", 500000) != 30000000 or R.limit_for_type("Study Loan", 500000) is not None \
         or R.limit_for_type("Other", 500000) != 1500000:
     fail.append("the ceiling follows the kind of loan: 30 million, the course, or three months' gross")

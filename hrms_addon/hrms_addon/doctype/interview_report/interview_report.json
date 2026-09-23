@@ -3,7 +3,6 @@
  "autoname": "HR-INR-.YYYY.-.####",
  "creation": "2026-09-18 12:00:00.000000",
  "default_print_format": "Interview Report",
- "description": "The panel's report on one day's interviews for a Job Opening, forwarded to the Executive Director through the Human Resource Manager.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -63,8 +62,7 @@
    "label": "Branch",
    "fetch_from": "job_opening.location",
    "read_only": 1,
-   "in_standard_filter": 1,
-   "description": "The opening's branch: its HODs and HR Officer see this record."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "department",
@@ -134,7 +132,7 @@
    "fieldname": "panel_section",
    "fieldtype": "Section Break",
    "label": "Interview Panel",
-   "description": "Get Interview Results fills the panel and the candidates from the day's Interviews and the panel's score sheets."
+   "description": "Use Get Interview Results to fill in the panel and candidates."
   },
   {
    "fieldname": "panel",
@@ -173,8 +171,7 @@
    "fieldname": "head_of_department",
    "fieldtype": "Link",
    "options": "User",
-   "label": "Head of Department",
-   "description": "The hiring department's head, who signs the report with the Human Resource Manager and the Executive Director."
+   "label": "Head of Department"
   },
   {
    "fieldname": "column_break_2",

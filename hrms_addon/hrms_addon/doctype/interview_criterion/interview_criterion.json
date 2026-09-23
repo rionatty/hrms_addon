@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:criterion_name",
  "creation": "2026-09-18 09:00:00.000000",
- "description": "A criterion each panel member scores 1 to 5 (or N/A) on the Candidate Interview Evaluation / Score Form (LPL/HR/17).",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -38,7 +37,7 @@
    "fieldtype": "Int",
    "label": "Display Order",
    "allow_in_quick_entry": 1,
-   "description": "Lower numbers print first. Leave blank to add it after the others."
+   "description": "Lower numbers come first."
   },
   {
    "fieldname": "column_break_1",
@@ -49,12 +48,12 @@
    "fieldtype": "Check",
    "label": "Disabled",
    "in_standard_filter": 1,
-   "description": "Left off new score sheets. Sheets already scored keep it."
+   "description": "Not added to new score sheets."
   },
   {
    "fieldname": "description",
    "fieldtype": "Small Text",
-   "label": "What the Panel Looks For"
+   "label": "Description"
   }
  ],
  "links": [],

@@ -325,7 +325,7 @@ def _component(section):
             "doctype": "Salary Component", "name": name, "salary_component": name,
             "salary_component_abbr": abbr,
             "type": "Earning", "depends_on_payment_days": 0, "is_tax_applicable": 1,
-            "description": "%s pay, from the Output Pay Run (minutes §4.6)." % section})
+            "description": "%s pay from the Output Pay Run." % section})
         component.flags.ignore_permissions = True
         component.insert()
     return name

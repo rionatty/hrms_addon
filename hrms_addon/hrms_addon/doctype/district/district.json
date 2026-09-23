@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:district_name",
  "creation": "2026-09-17 10:00:00.000000",
- "description": "A district candidates and their families come from or live in.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

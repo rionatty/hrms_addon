@@ -25,8 +25,7 @@
    "options": "Skill",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 7,
-   "description": "Picked from the Skill list, the one Employee Skill Maps and interview rounds use."
+   "columns": 7
   }
  ],
  "istable": 1,

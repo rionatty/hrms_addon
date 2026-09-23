@@ -47,7 +47,7 @@ frappe.ui.form.on("Employee Separation", {
 				` <span class="indicator-pill ${served ? "green" : "orange"}">${
 					served
 						? __("Notice served")
-						: __("{0} day(s) short — deducted from the final pay", [short])
+						: __("{0} day(s) short, deducted from the final pay", [short])
 				}</span>`
 		);
 	},

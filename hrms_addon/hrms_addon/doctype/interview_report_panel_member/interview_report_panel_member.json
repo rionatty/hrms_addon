@@ -34,7 +34,7 @@
    "label": "Designation",
    "in_list_view": 1,
    "columns": 4,
-   "description": "As printed on the report, e.g. Human Resource Manager."
+   "description": "e.g. Human Resource Manager"
   }
  ],
  "istable": 1,

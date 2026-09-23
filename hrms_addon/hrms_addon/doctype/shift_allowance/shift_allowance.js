@@ -7,7 +7,7 @@ frappe.ui.form.on("Shift Allowance", {
 		if (frm.is_new()) return;
 		if (frm.doc.total) {
 			frm.dashboard.set_headline(
-				`<span>${__("{0} shift(s)", [frm.doc.shifts_worked || 0])} — <b>${format_currency(
+				`<span>${__("{0} shift(s)", [frm.doc.shifts_worked || 0])}: <b>${format_currency(
 					frm.doc.total
 				)}</b></span>` +
 					(frm.doc.additional_salary

@@ -233,7 +233,7 @@ def _tell_decided(doc):
     people.notify(list(dict.fromkeys(users)), doc.doctype, doc.name,
                   _("Disciplinary case {0} is decided: {1}{2}.").format(
                       doc.name, doc.get("outcome") or "",
-                      " — %s" % doc.rung if doc.get("rung") else ""))
+                      " (%s)" % doc.rung if doc.get("rung") else ""))
 
 
 @frappe.whitelist(methods=["POST"])

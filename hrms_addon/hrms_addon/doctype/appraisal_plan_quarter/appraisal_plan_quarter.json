@@ -46,8 +46,7 @@
    "fieldtype": "Date",
    "label": "Soft Deadline",
    "in_list_view": 1,
-   "columns": 1,
-   "description": "When the appraisals should be in (the 25th, by default)."
+   "columns": 1
   },
   {
    "fieldname": "hard_deadline",

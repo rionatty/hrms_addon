@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:group_name",
  "creation": "2026-09-18 09:00:00.000000",
- "description": "A group of criteria on the Candidate Interview Evaluation / Score Form (LPL/HR/17), e.g. Education, Personality.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -25,7 +24,7 @@
    "fieldtype": "Int",
    "label": "Display Order",
    "allow_in_quick_entry": 1,
-   "description": "Lower numbers print first. Leave blank to add it after the others."
+   "description": "Lower numbers come first."
   },
   {
    "fieldname": "description",

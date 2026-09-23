@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:provider_name",
  "creation": "2026-09-20 09:00:00.000000",
- "description": "Who provides a tool of work: IT, EHS, Stores, Procurement, HR or the department itself.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -27,7 +26,7 @@
    "label": "Prepared By (Role)",
    "options": "Role",
    "in_list_view": 1,
-   "description": "Who prepares these tools for a new employee, in the employee's branch. Head of Department means the new employee's own; blank means the HR Officer."
+   "description": "Prepares these tools for new employees. Leave empty for the HR Officer."
   },
   {
    "fieldname": "description",

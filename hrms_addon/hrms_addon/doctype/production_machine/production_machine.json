@@ -36,7 +36,7 @@
    "fieldname": "machine_group",
    "fieldtype": "Data",
    "label": "Machine Group",
-   "description": "Machines that share a rate, such as the two faster looms."
+   "description": "Machines that share a rate."
   },
   {
    "fieldname": "column_break_1",
@@ -66,7 +66,7 @@
    "fieldname": "rates_section",
    "fieldtype": "Section Break",
    "label": "Rates",
-   "description": "Each machine carries its own rates: one for every width it runs (Per Meter) or every piece category it makes (Per Piece), each from a date."
+   "description": "One rate per width (Per Meter) or piece category (Per Piece), each from a date."
   },
   {
    "fieldname": "rates",
@@ -142,7 +142,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "description": "A loom or machine whose output is paid by the metre or the piece (minutes §4.6).",
  "autoname": "field:machine_name",
  "title_field": "machine_name",
  "track_changes": 1

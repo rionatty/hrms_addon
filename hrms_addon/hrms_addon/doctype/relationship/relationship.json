@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:relationship_name",
  "creation": "2026-09-17 10:00:00.000000",
- "description": "How a parent or next of kin is related to a candidate, e.g. Father, Spouse.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

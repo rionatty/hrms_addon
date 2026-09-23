@@ -81,8 +81,7 @@
    "label": "Training Needs For (Year)",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "The year the training is wanted in."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "form_date",
@@ -95,7 +94,7 @@
    "fieldname": "years_of_experience",
    "fieldtype": "Int",
    "label": "Years of Experience",
-   "description": "Worked out from the Date of Joining when left blank."
+   "description": "Calculated from the date of joining if left empty."
   },
   {
    "fieldname": "status",
@@ -116,14 +115,13 @@
    "options": "Training Requisition",
    "read_only": 1,
    "allow_on_submit": 1,
-   "no_copy": 1,
-   "description": "The requisition that took these needs up."
+   "no_copy": 1
   },
   {
    "fieldname": "questions_section",
    "fieldtype": "Section Break",
-   "label": "The Form",
-   "description": "One item per line, as the form's i, ii, iii, iv."
+   "label": "Questions",
+   "description": "One item per line."
   },
   {
    "fieldname": "responsibilities",

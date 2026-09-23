@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-22 09:00:00.000000",
- "description": "LPL/HR/34 and LPL/HR/33: the employee asks HR to pay a different bank account or phone number.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -128,8 +127,7 @@
   {
    "fieldname": "current_section",
    "fieldtype": "Section Break",
-   "label": "Current Details",
-   "description": "Read off the employee's record, so nothing is mistyped."
+   "label": "Current Details"
   },
   {
    "fieldname": "current_bank_name",
@@ -176,8 +174,7 @@
   {
    "fieldname": "new_section",
    "fieldtype": "Section Break",
-   "label": "New Details",
-   "description": "Future payments are made to these details once HR approves."
+   "label": "New Details"
   },
   {
    "fieldname": "new_bank_name",
@@ -207,15 +204,14 @@
    "fieldname": "new_phone_number",
    "fieldtype": "Data",
    "label": "Phone Number",
-   "depends_on": "eval:doc.change_type == \"Phone Number\"",
-   "description": "The number the wages are sent to."
+   "depends_on": "eval:doc.change_type == \"Phone Number\""
   },
   {
    "fieldname": "new_registered_names",
    "fieldtype": "Data",
    "label": "Registered Names",
    "depends_on": "eval:doc.change_type == \"Phone Number\"",
-   "description": "The names the number is registered in, where they are not the employee's own."
+   "description": "Only if the number is not registered in the employee's name."
   },
   {
    "fieldname": "proof_section",
@@ -228,7 +224,7 @@
    "fieldtype": "Attach",
    "label": "Supporting Document",
    "no_copy": 1,
-   "description": "The bank letter, statement or registration the employee offers."
+   "description": "e.g. bank letter or statement"
   },
   {
    "fieldname": "column_break_2",

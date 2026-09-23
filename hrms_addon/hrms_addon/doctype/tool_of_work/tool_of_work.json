@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:tool_name",
  "creation": "2026-09-20 09:00:00.000000",
- "description": "A tool of work, resource or account a new employee is issued. The Job Title lists its own; the onboarding requests them from their provider.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -41,7 +40,7 @@
    "fieldtype": "Check",
    "label": "Every New Employee",
    "in_list_view": 1,
-   "description": "Issued to every new employee, whatever the Job Title (e.g. PPE)."
+   "description": "Issued to every new employee, e.g. PPE."
   },
   {
    "fieldname": "column_break_1",
@@ -62,7 +61,7 @@
    "fieldtype": "Check",
    "label": "Returned on Exit",
    "default": "1",
-   "description": "Listed on the Employee's tools register for the clearance when the employee leaves."
+   "description": "Must be returned at clearance."
   },
   {
    "fieldname": "description_section",

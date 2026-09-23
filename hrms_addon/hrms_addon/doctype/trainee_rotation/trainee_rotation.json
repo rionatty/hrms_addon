@@ -69,7 +69,7 @@
   {
    "fieldname": "outcome",
    "fieldtype": "Small Text",
-   "label": "What Came of It"
+   "label": "Outcome"
   },
   {
    "fieldname": "score",

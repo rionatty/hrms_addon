@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:competency_name",
  "creation": "2026-09-24 09:00:00.000000",
- "description": "A Section B competency of the balanced scorecard appraisal, with its behavioural indicators.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -31,8 +30,7 @@
    "fieldname": "default_weight",
    "fieldtype": "Float",
    "label": "Default Weight",
-   "precision": "2",
-   "description": "What most roles give it; a template may weight it differently."
+   "precision": "2"
   }
  ],
  "links": [],

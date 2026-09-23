@@ -27,7 +27,7 @@
    "columns": 2,
    "reqd": 1,
    "precision": "2",
-   "description": "The four must total 80."
+   "description": "The four weights must total 80."
   },
   {
    "fieldname": "notes",

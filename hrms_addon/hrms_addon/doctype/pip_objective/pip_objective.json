@@ -40,7 +40,7 @@
   {
    "fieldname": "measure",
    "fieldtype": "Small Text",
-   "label": "How it is Measured",
+   "label": "Measure",
    "in_list_view": 1,
    "columns": 2,
    "reqd": 1

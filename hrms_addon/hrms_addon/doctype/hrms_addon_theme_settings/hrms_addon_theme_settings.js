@@ -95,9 +95,9 @@ function ha_show_contrast(frm) {
 		return;
 	}
 	frm.dashboard.set_headline(
-		__("White text contrast") + " — " + parts.join(" &nbsp;·&nbsp; ") +
+		__("White text contrast") + ": " + parts.join(" &nbsp;·&nbsp; ") +
 		(worst
-			? ` &nbsp; <span style="color:var(--red-600,#dc3545)">${__("Below 4.5:1 — text will be hard to read.")}</span>`
+			? ` &nbsp; <span style="color:var(--red-600,#dc3545)">${__("Below 4.5:1. Text will be hard to read.")}</span>`
 			: ` &nbsp; <span class="text-muted">${__("All above the 4.5:1 readability floor.")}</span>`)
 	);
 }
@@ -128,7 +128,7 @@ const ha_handlers = {
 						frm.set_value(fieldname, value);
 					});
 					frappe.show_alert({
-						message: __("Shipped colours restored — save to keep them."),
+						message: __("Default colours restored. Save to keep them."),
 						indicator: "blue",
 					});
 				},

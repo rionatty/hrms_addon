@@ -17,7 +17,7 @@ frappe.ui.form.on("HRMS Addon Branding", {
 					const changed = (r.message && r.message.changed) || [];
 					if (!changed.length) {
 						frappe.show_alert({
-							message: __("Nothing to change — everything already matches."),
+							message: __("Nothing to change."),
 							indicator: "blue",
 						});
 						return;
@@ -44,7 +44,7 @@ frappe.ui.form.on("HRMS Addon Branding", {
 						if (!r.message) return;
 						frm.set_value("company_logo", r.message);
 						frappe.show_alert({
-							message: __("Placeholder set — save, then replace it with the real logo."),
+							message: __("Placeholder set. Save, then replace it with the real logo."),
 							indicator: "blue",
 						});
 					},
@@ -68,7 +68,7 @@ frappe.ui.form.on("HRMS Addon Branding", {
 function ha_branding_headline(frm) {
 	if (!frm.doc.enabled) {
 		frm.dashboard.set_headline(
-			__("Branding is off — Website Settings and Navbar Settings are left exactly as they are.")
+			__("Branding is off. Website Settings and Navbar Settings are unchanged.")
 		);
 		return;
 	}

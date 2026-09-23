@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 22:00:00.000000",
- "description": "An accident at work: what the first aid team and the EHS Officer report, the sick leave it becomes, and the separation on medical grounds where the sickness persists.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -111,7 +110,7 @@
   {
    "fieldname": "incident_section",
    "fieldtype": "Section Break",
-   "label": "The accident"
+   "label": "Accident"
   },
   {
    "fieldname": "incident_on",
@@ -128,7 +127,7 @@
   {
    "fieldname": "nature",
    "fieldtype": "Small Text",
-   "label": "What Happened",
+   "label": "Details",
    "reqd": 1
   },
   {
@@ -162,7 +161,7 @@
    "fieldtype": "Check",
    "label": "Manageable On Site",
    "default": "1",
-   "description": "Untick where the employee was taken to hospital."
+   "description": "Untick if the employee was taken to hospital."
   },
   {
    "fieldname": "hospital",
@@ -214,8 +213,7 @@
    "fieldname": "sickness_persists",
    "fieldtype": "Check",
    "label": "Sickness Persists",
-   "no_copy": 1,
-   "description": "The chart's last question: if it does, the separation is on medical grounds."
+   "no_copy": 1
   },
   {
    "fieldname": "separation",

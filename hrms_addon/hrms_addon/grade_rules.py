@@ -93,7 +93,7 @@ def band_errors(facts):
     errors = []
     code = facts.get("grade_code")
     if code and code not in GRADE_CODES:
-        errors.append("Luuka's structure runs G2 to G20. %s is not one of them." % code)
+        errors.append("Grades run from G2 to G20. %s is not one of them." % code)
     minimum, maximum = facts.get("minimum"), facts.get("maximum")
     if minimum and maximum and _num(maximum) <= _num(minimum):
         errors.append("The top of the band must be above the bottom of it.")

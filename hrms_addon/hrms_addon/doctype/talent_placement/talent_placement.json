@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 23:30:00.000000",
- "description": "One employee in the nine-box grid: their appraisal score, the line manager's potential assessment, and the cell the two resolve to.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -159,7 +158,7 @@
    "fieldname": "performance_section",
    "fieldtype": "Section Break",
    "label": "Performance",
-   "description": "Read from the appraisal. It is not typed in here."
+   "description": "From the appraisal."
   },
   {
    "fieldname": "appraisal",
@@ -198,7 +197,7 @@
    "fieldname": "potential_section",
    "fieldtype": "Section Break",
    "label": "Potential",
-   "description": "The line manager's judgement, each out of ten."
+   "description": "The line manager's rating, each out of 10."
   },
   {
    "fieldname": "ability",
@@ -219,7 +218,7 @@
    "fieldtype": "Float",
    "label": "Engagement",
    "precision": "2",
-   "description": "Are they with us for it?"
+   "description": "Are they committed to the company?"
   },
   {
    "fieldname": "column_break_3",
@@ -251,8 +250,7 @@
    "fieldname": "competencies",
    "fieldtype": "Table",
    "label": "Competency Evidence",
-   "options": "Talent Competency Level",
-   "description": "Carried over from the appraisal. Evidence for the rating, not a score in it."
+   "options": "Talent Competency Level"
   },
   {
    "fieldname": "box_section",
@@ -317,15 +315,14 @@
    "read_only": 1,
    "permlevel": 1,
    "no_copy": 1,
-   "print_hide": 1,
-   "description": "What the line manager submitted, kept so calibration can say who moved."
+   "print_hide": 1
   },
   {
    "fieldname": "rationale",
    "fieldtype": "Text",
    "label": "Rationale",
    "reqd": 1,
-   "description": "Why this placement. The council reads this, not the grid."
+   "description": "Why this placement."
   },
   {
    "fieldname": "calibration_reason",
@@ -333,7 +330,7 @@
    "label": "Reason for the Move",
    "no_copy": 1,
    "depends_on": "eval:doc.status=='In Calibration'",
-   "description": "A box moved in calibration is recorded in the cycle with this reason."
+   "description": "Required when calibration moves the box."
   },
   {
    "fieldname": "risk_section",
@@ -373,7 +370,7 @@
    "fieldname": "development_section",
    "fieldtype": "Section Break",
    "label": "Development",
-   "description": "The part an employee sees: what to work on, not where they sit."
+   "description": "Shown to the employee."
   },
   {
    "fieldname": "themes",

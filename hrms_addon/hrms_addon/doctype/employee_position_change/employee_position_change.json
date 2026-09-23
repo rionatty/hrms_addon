@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-22 09:00:00.000000",
- "description": "A promotion, a change of designation or a salary review: the Candidate Preamble Promotion Form and the letter it ends in.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -99,8 +98,7 @@
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "default": "Promotion",
-   "description": "Which letter this ends in."
+   "default": "Promotion"
   },
   {
    "fieldname": "employee",
@@ -108,8 +106,7 @@
    "label": "Employee",
    "options": "Employee",
    "reqd": 1,
-   "in_list_view": 1,
-   "description": "Section 1 of the preamble: whom the letter is for."
+   "in_list_view": 1
   },
   {
    "fieldname": "employee_name",
@@ -182,8 +179,7 @@
   {
    "fieldname": "current_section",
    "fieldtype": "Section Break",
-   "label": "Current Position",
-   "description": "Section 2 of the preamble."
+   "label": "Current Position"
   },
   {
    "fieldname": "current_designation",
@@ -207,8 +203,7 @@
    "fieldname": "current_salary",
    "fieldtype": "Currency",
    "label": "Current Gross Salary",
-   "read_only": 1,
-   "description": "The base salary on the running contract, or the last Salary Structure Assignment."
+   "read_only": 1
   },
   {
    "fieldname": "contract",
@@ -228,7 +223,7 @@
   {
    "fieldname": "change_section",
    "fieldtype": "Section Break",
-   "label": "The Change"
+   "label": "Change"
   },
   {
    "fieldname": "new_designation",
@@ -244,16 +239,14 @@
    "label": "Reports To",
    "options": "Employee",
    "depends_on": "eval:doc.change_type != \"Salary Increment\"",
-   "mandatory_depends_on": "eval:doc.change_type != \"Salary Increment\"",
-   "description": "The letter names whom the employee reports to for assignment of duties."
+   "mandatory_depends_on": "eval:doc.change_type != \"Salary Increment\""
   },
   {
    "fieldname": "job_description",
    "fieldtype": "Link",
    "label": "Job Description",
    "options": "Job Description",
-   "depends_on": "eval:doc.change_type == \"Promotion\"",
-   "description": "Attached to the Promotion Letter, which refers to it."
+   "depends_on": "eval:doc.change_type == \"Promotion\""
   },
   {
    "fieldname": "column_break_3",
@@ -262,8 +255,7 @@
   {
    "fieldname": "new_salary",
    "fieldtype": "Currency",
-   "label": "New Gross Salary",
-   "description": "Subject to statutory deductions, as the letter says."
+   "label": "New Gross Salary"
   },
   {
    "fieldname": "new_salary_in_words",
@@ -281,13 +273,13 @@
   {
    "fieldname": "contract_section",
    "fieldtype": "Section Break",
-   "label": "The Contract",
-   "description": "The letters say all other terms and conditions remain the same, so the running contract is amended by default. Issue a new contract instead where the terms really change."
+   "label": "Contract",
+   "description": "By default the current contract is amended. Choose a new contract if the terms change."
   },
   {
    "fieldname": "contract_action",
    "fieldtype": "Select",
-   "label": "What happens to the contract",
+   "label": "Contract Action",
    "options": "Amend the current contract\nIssue a new contract\nLeave the contract alone",
    "default": "Amend the current contract",
    "reqd": 1
@@ -297,7 +289,7 @@
    "fieldtype": "Int",
    "label": "New Contract Runs For (months)",
    "depends_on": "eval:doc.contract_action == \"Issue a new contract\"",
-   "description": "Left at 0, the new contract ends when the one it replaces would have."
+   "description": "0 = ends on the current contract's end date."
   },
   {
    "fieldname": "column_break_4",
@@ -316,7 +308,7 @@
    "fieldtype": "Link",
    "label": "Salary Structure",
    "options": "Salary Structure",
-   "description": "The assignment made from the effective date. Left blank, the employee's current structure is used."
+   "description": "Leave empty to keep the current salary structure."
   },
   {
    "fieldname": "salary_structure_assignment",
@@ -330,8 +322,7 @@
    "fieldname": "preamble_section",
    "fieldtype": "Section Break",
    "label": "Candidate Preamble",
-   "depends_on": "eval:doc.change_type == \"Promotion\"",
-   "description": "Sections 3 to 6 of the Candidate Preamble Promotion Form."
+   "depends_on": "eval:doc.change_type == \"Promotion\""
   },
   {
    "fieldname": "desired_position",
@@ -347,8 +338,7 @@
    "fieldname": "appraisal_score",
    "fieldtype": "Percent",
    "label": "Appraisal Score",
-   "depends_on": "eval:doc.change_type == \"Promotion\"",
-   "description": "Section 6: the performance evaluation the promotion rests on."
+   "depends_on": "eval:doc.change_type == \"Promotion\""
   },
   {
    "fieldname": "education_section",
@@ -513,8 +503,7 @@
    "fieldname": "return_remarks",
    "fieldtype": "Small Text",
    "label": "Return Remarks",
-   "no_copy": 1,
-   "description": "Why the form was sent back; clears every signature."
+   "no_copy": 1
   },
   {
    "fieldname": "signed_section",
@@ -536,8 +525,7 @@
    "fieldname": "signed_letter",
    "fieldtype": "Attach",
    "label": "Signed Letter",
-   "no_copy": 1,
-   "description": "The letter the employee signed, scanned for the personal file."
+   "no_copy": 1
   },
   {
    "fieldname": "amended_from",

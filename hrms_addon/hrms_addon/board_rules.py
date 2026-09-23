@@ -47,9 +47,9 @@ SILENT_AFTER_HOURS = 12
 HEALTHY, QUIET, SILENT, NEVER = "Healthy", "Quiet", "Silent", "Never heard from"
 HEALTH_MEANING = {
     HEALTHY: "sending punches",
-    QUIET: "nothing for a couple of hours — may be between shifts",
-    SILENT: "nothing all day; somebody should look at it",
-    NEVER: "no punch has ever come from this machine",
+    QUIET: "no punches for 2 hours",
+    SILENT: "no punches today",
+    NEVER: "no punches received yet",
 }
 
 # ── What needs a person ───────────────────────────────────────────────
@@ -59,26 +59,25 @@ HIGH, MEDIUM = "high", "medium"
 EXCEPTIONS = (
     {"kind": "on_leave_but_punched", "severity": HIGH,
      "label": "Clocked in while on approved leave",
-     "why": "either the leave was cut short and nobody said, or somebody else used the badge"},
+     "why": "Check the leave dates or who used the badge."},
     {"kind": "absent_with_punch", "severity": HIGH,
-     "label": "Marked absent, but a machine saw them",
-     "why": "the register will pay them nothing for a day they were here"},
+     "label": "Marked absent but clocked in",
+     "why": "Correct the attendance before payroll."},
     {"kind": "failed_push", "severity": HIGH,
-     "label": "Punches written down that never landed",
-     "why": "they are held and can be pushed again without going back to the machine"},
+     "label": "Punches not posted",
+     "why": "They can be posted again from the device log."},
     {"kind": "silent_terminal", "severity": HIGH,
-     "label": "Machines that have gone quiet",
-     "why": "a machine nobody notices has stopped is found at payroll, too late to fix"},
+     "label": "Machines not sending punches",
+     "why": "Check the machine and its network."},
     {"kind": "in_without_out", "severity": MEDIUM,
-     "label": "Clocked in, never clocked out",
-     "why": "the hours cannot be worked out, so the day pays as if it was never finished"},
+     "label": "Clocked in, no clock out",
+     "why": "Working hours cannot be calculated."},
     {"kind": "unknown_badge", "severity": MEDIUM,
-     "label": "Badges nobody carries",
-     "why": "somebody is clocking who is not on the payroll, or a badge was never recorded"},
+     "label": "Unknown badges",
+     "why": "The badge is not linked to any employee."},
     {"kind": "undirected_terminal", "severity": MEDIUM,
      "label": "Terminals with no plant set",
-     "why": "BioTime names a terminal but not the door it guards; the punches are kept "
-            "meanwhile, but nothing knows which plant they belong to"},
+     "why": "Set the plant on the terminal. Its punches are kept until then."},
 )
 EXCEPTION_KINDS = tuple(row["kind"] for row in EXCEPTIONS)
 

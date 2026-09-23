@@ -34,7 +34,7 @@
    "columns": 2,
    "reqd": 1,
    "precision": "2",
-   "description": "They must total 20."
+   "description": "Weights must total 20."
   }
  ],
  "istable": 1,

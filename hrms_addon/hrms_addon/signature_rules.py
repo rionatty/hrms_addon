@@ -94,8 +94,7 @@ def log_errors(facts):
     if not (facts.get("reference_doctype") and facts.get("reference_name")):
         errors.append("A signature is given on a document. Say which.")
     if facts.get("reference_doctype") and facts["reference_doctype"] not in SIGNABLE:
-        errors.append("%s is not a document Luuka sign. Add it to SIGNABLE in "
-                      "signature_rules.py if it should be."
+        errors.append("%s is not set up for signatures."
                       % facts["reference_doctype"])
     if not facts.get("signatory"):
         errors.append("A signature is given by somebody.")

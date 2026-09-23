@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-22 06:00:00.000000",
- "description": "Somebody's signature on file, so a document they sign carries it.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -65,8 +64,7 @@
    "label": "Current",
    "default": "1",
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "description": "One current signature per person, so there is never a question which was in force."
+   "in_standard_filter": 1
   },
   {
    "fieldname": "captured_by",
@@ -86,14 +84,14 @@
   {
    "fieldname": "specimen_section",
    "fieldtype": "Section Break",
-   "label": "The specimen"
+   "label": "Specimen"
   },
   {
    "fieldname": "specimen",
    "fieldtype": "Attach Image",
    "label": "Signature",
    "reqd": 1,
-   "description": "A scan or a photograph of the signature, or one drawn on a phone."
+   "description": "A scan or photo of the signature, or one drawn on a phone."
   },
   {
    "fieldname": "column_break_2",

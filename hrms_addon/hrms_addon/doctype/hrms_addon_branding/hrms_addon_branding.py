@@ -27,7 +27,7 @@ class HRMSAddonBranding(Document):
         # nobody wonders why their banner looks like a stamp.
         if self.company_logo and self.has_value_changed("company_logo"):
             frappe.msgprint(
-                _("Logo saved. It is scaled to fit the 52px navbar — a square or near-square mark reads best there."),
+                _("Logo saved. A square logo works best in the navbar."),
                 indicator="blue",
                 alert=True,
             )

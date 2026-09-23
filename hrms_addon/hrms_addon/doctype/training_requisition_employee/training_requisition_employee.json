@@ -55,14 +55,12 @@
    "fieldname": "needs_form",
    "fieldtype": "Link",
    "label": "Training Needs Form",
-   "options": "Training Needs Form",
-   "description": "The employee's own form, where they filled one in."
+   "options": "Training Needs Form"
   },
   {
    "fieldname": "skill_areas",
    "fieldtype": "Small Text",
-   "label": "Skills Asked For",
-   "description": "From the employee's form."
+   "label": "Skills Asked For"
   }
  ],
  "istable": 1,

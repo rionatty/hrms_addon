@@ -81,7 +81,7 @@
    "label": "Branch",
    "options": "Branch",
    "in_standard_filter": 1,
-   "description": "Blank: the whole company."
+   "description": "Leave empty for the whole company."
   },
   {
    "fieldname": "prepared_by",
@@ -106,7 +106,7 @@
    "fieldname": "entries_section",
    "fieldtype": "Section Break",
    "label": "Trainings",
-   "description": "Get Approved Needs brings in the needs of the approved assessments of the year not yet on a calendar; type the rest. One row per course and month, as the planner lists them."
+   "description": "Use Get Approved Needs, then add any other courses. One row per course and month."
   },
   {
    "fieldname": "entries",
@@ -129,8 +129,7 @@
   {
    "fieldname": "comments",
    "fieldtype": "Text",
-   "label": "Comments",
-   "description": "As the planner carries them: who is enlisted, trainings from the floor, invitations."
+   "label": "Comments"
   },
   {
    "fieldname": "approval_section",
@@ -165,8 +164,7 @@
    "fieldname": "board_approved_on",
    "fieldtype": "Date",
    "label": "Board Approved On",
-   "allow_on_submit": 1,
-   "description": "Recorded once the Board has approved the calendar."
+   "allow_on_submit": 1
   },
   {
    "fieldname": "return_remarks",
@@ -176,8 +174,7 @@
   {
    "fieldname": "signatories_section",
    "fieldtype": "Section Break",
-   "label": "Approval Section (the planner's signatures)",
-   "description": "Who checked and approved the printed planner: the Production Managers, the General Managers, the Accounts Manager, the Head of Sales and Marketing, the Chief Finance Officer. Recorded as each signs."
+   "label": "Approval Section (the planner's signatures)"
   },
   {
    "fieldname": "signatories",

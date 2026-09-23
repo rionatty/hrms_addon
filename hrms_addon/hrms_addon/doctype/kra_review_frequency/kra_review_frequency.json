@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:frequency_name",
  "creation": "2026-09-16 18:00:00.000000",
- "description": "How often a KRA is reviewed, e.g. Monthly.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

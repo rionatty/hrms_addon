@@ -33,3 +33,4 @@ hrms_addon.patches.v1_0.seed_advance_settings
 hrms_addon.patches.v1_0.seed_output_pay
 hrms_addon.patches.v1_0.leave_days_from_minutes
 hrms_addon.patches.v1_0.benefits_from_minutes
+hrms_addon.patches.v1_0.plain_record_descriptions

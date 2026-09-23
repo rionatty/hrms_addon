@@ -76,8 +76,7 @@
    "fieldtype": "Small Text",
    "label": "Development Needs",
    "in_list_view": 1,
-   "columns": 3,
-   "description": "What stands between this person and the role. It is what goes to L&D."
+   "columns": 3
   },
   {
    "fieldname": "training_requisition",

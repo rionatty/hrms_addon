@@ -289,7 +289,7 @@ def eligibility_errors(facts, settings=None):
     s = _settings(settings)
     kind = facts.get("advance_type") or SALARY_ADVANCE
     if kind not in ADVANCE_TYPES:
-        return ["%r is not one of Luuka's advances." % kind]
+        return ["%r is not a valid advance type." % kind]
     errors = []
     if facts.get("status") and facts["status"] != ACTIVE:
         errors.append("Only an active employee may be advanced; this one is %s." % facts["status"])

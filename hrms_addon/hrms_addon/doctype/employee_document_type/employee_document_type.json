@@ -3,7 +3,6 @@
  "allow_rename": 1,
  "autoname": "field:document_name",
  "creation": "2026-09-22 04:00:00.000000",
- "description": "A kind of document an employee has to hold, who has to hold one, and how long before it runs out somebody is told.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -29,7 +28,7 @@
   {
    "fieldname": "applies_to",
    "fieldtype": "Select",
-   "label": "Who Holds One",
+   "label": "Applies To",
    "options": "All Employees\nForeign Nationals\nDrivers\nMachine Operators",
    "default": "All Employees",
    "reqd": 1,
@@ -40,8 +39,7 @@
    "fieldname": "mandatory",
    "fieldtype": "Check",
    "label": "Must Be Held",
-   "in_list_view": 1,
-   "description": "An employee who has to hold one and does not is listed as missing it."
+   "in_list_view": 1
   },
   {
    "fieldname": "column_break_1",
@@ -60,7 +58,7 @@
    "label": "Notice (Days)",
    "default": "90",
    "depends_on": "expires",
-   "description": "How long before it runs out the first alert goes. After that the usual ladder: a month, a week, and the day it goes."
+   "description": "Days before expiry that the first alert is sent."
   },
   {
    "fieldname": "enabled",

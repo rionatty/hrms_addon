@@ -3,7 +3,6 @@
  "autoname": "HR-PEV-.YYYY.-.#####",
  "creation": "2026-09-20 09:00:00.000000",
  "default_print_format": "End of Probation Evaluation Form",
- "description": "The End of probation evaluation / confirmation form (LPL/HR/32): the ratings, the signatures and the Executive Director's decision to confirm, extend or terminate.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -151,8 +150,7 @@
    "fieldtype": "Data",
    "label": "Position Category",
    "fetch_from": "department.custom_position_category",
-   "read_only": 1,
-   "description": "From the Department: a non-administrative position goes through the branch General Manager."
+   "read_only": 1
   },
   {
    "fieldname": "column_break_2",
@@ -203,7 +201,7 @@
    "fieldname": "section_a",
    "fieldtype": "Section Break",
    "label": "Section A: Ratable Factors",
-   "description": "Rating scale: Excellent=5 (90-100%), Very Good=4 (75-89%), Good=3 (60-74%), Average=2 (50-59%), Below average=1 (49% and below). N/A where the factor is not in line with the job. The employee rates first; the supervisor's rating is the one scored."
+   "description": "Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (49% and below). N/A where a factor does not apply to the job. The supervisor's rating is the one scored."
   },
   {
    "fieldname": "factors",
@@ -215,7 +213,7 @@
    "fieldname": "section_b",
    "fieldtype": "Section Break",
    "label": "Section B: Performance Objectives / KPIs during Probation",
-   "description": "In line with the departmental / section objectives. Filled from the Job Title's Key Result Areas; edit as agreed."
+   "description": "Filled from the job title's Key Result Areas. Edit as agreed."
   },
   {
    "fieldname": "objectives",
@@ -227,7 +225,7 @@
    "fieldname": "section_c",
    "fieldtype": "Section Break",
    "label": "Section C: Overall Score",
-   "description": "Excellent=90-100%, Very Good=75-89%, Good=60-74%, Average=50-59%, Below Average=49% and below."
+   "description": "Excellent = 90-100%, Very Good = 75-89%, Good = 60-74%, Average = 50-59%, Below Average = 49% and below."
   },
   {
    "fieldname": "factors_score",
@@ -267,8 +265,7 @@
    "fieldname": "pass_mark",
    "fieldtype": "Percent",
    "label": "Pass Mark",
-   "read_only": 1,
-   "description": "From Onboarding Settings when the evaluation was made."
+   "read_only": 1
   },
   {
    "fieldname": "passed",
@@ -389,8 +386,7 @@
   {
    "fieldname": "manager_remarks",
    "fieldtype": "Small Text",
-   "label": "Manager's remarks / comments",
-   "description": "The branch General Manager."
+   "label": "Manager's remarks / comments"
   },
   {
    "fieldname": "column_break_9",
@@ -489,15 +485,13 @@
    "fieldname": "confirmation_date",
    "fieldtype": "Date",
    "label": "Confirmed From",
-   "depends_on": "eval:doc.ed_decision==\"Confirm\"",
-   "description": "The Employee's Confirmation Date."
+   "depends_on": "eval:doc.ed_decision==\"Confirm\""
   },
   {
    "fieldname": "new_end_of_probation",
    "fieldtype": "Date",
    "label": "Probation Extended To",
-   "depends_on": "eval:doc.ed_decision==\"Extend Probation\"",
-   "description": "Defaults to the extension in Onboarding Settings."
+   "depends_on": "eval:doc.ed_decision==\"Extend Probation\""
   },
   {
    "fieldname": "ed_remarks",
@@ -530,8 +524,7 @@
    "options": "Probation Evaluation",
    "read_only": 1,
    "allow_on_submit": 1,
-   "no_copy": 1,
-   "description": "Made when the probation is extended."
+   "no_copy": 1
   },
   {
    "fieldname": "amended_from",

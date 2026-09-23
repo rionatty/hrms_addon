@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-09-20 09:00:00.000000",
- "description": "Probation, contract alerts and the letters' signatories for Luuka's onboarding.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -30,7 +29,7 @@
    "label": "Probation Period (Months)",
    "default": "6",
    "non_negative": 1,
-   "description": "The End of Probation date of a new employee: the joining date plus this."
+   "description": "Added to the joining date to give the end of probation."
   },
   {
    "fieldname": "extension_months",
@@ -38,7 +37,7 @@
    "label": "Extension (Months)",
    "default": "3",
    "non_negative": 1,
-   "description": "How long an extended probation runs, unless the Executive Director sets another date."
+   "description": "Length of an extended probation, unless another date is set."
   },
   {
    "fieldname": "column_break_1",
@@ -49,14 +48,14 @@
    "fieldtype": "Percent",
    "label": "Pass Mark",
    "default": "60",
-   "description": "The total score a probation evaluation must reach. To be confirmed by Luuka: the form's bands put Average at 50-59%."
+   "description": "Minimum total score to pass probation."
   },
   {
    "fieldname": "confirmed_employment_type",
    "fieldtype": "Link",
    "label": "Employment Type on Confirmation",
    "options": "Employment Type",
-   "description": "Optional: the Employee's Employment Type once confirmed, e.g. Permanent."
+   "description": "Set on the employee when confirmed, e.g. Permanent."
   },
   {
    "fieldname": "contract_section",
@@ -68,7 +67,7 @@
    "fieldtype": "Data",
    "label": "Contract Alerts (Days Before the End)",
    "default": "365, 90, 30",
-   "description": "The HR Officer is told this many days before a contract ends: a year, a quarter and a month."
+   "description": "Comma separated, e.g. 365,90,30"
   },
   {
    "fieldname": "letters_section",

@@ -50,8 +50,7 @@
    "options": "\nRequested\nIssued\nNot Needed",
    "in_list_view": 1,
    "columns": 2,
-   "allow_on_submit": 1,
-   "description": "Requested when the onboarding starts; Issued once the employee has it."
+   "allow_on_submit": 1
   },
   {
    "fieldname": "serial_no",

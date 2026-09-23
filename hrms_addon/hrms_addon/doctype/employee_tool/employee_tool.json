@@ -60,8 +60,7 @@
    "fieldtype": "Date",
    "label": "Returned On",
    "in_list_view": 1,
-   "columns": 2,
-   "description": "On the clearance when the employee leaves."
+   "columns": 2
   },
   {
    "fieldname": "onboarding",

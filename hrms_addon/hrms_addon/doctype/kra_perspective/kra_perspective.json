@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:perspective_name",
  "creation": "2026-09-16 18:00:00.000000",
- "description": "A Balanced Scorecard perspective. KRAs are grouped by it on Job Descriptions.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -22,7 +21,7 @@
   },
   {
    "allow_in_quick_entry": 1,
-   "description": "Lower numbers are listed first in a Job Description's totals and in the KRA picker. Leave blank to list it after the others.",
+   "description": "Lower numbers come first.",
    "fieldname": "sort_order",
    "fieldtype": "Int",
    "in_list_view": 1,

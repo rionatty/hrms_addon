@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-25 09:00:00.000000",
- "description": "LPL/HR/25: an employee asks for a day off, signed by the Supervisor and the Section Manager with remarks for the HR Manager.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -112,7 +111,7 @@
   {
    "fieldname": "request_section",
    "fieldtype": "Section Break",
-   "label": "The day off"
+   "label": "Day Off"
   },
   {
    "fieldname": "off_date",
@@ -256,8 +255,7 @@
    "label": "Attendance",
    "options": "Attendance",
    "read_only": 1,
-   "no_copy": 1,
-   "description": "The day's attendance this request accounts for."
+   "no_copy": 1
   },
   {
    "fieldname": "amended_from",

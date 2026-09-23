@@ -3,7 +3,6 @@
  "autoname": "HR-OBR-.YYYY.-.#####",
  "creation": "2026-09-20 09:00:00.000000",
  "default_print_format": "Staff Onboarding Form",
- "description": "The Staff Onboarding Form (LPL/HR/04) at 30, 60 and 90 days: the new employee's view, the supervisor's comments and the HR Manager's remarks.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -160,13 +159,13 @@
    "fieldname": "section_b",
    "fieldtype": "Section Break",
    "label": "Section B: The New Employee",
-   "description": "The new employee's own answers. HR records them from the paper form when the employee has no login."
+   "description": "The employee's answers. HR can enter them for an employee with no login."
   },
   {
    "fieldname": "roles_responsibilities",
    "fieldtype": "Small Text",
    "label": "The roles and responsibilities of your position in the company",
-   "description": "One per line, as the employee lists them."
+   "description": "One per line."
   },
   {
    "fieldname": "feel_about_role",

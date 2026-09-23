@@ -2,7 +2,6 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-25 09:00:00.000000",
- "description": "Leaving the premises before the usual hours are done (Reward & Compensation, 4.2).",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -97,7 +96,7 @@
   {
    "fieldname": "pass_section",
    "fieldtype": "Section Break",
-   "label": "The pass"
+   "label": "Pass Details"
   },
   {
    "fieldname": "pass_date",

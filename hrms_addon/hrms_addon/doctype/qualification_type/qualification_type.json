@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:type_name",
  "creation": "2026-09-18 09:00:00.000000",
- "description": "What kind of qualification a candidate lists on the Bio-Data: Academic, or a certification or licence.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -26,7 +25,7 @@
    "label": "Certification or Licence",
    "in_list_view": 1,
    "allow_in_quick_entry": 1,
-   "description": "Listed under Certifications and Licences on the interview shortlist, not under Education."
+   "description": "Listed under certifications, not education."
   },
   {
    "fieldname": "description",

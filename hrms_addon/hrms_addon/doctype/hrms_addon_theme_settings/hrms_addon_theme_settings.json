@@ -37,7 +37,7 @@
   },
   {
    "default": "Compact",
-   "description": "How tightly the desk is packed. Applies on its own — it is not tied to the colour switch below.",
+   "description": "How compact the desk layout is.",
    "fieldname": "density",
    "fieldtype": "Select",
    "label": "Density",
@@ -59,7 +59,7 @@
   },
   {
    "default": "0",
-   "description": "Off = the colours shipped with the app. On = the colours below.",
+   "description": "When off, the app's default colours are used.",
    "fieldname": "enabled",
    "fieldtype": "Check",
    "label": "Use Custom Colours"
@@ -72,7 +72,7 @@
   {
    "default": "0",
    "depends_on": "enabled",
-   "description": "Repaints the workspace pages with a navy canvas and floating white tiles. Off by default: it overrides a lot of ERPNext's own workspace layout, which varies between versions \u2014 leave it off to keep the standard display.",
+   "description": "Navy background with white tiles on workspace pages. Off by default.",
    "fieldname": "workspace_cockpit",
    "fieldtype": "Check",
    "label": "Workspace Cockpit (navy canvas)"
@@ -84,13 +84,13 @@
    "label": "Chrome"
   },
   {
-   "description": "Section headers, primary buttons, form headings.",
+   "description": "Section headers, primary buttons and form headings.",
    "fieldname": "primary_navy",
    "fieldtype": "Color",
    "label": "Primary Navy"
   },
   {
-   "description": "The accent bar and text on section headings.",
+   "description": "Accent bar and text on section headings.",
    "fieldname": "section_header_colour",
    "fieldtype": "Color",
    "label": "Section Header"
@@ -100,26 +100,26 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "The left sidebar background.",
+   "description": "Left sidebar background.",
    "fieldname": "sidebar_background",
    "fieldtype": "Color",
    "label": "Sidebar Background"
   },
   {
-   "description": "The top navbar \u2014 usually a step darker than the sidebar.",
+   "description": "Top navbar background.",
    "fieldname": "navbar_background",
    "fieldtype": "Color",
    "label": "Navbar Background"
   },
   {
    "depends_on": "enabled",
-   "description": "The gradient behind the workspace tiles. White text sits on this, so keep it dark enough to read against.",
+   "description": "Background behind the workspace tiles. Keep it dark enough for white text.",
    "fieldname": "section_canvas",
    "fieldtype": "Section Break",
    "label": "Workspace Canvas"
   },
   {
-   "description": "Top-left of the gradient, and the workspace title bar.",
+   "description": "Top of the gradient and the workspace title bar.",
    "fieldname": "canvas_top",
    "fieldtype": "Color",
    "label": "Canvas (Top)"
@@ -129,7 +129,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Bottom-right of the gradient \u2014 the lighter end.",
+   "description": "Bottom of the gradient.",
    "fieldname": "canvas_bottom",
    "fieldtype": "Color",
    "label": "Canvas (Bottom)"
@@ -141,13 +141,13 @@
    "label": "Accents & Surfaces"
   },
   {
-   "description": "Links and the focus ring on inputs.",
+   "description": "Links and the input focus ring.",
    "fieldname": "accent_colour",
    "fieldtype": "Color",
    "label": "Accent / Focus"
   },
   {
-   "description": "The selected item in the sidebar.",
+   "description": "Selected item in the sidebar.",
    "fieldname": "selected_highlight",
    "fieldtype": "Color",
    "label": "Selected Highlight"
@@ -157,13 +157,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Alternating row tint in lists and tables.",
+   "description": "Alternating row colour in lists and tables.",
    "fieldname": "zebra_tint",
    "fieldtype": "Color",
    "label": "Zebra Row Tint"
   },
   {
-   "description": "Hairlines between fields, cards and table cells.",
+   "description": "Lines between fields, cards and table cells.",
    "fieldname": "border_colour",
    "fieldtype": "Color",
    "label": "Border"

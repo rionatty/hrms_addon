@@ -402,7 +402,7 @@ refusal = glue.split("def _explain_refusal(")[1].split(chr(10) + "def ")[0]
 if "rules.token_rejected(" not in refusal:
     fail.append("_explain_refusal must tell a refused token from a refused password")
 for needle, why in (
-    ("every way of signing in", "by the time this is said the app has tried them all, so it "
+    ("Every sign-in endpoint", "by the time this is said the app has tried them all, so it "
                                 "must not send somebody back to the settings"),
     ("API access", "what is left is what the account is allowed to do, and that is said"),
     ("403", "a permission the account lacks is not a bad password"),

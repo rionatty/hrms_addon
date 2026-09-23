@@ -4,7 +4,6 @@
  "allow_rename": 1,
  "autoname": "field:item",
  "creation": "2026-09-21 09:00:00.000000",
- "description": "Section A of the Training Evaluation Form (LPL/TRG/FRM05): what each participant rates after a training.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

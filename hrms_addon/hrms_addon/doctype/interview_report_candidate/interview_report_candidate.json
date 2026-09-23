@@ -68,8 +68,7 @@
    "label": "Score",
    "read_only": 1,
    "in_list_view": 1,
-   "columns": 1,
-   "description": "The panel's score sheets, averaged."
+   "columns": 1
   },
   {
    "fieldname": "score_band",
@@ -85,8 +84,7 @@
    "label": "Panel",
    "read_only": 1,
    "in_list_view": 1,
-   "columns": 2,
-   "description": "The panel members' recommendations, counted."
+   "columns": 2
   },
   {
    "fieldname": "decision",
@@ -94,14 +92,12 @@
    "label": "Decision",
    "options": "\nOffer\nShortlist\nReject",
    "in_list_view": 1,
-   "columns": 2,
-   "description": "Filled in when most of the panel agreed; otherwise the panel's call."
+   "columns": 2
   },
   {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
-   "label": "Remarks",
-   "description": "The panel's view of the candidate, as printed on the report."
+   "label": "Remarks"
   },
   {
    "fieldname": "interview",
@@ -117,8 +113,7 @@
    "label": "Job Offer",
    "read_only": 1,
    "allow_on_submit": 1,
-   "no_copy": 1,
-   "description": "Made from the approved report (Create Job Offers)."
+   "no_copy": 1
   }
  ],
  "istable": 1,
