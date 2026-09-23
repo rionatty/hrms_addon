@@ -43,7 +43,9 @@ under the one their own gross puts them in — on the attendance the
 Overtime Slip reads, so it is what they are paid, not only what the cost
 check shows. The 1x is under the Act's 1.5x floor this module was built
 to; it is Luuka's minuted practice and it stays a figure on the type,
-where it can be changed, not a constant here.
+where it can be changed, not a constant here. So does the line: the
+higher earners' type carries it ("For Monthly Gross Above"), and the gross
+it is compared with is the one the employee's salary structure works out.
 """
 
 WEEKDAY = "Weekday"
@@ -59,7 +61,9 @@ ACT_MULTIPLIERS = {WEEKDAY: 1.5, REST_DAY: 2.0, PUBLIC_HOLIDAY: 2.0, LEAVE_DAY: 
 # The names the three Overtime Types are seeded under
 TYPE_NAMES = {WEEKDAY: "Weekday Overtime", REST_DAY: "Rest Day Overtime",
               PUBLIC_HOLIDAY: "Public Holiday Overtime", LEAVE_DAY: "Rest Day Overtime"}
-# and the weekday type for those whose gross is above the line (§4.12)
+# and the weekday type for those whose gross is above the line (§4.12).
+# The type is seeded with this line and its multiplier; both are then the
+# type's, where HR change them.
 GROSS_THRESHOLD = 500000.0
 HIGHER_EARNERS = "Weekday Overtime (Above UGX 500,000)"
 HIGHER_EARNER_MULTIPLIER = 1.0
@@ -90,12 +94,23 @@ def kind_of_day(facts):
     return WEEKDAY
 
 
-def type_name_for(kind, gross=None, threshold=GROSS_THRESHOLD):
+def type_name_for(kind, gross=None, lines=None):
     """The Overtime Type a day falls under for one person. On a weekday it
-    depends on what they earn: above the line, the higher earners' type."""
-    if kind == WEEKDAY and gross is not None and float(gross or 0) > float(threshold):
-        return HIGHER_EARNERS
+    depends on what they earn: of the types with a gross line (lines: {type
+    name: monthly gross above}), the one with the highest line their gross
+    is above; otherwise the weekday type."""
+    if kind == WEEKDAY and gross is not None:
+        above = sorted((float(line), name) for name, line in (lines or {}).items()
+                       if float(line or 0) > 0 and float(gross or 0) > float(line))
+        if above:
+            return above[-1][1]
     return TYPE_NAMES.get(kind, TYPE_NAMES[WEEKDAY])
+
+
+def gross_lines(types):
+    """{type name: its monthly gross line}, for the types that have one."""
+    return {name: float(row.get("custom_gross_above") or 0) for name, row in (types or {}).items()
+            if row and float(row.get("custom_gross_above") or 0) > 0}
 
 
 def multiplier_for(kind, overtime_type=None):
@@ -136,8 +151,10 @@ def amount(hours, rate, multiplier):
     return round(float(hours) * float(rate) * float(multiplier), 2)
 
 
-def priced(rows, rates, kind, overtime_type=None, types=None):
-    """Price a request's rows. rates: {employee: monthly base}.
+def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None):
+    """Price a request's rows. rates: {employee: monthly base}, which an
+    hour of ordinary pay is worked out of; grosses: {employee: monthly
+    gross}, which decides their type.
 
     types: {Overtime Type name: its row}. Each person is priced under the
     type their own gross puts them in (minutes §4.12); `overtime_type`
@@ -148,10 +165,11 @@ def priced(rows, rates, kind, overtime_type=None, types=None):
     cannot see is worse than a line that reads zero.
     """
     multiplier = multiplier_for(kind, overtime_type)
+    lines = gross_lines(types)
     out, total, unpriced = [], 0.0, []
     for row in rows or []:
         base = rates.get(row.get("employee"))
-        theirs = (types or {}).get(type_name_for(kind, base))
+        theirs = (types or {}).get(type_name_for(kind, (grosses or {}).get(row.get("employee")), lines))
         own = multiplier_for(kind, theirs) if theirs else multiplier
         rate = hourly_rate(base)
         cost = amount(row.get("hours"), rate, own)
@@ -199,11 +217,11 @@ def payroll_errors(facts):
     return errors
 
 
-def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None):
+def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None, lines=None):
     """What goes onto the employee's Attendance row so Frappe HR's own
     Overtime Slip picks the hours up: the type their gross puts them in,
     the duration, and the standard day it is measured against."""
-    return {"overtime_type": type_name_for(kind, gross),
+    return {"overtime_type": type_name_for(kind, gross, lines),
             "actual_overtime_duration": float(row.get("hours") or 0),
             "standard_working_hours": float(standard_hours)}
 

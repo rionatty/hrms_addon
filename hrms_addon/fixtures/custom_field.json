@@ -10486,5 +10486,17 @@
   "modified_by": "Administrator",
   "creation": "2026-09-24 09:00:00.000000",
   "modified": "2026-09-24 09:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Overtime Type-custom_gross_above",
+  "dt": "Overtime Type",
+  "fieldname": "custom_gross_above",
+  "fieldtype": "Currency",
+  "insert_after": "standard_multiplier",
+  "label": "For Monthly Gross Above",
+  "description": "Weekday overtime of employees whose monthly gross is above this.",
+  "non_negative": 1,
+  "module": "HRMS Addon"
  }
 ]

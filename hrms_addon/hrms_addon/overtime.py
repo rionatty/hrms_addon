@@ -28,7 +28,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import attendance_rules, overtime_rules as rules, people
+from hrms_addon.hrms_addon import attendance_rules, overtime_rules as rules, pay, people
 
 REQUEST = "Overtime Request"
 TYPE = "Overtime Type"
@@ -100,14 +100,22 @@ def _type_row(name):
         TYPE, name,
         ["standard_multiplier", "weekend_multiplier", "public_holiday_multiplier",
          "applicable_for_weekend", "applicable_for_public_holiday",
-         "maximum_overtime_hours_allowed", "overtime_salary_component"], as_dict=True)
+         "maximum_overtime_hours_allowed", "overtime_salary_component", "custom_gross_above"], as_dict=True)
 
 
 def _types_for(kind):
     """The Overtime Types a day of this kind can price under: its own and,
-    on a weekday, the higher earners' (minutes §4.12)."""
-    names = {rules.type_name_for(kind), rules.type_name_for(kind, rules.GROSS_THRESHOLD + 1)}
+    on a weekday, each type with a gross line (minutes §4.12)."""
+    names = {rules.type_name_for(kind)}
+    if kind == rules.WEEKDAY:
+        names |= set(frappe.get_all(TYPE, filters={"custom_gross_above": [">", 0]}, pluck="name"))
     return {name: _type_row(name) for name in names if frappe.db.exists(TYPE, name)}
+
+
+def _monthly_gross(employees, day):
+    """Each employee's monthly gross on the day, as their salary structure
+    works it out: what the line on the Overtime Type is compared with."""
+    return {employee: pay.monthly_gross(employee, day) for employee in employees}
 
 
 def _monthly_bases(employees):
@@ -133,8 +141,10 @@ def cost_check(name, cost_centre=None, remarks=None):
     kind = doc.get("day_kind") or day_kind(doc.employees[0].employee, doc.overtime_date)
     overtime_type = _type_row(doc.get("overtime_type") or type_for(kind, doc.get("company")))
     rows = [row.as_dict() for row in doc.get("employees") or []]
-    bases = _monthly_bases([row.get("employee") for row in rows if row.get("employee")])
-    costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind))
+    people_on_it = [row.get("employee") for row in rows if row.get("employee")]
+    bases = _monthly_bases(people_on_it)
+    costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind),
+                          _monthly_gross(people_on_it, doc.overtime_date))
     errors = rules.cost_check_errors({
         "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
         "cost_centre": cost_centre or doc.get("cost_centre")})
@@ -181,11 +191,12 @@ def send_to_payroll(name):
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Payroll"))
     kind = doc.get("day_kind") or rules.WEEKDAY
-    bases = _monthly_bases([row["employee"] for row in rows])
+    grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
+    lines = rules.gross_lines(_types_for(kind))
     marked = 0
     for row in rows:
         values = rules.attendance_update(row, kind, attendance_rules.STANDARD_HOURS,
-                                         gross=bases.get(row["employee"]))
+                                         gross=grosses.get(row["employee"]), lines=lines)
         if not frappe.db.exists(TYPE, values["overtime_type"]):
             values.pop("overtime_type")
         frappe.db.set_value("Attendance", row["attendance"], values, update_modified=False)
@@ -265,6 +276,7 @@ def seed_overtime_types():
                 "doctype": TYPE, "__newname": rules.HIGHER_EARNERS,
                 "overtime_salary_component": component,
                 "standard_multiplier": rules.HIGHER_EARNER_MULTIPLIER,
+                "custom_gross_above": rules.GROSS_THRESHOLD,
                 "applicable_for_weekend": 1,
                 "weekend_multiplier": rules.ACT_MULTIPLIERS[rules.REST_DAY],
                 "applicable_for_public_holiday": 1,
@@ -315,6 +327,16 @@ def warn_below_the_act():
             print(message)
 
 
+def fill_gross_line():
+    """The higher earners' type made before it carried its line gets the
+    minutes' UGX 500,000. A line HR have set is theirs."""
+    if frappe.db.exists(TYPE, rules.HIGHER_EARNERS) and \
+            not flt(frappe.db.get_value(TYPE, rules.HIGHER_EARNERS, "custom_gross_above")):
+        frappe.db.set_value(TYPE, rules.HIGHER_EARNERS, "custom_gross_above", rules.GROSS_THRESHOLD,
+                            update_modified=False)
+
+
 def setup_on_migrate():
     seed_overtime_types()
+    fill_gross_line()
     warn_below_the_act()
