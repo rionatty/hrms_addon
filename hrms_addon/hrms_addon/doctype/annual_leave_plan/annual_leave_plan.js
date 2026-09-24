@@ -39,7 +39,7 @@ frappe.ui.form.on("Annual Leave Plan", {
 	// how the plan stands: over what people have, no days on record, clashes
 	show_totals(frm) {
 		frm.dashboard.clear_headline();
-		const rows = frm.doc.employees || [];
+		const rows = (frm.doc.employees || []).filter((row) => row.employee);
 		if (!rows.length) return;
 		const planned = {};
 		rows.forEach((row) => {
@@ -71,6 +71,11 @@ frappe.ui.form.on("Annual Leave Plan", {
 });
 
 function ha_get_employees(frm) {
+	// an empty row would stop the save
+	(frm.doc.employees || [])
+		.filter((row) => !row.employee)
+		.forEach((row) => frappe.model.clear_doc(row.doctype, row.name));
+	frm.refresh_field("employees");
 	const fetch = () =>
 		frappe.xcall(HA_LEAVE + "get_employees", { plan: frm.doc.name }).then((added) => {
 			frappe.show_alert({ message: __("{0} employee(s) added.", [added]), indicator: "green" });

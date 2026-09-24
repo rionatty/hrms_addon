@@ -142,6 +142,8 @@ if L.balance_after(21, 5) != 16:
     fail.append("Part 2: the balance after is the balance before less the days taken")
 
 expect("a plan with nobody on it", L.plan_errors({"year": 2027, "rows": []}), "at least one employee")
+expect("a row with no dates yet", L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello"}]}),
+       "Okello has no planned dates")
 expect("a plan with no year", L.plan_errors({"rows": [{"employee": "E1", "planned_from": "2027-02-01",
                                                        "planned_to": "2027-02-05"}]}), "which year")
 SPLIT = [{"employee": "E1", "employee_name": "Okello", "planned_from": "2027-02-01", "planned_to": "2027-02-10",
@@ -653,6 +655,17 @@ plan_js = read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annu
 for method in ("get_employees", "request_change", "apply_from_plan", "inform_employees"):
     if 'HA_LEAVE + "%s"' % method not in plan_js:
         fail.append("the plan form calls leave.%s" % method)
+# Get Employees adds people before their dates are known, and a mandatory
+# table starts a new plan with an empty row, which stops the save it makes
+# first: the rows and their dates are required when the plan is sent
+plan_fields = fields_of(doctype("Annual Leave Plan"))
+row_fields = fields_of(doctype("Annual Leave Plan Employee"))
+if plan_fields["employees"].get("reqd") or row_fields["planned_from"].get("reqd") or \
+        row_fields["planned_to"].get("reqd"):
+    fail.append("the plan's rows and their dates are required when it is sent, not on every save")
+if "frappe.model.clear_doc(row.doctype, row.name)" not in \
+        plan_js.split("function ha_get_employees")[1].split(chr(10) + "function ")[0]:
+    fail.append("Get Employees drops an empty row before it saves the plan")
 if "Leaves" not in navigation.CARDS:
     fail.append("the plan belongs on Frappe HR's own leave page")
 if not os.path.exists(os.path.join(APPS_ROOT, "hrms", "hrms", "hr", "workspace", "leaves", "leaves.json")):
