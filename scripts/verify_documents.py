@@ -276,7 +276,8 @@ nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 for name in ("Employee Document Type", "Document Expiry"):
     if name not in nav:
         fail.append("%s has no way in" % name)
-if '"Document Expiry": "Employee"' not in nav:
+if json.load(open(os.path.join(APP, "report", "document_expiry", "document_expiry.json"),
+                  encoding="utf-8")).get("ref_doctype") != "Employee":
     fail.append("the expiry report must say which document it is for")
 report = json.load(open(os.path.join(APP, "report", "document_expiry", "document_expiry.json"),
                         encoding="utf-8"))

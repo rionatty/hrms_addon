@@ -68,13 +68,13 @@
   },
   {
    "hidden": 0,
-   "is_query_report": 0,
+   "is_query_report": 1,
    "label": "Advance Payment Report",
    "link_count": 0,
    "link_to": "Advance Payment Report",
    "link_type": "Report",
    "onboard": 0,
-   "report_ref_doctype": null,
+   "report_ref_doctype": "Salary Advance Processing",
    "type": "Link"
   },
   {

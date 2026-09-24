@@ -67,6 +67,18 @@ ours_here = {link[1] for _card, links in CARDS for link in links}
 if any(row["type"] == "Link" and row["link_type"] == R.REPORT and row["link_to"] in ours_here
        and not row.get("report_ref_doctype") for row in merged):
     fail.append("a report link of ours must name the DocType it reports on, or the desk cannot open it")
+# the desk routes a Report link by its flag: off, a script report opens the
+# doctype's list view instead of the report (the Leave Schedule, Sep 2026)
+schedule = R.link_row("Leave Schedule", "Leave Schedule", R.REPORT)
+if (schedule["is_query_report"], schedule["report_ref_doctype"]) != (1, "Annual Leave Plan"):
+    fail.append("a script report of ours opens as a query report: %s" % schedule)
+if R.link_row("Tool of Work", "Tool of Work", R.DOCTYPE)["is_query_report"] != 0:
+    fail.append("a link to a DocType is no report")
+for _card_page, cards in R.CARDS.items():
+    for _card, links in cards:
+        for link in links:
+            if link[2] == R.REPORT and R.report_facts(link[1])[0] not in R.QUERY_REPORT_TYPES:
+                fail.append("%s is linked as a report but is not a script or query report this app ships" % link[1])
 blocks = R.merge_content([{"id": "x", "type": "card", "data": {"card_name": "Reports", "col": 4}}], CARDS)
 if [(b["type"], b["data"]["card_name"]) for b in blocks] != [("card", "Reports"), ("card", "Onboarding Setup")]:
     fail.append("a card block is added for a card the page does not show yet: %s" % blocks)
@@ -393,6 +405,8 @@ print("connections: the three standard forms, our own five, every field they cou
 
 # ── 5. Applied on every migrate, adding only ──────────────────────────
 glue = read("hrms_addon", "hrms_addon", "navigation.py")
+if '"link_count", "is_query_report", "report_ref_doctype")' not in glue.split("def _same(")[1].split(chr(10) + "def ")[0]:
+    fail.append("_same must compare a report link's flag and doctype, or a row written wrong is never put right")
 if "hrms_addon.hrms_addon.navigation.setup_on_migrate" not in (hooks.get("after_migrate") or []):
     fail.append("after_migrate must put the cards and sidebar entries back: an update rewrites those records")
 for needle, why in (('if not frappe.db.exists("Workspace", workspace):', "a workspace that is not installed is skipped"),

@@ -237,7 +237,8 @@ if migrate.index("hrms_addon.hrms_addon.security.setup_on_migrate") \
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 if "Role and Access Matrix" not in nav:
     fail.append("the matrix has no way in")
-if '"Role and Access Matrix": "Custom DocPerm"' not in nav:
+if json.load(open(os.path.join(APP, "report", "role_and_access_matrix", "role_and_access_matrix.json"),
+                  encoding="utf-8")).get("ref_doctype") != "Custom DocPerm":
     fail.append("and the report must say which document it is for")
 print("wiring: set on migrate, before the navigation, with a way in")
 

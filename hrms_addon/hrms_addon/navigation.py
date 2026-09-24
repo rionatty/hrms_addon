@@ -256,7 +256,7 @@ def _same(wanted, current):
     """Whether the rows say the same thing, ignoring what the database adds
     (names, timestamps), and are numbered 1, 2, 3... as they must be to come
     back in this order every time."""
-    keys = ("type", "label", "link_type", "link_to", "child", "link_count")
+    keys = ("type", "label", "link_type", "link_to", "child", "link_count", "is_query_report", "report_ref_doctype")
 
     def shape(rows):
         return [tuple(row.get(key) for key in keys) for row in rows]

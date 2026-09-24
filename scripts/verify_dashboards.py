@@ -227,8 +227,11 @@ nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 for name in ("Monthly Manpower and Headcount", "Performance Analytics"):
     if name not in nav:
         fail.append("%s has no way in" % name)
-    if '"%s":' % name not in nav:
-        fail.append("%s must say which document it is for" % name)
+    _folder = name.lower().replace(" ", "_")
+    _spec = json.load(open(os.path.join(APP, "report", _folder, _folder + ".json"), encoding="utf-8"))
+    if (_spec.get("report_type"), _spec.get("ref_doctype")) != \
+            ("Script Report", {"Monthly Manpower and Headcount": "Employee", "Performance Analytics": "Appraisal"}[name]):
+        fail.append("%s must say which document it is for, as a script report" % name)
 for folder in ("monthly_manpower_and_headcount", "performance_analytics"):
     if not os.path.exists(os.path.join(APP, "report", folder, folder + ".js")):
         fail.append("%s has no filter script" % folder)

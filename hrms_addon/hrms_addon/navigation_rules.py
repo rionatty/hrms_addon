@@ -21,6 +21,9 @@ update rewrites those records and navigation.py puts these back on the next
 migrate, so anything of theirs that moved or was renamed survives.
 """
 
+import json
+import os
+
 DOCTYPE, REPORT, WORKSPACE = "DocType", "Report", "Workspace"
 PAGE = "Page"
 # A page of ours belongs to this app, not to Frappe HR's. That is not
@@ -290,13 +293,23 @@ CARDS = {
     ],
 }
 
-# The report each report link is for, so Frappe opens it on the right list
-REPORT_DOCTYPES = {"Contract Expiry Status": "Employee Contract",
-                   "Succession Coverage": "Succession Position",
-                   "Role and Access Matrix": "Custom DocPerm",
-                   "Document Expiry": "Employee",
-                   "Performance Analytics": "Appraisal",
-                   "Monthly Manpower and Headcount": "Employee"}
+# The desk routes a Report link by its kind: a Script or Query Report opens
+# as a query report, a Report Builder one on its doctype's list. Written
+# with the flag off, a script report opened the list instead (Sep 2026).
+REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "report")
+QUERY_REPORT_TYPES = ("Query Report", "Script Report", "Custom Report")
+
+
+def report_facts(name):
+    """(report_type, ref_doctype) of a report this app ships, from its file;
+    (None, None) for one it does not."""
+    folder = name.lower().replace(" ", "_")
+    path = os.path.join(REPORTS_DIR, folder, folder + ".json")
+    if not os.path.exists(path):
+        return None, None
+    with open(path, encoding="utf-8") as handle:
+        spec = json.load(handle)
+    return spec.get("report_type"), spec.get("ref_doctype")
 
 # workspace -> [(label, what it opens, kind, section, after)]
 #   section: the sidebar section it goes under ("Setup", "Reports"), or None
@@ -405,6 +418,7 @@ CARD_BREAK, LINK, SECTION = "Card Break", "Link", "Section Break"
 
 def link_row(label, link_to, kind):
     """A Workspace Link row for one thing to open."""
+    report_type, ref_doctype = report_facts(link_to) if kind == REPORT else (None, None)
     return {
         "type": LINK,
         "label": label,
@@ -413,8 +427,8 @@ def link_row(label, link_to, kind):
         "hidden": 0,
         "onboard": 0,
         "link_count": 0,
-        "is_query_report": 0,
-        "report_ref_doctype": REPORT_DOCTYPES.get(link_to) if kind == REPORT else None,
+        "is_query_report": 1 if report_type in QUERY_REPORT_TYPES else 0,
+        "report_ref_doctype": ref_doctype,
     }
 
 
