@@ -10,14 +10,21 @@
   "department",
   "designation",
   "entitlement_days",
+  "brought_forward",
+  "available_days",
   "planned_from",
   "planned_to",
   "planned_days",
+  "leave_status",
   "remarks",
   "leave_application",
   "informed",
   "informed_on",
-  "alerts_sent"
+  "alerts_sent",
+  "not_applied_told",
+  "original_from",
+  "original_to",
+  "last_change"
  ],
  "fields": [
   {
@@ -57,8 +64,23 @@
   {
    "fieldname": "entitlement_days",
    "fieldtype": "Float",
-   "label": "Entitled",
-   "precision": "2"
+   "label": "Entitled This Year",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "brought_forward",
+   "fieldtype": "Float",
+   "label": "Brought Forward",
+   "read_only": 1
+  },
+  {
+   "fieldname": "available_days",
+   "fieldtype": "Float",
+   "label": "Available",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
   },
   {
    "fieldname": "planned_from",
@@ -66,7 +88,7 @@
    "label": "From",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 2
+   "columns": 1
   },
   {
    "fieldname": "planned_to",
@@ -74,7 +96,7 @@
    "label": "To",
    "reqd": 1,
    "in_list_view": 1,
-   "columns": 2
+   "columns": 1
   },
   {
    "fieldname": "planned_days",
@@ -82,7 +104,19 @@
    "label": "Days",
    "precision": "2",
    "in_list_view": 1,
-   "columns": 1
+   "columns": 1,
+   "read_only": 0,
+   "description": "Counted as the leave application counts them."
+  },
+  {
+   "fieldname": "leave_status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Planned\nApplied\nTaken\nNot Applied",
+   "default": "Planned",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
   },
   {
    "fieldname": "remarks",
@@ -119,11 +153,37 @@
    "hidden": 1,
    "no_copy": 1,
    "print_hide": 1
+  },
+  {
+   "fieldname": "not_applied_told",
+   "fieldtype": "Check",
+   "label": "Not Applied Told",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "original_from",
+   "fieldtype": "Date",
+   "label": "First Planned From",
+   "read_only": 1
+  },
+  {
+   "fieldname": "original_to",
+   "fieldtype": "Date",
+   "label": "First Planned To",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_change",
+   "fieldtype": "Link",
+   "label": "Moved By",
+   "options": "Leave Plan Change",
+   "read_only": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-21 12:00:00.000000",
+ "modified": "2026-09-25 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Annual Leave Plan Employee",

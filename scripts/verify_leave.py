@@ -124,37 +124,125 @@ if L.days_between("2026-10-01", "2026-10-05") != 5:
     fail.append("both ends of a leave are counted, as the form counts them")
 if L.days_between("2026-10-05", "2026-10-01") != 0:
     fail.append("a leave that ends before it starts covers no days")
-if L.end_for("2026-10-01", 5) != datetime.date(2026, 10, 5):
-    fail.append("five days from the 1st ends on the 5th")
+# leave days as Frappe HR's Leave Application counts them: holidays out
+HOLIDAYS = ["2027-03-07", "2027-03-08"]
+if L.leave_days("2027-03-01", "2027-03-10", HOLIDAYS) != 8:
+    fail.append("a Sunday and a public holiday inside a leave are not leave days")
+if L.leave_days("2027-03-01", "2027-03-10", HOLIDAYS, include_holidays=True) != 10:
+    fail.append("unless the leave type counts holidays as leave")
+if L.leave_days("2027-03-10", "2027-03-01", HOLIDAYS) != 0:
+    fail.append("a leave that ends before it starts takes nothing")
+if L.end_after("2027-03-01", 8, HOLIDAYS) != datetime.date(2027, 3, 10):
+    fail.append("eight leave days from 1 March, over a Sunday and a holiday, end on the 10th")
+if L.end_after("2027-03-01", 8, HOLIDAYS, include_holidays=True) != datetime.date(2027, 3, 8):
+    fail.append("counting the holidays, they end on the 8th")
+if L.end_after("2027-03-01", 0) is not None:
+    fail.append("no days, no end")
 if L.balance_after(21, 5) != 16:
     fail.append("Part 2: the balance after is the balance before less the days taken")
 
 expect("a plan with nobody on it", L.plan_errors({"year": 2027, "rows": []}), "at least one employee")
 expect("a plan with no year", L.plan_errors({"rows": [{"employee": "E1", "planned_from": "2027-02-01",
                                                        "planned_to": "2027-02-05"}]}), "which year")
-expect("the same employee twice",
-       L.plan_errors({"year": 2027, "rows": [
-           {"employee": "E1", "employee_name": "Okello", "planned_from": "2027-02-01", "planned_to": "2027-02-05"},
-           {"employee": "E1", "employee_name": "Okello", "planned_from": "2027-06-01", "planned_to": "2027-06-05"}]}),
-       "on the plan twice")
+SPLIT = [{"employee": "E1", "employee_name": "Okello", "planned_from": "2027-02-01", "planned_to": "2027-02-10",
+          "planned_days": 10, "available_days": 21},
+         {"employee": "E1", "employee_name": "Okello", "planned_from": "2027-06-01", "planned_to": "2027-06-11",
+          "planned_days": 11, "available_days": 21}]
+expect("a leave split in two parts that fit", L.plan_errors({"year": 2027, "rows": SPLIT}))
+expect("parts that overlap",
+       L.plan_errors({"year": 2027, "rows": [SPLIT[0], dict(SPLIT[1], planned_from="2027-02-08")]}),
+       "overlaps: 1 Feb 2027 to 10 Feb 2027 and 8 Feb 2027 to 11 Jun 2027")
+expect("parts that share a day",
+       L.plan_errors({"year": 2027, "rows": [SPLIT[0], dict(SPLIT[1], planned_from="2027-02-10")]}),
+       "overlaps: 1 Feb 2027 to 10 Feb 2027 and 10 Feb 2027 to 11 Jun 2027")
+expect("parts that together are more than available",
+       L.plan_errors({"year": 2027, "rows": [SPLIT[0], dict(SPLIT[1], planned_days=12)]}),
+       "22 day(s), 21 available")
 expect("planned outside the year",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
                                               "planned_from": "2026-12-20", "planned_to": "2026-12-24"}]}),
        "outside 2027")
-expect("more days than the dates cover",
-       L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
-                                              "planned_from": "2027-02-01", "planned_to": "2027-02-05",
-                                              "planned_days": 10}]}),
-       "the dates cover")
-expect("more days than they are owed",
+expect("more days than they have",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
                                               "planned_from": "2027-02-01", "planned_to": "2027-03-05",
-                                              "entitlement_days": 21}]}),
-       "entitled to")
+                                              "planned_days": 30, "available_days": 21}]}),
+       "30 day(s), 21 available")
 expect("a plan that adds up",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
                                               "planned_from": "2027-02-01", "planned_to": "2027-02-21",
-                                              "planned_days": 21, "entitlement_days": 21}]}))
+                                              "planned_days": 21, "available_days": 21}]}))
+expect("with nothing on record, the days cannot be checked, so they are not refused",
+       L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
+                                              "planned_from": "2027-02-01", "planned_to": "2027-03-05",
+                                              "planned_days": 30}]}))
+
+# clashes: more of one department off together than the plan allows
+TEAM = [{"employee": "A", "employee_name": "Ann", "department": "Extrusion", "planned_from": "2027-03-01",
+         "planned_to": "2027-03-05"},
+        {"employee": "B", "employee_name": "Ben", "department": "Extrusion", "planned_from": "2027-03-03",
+         "planned_to": "2027-03-08"},
+        {"employee": "C", "employee_name": "Cy", "department": "Extrusion", "planned_from": "2027-03-04",
+         "planned_to": "2027-03-04"},
+        {"employee": "D", "employee_name": "Dee", "department": "Stores", "planned_from": "2027-03-01",
+         "planned_to": "2027-03-31"}]
+found = L.clashes(TEAM, 2)
+if [(clash["department"], clash["from"], clash["to"], clash["most"], clash["names"]) for clash in found] != \
+        [("Extrusion", datetime.date(2027, 3, 4), datetime.date(2027, 3, 4), 3, ["Ann", "Ben", "Cy"])]:
+    fail.append("three of Extrusion off on 4 March is a clash when two is the most: %s" % found)
+if L.clash_lines(found, 2) != ["Extrusion: 3 off on 4 Mar 2027, more than 2 (Ann, Ben, Cy)."]:
+    fail.append("and the plan says so plainly: %s" % L.clash_lines(found, 2))
+TWICE = TEAM + [{"employee": "E", "employee_name": "Eve", "department": "Extrusion", "planned_from": "2027-03-08",
+                  "planned_to": "2027-03-09"}]
+if [(clash["from"].day, clash["to"].day) for clash in L.clashes(TWICE, 1)] != [(3, 5), (8, 8)]:
+    fail.append("two clashes in one department with a day between them are two: %s" % L.clashes(TWICE, 1))
+if L.clashes(TEAM, 1)[0]["to"] != datetime.date(2027, 3, 5) or L.clashes(TEAM, 0):
+    fail.append("a clash runs while too many are off; no limit, no clash")
+if "from 3 Mar 2027 to 5 Mar 2027" not in L.clash_lines(L.clashes(TEAM, 1), 1)[0]:
+    fail.append("a clash over several days gives its first and last day")
+
+# where a planned leave stands
+for application, day, status in (
+    (None, "2027-02-28", L.PLANNED),
+    (None, "2027-03-02", L.NOT_APPLIED),
+    ({"docstatus": 0, "status": "Open", "to_date": "2027-03-10"}, "2027-03-02", L.APPLIED),
+    ({"docstatus": 1, "status": "Approved", "to_date": "2027-03-10"}, "2027-03-05", L.APPLIED),
+    ({"docstatus": 1, "status": "Approved", "to_date": "2027-03-10"}, "2027-03-11", L.TAKEN),
+    ({"docstatus": 1, "status": "Rejected", "to_date": "2027-03-10"}, "2027-03-11", L.NOT_APPLIED),
+    ({"docstatus": 2, "status": "Cancelled", "to_date": "2027-03-10"}, "2027-02-20", L.PLANNED),
+    (None, "2027-03-01", L.PLANNED),
+    ({"docstatus": 1, "status": "Approved", "to_date": "2027-03-10"}, "2027-03-10", L.APPLIED),
+):
+    if L.plan_row_status("2027-03-01", day, application) != status:
+        fail.append("a leave planned from 1 March, on %s with %s, is %s: got %s"
+                    % (day, application, status, L.plan_row_status("2027-03-01", day, application)))
+
+# the months of a year's plan
+if L.month_days("2027-01-25", "2027-02-03", 2027, ["2027-01-31"]) != {1: 6, 2: 3}:
+    fail.append("a leave over two months counts its days in each: %s"
+                % L.month_days("2027-01-25", "2027-02-03", 2027, ["2027-01-31"]))
+counts = L.adherence([{"department": "Extrusion", "leave_status": L.TAKEN, "moved": True},
+                      {"department": "Extrusion", "leave_status": L.NOT_APPLIED},
+                      {"department": "Stores", "leave_status": "odd"}])
+if (counts["Extrusion"]["planned"], counts["Extrusion"][L.TAKEN], counts["Extrusion"][L.NOT_APPLIED],
+        counts["Extrusion"]["moved"], counts["Stores"][L.PLANNED]) != (2, 1, 1, 1, 1):
+    fail.append("how a plan was kept to, by department: %s" % counts)
+
+# moving one planned leave
+MOVE = {"year": 2027, "new_from": "2027-07-01", "new_to": "2027-07-10", "new_days": 8, "available": 21,
+        "others": [("2027-02-01", "2027-02-10", 10)], "reason": "Family wedding"}
+expect("a move that fits", L.change_errors(MOVE))
+expect("a move with no reason", L.change_errors(dict(MOVE, reason=" ")), "why the leave is moving")
+expect("a move out of the year", L.change_errors(dict(MOVE, new_from="2026-12-30", new_to="2026-12-31")),
+       "fall in 2027")
+expect("a move onto the other part", L.change_errors(dict(MOVE, new_from="2027-02-05")),
+       "overlap the leave planned from 1 Feb 2027 to 10 Feb 2027")
+expect("a move ending on the other part's first day",
+       L.change_errors(dict(MOVE, new_from="2027-01-25", new_to="2027-02-01")), "overlap the leave planned")
+expect("a move starting on the other part's last day",
+       L.change_errors(dict(MOVE, new_from="2027-02-10", new_to="2027-02-12")), "overlap the leave planned")
+expect("a move to more days than available", L.change_errors(dict(MOVE, new_days=12)), "22 day(s) planned")
+expect("a move of a leave already applied for", L.change_errors(dict(MOVE, applied=True)), "Cancel that application")
+expect("a move ending before it starts", L.change_errors(dict(MOVE, new_to="2027-06-01")), "ends before it starts")
 
 expect("sick leave with no certificate",
        L.application_errors({"leave_type": "Sick Leave", "from_date": "2026-10-01", "to_date": "2026-10-03"}),
@@ -303,9 +391,14 @@ print("advances: who qualifies, the ceiling, the instalments, LPL/HR/21's two sa
 for name, wanted in (
     ("Annual Leave Plan", ("year", "company", "employees", "status", "total_employees", "total_days",
                            "hod_by", "hod_on", "hr_by", "hr_on", "return_remarks", "informed_on",
-                           "informed_count")),
-    ("Annual Leave Plan Employee", ("employee", "entitlement_days", "planned_from", "planned_to",
-                                    "planned_days", "leave_application", "informed", "alerts_sent")),
+                           "informed_count", "most_off", "clashes")),
+    ("Annual Leave Plan Employee", ("employee", "entitlement_days", "brought_forward", "available_days",
+                                    "planned_from", "planned_to", "planned_days", "leave_status",
+                                    "leave_application", "informed", "alerts_sent", "not_applied_told",
+                                    "original_from", "original_to", "last_change")),
+    ("Leave Plan Change", ("plan", "plan_row", "employee", "current_from", "current_to", "new_from", "new_to",
+                           "new_days", "reason", "clashes", "supervisor_remarks", "supervisor_by", "hod_remarks",
+                           "hod_by", "approval_status")),
     ("Advance Recovery", ("payroll_date", "amount", "additional_salary", "recovered")),
 ):
     fields = fields_of(doctype(name))
@@ -316,6 +409,8 @@ for name, wanted in (
         if fieldname not in fields:
             fail.append("%s has no %s, which the leave process asks for" % (name, fieldname))
 for name, fieldname in (("Annual Leave Plan", "total_days"), ("Annual Leave Plan", "status"),
+                        ("Annual Leave Plan", "clashes"), ("Annual Leave Plan Employee", "available_days"),
+                        ("Annual Leave Plan Employee", "leave_status"), ("Leave Plan Change", "new_days"),
                         ("Annual Leave Plan Employee", "informed"), ("Advance Recovery", "recovered")):
     if not (fields_of(doctype(name)).get(fieldname) or {}).get("read_only"):
         fail.append("%s.%s is worked out, not typed" % (name, fieldname))
@@ -325,7 +420,7 @@ if not upstream_doctype("Leave Application"):
     fail.append("Frappe HR's Leave Application is not where it was: LPL/HR/15 is built on it")
 theirs = custom_fields("Leave Application")
 for fieldname in ("custom_work_section", "custom_date_of_appointment", "custom_medical_certificate",
-                  "custom_salary_requested_in_advance", "custom_advance", "custom_plan",
+                  "custom_salary_requested_in_advance", "custom_advance", "custom_plan", "custom_plan_row",
                   "custom_last_leave_type", "custom_last_leave_from", "custom_last_leave_to",
                   "custom_last_leave_days", "custom_balance_before", "custom_balance_after",
                   "custom_sick_balance_before", "custom_sick_balance_after", "custom_hro_by", "custom_hro_on",
@@ -391,6 +486,15 @@ for needle, why in (
     ("rules.balance_after(", "Part 2's balances come from the rules"),
     ("rules.advance_wanted(", "step 7 turns on the form's own tick"),
     ("approval.upstream_status(", "Frappe HR's own status is kept in step"),
+    ("rules.leave_days(", "a plan counts leave days as the Leave Application does"),
+    ("rules.end_after(", "and finds the last day over the holidays"),
+    ("get_holiday_dates_between_range(", "from Frappe HR's own reading of the employee's holidays"),
+    ('"Leave Policy Assignment"', "what an employee has comes from their leave policy before the allocation"),
+    ("get_leave_balance_on(", "and what their balance carries into the year"),
+    ("rules.clashes(", "too many of one department off together shows"),
+    ("rules.change_errors(", "moving a planned leave is judged by the rules"),
+    ("rules.plan_row_status(", "each planned leave's status comes from the rules"),
+    ("_planned_row_for(", "an application finds its planned leave by its dates"),
 ):
     if needle not in glue_leave:
         fail.append("leave.py: %s (%r not found)" % (why, needle))
@@ -403,7 +507,7 @@ for needle, why in (
 ):
     if needle not in glue_advances:
         fail.append("advances.py: %s (%r not found)" % (why, needle))
-for name in ("inform_employees", "raise_advance"):
+for name in ("inform_employees", "raise_advance", "get_employees", "apply_from_plan", "request_change"):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue_leave):
         fail.append("leave.%s changes something: a whitelisted POST method" % name)
 if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef from_leave\(', glue_advances):
@@ -519,6 +623,36 @@ carded = {link[1] for cards in navigation.CARDS.values() for _card, links in car
 sidebarred = {entry[1] for entries in navigation.SIDEBAR.values() for entry in entries}
 if "Annual Leave Plan" not in carded or "Annual Leave Plan" not in sidebarred:
     fail.append("the Annual Leave Plan needs a way in")
+for name in ("Leave Plan Change", "Leave Schedule", "Leave Plan Adherence"):
+    if name not in carded or name not in sidebarred:
+        fail.append("%s needs a way in" % name)
+daily_body = glue_leave.split("def daily(")[1].split(chr(10) + "def ")[0]
+if "_tell_not_applied()" not in daily_body or "_refresh_plan_statuses()" not in daily_body:
+    fail.append("every day: a planned leave started with nothing applied for tells HR, and the statuses are kept")
+if "workflows.setup_on_migrate(leave_plan_change_approval, " not in \
+        glue_leave.split("def setup_workflows_on_migrate(")[1].split(chr(10) + "def ")[0]:
+    fail.append("the Leave Plan Change's workflow is built on migrate")
+change_controller = read("hrms_addon", "hrms_addon", "doctype", "leave_plan_change", "leave_plan_change.py")
+for method in ("validate", "on_submit", "on_cancel"):
+    if "    def %s(self):\n        leave.change_%s(self)" % (method, method) not in change_controller:
+        fail.append("the Leave Plan Change controller must hand %s to leave.change_%s" % (method, method))
+plan_spec = doctype("Annual Leave Plan")
+if not any(p["role"] == "Employee" and p.get("read") and p.get("report") for p in plan_spec.get("permissions", [])):
+    fail.append("employees are shown the plan, and its schedule report")
+for report in ("leave_schedule", "leave_plan_adherence"):
+    if not os.path.exists(os.path.join(REPO, "hrms_addon", "hrms_addon", "report", report, report + ".py")):
+        fail.append("the %s report is not there" % report)
+schedule = read("hrms_addon", "hrms_addon", "report", "leave_schedule", "leave_schedule.py")
+if "own = leave.own_place(frappe.session.user)" not in schedule:
+    fail.append("an employee sees their own plant and department's schedule, as they see the plans")
+if (hooks.get("permission_query_conditions") or {}).get("Annual Leave Plan") != \
+        "hrms_addon.hrms_addon.leave.plan_query_conditions" or (hooks.get("has_permission") or {}).get(
+        "Annual Leave Plan") != "hrms_addon.hrms_addon.leave.plan_has_permission":
+    fail.append("an employee is shown the plans of their own plant and department, in the list and opened")
+plan_js = read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.js")
+for method in ("get_employees", "request_change", "apply_from_plan", "inform_employees"):
+    if 'HA_LEAVE + "%s"' % method not in plan_js:
+        fail.append("the plan form calls leave.%s" % method)
 if "Leaves" not in navigation.CARDS:
     fail.append("the plan belongs on Frappe HR's own leave page")
 if not os.path.exists(os.path.join(APPS_ROOT, "hrms", "hrms", "hr", "workspace", "leaves", "leaves.json")):

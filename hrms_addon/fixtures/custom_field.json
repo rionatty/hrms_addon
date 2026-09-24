@@ -4955,6 +4955,20 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Leave Application-custom_plan_row",
+  "dt": "Leave Application",
+  "fieldname": "custom_plan_row",
+  "fieldtype": "Data",
+  "label": "Planned Leave Row",
+  "insert_after": "description",
+  "hidden": 1,
+  "read_only": 1,
+  "no_copy": 1,
+  "print_hide": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Leave Application",
   "fieldname": "custom_hro_section",
   "fieldtype": "Section Break",

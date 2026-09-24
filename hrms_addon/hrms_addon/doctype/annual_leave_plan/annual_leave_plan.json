@@ -12,10 +12,12 @@
   "column_break_1",
   "branch",
   "department",
+  "most_off",
   "posting_date",
   "status",
   "employees_section",
   "employees",
+  "clashes",
   "total_employees",
   "column_break_2",
   "total_days",
@@ -90,6 +92,13 @@
    "description": "Leave empty to cover all departments."
   },
   {
+   "fieldname": "most_off",
+   "fieldtype": "Int",
+   "label": "Most Off at Once",
+   "non_negative": 1,
+   "description": "In one department on the same day. Empty for no limit."
+  },
+  {
    "fieldname": "posting_date",
    "fieldtype": "Date",
    "label": "Prepared On",
@@ -119,6 +128,13 @@
    "label": "Employees",
    "options": "Annual Leave Plan Employee",
    "reqd": 1
+  },
+  {
+   "fieldname": "clashes",
+   "fieldtype": "Small Text",
+   "label": "Clashes",
+   "read_only": 1,
+   "depends_on": "clashes"
   },
   {
    "fieldname": "total_employees",
@@ -228,7 +244,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 12:00:00.000000",
+ "modified": "2026-09-25 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Annual Leave Plan",
@@ -297,6 +313,11 @@
    "email": 1,
    "share": 1,
    "role": "Supervisor"
+  },
+  {
+   "role": "Employee",
+   "read": 1,
+   "report": 1
   }
  ],
  "sort_field": "modified",

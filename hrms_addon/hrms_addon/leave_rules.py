@@ -25,7 +25,9 @@ LPL/HR/15 is the paper: Part 1 the applicant's, Part 2 the HR Officer's
 balances, Part 3 the three signatures, Part 4 what Accounts advanced.
 """
 
+import calendar
 import datetime
+import math
 
 # ── the five kinds LPL/HR/15 offers ───────────────────────────────────
 ANNUAL = "Annual Leave"
@@ -78,6 +80,12 @@ PLAN_STATUSES = (PLAN_DRAFT, PLAN_PENDING_HOD, PLAN_PENDING_HR, PLAN_APPROVED, P
 
 # how long before a planned leave the employee and supervisor are told
 DUE_HORIZONS = (30, 14, 7)
+# what the plan row remembers once HR are told a leave was not applied for
+NOT_APPLIED_TOLD = "not applied"
+
+# where a planned leave stands
+PLANNED, APPLIED, TAKEN, NOT_APPLIED = "Planned", "Applied", "Taken", "Not Applied"
+ROW_STATUSES = (PLANNED, APPLIED, TAKEN, NOT_APPLIED)
 
 # ── an application ────────────────────────────────────────────────────
 APPLIED, ON_LEAVE, REPORTED_BACK = "Applied", "On Leave", "Reported Back"
@@ -97,12 +105,36 @@ def days_between(start, end):
     return (end - start).days + 1
 
 
-def end_for(start, days):
-    """The last day of a leave of `days` starting on `start`."""
+def leave_days(start, end, holidays=(), include_holidays=False):
+    """The days a leave takes from the balance, as Frappe HR's Leave
+    Application counts them: both ends, less the holidays on the employee's
+    list unless the leave type counts holidays as leave."""
+    start, end = _date(start), _date(end)
+    if not start or not end or end < start:
+        return 0
+    total = (end - start).days + 1
+    if include_holidays:
+        return total
+    off = {day for day in (_date(value) for value in holidays or ()) if day and start <= day <= end}
+    return total - len(off)
+
+
+def end_after(start, days, holidays=(), include_holidays=False):
+    """The last day of a leave of `days` leave days from `start`, the
+    holidays passed over unless the leave type counts them."""
     start = _date(start)
-    if not start or not days or int(days) < 1:
+    wanted = int(math.ceil(_num(days)))
+    if not start or wanted < 1:
         return None
-    return start + datetime.timedelta(days=int(days) - 1)
+    off = set() if include_holidays else {day for day in (_date(value) for value in holidays or ()) if day}
+    counted, day = 0, start
+    for _step in range(wanted + 400):
+        if day not in off:
+            counted += 1
+            if counted == wanted:
+                return day
+        day += datetime.timedelta(days=1)
+    return None
 
 
 def balance_after(before, days):
@@ -122,7 +154,9 @@ def plan_errors(facts):
     """Problems with an Annual Leave Plan, as user-facing messages.
 
     facts: "year", "rows" of employee, employee_name, planned_from,
-    planned_to, planned_days, entitlement_days.
+    planned_to, planned_days, available_days. An employee may have more
+    than one row: their leave split into parts, which must not overlap and
+    together fit what they have available.
     """
     errors = []
     year = facts.get("year")
@@ -134,15 +168,12 @@ def plan_errors(facts):
     start = end = None
     if year:
         start, end = year_window(year)
-    seen = set()
+    parts = {}
     for index, row in enumerate(rows, 1):
         who = row.get("employee_name") or row.get("employee") or "row %d" % index
         if not row.get("employee"):
             errors.append("Row %d has no employee on it." % index)
-        elif row["employee"] in seen:
-            errors.append("%s is on the plan twice. One planned leave each per year." % who)
-        else:
-            seen.add(row["employee"])
+            continue
         first, last = _date(row.get("planned_from")), _date(row.get("planned_to"))
         if not first or not last:
             errors.append("%s has no planned dates." % who)
@@ -152,13 +183,151 @@ def plan_errors(facts):
             continue
         if start and not (start <= first and last <= end):
             errors.append("%s is planned outside %s." % (who, year))
-        planned = _num(row.get("planned_days"))
-        counted = days_between(first, last)
-        if planned and round(planned, 2) != counted:
-            errors.append("%s is planned for %g day(s) but the dates cover %d." % (who, planned, counted))
-        entitlement = _num(row.get("entitlement_days"))
-        if entitlement and (planned or counted) > entitlement:
-            errors.append("%s is planned for more days than the %g they are entitled to." % (who, entitlement))
+        parts.setdefault(row["employee"], []).append(
+            (first, last, _num(row.get("planned_days")), who, _num(row.get("available_days"))))
+    for employee in parts:
+        spans = sorted(parts[employee])
+        who = spans[0][3]
+        for before, after in zip(spans, spans[1:]):
+            if after[0] <= before[1]:
+                errors.append("%s's planned leave overlaps: %s to %s and %s to %s."
+                              % (who, _day(before[0]), _day(before[1]), _day(after[0]), _day(after[1])))
+        planned = sum(span[2] for span in spans)
+        available = max(span[4] for span in spans)
+        if available and planned > available:
+            errors.append("%s is planned for %g day(s), %g available." % (who, planned, available))
+    return errors
+
+
+def clashes(rows, most_off):
+    """Where more of one department than `most_off` are planned off on the
+    same days: [{"department", "from", "to", "most", "names"}], earliest
+    first. rows: employee, employee_name, department, planned_from,
+    planned_to."""
+    most_off = int(_num(most_off))
+    if most_off < 1:
+        return []
+    off = {}
+    for row in rows or ():
+        first, last = _date(row.get("planned_from")), _date(row.get("planned_to"))
+        if not row.get("employee") or not first or not last or last < first:
+            continue
+        name = row.get("employee_name") or row.get("employee")
+        day = first
+        while day <= last:
+            off.setdefault((row.get("department") or "", day), set()).add(name)
+            day += datetime.timedelta(days=1)
+    found = []
+    for department in sorted({key[0] for key in off}):
+        run = []
+        for day in sorted(key[1] for key in off if key[0] == department and len(off[key]) > most_off):
+            if run and day != run[-1] + datetime.timedelta(days=1):
+                found.append(_clash(department, run, off))
+                run = []
+            run.append(day)
+        if run:
+            found.append(_clash(department, run, off))
+    return sorted(found, key=lambda clash: (clash["from"], clash["department"]))
+
+
+def _clash(department, run, off):
+    return {"department": department, "from": run[0], "to": run[-1],
+            "most": max(len(off[(department, day)]) for day in run),
+            "names": sorted(set().union(*(off[(department, day)] for day in run)))}
+
+
+def clash_lines(found, most_off):
+    """The clashes as the plan shows them."""
+    return ["%s: %d off %s, more than %d (%s)."
+            % (clash["department"] or "No department", clash["most"],
+               ("on %s" % _day(clash["from"])) if clash["from"] == clash["to"]
+               else "from %s to %s" % (_day(clash["from"]), _day(clash["to"])),
+               int(_num(most_off)), ", ".join(clash["names"])) for clash in found]
+
+
+def plan_row_status(planned_from, today, application=None):
+    """Where a planned leave stands: Taken, Applied, Not Applied (its first
+    day has passed with nothing applied for) or Planned.
+
+    application: "docstatus", "status" and "to_date" of the leave applied
+    for, if any."""
+    today = _date(today)
+    if application and application.get("docstatus") in (0, 1) and \
+            application.get("status") not in ("Rejected", "Cancelled"):
+        ended = _date(application.get("to_date"))
+        if application.get("docstatus") == 1 and application.get("status") == "Approved" and ended \
+                and today and ended < today:
+            return TAKEN
+        return APPLIED
+    first = _date(planned_from)
+    if first and today and first < today:
+        return NOT_APPLIED
+    return PLANNED
+
+
+def month_days(first, last, year, holidays=(), include_holidays=False):
+    """The leave days of a planned leave in each month of the year:
+    {month number: days}."""
+    first, last = _date(first), _date(last)
+    out = {}
+    if not first or not last or not year:
+        return out
+    year = int(year)
+    for month in range(1, 13):
+        start = max(first, datetime.date(year, month, 1))
+        end = min(last, datetime.date(year, month, calendar.monthrange(year, month)[1]))
+        if start <= end:
+            days = leave_days(start, end, holidays, include_holidays)
+            if days:
+                out[month] = days
+    return out
+
+
+def adherence(rows):
+    """How a plan was kept to, by department: {department: {"planned",
+    TAKEN, APPLIED, NOT_APPLIED, PLANNED, "moved"}}. rows: department,
+    leave_status, moved."""
+    out = {}
+    for row in rows or ():
+        counts = out.setdefault(row.get("department") or "", dict({"planned": 0, "moved": 0},
+                                                                  **{status: 0 for status in ROW_STATUSES}))
+        counts["planned"] += 1
+        counts[row.get("leave_status") if row.get("leave_status") in ROW_STATUSES else PLANNED] += 1
+        counts["moved"] += 1 if row.get("moved") else 0
+    return out
+
+
+def change_errors(facts):
+    """Problems with moving one planned leave, as user-facing messages.
+
+    facts: "year", "new_from", "new_to", "new_days", "available", "others"
+    (the employee's other planned parts, as (from, to, days)), "applied"
+    (a leave is already applied for on this row), "reason".
+    """
+    errors = []
+    first, last = _date(facts.get("new_from")), _date(facts.get("new_to"))
+    if not first or not last:
+        errors.append("Give the new dates.")
+        return errors
+    if last < first:
+        errors.append("The leave ends before it starts.")
+        return errors
+    if facts.get("year"):
+        start, end = year_window(facts["year"])
+        if not (start <= first and last <= end):
+            errors.append("The new dates must fall in %s." % facts["year"])
+    for other_first, other_last, _days in facts.get("others") or ():
+        other_first, other_last = _date(other_first), _date(other_last)
+        if other_first and other_last and first <= other_last and other_first <= last:
+            errors.append("The new dates overlap the leave planned from %s to %s."
+                          % (_day(other_first), _day(other_last)))
+    total = _num(facts.get("new_days")) + sum(_num(days) for _first, _last, days in facts.get("others") or ())
+    if _num(facts.get("available")) and total > _num(facts.get("available")):
+        errors.append("That makes %g day(s) planned, %g available." % (total, _num(facts.get("available"))))
+    if facts.get("applied"):
+        errors.append("A leave is already applied for on these dates. Cancel that application first.")
+    if not _text(facts.get("reason")):
+        errors.append("Say why the leave is moving.")
     return errors
 
 
@@ -232,6 +401,11 @@ def leave_stage(docstatus, from_date, to_date, today, reported_back=False):
     if today <= last:
         return ON_LEAVE
     return REPORTED_BACK
+
+
+def _day(value):
+    value = _date(value)
+    return value.strftime("%d %b %Y").lstrip("0") if value else ""
 
 
 def _date(value):

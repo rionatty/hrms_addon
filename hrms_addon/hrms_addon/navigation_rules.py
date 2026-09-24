@@ -204,6 +204,11 @@ CARDS = {
     "Leaves": [
         ("Application", [
             ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE),
+            ("Leave Plan Change", "Leave Plan Change", DOCTYPE),
+        ]),
+        ("Reports", [
+            ("Leave Schedule", "Leave Schedule", REPORT),
+            ("Leave Plan Adherence", "Leave Plan Adherence", REPORT),
         ]),
     ],
     # Frappe HR's own attendance page gains Luuka's three forms and the
@@ -337,6 +342,9 @@ SIDEBAR = {
     ],
     "Leaves": [
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
+        ("Leave Plan Change", "Leave Plan Change", DOCTYPE, None, "Annual Leave Plan"),
+        ("Leave Schedule", "Leave Schedule", REPORT, "Reports", None),
+        ("Leave Plan Adherence", "Leave Plan Adherence", REPORT, "Reports", None),
     ],
     "Shift & Attendance": [
         ("Attendance Board", "attendance-board", PAGE, None, None),

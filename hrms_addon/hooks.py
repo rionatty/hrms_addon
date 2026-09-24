@@ -833,6 +833,7 @@ fixtures = [
                     "Leave Application-custom_salary_requested_in_advance",
                     "Leave Application-custom_advance",
                     "Leave Application-custom_plan",
+                    "Leave Application-custom_plan_row",
                     "Leave Application-custom_hro_section",
                     "Leave Application-custom_last_leave_type",
                     "Leave Application-custom_last_leave_from",
@@ -1279,6 +1280,15 @@ fixtures = [
 # has_permission = {
 # 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
+
+# An employee is shown the leave plans of their own plant and department
+permission_query_conditions = {
+    "Annual Leave Plan": "hrms_addon.hrms_addon.leave.plan_query_conditions",
+}
+
+has_permission = {
+    "Annual Leave Plan": "hrms_addon.hrms_addon.leave.plan_has_permission",
+}
 
 # DocType Class
 # ---------------
