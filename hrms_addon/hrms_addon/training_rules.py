@@ -218,10 +218,11 @@ def due_for_schedule(rows, today):
 
 def session_times(day, starts=None, ends=None):
     """(start, end) datetimes of a session on `day`, at the usual hours
-    unless told otherwise."""
+    unless told otherwise. The hours come as the form sends them ("7:00:00"),
+    as the database keeps them (a timedelta) or as a time."""
     day = _date(day)
-    return (datetime.datetime.combine(day, starts or SESSION_STARTS),
-            datetime.datetime.combine(day, ends or SESSION_ENDS))
+    return (datetime.datetime.combine(day, _time(starts) if starts not in (None, "") else SESSION_STARTS),
+            datetime.datetime.combine(day, _time(ends) if ends not in (None, "") else SESSION_ENDS))
 
 
 def schedule_errors(facts):
@@ -301,3 +302,15 @@ def _date(value):
     if isinstance(value, datetime.date):
         return value
     return datetime.date.fromisoformat(str(value)[:10])
+
+
+def _time(value):
+    if isinstance(value, datetime.datetime):
+        return value.time()
+    if isinstance(value, datetime.time):
+        return value
+    if isinstance(value, datetime.timedelta):
+        return (datetime.datetime.min + value).time()
+    parts = str(value).strip().split(":")
+    return datetime.time(int(parts[0]), int(parts[1]) if len(parts) > 1 else 0,
+                         int(float(parts[2])) if len(parts) > 2 else 0)

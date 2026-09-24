@@ -15,6 +15,7 @@ the workflows built on migrate, the seed on install and by patch.
 
     python scripts/verify_training.py
 """
+import datetime
 import ast
 import glob
 import importlib.util
@@ -126,6 +127,15 @@ if len(due) != 1 or due[0]["planned_month"] != "October":
 starts, ends = R.session_times("2027-02-10")
 if (str(starts), str(ends)) != ("2027-02-10 07:00:00", "2027-02-10 09:00:00"):
     fail.append("a session runs 07:00 to 09:00 unless told otherwise: %s %s" % (starts, ends))
+for given in (("7:00:00", "9:00:00"), ("07:00", "09:00:00.000000"), (datetime.time(7, 0), datetime.time(9, 0)),
+              (datetime.timedelta(hours=7), datetime.timedelta(hours=9))):
+    starts, ends = R.session_times("2027-02-10", *given)
+    if (str(starts), str(ends)) != ("2027-02-10 07:00:00", "2027-02-10 09:00:00"):
+        fail.append("the hours as the form sends them, as the database keeps them or as a time: %r gave %s %s"
+                    % (given, starts, ends))
+starts, ends = R.session_times("2027-02-10", "14:30:00", "16:00:00")
+if (str(starts), str(ends)) != ("2027-02-10 14:30:00", "2027-02-10 16:00:00"):
+    fail.append("a session at other hours keeps them: %s %s" % (starts, ends))
 LINE = {"course": "GMP", "date": "2027-02-10", "venue": "Hall", "trainer": "PO"}
 expect("a schedule", R.schedule_errors({"lines": [LINE], "month": "February", "year": 2027}))
 expect("an empty schedule", R.schedule_errors({"lines": [], "month": "February", "year": 2027}), "Add the trainings")
