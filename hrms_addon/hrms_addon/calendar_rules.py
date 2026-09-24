@@ -1,8 +1,9 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""The HR calendar's rules: the month, its days and weeks, what a leave cell
-shows, and what a day's count of people off means.
+"""The HR calendar's rules: the month and its days, what each day of a
+roster row shows, what clicking an empty day or dragging a block may do,
+and how a block moves.
 
 No Frappe import, like the other *_rules.py modules, so
 scripts/verify_calendar.py exercises them without a bench.
@@ -14,14 +15,21 @@ MONTHS = ("January", "February", "March", "April", "May", "June", "July", "Augus
           "November", "December")
 WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
-# what a leave cell shows: the stronger fact on a day wins, as Frappe HR's
-# roster has it, a holiday over everything
-HOLIDAY, APPROVED, APPLIED, PLANNED = "holiday", "approved", "applied", "planned"
-KINDS = (HOLIDAY, APPROVED, APPLIED, PLANNED)
-STRENGTH = {HOLIDAY: 4, APPROVED: 3, APPLIED: 2, PLANNED: 1}
+# what a leave block is; on a day with more than one, the strongest shows
+APPROVED, APPLIED, PLANNED, MOVING = "approved", "applied", "planned", "moving"
+LEAVE_KINDS = (APPROVED, APPLIED, PLANNED, MOVING)
+STRENGTH = {APPROVED: 4, APPLIED: 3, PLANNED: 2, MOVING: 1}
+HOLIDAY = "holiday"
 
-# what a training session shows as
+# what a training block is
 SCHEDULED, COMPLETED, PLANNED_SESSION = "scheduled", "completed", "planned"
+SESSION_KINDS = (SCHEDULED, COMPLETED, PLANNED_SESSION)
+
+# where an Annual Leave Plan stands, as the calendar treats it
+PLAN_DRAFT, PLAN_PENDING, PLAN_APPROVED = "draft", "pending", "approved"
+# what clicking an empty day does, and how a planned block moves
+ADD_PLAN, ADD_APPLY = "plan", "apply"
+MOVE_DIRECT, MOVE_ASK = "direct", "ask"
 
 
 def month_of(year, month, today):
@@ -43,6 +51,11 @@ def month_title(year, month):
     return "%s %d" % (MONTHS[int(month) - 1], int(year))
 
 
+def month_number(name):
+    """March -> 3; 0 for anything else."""
+    return MONTHS.index(name) + 1 if name in MONTHS else 0
+
+
 def days(year, month, holidays=None, today=None):
     """The month's days: the date, its number, its weekday, the holiday it
     is (if any) and whether it is today. holidays: {date: description}."""
@@ -56,23 +69,6 @@ def days(year, month, holidays=None, today=None):
                     "holiday": holidays.get(day), "today": day == today})
         day += datetime.timedelta(days=1)
     return out
-
-
-def weeks(month_days):
-    """The days as a wall calendar shows them: rows of seven, Monday first,
-    None where the month is not."""
-    rows = []
-    if not month_days:
-        return rows
-    row = [None] * _date(month_days[0]["date"]).weekday()
-    for day in month_days:
-        row.append(day)
-        if len(row) == 7:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row + [None] * (7 - len(row)))
-    return rows
 
 
 def common_holidays(lists):
@@ -96,6 +92,47 @@ def leave_kind(docstatus, status):
     return APPLIED
 
 
+def session_status(event_status, docstatus=0):
+    """What a Training Event shows as; None when it is off the calendar."""
+    if int(docstatus or 0) == 2 or event_status == "Cancelled":
+        return None
+    return COMPLETED if event_status == "Completed" else SCHEDULED
+
+
+def plan_state(docstatus, workflow_state):
+    """An Annual Leave Plan being drawn up, waiting for approval, approved,
+    or (cancelled) nothing."""
+    docstatus = int(docstatus or 0)
+    if docstatus == 1:
+        return PLAN_APPROVED
+    if docstatus == 2:
+        return None
+    return PLAN_DRAFT if workflow_state in (None, "", "Draft") else PLAN_PENDING
+
+
+def leave_add_mode(is_hr, is_self, state):
+    """What clicking an empty day on somebody's row does: HR put planned leave
+    on a plan still being drawn up (or a new one); on an approved plan, or
+    for the employee themself, a Leave Application is made; nobody else may."""
+    if is_hr and state in (None, PLAN_DRAFT):
+        return ADD_PLAN
+    if is_hr or is_self:
+        return ADD_APPLY
+    return None
+
+
+def leave_move_mode(is_hr, is_self, state, applied=False, moving=False):
+    """How a planned block moves: HR move it straight on a plan being drawn
+    up; on an approved plan the employee or HR ask to move it (a Leave Plan
+    Change, for the supervisor and then the head of department), unless the
+    leave is applied for already or a move is waiting."""
+    if state == PLAN_DRAFT:
+        return MOVE_DIRECT if is_hr else None
+    if state == PLAN_APPROVED and (is_hr or is_self) and not applied and not moving:
+        return MOVE_ASK
+    return None
+
+
 def span_days(first, last, start, end):
     """The days from `first` to `last` that fall between `start` and `end`."""
     first, last = _date(first), _date(last)
@@ -109,50 +146,56 @@ def span_days(first, last, start, end):
     return out
 
 
-def leave_cells(applications, planned, holidays, start, end):
-    """{employee: {date: {"kind", "label", "link"}}} for the month.
+def pick_cells(blocks, holidays, month_days, one_per_day=True):
+    """What each row shows on each day: {row: {date: {"blocks": [key, ...],
+    "holiday": text or None}}}.
 
-    applications: employee, from_date, to_date, kind, label, link.
-    planned: employee, planned_from, planned_to, label, link.
-    holidays: {employee: {date: description}}.
+    blocks: key, row, from, to, kind, and start (a time, for the order).
+    holidays: {row: {date: description}}.
+    one_per_day: a leave row shows the strongest block of a day (approved,
+    then applied for, then planned, then a move asked for); a training row
+    shows every session of the day, the earliest first.
     """
+    dates = [day["date"] for day in month_days]
+    if not dates:
+        return {}
+    start, end = dates[0], dates[-1]
+    kinds = {block["key"]: block.get("kind") for block in blocks}
     cells = {}
 
-    def put(employee, day, cell):
-        mine = cells.setdefault(employee, {})
-        have = mine.get(day)
-        if have is None or STRENGTH[cell["kind"]] > STRENGTH[have["kind"]]:
-            mine[day] = cell
+    def cell(row, day):
+        return cells.setdefault(row, {}).setdefault(day, {"blocks": [], "holiday": None})
 
-    for row in planned or ():
-        for day in span_days(row.get("planned_from"), row.get("planned_to"), start, end):
-            put(row["employee"], day, {"kind": PLANNED, "label": row.get("label") or "Planned",
-                                       "link": row.get("link")})
-    for row in applications or ():
-        if row.get("kind") not in (APPROVED, APPLIED):
-            continue
-        for day in span_days(row.get("from_date"), row.get("to_date"), start, end):
-            put(row["employee"], day, {"kind": row["kind"], "label": row.get("label") or row["kind"].title(),
-                                       "link": row.get("link")})
-    for employee, dated in (holidays or {}).items():
-        for day, text in dated.items():
-            for same in span_days(day, day, start, end):
-                put(employee, same, {"kind": HOLIDAY, "label": text or "Holiday", "link": None})
+    for block in sorted(blocks, key=lambda block: (str(block.get("start") or ""), str(block["key"]))):
+        for day in span_days(block.get("from"), block.get("to"), start, end):
+            here = cell(block["row"], day)
+            if not one_per_day:
+                here["blocks"].append(block["key"])
+            elif not here["blocks"]:
+                here["blocks"] = [block["key"]]
+            elif STRENGTH.get(block.get("kind"), 0) > STRENGTH.get(kinds.get(here["blocks"][0]), 0):
+                here["blocks"] = [block["key"]]
+    for row, dated in (holidays or {}).items():
+        for day, text in (dated or {}).items():
+            if day in dates:
+                cell(row, day)["holiday"] = text or "Holiday"
     return cells
 
 
-def off_counts(cells, month_days):
-    """Per day, how many are off (approved or applied for) and how many more
-    only have leave planned."""
+def off_counts(cells, blocks, month_days):
+    """Per day, how many are off (leave approved or applied for) and how
+    many more only have leave planned; a holiday counts nobody."""
+    kinds = {block["key"]: block.get("kind") for block in blocks}
     off = {day["date"]: 0 for day in month_days}
     planned = dict(off)
-    for mine in cells.values():
-        for day, cell in mine.items():
-            if day not in off:
+    for dated in cells.values():
+        for day, here in dated.items():
+            if day not in off or here.get("holiday") or not here.get("blocks"):
                 continue
-            if cell["kind"] in (APPROVED, APPLIED):
+            kind = kinds.get(here["blocks"][0])
+            if kind in (APPROVED, APPLIED):
                 off[day] += 1
-            elif cell["kind"] == PLANNED:
+            elif kind == PLANNED:
                 planned[day] += 1
     return {"off": off, "planned": planned}
 
@@ -162,24 +205,32 @@ def too_many(count, most_off):
     return bool(int(most_off or 0)) and int(count or 0) > int(most_off)
 
 
-def session_status(event_status, docstatus=0):
-    """What a Training Event shows as; None when it is off the calendar."""
-    if int(docstatus or 0) == 2 or event_status == "Cancelled":
-        return None
-    return COMPLETED if event_status == "Completed" else SCHEDULED
+def shifted(first, last, new_first):
+    """A span moved to start on `new_first`, as long as it was."""
+    first, last, new_first = _date(first), _date(last), _date(new_first)
+    return new_first, new_first + (last - first)
+
+
+def shifted_session(start, end, new_day):
+    """A session moved to `new_day`, at the same hours and as long."""
+    start, end = _datetime(start), _datetime(end)
+    moved = datetime.datetime.combine(_date(new_day), start.time())
+    return moved, moved + (end - start)
+
+
+def in_month(day, year, month):
+    day = _date(day)
+    return bool(day) and (day.year, day.month) == (int(year), int(month))
 
 
 def clock(value):
     """'07:00' from a datetime, a time, a duration or their text; '' from nothing."""
     if value in (None, ""):
         return ""
-    if isinstance(value, datetime.datetime):
-        return value.strftime("%H:%M")
-    if isinstance(value, datetime.time):
+    if isinstance(value, (datetime.datetime, datetime.time)):
         return value.strftime("%H:%M")
     if isinstance(value, datetime.timedelta):
-        value = datetime.datetime.min + value
-        return value.strftime("%H:%M")
+        return (datetime.datetime.min + value).strftime("%H:%M")
     text = str(value).strip()
     if len(text) >= 16 and text[10] in " T":
         text = text[11:]
@@ -197,3 +248,12 @@ def _date(value):
     if isinstance(value, datetime.date):
         return value
     return datetime.date.fromisoformat(str(value)[:10])
+
+
+def _datetime(value):
+    if isinstance(value, datetime.datetime):
+        return value
+    if isinstance(value, datetime.date):
+        return datetime.datetime.combine(value, datetime.time())
+    text = str(value).strip().replace("T", " ")
+    return datetime.datetime.fromisoformat(text[:19] if len(text) > 10 else text + " 00:00:00")

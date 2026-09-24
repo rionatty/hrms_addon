@@ -35,6 +35,36 @@ frappe.ui.form.on("Annual Leave Plan", {
 			});
 		}
 		frm.trigger("show_totals");
+		frm.trigger("draw_calendar");
+	},
+	// the plan as a roster: click a day to plan leave, drag it to move it
+	draw_calendar(frm) {
+		const field = frm.fields_dict.calendar_html;
+		if (!field) return;
+		if (frm.is_new()) {
+			frm.ha_calendar = null;
+			field.$wrapper.html(
+				`<div class="text-muted small">${__("Save the plan to plan its leave on the calendar.")}</div>`
+			);
+			return;
+		}
+		const make = () => {
+			if (frm.ha_calendar && frm.ha_calendar.opts.plan === frm.doc.name) {
+				frm.ha_calendar.refresh();
+				return;
+			}
+			frm.ha_calendar = new hrms_addon.HRCalendarView({
+				parent: field.$wrapper,
+				view: "leave",
+				plan: frm.doc.name,
+				year: frm.doc.year,
+				month: ha_plan_month(frm),
+				before_change: () => (frm.is_dirty() ? frm.save() : null),
+				after_change: () => frm.reload_doc(),
+			});
+		};
+		if (window.hrms_addon && hrms_addon.HRCalendarView) make();
+		else frappe.require("/assets/hrms_addon/js/hr_calendar_view.js", make);
 	},
 	// how the plan stands: over what people have, no days on record, clashes
 	show_totals(frm) {
@@ -69,6 +99,17 @@ frappe.ui.form.on("Annual Leave Plan", {
 		}
 	},
 });
+
+// this month when the plan is this year's, else the first planned month
+function ha_plan_month(frm) {
+	const today = frappe.datetime.now_date(true);
+	if (cint(frm.doc.year) === today.getFullYear()) return today.getMonth() + 1;
+	const firsts = (frm.doc.employees || [])
+		.map((row) => row.planned_from)
+		.filter(Boolean)
+		.sort();
+	return firsts.length ? cint(firsts[0].slice(5, 7)) : 1;
+}
 
 function ha_get_employees(frm) {
 	// an empty row would stop the save

@@ -3,6 +3,7 @@
 
 frappe.ui.form.on("Monthly Training Schedule", {
 	refresh(frm) {
+		frm.trigger("draw_calendar");
 		if (frm.doc.docstatus === 0) {
 			frm.add_custom_button(__("Get Calendar Trainings"), () =>
 				frappe
@@ -24,6 +25,34 @@ frappe.ui.form.on("Monthly Training Schedule", {
 					})
 			);
 		}
+	},
+	// the month's trainings as a roster by department: click a day to add
+	// one, drag it to another day, click it to change it
+	draw_calendar(frm) {
+		const field = frm.fields_dict.calendar_html;
+		if (!field) return;
+		if (frm.is_new()) {
+			frm.ha_calendar = null;
+			field.$wrapper.html(
+				`<div class="text-muted small">${__("Save the schedule to place its trainings on the calendar.")}</div>`
+			);
+			return;
+		}
+		const make = () => {
+			if (frm.ha_calendar && frm.ha_calendar.opts.schedule === frm.doc.name) {
+				frm.ha_calendar.refresh();
+				return;
+			}
+			frm.ha_calendar = new hrms_addon.HRCalendarView({
+				parent: field.$wrapper,
+				view: "training",
+				schedule: frm.doc.name,
+				before_change: () => (frm.is_dirty() ? frm.save() : null),
+				after_change: () => frm.reload_doc(),
+			});
+		};
+		if (window.hrms_addon && hrms_addon.HRCalendarView) make();
+		else frappe.require("/assets/hrms_addon/js/hr_calendar_view.js", make);
 	},
 	month(frm) { frm.trigger("set_title"); },
 	year(frm) { frm.trigger("set_title"); },

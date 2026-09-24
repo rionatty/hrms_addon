@@ -92,6 +92,9 @@ app_include_js = [
     # "Salary Advance", "Leave Advance" and "Special Advance" by name in the
     # search bar: each is Frappe HR's Employee Advance with an Advance Type
     "/assets/hrms_addon/js/hrms_addon_search.js",
+    # the HR calendar's roster, drawn on its page, the Annual Leave Plan and
+    # the Monthly Training Schedule (calendar_board.py)
+    "/assets/hrms_addon/js/hr_calendar_view.js",
 ]
 
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout

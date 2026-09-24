@@ -2,11 +2,13 @@
 
     python scripts/verify_calendar.py
 
-  1  the rules: the month, its days and weeks, what a leave cell shows,
-     the counts under the days, what a training session shows as
-  2  the glue reads fields that exist, and who sees what
-  3  the page: its route, its roles, its own styles, what it calls
-  4  a way in
+  1  the rules: the month and its days, what a roster day shows, what an
+     empty day's click and a drag may do, how a block moves
+  2  the glue: fields that exist, one rule for who sees what, every change
+     through the checks and approvals that stand
+  3  the view (public/js/hr_calendar_view.js): its styles, its calls, its
+     dragging
+  4  the page, the two forms that draw it, how it loads, a way in
 
 Frappe HR's and ERPNext's own fields are read from FRAPPE_APPS_ROOT
 (default ../ERPNext).
@@ -24,6 +26,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.join(REPO, "hrms_addon")
 APP = os.path.join(PACKAGE, "hrms_addon")
 APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
+CUSTOM = json.load(open(os.path.join(PACKAGE, "fixtures", "custom_field.json"), encoding="utf-8"))
 fail = []
 
 
@@ -38,15 +41,25 @@ def load(name):
     return module
 
 
-def fields_of(name):
+def spec_of(name):
     folder = name.lower().replace(" ", "_")
     path = os.path.join(APP, "doctype", folder, folder + ".json")
     if not os.path.exists(path):
         hits = glob.glob(os.path.join(APPS_ROOT, "*", "*", "**", "doctype", folder, folder + ".json"), recursive=True)
         path = hits[0] if hits else None
-    if not path:
+    return json.load(open(path, encoding="utf-8")) if path else None
+
+
+def fields_of(name):
+    spec = spec_of(name)
+    if spec is None:
         return None
-    return {f["fieldname"] for f in json.load(open(path, encoding="utf-8")).get("fields", [])}
+    return {f["fieldname"] for f in spec.get("fields", [])} | {row["fieldname"] for row in CUSTOM if row.get("dt") == name}
+
+
+def body(source, name):
+    """The text of one top-level function."""
+    return source.split("def %s(" % name)[1].split(chr(10) + "def ")[0] if "def %s(" % name in source else ""
 
 
 C = load("calendar_rules")
@@ -61,189 +74,276 @@ try:
 except ValueError:
     pass
 if C.month_window(2028, 2) != (datetime.date(2028, 2, 1), datetime.date(2028, 2, 29)):
-    fail.append("a leap February has 29 days: %s" % (C.month_window(2028, 2),))
-if C.month_title(2027, 3) != "March 2027":
-    fail.append("the month is named in full")
+    fail.append("a leap February has 29 days")
+if C.month_title(2027, 3) != "March 2027" or C.month_number("March") != 3 or C.month_number("Marzo") != 0:
+    fail.append("the month is named in full, and its name read back")
 days = C.days(2027, 3, {"2027-03-08": "Women's Day"}, "2027-03-02")
 if len(days) != 31 or days[0]["weekday"] != "Mon" or days[7]["holiday"] != "Women's Day" or days[0]["holiday"] \
         or not days[1]["today"] or days[0]["today"]:
     fail.append("a day knows its weekday, its holiday and whether it is today: %s" % days[:9])
-weeks = C.weeks(days)
-if len(weeks) != 5 or weeks[0][0]["day"] != 1 or weeks[4][2]["day"] != 31 or weeks[4][3:] != [None] * 4:
-    fail.append("March 2027 starts on a Monday and ends on a Wednesday: five rows, the last padded")
-sept = C.weeks(C.days(2026, 9))
-if sept[0][0] is not None or sept[0][1]["day"] != 1 or sept[-1][2]["day"] != 30 or sept[-1][3] is not None:
-    fail.append("September 2026 starts on a Tuesday: the first row is padded in front")
-if C.weeks([]) != []:
-    fail.append("no days, no weeks")
 if C.common_holidays([{"a": "x", "b": "y"}, {"b": "y", "c": "z"}]) != {"b": "y"} or C.common_holidays([]) != {}:
-    fail.append("the header shows the holidays everybody shown shares")
+    fail.append("the header shades the holidays everybody shown shares")
 for docstatus, status, kind in ((0, "Open", C.APPLIED), (1, "Approved", C.APPROVED), (1, "Rejected", None),
                                 (2, "Cancelled", None), (0, "Cancelled", None), ("1", "Approved", C.APPROVED)):
     if C.leave_kind(docstatus, status) != kind:
-        fail.append("a leave with docstatus %r and status %r is %r on the calendar, got %r"
-                    % (docstatus, status, kind, C.leave_kind(docstatus, status)))
-if C.span_days("2027-02-27", "2027-03-02", "2027-03-01", "2027-03-31") != ["2027-03-01", "2027-03-02"]:
-    fail.append("a leave that starts before the month is drawn from its first day")
-if C.span_days(None, "2027-03-02", "2027-03-01", "2027-03-31") != []:
-    fail.append("no dates, no days")
-cells = C.leave_cells(
-    [{"employee": "E", "from_date": "2027-03-03", "to_date": "2027-03-05", "kind": C.APPROVED, "label": "Annual",
-      "link": ["Leave Application", "LA-1"]},
-     {"employee": "E", "from_date": "2027-03-08", "to_date": "2027-03-09", "kind": C.APPLIED, "label": "Sick",
-      "link": ["Leave Application", "LA-2"]},
-     {"employee": "E", "from_date": "2027-03-10", "to_date": "2027-03-10", "kind": None}],
-    [{"employee": "E", "planned_from": "2027-03-01", "planned_to": "2027-03-12", "label": "Planned",
-      "link": ["Annual Leave Plan", "P-1"]}],
-    {"E": {"2027-03-07": "Sunday", "2027-03-05": "Holiday", "2027-04-01": "Next month"}}, "2027-03-01", "2027-03-31")
-mine = cells["E"]
-got = {day: mine.get(day, {}).get("kind") for day in ("2027-03-01", "2027-03-03", "2027-03-05", "2027-03-07",
-                                                       "2027-03-08", "2027-03-10", "2027-03-12", "2027-03-13",
-                                                       "2027-04-01")}
-if got != {"2027-03-01": C.PLANNED, "2027-03-03": C.APPROVED, "2027-03-05": C.HOLIDAY, "2027-03-07": C.HOLIDAY,
-           "2027-03-08": C.APPLIED, "2027-03-10": C.PLANNED, "2027-03-12": C.PLANNED, "2027-03-13": None,
-           "2027-04-01": None}:
-    fail.append("a holiday over approved leave, approved over applied for, applied for over planned; nothing "
-                "outside the month: %s" % got)
-if mine["2027-03-03"]["link"] != ["Leave Application", "LA-1"] or mine["2027-03-01"]["link"] != ["Annual Leave Plan", "P-1"]:
-    fail.append("a cell opens what it shows")
-overlap = C.leave_cells(
-    [{"employee": "E", "from_date": "2027-03-03", "to_date": "2027-03-05", "kind": C.APPROVED, "label": "Annual"},
-     {"employee": "E", "from_date": "2027-03-05", "to_date": "2027-03-06", "kind": C.APPLIED, "label": "Sick"}],
-    [], {}, "2027-03-01", "2027-03-31")["E"]
-if (overlap["2027-03-05"]["kind"], overlap["2027-03-06"]["kind"]) != (C.APPROVED, C.APPLIED):
-    fail.append("on a day with leave both approved and applied for, the approved one shows, whichever came last")
-counts = C.off_counts(cells, C.days(2027, 3))
-if (counts["off"]["2027-03-03"], counts["off"]["2027-03-05"], counts["off"]["2027-03-08"], counts["planned"]["2027-03-01"],
-        counts["planned"]["2027-03-03"]) != (1, 0, 1, 1, 0):
-    fail.append("off counts approved and applied for; planned counts the rest; a holiday counts nobody: %s" % counts)
-if not C.too_many(2, 1) or C.too_many(1, 1) or C.too_many(5, 0) or C.too_many(5, None):
-    fail.append("a day is over the plan's Most Off at Once when more than it are off; no limit, never")
+        fail.append("a leave with docstatus %r and status %r is %r on the calendar" % (docstatus, status, kind))
 for event_status, docstatus, status in (("Scheduled", 0, C.SCHEDULED), ("Scheduled", 1, C.SCHEDULED),
                                         ("Completed", 1, C.COMPLETED), ("Cancelled", 1, None), ("Scheduled", 2, None)):
     if C.session_status(event_status, docstatus) != status:
         fail.append("a %s event with docstatus %s shows as %r" % (event_status, docstatus, status))
+for docstatus, status, state in ((0, "Draft", C.PLAN_DRAFT), (0, None, C.PLAN_DRAFT), (0, "Pending HOD", C.PLAN_PENDING),
+                                 (0, "Pending HR Officer", C.PLAN_PENDING), (1, "Approved", C.PLAN_APPROVED),
+                                 (2, "Cancelled", None)):
+    if C.plan_state(docstatus, status) != state:
+        fail.append("a plan with docstatus %s and status %r is %r" % (docstatus, status, state))
+for is_hr, is_self, state, mode in (
+    (True, False, None, C.ADD_PLAN), (True, False, C.PLAN_DRAFT, C.ADD_PLAN), (True, False, C.PLAN_APPROVED, C.ADD_APPLY),
+    (True, False, C.PLAN_PENDING, C.ADD_APPLY), (False, True, C.PLAN_DRAFT, C.ADD_APPLY),
+    (False, True, C.PLAN_APPROVED, C.ADD_APPLY), (False, False, C.PLAN_APPROVED, None), (False, False, None, None),
+):
+    if C.leave_add_mode(is_hr, is_self, state) != mode:
+        fail.append("an empty day clicked by hr=%s self=%s on a %s plan does %r, got %r"
+                    % (is_hr, is_self, state, mode, C.leave_add_mode(is_hr, is_self, state)))
+for is_hr, is_self, state, applied, moving, mode in (
+    (True, False, C.PLAN_DRAFT, False, False, C.MOVE_DIRECT), (False, True, C.PLAN_DRAFT, False, False, None),
+    (True, False, C.PLAN_APPROVED, False, False, C.MOVE_ASK), (False, True, C.PLAN_APPROVED, False, False, C.MOVE_ASK),
+    (False, False, C.PLAN_APPROVED, False, False, None), (True, False, C.PLAN_APPROVED, True, False, None),
+    (True, False, C.PLAN_APPROVED, False, True, None), (True, False, C.PLAN_PENDING, False, False, None),
+):
+    if C.leave_move_mode(is_hr, is_self, state, applied, moving) != mode:
+        fail.append("planned leave dragged by hr=%s self=%s on a %s plan (applied=%s, moving=%s) moves %r"
+                    % (is_hr, is_self, state, applied, moving, mode))
+if C.span_days("2027-02-27", "2027-03-02", "2027-03-01", "2027-03-31") != ["2027-03-01", "2027-03-02"] \
+        or C.span_days(None, "2027-03-02", "2027-03-01", "2027-03-31") != []:
+    fail.append("a block that starts before the month is drawn from its first day; no dates, no days")
+LEAVE = [{"key": "row:1", "row": "E", "from": "2027-03-01", "to": "2027-03-12", "kind": C.PLANNED},
+         {"key": "app:1", "row": "E", "from": "2027-03-03", "to": "2027-03-05", "kind": C.APPROVED},
+         {"key": "app:2", "row": "E", "from": "2027-03-05", "to": "2027-03-06", "kind": C.APPLIED},
+         {"key": "chg:1", "row": "E", "from": "2027-03-10", "to": "2027-04-02", "kind": C.MOVING},
+         {"key": "app:3", "row": "F", "from": "2027-02-20", "to": "2027-03-01", "kind": C.APPLIED}]
+MONTH = C.days(2027, 3)
+cells = C.pick_cells(LEAVE, {"E": {"2027-03-07": "Sunday", "2027-04-04": "Next month"}}, MONTH)
+got = {day: cells["E"].get(day, {}).get("blocks") for day in ("2027-03-01", "2027-03-03", "2027-03-05", "2027-03-06",
+                                                               "2027-03-10", "2027-03-13", "2027-03-31")}
+if got != {"2027-03-01": ["row:1"], "2027-03-03": ["app:1"], "2027-03-05": ["app:1"], "2027-03-06": ["app:2"],
+           "2027-03-10": ["row:1"], "2027-03-13": ["chg:1"], "2027-03-31": ["chg:1"]}:
+    fail.append("a leave day shows its strongest block: approved, applied for, planned, a move asked: %s" % got)
+if cells["E"]["2027-03-07"]["holiday"] != "Sunday" or "2027-04-04" in cells["E"] or cells["F"]["2027-03-01"]["blocks"] != ["app:3"]:
+    fail.append("a holiday is marked on its day, nothing outside the month, a block from before the month is drawn")
+counts = C.off_counts(cells, LEAVE, MONTH)
+if (counts["off"]["2027-03-01"], counts["off"]["2027-03-03"], counts["off"]["2027-03-07"], counts["off"]["2027-03-13"],
+        counts["planned"]["2027-03-02"], counts["planned"]["2027-03-10"], counts["planned"]["2027-03-13"]) \
+        != (1, 1, 0, 0, 1, 1, 0):
+    fail.append("off counts leave approved or applied for; planned the rest; a holiday or a move asked counts "
+                "nobody: %s" % counts)
+SESSIONS = [{"key": "line:2", "row": "D", "from": "2027-03-10", "to": "2027-03-10", "kind": C.PLANNED_SESSION,
+             "start": "14:00"},
+            {"key": "evt:1", "row": "D", "from": "2027-03-10", "to": "2027-03-11", "kind": C.SCHEDULED, "start": "07:00"}]
+sessions = C.pick_cells(SESSIONS, {"D": {"2027-03-11": "Holiday"}}, MONTH, one_per_day=False)
+if sessions["D"]["2027-03-10"]["blocks"] != ["evt:1", "line:2"] or sessions["D"]["2027-03-11"] != \
+        {"blocks": ["evt:1"], "holiday": "Holiday"}:
+    fail.append("a department's day shows every session, the earliest first, a holiday marked but not hiding them")
+if not C.too_many(2, 1) or C.too_many(1, 1) or C.too_many(5, 0) or C.too_many(5, None):
+    fail.append("a day is over the plan's Most Off at Once when more than it are off; no limit, never")
+if C.shifted("2027-03-01", "2027-03-05", "2027-03-29") != (datetime.date(2027, 3, 29), datetime.date(2027, 4, 2)):
+    fail.append("a span moved keeps its length")
+if C.shifted_session("2027-03-12 07:30:00", "2027-03-12 09:30:00", "2027-03-19") != \
+        (datetime.datetime(2027, 3, 19, 7, 30), datetime.datetime(2027, 3, 19, 9, 30)) or \
+        C.shifted_session(datetime.datetime(2027, 3, 12, 22, 0), datetime.datetime(2027, 3, 13, 6, 0), "2027-03-20") != \
+        (datetime.datetime(2027, 3, 20, 22, 0), datetime.datetime(2027, 3, 21, 6, 0)):
+    fail.append("a session moved keeps its hours, a night one its morning after")
+if not C.in_month("2027-03-31", 2027, 3) or C.in_month("2027-04-01", 2027, 3) or C.in_month(None, 2027, 3) \
+        or C.in_month("2026-03-10", 2027, 3):
+    fail.append("a day is in its month or not")
 for given, shown in (("2027-03-10 07:00:00", "07:00"), ("7:00:00", "07:00"), (datetime.time(14, 30), "14:30"),
                      (datetime.timedelta(hours=9), "09:00"), (None, ""), ("", ""),
                      (datetime.datetime(2027, 3, 10, 7, 5), "07:05"), ("2027-03-10T16:00:00", "16:00")):
     if C.clock(given) != shown:
-        fail.append("the hour as the form sends it, as the database keeps it or as Python has it: %r shows %r, "
-                    "not %r" % (given, C.clock(given), shown))
-print("the rules: the month, its days and weeks, the cells, the counts, the sessions")
+        fail.append("the hour as the form sends it, the database keeps it or Python has it: %r shows %r, not %r"
+                    % (given, C.clock(given), shown))
+print("the rules: the month, a roster day, an empty day's click, a drag, a move")
 
 # ── 2. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "calendar_board.py")
 for doctype, wanted in (
-    ("Leave Application", ("employee", "from_date", "to_date", "leave_type", "status")),
-    ("Training Event", ("event_name", "course", "event_status", "location", "trainer_name", "start_time", "end_time")),
+    ("Leave Application", ("employee", "from_date", "to_date", "leave_type", "status", "company")),
+    ("Leave Plan Change", ("plan_row", "employee", "new_from", "new_to", "approval_status", "workflow_state")),
+    ("Training Event", ("event_name", "course", "event_status", "location", "trainer_name", "start_time", "end_time",
+                        "custom_branch", "custom_department", "employees")),
     ("Training Event Employee", ("employee", "employee_name", "department")),
     ("Holiday", ("holiday_date", "description", "weekly_off")),
     ("Company", ("default_holiday_list",)),
-    ("Employee", ("employee_name", "department", "designation", "holiday_list", "company", "branch", "status")),
-    ("Annual Leave Plan", ("year", "branch", "department", "most_off")),
-    ("Annual Leave Plan Employee", ("employee", "planned_from", "planned_to")),
-    ("Monthly Training Schedule", ("month", "year")),
+    ("Employee", ("employee_name", "department", "designation", "holiday_list", "company", "branch", "status",
+                  "user_id")),
+    ("Annual Leave Plan", ("year", "branch", "department", "most_off", "status", "company", "posting_date",
+                           "employees")),
+    ("Annual Leave Plan Employee", ("employee", "planned_from", "planned_to", "planned_days", "leave_application")),
+    ("Monthly Training Schedule", ("month", "year", "branch", "company", "prepared_by", "training_calendar", "lines")),
     ("Training Schedule Line", ("course", "training_date", "start_time", "end_time", "venue", "trainer",
-                                "department", "target_group", "training_event")),
+                                "department", "target_group", "training_event", "calendar_entry", "training_program")),
     ("Training Calendar Entry", ("course", "trainer", "target_group", "section", "planned_month", "planned_year",
-                                 "scheduled")),
+                                 "scheduled", "training_program")),
 ):
     have = fields_of(doctype)
     if have is None:
         fail.append("%s is not to be found" % doctype)
         continue
+    if doctype == "Leave Plan Change":
+        have |= {"workflow_state"}  # made by the Workflow when it is saved
     missing = [field for field in wanted if field not in have]
     if missing:
         fail.append("the calendar reads %s of %s, which it has not got" % (missing, doctype))
-if "own = leave.own_place(frappe.session.user)" not in glue:
+for method in ("month",):
+    if "@frappe.whitelist()\ndef %s(" % method not in glue:
+        fail.append("the view has to be able to call %s" % method)
+for method in ("leave_info", "save_leave", "remove_leave", "apply_leave", "save_session", "move_session",
+               "remove_session"):
+    if '@frappe.whitelist(methods=["POST"])\ndef %s(' % method not in glue:
+        fail.append("%s changes the site, so it is whitelisted for POST only" % method)
+if "own = leave.own_place(frappe.session.user)" not in body(glue, "month"):
     fail.append("who sees what follows the leave plan: HR, heads of department and supervisors everything, "
                 "an employee their own plant and department")
-if "@frappe.whitelist()\ndef month(" not in glue:
-    fail.append("the page has to be able to call it")
-if "OPENS_TO & set(frappe.get_roles())" not in glue:
+if "OPENS_TO & roles" not in body(glue, "month"):
     fail.append("Training Event is HR's to read; the page's own roles gate the call")
-people_body = glue.split("def _people(")[1].split(chr(10) + "def ")[0]
-if "PEOPLE_LIMIT" not in people_body:
-    fail.append("the roster is capped, and the page says so")
-if "rules.span_days(event.start_time, event.end_time" not in glue:
-    fail.append("a training that runs over days is a chip on each of them")
-if 'filters["department"] = department' not in glue.split("def _unbooked(")[1].split(chr(10) + "def ")[0]:
-    fail.append("a planned line is narrowed to its department like a booked session is")
-if "rules.session_status(" not in glue or "rules.leave_kind(" not in glue or "rules.leave_cells(" not in glue:
-    fail.append("what a cell or a chip shows comes from the rules")
-print("the glue: fields that exist, one rule for who sees what, the rules deciding what shows")
+if 'check_permission("read")' not in body(glue, "month"):
+    fail.append("a plan or a schedule is drawn only for somebody who may read it")
+if "leave_rules.plan_errors(" not in body(glue, "_check_employee"):
+    fail.append("planned leave put on a plan is checked as the plan checks it when it is sent")
+for name in ("save_leave", "_move_leave"):
+    if "_check_employee(doc" not in body(glue, name):
+        fail.append("%s checks the employee's planned leave before it saves" % name)
+if "rules.leave_move_mode(" not in body(glue, "_move_leave") or "rules.leave_move_mode(" not in body(glue, "_leave"):
+    fail.append("the view and the call agree how a planned block moves: both ask the rules")
+if "rules.leave_add_mode(" not in body(glue, "_leave"):
+    fail.append("what an empty day does comes from the rules")
+ask = body(glue, "_move_leave")
+if "leave.request_change(" not in ask or "change_approval.PENDING_SUPERVISOR" not in ask \
+        or "frappe.delete_doc(CHANGE, name" not in ask:
+    fail.append("on an approved plan a move is asked (a Leave Plan Change sent to the supervisor), and a refused "
+                "one leaves no draft behind to block the next")
+if "Say why the leave is moving" not in ask:
+    fail.append("a move is asked with its reason")
+if "_drawing_up_or_throw(doc)" not in body(glue, "save_leave") or "_drawing_up_or_throw(doc)" not in body(glue, "remove_leave"):
+    fail.append("only a plan still being drawn up is changed straight")
+if "leave._may_act_for(employee)" not in body(glue, "apply_leave") or "leave._may_act_for(employee)" not in \
+        body(glue, "leave_info"):
+    fail.append("only the employee or HR apply for leave or see what is left")
+for name in ("save_session", "move_session", "remove_session"):
+    if "_hr_only()" not in body(glue, name):
+        fail.append("%s is HR's" % name)
+if "_tell_moved(event)" not in body(glue, "move_session"):
+    fail.append("a booked training moved tells its people")
+if "_session_day_or_throw(doc, day)" not in body(glue, "move_session"):
+    fail.append("a line stays in its schedule's month")
+if "PEOPLE_LIMIT" not in body(glue, "_people"):
+    fail.append("the roster is capped, and the view says so")
+print("the glue: fields that exist, who sees what, every change through the checks that stand")
 
-# ── 3. The page ───────────────────────────────────────────────────────
+# ── 3. The view ───────────────────────────────────────────────────────
+view = read("hrms_addon", "public", "js", "hr_calendar_view.js")
+if "if (hrms_addon.HRCalendarView) return;" not in view or "hrms_addon.HRCalendarView = class" not in view:
+    fail.append("the view is defined once, whichever way it was loaded")
+if 'const METHOD = "hrms_addon.hrms_addon.calendar_board.";' not in view:
+    fail.append("the view calls calendar_board")
+called = set(re.findall(r'METHOD \+ "([a-z_]+)"', view)) | set(re.findall(r'this\.change\(\s*"([a-z_]+)"', view))
+whitelisted = set(re.findall(r"@frappe\.whitelist\([^)]*\)\ndef ([a-z_]+)\(", glue))
+if called - whitelisted:
+    fail.append("the view calls what calendar_board does not offer: %s" % sorted(called - whitelisted))
+if {"month", "save_leave", "remove_leave", "apply_leave", "leave_info", "save_session", "move_session",
+        "remove_session"} - called:
+    fail.append("the view leaves a call unused: %s" % sorted({"month", "save_leave", "remove_leave", "apply_leave",
+                                                              "leave_info", "save_session", "move_session",
+                                                              "remove_session"} - called))
+if "hrms_addon.hrms_addon.leave.apply_from_plan" not in view:
+    fail.append("planned leave on an approved plan is applied for from the plan")
+if "frappe.datetime.add_days(" in view or "frappe.datetime.get_day_diff(" in view:
+    fail.append("frappe.datetime.add_days returns a whole timestamp: the view counts its days itself")
+css = view.split("const HRV_STYLE = `")[1].split("`;")[0] if "const HRV_STYLE = `" in view else ""
+constructor = view.split("constructor(opts) {")[1].split("\n\t\t}\n")[0] if "constructor(opts) {" in view else ""
+if not css or "hrv_style();" not in constructor:
+    fail.append("the view puts its own styles on the head as it is made (see attendance_board.js)")
+for kind in C.LEAVE_KINDS + C.SESSION_KINDS:
+    if ".hrv-chip.hrv-k-%s" % kind not in css:
+        fail.append("a %s block has no look of its own" % kind)
+if ".hrv-training .hrv-chip.hrv-k-planned" not in css:
+    fail.append("a session on a draft schedule is drawn apart from one booked")
+if "td.hrv-holiday" not in css or "td.hrv-drop" not in css or "td.hrv-bad" not in css:
+    fail.append("holidays, where a dragged block would land and a day over the limit are all drawn")
+used = set(re.findall(r"var\((--hrv-[a-z0-9-]+)", css))
+mine = set(re.findall(r"^\s*(--hrv-[a-z0-9-]+)\s*:", css, re.M))
+if used - mine:
+    fail.append("a var() that resolves to nothing takes its whole declaration with it: %s" % sorted(used - mine))
+bare = sorted({name for name, fallback in re.findall(r"var\((--hra-[a-z0-9-]+)(\s*,[^)]*)?\)", css) if not fallback})
+if bare:
+    fail.append("every theme colour the view borrows needs a fallback: %s" % bare)
+if ".hrv-" in read("hrms_addon", "public", "css", "hrms_addon.bundle.css"):
+    fail.append("the view's styles are in ONE place, or the two copies will drift")
+for needle, why in (
+    ('root.on("dragstart"', "a block is picked up"),
+    ('root.on("dragover", "td.hrv-cell"', "a day says whether the block may land on it"),
+    ('root.on("drop", "td.hrv-cell"', "and takes it"),
+    ('root.on("click", "td.hrv-can-add"', "an empty day is clicked to add"),
+    ('root.on("click", ".hrv-chip"', "a block is clicked to change it"),
+    ("escape_html", "names, courses and venues are typed by people and printed as HTML"),
+    ('block.move === "direct"', "a plan being drawn up is changed straight"),
+    ('block.move === "ask"', "an approved plan's leave is asked to move"),
+    ('row.add === "plan"', "HR plan leave on an empty day"),
+    ('row.add === "apply"', "an employee applies on an empty day"),
+    ("before_change", "a form saves its own edits before the calendar changes the document"),
+    ("after_change", "and reloads after"),
+):
+    if needle not in view:
+        fail.append(why)
+target = view.split("target_of(cell) {")[1].split("\n\t\t}\n")[0] if "target_of(cell) {" in view else ""
+if "row !== block.row" not in target or 'block.key.indexOf("evt:") === 0' not in target or "!block.move" not in target:
+    fail.append("leave and booked trainings stay on their row; only a block that may move is dragged")
+for mode in (C.MOVE_DIRECT, C.MOVE_ASK, C.ADD_PLAN, C.ADD_APPLY):
+    if '"%s"' % mode not in view:
+        fail.append("the view knows the mode %r the rules give" % mode)
+if '"session" if is_hr' not in glue:
+    fail.append("HR add sessions on an empty day")
+print("the view: its styles, its calls, its dragging, drawn like the roster")
+
+# ── 4. The page, the forms, how it loads, a way in ────────────────────
+hooks = read("hrms_addon", "hooks.py")
+asset = "/assets/hrms_addon/js/hr_calendar_view.js"
+if '"%s"' % asset not in hooks.split("app_include_js = [")[1].split("]")[0]:
+    fail.append("the view is loaded on every desk page, as a plain asset needing no build")
 page_js = read("hrms_addon", "hrms_addon", "page", "hr_calendar", "hr_calendar.js")
 page_json = json.loads(read("hrms_addon", "hrms_addon", "page", "hr_calendar", "hr_calendar.json"))
-route = page_json["name"]
-if route != "hr-calendar" or page_json.get("page_name") != route:
-    fail.append("the page is hr-calendar")
-if page_json.get("standard") != "Yes" or page_json.get("module") != "HRMS Addon":
-    fail.append("the page ships with the app, so it is standard and in this module")
+if page_json["name"] != "hr-calendar" or page_json.get("page_name") != "hr-calendar" \
+        or page_json.get("standard") != "Yes" or page_json.get("module") != "HRMS Addon":
+    fail.append("the page is hr-calendar, standard, in this module")
 roles = {row["role"] for row in page_json.get("roles", [])}
 if roles != {"HR User", "HR Manager", "Head of Department", "Supervisor", "Employee"}:
     fail.append("the calendar opens to HR, heads of department, supervisors and employees: %s" % sorted(roles))
 for role in roles:
     if '"%s"' % role not in glue.split("OPENS_TO = ")[1].split(chr(10))[0]:
         fail.append("the call must open to everybody the page opens to (%s)" % role)
-if 'frappe.pages["%s"]' % route not in page_js:
-    fail.append("the script must register on the page's own name, or the page loads and nothing draws")
-if "hrms_addon.hrms_addon.calendar_board.month" not in page_js:
-    fail.append("and call the method that fills it")
-if "escape_html" not in page_js:
-    fail.append("names, courses and venues are typed by people and printed as HTML")
-if "on_page_show" not in page_js:
-    fail.append("coming back to the calendar should show what is true now")
-loading = page_js.split("on_page_load = function")[1].split(chr(10) + "};")[0] \
-    if "on_page_load = function" in page_js else ""
-if "HRC_STYLE" not in page_js or "hrc_style()" not in loading:
-    fail.append("the calendar must put its own styles on the head as it loads (see attendance_board.js)")
-css = page_js.split("const HRC_STYLE = `")[1].split("`;")[0] if "const HRC_STYLE = `" in page_js else ""
-bundle = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
-if ".hrc-" in bundle:
-    fail.append("and they must be in ONE place, or the two copies will drift")
-for kind in C.KINDS:
-    if ".hrc-roster td.hrc-%s" % kind not in css:
-        fail.append("a %s cell has no colour in the roster" % kind)
-for status in (C.SCHEDULED, C.COMPLETED, C.PLANNED_SESSION):
-    if "hrc-chip-%s" % status not in css:
-        fail.append("a %s session has no look on the wall" % status)
-if "hrc-bad" not in css or "hrc-bad" not in page_js.split("const HRC_STYLE")[0] + page_js.split("`;", 1)[1]:
-    fail.append("a day with more off than the plan allows is marked")
-used = set(re.findall(r"var\((--hrc-[a-z0-9-]+)", css))
-mine = set(re.findall(r"^\s*(--hrc-[a-z0-9-]+)\s*:", css, re.M))
-if used - mine:
-    fail.append("a var() that resolves to nothing takes its whole declaration with it: %s" % sorted(used - mine))
-borrowed = re.findall(r"var\((--hra-[a-z0-9-]+)(\s*,[^)]*)?\)", css)
-bare = sorted({name for name, fallback in borrowed if not fallback})
-if bare:
-    fail.append("every theme colour the calendar borrows needs a fallback: %s" % bare)
-for needle, why in (
-    ("add_inner_button", "the month is walked with Previous and Next"),
-    ('fieldname: "everyone"', "the whole roster is one tick away"),
-    ("frappe.ui.Dialog", "a session opens to show its people before the event is opened"),
-    ("data-doctype", "a leave cell opens what it shows"),
-    ("hrc-planned-strip\" ", ""),
-):
-    if why and needle not in page_js:
-        fail.append(why)
-if "HRC_MARKS" not in page_js:
-    fail.append("a cell carries a letter as well as a colour, for those who print it")
-if "if (!data.people.length) {" not in page_js or "No leave this month" not in page_js:
-    fail.append("an empty roster says so instead of drawing an empty table")
-print("the page: its own route, its own roles, its own styles, and it draws what it is given")
-
-# ── 4. A way in ───────────────────────────────────────────────────────
+if 'frappe.pages["hr-calendar"].on_page_load' not in page_js or "on_page_show" not in page_js:
+    fail.append("the page registers on its own name and shows what is true when it is come back to")
+if "new hrms_addon.HRCalendarView(" not in page_js or "switchable: true" not in page_js:
+    fail.append("the page draws the view, both leave and training")
+for form, scope in (("annual_leave_plan", "plan: frm.doc.name"), ("monthly_training_schedule", "schedule: frm.doc.name")):
+    script = read("hrms_addon", "hrms_addon", "doctype", form, form + ".js")
+    spec = json.loads(read("hrms_addon", "hrms_addon", "doctype", form, form + ".json"))
+    field = next((f for f in spec["fields"] if f["fieldname"] == "calendar_html"), None)
+    if not field or field["fieldtype"] != "HTML" or "calendar_html" not in spec["field_order"]:
+        fail.append("the %s form has a place for the calendar" % form)
+    if "frm.fields_dict.calendar_html" not in script or scope not in script or 'frm.trigger("draw_calendar")' not in script:
+        fail.append("the %s form draws the calendar of itself on every refresh" % form)
+    if "frm.is_dirty() ? frm.save() : null" not in script or "after_change: () => frm.reload_doc()" not in script:
+        fail.append("the %s form saves its edits first and reloads after the calendar changes it" % form)
+    if "frm.is_new()" not in script:
+        fail.append("a %s not yet saved has no calendar to draw" % form)
+for script in (page_js, read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.js"),
+               read("hrms_addon", "hrms_addon", "doctype", "monthly_training_schedule", "monthly_training_schedule.js")):
+    if 'frappe.require("%s"' % asset not in script:
+        fail.append("a script that draws the view loads it itself when the desk has not yet")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 if nav.count('"hr-calendar", PAGE') < 4:
     fail.append("the calendar needs a way in from the leave page and the training card, and from both sidebars")
-navigation = load("navigation_rules")
-carded = {link[1] for cards in navigation.CARDS.values() for _card, links in cards for link in links}
-sidebarred = {entry[1] for entries in navigation.SIDEBAR.values() for entry in entries}
-if "hr-calendar" not in carded or "hr-calendar" not in sidebarred:
-    fail.append("the calendar is not on a card or not in a sidebar")
-print("a way in from the leave page and the training card")
+print("the page, the plan, the schedule: each draws the view; loaded on every desk page; a way in")
 
 print()
 if fail:
