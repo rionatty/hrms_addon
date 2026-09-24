@@ -145,7 +145,8 @@ expect("a plan with nobody on it", L.plan_errors({"year": 2027, "rows": []}), "a
 expect("a row with no dates yet", L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello"}]}),
        "Okello has no planned dates")
 expect("a plan with no year", L.plan_errors({"rows": [{"employee": "E1", "planned_from": "2027-02-01",
-                                                       "planned_to": "2027-02-05"}]}), "which year")
+                                                       "planned_to": "2027-02-05", "available_days": 21}]}),
+       "which year")
 SPLIT = [{"employee": "E1", "employee_name": "Okello", "planned_from": "2027-02-01", "planned_to": "2027-02-10",
           "planned_days": 10, "available_days": 21},
          {"employee": "E1", "employee_name": "Okello", "planned_from": "2027-06-01", "planned_to": "2027-06-11",
@@ -162,7 +163,8 @@ expect("parts that together are more than available",
        "22 day(s), 21 available")
 expect("planned outside the year",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
-                                              "planned_from": "2026-12-20", "planned_to": "2026-12-24"}]}),
+                                              "planned_from": "2026-12-20", "planned_to": "2026-12-24",
+                                              "available_days": 21}]}),
        "outside 2027")
 expect("more days than they have",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
@@ -173,10 +175,11 @@ expect("a plan that adds up",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
                                               "planned_from": "2027-02-01", "planned_to": "2027-02-21",
                                               "planned_days": 21, "available_days": 21}]}))
-expect("with nothing on record, the days cannot be checked, so they are not refused",
+expect("with nothing on record, the plan waits for the leave policy or allocation",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
-                                              "planned_from": "2027-02-01", "planned_to": "2027-03-05",
-                                              "planned_days": 30}]}))
+                                              "planned_from": "2027-02-01", "planned_to": "2027-02-05",
+                                              "planned_days": 5}]}),
+       "Okello has no annual leave on record for 2027")
 
 # clashes: more of one department off together than the plan allows
 TEAM = [{"employee": "A", "employee_name": "Ann", "department": "Extrusion", "planned_from": "2027-03-01",
@@ -233,6 +236,7 @@ if (counts["Extrusion"]["planned"], counts["Extrusion"][L.TAKEN], counts["Extrus
 MOVE = {"year": 2027, "new_from": "2027-07-01", "new_to": "2027-07-10", "new_days": 8, "available": 21,
         "others": [("2027-02-01", "2027-02-10", 10)], "reason": "Family wedding"}
 expect("a move that fits", L.change_errors(MOVE))
+expect("a move with nothing on record", L.change_errors(dict(MOVE, available=0)), "No annual leave on record")
 expect("a move with no reason", L.change_errors(dict(MOVE, reason=" ")), "why the leave is moving")
 expect("a move out of the year", L.change_errors(dict(MOVE, new_from="2026-12-30", new_to="2026-12-31")),
        "fall in 2027")

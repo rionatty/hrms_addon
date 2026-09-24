@@ -393,7 +393,9 @@ def change_validate(doc, method=None):
                 errors.insert(0, "Only a planned leave on an approved plan is moved.")
             errors = rules.change_errors({
                 "year": plan.year, "new_from": doc.new_from, "new_to": doc.new_to, "new_days": doc.new_days,
-                "available": target.available_days, "reason": doc.get("reason"),
+                # a row from a plan approved before entitlements were checked carries no figure
+                "available": flt(target.available_days) or sum(_available(target.employee, plan.year)),
+                "reason": doc.get("reason"),
                 "others": [(row.planned_from, row.planned_to, row.planned_days) for row in rows
                            if row.employee == target.employee and row.name != target.name],
                 "applied": bool(target.leave_application and _still_applied(target.leave_application)),

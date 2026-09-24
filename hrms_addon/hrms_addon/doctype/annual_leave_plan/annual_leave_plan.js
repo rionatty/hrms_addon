@@ -58,7 +58,7 @@ frappe.ui.form.on("Annual Leave Plan", {
 				frm.doc.total_days || 0
 			}</b></span>` +
 				pill(over, "{0} planned for more than they have", "orange") +
-				pill(unknown, "{0} with no leave on record", "orange") +
+				pill(unknown, "{0} with no leave on record", "red") +
 				pill(clashes, "{0} clash(es)", "red") +
 				(over || unknown || clashes ? "" : ` <span class="indicator-pill green">${__("Within what each has")}</span>`)
 		);

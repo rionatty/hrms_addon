@@ -194,7 +194,10 @@ def plan_errors(facts):
                               % (who, _day(before[0]), _day(before[1]), _day(after[0]), _day(after[1])))
         planned = sum(span[2] for span in spans)
         available = max(span[4] for span in spans)
-        if available and planned > available:
+        if not available:
+            errors.append("%s has no annual leave on record for %s. Assign their leave policy or allocation first."
+                          % (who, year or "the year"))
+        elif planned > available:
             errors.append("%s is planned for %g day(s), %g available." % (who, planned, available))
     return errors
 
@@ -322,7 +325,9 @@ def change_errors(facts):
             errors.append("The new dates overlap the leave planned from %s to %s."
                           % (_day(other_first), _day(other_last)))
     total = _num(facts.get("new_days")) + sum(_num(days) for _first, _last, days in facts.get("others") or ())
-    if _num(facts.get("available")) and total > _num(facts.get("available")):
+    if not _num(facts.get("available")):
+        errors.append("No annual leave on record for the year. Assign the leave policy or allocation first.")
+    elif total > _num(facts.get("available")):
         errors.append("That makes %g day(s) planned, %g available." % (total, _num(facts.get("available"))))
     if facts.get("applied"):
         errors.append("A leave is already applied for on these dates. Cancel that application first.")
