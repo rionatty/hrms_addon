@@ -129,6 +129,7 @@ CARDS = {
             ("Training Needs Assessment", "Training Needs Assessment", DOCTYPE),
             ("Training Calendar", "Training Calendar", DOCTYPE),
             ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE),
+            ("HR Calendar", "hr-calendar", PAGE),
             ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE),
             ("Meeting Record", "Meeting Record", DOCTYPE),
         ]),
@@ -208,6 +209,7 @@ CARDS = {
         ("Application", [
             ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE),
             ("Leave Plan Change", "Leave Plan Change", DOCTYPE),
+            ("HR Calendar", "hr-calendar", PAGE),
         ]),
         ("Reports", [
             ("Leave Schedule", "Leave Schedule", REPORT),
@@ -356,6 +358,7 @@ SIDEBAR = {
     "Leaves": [
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
         ("Leave Plan Change", "Leave Plan Change", DOCTYPE, None, "Annual Leave Plan"),
+        ("HR Calendar", "hr-calendar", PAGE, None, "Leave Plan Change"),
         ("Leave Schedule", "Leave Schedule", REPORT, "Reports", None),
         ("Leave Plan Adherence", "Leave Plan Adherence", REPORT, "Reports", None),
     ],
@@ -399,6 +402,7 @@ SIDEBAR = {
         ("Training Needs Assessment", "Training Needs Assessment", DOCTYPE, None, "Training Requisition"),
         ("Training Calendar", "Training Calendar", DOCTYPE, None, "Training Needs Assessment"),
         ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE, None, "Training Calendar"),
+        ("HR Calendar", "hr-calendar", PAGE, None, "Monthly Training Schedule"),
         ("Training Needs Form", "Training Needs Form", DOCTYPE, "Setup", None),
         ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
         ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),
