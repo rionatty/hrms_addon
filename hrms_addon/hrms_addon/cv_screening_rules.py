@@ -256,3 +256,68 @@ def sort_key(row):
     order = {MEETS: 0, BELOW_PASS_MARK: 1, DOES_NOT_MEET: 2}
     score = row.get("match_score")
     return order.get(row.get("screening_result"), 3), -(float(score) if score not in (None, "") else -1.0)
+
+
+# ── HR's filter for Get Applicants ────────────────────────────────────
+NOT_CHECKED = "Not Checked"
+# The filter looks through CVs, so it refuses the words for what the
+# screening never uses: gender, age, marital status, religion, tribe.
+NEVER_LOOKED_FOR = (
+    "male", "female", "males", "females", "woman", "women", "gender", "sex",
+    "married", "unmarried", "divorced", "widow", "widowed", "widower",
+    "religion", "religious", "catholic", "protestant", "anglican", "muslim", "moslem", "islam", "islamic",
+    "christian", "pentecostal", "adventist", "born again",
+    "tribe", "tribal", "aged", "years old", "date of birth", "pregnant", "pregnancy",
+)
+
+
+def shortlist_filter(values):
+    """HR's filter, cleaned: the results wanted (none ticked: any), the
+    lowest match, the fewest years, the words or phrases to find in the
+    bio-data or CV (any one, or all of them), and how many at most."""
+    values = values or {}
+    return {
+        "results": [result for result in values.get("results") or () if result in RESULTS + (NOT_CHECKED,)],
+        "min_score": max(number(values.get("min_score")) or 0.0, 0.0),
+        "min_years": max(number(values.get("min_years")) or 0.0, 0.0),
+        "look_for": phrases(values.get("look_for")),
+        "match_all": str(values.get("match_all") or "").strip().lower() in YES_WORDS,
+        "limit": max(int(number(values.get("limit")) or 0), 0),
+    }
+
+
+def filter_errors(wanted):
+    refused = [phrase for phrase in wanted.get("look_for") or ()
+               if any(" %s " % word in " %s " % phrase for word in NEVER_LOOKED_FOR)]
+    if refused:
+        return [
+            "Applicants are not filtered on gender, age, marital status, religion or tribe: %s." % ", ".join(refused)
+        ]
+    return []
+
+
+def filter_candidates(rows, wanted):
+    """(kept, left out): the screened applicants the filter keeps, the best
+    first and at most its limit, and how many it left out. rows: the
+    shortlist's columns, with "search_text" (the bio-data and the CV)."""
+    kept = [row for row in sorted(rows, key=sort_key) if _passes(row, wanted)]
+    if wanted.get("limit"):
+        kept = kept[:wanted["limit"]]
+    return kept, len(rows) - len(kept)
+
+
+def _passes(row, wanted):
+    if wanted.get("results") and (row.get("screening_result") or NOT_CHECKED) not in wanted["results"]:
+        return False
+    score = row.get("match_score")
+    if wanted.get("min_score") and (score in (None, "") or float(score) < wanted["min_score"]):
+        return False
+    if wanted.get("min_years") and float(row.get("experience_years") or 0) < wanted["min_years"]:
+        return False
+    looking_for = wanted.get("look_for") or []
+    if looking_for:
+        text = normalise(row.get("search_text"))
+        found = [phrase for phrase in looking_for if " %s " % phrase in text]
+        if not found or (wanted.get("match_all") and len(found) < len(looking_for)):
+            return False
+    return True

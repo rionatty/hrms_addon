@@ -5,7 +5,8 @@
   1  words: phrases, whole-word search, Word documents
   2  experience: years from the employment history, overlaps once
   3  answers: yes or no, numbers, phone numbers
-  4  the screening: weights, must-haves, pass mark, what HR checks by hand
+  4  the screening: weights, must-haves, pass mark, what HR checks by hand;
+     HR's filter for Get Applicants
   5  fairness: gender, age and home district are never read
   6  the glue: hooks, the patch, the shortlist, the careers form, the scripts
 """
@@ -173,6 +174,49 @@ expect("Meets first, highest first, then the rest", [(row["screening_result"], r
 expect("the seeded priorities", R.DEFAULT_PRIORITIES, {"Essential": (3, 1), "Preferred": (2, 0), "Desirable": (1, 0)})
 print("the screening: weights, must-haves, the pass mark, years, questions, what HR checks by hand")
 
+# HR's filter for Get Applicants
+expect("a filter, cleaned", R.shortlist_filter({"results": ["Meets", "Bogus"], "min_score": "70", "min_years": None,
+                                                "look_for": "Mechanical Engineering\nKyambogo", "match_all": 1,
+                                                "limit": "2"}),
+       {"results": ["Meets"], "min_score": 70.0, "min_years": 0.0, "look_for": ["mechanical engineering", "kyambogo"],
+        "match_all": True, "limit": 2})
+expect("no filter", R.shortlist_filter(None), {"results": [], "min_score": 0.0, "min_years": 0.0, "look_for": [],
+                                               "match_all": False, "limit": 0})
+pool = [
+    {"applicant_name": "A", "screening_result": R.MEETS, "match_score": 100, "experience_years": 5,
+     "search_text": "Diploma in Mechanical Engineering UTC Kyema"},
+    {"applicant_name": "B", "screening_result": R.DOES_NOT_MEET, "match_score": 40, "experience_years": 2,
+     "search_text": "Certificate in Mechanics"},
+    {"applicant_name": "N", "screening_result": "", "match_score": None, "experience_years": 0, "search_text": ""},
+    {"applicant_name": "E", "screening_result": R.BELOW_PASS_MARK, "match_score": 60, "experience_years": 0,
+     "search_text": "Diploma in Mechanical Engineering"},
+    {"applicant_name": "C", "screening_result": R.MEETS, "match_score": 73, "experience_years": 2,
+     "search_text": "Mechanical Engineering, Kyambogo"},
+]
+
+
+def kept(values):
+    rows, left_out = R.filter_candidates(pool, R.shortlist_filter(values))
+    return [row["applicant_name"] for row in rows], left_out
+
+
+expect("no filter: everyone, the best first", kept({}), (["A", "C", "E", "B", "N"], 0))
+expect("by result", kept({"results": ["Meets"]}), (["A", "C"], 3))
+expect("the ones nothing could be checked for", kept({"results": ["Not Checked"]}), (["N"], 4))
+expect("the lowest match", kept({"min_score": 60}), (["A", "C", "E"], 2))
+expect("the fewest years", kept({"min_years": 2}), (["A", "C", "B"], 2))
+expect("any word found", kept({"look_for": "Kyambogo, UTC Kyema"}), (["A", "C"], 3))
+expect("all of them", kept({"look_for": "mechanical engineering\nkyambogo", "match_all": 1}), (["C"], 4))
+expect("whole words only", kept({"look_for": "mechanic"}), ([], 5))
+expect("at most, the best first", kept({"limit": 2}), (["A", "C"], 3))
+expect("together", kept({"results": ["Meets", "Below Pass Mark"], "look_for": "diploma"}), (["A", "E"], 3))
+refused = R.filter_errors(R.shortlist_filter({"look_for": "Female\nCPA\nborn again, Catholic"}))
+expect("the filter refuses what the screening never uses, and names it",
+       (len(refused), refused[0].split(": ")[-1] if refused else None), (1, "female, born again, catholic."))
+expect("and lets a job's own words through", R.filter_errors(R.shortlist_filter({"look_for": "foreman\nsales manager"})),
+       [])
+print("HR's filter: by result, match, years and words in the bio-data or CV, the best first, never on who they are")
+
 # ── 5. Fairness ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "cv_screening.py")
 
@@ -238,8 +282,17 @@ if "frappe.flags.in_web_form" not in lining or "doc.is_new()" not in lining:
 interviews = read("hrms_addon", "hrms_addon", "interviews.py")
 if "**cv_screening.screen(doc, context)" not in body(interviews, "candidate_details"):
     fail.append("each candidate on the shortlist is screened")
-if "sorted(found, key=cv_screening_rules.sort_key)" not in body(interviews, "get_shortlist_candidates"):
+getting = body(interviews, "get_shortlist_candidates")
+for needle, why in (("cv_screening_rules.filter_errors(wanted)", "the filter's refusals stop Get Applicants"),
+                    ("cv_screening_rules.filter_candidates(found, wanted)", "Get Applicants keeps what HR's filter keeps"),
+                    ('row.pop("search_text", None)', "the text looked through stays on the server"),
+                    ('return {"candidates": kept, "left_out": left_out}', "HR is told how many were left out")):
+    if needle not in getting:
+        fail.append("Get Applicants: %s" % why)
+if "sorted(rows, key=sort_key)" not in body(rules_source, "filter_candidates"):
     fail.append("Get Applicants lists the best matches first")
+if 'details["search_text"]' not in body(interviews, "candidate_details"):
+    fail.append("the filter looks through the bio-data and the CV")
 if "_screen_rows(doc)" not in body(interviews, "validate_shortlist") or \
         "(None, screening.DRAFT, screening.RETURNED)" not in body(interviews, "validate_shortlist"):
     fail.append("the candidates are screened again while HR has the list, not once the HOD does")
@@ -262,6 +315,10 @@ for needle in ("field.df.cannot_add_rows = true", "field.df.cannot_delete_rows =
         fail.append("application form: %s" % needle)
 
 shortlist_js = read("hrms_addon", "hrms_addon", "doctype", "interview_shortlist", "interview_shortlist.js")
+for needle in ('fieldtype: "MultiCheck"', 'fieldname: "look_for"', 'fieldname: "min_score"', 'fieldname: "min_years"',
+               'fieldname: "limit"', "filters: filters", "found.left_out"):
+    if needle not in shortlist_js:
+        fail.append("Get Applicants asks for HR's filter: %s" % needle)
 if 'frm.add_custom_button(__("Sort by Match"), () => ha_sort_by_match(frm))' not in shortlist_js or \
         '"screening_result", "matched", "missing", "to_check", "flags"' not in shortlist_js:
     fail.append("the shortlist shows the screening and sorts by it")

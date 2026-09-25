@@ -186,12 +186,19 @@ def setup_shortlist_workflow_on_migrate():
 
 
 @frappe.whitelist()
-def get_shortlist_candidates(job_opening: str, exclude: str | None = None) -> list[dict]:
-    """Everyone who applied for the opening and can still be shortlisted, written out.
+def get_shortlist_candidates(job_opening: str, exclude: str | None = None, filters: str | None = None) -> dict:
+    """Everyone who applied for the opening and can still be shortlisted, written out
+    and screened, the best first; with HR's filter, only the ones it keeps, and how
+    many it left out.
 
     exclude: JSON list of applicants already on the shortlist.
+    filters: JSON, as cv_screening_rules.shortlist_filter reads it.
     """
     frappe.has_permission("Interview Shortlist", "write", throw=True)
+    wanted = cv_screening_rules.shortlist_filter(frappe.parse_json(filters) if filters else {})
+    errors = cv_screening_rules.filter_errors(wanted)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Get Applicants"))
     skip = set(frappe.parse_json(exclude) or [])
     applicants = frappe.get_all(
         "Job Applicant",
@@ -200,8 +207,11 @@ def get_shortlist_candidates(job_opening: str, exclude: str | None = None) -> li
         order_by="creation asc",
     )
     context = cv_screening.context_for(job_opening)
-    found = [candidate_details(applicant, context) for applicant in applicants if applicant not in skip]
-    return sorted(found, key=cv_screening_rules.sort_key)
+    found = [candidate_details(applicant, context, with_text=True) for applicant in applicants if applicant not in skip]
+    kept, left_out = cv_screening_rules.filter_candidates(found, wanted)
+    for row in kept:
+        row.pop("search_text", None)
+    return {"candidates": kept, "left_out": left_out}
 
 
 @frappe.whitelist()
@@ -213,9 +223,10 @@ def get_candidate_details(job_applicants: str) -> dict:
             for applicant in frappe.parse_json(job_applicants) or []}
 
 
-def candidate_details(applicant, context=None, contexts=None):
+def candidate_details(applicant, context=None, contexts=None, with_text=False):
     """One applicant as the shortlist lists them, written out from their Bio-Data,
-    and screened against the job they applied for (cv_screening.py)."""
+    and screened against the job they applied for (cv_screening.py). with_text:
+    their bio-data and CV as well, for HR's filter to look through."""
     doc = frappe.get_doc("Job Applicant", applicant)
     if context is None:
         contexts = {} if contexts is None else contexts
@@ -224,7 +235,7 @@ def candidate_details(applicant, context=None, contexts=None):
         context = contexts[doc.job_title]
     certification_types = frappe.get_all("Qualification Type", filters={"is_certification": 1}, pluck="name")
     qualifications = doc.get("custom_qualifications") or []
-    return {
+    details = {
         "job_applicant": doc.name,
         "applicant_name": doc.applicant_name,
         "phone_number": doc.phone_number,
@@ -234,6 +245,10 @@ def candidate_details(applicant, context=None, contexts=None):
         "certifications": rules.qualification_lines(qualifications, certification_types, certifications=True),
         **cv_screening.screen(doc, context),
     }
+    if with_text:
+        facts = cv_screening.applicant_facts(doc)
+        details["search_text"] = "%s\n%s" % (facts["bio_data"], facts["cv"])
+    return details
 
 
 def _screen_rows(doc):

@@ -56,22 +56,84 @@ frappe.ui.form.on("Interview Shortlist Candidate", {
 	},
 });
 
+// Which applicants to bring in: by result, match, years and words in the
+// bio-data or CV, the best first. The last filter is kept while the form is open.
 function ha_get_applicants(frm) {
+	const last = frm.ha_filters || { results: ["Meets", "Below Pass Mark", "Not Checked"] };
+	const result = (value, label) => ({ label: label, value: value, checked: last.results.includes(value) ? 1 : 0 });
+	const dialog = new frappe.ui.Dialog({
+		title: __("Get Applicants"),
+		fields: [
+			{
+				fieldname: "results",
+				fieldtype: "MultiCheck",
+				label: __("Result"),
+				columns: 2,
+				options: [
+					result("Meets", __("Meets")),
+					result("Below Pass Mark", __("Below Pass Mark")),
+					result("Does Not Meet", __("Does Not Meet")),
+					result("Not Checked", __("Not Checked")),
+				],
+			},
+			{ fieldname: "min_score", fieldtype: "Percent", label: __("Match at Least"), default: last.min_score },
+			{
+				fieldname: "min_years",
+				fieldtype: "Float",
+				label: __("Years of Experience at Least"),
+				default: last.min_years,
+			},
+			{ fieldname: "column_break_1", fieldtype: "Column Break" },
+			{
+				fieldname: "look_for",
+				fieldtype: "Small Text",
+				label: __("Look For"),
+				description: __("Words or phrases in the bio-data or CV, one per line."),
+				default: last.look_for,
+			},
+			{ fieldname: "match_all", fieldtype: "Check", label: __("All of Them"), default: last.match_all },
+			{
+				fieldname: "limit",
+				fieldtype: "Int",
+				label: __("At Most"),
+				description: __("The best matches first. Empty for all."),
+				default: last.limit,
+			},
+		],
+		primary_action_label: __("Get Applicants"),
+		primary_action(values) {
+			frm.ha_filters = values;
+			dialog.hide();
+			ha_fetch_applicants(frm, values);
+		},
+	});
+	dialog.show();
+}
+
+function ha_fetch_applicants(frm, filters) {
 	const listed = (frm.doc.candidates || []).map((row) => row.job_applicant);
 	frappe
 		.xcall(HA_SHORTLIST_METHODS + "get_shortlist_candidates", {
 			job_opening: frm.doc.job_opening,
 			exclude: listed,
+			filters: filters,
 		})
-		.then((candidates) => {
+		.then((found) => {
+			const candidates = found.candidates || [];
 			if (!candidates.length) {
-				frappe.msgprint(__("No other applicant for this opening can be shortlisted."));
+				frappe.msgprint(
+					found.left_out
+						? __("No applicant passes the filter. {0} left out.", [found.left_out])
+						: __("No other applicant for this opening can be shortlisted.")
+				);
 				return;
 			}
 			candidates.forEach((details) => ha_fill_row(frm.add_child("candidates"), details));
 			frm.refresh_field("candidates");
 			frappe.show_alert({
-				message: __("{0} applicants added. Remove the ones not invited, then save.", [candidates.length]),
+				message: found.left_out
+					? __("{0} applicants added, {1} left out by the filter.", [candidates.length, found.left_out])
+					: __("{0} applicants added. Remove the ones not invited, then save.", [candidates.length]),
 				indicator: "green",
 			});
 		});
