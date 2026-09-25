@@ -188,9 +188,11 @@ def _paid_through(employee):
 
 
 def _build_schedule(doc):
-    """The months the loan comes back in, while it is still a request."""
-    principal = flt(doc.get("approved_amount"))
-    first = doc.get("first_repayment")
+    """The months the loan comes back in, while it is not yet running: on
+    the terms once Accounts set them, until then on what was asked, from the
+    first payroll period not yet paid."""
+    principal = _amount(doc)
+    first = doc.get("first_repayment") or _first_month(doc)
     if not (principal and first):
         doc.set("repayments", [row for row in doc.get("repayments") or [] if row.recovered])
         return
@@ -198,6 +200,11 @@ def _build_schedule(doc):
     for month, due_p, due_i, total in rules.repayment_schedule(principal, doc.get("interest_rate"),
                                                                 doc.get("instalments"), first):
         doc.append("repayments", {"payroll_date": month, "principal": due_p, "interest": due_i, "total": total})
+
+
+def _first_month(doc):
+    """Where the schedule starts until Accounts settle it."""
+    return rules.first_month(doc.get("posting_date") or today(), _paid_through(doc.get("employee")))
 
 
 def _check_step(doc, s):
@@ -238,6 +245,8 @@ def _check_step(doc, s):
             doc.consent, doc.consent_by, doc.consent_on = 0, None, None
         if new_state == approval.PENDING_ACCOUNTS and not flt(doc.get("approved_amount")):
             doc.approved_amount = doc.get("loan_amount")  # where Accounts start from
+        if new_state == approval.PENDING_ACCOUNTS and not doc.get("first_repayment"):
+            doc.first_repayment = _first_month(doc)
         if new_state == approval.RUNNING:
             doc.witnessed_by = frappe.session.user
     current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
@@ -722,10 +731,19 @@ def _running(name):
                                                "status", "outstanding"], as_dict=True)
 
 
+def _running_loans():
+    """The loans the payroll is taking back now. Only their months are
+    watched: a request has a schedule drawn too."""
+    return frappe.get_all(DOCTYPE, filters={"docstatus": 1, "status": rules.RUNNING}, pluck="name")
+
+
 def _tell_due():
     """A repayment falling due in the next week, told to the HR Officer and
     the employee."""
-    rows = frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "recovered": ["!=", 1],
+    running = _running_loans()
+    if not running:
+        return
+    rows = frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "parent": ["in", running], "recovered": ["!=", 1],
                                         "payroll_date": ["between", [today(), add_days(today(), 7)]]},
                           fields=["name", "parent", "payroll_date", "total"], limit=500)
     for row in rows:
@@ -749,8 +767,11 @@ def _tell_missed():
     """A month the payroll did not take, some days after it: the HR Officer
     and the Payroll Officer are told once."""
     grace = settings()["missed_grace_days"]
-    rows = frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "recovered": ["!=", 1], "missed_told": ["!=", 1],
-                                        "payroll_date": ["<", add_days(today(), -grace)]},
+    running = _running_loans()
+    if not running:
+        return
+    rows = frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "parent": ["in", running], "recovered": ["!=", 1],
+                                        "missed_told": ["!=", 1], "payroll_date": ["<", add_days(today(), -grace)]},
                           fields=["name", "parent", "payroll_date", "total", "recovered", "missed_told"], limit=500)
     for row in rules.missed([dict(row) for row in rows], today(), grace):
         loan = _running(row["parent"])

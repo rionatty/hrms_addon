@@ -21,6 +21,7 @@ Frappe HR's and ERPNext's own fields are read from FRAPPE_APPS_ROOT
 (default ../ERPNext).
 """
 import ast
+import datetime
 import glob
 import importlib.util
 import json
@@ -134,6 +135,9 @@ study = dict(ok, loan_type="Study Loan", amount=9000000, fee_structure="/files/f
 expect("a study loan with its fees, over three months' gross", R.eligibility_errors(study))
 expect("a study loan with no fee structure", R.eligibility_errors(dict(study, fee_structure=None)), "fee structure")
 expect("a loan Luuka do not offer", R.eligibility_errors(dict(ok, loan_type="Holiday Loan")), "not a valid loan type")
+expect("no pay on record, for a loan worked out from it", R.eligibility_errors(dict(ok, gross_pay=0)),
+       "no gross pay on record")
+expect("a car loan's ceiling needs no gross", R.eligibility_errors(dict(car, gross_pay=0)))
 if R.limit_for_type("Car Loan", 500000) != 30000000 or R.limit_for_type("Study Loan", 500000) is not None \
         or R.limit_for_type("Other", 500000) != 1500000:
     fail.append("the ceiling follows the kind of loan: 30 million, the course, or three months' gross")
@@ -194,6 +198,18 @@ if str(R.on_day("2027-02-10", 31)) != "2027-02-28" or str(R.on_day("2027-03-10",
     fail.append("the loan's day in a short month is its last")
 if str(R.resume_from("2027-02-28", "2027-03-01", 30)) != "2027-03-30":
     fail.append("after a short month the schedule is back on the loan's own day")
+A = load("advance_rules")
+for offset in range(0, 800):
+    day = datetime.date(2026, 1, 1) + datetime.timedelta(days=offset)
+    if R.period_close(day) != A.payroll_period(day)[1]:
+        fail.append("the loan's payroll period closes where the advance's does: not on %s" % day)
+        break
+for asked, paid, first in (("2026-09-21", None, "2026-10-25"), ("2026-09-26", None, "2026-11-25"),
+                           ("2026-12-20", None, "2027-01-25"), ("2026-09-21", "2026-10-25", "2026-11-25"),
+                           ("2026-09-21", "2026-10-31", "2026-11-25"), ("2026-09-21", "2026-08-25", "2026-10-25")):
+    if str(R.first_month(asked, paid)) != first:
+        fail.append("a request of %s, paid through %s, starts on %s, not %s" % (asked, paid, first,
+                                                                                R.first_month(asked, paid)))
 rows = [{"principal": 200000, "interest": 10000, "recovered": 1}, {"principal": 200000, "interest": 10000,
                                                                      "recovered": 0}]
 if R.left(1200000, 60000, rows) != (1000000, 50000):
@@ -283,6 +299,8 @@ for fieldname in ("gross_pay", "limit", "outstanding_before", "qualifies", "tota
 for fieldname in ("approved_amount", "interest_rate", "first_repayment", "recovery_component"):
     if "Pending Accounts" not in (loan.get(fieldname) or {}).get("read_only_depends_on", ""):
         fail.append("Employee Loan.%s is Accounts' to set, while the loan is with them" % fieldname)
+if not (loan.get("repayments") or {}).get("read_only"):
+    fail.append("the schedule is drawn by the system: nobody adds a row by hand")
 for fieldname in ("loan_type", "loan_amount", "instalments"):
     if "'Draft'" not in (loan.get(fieldname) or {}).get("read_only_depends_on", ""):
         fail.append("Employee Loan.%s is the employee's while the request is a draft" % fieldname)
@@ -355,6 +373,11 @@ for needle, why in (
 ):
     if needle not in step:
         fail.append("the step: %s" % why)
+if "_first_month(doc)" not in body(glue, "_build_schedule") or "doc.first_repayment = _first_month(doc)" not in step:
+    fail.append("a request shows its schedule on what was asked; Accounts start from its first month")
+for name in ("_tell_due", "_tell_missed"):
+    if '"parent": ["in", running]' not in body(glue, name):
+        fail.append("%s watches the running loans only: every request has a schedule drawn" % name)
 if 'doc.interest_rate = s["default_rate"]' not in body(glue, "loan_validate"):
     fail.append("a request starts at the rate Luuka set")
 if '"max_share": s["max_share_of_gross"]' not in body(glue, "_terms_facts"):

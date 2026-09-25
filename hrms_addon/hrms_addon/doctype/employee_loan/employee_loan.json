@@ -335,7 +335,8 @@
    "fieldname": "repayments",
    "fieldtype": "Table",
    "label": "Repayments",
-   "options": "Loan Repayment"
+   "options": "Loan Repayment",
+   "read_only": 1
   },
   {
    "fieldname": "recovered_amount",
@@ -594,7 +595,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 18:00:00.000000",
+ "modified": "2026-09-25 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Loan",

@@ -75,6 +75,10 @@ CAR_LOAN_MAX = DEFAULTS["car_loan_max"]
 # a line on the schedule that the payroll did not take
 PAID_DIRECTLY, FINAL_SETTLEMENT = "Paid directly", "Final settlement"
 
+# Luuka's payroll period runs from the 26th to the 25th
+# (advance_rules.payroll_period); a deduction falls on its close
+PERIOD_CLOSES_ON = 25
+
 
 def settings_from(stored):
     """Loan Settings merged over DEFAULTS: a stored nought stays a nought,
@@ -176,7 +180,10 @@ def eligibility_errors(facts, settings=None):
     elif loan_type == STUDY_LOAN:
         if not facts.get("fee_structure"):
             errors.append("A study loan is what the course costs: attach the course's fee structure.")
-    elif gross:
+    elif not gross:
+        errors.append("This employee has no gross pay on record, so the most that may be lent cannot be "
+                      "worked out.")
+    else:
         months = facts.get("max_months") or s["other_months_of_gross"]
         ceiling = limit_for(gross, months)
         if amount > ceiling:
@@ -385,6 +392,32 @@ def resume_from(last, today, day=None):
         if not today or (found.year, found.month) >= (today.year, today.month):
             return found
         months += 1
+
+
+def period_close(day):
+    """The last day of the payroll period a day falls in: the 25th of its
+    month, or from the 26th on, of the next."""
+    day = _date(day)
+    if not day:
+        return None
+    month = datetime.date(day.year, day.month, 1)
+    if day.day > PERIOD_CLOSES_ON:
+        month = add_months(month, 1)
+    return datetime.date(month.year, month.month, min(PERIOD_CLOSES_ON, _days_in_month(month.year, month.month)))
+
+
+def first_month(asked_on, paid_through=None):
+    """Where a request's schedule starts until Accounts settle the terms:
+    the close of the payroll period after the one it was asked in, never a
+    period the payroll has already paid."""
+    asked = _date(asked_on)
+    if not asked:
+        return None
+    first = period_close(period_close(asked) + datetime.timedelta(days=1))
+    paid = _date(paid_through)
+    if paid and first <= paid:
+        first = period_close(paid + datetime.timedelta(days=1))
+    return first
 
 
 def on_day(value, day=None):
