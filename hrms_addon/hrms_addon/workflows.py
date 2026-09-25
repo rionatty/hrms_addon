@@ -30,6 +30,11 @@ the order is explicit.
 Like the fixtures, it re-asserts the definition on every migrate: to change
 who approves, change the rules module, not the Workflow in the desk, where an
 edit is overwritten on the next deploy.
+
+Except where the rules module says DESK_MANAGED (loan_approval.py): that
+workflow is made on the first migrate and from then on set up in the desk,
+and no deploy writes over it. A change such a workflow needs from the code
+goes out as a patch that touches only that change.
 """
 
 import frappe
@@ -175,6 +180,8 @@ def _ensure_workflow(rules):
     transition_keys = ("state", "action", "next_state", "allowed", "allow_self_approval", "condition")
 
     if frappe.db.exists("Workflow", rules.WORKFLOW_NAME):
+        if getattr(rules, "DESK_MANAGED", False):
+            return  # set up in the desk; a deploy never writes over it
         workflow = frappe.get_doc("Workflow", rules.WORKFLOW_NAME)
         unchanged = (
             workflow.document_type == rules.DOCTYPE

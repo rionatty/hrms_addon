@@ -45,6 +45,10 @@
   "column_break_4",
   "outstanding",
   "written_off",
+  "written_off_amount",
+  "written_off_on",
+  "write_off_entry",
+  "written_off_months",
   "consent_section",
   "liability",
   "extent_of_deduction",
@@ -59,6 +63,7 @@
   "disbursed_on",
   "column_break_6",
   "disbursement_reference",
+  "disbursement_entry",
   "approval_section",
   "hod_remarks",
   "hod_by",
@@ -171,9 +176,8 @@
   },
   {
    "fieldname": "approval_status",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "label": "Approval Status",
-   "options": "Draft\nPending HOD\nPending Executive Director\nPending General Manager\nPending Accounts\nPending Employee Consent\nRunning\nRejected\nCancelled",
    "read_only": 1,
    "default": "Draft",
    "no_copy": 1,
@@ -184,7 +188,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nRunning\nRepaid\nWritten Off\nCancelled",
+   "options": "Draft\nRunning\nRepaid\nWritten Off\nRejected\nCancelled",
    "read_only": 1,
    "default": "Draft",
    "no_copy": 1,
@@ -205,14 +209,16 @@
    "options": "Car Loan\nStudy Loan\nOther",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Car loan: up to UGX 30,000,000. Study loan: the course fees."
+   "description": "Car loan: up to the limit in Loan Settings. Study loan: the course fees.",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && doc.workflow_state!=='Draft')"
   },
   {
    "fieldname": "loan_amount",
    "fieldtype": "Currency",
    "label": "Amount Requested",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && doc.workflow_state!=='Draft')"
   },
   {
    "fieldname": "purpose",
@@ -273,20 +279,23 @@
   {
    "fieldname": "approved_amount",
    "fieldtype": "Currency",
-   "label": "Amount Lent"
+   "label": "Amount Lent",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'"
   },
   {
    "fieldname": "interest_rate",
    "fieldtype": "Percent",
    "label": "Interest Rate (a year)",
    "default": "0",
-   "description": "Flat rate for the whole term. Leave 0 for no interest."
+   "description": "Flat rate a year. 0 for no interest.",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'"
   },
   {
    "fieldname": "instalments",
    "fieldtype": "Int",
    "label": "Recovered In (months)",
-   "default": "6"
+   "default": "6",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && !['Draft', 'Pending Accounts'].includes(doc.workflow_state))"
   },
   {
    "fieldname": "column_break_3",
@@ -295,7 +304,8 @@
   {
    "fieldname": "first_repayment",
    "fieldtype": "Date",
-   "label": "First Repayment"
+   "label": "First Repayment",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'"
   },
   {
    "fieldname": "total_interest",
@@ -313,7 +323,8 @@
    "fieldname": "recovery_component",
    "fieldtype": "Link",
    "label": "Deduction Component",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'"
   },
   {
    "fieldname": "schedule_section",
@@ -348,7 +359,37 @@
    "fieldname": "written_off",
    "fieldtype": "Check",
    "label": "Written Off",
-   "no_copy": 1
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "written_off_amount",
+   "fieldtype": "Currency",
+   "label": "Written Off Amount",
+   "read_only": 1,
+   "depends_on": "written_off"
+  },
+  {
+   "fieldname": "written_off_on",
+   "fieldtype": "Date",
+   "label": "Written Off On",
+   "read_only": 1,
+   "depends_on": "written_off"
+  },
+  {
+   "fieldname": "write_off_entry",
+   "fieldtype": "Link",
+   "label": "Write-Off Entry",
+   "options": "Journal Entry",
+   "read_only": 1,
+   "depends_on": "written_off"
+  },
+  {
+   "fieldname": "written_off_months",
+   "fieldtype": "Int",
+   "label": "Months Written Off",
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "consent_section",
@@ -417,7 +458,8 @@
    "fieldname": "disbursed_on",
    "fieldtype": "Date",
    "label": "Disbursed On",
-   "no_copy": 1
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_6",
@@ -427,7 +469,15 @@
    "fieldname": "disbursement_reference",
    "fieldtype": "Data",
    "label": "Reference",
-   "no_copy": 1
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "disbursement_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry",
+   "options": "Journal Entry",
+   "read_only": 1
   },
   {
    "fieldname": "approval_section",
@@ -544,7 +594,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 16:00:00.000000",
+ "modified": "2026-09-25 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Loan",
@@ -669,8 +719,7 @@
    "share": 1,
    "role": "Employee",
    "write": 1,
-   "create": 1,
-   "submit": 1
+   "create": 1
   }
  ],
  "sort_field": "modified",

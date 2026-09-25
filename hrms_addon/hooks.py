@@ -976,6 +976,8 @@ fixtures = [
                     "Employee Advance-custom_paid_on",
                     "Employee Advance-custom_paid_cb",
                     "Employee Advance-custom_bank_reference",
+                    "Journal Entry-custom_employee_loan",
+                    "Journal Entry-custom_loan_purpose",
                     "Travel Request-custom_lpl_section",
                     "Travel Request-custom_badge_no",
                     "Travel Request-custom_grade",
@@ -1402,9 +1404,13 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.advances.payment_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.advances.payment_on_cancel",
     },
+    # an entry paying an advance, and one paying out, repaying or writing
+    # off a staff loan (loans.py)
     "Journal Entry": {
-        "on_submit": "hrms_addon.hrms_addon.advances.payment_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.advances.payment_on_cancel",
+        "on_submit": ["hrms_addon.hrms_addon.advances.payment_on_submit",
+                      "hrms_addon.hrms_addon.loans.journal_on_submit"],
+        "on_cancel": ["hrms_addon.hrms_addon.advances.payment_on_cancel",
+                      "hrms_addon.hrms_addon.loans.journal_on_cancel"],
     },
     # The slip that takes a loan's, a penalty's or an advance's monthly
     # deduction marks that month recovered, and a cancelled slip gives it

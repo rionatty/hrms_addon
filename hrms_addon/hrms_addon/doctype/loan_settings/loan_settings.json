@@ -1,0 +1,180 @@
+{
+ "actions": [],
+ "creation": "2026-09-25 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "eligibility_section",
+  "admin_only",
+  "min_months",
+  "other_allowed",
+  "eligibility_cb",
+  "max_share_of_gross",
+  "limits_section",
+  "car_loan_max",
+  "other_months_of_gross",
+  "default_rate",
+  "limits_cb",
+  "car_max_instalments",
+  "study_max_instalments",
+  "other_max_instalments",
+  "accounts_section",
+  "loan_account",
+  "accounts_cb",
+  "missed_grace_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "eligibility_section",
+   "fieldtype": "Section Break",
+   "label": "Who May Borrow"
+  },
+  {
+   "default": "1",
+   "fieldname": "admin_only",
+   "fieldtype": "Check",
+   "label": "Administration Team Only"
+  },
+  {
+   "default": "6",
+   "fieldname": "min_months",
+   "fieldtype": "Int",
+   "label": "Months of Service First"
+  },
+  {
+   "default": "1",
+   "fieldname": "other_allowed",
+   "fieldtype": "Check",
+   "label": "Other Loans Given"
+  },
+  {
+   "fieldname": "eligibility_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "0 for no limit.",
+   "fieldname": "max_share_of_gross",
+   "fieldtype": "Percent",
+   "label": "Instalment at Most (% of Gross)"
+  },
+  {
+   "fieldname": "limits_section",
+   "fieldtype": "Section Break",
+   "label": "Limits"
+  },
+  {
+   "default": "30000000",
+   "fieldname": "car_loan_max",
+   "fieldtype": "Currency",
+   "label": "Car Loan up To"
+  },
+  {
+   "default": "3",
+   "fieldname": "other_months_of_gross",
+   "fieldtype": "Float",
+   "label": "Other Loans up To (Months of Gross)"
+  },
+  {
+   "default": "0",
+   "description": "Flat. 0 for none.",
+   "fieldname": "default_rate",
+   "fieldtype": "Percent",
+   "label": "Interest Rate (a Year)"
+  },
+  {
+   "fieldname": "limits_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "12",
+   "fieldname": "car_max_instalments",
+   "fieldtype": "Int",
+   "label": "Car Loan Repaid Within (Months)"
+  },
+  {
+   "default": "12",
+   "fieldname": "study_max_instalments",
+   "fieldtype": "Int",
+   "label": "Study Loan Repaid Within (Months)"
+  },
+  {
+   "default": "12",
+   "fieldname": "other_max_instalments",
+   "fieldtype": "Int",
+   "label": "Other Loans Repaid Within (Months)"
+  },
+  {
+   "fieldname": "accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Accounts"
+  },
+  {
+   "description": "Empty: the company's employee advance account.",
+   "fieldname": "loan_account",
+   "fieldtype": "Link",
+   "label": "Staff Loans Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "accounts_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "5",
+   "fieldname": "missed_grace_days",
+   "fieldtype": "Int",
+   "label": "Report a Missed Month After (Days)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-25 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Loan Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "role": "HR User"
+  },
+  {
+   "print": 1,
+   "read": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

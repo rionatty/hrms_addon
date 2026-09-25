@@ -10512,5 +10512,29 @@
   "description": "Weekday overtime of employees whose monthly gross is above this.",
   "non_negative": 1,
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Journal Entry-custom_employee_loan",
+  "dt": "Journal Entry",
+  "fieldname": "custom_employee_loan",
+  "fieldtype": "Link",
+  "insert_after": "user_remark",
+  "label": "Employee Loan",
+  "options": "Employee Loan",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Journal Entry-custom_loan_purpose",
+  "dt": "Journal Entry",
+  "fieldname": "custom_loan_purpose",
+  "fieldtype": "Select",
+  "insert_after": "custom_employee_loan",
+  "label": "Loan Entry For",
+  "options": "\nPayment\nRepayment\nWrite Off",
+  "read_only": 1,
+  "module": "HRMS Addon"
  }
 ]

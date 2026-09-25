@@ -35,3 +35,5 @@ hrms_addon.patches.v1_0.leave_days_from_minutes
 hrms_addon.patches.v1_0.benefits_from_minutes
 hrms_addon.patches.v1_0.plain_record_descriptions
 hrms_addon.patches.v1_0.screening_priority_weights
+hrms_addon.patches.v1_0.loans_rejected_are_closed
+hrms_addon.patches.v1_0.loans_employee_does_not_run

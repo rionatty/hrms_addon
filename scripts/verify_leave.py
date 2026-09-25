@@ -702,9 +702,14 @@ if 'flt(doc.get("paid_amount")) - flt(doc.get("claimed_amount")) - _scheduled(do
     fail.append("the recovery goes onto the payroll only as far as the recorded payment covers it")
 if "schedule_recovery(doc)" not in glue_advances.split("def advance_on_submit")[1].split(chr(10) + "def ")[0]:
     fail.append("the Pay step schedules what the recorded payment covers, and no more")
+def _handlers(value):
+    return [value] if isinstance(value, str) else list(value or [])
+
+
 for voucher in ("Payment Entry", "Journal Entry"):
-    if (events.get(voucher) or {}).get("on_submit") != "hrms_addon.hrms_addon.advances.payment_on_submit" \
-            or (events.get(voucher) or {}).get("on_cancel") != "hrms_addon.hrms_addon.advances.payment_on_cancel":
+    if "hrms_addon.hrms_addon.advances.payment_on_submit" not in _handlers((events.get(voucher) or {}).get("on_submit")) \
+            or "hrms_addon.hrms_addon.advances.payment_on_cancel" not in _handlers(
+                (events.get(voucher) or {}).get("on_cancel")):
         fail.append("a %s paying an advance puts it on the payroll, and cancelling it takes it off" % voucher)
 if "_schedule_paid()" not in glue_advances.split("def daily")[1].split(chr(10) + "def ")[0]:
     fail.append("a paid advance whose payment nothing hooked is put on the payroll by the daily job")

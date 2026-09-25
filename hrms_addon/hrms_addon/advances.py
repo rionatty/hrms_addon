@@ -188,11 +188,12 @@ def _bank_loan(employee, day):
 
 
 def _company_loan(employee):
-    """What is still owed on the company's own loans (loans.py)."""
+    """What is still owed on the company's own loans running now (loans.py):
+    a refused request owes nothing."""
     if not employee or not frappe.db.exists("DocType", "Employee Loan"):
         return 0
     return flt(sum(flt(value) for value in frappe.get_all(
-        "Employee Loan", filters={"employee": employee, "docstatus": 1},
+        "Employee Loan", filters={"employee": employee, "docstatus": 1, "status": "Running"},
         pluck="outstanding", limit_page_length=0)))
 
 

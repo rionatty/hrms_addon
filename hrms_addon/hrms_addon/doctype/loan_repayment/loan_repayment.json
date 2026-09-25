@@ -11,7 +11,11 @@
   "total",
   "additional_salary",
   "recovered",
-  "remarks"
+  "remarks",
+  "reference_type",
+  "reference_name",
+  "months_left",
+  "missed_told"
  ],
  "fields": [
   {
@@ -66,11 +70,40 @@
    "fieldname": "remarks",
    "fieldtype": "Data",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "reference_type",
+   "fieldtype": "Link",
+   "label": "Paid By (Type)",
+   "options": "DocType",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Paid By",
+   "options": "reference_type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "months_left",
+   "fieldtype": "Int",
+   "label": "Months Left Then",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "missed_told",
+   "fieldtype": "Check",
+   "label": "Missed Month Told",
+   "read_only": 1,
+   "hidden": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-21 16:00:00.000000",
+ "modified": "2026-09-25 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Loan Repayment",

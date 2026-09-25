@@ -185,6 +185,9 @@ CARDS = {
     "Loans": [
         ("Loans", [
             ("Employee Loan", "Employee Loan", DOCTYPE),
+            ("Loan Statement", "Loan Statement", REPORT),
+            ("Loan Register", "Loan Register", REPORT),
+            ("Loan Settings", "Loan Settings", DOCTYPE),
         ]),
         ("Advances", [
             ("Salary Advance Request", "Salary Advance Request", DOCTYPE),
@@ -347,6 +350,9 @@ SIDEBAR = {
     ],
     "Loans": [
         ("Employee Loan", "Employee Loan", DOCTYPE, None, None),
+        ("Loan Statement", "Loan Statement", REPORT, "Reports", None),
+        ("Loan Register", "Loan Register", REPORT, "Reports", None),
+        ("Loan Settings", "Loan Settings", DOCTYPE, "Setup", None),
         ("Salary Advance Request", "Salary Advance Request", DOCTYPE, None, "Employee Loan"),
         ("Salary Advance Processing", "Salary Advance Processing", DOCTYPE, None, "Salary Advance Request"),
         ("Employee Advance", "Employee Advance", DOCTYPE, None, "Salary Advance Processing"),

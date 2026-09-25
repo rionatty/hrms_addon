@@ -4,26 +4,40 @@
 """Employee Loan workflow (4.4).
 
 No Frappe import, like the other approval modules; workflows.py builds the
-Workflow from it on every migrate (loans.setup_workflows_on_migrate).
+Workflow from it on the first migrate (loans.setup_workflows_on_migrate).
 
-    Draft (the employee, or HR for someone with no login)
-      --Submit--> Pending HOD
-      --Approve--> Pending Executive Director
-      --Approve--> Pending General Manager
-      --Approve--> Pending Accounts        (step 3: the accountant sets the
-                                            terms actually discussed)
-      --Approve--> Pending Employee Consent (LPL/HR/39)
-      --Run--> Running (submitted: the repayment schedule becomes a
-                        monthly deduction on the payroll)
+WHO APPROVES IS SET UP IN THE DESK. The workflow is DESK_MANAGED: it is
+made once, from what follows, and from then on Luuka set up the approvals
+in the Workflow itself, and no deploy writes over them. The test script
+asks for the HOD and then the Executive Director; the minutes for the
+Section Head, the HR Officer and the Executive Director. Either is a
+matter of states and transitions in the desk.
+
+What the loan's own checks rest on, and what every set-up keeps:
+
+    Draft                       the request (the employee, or HR for
+                                someone with no login); leaving it, the
+                                request is judged (loan_rules)
+    ...the approvals, as set up in the desk...
+    Pending Accounts            the accountant sets the terms actually
+                                discussed with the employee
+    Pending Employee Consent    the employee consents (LPL/HR/39); Accounts
+                                record the payment
+    Running                     submitted by HR or the Payroll Officer: the
+                                schedule becomes a monthly deduction
+    Rejected, Cancelled
+
     any Pending state --Return--> Draft (the reason in Return Remarks),
                                   which is the chart's "Approved? No"
-    any Pending state --Reject--> Rejected
+    any approval --Reject--> Rejected (nothing lent, nothing owed)
 """
 
 DOCTYPE = "Employee Loan"
 WORKFLOW_NAME = "Employee Loan"
 STATE_FIELD = "workflow_state"
 STATUS_FIELD = "approval_status"
+# made once, then set up in the desk (workflows.py)
+DESK_MANAGED = True
 
 DRAFT = "Draft"
 PENDING_HOD = "Pending HOD"
@@ -34,6 +48,9 @@ PENDING_CONSENT = "Pending Employee Consent"
 RUNNING = "Running"
 REJECTED = "Rejected"
 CANCELLED = "Cancelled"
+# the states the loan's own checks rest on; the approvals between Draft and
+# Pending Accounts are Luuka's to set up
+FIXED_STATES = (DRAFT, PENDING_ACCOUNTS, PENDING_CONSENT, RUNNING, REJECTED, CANCELLED)
 
 SUBMIT = "Submit"
 APPROVE = "Approve"
@@ -50,21 +67,24 @@ GM = "General Manager"
 ACCOUNTS = "Accounts User"
 HR_OFFICER, HRM = "HR User", "HR Manager"
 PAYROLL = "Payroll Officer"
+# who runs the loan (chart step 4): never the employee themself
+RUNNERS = (PAYROLL, HR_OFFICER, HRM)
 NEW_ROLES = (HOD, ED, GM, PAYROLL)
 # the DocType carries every role's rights
 PERMISSIONS = {}
 
-PENDING_STATES = (PENDING_HOD, PENDING_ED, PENDING_GM, PENDING_ACCOUNTS, PENDING_CONSENT)
+# the default chain's desks (a desk added in the Workflow is pending too)
+PENDING_STATES = (PENDING_HOD, PENDING_ED, PENDING_ACCOUNTS, PENDING_CONSENT)
 
 STATES = (
     *({"state": DRAFT, "allow_edit": role, "status": DRAFT, "style": "", "send_email": 0} for role in PREPARERS),
     {"state": PENDING_HOD, "allow_edit": HOD, "status": PENDING_HOD, "style": "Warning", "send_email": 1},
     {"state": PENDING_ED, "allow_edit": ED, "status": PENDING_ED, "style": "Warning", "send_email": 1},
-    {"state": PENDING_GM, "allow_edit": GM, "status": PENDING_GM, "style": "Warning", "send_email": 1},
     *({"state": PENDING_ACCOUNTS, "allow_edit": role, "status": PENDING_ACCOUNTS, "style": "Warning",
        "send_email": 1} for role in (ACCOUNTS, "Accounts Manager")),
-    {"state": PENDING_CONSENT, "allow_edit": "Employee", "status": PENDING_CONSENT, "style": "Warning",
-     "send_email": 1},
+    # the employee ticks the consent; HR record one signed on paper
+    *({"state": PENDING_CONSENT, "allow_edit": role, "status": PENDING_CONSENT, "style": "Warning",
+       "send_email": 1} for role in ("Employee", HR_OFFICER)),
     *({"state": RUNNING, "allow_edit": role, "status": RUNNING, "style": "Success", "send_email": 0,
        "doc_status": "1"} for role in (PAYROLL, HRM)),
     {"state": REJECTED, "allow_edit": HRM, "status": REJECTED, "style": "Danger", "send_email": 0,
@@ -78,29 +98,26 @@ TRANSITIONS = (
     {"state": PENDING_HOD, "action": APPROVE, "next_state": PENDING_ED, "allowed": HOD},
     {"state": PENDING_HOD, "action": RETURN, "next_state": DRAFT, "allowed": HOD},
     {"state": PENDING_HOD, "action": REJECT, "next_state": REJECTED, "allowed": HOD},
-    {"state": PENDING_ED, "action": APPROVE, "next_state": PENDING_GM, "allowed": ED},
+    {"state": PENDING_ED, "action": APPROVE, "next_state": PENDING_ACCOUNTS, "allowed": ED},
     {"state": PENDING_ED, "action": RETURN, "next_state": DRAFT, "allowed": ED},
     {"state": PENDING_ED, "action": REJECT, "next_state": REJECTED, "allowed": ED},
-    {"state": PENDING_GM, "action": APPROVE, "next_state": PENDING_ACCOUNTS, "allowed": GM},
-    {"state": PENDING_GM, "action": RETURN, "next_state": DRAFT, "allowed": GM},
-    {"state": PENDING_GM, "action": REJECT, "next_state": REJECTED, "allowed": GM},
     *({"state": PENDING_ACCOUNTS, "action": APPROVE, "next_state": PENDING_CONSENT, "allowed": role}
       for role in (ACCOUNTS, "Accounts Manager")),
     *({"state": PENDING_ACCOUNTS, "action": RETURN, "next_state": DRAFT, "allowed": role}
       for role in (ACCOUNTS, "Accounts Manager")),
-    *({"state": PENDING_CONSENT, "action": RUN, "next_state": RUNNING, "allowed": role}
-      for role in ("Employee", PAYROLL, HR_OFFICER, HRM)),
+    *({"state": PENDING_CONSENT, "action": RUN, "next_state": RUNNING, "allowed": role} for role in RUNNERS),
     *({"state": PENDING_CONSENT, "action": RETURN, "next_state": DRAFT, "allowed": role}
       for role in ("Employee", HRM)),
     {"state": RUNNING, "action": CANCEL, "next_state": CANCELLED, "allowed": HRM},
 )
 
+# the consent is stamped by whoever ticks it, the employee or HR for a
+# paper one (loans.py), not by whoever runs the loan
 STAMPS = {
     PENDING_HOD: ("hod_by", "hod_on"),
     PENDING_ED: ("ed_by", "ed_on"),
     PENDING_GM: ("gm_by", "gm_on"),
     PENDING_ACCOUNTS: ("accounts_by", "accounts_on"),
-    PENDING_CONSENT: ("consent_by", "consent_on"),
 }
 ALL_STAMP_FIELDS = tuple(field for pair in STAMPS.values() for field in pair)
 REMARK_FIELDS = {
@@ -110,6 +127,7 @@ REMARK_FIELDS = {
     PENDING_ACCOUNTS: ("accounts_remarks", "Accounts Officer"),
     PENDING_CONSENT: ("consent_remarks", "Employee"),
 }
+# whose desk a state is on, when the Workflow itself cannot say
 ROLE_WAITING = {
     PENDING_HOD: HOD,
     PENDING_ED: ED,
@@ -117,6 +135,12 @@ ROLE_WAITING = {
     PENDING_ACCOUNTS: ACCOUNTS,
     PENDING_CONSENT: "Employee",
 }
+
+
+def is_pending(state):
+    """A desk the loan waits on: anything but the request itself, the loan
+    running and the two ends."""
+    return bool(state) and state not in (DRAFT, RUNNING, REJECTED, CANCELLED)
 
 
 def compute_stamps(old_state, new_state, user, today, current):
@@ -135,20 +159,21 @@ def compute_stamps(old_state, new_state, user, today, current):
 def step_errors(old_state, new_state, facts):
     """Problems with a step, as user-facing messages.
 
-    facts: "return_remarks", the remark fields, and for the accountant's
-    own step the terms they settled with the employee.
+    facts: "return_remarks" and the remark fields. A desk set up in the
+    Workflow that has no remarks field of its own writes in Return Remarks.
     """
     if old_state == new_state:
         return []
     errors = []
-    if new_state == DRAFT and old_state in PENDING_STATES:
+    if new_state == DRAFT and old_state not in (None, DRAFT):
         if not _text(facts.get("return_remarks")):
             errors.append("Write in Return Remarks what must be put right before returning the loan.")
         return errors
-    if new_state == REJECTED and old_state in REMARK_FIELDS:
-        field, who = REMARK_FIELDS[old_state]
-        if not _text(facts.get(field)):
-            errors.append("Write the %s's remarks saying why the loan is refused." % who)
+    if new_state == REJECTED and old_state not in (None, DRAFT):
+        field, who = REMARK_FIELDS.get(old_state, ("return_remarks", None))
+        if not _text(facts.get(field)) and not (who is None and _text(facts.get("return_remarks"))):
+            errors.append("Write the %s's remarks saying why the loan is refused." % who if who
+                          else "Write in Return Remarks why the loan is refused.")
     return errors
 
 

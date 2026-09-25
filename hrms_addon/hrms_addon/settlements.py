@@ -141,8 +141,13 @@ def _tell(doc, state):
 
 def settlement_on_submit(doc, method=None):
     """Scheduled: the settlement goes into the payroll run as an Additional
-    Salary, and the payroll process follows (step 6)."""
+    Salary, and the payroll process follows (step 6). What it takes for
+    loans is marked paid on them, and their deductions still to come are
+    cancelled (loans.py)."""
+    from hrms_addon.hrms_addon import loans
+
     _schedule_payment(doc)
+    loans.settle_on_exit(doc)
     users = people.people_for("Payroll Officer", doc.get("custom_branch"), doc.get("department"))
     users += people.hr_officers(doc.get("custom_branch"), doc.get("department"))
     if users:
@@ -154,6 +159,9 @@ def settlement_on_submit(doc, method=None):
 
 
 def settlement_on_cancel(doc, method=None):
+    from hrms_addon.hrms_addon import loans
+
+    loans.unsettle_on_exit(doc)
     if doc.get("custom_additional_salary") and frappe.db.exists("Additional Salary",
                                                                 doc.custom_additional_salary):
         extra = frappe.get_doc("Additional Salary", doc.custom_additional_salary)
@@ -271,7 +279,8 @@ def _advances(employee):
 
 
 def _loans(employee):
-    rows = frappe.get_all("Employee Loan", filters={"employee": employee, "docstatus": 1},
+    """Still owed on loans running now: a refused request owes nothing."""
+    rows = frappe.get_all("Employee Loan", filters={"employee": employee, "docstatus": 1, "status": "Running"},
                           fields=["outstanding"])
     return flt(sum(flt(row.outstanding) for row in rows))
 
