@@ -232,12 +232,14 @@ consent = {"liability": "Staff loan", "amount": 1200000, "instalments": 6, "effe
            "consent": 1}
 expect("a consent that stands (LPL/HR/39)", R.consent_errors(consent))
 expect("no liability", R.consent_errors(dict(consent, liability="")), "Liability")
-expect("no amount", R.consent_errors(dict(consent, amount=0)), "how much is deducted")
-expect("no instalments", R.consent_errors(dict(consent, instalments=0)), "equal instalments")
-expect("no date", R.consent_errors(dict(consent, effective_from=None)), "from when")
-expect("not consented", R.consent_errors(dict(consent, consent=0)), "employee consents")
+expect("no amount", R.consent_errors(dict(consent, amount=0)), "amount lent")
+expect("no instalments", R.consent_errors(dict(consent, instalments=0)), "how many months")
+expect("no date", R.consent_errors(dict(consent, effective_from=None)), "first repayment")
+expect("not consented", R.consent_errors(dict(consent, consent=0)), "has not consented")
 expect("paid out and consented, it runs", R.run_errors(dict(consent, paid="2026-10-01")))
 expect("not paid out, it does not", R.run_errors(consent), "Record Payment")
+if [message for message in R.run_errors({}) if "LPL/" in message or "(" in message]:
+    fail.append("what stops a loan running is said in plain words, not form numbers: %s" % R.run_errors({}))
 
 terms = {"amount": 2000000, "approved_amount": 1200000, "instalments": 6, "first_repayment": "2026-10-31", "rate": 0}
 expect("terms that stand", R.terms_errors(terms))
@@ -304,6 +306,8 @@ for fieldname in ("gross_pay", "limit", "outstanding_before", "qualifies", "tota
 for fieldname in ("approved_amount", "interest_rate", "first_repayment", "recovery_component"):
     if "Pending Accounts" not in (loan.get(fieldname) or {}).get("read_only_depends_on", ""):
         fail.append("Employee Loan.%s is Accounts' to set, while the loan is with them" % fieldname)
+if not (loan.get("effective_from") or {}).get("read_only"):
+    fail.append("the consent starts on the first repayment: nobody types it")
 if not (loan.get("repayments") or {}).get("read_only"):
     fail.append("the schedule is drawn by the system: nobody adds a row by hand")
 for fieldname in ("loan_type", "loan_amount", "instalments"):
@@ -443,11 +447,17 @@ if 'HA_LOANS + "make_journal"' not in form or "frappe.model.sync(" not in form:
     fail.append("the entry is drafted and opened for Accounts")
 if "loan_amount(frm)" in form:
     fail.append("the form does not copy the amount asked into the amount lent: that is Accounts'")
-for handler in ("employee", "posting_date", "loan_amount", "instalments", "interest_rate", "first_repayment"):
+for handler in ("employee", "posting_date", "loan_amount", "instalments", "approved_amount", "interest_rate",
+                "first_repayment"):
     if "\t%s: ha_loan_schedule," % handler not in form:
         fail.append("the form draws the schedule again when %s changes" % handler)
-if 'HA_LOANS + "preview_schedule"' not in form or "ha_loan_schedule(frm);" not in form:
+if 'HA_LOANS + "preview_schedule"' not in form:
     fail.append("the form asks the server for the schedule")
+if 'set_value("liability"' in form:
+    fail.append("the consent's liability is written by the server, from the terms, in one place")
+if "_fill_consent(doc)" not in step or "doc.effective_from = doc.first_repayment" not in body(glue, "_fill_consent") \
+        or 'startswith(_("Staff loan of "))' not in body(glue, "_fill_consent"):
+    fail.append("the consent follows the terms: its liability, and the first repayment it starts on")
 print("glue: the rules followed, the payroll taking the deduction, the money booked, what was taken read back")
 
 # ── 4. The workflow ───────────────────────────────────────────────────

@@ -77,12 +77,7 @@ frappe.ui.form.on("Employee Loan", {
 					  )}</span>`)
 		);
 	},
-	approved_amount(frm) {
-		if (frm.doc.approved_amount && !frm.doc.liability) {
-			frm.set_value("liability", __("Staff loan of {0}", [ha_money(frm.doc.approved_amount)]));
-		}
-		ha_loan_schedule(frm);
-	},
+	approved_amount: ha_loan_schedule,
 	employee: ha_loan_schedule,
 	posting_date: ha_loan_schedule,
 	loan_amount: ha_loan_schedule,

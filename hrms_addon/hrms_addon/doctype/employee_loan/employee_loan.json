@@ -411,7 +411,9 @@
   {
    "fieldname": "effective_from",
    "fieldtype": "Date",
-   "label": "Effective From"
+   "label": "Effective From",
+   "read_only": 1,
+   "description": "The first repayment."
   },
   {
    "fieldname": "column_break_5",
@@ -596,7 +598,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 22:00:00.000000",
+ "modified": "2026-09-25 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Loan",

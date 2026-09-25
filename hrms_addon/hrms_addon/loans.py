@@ -259,6 +259,7 @@ def _check_step(doc, s):
     if doc.docstatus == 0 and doc.get("first_repayment"):
         # every repayment falls on the payroll day
         doc.first_repayment = rules.on_day(doc.first_repayment, s["payroll_day"])
+    _fill_consent(doc)
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, {
             "return_remarks": doc.get("return_remarks"),
@@ -306,6 +307,17 @@ def _check_step(doc, s):
             _tell_waiting(doc, new_state)
         if new_state in (approval.DRAFT, approval.REJECTED) and old_state not in (None, approval.DRAFT):
             _tell_back(doc, new_state, old_state)
+
+
+def _fill_consent(doc):
+    """The consent follows the terms: what the deduction is for, and the day
+    it starts, the first repayment. A liability written by hand is kept."""
+    if flt(doc.get("approved_amount")):
+        written = (doc.get("liability") or "").strip()
+        if not written or written.startswith(_("Staff loan of ")):
+            doc.liability = _("Staff loan of {0}").format(frappe.utils.fmt_money(doc.approved_amount))
+    if doc.get("first_repayment"):
+        doc.effective_from = doc.first_repayment
 
 
 def _terms_changed(doc, before):

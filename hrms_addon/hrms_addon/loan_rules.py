@@ -312,15 +312,15 @@ def consent_errors(facts):
     when, and it is the employee who agrees to it."""
     errors = []
     if not _text(facts.get("liability")):
-        errors.append("Write what the deduction is for (LPL/HR/39: Liability).")
+        errors.append("Fill in Liability: what the deduction is for.")
     if _num(facts.get("amount")) <= 0:
-        errors.append("The consent must say how much is deducted.")
+        errors.append("Set the amount lent.")
     if int(facts.get("instalments") or 0) <= 0:
-        errors.append("The consent must say in how many equal instalments.")
+        errors.append("Set how many months the loan is repaid over.")
     if not facts.get("effective_from"):
-        errors.append("The consent must say from when the deduction runs.")
+        errors.append("Set the first repayment: the deduction starts on it.")
     if not facts.get("consent"):
-        errors.append("The employee consents to the deduction before the loan runs (LPL/HR/39).")
+        errors.append("The employee has not consented yet: they tick Employee Consents.")
     return errors
 
 
@@ -329,7 +329,8 @@ def run_errors(facts):
     consent, and the loan paid out (chart step 3)."""
     errors = consent_errors(facts)
     if not facts.get("paid"):
-        errors.append("Accounts record the payment of the loan first (Record Payment).")
+        errors.append("The loan has not been paid out: Accounts click Record Payment and submit the Journal "
+                      "Entry.")
     return errors
 
 
