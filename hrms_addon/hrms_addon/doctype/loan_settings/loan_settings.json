@@ -21,6 +21,7 @@
   "accounts_section",
   "loan_account",
   "accounts_cb",
+  "payroll_day",
   "missed_grace_days"
  ],
  "fields": [
@@ -121,6 +122,13 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "26",
+   "description": "Each repayment falls on this day of the month.",
+   "fieldname": "payroll_day",
+   "fieldtype": "Int",
+   "label": "Payroll Day"
+  },
+  {
    "default": "5",
    "fieldname": "missed_grace_days",
    "fieldtype": "Int",
@@ -130,7 +138,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-25 12:00:00.000000",
+ "modified": "2026-09-25 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Loan Settings",

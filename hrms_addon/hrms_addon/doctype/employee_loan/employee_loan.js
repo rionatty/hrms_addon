@@ -81,11 +81,37 @@ frappe.ui.form.on("Employee Loan", {
 		if (frm.doc.approved_amount && !frm.doc.liability) {
 			frm.set_value("liability", __("Staff loan of {0}", [ha_money(frm.doc.approved_amount)]));
 		}
+		ha_loan_schedule(frm);
 	},
+	employee: ha_loan_schedule,
+	posting_date: ha_loan_schedule,
+	loan_amount: ha_loan_schedule,
+	instalments: ha_loan_schedule,
+	interest_rate: ha_loan_schedule,
+	first_repayment: ha_loan_schedule,
 });
 
 function ha_money(value) {
 	return frappe.format(value || 0, { fieldtype: "Currency" });
+}
+
+// the schedule is drawn as the request is filled in, the way saving draws it
+function ha_loan_schedule(frm) {
+	if (frm.doc.docstatus !== 0 || !frm.doc.loan_amount) return;
+	frappe.xcall(HA_LOANS + "preview_schedule", { doc: frm.doc }).then((drawn) => {
+		if (!drawn) return;
+		frm.clear_table("repayments");
+		drawn.repayments.forEach((row) => frm.add_child("repayments", row));
+		Object.assign(frm.doc, {
+			interest_rate: drawn.interest_rate,
+			total_interest: drawn.total_interest,
+			monthly_instalment: drawn.monthly_instalment,
+		});
+		["repayments", "interest_rate", "total_interest", "monthly_instalment"].forEach((field) =>
+			frm.refresh_field(field)
+		);
+		frm.trigger("show_loan");
+	});
 }
 
 // the entry is drafted for Accounts; the loan follows when it is submitted

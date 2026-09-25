@@ -60,9 +60,10 @@ DEFAULTS = {
     "max_share_of_gross": 0.0,      # 0: no cap on the monthly instalment
     "default_rate": 0.0,
     "missed_grace_days": 5,
+    "payroll_day": 26,              # the day the payroll is processed: each repayment falls on it
 }
 INTEGERS = ("admin_only", "min_months", "other_allowed", "car_max_instalments", "study_max_instalments",
-            "other_max_instalments", "missed_grace_days")
+            "other_max_instalments", "missed_grace_days", "payroll_day")
 
 # the names this module has always had
 MAX_MONTHS_OF_GROSS = DEFAULTS["other_months_of_gross"]
@@ -74,10 +75,6 @@ CAR_LOAN_MAX = DEFAULTS["car_loan_max"]
 
 # a line on the schedule that the payroll did not take
 PAID_DIRECTLY, FINAL_SETTLEMENT = "Paid directly", "Final settlement"
-
-# Luuka's payroll period runs from the 26th to the 25th
-# (advance_rules.payroll_period); a deduction falls on its close
-PERIOD_CLOSES_ON = 25
 
 
 def settings_from(stored):
@@ -106,6 +103,8 @@ def settings_errors(settings):
         errors.append("The share of the gross pay is between 0 and 100%.")
     if s["default_rate"] < 0:
         errors.append("A rate cannot be negative.")
+    if not 1 <= int(s["payroll_day"]) <= 31:
+        errors.append("The payroll day is a day of the month, 1 to 31.")
     return errors
 
 
@@ -394,29 +393,17 @@ def resume_from(last, today, day=None):
         months += 1
 
 
-def period_close(day):
-    """The last day of the payroll period a day falls in: the 25th of its
-    month, or from the 26th on, of the next."""
-    day = _date(day)
-    if not day:
-        return None
-    month = datetime.date(day.year, day.month, 1)
-    if day.day > PERIOD_CLOSES_ON:
-        month = add_months(month, 1)
-    return datetime.date(month.year, month.month, min(PERIOD_CLOSES_ON, _days_in_month(month.year, month.month)))
-
-
-def first_month(asked_on, paid_through=None):
+def first_month(asked_on, paid_through=None, day=DEFAULTS["payroll_day"]):
     """Where a request's schedule starts until Accounts settle the terms:
-    the close of the payroll period after the one it was asked in, never a
-    period the payroll has already paid."""
+    the payroll day of the month after it was asked, never a day the payroll
+    has already paid."""
     asked = _date(asked_on)
     if not asked:
         return None
-    first = period_close(period_close(asked) + datetime.timedelta(days=1))
+    first = on_day(add_months(datetime.date(asked.year, asked.month, 1), 1), day)
     paid = _date(paid_through)
-    if paid and first <= paid:
-        first = period_close(paid + datetime.timedelta(days=1))
+    while paid and first <= paid:
+        first = on_day(add_months(datetime.date(first.year, first.month, 1), 1), day)
     return first
 
 

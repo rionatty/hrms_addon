@@ -198,18 +198,20 @@ if str(R.on_day("2027-02-10", 31)) != "2027-02-28" or str(R.on_day("2027-03-10",
     fail.append("the loan's day in a short month is its last")
 if str(R.resume_from("2027-02-28", "2027-03-01", 30)) != "2027-03-30":
     fail.append("after a short month the schedule is back on the loan's own day")
-A = load("advance_rules")
-for offset in range(0, 800):
-    day = datetime.date(2026, 1, 1) + datetime.timedelta(days=offset)
-    if R.period_close(day) != A.payroll_period(day)[1]:
-        fail.append("the loan's payroll period closes where the advance's does: not on %s" % day)
-        break
-for asked, paid, first in (("2026-09-21", None, "2026-10-25"), ("2026-09-26", None, "2026-11-25"),
-                           ("2026-12-20", None, "2027-01-25"), ("2026-09-21", "2026-10-25", "2026-11-25"),
-                           ("2026-09-21", "2026-10-31", "2026-11-25"), ("2026-09-21", "2026-08-25", "2026-10-25")):
+if R.DEFAULTS["payroll_day"] != 26:
+    fail.append("Luuka process the payroll on the 26th: each repayment falls on it")
+for asked, paid, first in (("2026-09-21", None, "2026-10-26"), ("2026-09-26", None, "2026-10-26"),
+                           ("2026-12-20", None, "2027-01-26"), ("2026-09-21", "2026-10-25", "2026-10-26"),
+                           ("2026-09-21", "2026-10-31", "2026-11-26"), ("2026-09-21", "2026-11-30", "2026-12-26"),
+                           ("2026-09-21", "2026-08-25", "2026-10-26")):
     if str(R.first_month(asked, paid)) != first:
         fail.append("a request of %s, paid through %s, starts on %s, not %s" % (asked, paid, first,
                                                                                 R.first_month(asked, paid)))
+if str(R.first_month("2026-09-21", None, 28)) != "2026-10-28" or str(R.first_month("2027-01-10", None, 31)) \
+        != "2027-02-28":
+    fail.append("a request starts on the payroll day Luuka set, the month's last where it has fewer days")
+expect("a payroll day that is not a day of the month", R.settings_errors(dict(R.DEFAULTS, payroll_day=32)),
+       "day of the month")
 rows = [{"principal": 200000, "interest": 10000, "recovered": 1}, {"principal": 200000, "interest": 10000,
                                                                      "recovered": 0}]
 if R.left(1200000, 60000, rows) != (1000000, 50000):
@@ -290,6 +292,9 @@ for name, have, wanted in (
             fail.append("%s has no %s, which the loan process asks for" % (name, fieldname))
 if not doctype("Loan Settings").get("issingle"):
     fail.append("Loan Settings are one set for the site")
+for key, value in R.DEFAULTS.items():
+    if float((settings.get(key) or {}).get("default") or 0) != float(value):
+        fail.append("Loan Settings.%s starts where the rules do, at %s" % (key, value))
 for fieldname in ("gross_pay", "limit", "outstanding_before", "qualifies", "total_interest", "monthly_instalment",
                   "recovered_amount", "outstanding", "approval_status", "status", "disbursed_on",
                   "disbursement_reference", "disbursement_entry", "written_off", "written_off_amount",
@@ -373,12 +378,20 @@ for needle, why in (
 ):
     if needle not in step:
         fail.append("the step: %s" % why)
-if "_first_month(doc)" not in body(glue, "_build_schedule") or "doc.first_repayment = _first_month(doc)" not in step:
-    fail.append("a request shows its schedule on what was asked; Accounts start from its first month")
+if "_start(doc, s)" not in body(glue, "_build_schedule") or "_first_month(doc, s)" not in body(glue, "_start") \
+        or 'rules.on_day(first, s["payroll_day"])' not in body(glue, "_start") \
+        or "doc.first_repayment = _first_month(doc, s)" not in step \
+        or 'doc.first_repayment = rules.on_day(doc.first_repayment, s["payroll_day"])' not in step:
+    fail.append("the schedule falls on the payroll day: on what was asked, then on Accounts' month")
+if "@frappe.whitelist()\ndef preview_schedule(" not in glue \
+        or "_build_schedule(loan, s)" not in body(glue, "preview_schedule") \
+        or "_request_defaults(loan, s)" not in body(glue, "preview_schedule"):
+    fail.append("the form draws the schedule as a save would")
 for name in ("_tell_due", "_tell_missed"):
     if '"parent": ["in", running]' not in body(glue, name):
         fail.append("%s watches the running loans only: every request has a schedule drawn" % name)
-if 'doc.interest_rate = s["default_rate"]' not in body(glue, "loan_validate"):
+if "_request_defaults(doc, s)" not in body(glue, "loan_validate") \
+        or 'doc.interest_rate = s["default_rate"]' not in body(glue, "_request_defaults"):
     fail.append("a request starts at the rate Luuka set")
 if '"max_share": s["max_share_of_gross"]' not in body(glue, "_terms_facts"):
     fail.append("the terms Accounts settle are held to the cap on the instalment")
@@ -430,6 +443,11 @@ if 'HA_LOANS + "make_journal"' not in form or "frappe.model.sync(" not in form:
     fail.append("the entry is drafted and opened for Accounts")
 if "loan_amount(frm)" in form:
     fail.append("the form does not copy the amount asked into the amount lent: that is Accounts'")
+for handler in ("employee", "posting_date", "loan_amount", "instalments", "interest_rate", "first_repayment"):
+    if "\t%s: ha_loan_schedule," % handler not in form:
+        fail.append("the form draws the schedule again when %s changes" % handler)
+if 'HA_LOANS + "preview_schedule"' not in form or "ha_loan_schedule(frm);" not in form:
+    fail.append("the form asks the server for the schedule")
 print("glue: the rules followed, the payroll taking the deduction, the money booked, what was taken read back")
 
 # ── 4. The workflow ───────────────────────────────────────────────────

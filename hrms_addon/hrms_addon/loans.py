@@ -83,13 +83,11 @@ def loan_validate(doc, method=None):
 
     s = settings()
     if doc.is_new():
-        # the terms are Accounts' to set, later; the rate starts at Luuka's
-        doc.approved_amount, doc.first_repayment = None, None
-        doc.interest_rate = s["default_rate"]
+        _request_defaults(doc, s)
     _fill_money(doc, s)
     _check_eligibility(doc, s)
     if doc.docstatus == 0:
-        _build_schedule(doc)
+        _build_schedule(doc, s)
     _check_step(doc, s)
     doc.approval_status = doc.get("workflow_state") or doc.get("approval_status") or approval.DRAFT
     doc.status = _status(doc)
@@ -187,12 +185,19 @@ def _paid_through(employee):
     return ends[0] if ends else None
 
 
-def _build_schedule(doc):
-    """The months the loan comes back in, while it is not yet running: on
-    the terms once Accounts set them, until then on what was asked, from the
-    first payroll period not yet paid."""
+def _request_defaults(doc, s):
+    """A new request: the terms are Accounts' to set, later; the rate starts
+    at Luuka's."""
+    doc.approved_amount, doc.first_repayment = None, None
+    doc.interest_rate = s["default_rate"]
+
+
+def _build_schedule(doc, s):
+    """The months the loan comes back in, while it is not yet running, each
+    on the payroll day: on the terms once Accounts set them, until then on
+    what was asked."""
     principal = _amount(doc)
-    first = doc.get("first_repayment") or _first_month(doc)
+    first = _start(doc, s)
     if not (principal and first):
         doc.set("repayments", [row for row in doc.get("repayments") or [] if row.recovered])
         return
@@ -202,9 +207,41 @@ def _build_schedule(doc):
         doc.append("repayments", {"payroll_date": month, "principal": due_p, "interest": due_i, "total": total})
 
 
-def _first_month(doc):
-    """Where the schedule starts until Accounts settle it."""
-    return rules.first_month(doc.get("posting_date") or today(), _paid_through(doc.get("employee")))
+def _start(doc, s):
+    """The first repayment: the month Accounts set, on the payroll day; until
+    they set it, the payroll day of the month after the request."""
+    first = doc.get("first_repayment")
+    return rules.on_day(first, s["payroll_day"]) if first else _first_month(doc, s)
+
+
+def _first_month(doc, s):
+    return rules.first_month(doc.get("posting_date") or today(), _paid_through(doc.get("employee")),
+                             s["payroll_day"])
+
+
+@frappe.whitelist()
+def preview_schedule(doc):
+    """The schedule the form shows while the request is filled in, drawn as
+    saving it would draw it. Nothing is written."""
+    loan = frappe.get_doc(frappe.parse_json(doc))
+    if loan.doctype != DOCTYPE or loan.docstatus != 0:
+        return None
+    if not (frappe.has_permission(DOCTYPE, "create") or frappe.has_permission(DOCTYPE, "write")):
+        frappe.throw(_("You may not draw a loan's schedule."), frappe.PermissionError)
+    if any(cint(row.get("recovered")) for row in loan.get("repayments") or []):
+        return None
+    s = settings()
+    if loan.is_new():
+        _request_defaults(loan, s)
+    _build_schedule(loan, s)
+    amount = _amount(loan)
+    return {
+        "repayments": [{"payroll_date": str(getdate(row.payroll_date)), "principal": row.principal,
+                        "interest": row.interest, "total": row.total} for row in loan.get("repayments") or []],
+        "interest_rate": loan.get("interest_rate"),
+        "total_interest": rules.interest_for(amount, loan.get("interest_rate"), loan.get("instalments")),
+        "monthly_instalment": rules.monthly_instalment(amount, loan.get("interest_rate"), loan.get("instalments")),
+    }
 
 
 def _check_step(doc, s):
@@ -219,6 +256,9 @@ def _check_step(doc, s):
     if before and doc.docstatus == 0 and _asked_changed(doc, before, old_state):
         frappe.throw(_("The request (the amount, the kind of loan, the months) is changed only while it is a "
                        "draft. Accounts settle the months."), title=_(DOCTYPE))
+    if doc.docstatus == 0 and doc.get("first_repayment"):
+        # every repayment falls on the payroll day
+        doc.first_repayment = rules.on_day(doc.first_repayment, s["payroll_day"])
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, {
             "return_remarks": doc.get("return_remarks"),
@@ -246,7 +286,7 @@ def _check_step(doc, s):
         if new_state == approval.PENDING_ACCOUNTS and not flt(doc.get("approved_amount")):
             doc.approved_amount = doc.get("loan_amount")  # where Accounts start from
         if new_state == approval.PENDING_ACCOUNTS and not doc.get("first_repayment"):
-            doc.first_repayment = _first_month(doc)
+            doc.first_repayment = _first_month(doc, s)
         if new_state == approval.RUNNING:
             doc.witnessed_by = frappe.session.user
     current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}

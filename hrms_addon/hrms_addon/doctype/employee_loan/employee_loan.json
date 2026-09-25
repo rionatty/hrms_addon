@@ -305,7 +305,8 @@
    "fieldname": "first_repayment",
    "fieldtype": "Date",
    "label": "First Repayment",
-   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'"
+   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'",
+   "description": "Falls on the payroll day."
   },
   {
    "fieldname": "total_interest",
@@ -595,7 +596,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 20:00:00.000000",
+ "modified": "2026-09-25 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Loan",
