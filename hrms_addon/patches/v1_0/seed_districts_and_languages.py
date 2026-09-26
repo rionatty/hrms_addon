@@ -9,7 +9,8 @@ existing value, so these two lists must be filled before the form is used;
 they started empty (District) and with three values (Spoken Language).
 
 Adds only what is missing: seed_plan skips any value already there, ignoring
-case, so the values HR added themselves are kept.
+case, so the values HR added themselves are kept. Languages are typed by the
+candidate now, so only a list still defined is seeded.
 """
 
 from hrms_addon.hrms_addon import bio_data_rules
@@ -19,4 +20,5 @@ MASTERS = ("District", "Spoken Language")
 
 
 def execute():
-    seed_masters({master: bio_data_rules.BIO_DATA_MASTERS[master] for master in MASTERS})
+    seed_masters({master: bio_data_rules.BIO_DATA_MASTERS[master] for master in MASTERS
+                  if master in bio_data_rules.BIO_DATA_MASTERS})

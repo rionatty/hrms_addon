@@ -225,11 +225,15 @@ ONBOARDING_ONLY = {"custom_parents", "custom_next_of_kin"}
 FROM_THE_OPENING = {"custom_branch"}
 # Read from the uploaded CV: never asked
 FROM_THE_CV = {"custom_cv_text", "custom_cv_read_from"}
+# No longer asked of candidates (A'Level and O'Level results)
+NOT_ASKED = {"custom_school_results"}
+if NOT_ASKED & {row.get("fieldname") for row in rows}:
+    fail.append("the form no longer asks for %s" % sorted(NOT_ASKED))
 bio_fields = {fn for fn, f in applicant.items()
               if fn.startswith("custom_") and f["fieldtype"] not in ("Section Break", "Column Break", "Tab Break")
               and fn not in ("custom_bio_data_date", "custom_signed_bio_data")}
 on_form = {row.get("fieldname") for row in rows}
-missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING - FROM_THE_CV)
+missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING - FROM_THE_CV - NOT_ASKED)
 if missing:
     fail.append("Bio-Data fields missing from the online form: %s" % missing)
 if FROM_THE_OPENING & on_form:
@@ -272,8 +276,11 @@ post = read(os.path.join(REPO, "hrms_addon", "patches.txt")).split("[post_model_
 if len(post) != 2 or "hrms_addon.patches.v1_0.seed_districts_and_languages" not in post[1]:
     fail.append("seed_districts_and_languages must be a post_model_sync patch")
 patch = read(os.path.join(REPO, "hrms_addon", "patches", "v1_0", "seed_districts_and_languages.py"))
-if 'MASTERS = ("District", "Spoken Language")' not in patch or "seed_masters({master: bio_data_rules.BIO_DATA_MASTERS[master] for master in MASTERS})" not in patch:
-    fail.append("seed_districts_and_languages must seed only District and Spoken Language, through seed_masters")
+if 'MASTERS = ("District", "Spoken Language")' not in patch \
+        or "seed_masters({master: bio_data_rules.BIO_DATA_MASTERS[master] for master in MASTERS\n" \
+           "                  if master in bio_data_rules.BIO_DATA_MASTERS})" not in patch:
+    fail.append("seed_districts_and_languages seeds District and Spoken Language through seed_masters, "
+                "only a list still defined (languages are typed now)")
 
 script = read(os.path.join(FORM_DIR, "job_application_form.js"))
 if re.search(r"{{|{%|{#", script):

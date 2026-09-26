@@ -77,7 +77,6 @@ CARDS = {
             ("Qualification Type", "Qualification Type", DOCTYPE),
             ("Examination Level", "Examination Level", DOCTYPE),
             ("District", "District", DOCTYPE),
-            ("Spoken Language", "Spoken Language", DOCTYPE),
             ("Relationship", "Relationship", DOCTYPE),
         ]),
     ],

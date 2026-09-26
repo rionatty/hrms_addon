@@ -434,13 +434,16 @@ quals = [
     {"qualification_type": "", "award": "UACE", "institution": "East High School Ntinda", "period": "2017"},
     {"qualification_type": "Licence", "program": "Class B Driving Permit", "institution": "", "period": ""},
 ]
-education = rules.qualification_lines(quals, CERTS, certifications=False)
+# a site whose Licence type is still carried by someone, so kept (and ticked)
+# by remove_licence_qualification_type
+SITE_CERTS = list(CERTS) + ["Licence"]
+education = rules.qualification_lines(quals, SITE_CERTS, certifications=False)
 if education.split("\n") != [
         "Post Graduate Diploma in Digital Marketing, Chartered Institute of Marketing (2026)",
         "UACE, East High School Ntinda (2017)",
         "Bachelor's Degree in Business Computing, Makerere University Business School (2008 - 2012)"]:
     fail.append("education must list the academic rows, most recent first, award standing in for a missing program: %r" % education)
-certifications = rules.qualification_lines(quals, [c.lower() for c in CERTS], certifications=True)
+certifications = rules.qualification_lines(quals, [c.lower() for c in SITE_CERTS], certifications=True)
 if certifications.split("\n") != ["Certificate in Customer Experience Design, Alison Courses (2024)", "Class B Driving Permit"]:
     fail.append("certifications must list the certification and licence rows, whatever the case: %r" % certifications)
 history = [

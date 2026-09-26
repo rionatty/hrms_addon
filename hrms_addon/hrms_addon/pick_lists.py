@@ -5,8 +5,8 @@
 Source, Review Frequency), the Job Description tables' (JD Relationship
 Type, Stakeholder Type, Authority Level, Horizon, ISO Standard,
 Specification Type, Requirement Priority, Competency Category) and the Job
-Applicant Bio-Data tab's (District, Relationship, Spoken Language,
-Examination Level), and Luuka's branches (org_rules.py).
+Applicant Bio-Data tab's (District, Relationship, Examination Level,
+Qualification Type), and Luuka's branches (org_rules.py).
 
 What to create is decided by jd_rules.seed_plan, which has no Frappe
 import and is tested without a bench. This only reads what is there and

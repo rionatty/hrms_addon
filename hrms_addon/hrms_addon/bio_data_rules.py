@@ -51,18 +51,14 @@ BIO_DATA_MASTERS = {
         "Father", "Mother", "Guardian", "Spouse", "Son", "Daughter",
         "Brother", "Sister", "Uncle", "Aunt", "Cousin", "Friend",
     )),
-    "Spoken Language": ("language_name", (
-        "English", "Swahili", "Luganda", "Runyankore", "Rukiga", "Lusoga", "Acholi", "Lango", "Ateso",
-        "Lugbara", "Lumasaba", "Rutooro", "Runyoro", "Alur", "Karamojong", "Kinyarwanda", "French", "Arabic",
-    )),
     "Examination Level": ("level_name", ("O-Level (UCE)", "A-Level (UACE)")),
-    # Academic, or a certification / licence: the interview shortlist lists
-    # certifications and licences in their own column (Qualification Type's
+    # Academic, or a certification: the interview shortlist lists
+    # certifications in their own column (Qualification Type's
     # "Certification or Licence" check, set on these seeds by pick_lists)
-    "Qualification Type": ("type_name", ("Academic", "Professional Certification", "Licence")),
+    "Qualification Type": ("type_name", ("Academic", "Professional Certification")),
 }
-# The seeded Qualification Types that count as certifications or licences
-CERTIFICATION_TYPES = ("Professional Certification", "Licence")
+# The seeded Qualification Types that count as certifications
+CERTIFICATION_TYPES = ("Professional Certification",)
 
 # (DocType, field) -> the master it links to
 BIO_DATA_FIELD_MASTERS = {
@@ -73,7 +69,6 @@ BIO_DATA_FIELD_MASTERS = {
     ("Applicant Parent", "current_district"): "District",
     ("Applicant Next of Kin", "relationship"): "Relationship",
     ("Applicant School Result", "examination_level"): "Examination Level",
-    ("Applicant Language", "language"): "Spoken Language",
     ("Applicant Qualification", "qualification_type"): "Qualification Type",
 }
 

@@ -309,9 +309,18 @@ for path in glob.glob(os.path.join(APP, "report", "*", "*.json")):
 listed = {link[1] for cards in R.CARDS.values() for _card, links in cards for link in links}
 own_workspace = json.load(open(os.path.join(APP, "workspace", "hrms_addon", "hrms_addon.json"), encoding="utf-8"))
 listed |= {row.get("link_to") for row in own_workspace["links"] if row.get("link_to")}
+# Kept for the records they hold, but no longer used, so off every workspace
+RETIRED = {
+    # languages are typed on the application (Applicant Language.language)
+    "Spoken Language",
+}
 # a child table is only ever reached through its parent; everything else needs a way in
 for name, spec in sorted(ours.items()):
     if spec.get("istable"):
+        continue
+    if name in RETIRED:
+        if name in listed:
+            fail.append("%s is no longer used: take it off the workspaces" % name)
         continue
     if name not in listed:
         fail.append("%s is on no workspace: it could only be found by searching for its DocType" % name)

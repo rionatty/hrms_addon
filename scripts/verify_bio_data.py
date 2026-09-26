@@ -169,9 +169,20 @@ for table_field, child in rules.TABLES.items():
         fail.append("%s controller class must be %s" % (child, child.replace(" ", "")))
     if not os.path.exists(os.path.join(APP, "doctype", folder, "__init__.py")):
         fail.append("%s folder is missing __init__.py" % child)
-skill = (child_fields.get("Applicant Skill") or {}).get("skill") or {}
-if (skill.get("fieldtype"), skill.get("options"), skill.get("reqd")) != ("Link", "Skill", 1):
-    fail.append("Applicant Skill.skill must be a mandatory Link to Skill, the list Job Descriptions use")
+for child, fieldname in (("Applicant Skill", "skill"), ("Applicant Language", "language")):
+    typed = (child_fields.get(child) or {}).get(fieldname) or {}
+    if (typed.get("fieldtype"), typed.get("options"), typed.get("reqd")) != ("Data", None, 1):
+        fail.append("%s.%s is typed by the applicant, whatever it is: mandatory Data" % (child, fieldname))
+if "Spoken Language" in rules.BIO_DATA_MASTERS or "Licence" in rules.BIO_DATA_MASTERS["Qualification Type"][1] \
+        or rules.CERTIFICATION_TYPES != ("Professional Certification",):
+    fail.append("no Spoken Language list and no Licence type are seeded any more")
+if not (ja_fields.get("custom_school_results") or {}).get("hidden"):
+    fail.append("the A'Level and O'Level results are no longer shown on the application")
+licence = read("hrms_addon", "patches", "v1_0", "remove_licence_qualification_type.py")
+if 'frappe.db.exists("Applicant Qualification", {"qualification_type": TYPE})' not in licence \
+        or "except frappe.LinkExistsError:" not in licence or "force=True" in licence \
+        or "hrms_addon.patches.v1_0.remove_licence_qualification_type" not in read("hrms_addon", "patches.txt"):
+    fail.append("the Licence type is deleted only where nobody carries it")
 for child, fieldname, fieldtype in (("Applicant Employment History", "from_year", "Data"), ("Applicant Employment History", "to_year", "Data")):
     if ((child_fields.get(child) or {}).get(fieldname) or {}).get("fieldtype") != fieldtype:
         fail.append("%s.%s must be Data: an Int year prints as 2,015" % (child, fieldname))

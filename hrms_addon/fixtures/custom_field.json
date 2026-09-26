@@ -1489,7 +1489,8 @@
   "insert_after": "custom_school_results_section",
   "label": "Results",
   "options": "Applicant School Result",
-  "module": "HRMS Addon"
+  "module": "HRMS Addon",
+  "hidden": 1
  },
  {
   "doctype": "Custom Field",
