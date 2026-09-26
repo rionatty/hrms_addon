@@ -8,10 +8,10 @@
 // Connections is the standard Connections tab, placed straight after Job
 // Description by the field_order property setter; nothing here touches it.
 //
-// Picking the Job Title fills the Job Description tab from that Job Title's
-// JD (job_requisition.get_job_description): Responsibilities, Reporting Line
-// and Subordinates. What someone has written there is only replaced when
-// they say so.
+// Picking the Job Title fills the Department from that Job Title's JD
+// (job_requisition.get_jd_department), and the Responsibilities, Reporting
+// Line and Subordinates (job_requisition.get_job_description). What someone
+// has written in those three is only replaced when they say so.
 
 const HA_JD_FIELDS = ["description", "custom_reporting_line", "custom_subordinates"];
 
@@ -35,13 +35,29 @@ frappe.ui.form.on("Job Requisition", {
 		if (frm.is_new() && frm.doc.designation && ha_jd_blank(frm)) {
 			ha_fill_job_description(frm);
 		}
+		if (frm.is_new() && frm.doc.designation && !frm.doc.department) {
+			ha_fill_department(frm);
+		}
 	},
 	designation(frm) {
 		if (frm.doc.designation) {
 			ha_fill_job_description(frm);
+			ha_fill_department(frm);
 		}
 	},
 });
+
+// The Department comes with the Job Title, from its JD
+function ha_fill_department(frm) {
+	const designation = frm.doc.designation;
+	frappe
+		.xcall("hrms_addon.hrms_addon.job_requisition.get_jd_department", { designation })
+		.then((department) => {
+			if (department && frm.doc.designation === designation && frm.doc.department !== department) {
+				frm.set_value("department", department);
+			}
+		});
+}
 
 function ha_fill_job_description(frm) {
 	const designation = frm.doc.designation;

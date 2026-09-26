@@ -83,7 +83,7 @@
   "doctype_or_field": "DocType",
   "property": "field_order",
   "property_type": "Data",
-  "value": "[\"naming_series\", \"designation\", \"department\", \"custom_branch\", \"custom_position_category\", \"column_break_qkna\", \"no_of_positions\", \"custom_employment_type\", \"expected_compensation\", \"column_break_4\", \"company\", \"status\", \"custom_reason_section\", \"custom_reason_type\", \"custom_recruitment_heading\", \"custom_external_advert\", \"custom_internal_advert\", \"custom_head_hunt\", \"custom_reference_to_database\", \"custom_reason_cb\", \"reason_for_requesting\", \"section_break_7\", \"requested_by\", \"requested_by_name\", \"column_break_10\", \"requested_by_dept\", \"requested_by_designation\", \"timelines_tab\", \"posting_date\", \"completed_on\", \"column_break_15\", \"expected_by\", \"time_to_fill\", \"job_description_tab\", \"description\", \"custom_reporting_section\", \"custom_reporting_line\", \"custom_reporting_cb\", \"custom_subordinates\", \"connections_tab\", \"custom_approvals_tab\", \"custom_department_signoff_section\", \"custom_supervisor\", \"custom_supervisor_date\", \"custom_signoff_cb1\", \"custom_process_owner\", \"custom_process_owner_date\", \"custom_signoff_cb2\", \"custom_hod\", \"custom_hod_date\", \"custom_hr_signoff_section\", \"custom_hr_officer\", \"custom_hr_officer_date\", \"custom_hr_signoff_cb\", \"custom_hrm\", \"custom_hrm_decision\", \"custom_hrm_date\", \"custom_gm_signoff_section\", \"custom_gm\", \"custom_gm_signoff_cb\", \"custom_gm_date\", \"custom_ed_signoff_section\", \"custom_ed\", \"custom_ed_decision\", \"custom_ed_signoff_cb\", \"custom_ed_date\", \"workflow_state\"]",
+  "value": "[\"naming_series\", \"designation\", \"department\", \"custom_branch\", \"custom_position_category\", \"column_break_qkna\", \"no_of_positions\", \"custom_employment_type\", \"expected_compensation\", \"column_break_4\", \"company\", \"status\", \"custom_reason_section\", \"custom_reason_type\", \"custom_recruitment_heading\", \"custom_external_advert\", \"custom_internal_advert\", \"custom_head_hunt\", \"custom_reference_to_database\", \"custom_reason_cb\", \"reason_for_requesting\", \"custom_reporting_section\", \"custom_reporting_line\", \"custom_reporting_cb\", \"custom_subordinates\", \"section_break_7\", \"requested_by\", \"requested_by_name\", \"column_break_10\", \"requested_by_dept\", \"requested_by_designation\", \"timelines_tab\", \"posting_date\", \"completed_on\", \"column_break_15\", \"expected_by\", \"time_to_fill\", \"job_description_tab\", \"description\", \"connections_tab\", \"custom_approvals_tab\", \"custom_department_signoff_section\", \"custom_supervisor\", \"custom_supervisor_date\", \"custom_signoff_cb1\", \"custom_process_owner\", \"custom_process_owner_date\", \"custom_signoff_cb2\", \"custom_hod\", \"custom_hod_date\", \"custom_hr_signoff_section\", \"custom_hr_officer\", \"custom_hr_officer_date\", \"custom_hr_signoff_cb\", \"custom_hrm\", \"custom_hrm_decision\", \"custom_hrm_date\", \"custom_gm_signoff_section\", \"custom_gm\", \"custom_gm_signoff_cb\", \"custom_gm_date\", \"custom_ed_signoff_section\", \"custom_ed\", \"custom_ed_decision\", \"custom_ed_signoff_cb\", \"custom_ed_date\", \"workflow_state\"]",
   "module": "HRMS Addon"
  },
  {
@@ -533,5 +533,27 @@
   "property_type": "Text",
   "value": "Leave empty on a scorecard template.",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-status-read_only",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "status"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Job Requisition-requested_by-ignore_user_permissions",
+  "doc_type": "Job Requisition",
+  "doctype_or_field": "DocField",
+  "property": "ignore_user_permissions",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "requested_by"
  }
 ]

@@ -296,3 +296,22 @@ def recommended_salary_missing(old_state, new_state, recommended_salary):
     """The HR Manager recommends the salary on the paper form, so it must
     be filled in before they authorize. Rejecting needs no salary."""
     return old_state == HRM_STATE and new_state not in (HRM_STATE, REJECTED) and not recommended_salary
+
+
+# Why the new employee is needed, and how they are to be recruited
+REASON_FIELD = "custom_reason_type"
+MODE_FIELDS = ("custom_external_advert", "custom_internal_advert", "custom_head_hunt", "custom_reference_to_database")
+
+
+def request_errors(old_state, new_state, values):
+    """What a requisition must say while it is written, in a draft and as it
+    is sent for approval: the reason, and at least one mode of recruitment.
+    One already with the approvers is left as it is."""
+    if new_state not in (None, "", DRAFT) and old_state not in (None, "", DRAFT):
+        return []
+    errors = []
+    if not str(values.get(REASON_FIELD) or "").strip():
+        errors.append("Say why the new employee is required.")
+    if not any(int(values.get(field) or 0) for field in MODE_FIELDS):
+        errors.append("Tick at least one Mode of Recruitment.")
+    return errors

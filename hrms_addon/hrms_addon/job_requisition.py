@@ -10,12 +10,15 @@ tested without a bench. This module only applies it:
   setup_on_migrate()  after_migrate: roles, permissions, Workflow States,
                       Workflow Actions and the Workflow itself, built by
                       workflows.py (which says why that is Python, not fixtures)
-  before_validate()   defaults Requested By to the logged-in employee, and an
-                      empty Job Description tab to the Job Title's JD
-  validate()          fills the Approvals tab as approvers act
+  before_validate()   defaults Requested By to the logged-in employee, an
+                      empty Job Description tab to the Job Title's JD, and an
+                      empty Department to the JD's
+  validate()          the reason and a mode of recruitment while it is
+                      written; fills the Approvals tab as approvers act
   get_job_description()
                       the Job Description tab for a Job Title, which the form
                       fills in when the Job Title is picked
+  get_jd_department() the Job Title's department, which the form takes too
 
 To change who approves, change requisition_approval.py, not the Workflow in
 the desk — a desk edit is overwritten on the next deploy.
@@ -39,9 +42,10 @@ JD_FIELDS = ("description", "custom_reporting_line", "custom_subordinates")
 def before_validate(doc, method=None):
     """A new requisition's defaults, before the mandatory check: Requested By
     = the logged-in user's employee record, and an empty Job Description tab
-    = the Job Title's JD.
+    = the Job Title's JD. The Department, when there is none, is the Job
+    Title's JD's.
 
-    The form does both itself (job_requisition.js); this is the server-side
+    The form does these itself (job_requisition.js); this is the server-side
     net for everything that is not the form, such as an API call or import.
     """
     if doc.is_new() and not doc.get("requested_by"):
@@ -50,12 +54,21 @@ def before_validate(doc, method=None):
             doc.requested_by = employee
     if doc.is_new() and doc.get("designation") and not any(_has_content(doc.get(field)) for field in JD_FIELDS):
         doc.update(job_description_for(doc.designation))
+    if doc.get("designation") and not doc.get("department"):
+        department = jd_department(doc.designation)
+        if department:
+            doc.department = department
 
 
 def validate(doc, method=None):
     before = doc.get_doc_before_save()
     old_state = before.get(rules.STATE_FIELD) if before else None
     new_state = doc.get(rules.STATE_FIELD)
+
+    errors = rules.request_errors(old_state, new_state,
+                                  {field: doc.get(field) for field in (rules.REASON_FIELD, *rules.MODE_FIELDS)})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Job Requisition"))
 
     if rules.recommended_salary_missing(old_state, new_state, doc.get("expected_compensation")):
         frappe.throw(
@@ -81,9 +94,15 @@ def get_session_employee():
 
 
 def _employee_for(user):
+    """The user's active employee record: by the login linked to it, else by
+    the user's email on it (a record not yet linked to the login)."""
     if not user or user in ("Guest", "Administrator"):
         return None
-    return frappe.db.get_value("Employee", {"user_id": user, "status": "Active"}, "name")
+    for field in ("user_id", "company_email", "prefered_email", "personal_email"):
+        employee = frappe.db.get_value("Employee", {field: user, "status": "Active"}, "name")
+        if employee:
+            return employee
+    return None
 
 
 @frappe.whitelist()
@@ -116,6 +135,19 @@ def job_description_for(designation):
         frappe.get_all("JD Relationship Type", order_by="creation asc", pluck="name"),
     )
     return values
+
+
+@frappe.whitelist()
+def get_jd_department(designation: str) -> str | None:
+    """The Job Title's department, from its JD, for the form to take when the
+    Job Title is picked; read on behalf of whoever writes requisitions."""
+    frappe.has_permission("Job Requisition", "write", throw=True)
+    return jd_department(designation)
+
+
+def jd_department(designation):
+    """The Department on the Job Title's JD, or None."""
+    return frappe.db.get_value("Designation", designation, "custom_jd_department") if designation else None
 
 
 def _has_content(value):

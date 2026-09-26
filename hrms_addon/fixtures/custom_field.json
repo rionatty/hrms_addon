@@ -57,7 +57,8 @@
   "insert_after": "custom_reason_section",
   "label": "Reason Why New Employee Is Required",
   "options": "\nNew Position\nReplacement\nNew Addition",
-  "module": "HRMS Addon"
+  "module": "HRMS Addon",
+  "mandatory_depends_on": "eval:!doc.workflow_state || doc.workflow_state=='Draft'"
  },
  {
   "doctype": "Custom Field",
@@ -124,7 +125,7 @@
   "dt": "Job Requisition",
   "fieldname": "custom_reporting_section",
   "fieldtype": "Section Break",
-  "insert_after": "description",
+  "insert_after": "reason_for_requesting",
   "label": "Reporting Structure",
   "module": "HRMS Addon"
  },

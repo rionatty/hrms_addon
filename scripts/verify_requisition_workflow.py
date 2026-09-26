@@ -519,6 +519,53 @@ if os.path.isdir(APPS_ROOT):
 print("branches: Kawempe, Namanve, Matugga seeded; the requisition carries its Branch and the Department's category; "
       "the opening its Branch; Frappe tells only approvers who may open the document")
 
+# ── 8. What a requisition says, and where it comes from ──────────────
+first_step = rules.APPROVAL_CHAIN[0]["state"]
+told = {"custom_reason_type": "Replacement", "custom_head_hunt": 1}
+for label, old, new, values, wanted in (
+        ("a new one, blank", None, rules.DRAFT, {}, ["Say why the new employee is required.",
+                                                    "Tick at least one Mode of Recruitment."]),
+        ("a draft saved with its reason and a mode", rules.DRAFT, rules.DRAFT, told, []),
+        ("sent for approval with no mode", rules.DRAFT, first_step, {"custom_reason_type": "New Position"},
+         ["Tick at least one Mode of Recruitment."]),
+        ("revised with no reason", rules.REJECTED, rules.DRAFT, {"custom_internal_advert": 1},
+         ["Say why the new employee is required."]),
+        ("one already with the approvers, left as it is", first_step, rules.APPROVAL_CHAIN[1]["state"], {}, [])):
+    got = rules.request_errors(old, new, values)
+    if got != wanted:
+        fail.append("request_errors, %s: %s, expected %s" % (label, got, wanted))
+if set(rules.MODE_FIELDS) != {"custom_external_advert", "custom_internal_advert", "custom_head_hunt",
+                              "custom_reference_to_database"} or any(fn not in custom for fn in rules.MODE_FIELDS):
+    fail.append("the modes of recruitment are the requisition's four ticks")
+reason_field = fixtures_cf.get("Job Requisition-custom_reason_type") or {}
+if reason_field.get("mandatory_depends_on") != "eval:!doc.workflow_state || doc.workflow_state=='Draft'":
+    fail.append("the reason is starred while the requisition is written")
+for needle, why in (
+        ("errors = rules.request_errors(old_state, new_state,", "validate asks for the reason and a mode"),
+        ('    if errors:\n        frappe.throw("<br>".join(_(message) for message in errors), title=_("Job Requisition"))',
+         "and stops the save without them"),
+        ("        department = jd_department(doc.designation)\n        if department:\n            doc.department = department",
+         "an empty Department is the Job Title's JD's"),
+        ('frappe.db.get_value("Designation", designation, "custom_jd_department")', "the JD's Department"),
+        ('for field in ("user_id", "company_email", "prefered_email", "personal_email"):',
+         "Requested By finds the user's employee by the login, else the email")):
+    if needle not in glue:
+        fail.append("job_requisition.py: %s" % why)
+getter = glue.split("def get_jd_department(")[-1].split("\ndef ")[0]
+if 'frappe.has_permission("Job Requisition", "write", throw=True)' not in getter:
+    fail.append("get_jd_department reads the JD only for whoever may write requisitions")
+if "\t\t\tha_fill_job_description(frm);\n\t\t\tha_fill_department(frm);" not in js \
+        or '.xcall("hrms_addon.hrms_addon.job_requisition.get_jd_department", { designation })' not in js:
+    fail.append("job_requisition.js takes the Department with the Job Title")
+if "Designation-custom_jd_department" not in fixtures_cf:
+    fail.append("the JD has a Department to take")
+for name, why in (("Job Requisition-status-read_only", "the status is the workflow's and the Job Opening's to set"),
+                  ("Job Requisition-requested_by-ignore_user_permissions",
+                   "whoever writes it may name another employee as the requester")):
+    if (setters.get(name) or {}).get("value") != "1":
+        fail.append("%s: %s" % (name, why))
+print("the requisition: its reason and a mode while written, the JD's department, any requester, a read-only status")
+
 print()
 if fail:
     print("FAILURES:")

@@ -1221,6 +1221,8 @@ fixtures = [
                     "Job Requisition-expected_compensation-reqd",
                     "Job Requisition-department-reqd",
                     "Job Requisition-main-field_order",
+                    "Job Requisition-status-read_only",
+                    "Job Requisition-requested_by-ignore_user_permissions",
                     "Job Opening-employment_type-fetch_from",
                     "Job Opening-employment_type-fetch_if_empty",
                     "Job Opening-location-label",

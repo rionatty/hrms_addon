@@ -56,6 +56,9 @@ DOCFIELD_PROPERTIES = {
     # how a field is put out of reach of everybody but the roles granted
     # that level; Customize Form writes exactly this setter
     "permlevel": "Int",
+    # a Link any employee may be picked in, whatever the user's own
+    # permissions (customize_form.py docfield_properties)
+    "ignore_user_permissions": "Check",
 }
 DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
@@ -444,8 +447,10 @@ print()
 EXPECT_TAB = {
     "Details": ["custom_employment_type", "custom_reason_type", "reason_for_requesting", "requested_by",
                 "custom_recruitment_heading", "custom_external_advert", "custom_internal_advert",
-                "custom_head_hunt", "custom_reference_to_database"],
-    "Job Description": ["description", "custom_reporting_line", "custom_subordinates"],
+                "custom_head_hunt", "custom_reference_to_database",
+                # where whoever writes the requisition sees them, beside the reason
+                "custom_reporting_line", "custom_subordinates"],
+    "Job Description": ["description"],
     "Approvals": ["custom_supervisor", "custom_hod", "custom_hr_officer", "custom_hrm_decision", "custom_ed_date"],
 }
 for tab, names in EXPECT_TAB.items():
