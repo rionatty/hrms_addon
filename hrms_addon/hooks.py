@@ -693,6 +693,26 @@ fixtures = [
                     "Designation-custom_fitness_requirements",
                     "Employee Onboarding-custom_medical_check",
                     "Employee Onboarding-custom_medical_certificate",
+                    "Interview-custom_mode",
+                    "Interview-custom_venue",
+                    "Interview-custom_meeting_link",
+                    "Interview-custom_attendance",
+                    "Interview-custom_invited_on",
+                    "Interview Type-custom_venue",
+                    "Interview Type-custom_what_to_bring",
+                    "HR Settings-custom_interviews_section",
+                    "HR Settings-custom_interview_gap",
+                    "HR Settings-custom_interview_day_end",
+                    "HR Settings-custom_interviews_cb",
+                    "HR Settings-custom_lunch_from",
+                    "HR Settings-custom_lunch_to",
+                    "HR Settings-custom_letters_section",
+                    "HR Settings-custom_invitation_template",
+                    "HR Settings-custom_send_invitation_sms",
+                    "HR Settings-custom_letters_cb",
+                    "HR Settings-custom_regret_template",
+                    "HR Settings-custom_send_regret_emails",
+                    "Job Applicant-custom_regret_sent_on",
                     "Training Event-custom_branch",
                     "Training Event-custom_department",
                     "Training Event-custom_schedule",
@@ -1382,6 +1402,8 @@ doc_events = {
             "hrms_addon.hrms_addon.bio_data.validate",
             "hrms_addon.hrms_addon.cv_screening.applicant_validate",
         ],
+        # an applicant turned down gets the regret email, where HR Settings says so
+        "on_update": "hrms_addon.hrms_addon.interviews.regret_on_update",
     },
     "Interview Feedback": {
         # Score sheet (LPL/HR/17): totals, rating and result from the scores
@@ -1654,6 +1676,9 @@ scheduler_events = {
         # and the punches BioTime is holding, which is where the machines
         # push them (biotime.py). Nothing happens while it is switched off.
         "hrms_addon.hrms_addon.biotime.pull_all",
+        # An interview whose slot has ended is Under Review, so Frappe HR's
+        # daily reminder chases the panel for the missing sheets (interviews.py)
+        "hrms_addon.hrms_addon.interviews.mark_interviews_held",
     ],
 }
 

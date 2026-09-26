@@ -609,15 +609,89 @@ expect("an applicant twice", se("JO-1", [{"job_applicant": "A"}, {"job_applicant
        "Row 2: A is already listed in row 1.")
 expect("an applicant for another opening", se("JO-1", [{"job_applicant": "B"}], {"B": "JO-2"}, submitting=False),
        "Row 1: B applied for JO-2, not this opening.")
-if rules.interview_slots("09:00", 30, 3) != [("09:00:00", "09:30:00"), ("09:30:00", "10:00:00"), ("10:00:00", "10:30:00")] \
-        or rules.interview_slots("13:45:00", 45, 1) != [("13:45:00", "14:30:00")] or rules.interview_slots("09:00", 20, 0) != []:
-    fail.append("interview slots must run back to back from the first start time")
-for args, why in ((("09:00", 0, 2), "a length of 0"), (("22:30", 60, 2), "running past midnight"), (("", 30, 1), "no start time")):
+# the slots of a round: a gap for scoring, the lunch break, the day's end, the next working day
+ps = rules.plan_slots
+if ps("2026-10-08", "09:00", 30, 3) != [("2026-10-08", "09:00:00", "09:30:00"), ("2026-10-08", "09:30:00", "10:00:00"),
+                                       ("2026-10-08", "10:00:00", "10:30:00")] or ps("2026-10-08", "09:00", 20, 0) != []:
+    fail.append("with no gap, lunch or day's end, slots run back to back from the first start time")
+WEEKEND = ("2026-10-10", "2026-10-11")
+day = ps("2026-10-09", "09:00", 60, 9, gap=10, lunch=("13:00", "14:00"), day_end="17:00",
+         is_working_day=lambda d: d not in WEEKEND)
+if day != [("2026-10-09", "09:00:00", "10:00:00"), ("2026-10-09", "10:10:00", "11:10:00"), ("2026-10-09", "11:20:00", "12:20:00"),
+           ("2026-10-09", "14:00:00", "15:00:00"), ("2026-10-09", "15:10:00", "16:10:00"), ("2026-10-12", "09:00:00", "10:00:00"),
+           ("2026-10-12", "10:10:00", "11:10:00"), ("2026-10-12", "11:20:00", "12:20:00"), ("2026-10-12", "14:00:00", "15:00:00")]:
+    fail.append("slots keep the gap, skip the lunch break, stop at the day's end and carry on the next working day: %s" % day)
+import datetime as _dt  # noqa: E402
+
+if ps("2026-10-08", _dt.timedelta(hours=12, minutes=30), 45, 2, lunch=(_dt.timedelta(hours=13), "14:00:00")) \
+        != [("2026-10-08", "14:00:00", "14:45:00"), ("2026-10-08", "14:45:00", "15:30:00")]:
+    fail.append("a slot that would run into lunch starts after it; times may come as the database's timedelta")
+for args, kwargs, why in ((("2026-10-08", "09:00", 0, 2), {}, "a length of 0"), (("2026-10-08", "", 30, 1), {}, "no start time"),
+                          (("2026-10-08", "16:30", 45, 1), {"day_end": "17:00"}, "an interview that fits no day"),
+                          (("2026-10-10", "09:00", 30, 1), {"is_working_day": lambda d: d not in WEEKEND}, "a weekend"),
+                          (("2026-10-08", "09:00", 30, 1), {"lunch": ("14:00", "13:00")}, "a lunch ending before it starts"),
+                          (("2026-10-08", "09:00", 30, 3), {"is_working_day": lambda d: d == "2026-10-08", "day_end": "09:30"},
+                           "no working day ahead")):
     try:
-        rules.interview_slots(*args)
-        fail.append("interview_slots must refuse %s" % why)
+        ps(*args, **kwargs)
+        fail.append("plan_slots must refuse %s" % why)
     except ValueError:
         pass
+bp = rules.booking_plan({"A": 1, "B": 2, "C": 3, "D": 4, "E": 5}, [], ["B"],
+                        {"A": "Shortlisted", "B": "Shortlisted", "C": "Rejected", "D": "Shortlisted", "E": "Hold", "F": ""},
+                        True, ["A", "E", "C"])
+if bp != {"book": ["A", "E"], "already": ["B"], "out": [("C", "Rejected")], "not_cleared": ["D"]}:
+    fail.append("a round books those still in the running who cleared the round before, never twice: %s" % bp)
+if rules.booking_plan(["A", "B"], ["B"], [], {"A": "Open", "B": "Accepted"}, False, []) \
+        != {"book": [], "already": [], "out": [("B", "Accepted")], "not_cleared": []}:
+    fail.append("a ticked applicant already hired is not booked; the unticked are not considered")
+if rules.booking_plan(["A"], [], [], {"A": "Open"}, False, [])["book"] != ["A"]:
+    fail.append("a first round needs no round before it")
+if rules.earlier_round([("R1a", 1), ("R2a", 2), ("R2b", "2"), ("R3", 3), ("None", 0)], 3) != ["R2a", "R2b"] \
+        or rules.earlier_round([("R1", 1)], 1) != [] or rules.earlier_round([], 2) != []:
+    fail.append("the round before is every type of the highest round number below this one")
+clash = rules.clashes([("2026-10-08", "09:00:00", "10:00:00"), ("2026-10-09", "09:00:00", "10:00:00")], ["hod@lpl", ""],
+                      [("hod@lpl", "2026-10-08", "09:30:00", "10:30:00", "HR-INT-1"),
+                       ("hod@lpl", "2026-10-08", "10:00:00", "11:00:00", "HR-INT-2"),
+                       ("sup@lpl", "2026-10-08", "09:00:00", "10:00:00", "HR-INT-3")],
+                      [("hod@lpl", "2026-10-09", "2026-10-12"), ("sup@lpl", "2026-10-08", "2026-10-08")])
+if clash != ["hod@lpl sits on another interview (HR-INT-1) on 2026-10-08 from 09:30 to 10:30.",
+             "hod@lpl is on leave on 2026-10-09."]:
+    fail.append("the panel clashes with an overlapping interview or leave, not one that only touches: %s" % clash)
+for args, over in ((("2026-10-08", "10:00:00", "2026-10-08 10:00:00"), True), (("2026-10-08", "10:00:00", "2026-10-08 09:59:59"), False),
+                   (("2026-10-07", "23:00:00", "2026-10-08 00:01:00"), True), (("2026-10-09", "08:00:00", "2026-10-08 12:00:00"), False),
+                   ((None, "10:00", "2026-10-08 12:00"), False)):
+    if rules.slot_over(*args) is not over:
+        fail.append("slot_over%s must be %s" % (args, over))
+for attendance, status, after in (("No-Show", "Pending", "Cancelled"), ("Withdrew", "Under Review", "Cancelled"),
+                                  ("No-Show", "Cancelled", None), ("Attended", "Pending", "Under Review"),
+                                  ("Attended", "Cancelled", "Under Review"), ("Attended", "Cleared", None), ("", "Pending", None)):
+    if rules.status_for_attendance(attendance, status) != after:
+        fail.append("attendance %r on a %s interview must make it %r" % (attendance, status, after))
+if (rules.ATTENDANCE, rules.ABSENT, rules.MODES) != (("Attended", "No-Show", "Withdrew"), ("No-Show", "Withdrew"),
+                                                     ("In Person", "Video Call", "Phone Call")):
+    fail.append("attendance is Attended, No-Show or Withdrew; an interview is in person, by video or by phone")
+sms = rules.invitation_sms("Luuka Plastics", "Machine Operator", "Monday 5 October 2026", "09:00", "In Person", "Kawempe plant")
+if sms != "Luuka Plastics: interview for Machine Operator on Monday 5 October 2026 at 09:00 at Kawempe plant. Details by email." \
+        or "by video call" not in rules.invitation_sms("L", "M", "d", "t", "Video Call", "Kawempe") \
+        or len(sms) > 160:
+    fail.append("the invitation by SMS says what for, when and where, in one text: %r" % sms)
+for args, due in ((("Rejected", None, None, "a@x.com"), True), (("Rejected", "2026-10-01", None, "a@x.com"), False),
+                  (("Rejected", None, "HR-OFF-1", "a@x.com"), False), (("Rejected", None, None, ""), False),
+                  (("Shortlisted", None, None, "a@x.com"), False)):
+    if rules.regret_due(*args) is not due:
+        fail.append("regret_due%s must be %s" % (args, due))
+for body, keys in ((rules.INVITATION_SUBJECT + rules.INVITATION_BODY, rules.INVITATION_KEYS),
+                   (rules.REGRET_SUBJECT + rules.REGRET_BODY, rules.REGRET_KEYS)):
+    named = set(re.findall(r"\{\{\s*\(?\s*([a-z_]+)", body)) | set(re.findall(r"\{%\s*(?:el)?if\s+([a-z_]+)", body))
+    if not named <= set(keys):
+        fail.append("a letter names %s, which it is not always given (Frappe prints them as they are)" % sorted(named - set(keys)))
+    for block in ("if",):
+        if len(re.findall(r"\{%\s*" + block + r"\b", body)) != len(re.findall(r"\{%\s*end" + block + r"\b", body)):
+            fail.append("a letter has unbalanced {%% %s %%} blocks" % block)
+    for name in ("applicant_name", "what_to_bring", "venue", "meeting_link"):
+        if re.search(r"\{\{\s*\(?%s(?![^}]*\|\s*e\b)" % name, body):
+            fail.append("a letter prints %s without escaping it" % name)
 if set(rules.SHORTLISTABLE_STATUSES) != {"Open", "Replied", "Hold", "Shortlisted"}:
     fail.append("only applicants not yet turned down or hired can be shortlisted: %s" % (rules.SHORTLISTABLE_STATUSES,))
 
@@ -695,7 +769,21 @@ for needle, why in (
     ("rules.qualification_lines(qualifications, certification_types, certifications=True)", "must write certifications out with the tested rules"),
     ("rules.experience_lines(", "must write work experience out with the tested rules"),
     ('frappe.get_all("Qualification Type", filters={"is_certification": 1}, pluck="name")', "must read which types are certifications"),
-    ("slots = rules.interview_slots(from_time, minutes, len(pending))", "must book with the tested slots"),
+    ("slots = rules.plan_slots(first_day, from_time, minutes, len(pending),", "must book with the tested slots"),
+    ("gap=settings.gap if gap in (None, \"\") else gap, lunch=settings.lunch,", "with HR Settings' gap and lunch"),
+    ("day_end=settings.day_end, is_working_day=lambda day: day not in holidays)", "within the day, on working days"),
+    ("if getdate(scheduled_on) < getdate(today()):", "never in the past"),
+    ("problems = rules.clashes(slots, panel, _panel_busy(panel, days), _panel_leave(panel, days))",
+     "only while the panel is free"),
+    ('"status": ["in", ["Open", "Approved"]], "from_date": ["<=", days[-1]],', "leave applied for or approved"),
+    ('filters={"scheduled_on": ["in", days or [""]], "docstatus": ["!=", 2], "status": ["!=", "Cancelled"]}',
+     "the panel's other interviews those days"),
+    ('frappe.enqueue("hrms_addon.hrms_addon.interviews.send_booking_letters", interviews=booked,',
+     "must invite the candidates and send the panel its schedule in the background"),
+    ("enqueue_after_commit=True", "only once the booking is saved"),
+    ("invite=cint(send_invitations), enqueue_after_commit=True)", "inviting only when HR asks"),
+    ('"custom_venue": venue if mode == "In Person" else None,', "a venue only for an interview in person"),
+    ('"custom_meeting_link": meeting_link if mode == "Video Call" else None,', "a link only for a video call"),
     ('if doc.docstatus != 1:\n        frappe.throw(_("Submit the shortlist before scheduling its interviews."))', "must schedule only a submitted shortlist"),
     ('frappe.has_permission("Interview", "create", throw=True)', "must check the user may create Interviews"),
     ('frappe.get_all("Interviewer", filters={"parent": interview_type, "parenttype": "Interview Type"}, pluck="user")',
@@ -730,13 +818,17 @@ for needle, why in (
     ('frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")',
      "must offer Schedule Interviews once submitted, a round at a time, to whoever may book"),
     ("filters: { job_title: frm.doc.job_opening", "must pick applicants of this opening only"),
-    ("frappe.utils.escape_html(reason)", "must escape the reasons a booking was refused"),
+    ("const esc = (text) => frappe.utils.escape_html(text);", "must escape the names and reasons it lists"),
+    ('add(__("No longer in the running:"), result.out);', "must say who is no longer in the running"),
+    ('add(__("Have not cleared the round before:"), result.not_cleared);', "and who has not cleared the round before"),
+    ('add(__("Not scheduled:"), result.refused);', "and why a booking was refused"),
+    ("send_invitations: values.send_invitations ? 1 : 0,", "must let HR choose to send the invitations"),
     ("frm.fields_dict.candidates.grid.get_selected_children().map((row) => row.job_applicant)",
      "must book the candidates ticked, a batch"),
     ("applicants: ticked.length ? ticked : null,", "must send the batch, or everyone when none is ticked"),
     ("get_query: () => ({ filters: { designation: frm.doc.designation } }),",
      "must offer only this job's interview types, its rounds"),
-    ("result.already.map((name) => frappe.utils.escape_html(name))", "must say who already has the round"),
+    ('add(__("Already have this round:"), result.already);', "must say who already has the round"),
 ):
     if needle not in sjs:
         fail.append("interview_shortlist.js %s" % why)
@@ -781,8 +873,36 @@ for needle, why in (
     ('"criteria_group": rules.JD_GROUP}).insert()', "a new competency goes under Job Competencies"),
     ('frappe.has_permission("Interview", "read", interview, throw=True)', "the questions for whoever may read the interview"),
     ('"interview_type": interview_type, "docstatus": ["!=", 2]}', "who already has this round, cancelled ones aside"),
-    ("booking = rules.to_book(listed, chosen, already)", "the batch, less those who have the round"),
-    ('return {"booked": booked, "refused": refused, "already": had}', "says who already had it"),
+    ("plan = rules.booking_plan(listed, chosen, already, statuses, bool(earlier), cleared)",
+     "the batch, less those who have the round, are out of the running or have not cleared the one before"),
+    ('"interview_type": ["in", earlier],\n                                                       "docstatus": 1, "status": "Cleared"}',
+     "cleared means the round before closed Cleared"),
+    ('"already": [names[applicant] for applicant in plan["already"]],', "says who already had it"),
+    ('"not_cleared": [names[applicant] for applicant in plan["not_cleared"]],', "and who has not cleared the round before"),
+    ("rules.earlier_round([(row.name, row.custom_round) for row in types], this.custom_round)", "the round before, by JD"),
+    ('status = rules.status_for_attendance(doc.get("custom_attendance"), doc.get("status"))\n    if status and doc.docstatus == 0:',
+     "who came sets the interview's status"),
+    ("if row.custom_attendance not in rules.ABSENT and rules.slot_over(row.scheduled_on, row.to_time, now):",
+     "an interview over, not a no-show, goes Under Review"),
+    ('frappe.db.set_value("Interview", row.name, "status", "Under Review", update_modified=False)',
+     "so Frappe HR's reminder chases the missing sheets"),
+    ("if not rules.regret_due(values.status, values.custom_regret_sent_on, offered, values.email_id):",
+     "a regret once, never to one offered the job"),
+    ('frappe.db.set_value("Job Applicant", applicant, "custom_regret_sent_on", now_datetime(), update_modified=False)',
+     "records when the regret went"),
+    ('if doc.get("status") == "Rejected" and doc.has_value_changed("status"):', "a regret when an applicant is turned down"),
+    ('if frappe.db.get_single_value("HR Settings", "custom_send_regret_emails"):', "only where HR Settings says so"),
+    ('            if status == "Rejected":\n                queue_regret(row.job_applicant)',
+     "the report's rejections get their regrets too"),
+    ('frappe.db.set_value("Interview", name, "custom_invited_on", now_datetime(), update_modified=False)',
+     "records when the invitation went"),
+    ('frappe.has_permission("Interview", "write", interview, throw=True)\n    sent = _invite(interview)',
+     "Send Invitation is for whoever may change the interview"),
+    ("from frappe.core.doctype.sms_settings.sms_settings import _send_sms", "the SMS through Frappe's gateway"),
+    ('and frappe.db.get_single_value("SMS Settings", "sms_gateway_url"):', "only where a gateway is set up"),
+    ("frappe.log_error(title=_(\"Interview letter not sent\"))", "a letter that cannot go is logged, the rest still go"),
+    ('"doctype": "Email Template", "name": name, "subject": subject, "use_html": 1,', "the letters seeded as Email Templates"),
+    ("if not frappe.db.get_single_value(\"HR Settings\", field):", "HR Settings' values set only where empty"),
 ):
     if needle not in glue:
         fail.append("interviews.py: %s" % why)
@@ -885,6 +1005,79 @@ if UPSTREAM_OK:
         if fieldname not in interview_fields:
             fail.append("HRMS's Interview has no %s: recheck schedule_interviews" % fieldname)
 print("shortlist: columns written out from the Bio-Data, checks, slots, doctypes, controller, buttons and print format resolve")
+
+# ── 8a. Booking a round, and the letters ─────────────────────────────
+for name, fieldtype, options, flags in (
+        ("Interview-custom_mode", "Select", "In Person\nVideo Call\nPhone Call", ()),
+        ("Interview-custom_venue", "Data", None, ()), ("Interview-custom_meeting_link", "Data", "URL", ()),
+        ("Interview-custom_attendance", "Select", "\nAttended\nNo-Show\nWithdrew", ()),
+        ("Interview-custom_invited_on", "Datetime", None, ("read_only", "no_copy")),
+        ("Interview Type-custom_venue", "Data", None, ()), ("Interview Type-custom_what_to_bring", "Small Text", None, ()),
+        ("HR Settings-custom_interview_gap", "Int", None, ()), ("HR Settings-custom_interview_day_end", "Time", None, ()),
+        ("HR Settings-custom_lunch_from", "Time", None, ()), ("HR Settings-custom_lunch_to", "Time", None, ()),
+        ("HR Settings-custom_invitation_template", "Link", "Email Template", ()),
+        ("HR Settings-custom_send_invitation_sms", "Check", None, ()),
+        ("HR Settings-custom_regret_template", "Link", "Email Template", ()),
+        ("HR Settings-custom_send_regret_emails", "Check", None, ()),
+        ("Job Applicant-custom_regret_sent_on", "Datetime", None, ("read_only", "no_copy"))):
+    f = by_name.get(name) or {}
+    if (f.get("fieldtype"), f.get("options")) != (fieldtype, options) or not all(f.get(flag) for flag in flags):
+        fail.append("%s must be a %s%s%s" % (name, fieldtype, " of %s" % options if options else "",
+                                             ", " + ", ".join(flags) if flags else ""))
+if [o for o in (by_name.get("Interview-custom_mode") or {}).get("options", "").split("\n")] != list(rules.MODES) \
+        or [o for o in (by_name.get("Interview-custom_attendance") or {}).get("options", "").split("\n") if o] != list(rules.ATTENDANCE):
+    fail.append("the Interview's Mode and Attendance offer exactly the rules' modes and attendance")
+if (by_name.get("HR Settings-custom_send_regret_emails") or {}).get("default") \
+        or (by_name.get("HR Settings-custom_send_invitation_sms") or {}).get("default"):
+    fail.append("regret emails and SMS invitations go out once HR switches them on, never by default")
+if '"on_update": "hrms_addon.hrms_addon.interviews.regret_on_update"' not in re.search(
+        r'"Job Applicant": \{(.*?)\n    \},', hook_block("doc_events"), re.S).group(1):
+    fail.append("doc_events must send the regret when a Job Applicant is turned down (interviews.regret_on_update)")
+if '"hrms_addon.hrms_addon.interviews.mark_interviews_held"' not in hooks.split('"hourly": [')[-1].split("]")[0]:
+    fail.append("the hourly scheduler must mark interviews held (interviews.mark_interviews_held)")
+letters_patch = read("hrms_addon", "patches", "v1_0", "seed_interview_letters.py")
+if "hrms_addon.patches.v1_0.seed_interview_letters" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[-1] \
+        or letters_patch.find('sync_fixtures("hrms_addon")') < 0 \
+        or letters_patch.find('sync_fixtures("hrms_addon")') > letters_patch.find("seed_interview_letters()"):
+    fail.append("the letters patch syncs the fixtures (HR Settings' new fields) before it seeds")
+if "def after_install():\n    seed_interview_criteria()\n    seed_interview_letters()" not in glue:
+    fail.append("after_install must seed the letters too")
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef send_invitation\(interview: str\)', glue):
+    fail.append("interviews.send_invitation must be whitelisted for POST")
+context_body = glue.split("def _invitation_context(")[-1].split("\ndef ")[0]
+if set(re.findall(r'^\s+"(\w+)": ', context_body.split("return {")[-1], re.M)) != set(rules.INVITATION_KEYS):
+    fail.append("the invitation's context must give exactly the keys a template may name (INVITATION_KEYS)")
+regret_body = glue.split("def send_regret(")[-1].split("\ndef ")[0]
+if set(re.findall(r'"(\w+)": ', regret_body.split("_render(template, {")[-1].split("})")[0])) != set(rules.REGRET_KEYS):
+    fail.append("the regret's context must give exactly the keys a template may name (REGRET_KEYS)")
+ijs_now = read("hrms_addon", "public", "js", "interview.js")
+for needle, why in (('frappe.xcall(HA_INTERVIEW_METHODS + "send_invitation", { interview: frm.doc.name })',
+                     "must send the invitation through interviews.send_invitation"),
+                    ("!frappe.user.has_role(HA_HR_ROLES)", "must offer Send Invitation to HR alone"),
+                    ('frm.doc.custom_invited_on ? __("Invite Again") : __("Send Invitation")', "must say when it was sent")):
+    if needle not in ijs_now:
+        fail.append("interview.js %s" % why)
+if UPSTREAM_OK:
+    if '"status": "Under Review",' not in upstream("hrms", "hr", "doctype", "interview", "interview.py"):
+        fail.append("Frappe HR's feedback reminder no longer looks for Under Review: recheck mark_interviews_held")
+    if "def _send_sms(" not in upstream("frappe", "core", "doctype", "sms_settings", "sms_settings.py"):
+        fail.append("Frappe no longer has _send_sms: recheck the SMS invitation")
+    template_fields = {f["fieldname"] for f in json.loads(upstream("frappe", "email", "doctype", "email_template",
+                                                                   "email_template.json"))["fields"]}
+    if not {"subject", "response", "response_html", "use_html"} <= template_fields:
+        fail.append("Frappe's Email Template changed its fields: recheck _render and seed_interview_letters")
+    hr_settings = {f["fieldname"] for f in json.loads(upstream("hrms", "hr", "doctype", "hr_settings", "hr_settings.json"))["fields"]}
+    if "hiring_sender_email" not in hr_settings:
+        fail.append("Frappe HR's HR Settings has no hiring_sender_email: recheck the letters' sender and field placing")
+    if "def has_value_changed(self, fieldname" not in upstream("frappe", "model", "base_document.py") \
+            and "def has_value_changed(self, fieldname" not in upstream("frappe", "model", "document.py"):
+        fail.append("Frappe's Document has no has_value_changed: recheck regret_on_update")
+    leave_status = next(f for f in json.loads(upstream("hrms", "hr", "doctype", "leave_application", "leave_application.json"))
+                        ["fields"] if f["fieldname"] == "status")
+    if not {"Open", "Approved"} <= set(leave_status["options"].split("\n")):
+        fail.append("Frappe HR's Leave Application has no Open or Approved status: recheck the panel's leave")
+print("booking: slots with gaps, lunch and the day's end over working days, rounds gated, the panel free; invitations, "
+      "the panel's schedule, regrets and the hourly Under Review")
 
 # ── 8b. The shortlist's screening: HR, then the HOD (steps 10 and 11) ─
 spec = importlib.util.spec_from_file_location("interview_shortlist_approval", os.path.join(APP, "interview_shortlist_approval.py"))

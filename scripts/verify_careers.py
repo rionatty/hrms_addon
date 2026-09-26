@@ -227,13 +227,17 @@ FROM_THE_OPENING = {"custom_branch"}
 FROM_THE_CV = {"custom_cv_text", "custom_cv_read_from"}
 # No longer asked of candidates (A'Level and O'Level results)
 NOT_ASKED = {"custom_school_results"}
+# Written by the system (when the regret email went): never asked
+BY_THE_SYSTEM = {"custom_regret_sent_on"}
+if BY_THE_SYSTEM & {row.get("fieldname") for row in rows}:
+    fail.append("the portal must not ask %s" % sorted(BY_THE_SYSTEM))
 if NOT_ASKED & {row.get("fieldname") for row in rows}:
     fail.append("the form no longer asks for %s" % sorted(NOT_ASKED))
 bio_fields = {fn for fn, f in applicant.items()
               if fn.startswith("custom_") and f["fieldtype"] not in ("Section Break", "Column Break", "Tab Break")
               and fn not in ("custom_bio_data_date", "custom_signed_bio_data")}
 on_form = {row.get("fieldname") for row in rows}
-missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING - FROM_THE_CV - NOT_ASKED)
+missing = sorted(bio_fields - on_form - ONBOARDING_ONLY - FROM_THE_OPENING - FROM_THE_CV - NOT_ASKED - BY_THE_SYSTEM)
 if missing:
     fail.append("Bio-Data fields missing from the online form: %s" % missing)
 if FROM_THE_OPENING & on_form:

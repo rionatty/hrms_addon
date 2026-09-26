@@ -69,7 +69,8 @@ and the Interview Report (one per Job Opening and interview day):
 
 import frappe
 from frappe import _
-from frappe.utils import escape_html, today
+from frappe.utils import (cint, escape_html, format_date, format_time, get_url_to_form, getdate, now_datetime,
+                          strip_html, today)
 
 from hrms_addon.hrms_addon import cv_screening
 from hrms_addon.hrms_addon import cv_screening_rules
@@ -168,6 +169,11 @@ def interview_validate(doc, method=None):
         doc.set("custom_criteria", type_criteria(doc.interview_type))
     doc.custom_round = frappe.db.get_value("Interview Type", doc.interview_type, "custom_round") \
         if doc.get("interview_type") else None
+    # who came: a no-show or a withdrawal is Cancelled, someone who came is
+    # Under Review while the panel scores
+    status = rules.status_for_attendance(doc.get("custom_attendance"), doc.get("status"))
+    if status and doc.docstatus == 0:
+        doc.status = status
 
 
 def type_questions(interview_type):
@@ -433,11 +439,18 @@ def unmark_shortlisted(doc):
 
 @frappe.whitelist(methods=["POST"])
 def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, from_time: str, minutes: int,
-                        applicants: str | None = None) -> dict:
+                        applicants: str | None = None, gap: int | None = None, mode: str | None = None,
+                        venue: str | None = None, meeting_link: str | None = None, send_invitations: int = 1) -> dict:
     """An Interview of this type, the round, for the candidates HR chose on a
-    submitted shortlist (everyone on it when none is chosen) who do not have
-    that round yet: back-to-back slots from `from_time`, with the Interview
-    Type's panel.
+    submitted shortlist (everyone on it when none is chosen) who are still in
+    the running, do not have the round yet and cleared the round before it.
+
+    Slots run from `from_time` on `scheduled_on`, `gap` minutes apart (HR
+    Settings' gap when none is given), round the lunch break and within the
+    day, the rest carried to the next working day of the company's holiday
+    list; never in the past, and only while the Interview Type's panel is
+    free. The candidates are then invited (send_invitations) and the panel
+    sent its schedule, in the background.
 
     applicants: JSON list of the chosen job applicants, a batch.
 
@@ -449,6 +462,8 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
     frappe.has_permission("Interview", "create", throw=True)
     if doc.docstatus != 1:
         frappe.throw(_("Submit the shortlist before scheduling its interviews."))
+    if getdate(scheduled_on) < getdate(today()):
+        frappe.throw(_("Interviews cannot be booked in the past."))
     panel = frappe.get_all("Interviewer", filters={"parent": interview_type, "parenttype": "Interview Type"}, pluck="user")
     if not panel:
         frappe.throw(_("Interview Type {0} has no interviewers: add the panel to it first.").format(interview_type))
@@ -457,22 +472,46 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
                                                        "interview_type": interview_type, "docstatus": ["!=", 2]},
                                  pluck="job_applicant"))
     chosen = set(frappe.parse_json(applicants) or []) if applicants else set()
-    booking = rules.to_book(listed, chosen, already)
-    pending = [row for row in doc.candidates if row.job_applicant in booking]
+    statuses = dict(frappe.get_all("Job Applicant", filters={"name": ["in", listed or [""]]}, fields=["name", "status"],
+                                   as_list=True))
+    earlier = _earlier_round(interview_type)
+    cleared = set(frappe.get_all("Interview", filters={"job_applicant": ["in", listed or [""]], "interview_type": ["in", earlier],
+                                                       "docstatus": 1, "status": "Cleared"},
+                                 pluck="job_applicant")) if earlier else set()
+    plan = rules.booking_plan(listed, chosen, already, statuses, bool(earlier), cleared)
+    pending = [row for row in doc.candidates if row.job_applicant in plan["book"]]
+
+    settings = _interview_settings()
+    holidays = _holidays(frappe.db.get_value("Job Opening", doc.job_opening, "company"))
+    first_day = str(getdate(scheduled_on))
+    if first_day in holidays:
+        frappe.throw(_("{0} is not a working day: {1}.").format(format_date(first_day), holidays[first_day]))
     try:
-        slots = rules.interview_slots(from_time, minutes, len(pending))
+        slots = rules.plan_slots(first_day, from_time, minutes, len(pending),
+                                 gap=settings.gap if gap in (None, "") else gap, lunch=settings.lunch,
+                                 day_end=settings.day_end, is_working_day=lambda day: day not in holidays)
     except ValueError as error:
         frappe.throw(_(str(error)))
+    days = sorted({day for day, _start, _end in slots})
+    problems = rules.clashes(slots, panel, _panel_busy(panel, days), _panel_leave(panel, days))
+    if problems:
+        frappe.throw("<br>".join([_("The panel is not free:")] + [escape_html(problem) for problem in problems]),
+                     title=_("Schedule Interviews"))
 
-    booked, refused = [], []
-    for row, (start, end) in zip(pending, slots):
+    mode = mode if mode in rules.MODES else rules.MODES[0]
+    venue = venue or frappe.db.get_value("Interview Type", interview_type, "custom_venue")
+    booked, refused, booked_days = [], [], set()
+    for row, (day, start, end) in zip(pending, slots):
         interview = frappe.get_doc({
             "doctype": "Interview",
             "interview_type": interview_type,
             "job_applicant": row.job_applicant,
-            "scheduled_on": scheduled_on,
+            "scheduled_on": day,
             "from_time": start,
             "to_time": end,
+            "custom_mode": mode,
+            "custom_venue": venue if mode == "In Person" else None,
+            "custom_meeting_link": meeting_link if mode == "Video Call" else None,
             "interview_details": [{"interviewer": user} for user in panel],
         })
         frappe.db.savepoint("hrms_addon_schedule_interview")
@@ -485,9 +524,255 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
             continue
         row.db_set("interview", interview.name)
         booked.append(interview.name)
-    had = [row.applicant_name or row.job_applicant for row in doc.candidates
-           if row.job_applicant in already and (not chosen or row.job_applicant in chosen)]
-    return {"booked": booked, "refused": refused, "already": had}
+        booked_days.add(day)
+    if booked:
+        frappe.enqueue("hrms_addon.hrms_addon.interviews.send_booking_letters", interviews=booked,
+                       invite=cint(send_invitations), enqueue_after_commit=True)
+    names = {row.job_applicant: row.applicant_name or row.job_applicant for row in doc.candidates}
+    return {
+        "booked": booked,
+        "refused": refused,
+        "already": [names[applicant] for applicant in plan["already"]],
+        "out": ["%s (%s)" % (names[applicant], status) for applicant, status in plan["out"]],
+        "not_cleared": [names[applicant] for applicant in plan["not_cleared"]],
+        "days": [format_date(day) for day in sorted(booked_days)],
+    }
+
+
+def _earlier_round(interview_type):
+    """The Interview Types of the round before this one for the same JD."""
+    this = frappe.db.get_value("Interview Type", interview_type, ["designation", "custom_round"], as_dict=True)
+    if not this or not this.designation:
+        return []
+    types = frappe.get_all("Interview Type", filters={"designation": this.designation}, fields=["name", "custom_round"])
+    return rules.earlier_round([(row.name, row.custom_round) for row in types], this.custom_round)
+
+
+def _interview_settings():
+    """HR Settings' interview day: the gap between candidates, the lunch break, the day's end."""
+    value = lambda field: frappe.db.get_single_value("HR Settings", field)  # noqa: E731
+    return frappe._dict(gap=value("custom_interview_gap") or 0,
+                        lunch=(value("custom_lunch_from"), value("custom_lunch_to")),
+                        day_end=value("custom_interview_day_end"))
+
+
+def _holidays(company):
+    """{'YYYY-MM-DD': what it is} on the company's default holiday list, weekly offs included."""
+    holiday_list = frappe.db.get_value("Company", company, "default_holiday_list") if company else None
+    if not holiday_list:
+        return {}
+    return {str(row.holiday_date): strip_html(row.description or "").strip() or _("Holiday")
+            for row in frappe.get_all("Holiday", filters={"parent": holiday_list, "parenttype": "Holiday List"},
+                                      fields=["holiday_date", "description"])}
+
+
+def _panel_busy(panel, days):
+    """The panel's other interviews on these days: [(user, date, from, to, interview)]."""
+    others = {row.name: row for row in frappe.get_all(
+        "Interview", filters={"scheduled_on": ["in", days or [""]], "docstatus": ["!=", 2], "status": ["!=", "Cancelled"]},
+        fields=["name", "scheduled_on", "from_time", "to_time"])}
+    if not others:
+        return []
+    return [(row.interviewer, str(others[row.parent].scheduled_on), others[row.parent].from_time,
+             others[row.parent].to_time, row.parent)
+            for row in frappe.get_all("Interview Detail", filters={"parent": ["in", list(others)], "parenttype": "Interview",
+                                                                   "interviewer": ["in", panel]},
+                                      fields=["parent", "interviewer"])]
+
+
+def _panel_leave(panel, days):
+    """The panel's leave over these days, applied for or approved: [(user, from, to)]."""
+    employees = dict(frappe.get_all("Employee", filters={"user_id": ["in", panel]}, fields=["name", "user_id"], as_list=True))
+    if not employees or not days:
+        return []
+    return [(employees[row.employee], str(row.from_date), str(row.to_date))
+            for row in frappe.get_all("Leave Application",
+                                      filters={"employee": ["in", list(employees)], "docstatus": ["!=", 2],
+                                               "status": ["in", ["Open", "Approved"]], "from_date": ["<=", days[-1]],
+                                               "to_date": [">=", days[0]]},
+                                      fields=["employee", "from_date", "to_date"])]
+
+
+# ── Letters: the invitation, the panel's schedule, the regret ─────────
+
+
+def send_booking_letters(interviews, invite=1):
+    """Background, once a round is booked: each candidate invited (when HR
+    asked for it) and each panel member sent their schedule."""
+    if cint(invite):
+        for name in interviews:
+            _quietly(_invite, name)
+    _quietly(_send_panel_schedules, interviews)
+
+
+@frappe.whitelist(methods=["POST"])
+def send_invitation(interview: str) -> list:
+    """Send Invitation, on the Interview: the candidate invited again, by
+    email and, where HR Settings says so, by SMS."""
+    frappe.has_permission("Interview", "write", interview, throw=True)
+    sent = _invite(interview)
+    if not sent:
+        frappe.throw(_("Nothing was sent: the candidate has no email address or phone to reach, or HR Settings has no "
+                       "Invitation template."))
+    return sent
+
+
+def _invite(name):
+    """The invitation to one interview. Returns where it went."""
+    interview = frappe.get_doc("Interview", name)
+    applicant = frappe.db.get_value("Job Applicant", interview.job_applicant, ["applicant_name", "email_id", "phone_number"],
+                                    as_dict=True) or frappe._dict()
+    context = _invitation_context(interview, applicant)
+    sent = []
+    template = frappe.db.get_single_value("HR Settings", "custom_invitation_template")
+    if applicant.email_id and template and frappe.db.exists("Email Template", template):
+        subject, message = _render(template, context)
+        frappe.sendmail(recipients=[applicant.email_id], subject=subject, message=message, sender=_hiring_sender(),
+                        reference_doctype="Interview", reference_name=name)
+        sent.append(applicant.email_id)
+    if applicant.phone_number and frappe.db.get_single_value("HR Settings", "custom_send_invitation_sms") \
+            and frappe.db.get_single_value("SMS Settings", "sms_gateway_url"):
+        # the text is the system's own, not a user's message: sent as the
+        # process, without SMS Settings' check on who may type one
+        from frappe.core.doctype.sms_settings.sms_settings import _send_sms
+
+        _send_sms([applicant.phone_number], rules.invitation_sms(context["company"], context["designation"], context["date"],
+                                                                 context["time"], context["mode"], context["venue"]),
+                  success_msg=False)
+        sent.append(applicant.phone_number)
+    if sent:
+        frappe.db.set_value("Interview", name, "custom_invited_on", now_datetime(), update_modified=False)
+        interview.add_comment("Info", _("Invitation sent to {0}").format(", ".join(sent)))
+    return sent
+
+
+def _invitation_context(interview, applicant):
+    """What the invitation says: every key the template may name
+    (interview_rules.INVITATION_KEYS), blank where there is nothing."""
+    opening = frappe.db.get_value("Job Opening", interview.job_opening, ["company", "designation"], as_dict=True) \
+        if interview.get("job_opening") else None
+    opening = opening or frappe._dict()
+    return {
+        "applicant_name": applicant.get("applicant_name") or "",
+        "designation": interview.get("designation") or opening.designation or "",
+        "company": opening.company or "",
+        "date": format_date(interview.scheduled_on, "EEEE d MMMM yyyy") if interview.get("scheduled_on") else "",
+        "time": format_time(interview.from_time, "HH:mm") if interview.get("from_time") else "",
+        "mode": interview.get("custom_mode") or rules.MODES[0],
+        "venue": interview.get("custom_venue") or "",
+        "meeting_link": interview.get("custom_meeting_link") or "",
+        "what_to_bring": frappe.db.get_value("Interview Type", interview.interview_type, "custom_what_to_bring") or "",
+        "interview": interview.name,
+    }
+
+
+def _send_panel_schedules(interviews):
+    """Each panel member gets their slots of this booking in one email, with a
+    link to each Interview, whose Candidate tab has the CV."""
+    rows = frappe.get_all("Interview", filters={"name": ["in", interviews]},
+                          fields=["name", "job_applicant", "interview_type", "scheduled_on", "from_time", "to_time",
+                                  "custom_mode", "custom_venue"], order_by="scheduled_on asc, from_time asc")
+    if not rows:
+        return
+    names = dict(frappe.get_all("Job Applicant", filters={"name": ["in", [row.job_applicant for row in rows]]},
+                                fields=["name", "applicant_name"], as_list=True))
+    sitting = {}
+    for detail in frappe.get_all("Interview Detail", filters={"parent": ["in", interviews], "parenttype": "Interview"},
+                                 fields=["parent", "interviewer"]):
+        if detail.interviewer:
+            sitting.setdefault(detail.interviewer, set()).add(detail.parent)
+    header = "".join("<th>%s</th>" % _(label) for label in ("Date", "Time", "Candidate", "Where"))
+    for user, mine in sitting.items():
+        lines = "".join(
+            "<tr><td>%s</td><td>%s to %s</td><td><a href=\"%s\">%s</a></td><td>%s</td></tr>" % (
+                format_date(row.scheduled_on), format_time(row.from_time, "HH:mm"), format_time(row.to_time, "HH:mm"),
+                get_url_to_form("Interview", row.name), escape_html(names.get(row.job_applicant) or row.job_applicant),
+                escape_html(row.custom_venue or row.custom_mode or ""))
+            for row in rows if row.name in mine)
+        message = "<p>%s</p><table border=\"1\" cellpadding=\"4\" cellspacing=\"0\"><tr>%s</tr>%s</table>" % (
+            _("You sit on these interviews. Each one's Candidate tab has the CV and the application."), header, lines)
+        frappe.sendmail(recipients=[frappe.db.get_value("User", user, "email") or user],
+                        subject=_("Your interviews: {0}").format(rows[0].interview_type), message=message,
+                        sender=_hiring_sender(), reference_doctype="Interview Type", reference_name=rows[0].interview_type)
+
+
+def regret_on_update(doc, method=None):
+    """Job Applicant on_update: an applicant just turned down gets the regret
+    email, where HR Settings says so."""
+    if doc.get("status") == "Rejected" and doc.has_value_changed("status"):
+        queue_regret(doc.name)
+
+
+def queue_regret(applicant):
+    """The regret email, after this transaction, where HR Settings says so."""
+    if frappe.db.get_single_value("HR Settings", "custom_send_regret_emails"):
+        frappe.enqueue("hrms_addon.hrms_addon.interviews.send_regret", applicant=applicant, enqueue_after_commit=True)
+
+
+def send_regret(applicant):
+    """Background: the regret email, once, to an applicant turned down who was
+    never offered the job. Returns whether it went."""
+    values = frappe.db.get_value("Job Applicant", applicant, ["applicant_name", "email_id", "status", "job_title",
+                                                             "designation", "custom_regret_sent_on"], as_dict=True)
+    template = frappe.db.get_single_value("HR Settings", "custom_regret_template")
+    if not values or not template or not frappe.db.exists("Email Template", template):
+        return False
+    offered = frappe.db.exists("Job Offer", {"job_applicant": applicant, "docstatus": ["!=", 2]})
+    if not rules.regret_due(values.status, values.custom_regret_sent_on, offered, values.email_id):
+        return False
+    company = frappe.db.get_value("Job Opening", values.job_title, "company") if values.job_title else ""
+    subject, message = _render(template, {"applicant_name": values.applicant_name or "",
+                                          "designation": values.designation or "", "company": company or ""})
+    frappe.sendmail(recipients=[values.email_id], subject=subject, message=message, sender=_hiring_sender(),
+                    reference_doctype="Job Applicant", reference_name=applicant)
+    frappe.db.set_value("Job Applicant", applicant, "custom_regret_sent_on", now_datetime(), update_modified=False)
+    return True
+
+
+def mark_interviews_held():
+    """Hourly: an interview whose slot has ended, and that nobody marked a
+    no-show, is Under Review, so Frappe HR's daily reminder chases the panel
+    members whose sheets are missing."""
+    now = str(now_datetime())
+    for row in frappe.get_all("Interview", filters={"docstatus": 0, "status": "Pending", "scheduled_on": ["<=", today()]},
+                              fields=["name", "scheduled_on", "to_time", "custom_attendance"]):
+        if row.custom_attendance not in rules.ABSENT and rules.slot_over(row.scheduled_on, row.to_time, now):
+            frappe.db.set_value("Interview", row.name, "status", "Under Review", update_modified=False)
+
+
+def seed_interview_letters():
+    """The invitation and regret Email Templates, and HR Settings' interview
+    day and letters where they are empty; once (a patch, and after_install)."""
+    for name, subject, body in ((rules.INVITATION_TEMPLATE, rules.INVITATION_SUBJECT, rules.INVITATION_BODY),
+                                (rules.REGRET_TEMPLATE, rules.REGRET_SUBJECT, rules.REGRET_BODY)):
+        if not frappe.db.exists("Email Template", name):
+            frappe.get_doc({"doctype": "Email Template", "name": name, "subject": subject, "use_html": 1,
+                            "response_html": body}).insert(ignore_permissions=True)
+    for field, value in (("custom_invitation_template", rules.INVITATION_TEMPLATE),
+                         ("custom_regret_template", rules.REGRET_TEMPLATE), ("custom_interview_gap", 10),
+                         ("custom_lunch_from", "13:00:00"), ("custom_lunch_to", "14:00:00"),
+                         ("custom_interview_day_end", "17:00:00")):
+        if not frappe.db.get_single_value("HR Settings", field):
+            frappe.db.set_single_value("HR Settings", field, value)
+
+
+def _render(template, context):
+    """(subject, message) of an Email Template for this context."""
+    doc = frappe.get_doc("Email Template", template)
+    body = doc.response_html if doc.use_html else doc.response
+    return frappe.render_template(doc.subject or "", context), frappe.render_template(body or "", context)
+
+
+def _hiring_sender():
+    return frappe.db.get_single_value("HR Settings", "hiring_sender_email") or None
+
+
+def _quietly(function, *args):
+    """A letter that cannot go is logged for HR, and the others still go."""
+    try:
+        function(*args)
+    except Exception:
+        frappe.log_error(title=_("Interview letter not sent"))
 
 
 # ── The interview report ──────────────────────────────────────────────
@@ -593,6 +878,8 @@ def close_report(doc):
         status = rules.applicant_status_after(row.decision, current)
         if status:
             frappe.db.set_value("Job Applicant", row.job_applicant, "status", status)
+            if status == "Rejected":
+                queue_regret(row.job_applicant)
     if refused:
         message = _("These interviews could not be closed; close them from the Interview:") + "<br>" + "<br>".join(
             escape_html(reason) for reason in refused
@@ -702,6 +989,7 @@ def seed_interview_criteria():
 
 def after_install():
     seed_interview_criteria()
+    seed_interview_letters()
 
 
 def _sheet_rows():

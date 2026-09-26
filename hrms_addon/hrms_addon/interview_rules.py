@@ -26,6 +26,7 @@ row there is scored. On the general list N/A leaves a criterion out, and
 the panel member says why in its comments.
 """
 
+import datetime
 import re
 
 # LPL/HR/17's criteria, grouped and ordered as the form prints them. Only
@@ -451,22 +452,195 @@ def shortlist_errors(job_opening, rows, opening_of, submitting):
     return errors
 
 
-def interview_slots(start, minutes, count):
-    """`count` back-to-back interview slots of `minutes` from `start`.
+# ── Booking a round ───────────────────────────────────────────────────
+# the attendance HR records on an interview, and how a candidate is met
+ATTENDANCE = ("Attended", "No-Show", "Withdrew")
+ABSENT = ("No-Show", "Withdrew")
+MODES = ("In Person", "Video Call", "Phone Call")
 
-    start: 'HH:MM' or 'HH:MM:SS'. Returns [('HH:MM:SS', 'HH:MM:SS')], or
-    raises ValueError when the length is not positive or the day runs out.
+
+def plan_slots(first_day, start, minutes, count, gap=0, lunch=None, day_end=None, is_working_day=None, max_days=60):
+    """`count` interview slots of `minutes`, `gap` minutes apart, from `start`
+    on `first_day`: none across the lunch break or past the day's end, the
+    rest carried to the next working day at the same start time.
+
+    first_day: 'YYYY-MM-DD'. start, day_end and lunch (from, to): 'HH:MM[:SS]',
+    or a timedelta as the database returns a Time. is_working_day: a
+    function of 'YYYY-MM-DD'; every day is one without it.
+    Returns [('YYYY-MM-DD', 'HH:MM:SS', 'HH:MM:SS')], or raises ValueError.
     """
-    minutes = _int(minutes)
+    minutes, gap = _int(minutes), max(_int(gap), 0)
     if minutes <= 0:
         raise ValueError("Each interview needs a length in minutes.")
-    parts = [int(p) for p in _text(start).split(":")]
-    if len(parts) < 2 or not (0 <= parts[0] < 24 and 0 <= parts[1] < 60):
+    begin = _minutes_of(start)
+    if begin is None:
         raise ValueError("The first interview needs a start time.")
-    begin = parts[0] * 60 + parts[1]
-    if begin + minutes * count > 24 * 60:
-        raise ValueError("%d interviews of %d minutes from %02d:%02d run past midnight." % (count, minutes, parts[0], parts[1]))
-    return [(_clock(begin + i * minutes), _clock(begin + (i + 1) * minutes)) for i in range(count)]
+    end = _minutes_of(day_end) or 24 * 60
+    lunch_from, lunch_to = (_minutes_of(lunch[0]), _minutes_of(lunch[1])) if lunch else (None, None)
+    if lunch_from is None or lunch_to is None:
+        lunch_from = lunch_to = None
+    elif lunch_to <= lunch_from:
+        raise ValueError("The lunch break must end after it starts.")
+
+    def clear_of_lunch(at):
+        if lunch_from is not None and at < lunch_to and at + minutes > lunch_from:
+            return lunch_to
+        return at
+
+    if clear_of_lunch(begin) + minutes > end:
+        raise ValueError("An interview of %d minutes does not fit between %s and %s."
+                         % (minutes, _clock(begin)[:5], _clock(end)[:5]))
+    day = datetime.date.fromisoformat(_text(first_day)[:10])
+    if is_working_day and not is_working_day(day.isoformat()):
+        raise ValueError("%s is not a working day." % day.isoformat())
+    slots, at, days = [], clear_of_lunch(begin), 0
+    while len(slots) < count:
+        at = clear_of_lunch(at)
+        if at + minutes > end:
+            day, days = day + datetime.timedelta(days=1), days + 1
+            while is_working_day and not is_working_day(day.isoformat()) and days <= max_days:
+                day, days = day + datetime.timedelta(days=1), days + 1
+            if days > max_days:
+                raise ValueError("There is no working day for these interviews in the next %d days." % max_days)
+            at = clear_of_lunch(begin)
+            continue
+        slots.append((day.isoformat(), _clock(at), _clock(at + minutes)))
+        at += minutes + gap
+    return slots
+
+
+def booking_plan(listed, chosen, already, statuses, earlier_round, cleared):
+    """Who is booked for a round, in the shortlist's order.
+
+    listed: the shortlist's applicants; chosen: the ones HR ticked (none:
+    everyone); already: those who have this round; statuses: {applicant:
+    Job Applicant status}; earlier_round: the round follows another for the
+    same job; cleared: those who cleared that earlier round.
+    Returns {"book", "already", "out", "not_cleared"}: the ones to book, the
+    ones who have the round, the ones no longer in the running with their
+    status, and the ones who have not cleared the round before.
+    """
+    already, cleared = set(already or ()), set(cleared or ())
+    plan = {"book": [], "already": [], "out": [], "not_cleared": []}
+    for applicant in to_book(listed, chosen, ()):
+        status = _text((statuses or {}).get(applicant))
+        if applicant in already:
+            plan["already"].append(applicant)
+        elif status not in SHORTLISTABLE_STATUSES:
+            plan["out"].append((applicant, status or "unknown"))
+        elif earlier_round and applicant not in cleared:
+            plan["not_cleared"].append(applicant)
+        else:
+            plan["book"].append(applicant)
+    return plan
+
+
+def clashes(slots, panel, busy, leave):
+    """Why the panel cannot sit these slots: a panel member in another
+    interview at the same time, or on leave that day.
+
+    slots: [(date, from, to)]; panel: users; busy: [(user, date, from, to,
+    interview)] of their other interviews; leave: [(user, from_date, to_date)].
+    Returns one message per clash.
+    """
+    panel = [user for user in panel or () if user]
+    messages = []
+    for user, date, start, finish, interview in busy or ():
+        if user not in panel:
+            continue
+        for day, slot_start, slot_end in slots or ():
+            if _text(date)[:10] == day and _minutes_of(start) < _minutes_of(slot_end) \
+                    and _minutes_of(slot_start) < _minutes_of(finish):
+                message = "%s sits on another interview (%s) on %s from %s to %s." % (
+                    user, interview, day, _clock(_minutes_of(start))[:5], _clock(_minutes_of(finish))[:5])
+                if message not in messages:
+                    messages.append(message)
+                break
+    days = sorted({day for day, _start, _end in slots or ()})
+    for user, from_date, to_date in leave or ():
+        if user not in panel:
+            continue
+        away = [day for day in days if _text(from_date)[:10] <= day <= _text(to_date)[:10]]
+        if away:
+            message = "%s is on leave on %s." % (user, ", ".join(away))
+            if message not in messages:
+                messages.append(message)
+    return messages
+
+
+def slot_over(scheduled_on, to_time, now):
+    """True once the interview's slot has ended. now: 'YYYY-MM-DD HH:MM[:SS]'."""
+    day, finish, clock = _text(scheduled_on)[:10], _minutes_of(to_time), _minutes_of(_text(now)[11:19])
+    today = _text(now)[:10]
+    return bool(day) and (day < today or (day == today and finish is not None and clock is not None and finish <= clock))
+
+
+def status_for_attendance(attendance, status):
+    """The Interview's status once HR records who came, or None to leave it:
+    a no-show or a withdrawal is Cancelled; someone who came is Under Review
+    while the panel scores."""
+    attendance = _text(attendance)
+    if attendance in ABSENT:
+        return "Cancelled" if status != "Cancelled" else None
+    if attendance == "Attended" and status in ("Pending", "Cancelled"):
+        return "Under Review"
+    return None
+
+
+def invitation_sms(company, designation, date, time, mode, venue):
+    """The invitation as one text message: what for, when and where."""
+    where = {"Video Call": " by video call", "Phone Call": " by phone"}.get(_text(mode)) or (
+        " at %s" % _text(venue) if _text(venue) else "")
+    return "%s: interview for %s on %s at %s%s. Details by email." % (
+        _text(company) or "Interview", _text(designation), _text(date), _text(time), where)
+
+
+def regret_due(status, sent_on, has_offer, email):
+    """A regret email goes once, to an applicant turned down who was never
+    offered the job (one who declined an offer is Rejected too)."""
+    return _text(status) == "Rejected" and not sent_on and not has_offer and bool(_text(email))
+
+
+def earlier_round(types, this_round):
+    """The Interview Types of the round just before `this_round`, from the
+    job's types [(name, round)]; several may share a round number."""
+    this_round = _int(this_round)
+    before = [(name, _int(number)) for name, number in types or () if 0 < _int(number) < this_round]
+    last = max((number for _name, number in before), default=0)
+    return [name for name, number in before if number == last]
+
+
+# The two letters, seeded once as Email Templates (interviews.seed_interview_letters)
+# and HR's to change after that. Frappe prints a key a template names but is
+# not given as itself, so every key is always passed; free text is escaped.
+INVITATION_TEMPLATE = "Interview Invitation"
+REGRET_TEMPLATE = "Application Regret"
+INVITATION_KEYS = ("applicant_name", "designation", "company", "date", "time", "mode", "venue", "meeting_link",
+                   "what_to_bring", "interview")
+REGRET_KEYS = ("applicant_name", "designation", "company")
+INVITATION_SUBJECT = "Interview for {{ designation }}"
+INVITATION_BODY = "".join((
+    "<p>Dear {{ applicant_name | e }},</p>",
+    "<p>Thank you for applying for the position of {{ designation }} at {{ company }}. "
+    "We would like to invite you to an interview.</p>",
+    "<p><b>Date:</b> {{ date }}<br><b>Time:</b> {{ time }}<br>",
+    "{% if mode == 'Video Call' %}<b>Where:</b> by video call"
+    "{% if meeting_link %}: <a href=\"{{ meeting_link | e }}\">{{ meeting_link | e }}</a>{% endif %}",
+    "{% elif mode == 'Phone Call' %}<b>Where:</b> by phone, on the number you gave us",
+    "{% else %}<b>Where:</b> {{ (venue or company) | e }}{% endif %}</p>",
+    "{% if what_to_bring %}<p><b>Please bring:</b> {{ what_to_bring | e }}</p>{% endif %}",
+    "<p>Please reply to this email to confirm that you will attend, or to ask for another time.</p>",
+    "<p>Yours sincerely,<br>Human Resources<br>{{ company }}</p>",
+))
+REGRET_SUBJECT = "Your application for {{ designation }}"
+REGRET_BODY = "".join((
+    "<p>Dear {{ applicant_name | e }},</p>",
+    "<p>Thank you for your interest in the position of {{ designation }} at {{ company }}, "
+    "and for the time you gave to our recruitment process.</p>",
+    "<p>After careful consideration, we will not be taking your application further on this occasion.</p>",
+    "<p>We wish you every success.</p>",
+    "<p>Yours sincerely,<br>Human Resources<br>{{ company }}</p>",
+))
 
 
 def to_book(applicants, chosen, already):
@@ -480,6 +654,21 @@ def to_book(applicants, chosen, already):
 
 def _clock(total_minutes):
     return "%02d:%02d:00" % divmod(total_minutes, 60)
+
+
+def _minutes_of(value):
+    """Minutes since midnight of 'HH:MM[:SS]' or a timedelta; None for blank."""
+    if value is None or value == "":
+        return None
+    if hasattr(value, "total_seconds"):
+        return int(value.total_seconds() // 60)
+    parts = re.findall(r"[0-9]+", _text(value))
+    if len(parts) < 2:
+        return None
+    hours, minutes = int(parts[0]), int(parts[1])
+    if not (0 <= hours <= 24 and 0 <= minutes < 60):
+        return None
+    return hours * 60 + minutes
 
 
 def _latest_year(text):

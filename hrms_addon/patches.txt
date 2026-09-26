@@ -39,3 +39,4 @@ hrms_addon.patches.v1_0.loans_rejected_are_closed
 hrms_addon.patches.v1_0.loans_employee_does_not_run
 hrms_addon.patches.v1_0.remove_licence_qualification_type
 hrms_addon.patches.v1_0.retire_health_appearance_criteria
+hrms_addon.patches.v1_0.seed_interview_letters

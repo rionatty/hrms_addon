@@ -17,12 +17,16 @@
 // Applicant itself.
 
 const HA_ACCESS_METHODS = "hrms_addon.hrms_addon.interview_access.";
+const HA_INTERVIEW_METHODS = "hrms_addon.hrms_addon.interviews.";
+// who sends invitations: interview_access_rules.HR_ROLES
+const HA_HR_ROLES = ["HR User", "HR Manager", "System Manager"];
 
 frappe.ui.form.off("Interview", "submit_feedback");
 
 frappe.ui.form.on("Interview", {
 	refresh(frm) {
 		ha_candidate_pack(frm);
+		ha_invitation_button(frm);
 	},
 	submit_feedback(frm) {
 		// A new document's values are copied onto it as they are, with no
@@ -35,6 +39,23 @@ frappe.ui.form.on("Interview", {
 		});
 	},
 });
+
+// HR invites the candidate (again), by email and, where HR Settings says so, by SMS
+function ha_invitation_button(frm) {
+	if (frm.is_new() || frm.doc.docstatus !== 0 || frm.doc.status === "Cancelled" || !frappe.user.has_role(HA_HR_ROLES)) {
+		return;
+	}
+	frm.add_custom_button(
+		frm.doc.custom_invited_on ? __("Invite Again") : __("Send Invitation"),
+		() =>
+			frappe.xcall(HA_INTERVIEW_METHODS + "send_invitation", { interview: frm.doc.name }).then((sent) => {
+				const to = (sent || []).map((where) => frappe.utils.escape_html(where)).join(", ");
+				frappe.show_alert({ message: __("Invitation sent to {0}", [to]), indicator: "green" });
+				frm.reload_doc();
+			}),
+		__("Actions")
+	);
+}
 
 // what the candidate applied with, for the panel
 function ha_candidate_pack(frm) {

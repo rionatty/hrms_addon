@@ -581,9 +581,10 @@ if by_dt.get(JA):
     # (LPL/HR/17) prints them for every panel member
     SALARY_FIELDS = {"custom_previous_salary", "custom_current_benefits", "custom_expected_benefits", "custom_notice_period"}
     # the opening's Branch, beside the Job Opening and Designation; the
-    # screening answers and the CV's text, with the CV
+    # screening answers and the CV's text, with the CV; when the regret
+    # email went, beside the status
     DETAILS_FIELDS = {"custom_branch", "custom_cv_text", "custom_cv_read_from", "custom_screening_section",
-                      "custom_screening_answers"}
+                      "custom_screening_answers", "custom_regret_sent_on"}
     BIO_SECTIONS = [
         "Personal Information",
         "Parents' Details",

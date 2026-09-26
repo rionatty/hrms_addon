@@ -190,18 +190,43 @@ function ha_schedule_interviews(frm) {
 				reqd: 1,
 				description: __("The round. Its interviewers are the panel; its questions come with it."),
 				get_query: () => ({ filters: { designation: frm.doc.designation } }),
+				onchange() {
+					const type = dialog.get_value("interview_type");
+					if (type) {
+						frappe.db.get_value("Interview Type", type, "custom_venue").then((r) => {
+							if (r.message && r.message.custom_venue && !dialog.get_value("venue")) {
+								dialog.set_value("venue", r.message.custom_venue);
+							}
+						});
+					}
+				},
 			},
-			{ fieldname: "scheduled_on", fieldtype: "Date", label: __("Date"), reqd: 1 },
-			{ fieldname: "column_break_1", fieldtype: "Column Break" },
-			{ fieldname: "from_time", fieldtype: "Time", label: __("First Interview At"), reqd: 1 },
+			{ fieldname: "scheduled_on", fieldtype: "Date", label: __("Date"), reqd: 1, default: frappe.datetime.get_today() },
+			{ fieldname: "from_time", fieldtype: "Time", label: __("First Interview At"), reqd: 1, default: "09:00:00" },
+			{ fieldname: "minutes", fieldtype: "Int", label: __("Minutes Each"), reqd: 1, default: 30 },
 			{
-				fieldname: "minutes",
+				fieldname: "gap",
 				fieldtype: "Int",
-				label: __("Minutes Each"),
-				reqd: 1,
-				default: 30,
-				description: __("Back to back, in the shortlist's order."),
+				label: __("Minutes Between"),
+				description: __("Empty for HR Settings."),
 			},
+			{ fieldname: "column_break_1", fieldtype: "Column Break" },
+			{
+				fieldname: "mode",
+				fieldtype: "Select",
+				label: __("Mode"),
+				options: ["In Person", "Video Call", "Phone Call"],
+				default: "In Person",
+			},
+			{ fieldname: "venue", fieldtype: "Data", label: __("Venue"), depends_on: "eval:doc.mode=='In Person'" },
+			{
+				fieldname: "meeting_link",
+				fieldtype: "Data",
+				options: "URL",
+				label: __("Meeting Link"),
+				depends_on: "eval:doc.mode=='Video Call'",
+			},
+			{ fieldname: "send_invitations", fieldtype: "Check", label: __("Send Invitations"), default: 1 },
 		],
 		primary_action_label: __("Schedule"),
 		primary_action(values) {
@@ -213,19 +238,24 @@ function ha_schedule_interviews(frm) {
 					from_time: values.from_time,
 					minutes: values.minutes,
 					applicants: ticked.length ? ticked : null,
+					gap: values.gap === undefined || values.gap === null || values.gap === "" ? null : values.gap,
+					mode: values.mode,
+					venue: values.venue || null,
+					meeting_link: values.meeting_link || null,
+					send_invitations: values.send_invitations ? 1 : 0,
 				})
 				.then((result) => {
 					dialog.hide();
+					const esc = (text) => frappe.utils.escape_html(text);
 					const lines = [__("{0} interviews scheduled.", [result.booked.length])];
-					if (result.already.length) {
-						lines.push(
-							__("Already have this round:"),
-							...result.already.map((name) => frappe.utils.escape_html(name))
-						);
+					if (result.days.length) {
+						lines.push(__("On {0}.", [result.days.map(esc).join(", ")]));
 					}
-					if (result.refused.length) {
-						lines.push(__("Not scheduled:"), ...result.refused.map((reason) => frappe.utils.escape_html(reason)));
-					}
+					const add = (heading, names) => names.length && lines.push("", heading, ...names.map(esc));
+					add(__("Already have this round:"), result.already);
+					add(__("No longer in the running:"), result.out);
+					add(__("Have not cleared the round before:"), result.not_cleared);
+					add(__("Not scheduled:"), result.refused);
 					frappe.msgprint(lines.join("<br>"), __("Interviews"));
 					frm.reload_doc();
 				});
