@@ -248,6 +248,7 @@ def jd_table_errors(
     iso_responsibilities=None,
     specifications=None,
     competencies=None,
+    screening_questions=None,
 ):
     """Problems across the Job Description tables, as user-facing messages."""
     errors = []
@@ -345,6 +346,16 @@ def jd_table_errors(
         else:
             seen[competency.lower()] = index
 
+    seen = {}
+    for index, row in enumerate(screening_questions or [], start=1):
+        text = " ".join((_get(row, "question") or "").split()).lower()
+        if not text:
+            continue
+        if text in seen:
+            errors.append("Screening Questions row %d repeats row %d." % (index, seen[text]))
+        else:
+            seen[text] = index
+
     return errors
 
 
@@ -353,7 +364,10 @@ def jd_table_errors(
 # Every table on the Job Description tab. Each has Download and Upload
 # buttons under it (allow_bulk_edit on its Designation field).
 KRA_TABLE = "custom_jd_key_result_areas"
-JD_TABLE_FIELDS = (KRA_TABLE, *TABLES)
+# The screening questions every opening for the job starts with
+# (job_openings.py); not one of the old text fields' TABLES
+SCREENING_TABLE = "custom_jd_screening_questions"
+JD_TABLE_FIELDS = (KRA_TABLE, *TABLES, SCREENING_TABLE)
 
 # HRMS's own Required Skills table (hrms/setup.py) sits on the same form and
 # was given the same buttons, by property setter since the field is theirs.
@@ -377,7 +391,7 @@ def _windows_1252(code):
 _WINDOWS_1252 = {code: _windows_1252(code) for code in range(0x80, 0xA0)}
 
 
-def uploaded_value(fieldtype, value):
+def uploaded_value(fieldtype, value, options=None):
     """A table cell as the rules and the database expect it.
 
     Upload (frappe/public/js/frappe/form/grid.js) copies each CSV cell into
@@ -393,10 +407,17 @@ def uploaded_value(fieldtype, value):
       0x80-0x9F, where Word's curly quotes, dashes and bullets land as
       invisible control characters. Nobody types those, so each goes back
       to the character it was.
+    - Select: text too, trimmed, and one of its options however it is
+      capitalised ("yes" is "Yes"); anything else is left for Frappe to
+      report.
     Other columns, and values that are not text, come back as they are.
     """
     if not isinstance(value, str):
         return value
+    if fieldtype == "Select":
+        text = value.translate(_WINDOWS_1252).strip()
+        return next((option for option in str(options or "").split("\n")
+                     if option and option.lower() == text.lower()), text)
     if fieldtype in ("Percent", "Float"):
         text = value.strip()
         if fieldtype == "Percent" and text.endswith("%"):

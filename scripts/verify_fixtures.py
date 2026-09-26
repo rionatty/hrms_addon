@@ -548,7 +548,9 @@ if by_dt.get(DS):
         if "Tools of Work" in tabs and tabs[tabs.index("Tools of Work") - 1] != "Job Description":
             fail.append("Designation's Tools of Work tab must follow the Job Description tab: %s" % tabs)
 
-    # Every section of LPL/JD/SM/001, in the order the JD prints them.
+    # Every section of LPL/JD/SM/001, in the order the JD prints them, and
+    # the screening questions every opening for the job starts with, before
+    # the sign-off
     JD_SECTIONS = [
         "Job Details",
         "Job Purpose Statement",
@@ -560,6 +562,7 @@ if by_dt.get(DS):
         "ISO Responsibilities (ISO 9001, ISO 22000, ISO 45001, ISO 14001)",
         "Ideal Job Specifications",
         "Competency Framework",
+        "Screening Questions",
         "Sign-Off",
     ]
     rendered = [fields[fn].get("label") for fn in order

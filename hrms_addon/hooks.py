@@ -125,6 +125,8 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # Result Areas table of the Job Description tab.
 doctype_js = {
     "Job Requisition": "public/js/job_requisition.js",
+    # A new opening fills itself from its requisition and its JD
+    "Job Opening": "public/js/job_opening.js",
     # A hired graduate becomes a Graduate Trainee Program from their own
     # applicant record (talent.py)
     "Job Applicant": "public/js/job_applicant_trainee.js",
@@ -517,6 +519,8 @@ fixtures = [
                     "Designation-custom_jd_specifications",
                     "Designation-custom_jd_competency_section",
                     "Designation-custom_jd_competencies",
+                    "Designation-custom_jd_screening_section",
+                    "Designation-custom_jd_screening_questions",
                     "Designation-custom_jd_signoff_section",
                     "Designation-custom_jd_hrm",
                     "Designation-custom_jd_hrm_date",
@@ -1321,6 +1325,11 @@ doc_events = {
         # Fills the Approvals tab as each approver acts; reverts typed edits
         "validate": "hrms_addon.hrms_addon.job_requisition.validate",
     },
+    "Job Opening": {
+        # its blanks from the requisition, the JD's screening questions, a
+        # route of its own (job_openings.py)
+        "before_validate": "hrms_addon.hrms_addon.job_openings.before_validate",
+    },
     "Designation": {
         # Job Description tables: KRA weightings total 100%, nothing listed twice
         "validate": "hrms_addon.hrms_addon.designation.validate",
@@ -1611,6 +1620,11 @@ scheduler_events = {
 # candidate's Pre-Interview Bio-Data first, so Date of Birth, Gender and the
 # rest are there before HR saves. See hrms_addon/bio_data.py.
 override_whitelisted_methods = {
+    # HRMS's Create Job Opening leaves out the requisition and its number of
+    # positions; this sets them and the JD's screening questions
+    "hrms.hr.doctype.job_requisition.job_requisition.make_job_opening": (
+        "hrms_addon.hrms_addon.job_openings.make_job_opening"
+    ),
     "hrms.hr.doctype.job_offer.job_offer.make_employee": "hrms_addon.hrms_addon.bio_data.make_employee_from_job_offer",
     "hrms.hr.doctype.employee_onboarding.employee_onboarding.make_employee": (
         "hrms_addon.hrms_addon.bio_data.make_employee_from_onboarding"

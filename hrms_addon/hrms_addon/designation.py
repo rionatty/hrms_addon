@@ -6,7 +6,8 @@
 The JD fields themselves are fixtures (Job Description tab). This enforces
 the rules for its tables from jd_rules.py: Key Result Areas, reporting
 lines, stakeholders, decision areas, horizons, ISO responsibilities, job
-specifications and competencies. Every table can be filled from a CSV
+specifications, competencies and the screening questions every opening for
+the job starts with. Every table can be filled from a CSV
 (Download / Upload under it), so rows are first cleaned of what Excel
 writes into such a file.
 """
@@ -34,6 +35,7 @@ def validate(doc, method=None):
         iso_responsibilities=doc.get("custom_jd_iso_responsibilities"),
         specifications=doc.get("custom_jd_specifications"),
         competencies=doc.get("custom_jd_competencies"),
+        screening_questions=doc.get(jd_rules.SCREENING_TABLE),
     )
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Job Description"))
@@ -62,7 +64,7 @@ def _clean_uploaded_cells(doc):
         for row in doc.get(fieldname) or []:
             for df in row.meta.fields:
                 value = row.get(df.fieldname)
-                cleaned = jd_rules.uploaded_value(df.fieldtype, value)
+                cleaned = jd_rules.uploaded_value(df.fieldtype, value, df.options)
                 if cleaned != value:
                     row.set(df.fieldname, cleaned)
 

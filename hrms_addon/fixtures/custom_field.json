@@ -931,11 +931,34 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Designation-custom_jd_screening_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_screening_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_competencies",
+  "label": "Screening Questions",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_screening_questions",
+  "dt": "Designation",
+  "fieldname": "custom_jd_screening_questions",
+  "fieldtype": "Table",
+  "insert_after": "custom_jd_screening_section",
+  "label": "Screening Questions",
+  "options": "Screening Question",
+  "description": "Every opening for this job starts with these.",
+  "module": "HRMS Addon",
+  "allow_bulk_edit": 1
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Designation-custom_jd_signoff_section",
   "dt": "Designation",
   "fieldname": "custom_jd_signoff_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_competencies",
+  "insert_after": "custom_jd_screening_questions",
   "label": "Sign-Off",
   "module": "HRMS Addon"
  },

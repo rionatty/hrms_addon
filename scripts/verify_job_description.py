@@ -611,9 +611,16 @@ if removed != expected_removed:
 if removed & set(by_name):
     fail.append("profile patch deletes fields that are still in the fixtures: %s" % sorted(removed & set(by_name)))
 for keyword in ("iso_responsibilities=doc.get(\"custom_jd_iso_responsibilities\")", "specifications=doc.get(\"custom_jd_specifications\")",
-                "competencies=doc.get(\"custom_jd_competencies\")"):
+                "competencies=doc.get(\"custom_jd_competencies\")", "screening_questions=doc.get(jd_rules.SCREENING_TABLE)"):
     if keyword not in glue:
         fail.append("designation.py must pass %s to jd_table_errors" % keyword.split("=")[0])
+expect("a screening question asked twice",
+       t("Machine Operator", None, [], [], [], [], screening_questions=[
+           {"question": "Can you work night shifts?"}, {"question": "can you  work night shifts?"},
+           {"question": "Expected monthly salary (UGX)"}]),
+       "Screening Questions row 2 repeats row 1.")
+expect("different questions", t("Machine Operator", None, [], [], [], [], screening_questions=[
+    {"question": "Can you work night shifts?"}, {"question": "Expected monthly salary (UGX)"}]))
 print("profile patch: uses the tested conversion, savepoint per Job Title, Skills first, deletes exactly the old fields")
 
 # ── 5. Wiring ────────────────────────────────────────────────────────
@@ -720,8 +727,8 @@ jd_tables = sorted(f["fieldname"] for f in custom
 if sorted(rules.JD_TABLE_FIELDS) != jd_tables:
     fail.append("jd_rules.JD_TABLE_FIELDS %s must be exactly the Job Description tables %s" % (sorted(rules.JD_TABLE_FIELDS), jd_tables))
 if (rules.KRA_TABLE != TABLE_FIELD or rules.JD_TABLE_FIELDS[0] != TABLE_FIELD
-        or sorted(rules.JD_TABLE_FIELDS[1:]) != sorted(rules.TABLES)):
-    fail.append("JD_TABLE_FIELDS must be the Key Result Areas table followed by jd_rules.TABLES")
+        or sorted(rules.JD_TABLE_FIELDS[1:]) != sorted(list(rules.TABLES) + [rules.SCREENING_TABLE])):
+    fail.append("JD_TABLE_FIELDS must be the Key Result Areas table, jd_rules.TABLES and the screening questions")
 for fieldname in jd_tables:
     if by_name["Designation-%s" % fieldname].get("allow_bulk_edit") != 1:
         fail.append("Designation.%s needs allow_bulk_edit: without it the table has no Download / Upload buttons" % fieldname)
@@ -738,7 +745,7 @@ if sorted(rules.UPLOADABLE_TABLES) != flagged:
                 % (sorted(rules.UPLOADABLE_TABLES), flagged))
 
 # Every uploaded column is either Frappe's to check (Link) or cleaned
-CLEANED = ("Link", "Percent", "Float") + tuple(rules.TEXT_FIELDTYPES)
+CLEANED = ("Link", "Percent", "Float", "Select") + tuple(rules.TEXT_FIELDTYPES)
 UPSTREAM_TABLES = {rules.SKILLS_TABLE: "Designation Skill"}  # not ours: checked against hrms/setup.py below
 columns = 0
 for fieldname in rules.UPLOADABLE_TABLES:
@@ -782,6 +789,16 @@ for fieldtype, value, expected in (
     got = u(fieldtype, value)
     if got != expected or type(got) is not type(expected):
         fail.append("uploaded_value(%r, %r) is %r, expected %r" % (fieldtype, value, got, expected))
+for value, options, expected in (
+    (" yes ", "\nYes\nNo", "Yes"),                      # one of its options, however written
+    ("number", "Yes or No\nNumber", "Number"),
+    ("Maybe", "\nYes\nNo", "Maybe"),                   # left for Frappe to report
+    ("Yes\x92", "\nYes\nNo", "Yes’"),                  # Excel's characters repaired first
+    (None, "\nYes\nNo", None),
+):
+    got = u("Select", value, options)
+    if got != expected:
+        fail.append("uploaded_value('Select', %r) is %r, expected %r" % (value, got, expected))
 for code in range(0x80, 0xA0):
     try:
         expected = bytes([code]).decode("cp1252")
@@ -805,7 +822,8 @@ cleaner = re.search(r"^def _clean_uploaded_cells\(doc\):\n(.*?)(?=^\S)", glue, r
 for needle, why in (
     ("for fieldname in jd_rules.UPLOADABLE_TABLES:", "must clean every table that can be filled from a CSV"),
     ("for df in row.meta.fields:", "must look at every column of a row"),
-    ("jd_rules.uploaded_value(df.fieldtype, value)", "must use the tested uploaded_value"),
+    ("jd_rules.uploaded_value(df.fieldtype, value, df.options)",
+     "must use the tested uploaded_value, with a Select column's options"),
     ("row.set(df.fieldname, cleaned)", "must write the cleaned value back"),
 ):
     if not cleaner or needle not in cleaner.group(1):
