@@ -2001,6 +2001,30 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Job Offer-custom_signed_appointment_letter",
+  "dt": "Job Offer",
+  "fieldname": "custom_signed_appointment_letter",
+  "fieldtype": "Attach",
+  "insert_after": "custom_branch",
+  "label": "Signed Appointment Letter",
+  "allow_on_submit": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Appointment Letter-custom_job_offer",
+  "dt": "Appointment Letter",
+  "fieldname": "custom_job_offer",
+  "fieldtype": "Link",
+  "insert_after": "job_applicant",
+  "label": "Job Offer",
+  "options": "Job Offer",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Employee Onboarding-custom_branch",
   "dt": "Employee Onboarding",
   "fieldname": "custom_branch",

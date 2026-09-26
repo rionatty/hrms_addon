@@ -620,6 +620,8 @@ fixtures = [
                     "Employee-custom_tools_tab",
                     "Employee-custom_employee_tools",
                     "Job Offer-custom_branch",
+                    "Job Offer-custom_signed_appointment_letter",
+                    "Appointment Letter-custom_job_offer",
                     "Employee Onboarding-custom_branch",
                     "Employee Onboarding-custom_onboarding_status",
                     "Employee Onboarding-custom_hr_officer",

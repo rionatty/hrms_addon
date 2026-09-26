@@ -774,6 +774,35 @@ for label, src in (("employee_onboarding.js", js), ("job_offer.js", read("hrms_a
             fail.append("%s: unbalanced %s%s" % (label, op, cl))
 print("wiring: doc events, migrate, install, form scripts, Create Employee and patches all resolve")
 
+# ── 8b. The offer by email, its appointment letter, the letter signed ─
+offer_js = read("hrms_addon", "public", "js", "job_offer.js")
+for needle, why in (
+    ("\trefresh(frm) {\n\t\tha_offer_letter(frm);\n", "every submitted offer has its letter buttons, accepted or not"),
+    ('if (frm.doc.docstatus !== 1 || ["Rejected", "Cancelled"].includes(frm.doc.status)) {',
+     "only an offer made and still standing"),
+    ("new frappe.views.CommunicationComposer({", "the offer is sent by email from the form"),
+    ("recipients: frm.doc.applicant_email,", "to the candidate"),
+    ("attach_document_print: true,", "with the offer attached"),
+    ('frappe.db.get_value("Appointment Letter", { custom_job_offer: frm.doc.name }, "name")',
+     "the offer's own appointment letter is found"),
+    ('frappe.new_doc("Appointment Letter", {', "or made from the offer"),
+    ("custom_job_offer: frm.doc.name,", "knowing its offer"),
+    ("applicant_name: frm.doc.applicant_name,", "with the candidate's name (a new document fetches nothing)"),
+):
+    if needle not in offer_js:
+        fail.append("job_offer.js: %s" % why)
+offer_fields = {row["name"]: row for row in custom}
+signed = offer_fields.get("Job Offer-custom_signed_appointment_letter") or {}
+if (signed.get("fieldtype"), signed.get("allow_on_submit")) != ("Attach", 1):
+    fail.append("the signed appointment letter is attached to the offer, after it is submitted too")
+letter = offer_fields.get("Appointment Letter-custom_job_offer") or {}
+if (letter.get("fieldtype"), letter.get("options"), letter.get("read_only")) != ("Link", "Job Offer", 1):
+    fail.append("an appointment letter knows the offer it was made from")
+for name in ("Job Offer-custom_signed_appointment_letter", "Appointment Letter-custom_job_offer"):
+    if '"%s",' % name not in read("hrms_addon", "hooks.py"):
+        fail.append("hooks.py fixtures must list %s" % name)
+print("the offer: sent by email, its appointment letter made from it, the signed letter attached")
+
 # ── 9. Workplace Rules and Regulations print (LPL/HR/05) ─────────────
 pf_path = os.path.join(APP, "print_format", "workplace_rules_and_regulations", "workplace_rules_and_regulations.json")
 pf = json.load(open(pf_path, encoding="utf-8")) if os.path.exists(pf_path) else {}
