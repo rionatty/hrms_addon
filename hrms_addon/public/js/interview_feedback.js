@@ -4,37 +4,45 @@
 // Interview Feedback — the Candidate Interview Evaluation / Score Form
 // (LPL/HR/17). Loaded through hooks.py doctype_js, after HRMS's own script.
 //
-// A new sheet starts with every criterion that is not disabled, in order
-// (Interview Criterion). The panel member scores each 1 to 5, or N/A, and the
-// running total, percentage and rating show under the grid as they go. The
-// server works the same totals out again on save
+// A new sheet starts with the round's own criteria and their weights, or,
+// for a round with no list, every criterion that is not disabled, in order
+// (Interview Criterion). The panel member scores each 1 to 5 (N/A only on the
+// general list), and the running total, percentage and rating show under the
+// grid as they go. The server works the same totals out again on save
 // (hrms_addon/hrms_addon/interviews.py), so these are only for the eye.
 // HA_SCORE_BANDS must match interview_rules.BANDS; scripts/verify_interviews.py
 // checks that they do.
 
 const HA_SCORE_TABLE = "custom_scores";
-// the interview's questions, each with the candidate's answer to note
+// the interview's questions, each with what to look for, the candidate's
+// answer and its score
 const HA_ANSWER_TABLE = "custom_answers";
 const HA_SCORE_BANDS = [
 	[90, "Excellent"],
-	[75, "Very Good"],
-	[60, "Good"],
-	[50, "Average"],
+	[70, "Very Good"],
+	[50, "Good"],
+	[30, "Average"],
 	[0, "Below Average"],
 ];
 const HA_RESULTS = { Offer: "Cleared", Shortlist: "Cleared", Reject: "Rejected" };
+// a round's own list has already said what applies: no N/A there
+const HA_ROUND_SCALE = ["", "1", "2", "3", "4", "5"];
 
 frappe.ui.form.on("Interview Feedback", {
 	refresh(frm) {
-		// the criteria come from the Interview Criterion list, not from here
+		// the criteria come from the round or the Interview Criterion list, not from here
 		frm.set_df_property(HA_SCORE_TABLE, "cannot_add_rows", true);
 		frm.set_df_property(HA_SCORE_TABLE, "cannot_delete_rows", true);
 		if (frm.is_new() && !(frm.doc[HA_SCORE_TABLE] || []).length) {
-			frappe.xcall("hrms_addon.hrms_addon.interviews.get_score_criteria").then((rows) => {
-				(rows || []).forEach((row) => frm.add_child(HA_SCORE_TABLE, row));
-				frm.refresh_field(HA_SCORE_TABLE);
-				ha_show_score_total(frm);
-			});
+			frappe
+				.xcall("hrms_addon.hrms_addon.interviews.get_score_criteria", { interview: frm.doc.interview || null })
+				.then((start) => {
+					(start.rows || []).forEach((row) => frm.add_child(HA_SCORE_TABLE, row));
+					frm.doc.custom_round_criteria = start.round_criteria ? 1 : 0;
+					frm.refresh_field(HA_SCORE_TABLE);
+					ha_score_options(frm);
+					ha_show_score_total(frm);
+				});
 		}
 		// the questions come from the interview, not from here
 		frm.set_df_property(HA_ANSWER_TABLE, "cannot_add_rows", true);
@@ -47,6 +55,7 @@ frappe.ui.form.on("Interview Feedback", {
 					frm.refresh_field(HA_ANSWER_TABLE);
 				});
 		}
+		ha_score_options(frm);
 		ha_show_score_total(frm);
 	},
 	custom_recommendation(frm) {
@@ -60,6 +69,13 @@ frappe.ui.form.on("Interview Feedback Score", {
 	},
 });
 
+function ha_score_options(frm) {
+	const field = frm.fields_dict[HA_SCORE_TABLE];
+	if (field && field.grid && frm.doc.custom_round_criteria) {
+		field.grid.update_docfield_property("score", "options", HA_ROUND_SCALE.join(String.fromCharCode(10)));
+	}
+}
+
 function ha_show_score_total(frm) {
 	const field = frm.fields_dict[HA_SCORE_TABLE];
 	if (!field || !field.grid) {
@@ -70,9 +86,10 @@ function ha_show_score_total(frm) {
 	let blank = 0;
 	(frm.doc[HA_SCORE_TABLE] || []).forEach((row) => {
 		const score = cint(row.score);
+		const weight = Math.min(Math.max(cint(row.weight) || 1, 1), 5);
 		if (score >= 1 && score <= 5) {
-			total += score;
-			maximum += 5;
+			total += score * weight;
+			maximum += 5 * weight;
 		} else if (row.score !== "N/A") {
 			blank += 1;
 		}

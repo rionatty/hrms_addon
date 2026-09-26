@@ -7,6 +7,7 @@
  "field_order": [
   "criteria_group",
   "criterion",
+  "weight",
   "score",
   "comments"
  ],
@@ -31,6 +32,15 @@
    "columns": 3
   },
   {
+   "fieldname": "weight",
+   "fieldtype": "Int",
+   "label": "Weight",
+   "default": "1",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
    "fieldname": "score",
    "fieldtype": "Select",
    "label": "Score",
@@ -44,12 +54,12 @@
    "fieldtype": "Small Text",
    "label": "Interviewer's Comments",
    "in_list_view": 1,
-   "columns": 4
+   "columns": 3
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-18 09:00:00.000000",
+ "modified": "2026-09-26 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Interview Feedback Score",

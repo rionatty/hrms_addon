@@ -7,14 +7,21 @@ on HRMS's Interview Feedback.
 The rules live in interview_rules.py (no Frappe import; tested by
 scripts/verify_interviews.py). This wires them into HRMS:
 
-  feedback_validate    Interview Feedback validate: a sheet starts with every
-                       criterion, its totals are worked out, the result follows
+  feedback_validate    Interview Feedback validate: a sheet starts with the
+                       round's own criteria and weights (else the general list),
+                       its weighted totals are worked out, the result follows
                        the recommendation, and HRMS's average rating becomes the
                        sheet's percentage, so the Interview's panel average and
                        star summary use the scores; it starts with the
-                       interview's questions too, for the candidate's answers
-  interview_validate   Interview validate: the Interview Type's round and
-                       questions, as they were when it was booked
+                       interview's questions too, each scored. Submitting needs
+                       the conflict tick, comments, every question scored, and an
+                       Offer at the round's pass mark
+  interview_validate   Interview validate: the Interview Type's round, questions
+                       and criteria, as they were when it was booked
+  interview_type_validate
+                       Interview Type validate: its own list of criteria is sound
+  get_round_criteria   Get Criteria from JD: a round's criteria from its JD's
+                       competencies, weighed by priority, then the general list
   get_interview_questions
                        the questions a new score sheet starts with
   get_score_criteria   the rows a new sheet starts with, for the form script
@@ -80,47 +87,85 @@ def feedback_validate(doc, method=None):
     problem = access_rules.sheet_owner_error(doc.interviewer, frappe.session.user)
     if problem and not (frappe.flags.in_migrate or frappe.flags.in_patch or frappe.flags.in_install):
         frappe.throw(_(problem), frappe.PermissionError)
+    start, own_list = _sheet_start(doc.get("interview"))
     if not doc.get("custom_scores"):
-        for row in _sheet_rows():
+        for row in start:
             doc.append("custom_scores", row)
+    # the weights and the N/A rule are the round's, whatever was posted: its
+    # own list when the sheet scores exactly that, else the general one
+    weights = {row["criterion"]: row["weight"] for row in start} if own_list else {}
+    doc.custom_round_criteria = 1 if weights and {row.criterion for row in doc.custom_scores} == set(weights) else 0
+    for row in doc.custom_scores:
+        row.weight = weights.get(row.criterion, 1) if doc.custom_round_criteria else 1
     groups = _groups_of({row.criterion for row in doc.custom_scores if row.criterion})
     for row in doc.custom_scores:
         if row.criterion in groups:
             row.criteria_group = groups[row.criterion]
+    # the interview's questions, each with what to look for, the candidate's
+    # answer and its score
+    if not doc.get("custom_answers") and doc.get("interview"):
+        for row in _questions_asked(doc.interview):
+            doc.append("custom_answers", row)
 
-    errors = rules.score_sheet_errors(doc.custom_scores, doc.get("custom_recommendation"), submitting=doc.docstatus == 1)
+    submitting = doc.docstatus == 1
+    recommendation = doc.get("custom_recommendation")
+    errors = rules.score_sheet_errors(doc.custom_scores, recommendation, submitting=submitting,
+                                      round_criteria=bool(doc.get("custom_round_criteria")))
+    summary = rules.score_summary(doc.custom_scores)
+    if submitting:
+        # the Offer check waits until the scores themselves are right
+        pass_mark = rules.pass_percent(frappe.db.get_value("Interview", doc.interview, "expected_average_rating")) \
+            if doc.get("interview") else None
+        errors += rules.submission_errors({} if errors else summary, recommendation, doc.get("feedback"),
+                                          doc.get("custom_no_conflict"), doc.get("custom_answers"), pass_mark)
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Score Sheet"))
 
-    summary = rules.score_summary(doc.custom_scores)
     doc.custom_total_score = summary["total"]
     doc.custom_max_score = summary["maximum"]
     doc.custom_score_percent = summary["percent"]
     doc.custom_score_band = summary["band"]
+    doc.custom_question_percent = rules.question_summary(doc.get("custom_answers"))["percent"]
     doc.average_rating = rules.average_rating(summary)
-    if doc.get("custom_recommendation"):
-        doc.result = rules.result_for(doc.custom_recommendation)
+    if recommendation:
+        doc.result = rules.result_for(recommendation)
     doc.custom_interviewer_designation = _designation_of(doc.interviewer)
-    # the interview's questions, each with the candidate's answer to note
-    if not doc.get("custom_answers") and doc.get("interview"):
-        for question in _questions_asked(doc.interview):
-            doc.append("custom_answers", {"question": question})
 
 
 @frappe.whitelist()
-def get_score_criteria():
-    """The rows a new score sheet starts with: every criterion not disabled, in order."""
-    return _sheet_rows()
+def get_score_criteria(interview: str | None = None) -> dict:
+    """The rows a new score sheet starts with, and whether they are the
+    round's own list (weighed, nothing N/A) or the general one."""
+    if interview:
+        frappe.has_permission("Interview", "read", interview, throw=True)
+    rows, own_list = _sheet_start(interview)
+    return {"rows": rows, "round_criteria": own_list}
+
+
+def _sheet_start(interview):
+    """The rows a new sheet starts with: the round's criteria as the interview
+    was booked with them (its type's, for one booked before rounds had any),
+    else the general list. Returns (rows, whether they are the round's)."""
+    own = _criteria_of("Interview", interview) if interview else []
+    if not own and interview:
+        interview_type = frappe.db.get_value("Interview", interview, "interview_type")
+        own = type_criteria(interview_type) if interview_type else []
+    if own:
+        return [{"criteria_group": row.criteria_group, "criterion": row.criterion, "weight": row.weight or 1}
+                for row in own], True
+    return _sheet_rows(), False
 
 
 def interview_validate(doc, method=None):
-    """An interview carries its type's round and questions as they were when
-    it was booked: the questions are filled while it has none, and again
+    """An interview carries its type's round, questions and criteria as they
+    were when it was booked: they are filled while it has none, and again
     when its type changes."""
     before = doc.get_doc_before_save()
     changed = before is not None and before.get("interview_type") != doc.get("interview_type")
     if doc.get("interview_type") and (changed or not doc.get("custom_questions")):
         doc.set("custom_questions", type_questions(doc.interview_type))
+    if doc.get("interview_type") and (changed or not doc.get("custom_criteria")):
+        doc.set("custom_criteria", type_criteria(doc.interview_type))
     doc.custom_round = frappe.db.get_value("Interview Type", doc.interview_type, "custom_round") \
         if doc.get("interview_type") else None
 
@@ -133,22 +178,70 @@ def type_questions(interview_type):
                           fields=["question", "guidance"], order_by="idx asc")
 
 
+def type_criteria(interview_type):
+    """An Interview Type's own list of criteria and their weights, in order."""
+    return _criteria_of("Interview Type", interview_type)
+
+
+def _criteria_of(doctype, name):
+    return frappe.get_all("Interview Round Criterion",
+                          filters={"parent": name, "parenttype": doctype, "parentfield": "custom_criteria"},
+                          fields=["criterion", "criteria_group", "weight"], order_by="idx asc")
+
+
 @frappe.whitelist()
 def get_interview_questions(interview: str) -> list:
     """The questions a new score sheet starts with: the interview's own."""
     frappe.has_permission("Interview", "read", interview, throw=True)
-    return [{"question": question} for question in _questions_asked(interview)]
+    return _questions_asked(interview)
 
 
 def _questions_asked(interview):
-    """The interview's questions, or its type's where it carries none."""
+    """The interview's questions and what to look for, or its type's where it carries none."""
     asked = frappe.get_all("Interview Question",
                            filters={"parent": interview, "parenttype": "Interview", "parentfield": "custom_questions"},
-                           pluck="question", order_by="idx asc")
-    if asked:
-        return asked
-    interview_type = frappe.db.get_value("Interview", interview, "interview_type")
-    return [row.question for row in type_questions(interview_type)] if interview_type else []
+                           fields=["question", "guidance"], order_by="idx asc")
+    if not asked:
+        interview_type = frappe.db.get_value("Interview", interview, "interview_type")
+        asked = type_questions(interview_type) if interview_type else []
+    return [{"question": row.question, "guidance": row.guidance} for row in asked]
+
+
+def interview_type_validate(doc, method=None):
+    """Interview Type validate: its own list of criteria, where it has one,
+    lists each once, weighs each 1 to 5, and holds nothing switched off or
+    never scored."""
+    disabled = frappe.get_all("Interview Criterion", filters={"disabled": 1}, pluck="name")
+    errors = rules.round_criteria_errors(doc.get("custom_criteria"), disabled)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Interview Type"))
+
+
+@frappe.whitelist(methods=["POST"])
+def get_round_criteria(designation: str) -> list:
+    """The criteria a round starts with, from its JD (Get Criteria from JD):
+    the JD's competencies weighed by their priority, then the general list
+    once each. A competency not yet in the list of criteria is added to it,
+    under Job Competencies."""
+    frappe.has_permission("Interview Type", "write", throw=True)
+    competencies = frappe.get_all("JD Competency",
+                                  filters={"parent": designation, "parenttype": "Designation",
+                                           "parentfield": "custom_jd_competencies"},
+                                  fields=["competency", "priority"], order_by="idx asc")
+    weights = dict(frappe.get_all("JD Requirement Priority", fields=["name", "weight"], as_list=True))
+    rows, to_create = rules.round_criteria_plan(competencies, weights, _sheet_rows(),
+                                                frappe.get_all("Interview Criterion", pluck="name"))
+    if to_create:
+        frappe.has_permission("Interview Criterion", "create", throw=True)
+        if not frappe.db.exists("Interview Criteria Group", rules.JD_GROUP):
+            frappe.get_doc({"doctype": "Interview Criteria Group", "group_name": rules.JD_GROUP, "sort_order": 5}).insert()
+        for name in to_create:
+            frappe.get_doc({"doctype": "Interview Criterion", "criterion_name": name,
+                            "criteria_group": rules.JD_GROUP}).insert()
+    groups = _groups_of({row["criterion"] for row in rows})
+    for row in rows:
+        row["criteria_group"] = groups.get(row["criterion"])
+    return rows
 
 
 @frappe.whitelist()

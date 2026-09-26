@@ -1,0 +1,56 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-09-26 20:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "criterion",
+  "criteria_group",
+  "weight"
+ ],
+ "fields": [
+  {
+   "fieldname": "criterion",
+   "fieldtype": "Link",
+   "label": "Criterion",
+   "options": "Interview Criterion",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 5
+  },
+  {
+   "fieldname": "criteria_group",
+   "fieldtype": "Link",
+   "label": "Group",
+   "options": "Interview Criteria Group",
+   "read_only": 1,
+   "fetch_from": "criterion.criteria_group",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Int",
+   "label": "Weight",
+   "default": "1",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "1 to 5."
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-26 20:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Interview Round Criterion",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

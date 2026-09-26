@@ -354,7 +354,18 @@
   "doctype_or_field": "DocField",
   "property": "description",
   "property_type": "Text",
-  "value": "3 = Good (60%), 4 = Very Good (75%).",
+  "value": "The average score an Offer needs: 3 is Good, 4 is Very Good.",
+  "module": "HRMS Addon",
+  "field_name": "expected_average_rating"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Type-expected_average_rating-label",
+  "doc_type": "Interview Type",
+  "doctype_or_field": "DocField",
+  "property": "label",
+  "property_type": "Data",
+  "value": "Pass Mark",
   "module": "HRMS Addon",
   "field_name": "expected_average_rating"
  },

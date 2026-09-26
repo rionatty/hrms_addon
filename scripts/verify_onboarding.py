@@ -201,6 +201,22 @@ expect("tools not yet issued", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, tools
 expect("a required training not set up", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, training_required=1)),
        "Training is required: fill in the Trainer (Training section)")
 expect("training details not needed when no training", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, training_required=0)))
+# the health question the interview no longer asks: a doctor's check, where the JD needs one
+expect("a medical check the JD needs, not yet done", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, medical_certificate_missing=True)),
+       "The job needs a medical check before joining: attach the Medical Fitness Certificate")
+expect("the certificate attached, or no check needed", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, medical_certificate_missing=False)))
+onboarding_glue = read("hrms_addon", "hrms_addon", "onboarding.py")
+NL = chr(10)
+for needle, why in (
+        ('"medical_certificate_missing": bool(doc.get("custom_medical_check") and not doc.get("custom_medical_certificate")),',
+         "must tell the step whether the certificate is missing"),
+        ('frappe.db.get_value("Designation", doc.designation, "custom_medical_check")', "must read the check from the JD"),
+        (NL.join(("    _apply_defaults(doc)", "    _medical_check(doc)", "    _check_step(doc)")),
+         "must know the check before a save's step"),
+        (NL.join(("    _link_employee(doc)", "    _medical_check(doc)", "    old_state, new_state = _check_step(doc)")),
+         "and before every step after the start")):
+    if needle not in onboarding_glue:
+        fail.append("onboarding.py %s" % why)
 expect("return without remarks", step(A.PENDING_HRM, A.ONBOARDING, dict(ALL, hrm_remarks="   ")), "Write in the HR Manager's Remarks")
 expect("return with remarks", step(A.PENDING_HRM, A.ONBOARDING, dict(ALL, hrm_remarks="Salary grade is wrong")))
 expect("approve", step(A.PENDING_HRM, A.APPROVED, {}))

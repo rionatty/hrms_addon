@@ -110,8 +110,12 @@ PAPER = [
     ("Personality", "Ability to work under pressure"), ("Personality", "Interests & Hobbies"),
     ("Appearance", "Appearance"), ("Health", "Health"),
 ]
-if list(rules.CRITERIA) != PAPER:
-    fail.append("CRITERIA must be LPL/HR/17's 17 criteria in the form's order: %s" % (rules.CRITERIA,))
+# the form's Appearance and Health are not scored at interview (Employment Act 2006, s.6)
+SEEDED = [row for row in PAPER if row[1] not in ("Appearance", "Health")]
+if list(rules.CRITERIA) != SEEDED:
+    fail.append("CRITERIA must be LPL/HR/17's criteria in the form's order, less Appearance and Health: %s" % (rules.CRITERIA,))
+if tuple(rules.RETIRED_CRITERIA) != ("Appearance", "Health"):
+    fail.append("Appearance and Health are the retired criteria: %s" % (rules.RETIRED_CRITERIA,))
 groups_in_order = []
 for group, _criterion in rules.CRITERIA:
     if group not in groups_in_order:
@@ -120,16 +124,26 @@ if list(rules.CRITERIA_GROUPS) != groups_in_order:
     fail.append("CRITERIA_GROUPS %s must be the criteria's groups in the form's order %s" % (rules.CRITERIA_GROUPS, groups_in_order))
 if rules.SCORE_OPTIONS != ("", "1", "2", "3", "4", "5", "N/A") or rules.TOP_SCORE != 5:
     fail.append("the scale is 1 to 5 or N/A, with blank for not scored yet: %s" % (rules.SCORE_OPTIONS,))
-if rules.BANDS != ((90, "Excellent"), (75, "Very Good"), (60, "Good"), (50, "Average"), (0, "Below Average")):
-    fail.append("BANDS must be the form's: Excellent 90-100, Very Good 75-89, Good 60-74, Average 50-59, Below Average 49 and below")
+if rules.BANDS != ((90, "Excellent"), (70, "Very Good"), (50, "Good"), (30, "Average"), (0, "Below Average")):
+    fail.append("BANDS must name the average score, rounded: 4.5 (90%) Excellent, 3.5 (70%) Very Good, 2.5 (50%) Good, "
+                "1.5 (30%) Average")
+# the scale's names agree with the form's per-score labels: everything scored 2 is Average
+for score, name in (("5", "Excellent"), ("4", "Very Good"), ("3", "Good"), ("2", "Average"), ("1", "Below Average")):
+    got = rules.score_summary([{"score": score}] * 15)["band"]
+    if got != name:
+        fail.append("a candidate scored %s on everything must be %s, as the form calls a %s, got %s" % (score, name, score, got))
+for mean_scores, name in ((("5", "4"), "Excellent"), (("4", "3"), "Very Good"), (("3", "2"), "Good"), (("2", "1"), "Average")):
+    got = rules.score_summary([{"score": s} for s in mean_scores])["band"]
+    if got != name:
+        fail.append("an average score of %s.5 rounds up to %s, got %s" % (mean_scores[1], name, got))
 if rules.RECOMMENDATIONS != ("Offer", "Shortlist", "Reject"):
     fail.append("RECOMMENDATIONS must be the form's Offer / Shortlist / Reject")
-print("form: %d criteria in %d groups, scored 1-5 or N/A, five bands, three recommendations"
+print("form: %d criteria in %d groups, scored 1-5 or N/A, five bands naming the average score, three recommendations"
       % (len(rules.CRITERIA), len(rules.CRITERIA_GROUPS)))
 
 # ── 2. Scoring ───────────────────────────────────────────────────────
 def sheet(*scores):
-    return [{"criterion": criterion, "score": score} for (_group, criterion), score in zip(rules.CRITERIA, scores)]
+    return [{"criterion": criterion, "score": score} for (_group, criterion), score in zip(PAPER, scores)]
 
 
 full = sheet("5", "4", "4", "3", "N/A", "5", "4", "4", "3", "4", "5", "3", "4", "4", "3", "5", "5")
@@ -140,8 +154,9 @@ if (summary["total"], summary["maximum"], summary["percent"], summary["band"], s
 if rules.average_rating(summary) != 0.8125:
     fail.append("the sheet as HRMS's 0-1 rating must be 0.8125, got %s" % rules.average_rating(summary))
 for total, maximum, band in ((27, 30, "Excellent"), (45, 50, "Excellent"), (26, 30, "Very Good"), (15, 20, "Very Good"),
-                             (14, 20, "Good"), (12, 20, "Good"), (11, 20, "Average"), (10, 20, "Average"),
-                             (9, 20, "Below Average"), (1, 5, "Below Average"), (5, 5, "Excellent"), (0, 0, "")):
+                             (14, 20, "Very Good"), (13, 20, "Good"), (12, 20, "Good"), (10, 20, "Good"),
+                             (9, 20, "Average"), (6, 20, "Average"), (5, 20, "Below Average"), (1, 5, "Below Average"),
+                             (5, 5, "Excellent"), (0, 0, "")):
     if rules.band_for(total, maximum) != band:
         fail.append("%d of %d must be %r, got %r" % (total, maximum, band, rules.band_for(total, maximum)))
 blank_and_na = rules.score_summary([{"score": "N/A"}, {"score": ""}, {"score": None}])
@@ -155,7 +170,16 @@ for recommendation, result in (("Offer", "Cleared"), ("Shortlist", "Cleared"), (
 
 errors = rules.score_sheet_errors
 expect("a draft with blanks", errors(sheet("5", "", ""), "", submitting=False))
+expect("an N/A with no reason, submitted", errors(full, "Offer", submitting=True),
+       "Row 5 (Customer care skills): say in its comments why it does not apply.")
+full[4]["comments"] = "The job has no customers."
 expect("a complete sheet submitted", errors(full, "Offer", submitting=True))
+expect("N/A on a round's own list", errors(sheet("5", "N/A"), "", submitting=False, round_criteria=True),
+       "Row 2 (Job knowledge): this round scores every criterion on its list, from 1 to 5.")
+expect("a blank on a round's own list, submitted", errors(sheet("5", ""), "Offer", submitting=True, round_criteria=True),
+       "Row 2 (Job knowledge): score it from 1 to 5.")
+if any("or N/A" in e for e in errors(sheet("5", ""), "Offer", submitting=True, round_criteria=True)):
+    fail.append("a round's own list offers no N/A, so its blank rows are not told about N/A")
 expect("blanks on submit", errors(sheet("5", ""), "Offer", submitting=True), "Row 2 (Job knowledge): score it from 1 to 5")
 expect("a score off the scale", errors([{"criterion": "Job knowledge", "score": "7"}], "", submitting=False),
        "the score must be 1 to 5 or N/A, not 7")
@@ -177,6 +201,8 @@ rows = rules.sheet_rows([
 ])
 if [r["criterion"] for r in rows] != ["Added later", "Technical Qualification skills", "Job knowledge", "Health"]:
     fail.append("a new sheet lists criteria by group order, then their own, and leaves disabled ones out: %s" % rows)
+if any(r["weight"] != 1 for r in rows):
+    fail.append("on the general list each criterion counts once")
 averages = rules.criterion_averages([
     [{"criterion": "Job knowledge", "score": "5"}, {"criterion": "Health", "score": "N/A"}, {"criterion": "Computer skills", "score": ""}],
     [{"criterion": "Job knowledge", "score": "4"}, {"criterion": "Health", "score": "3"}],
@@ -186,17 +212,78 @@ if averages != [("Job knowledge", 4.5), ("Health", 3.0)]:
 
 group_records, criterion_records = rules.criteria_seed_plan([], [])
 if [(g["group_name"], g["sort_order"]) for g in group_records] != [(g, (i + 1) * 10) for i, g in enumerate(rules.CRITERIA_GROUPS)]:
-    fail.append("fresh seed must create the five groups ordered 10-50: %s" % group_records)
+    fail.append("fresh seed must create the three groups ordered 10-30: %s" % group_records)
 if [(c["criteria_group"], c["criterion_name"]) for c in criterion_records] != list(rules.CRITERIA) \
         or [c["sort_order"] for c in criterion_records] != [(i + 1) * 10 for i in range(len(rules.CRITERIA))]:
-    fail.append("fresh seed must create the 17 criteria in the form's order, 10 apart")
+    fail.append("fresh seed must create the 15 criteria in the form's order, 10 apart")
 if any(c["doctype"] != "Interview Criterion" for c in criterion_records) or any(g["doctype"] != "Interview Criteria Group" for g in group_records):
     fail.append("seed records must name their DocTypes")
 group_records, criterion_records = rules.criteria_seed_plan(["education", "Health"], ["technical qualification skills", "Health"])
-if [g["group_name"] for g in group_records] != ["Working Experience", "Personality", "Appearance"]:
+if [g["group_name"] for g in group_records] != ["Working Experience", "Personality"]:
     fail.append("seeding must skip groups already there, ignoring case: %s" % group_records)
-if len(criterion_records) != 15 or any(c["criterion_name"] in ("Technical Qualification skills", "Health") for c in criterion_records):
+if len(criterion_records) != 14 or any(c["criterion_name"] in ("Technical Qualification skills", "Health") for c in criterion_records):
     fail.append("seeding must skip criteria already there, ignoring case")
+if any(c["criterion_name"] in rules.RETIRED_CRITERIA for c in rules.criteria_seed_plan([], [])[1]):
+    fail.append("Appearance and Health are never seeded")
+
+# a round's own list: weights, what a submitted sheet needs, the pass mark
+weighed = rules.score_summary([{"score": "5", "weight": 3}, {"score": "1", "weight": 1}, {"score": "N/A", "weight": 2}])
+if (weighed["total"], weighed["maximum"], weighed["percent"], weighed["band"]) != (16, 20, 80.0, "Very Good"):
+    fail.append("a criterion counts as much as its weight, N/A not at all: %s" % weighed)
+for weight, counted in ((0, 1), (None, 1), ("", 1), ("x", 1), (2, 2), (5, 5), (9, 5)):
+    if rules.score_summary([{"score": "4", "weight": weight}])["maximum"] != 5 * counted:
+        fail.append("a weight of %r counts %d times" % (weight, counted))
+if (rules.WEIGHTS, rules.OFFER_FLOOR, rules.JD_GROUP) != ((1, 2, 3, 4, 5), 50, "Job Competencies"):
+    fail.append("weights are 1 to 5, an Offer needs a Good sheet (50%%) where the round sets no pass mark, "
+                "competencies go under Job Competencies")
+se_ = rules.submission_errors
+good = rules.score_summary([{"score": "3"}, {"score": "4"}])
+answered = [{"question": "Which machines?", "score": "4"}, {"question": "A jam?", "score": "3"}]
+expect("a sheet ready to submit", se_(good, "Offer", "Knows the machines.", 1, answered, None))
+expect("no conflict tick", se_(good, "Offer", "Fine.", 0, answered, None), "Tick that you have no personal or family relationship")
+expect("a question not scored", se_(good, "Reject", "Fine.", 1, [{"question": "Which machines?", "score": ""}], None),
+       "Question 1: score the answer from 1 to 5.")
+expect("no comments", se_(good, "Shortlist", " ", 1, answered, None), "Write your comments on the candidate's suitability")
+poor = rules.score_summary([{"score": "2"}, {"score": "2"}])
+expect("an Offer under the default pass mark", se_(poor, "Offer", "Keen.", 1, answered, None),
+       "The sheet scores 40% (Average), under the 50% an Offer needs")
+expect("an Offer under the round's pass mark", se_(rules.score_summary([{"score": "3"}] * 2), "Offer", "Keen.", 1, answered, 70),
+       "under the 70% an Offer needs")
+expect("an Offer on the pass mark", se_(rules.score_summary([{"score": "3"}] * 2), "Offer", "Keen.", 1, answered, 60))
+expect("a low sheet recommending Reject", se_(poor, "Reject", "Not ready.", 1, answered, 60))
+expect("the Offer check waits for the scores", se_({}, "Offer", "Keen.", 1, answered, 60))
+for rating, percent in ((0.6, 60.0), (0.75, 75.0), (0, None), (None, None), ("x", None)):
+    if rules.pass_percent(rating) != percent:
+        fail.append("a pass mark of %r stars' fraction is %r%%, got %r" % (rating, percent, rules.pass_percent(rating)))
+qs = rules.question_summary([{"score": "5"}, {"score": "4"}, {"score": ""}, {"score": "N/A"}])
+if qs != {"scored": 2, "total": 9, "maximum": 10, "percent": 90.0} or rules.question_summary(None)["percent"] != 0.0:
+    fail.append("the questions' score counts the questions scored: %s" % qs)
+ce = rules.criterion_errors
+for name, disabled, refused in (("Health", 0, True), ("Health", 1, False), ("HIV-status", 0, True), ("Appearance ", 0, True),
+                                ("Marital Status", 0, True), ("Health and safety awareness", 0, False),
+                                ("Job knowledge", 0, False), ("", 0, False)):
+    if bool(ce(name, disabled)) != refused:
+        fail.append("criterion %r%s must %sbe refused" % (name, " (disabled)" if disabled else "", "" if refused else "not "))
+plan_rows, plan_new = rules.round_criteria_plan(
+    [{"competency": "Injection Moulding", "priority": "Essential"}, {"competency": "Teamwork", "priority": "Desirable"},
+     {"competency": "teamwork", "priority": "Essential"}, {"competency": "Health", "priority": "Essential"},
+     {"competency": "Quality Control", "priority": ""}, {"competency": "", "priority": "Essential"}],
+    {"Essential": 3, "Preferred": 2, "Desirable": 1},
+    [{"criterion": "Job knowledge"}, {"criterion": "TEAMWORK"}, {"criterion": "Appearance"}],
+    ["injection moulding", "Job knowledge"])
+if plan_rows != [{"criterion": "injection moulding", "weight": 3}, {"criterion": "Teamwork", "weight": 1},
+                 {"criterion": "Quality Control", "weight": 1}, {"criterion": "Job knowledge", "weight": 1}] \
+        or plan_new != ["Teamwork", "Quality Control"]:
+    fail.append("a round's criteria: the JD's competencies weighed by priority, under their existing spelling, then the "
+                "general list, nothing twice or never scored: %s %s" % (plan_rows, plan_new))
+rce = rules.round_criteria_errors
+expect("a sound round list", rce([{"criterion": "Job knowledge", "weight": 3}, {"criterion": "Teamwork", "weight": 1}], []))
+expect("a criterion twice", rce([{"criterion": "Job knowledge", "weight": 1}, {"criterion": "job knowledge", "weight": 2}], []),
+       "Score Sheet row 2: job knowledge is already in row 1.")
+expect("a weight off the scale", rce([{"criterion": "Job knowledge", "weight": 0}, {"criterion": "Teamwork", "weight": 6}], []),
+       "row 1 (Job knowledge): the weight must be 1 to 5, not 0", "row 2 (Teamwork): the weight must be 1 to 5, not 6")
+expect("a criterion switched off", rce([{"criterion": "Old One", "weight": 1}], ["old one"]), "Old One is switched off")
+expect("a criterion never scored", rce([{"criterion": "Health", "weight": 1}], []), "Health is not scored at interview")
 print("scoring: totals, N/A, blanks, every boundary of the scale, results, errors, order, panel averages and seeding correct")
 
 # ── 3. The masters and the score rows ────────────────────────────────
@@ -233,8 +320,23 @@ if (criterion.get("disabled") or {}).get("fieldtype") != "Check":
 
 score_spec = doctype_json("Interview Feedback Score")
 score_fields = fields_of(score_spec)
-if not score_spec.get("istable") or list(score_fields) != ["criteria_group", "criterion", "score", "comments"]:
-    fail.append("Interview Feedback Score must be a child table of criteria_group, criterion, score, comments")
+if not score_spec.get("istable") or list(score_fields) != ["criteria_group", "criterion", "weight", "score", "comments"]:
+    fail.append("Interview Feedback Score must be a child table of criteria_group, criterion, weight, score, comments")
+if (score_fields.get("weight") or {}).get("fieldtype") != "Int" or not score_fields["weight"].get("read_only"):
+    fail.append("a score row's weight is the round's: a read-only Int")
+round_spec = doctype_json("Interview Round Criterion")
+round_fields = fields_of(round_spec)
+if not round_spec.get("istable") or list(round_fields) != ["criterion", "criteria_group", "weight"] \
+        or (round_fields["criterion"].get("options"), round_fields["criterion"].get("reqd")) != ("Interview Criterion", 1) \
+        or round_fields["criteria_group"].get("fetch_from") != "criterion.criteria_group" \
+        or (round_fields["weight"].get("fieldtype"), round_fields["weight"].get("default"), round_fields["weight"].get("reqd")) \
+        != ("Int", "1", 1):
+    fail.append("Interview Round Criterion is a child table of a mandatory criterion, its group fetched, and a weight of 1 by default")
+if "class InterviewRoundCriterion(Document):" not in read("hrms_addon", "hrms_addon", "doctype", "interview_round_criterion",
+                                                            "interview_round_criterion.py"):
+    fail.append("Interview Round Criterion needs its controller, or migrate stops at it")
+if sum(f.get("columns") or 0 for f in round_spec["fields"] if f.get("in_list_view")) > 10:
+    fail.append("the round's criteria grid exceeds Frappe's 10 columns")
 if (score_fields.get("score") or {}).get("options", "").split("\n") != list(rules.SCORE_OPTIONS):
     fail.append("the score options must be exactly the form's scale %s" % (rules.SCORE_OPTIONS,))
 for fieldname, target in (("criterion", "Interview Criterion"), ("criteria_group", "Interview Criteria Group")):
@@ -277,6 +379,22 @@ for name, value in (
 PRINT_NAME = "Candidate Interview Evaluation Score Form"
 if (setters.get("Interview Feedback-main-default_print_format") or {}).get("value") != PRINT_NAME:
     fail.append("Interview Feedback must print %s by default" % PRINT_NAME)
+for name, fieldtype, options, flags in (
+        ("Interview Feedback-custom_round_criteria", "Check", None, ("read_only", "hidden")),
+        ("Interview Feedback-custom_question_percent", "Percent", None, ("read_only",)),
+        ("Interview Feedback-custom_no_conflict", "Check", None, ()),
+        ("Interview Type-custom_criteria", "Table", "Interview Round Criterion", ("allow_bulk_edit",)),
+        ("Interview-custom_criteria", "Table", "Interview Round Criterion", ("read_only",))):
+    f = by_name.get(name) or {}
+    if (f.get("fieldtype"), f.get("options")) != (fieldtype, options) or not all(f.get(flag) for flag in flags):
+        fail.append("%s must be a %s%s, %s" % (name, fieldtype, " of %s" % options if options else "", ", ".join(flags) or "editable"))
+if (by_name.get("Interview Feedback-custom_no_conflict") or {}).get("reqd"):
+    fail.append("the conflict tick is asked for on submit, not on every draft")
+if "The rating is the average score, rounded." not in (by_name.get("Interview Feedback-custom_evaluation_section") or {}).get(
+        "description", "") or "%" in (by_name.get("Interview Feedback-custom_evaluation_section") or {}).get("description", ""):
+    fail.append("the sheet's scale says the rating is the average score, rounded, and quotes no percentages")
+if (setters.get("Interview Type-expected_average_rating-label") or {}).get("value") != "Pass Mark":
+    fail.append("the round's Expected Average Rating is its Pass Mark")
 print("fields: the score sheet on Interview Feedback, HRMS's skill ratings set aside, salary history on Job Applicant")
 
 # ── 5. Wiring ────────────────────────────────────────────────────────
@@ -305,10 +423,23 @@ for method in ("get_score_criteria", "get_skill_wise_average_rating"):
     if not re.search(r"@frappe\.whitelist\(\)\s*\ndef %s\(" % method, glue):
         fail.append("interviews.%s must be whitelisted" % method)
 for needle, why in (
-    ("rules.score_sheet_errors(doc.custom_scores, doc.get(\"custom_recommendation\"), submitting=doc.docstatus == 1)",
-     "must check the sheet with the tested rules, strictly only on submit"),
+    ("rules.score_sheet_errors(doc.custom_scores, recommendation, submitting=submitting,\n"
+     "                                      round_criteria=bool(doc.get(\"custom_round_criteria\")))",
+     "must check the sheet with the tested rules, strictly only on submit, N/A by the round"),
+    ("submitting = doc.docstatus == 1", "must be strict only on submit"),
+    ("errors += rules.submission_errors({} if errors else summary, recommendation, doc.get(\"feedback\"),\n"
+     "                                          doc.get(\"custom_no_conflict\"), doc.get(\"custom_answers\"), pass_mark)",
+     "must ask on submit for the conflict tick, the comments, every question scored and an Offer at the pass mark"),
+    ("rules.pass_percent(frappe.db.get_value(\"Interview\", doc.interview, \"expected_average_rating\"))",
+     "must take the pass mark the interview was booked with"),
+    ("doc.custom_question_percent = rules.question_summary(doc.get(\"custom_answers\"))[\"percent\"]",
+     "must work the questions' score out"),
+    ("row.weight = weights.get(row.criterion, 1) if doc.custom_round_criteria else 1",
+     "must take the weights from the round, whatever was posted"),
+    ("doc.custom_round_criteria = 1 if weights and {row.criterion for row in doc.custom_scores} == set(weights) else 0",
+     "must know a round's own list by its criteria"),
     ("doc.average_rating = rules.average_rating(summary)", "must feed the sheet's percentage to HRMS's average rating"),
-    ("doc.result = rules.result_for(doc.custom_recommendation)", "must set HRMS's result from the recommendation"),
+    ("doc.result = rules.result_for(recommendation)", "must set HRMS's result from the recommendation"),
     ('frappe.has_permission("Interview", "read", interview, throw=True)', "must check the reader may see the Interview"),
     ("return hrms_averages(interview)", "must fall back to HRMS's skill averages for an interview scored on skills"),
     ("rules.criteria_seed_plan(", "must seed with the tested plan"),
@@ -338,8 +469,14 @@ if tuple(js_bands) != rules.BANDS:
 js_results = dict(re.findall(r"(\w+): \"(\w+)\"", fjs.split("const HA_RESULTS = {")[-1].split("};")[0]))
 if js_results != rules.RESULTS:
     fail.append("interview_feedback.js HA_RESULTS %s must match interview_rules.RESULTS" % js_results)
+round_scale = re.search(r"const HA_ROUND_SCALE = \[([^\]]*)\];", fjs)
+if not round_scale or re.findall(r'"([^"]*)"', round_scale.group(1)) != [o for o in rules.SCORE_OPTIONS if o != rules.NOT_APPLICABLE]:
+    fail.append("interview_feedback.js HA_ROUND_SCALE must be the scale without N/A")
 for needle, why in (
-    ('frappe.xcall("hrms_addon.hrms_addon.interviews.get_score_criteria")', "must start a new sheet from the criteria list"),
+    ('.xcall("hrms_addon.hrms_addon.interviews.get_score_criteria", { interview: frm.doc.interview || null })',
+     "must start a new sheet from the round's criteria or the general list"),
+    ('grid.update_docfield_property("score", "options", HA_ROUND_SCALE.join(', "must offer no N/A on a round's own list"),
+    ("total += score * weight;", "must weigh the live total like the server"),
     ('frm.set_df_property(HA_SCORE_TABLE, "cannot_add_rows", true)', "must stop rows being added by hand"),
     ('frm.set_df_property(HA_SCORE_TABLE, "cannot_delete_rows", true)', "must stop rows being removed by hand"),
     ("total * 100 >= floor * maximum", "must compare in whole numbers, like interview_rules.band_for"),
@@ -626,9 +763,22 @@ for needle, why in (
     ('filters={"parent": interview_type, "parenttype": "Interview Type",\n                                   "parentfield": "custom_questions"}',
      "the type's own questions"),
     ('    if not doc.get("custom_answers") and doc.get("interview"):\n'
-     '        for question in _questions_asked(doc.interview):\n'
-     '            doc.append("custom_answers", {"question": question})',
+     '        for row in _questions_asked(doc.interview):\n'
+     '            doc.append("custom_answers", row)',
      "a score sheet starts with the interview's questions"),
+    ('fields=["question", "guidance"], order_by="idx asc")', "each with what to look for"),
+    ('    if doc.get("interview_type") and (changed or not doc.get("custom_criteria")):\n'
+     '        doc.set("custom_criteria", type_criteria(doc.interview_type))',
+     "an interview carries its type's criteria and weights, again when the type changes"),
+    ('filters={"parent": name, "parenttype": doctype, "parentfield": "custom_criteria"}', "a round's own list"),
+    ("    if not own and interview:\n", "an interview booked before rounds had lists scores its round's"),
+    ("errors = rules.round_criteria_errors(doc.get(\"custom_criteria\"), disabled)", "a round's list checked with the tested rules"),
+    ("rules.round_criteria_plan(competencies, weights, _sheet_rows(),", "a round's list from its JD with the tested plan"),
+    ('filters={"parent": designation, "parenttype": "Designation",\n'
+     '                                           "parentfield": "custom_jd_competencies"}', "the JD's competencies"),
+    ('frappe.has_permission("Interview Type", "write", throw=True)', "only for whoever may change rounds"),
+    ('frappe.has_permission("Interview Criterion", "create", throw=True)', "and add criteria"),
+    ('"criteria_group": rules.JD_GROUP}).insert()', "a new competency goes under Job Competencies"),
     ('frappe.has_permission("Interview", "read", interview, throw=True)', "the questions for whoever may read the interview"),
     ('"interview_type": interview_type, "docstatus": ["!=", 2]}', "who already has this round, cancelled ones aside"),
     ("booking = rules.to_book(listed, chosen, already)", "the batch, less those who have the round"),
@@ -657,10 +807,39 @@ setter_rows = {row["name"]: row for row in json.load(open(os.path.join(REPO, "hr
                                                           encoding="utf-8"))}
 if (setter_rows.get("Interview Type-designation-reqd") or {}).get("value") != "1":
     fail.append("every Interview Type belongs to a JD (its Designation is mandatory)")
-for child, columns in (("Interview Question", ["question", "guidance"]), ("Interview Answer", ["question", "answer"])):
+for child, columns in (("Interview Question", ["question", "guidance"]),
+                       ("Interview Answer", ["question", "guidance", "answer", "score"])):
     spec_json = doctype_json(child)
     if not spec_json or not spec_json.get("istable") or [f["fieldname"] for f in spec_json["fields"]] != columns:
         fail.append("%s must be a child table of %s" % (child, columns))
+    elif sum(f.get("columns") or 0 for f in spec_json["fields"] if f.get("in_list_view")) > 10:
+        fail.append("the %s grid exceeds Frappe's 10 columns" % child)
+answer_fields = fields_of(doctype_json("Interview Answer"))
+if (answer_fields.get("score") or {}).get("options", "").split("\n") != [o for o in rules.SCORE_OPTIONS if o != rules.NOT_APPLICABLE] \
+        or not (answer_fields.get("guidance") or {}).get("read_only"):
+    fail.append("each question is scored 1 to 5, beside what to look for, which is the round's")
+if not re.search(r'"Interview Type": \{[^}]*"validate": "hrms_addon\.hrms_addon\.interviews\.interview_type_validate"',
+                 hook_block("doc_events")):
+    fail.append("doc_events must check a round's own list (interviews.interview_type_validate)")
+if '"Interview Type": "public/js/interview_type.js"' not in hook_block("doctype_js"):
+    fail.append("doctype_js must load interview_type.js for Get Criteria from JD")
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef get_round_criteria\(designation: str\)', glue):
+    fail.append("interviews.get_round_criteria adds criteria, so it is whitelisted for POST")
+tjs = read("hrms_addon", "public", "js", "interview_type.js")
+for needle, why in (('.xcall("hrms_addon.hrms_addon.interviews.get_round_criteria", { designation: frm.doc.designation })',
+                     "must fill the round's list from its JD"),
+                    ('frappe.confirm(__("Replace the criteria listed?"), fill);', "must ask before replacing a list"),
+                    ('frm.clear_table("custom_criteria");', "must replace, not add to, the list")):
+    if needle not in tjs:
+        fail.append("interview_type.js %s" % why)
+criterion_controller = read("hrms_addon", "hrms_addon", "doctype", "interview_criterion", "interview_criterion.py")
+if "interview_rules.criterion_errors(self.criterion_name or self.name, self.disabled)" not in criterion_controller:
+    fail.append("Interview Criterion must refuse to switch on a criterion that is never scored")
+retire = read("hrms_addon", "patches", "v1_0", "retire_health_appearance_criteria.py")
+if "hrms_addon.patches.v1_0.retire_health_appearance_criteria" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[-1] \
+        or 'frappe.db.set_value("Interview Criterion", name, "disabled", 1, update_modified=False)' not in retire \
+        or "interview_rules.RETIRED_CRITERIA" not in retire:
+    fail.append("a post_model_sync patch must switch the retired criteria off where they were seeded")
 stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", sjs, flags=re.S)
 for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
     if stripped.count(op) != stripped.count(cl):
@@ -964,7 +1143,8 @@ if s["decision"] != "" or s["tally"] != "Offer 1, Reject 1":
     fail.append("a split panel leaves the decision to HR: %s" % s)
 if ps([])["average"] is not None or ps([])["band"] != "":
     fail.append("a candidate with no sheets has no score")
-for percent, band in ((90, "Excellent"), (89.99, "Very Good"), (75, "Very Good"), (59.99, "Average"), (49.99, "Below Average"), (None, "")):
+for percent, band in ((90, "Excellent"), (89.99, "Very Good"), (70, "Very Good"), (69.99, "Good"), (50, "Good"),
+                      (49.99, "Average"), (30, "Average"), (29.99, "Below Average"), (None, "")):
     if rules.band_for_percent(percent) != band:
         fail.append("%s%% must be %r, got %r" % (percent, band, rules.band_for_percent(percent)))
 for args, text in ((("UGX", 2600000, 2700000), "Expects UGX 2,600,000 to 2,700,000 a month."),

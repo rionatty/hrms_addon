@@ -549,8 +549,8 @@ if by_dt.get(DS):
             fail.append("Designation's Tools of Work tab must follow the Job Description tab: %s" % tabs)
 
     # Every section of LPL/JD/SM/001, in the order the JD prints them, and
-    # the screening questions every opening for the job starts with, before
-    # the sign-off
+    # the screening questions every opening for the job starts with and the
+    # medical check it needs before joining, before the sign-off
     JD_SECTIONS = [
         "Job Details",
         "Job Purpose Statement",
@@ -563,6 +563,7 @@ if by_dt.get(DS):
         "Ideal Job Specifications",
         "Competency Framework",
         "Screening Questions",
+        "Medical Fitness",
         "Sign-Off",
     ]
     rendered = [fields[fn].get("label") for fn in order
@@ -759,7 +760,9 @@ if by_dt.get(EO):
     EO_AFTER = {"custom_branch": "company", "custom_onboarding_status": "boarding_status",
                 "custom_hr_officer": "boarding_begins_on", "custom_head_of_department": "custom_hr_officer",
                 "custom_supervisor": "custom_head_of_department", "custom_orientation_section": "amended_from",
-                "custom_tools_section": "custom_signed_workplace_rules", "custom_salary_section": "custom_tools",
+                "custom_medical_check": "custom_signed_workplace_rules",
+                "custom_medical_certificate": "custom_medical_check",
+                "custom_tools_section": "custom_medical_certificate", "custom_salary_section": "custom_tools",
                 "custom_training_section": "custom_salary_structure_assignment",
                 "custom_hrm_approval_section": "custom_training_event"}
     # the induction's order: orientation, tools of work, salary, training, then the approval

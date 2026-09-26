@@ -64,6 +64,7 @@ _SERVER_DEFAULTS = ("job_offer", "company", "department", "designation", "custom
 def validate(doc, method=None):
     """Employee Onboarding validate (save and start), after Frappe HR's own."""
     _apply_defaults(doc)
+    _medical_check(doc)
     _check_step(doc)
     if doc.docstatus == 1:  # validate runs for a submit, never an update after one: the onboarding starts
         _request_tools(doc)
@@ -73,6 +74,7 @@ def validate(doc, method=None):
 def before_update_after_submit(doc, method=None):
     """Every step after the start (Submit for Approval, Approve, Return)."""
     _link_employee(doc)
+    _medical_check(doc)
     old_state, new_state = _check_step(doc)
     if new_state != old_state and new_state == approval.PENDING_HRM:
         _draft_salary(doc)
@@ -213,7 +215,16 @@ def _facts(doc):
         "tools_pending": rules.pending_tools([{"tool": row.tool, "status": row.status} for row in doc.get("custom_tools") or []]),
         "training_required": doc.get("custom_training_required"),
         "training_missing": rules.training_missing(doc.as_dict()),
+        "medical_certificate_missing": bool(doc.get("custom_medical_check") and not doc.get("custom_medical_certificate")),
     }
+
+
+def _medical_check(doc):
+    """Whether the job needs a doctor's check before joining, from its JD: the
+    health question the interview no longer asks. Kept on the onboarding, so
+    the certificate's place shows."""
+    needed = doc.get("designation") and frappe.db.get_value("Designation", doc.designation, "custom_medical_check")
+    doc.custom_medical_check = 1 if needed else 0
 
 
 def _deducts_tax(structure):

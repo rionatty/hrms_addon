@@ -958,7 +958,7 @@
   "dt": "Designation",
   "fieldname": "custom_jd_signoff_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_jd_screening_questions",
+  "insert_after": "custom_fitness_requirements",
   "label": "Sign-Off",
   "module": "HRMS Addon"
  },
@@ -2143,7 +2143,7 @@
   "dt": "Employee Onboarding",
   "fieldname": "custom_tools_section",
   "fieldtype": "Section Break",
-  "insert_after": "custom_signed_workplace_rules",
+  "insert_after": "custom_medical_certificate",
   "label": "Tools of Work",
   "description": "Mark each tool Issued or Not Needed. Issued tools are added to the employee's register.",
   "module": "HRMS Addon"
@@ -2492,7 +2492,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_answers",
   "label": "Candidate Interview Evaluation",
-  "description": "Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (49% and below). N/A where a criterion does not apply.",
+  "description": "5 Excellent, 4 Very Good, 3 Good, 2 Average, 1 Below Average. The rating is the average score, rounded.",
   "module": "HRMS Addon"
  },
  {
@@ -2690,6 +2690,139 @@
   "fieldtype": "HTML",
   "insert_after": "custom_candidate_tab",
   "label": "Candidate",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Type-custom_criteria_section",
+  "dt": "Interview Type",
+  "fieldname": "custom_criteria_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_questions",
+  "label": "Score Sheet",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Type-custom_criteria",
+  "dt": "Interview Type",
+  "fieldname": "custom_criteria",
+  "fieldtype": "Table",
+  "insert_after": "custom_criteria_section",
+  "label": "Criteria",
+  "options": "Interview Round Criterion",
+  "allow_bulk_edit": 1,
+  "description": "Empty for the general list.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview-custom_criteria_section",
+  "dt": "Interview",
+  "fieldname": "custom_criteria_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_questions",
+  "label": "Score Sheet",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview-custom_criteria",
+  "dt": "Interview",
+  "fieldname": "custom_criteria",
+  "fieldtype": "Table",
+  "insert_after": "custom_criteria_section",
+  "label": "Criteria",
+  "options": "Interview Round Criterion",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_round_criteria",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_round_criteria",
+  "fieldtype": "Check",
+  "insert_after": "custom_scores",
+  "label": "Round's Own Criteria",
+  "read_only": 1,
+  "hidden": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_question_percent",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_question_percent",
+  "fieldtype": "Percent",
+  "insert_after": "custom_score_band",
+  "label": "Questions Score",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_no_conflict",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_no_conflict",
+  "fieldtype": "Check",
+  "insert_after": "custom_recommendation",
+  "label": "I have no personal or family relationship with this candidate",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_jd_medical_section",
+  "dt": "Designation",
+  "fieldname": "custom_jd_medical_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_jd_screening_questions",
+  "label": "Medical Fitness",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_medical_check",
+  "dt": "Designation",
+  "fieldname": "custom_medical_check",
+  "fieldtype": "Check",
+  "insert_after": "custom_jd_medical_section",
+  "label": "Medical Check Before Joining",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Designation-custom_fitness_requirements",
+  "dt": "Designation",
+  "fieldname": "custom_fitness_requirements",
+  "fieldtype": "Small Text",
+  "insert_after": "custom_medical_check",
+  "label": "What the Job Needs",
+  "depends_on": "eval:doc.custom_medical_check",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Onboarding-custom_medical_check",
+  "dt": "Employee Onboarding",
+  "fieldname": "custom_medical_check",
+  "fieldtype": "Check",
+  "insert_after": "custom_signed_workplace_rules",
+  "label": "Medical Check Before Joining",
+  "read_only": 1,
+  "allow_on_submit": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Employee Onboarding-custom_medical_certificate",
+  "dt": "Employee Onboarding",
+  "fieldname": "custom_medical_certificate",
+  "fieldtype": "Attach",
+  "insert_after": "custom_medical_check",
+  "label": "Medical Fitness Certificate",
+  "allow_on_submit": 1,
+  "depends_on": "eval:doc.custom_medical_check",
   "module": "HRMS Addon"
  },
  {

@@ -134,7 +134,8 @@ def _ready_for_approval(facts):
     "base_salary", "salary_from", "date_of_joining" (ISO dates),
     "tax_slab_needed" (the structure's name when it deducts tax and no slab
     is chosen), "tools_pending" ([tool]), "training_required",
-    "training_missing" ([label]).
+    "training_missing" ([label]), "medical_certificate_missing" (the JD asks
+    for a medical check before joining and no certificate is attached).
     """
     errors = []
     if not facts.get("supervisor"):
@@ -160,4 +161,7 @@ def _ready_for_approval(facts):
     if facts.get("training_required") and facts.get("training_missing"):
         errors.append("Training is required: fill in the %s (Training section) before sending the onboarding to the "
                       "HR Manager." % ", ".join(facts["training_missing"]))
+    if facts.get("medical_certificate_missing"):
+        errors.append("The job needs a medical check before joining: attach the Medical Fitness Certificate "
+                      "(Orientation section) before sending the onboarding to the HR Manager.")
     return errors

@@ -7,23 +7,42 @@
 No Frappe import, like jd_rules.py, so scripts/verify_interviews.py can
 exercise it without a bench.
 
-Each panel member scores every criterion 1 to 5, or N/A where it does not
-apply to the role, on the form's scale:
+Each panel member scores every criterion 1 to 5 on the form's scale:
 
-    Excellent = 5 (90-100%)    Very Good = 4 (75-89%)    Good = 3 (60-74%)
-    Average = 2 (50-59%)       Below Average = 1 (49% and below)
+    Excellent = 5    Very Good = 4    Good = 3    Average = 2    Below Average = 1
 
-The sheet's percentage is the score earned over the most that could have
-been earned on the criteria actually scored, so an N/A neither helps nor
-hurts, and the same scale then names the overall result.
+A criterion counts as much as its weight: the round (Interview Type) lists
+the criteria it scores and weighs them from the JD, where an Essential
+competency counts three times a Desirable one. A round with no list of its
+own scores the general list, each criterion once. The sheet's percentage is
+the weighted score earned over the most that could have been earned, and
+its rating is the scale's name for the average score, rounded: 4.5 and up
+Excellent, 3.5 Very Good, 2.5 Good, 1.5 Average. (The paper form put
+Average at 50-59% of the maximum, which a candidate scored 2 on everything,
+40%, never reaches.)
+
+N/A: a round with its own list has already said what applies, so every
+row there is scored. On the general list N/A leaves a criterion out, and
+the panel member says why in its comments.
 """
 
 import re
 
 # LPL/HR/17's criteria, grouped and ordered as the form prints them. Only
 # the seed for the Interview Criteria Group and Interview Criterion masters:
-# HR can add, rename, reorder and switch off criteria afterwards.
-CRITERIA_GROUPS = ("Education", "Working Experience", "Personality", "Appearance", "Health")
+# HR can add, rename, reorder and switch off criteria afterwards. The form's
+# Appearance and Health are not seeded, and are switched off where they
+# were (RETIRED_CRITERIA): Uganda's Employment Act 2006, section 6, makes
+# a decision on HIV status or disability unlawful, and a panel's view of
+# health or looks is exactly that risk. Fitness for the work is a doctor's
+# check after the offer, where the JD asks for one.
+CRITERIA_GROUPS = ("Education", "Working Experience", "Personality")
+RETIRED_CRITERIA = ("Appearance", "Health")
+# never scored at interview, whatever the list says: HR can keep such a
+# criterion, switched off, but not switch it on
+PROTECTED_CRITERIA = ("health", "health status", "medical", "medical condition", "medical history", "hiv status",
+                      "disability", "pregnancy", "religion", "tribe", "gender", "sex", "marital status", "age",
+                      "appearance")
 CRITERIA = (
     ("Education", "Technical Qualification skills"),
     ("Working Experience", "Job knowledge"),
@@ -40,8 +59,6 @@ CRITERIA = (
     ("Personality", "Self Confidence"),
     ("Personality", "Ability to work under pressure"),
     ("Personality", "Interests & Hobbies"),
-    ("Appearance", "Appearance"),
-    ("Health", "Health"),
 )
 
 SCORES = ("1", "2", "3", "4", "5")
@@ -49,8 +66,16 @@ NOT_APPLICABLE = "N/A"
 SCORE_OPTIONS = ("",) + SCORES + (NOT_APPLICABLE,)
 TOP_SCORE = 5
 
-# The scale's names, best first, each with the lowest percentage it covers
-BANDS = ((90, "Excellent"), (75, "Very Good"), (60, "Good"), (50, "Average"), (0, "Below Average"))
+# The scale's names, best first, each with the lowest percentage of the
+# maximum it covers: an average score of 4.5 is 90%, 3.5 is 70%, 2.5 is 50%
+# and 1.5 is 30%, so each name covers the average scores that round to it
+BANDS = ((90, "Excellent"), (70, "Very Good"), (50, "Good"), (30, "Average"), (0, "Below Average"))
+# what an Offer needs where the round sets no pass mark: a Good sheet
+OFFER_FLOOR = 50
+# a criterion counts 1 to 5 times; a JD priority with no weight counts once
+WEIGHTS = (1, 2, 3, 4, 5)
+# the criteria group a JD's competencies are scored under
+JD_GROUP = "Job Competencies"
 
 # The form's three recommendations. HRMS's Interview Feedback records a
 # Cleared / Rejected result: Shortlist means another interview, so the
@@ -78,10 +103,12 @@ def band_for(total, maximum):
 def score_summary(rows):
     """The totals of one score sheet.
 
-    rows: dicts or objects with a `score` of "1" to "5", "N/A" or blank.
+    rows: dicts or objects with a `score` of "1" to "5", "N/A" or blank, and
+    the criterion's `weight` (1 when there is none).
     Returns {total, maximum, percent, band, scored, not_applicable, blank}:
-      total    the 1-5 scores added up
-      maximum  5 for every criterion scored 1-5 (N/A and blank rows add nothing)
+      total    the 1-5 scores added up, each times its weight
+      maximum  5 times the weight of every criterion scored 1-5 (N/A and
+               blank rows add nothing)
       percent  total over maximum, 0 to 100, to 2 decimals
       band     the scale's name for that percentage ("" when nothing is scored)
     """
@@ -89,8 +116,9 @@ def score_summary(rows):
     for row in rows or []:
         score = _text(_get(row, "score"))
         if score in SCORES:
-            total += int(score)
-            maximum += TOP_SCORE
+            weight = _weight(_get(row, "weight"))
+            total += int(score) * weight
+            maximum += TOP_SCORE * weight
             scored += 1
         elif score == NOT_APPLICABLE:
             not_applicable += 1
@@ -117,12 +145,14 @@ def result_for(recommendation):
     return RESULTS.get(recommendation or "", "")
 
 
-def score_sheet_errors(rows, recommendation, submitting):
+def score_sheet_errors(rows, recommendation, submitting, round_criteria=False):
     """Problems with a score sheet, as user-facing messages.
 
     A draft may leave scores and the recommendation blank; submitting may
     not. A score outside the scale and a criterion listed twice are wrong
-    either way.
+    either way. round_criteria: the rows are the round's own list, which has
+    already said what applies, so none of them is N/A; on the general list
+    an N/A needs its reason in the row's comments.
     """
     rows = list(rows or [])
     errors = []
@@ -133,8 +163,12 @@ def score_sheet_errors(rows, recommendation, submitting):
         label = "Row %d (%s)" % (index, criterion) if criterion else "Row %d" % index
         if score not in SCORE_OPTIONS:
             errors.append("%s: the score must be 1 to 5 or N/A, not %s." % (label, score))
+        elif score == NOT_APPLICABLE and round_criteria:
+            errors.append("%s: this round scores every criterion on its list, from 1 to 5." % label)
         elif submitting and not score:
-            errors.append("%s: score it from 1 to 5, or N/A where it does not apply." % label)
+            errors.append("%s: score it from 1 to 5%s." % (label, "" if round_criteria else ", or N/A where it does not apply"))
+        elif submitting and score == NOT_APPLICABLE and not _text(_get(row, "comments")):
+            errors.append("%s: say in its comments why it does not apply." % label)
         if criterion:
             key = criterion.lower()
             if key in seen:
@@ -154,17 +188,126 @@ def score_sheet_errors(rows, recommendation, submitting):
     return errors
 
 
+def submission_errors(summary, recommendation, comments, no_conflict, answers, pass_mark):
+    """What a sheet needs before it is submitted, besides its scores.
+
+    summary: score_summary's. comments: the panel member's comments on the
+    candidate's suitability. no_conflict: they have ticked that they have no
+    personal or family relationship with the candidate. answers: the
+    interview's questions (question, score). pass_mark: the percentage an
+    Offer needs on this round, None for the round's default (a Good sheet).
+    """
+    errors = []
+    if not no_conflict:
+        errors.append("Tick that you have no personal or family relationship with this candidate. If you have one, "
+                      "tell HR instead of scoring.")
+    for index, row in enumerate(answers or [], start=1):
+        if _text(_get(row, "score")) not in SCORES:
+            errors.append("Question %d: score the answer from 1 to 5." % index)
+    if not _text(comments):
+        errors.append("Write your comments on the candidate's suitability for the position.")
+    floor = OFFER_FLOOR if pass_mark in (None, "") else float(pass_mark)
+    if recommendation == "Offer" and (summary or {}).get("maximum") and float(summary.get("percent") or 0) < floor:
+        errors.append("The sheet scores %s%% (%s), under the %s%% an Offer needs: recommend Shortlist or Reject, "
+                      "or check the scores." % (_number(summary["percent"]), summary.get("band"), _number(floor)))
+    return errors
+
+
+def pass_percent(expected_rating):
+    """The round's pass mark as a percentage, from its Expected Average Rating
+    (Frappe stores a star rating as 0 to 1: 3 stars is 0.6, 60%); None when
+    the round sets none."""
+    try:
+        value = float(expected_rating or 0)
+    except (TypeError, ValueError):
+        return None
+    return round(value * 100, 2) if value > 0 else None
+
+
+def question_summary(answers):
+    """The interview's questions as scored: {scored, total, maximum, percent}."""
+    scores = [int(score) for score in (_text(_get(row, "score")) for row in answers or []) if score in SCORES]
+    maximum = TOP_SCORE * len(scores)
+    return {"scored": len(scores), "total": sum(scores), "maximum": maximum,
+            "percent": round(sum(scores) * 100.0 / maximum, 2) if maximum else 0.0}
+
+
 def sheet_rows(criteria):
     """The rows a new score sheet starts with, in the form's order.
 
     criteria: dicts with name, criteria_group, group_order, sort_order and
     disabled, one per Interview Criterion. Switched-off criteria are left
     out; the rest follow their group's display order, then their own, then
-    their name.
+    their name. Each counts once.
     """
     active = [c for c in criteria or [] if not _get(c, "disabled")]
     active.sort(key=lambda c: (_int(_get(c, "group_order")), _int(_get(c, "sort_order")), _text(_get(c, "name")).lower()))
-    return [{"criteria_group": _get(c, "criteria_group"), "criterion": _get(c, "name")} for c in active]
+    return [{"criteria_group": _get(c, "criteria_group"), "criterion": _get(c, "name"), "weight": 1} for c in active]
+
+
+def criterion_errors(name, disabled):
+    """A criterion that must never be scored cannot be switched on."""
+    if disabled or _plain(name) not in PROTECTED_CRITERIA:
+        return []
+    return ["%s is not scored at interview: keep it switched off (Disabled). Where the job needs it, fitness for the "
+            "work is a doctor's check after the offer." % _text(name)]
+
+
+def round_criteria_plan(competencies, weights, general, existing):
+    """The criteria a round starts with, from its JD.
+
+    competencies: the JD's competency rows (competency, priority), in order.
+    weights: {priority: weight}, from JD Requirement Priority. general: the
+    general list's rows (criterion), in order. existing: the Interview
+    Criterion names already there, in any case.
+    Returns (rows, to_create): rows [{criterion, weight}], the JD's
+    competencies first, weighed by their priority, then the general list
+    once each, nothing twice (ignoring case) and nothing that is never
+    scored; to_create: the competencies not yet in the list of criteria.
+    """
+    known = {_text(name).lower(): name for name in existing or () if _text(name)}
+    rows, seen, to_create = [], set(), []
+    for row in competencies or ():
+        name = _text(_get(row, "competency"))
+        if not name or name.lower() in seen or _plain(name) in PROTECTED_CRITERIA:
+            continue
+        seen.add(name.lower())
+        criterion = known.get(name.lower())
+        if criterion is None:
+            criterion = known[name.lower()] = name
+            to_create.append(name)
+        rows.append({"criterion": criterion, "weight": _weight((weights or {}).get(_get(row, "priority")))})
+    for row in general or ():
+        name = _text(_get(row, "criterion"))
+        if not name or name.lower() in seen or _plain(name) in PROTECTED_CRITERIA:
+            continue
+        seen.add(name.lower())
+        rows.append({"criterion": name, "weight": 1})
+    return rows, to_create
+
+
+def round_criteria_errors(rows, disabled=()):
+    """Problems with a round's own list of criteria: one twice, a weight off
+    1 to 5, one switched off, one never scored."""
+    errors, seen = [], {}
+    off = {_text(name).lower() for name in disabled or ()}
+    for index, row in enumerate(rows or [], start=1):
+        criterion = _text(_get(row, "criterion"))
+        if not criterion:
+            continue
+        key = criterion.lower()
+        if key in seen:
+            errors.append("Score Sheet row %d: %s is already in row %d." % (index, criterion, seen[key]))
+            continue
+        seen[key] = index
+        if _int(_get(row, "weight")) not in WEIGHTS:
+            errors.append("Score Sheet row %d (%s): the weight must be 1 to 5, not %s."
+                          % (index, criterion, _text(_get(row, "weight")) or "0"))
+        if key in off:
+            errors.append("Score Sheet row %d: %s is switched off in the list of criteria." % (index, criterion))
+        elif _plain(criterion) in PROTECTED_CRITERIA:
+            errors.append("Score Sheet row %d: %s is not scored at interview." % (index, criterion))
+    return errors
 
 
 def criterion_averages(sheets):
@@ -486,6 +629,22 @@ def _most_recent_first(rows, year_of):
     """Newest first; rows with no year keep their order, after the dated ones."""
     dated = [(year_of(row), index, row) for index, row in enumerate(rows)]
     return [row for year, index, row in sorted(dated, key=lambda d: (d[0] is None, -(d[0] or 0), d[1]))]
+
+
+def _weight(value):
+    """A criterion's weight, 1 to 5; blank or nonsense counts once."""
+    weight = _int(value)
+    return weight if weight in WEIGHTS else (WEIGHTS[-1] if weight > WEIGHTS[-1] else 1)
+
+
+def _plain(name):
+    """'HIV-status ' as 'hiv status': letters and single spaces, lower case."""
+    return " ".join(re.sub(r"[^a-z]+", " ", _text(name).lower()).split())
+
+
+def _number(value):
+    """42.0 as '42', 42.5 as '42.5'."""
+    return ("%.2f" % float(value)).rstrip("0").rstrip(".")
 
 
 def _get(row, key):

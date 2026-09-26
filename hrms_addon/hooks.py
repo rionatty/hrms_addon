@@ -136,6 +136,8 @@ doctype_js = {
     # Submit Feedback opens the score sheet (LPL/HR/17) instead of HRMS's star dialog
     "Interview": "public/js/interview.js",
     "Interview Feedback": "public/js/interview_feedback.js",
+    # a round's criteria from its JD
+    "Interview Type": "public/js/interview_type.js",
     # The onboarding fills itself from the candidate (onboarding.py); an
     # accepted offer starts one
     "Employee Onboarding": "public/js/employee_onboarding.js",
@@ -679,6 +681,18 @@ fixtures = [
                     "Interview Feedback-custom_answers",
                     "Interview-custom_candidate_tab",
                     "Interview-custom_candidate_html",
+                    "Interview Type-custom_criteria_section",
+                    "Interview Type-custom_criteria",
+                    "Interview-custom_criteria_section",
+                    "Interview-custom_criteria",
+                    "Interview Feedback-custom_round_criteria",
+                    "Interview Feedback-custom_question_percent",
+                    "Interview Feedback-custom_no_conflict",
+                    "Designation-custom_jd_medical_section",
+                    "Designation-custom_medical_check",
+                    "Designation-custom_fitness_requirements",
+                    "Employee Onboarding-custom_medical_check",
+                    "Employee Onboarding-custom_medical_certificate",
                     "Training Event-custom_branch",
                     "Training Event-custom_department",
                     "Training Event-custom_schedule",
@@ -1264,6 +1278,7 @@ fixtures = [
                     "Training Feedback-feedback-reqd",
                     "Interview Type-expected_skill_set-hidden",
                     "Interview Type-expected_average_rating-description",
+                    "Interview Type-expected_average_rating-label",
                     "Interview Type-designation-reqd",
                     "Appraisal-appraisal_template-mandatory_depends_on",
                     "Appraisal-appraisal_template-description",
@@ -1375,8 +1390,12 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.interview_access.hide_panel_average",
         "on_cancel": "hrms_addon.hrms_addon.interview_access.hide_panel_average",
     },
+    "Interview Type": {
+        # a round's own list of criteria: each once, weighed 1 to 5
+        "validate": "hrms_addon.hrms_addon.interviews.interview_type_validate",
+    },
     "Interview": {
-        # the Interview Type's round and questions, as they were when booked
+        # the Interview Type's round, questions and criteria, as they were when booked
         "validate": "hrms_addon.hrms_addon.interviews.interview_validate",
         # Cancelling a submitted interview to correct it: the shortlist and the
         # report that list it are records of it, not dependants

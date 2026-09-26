@@ -148,8 +148,9 @@ table = by_name.get("Designation-custom_jd_screening_questions") or {}
 if (table.get("fieldtype"), table.get("options"), table.get("allow_bulk_edit"), table.get("insert_after")) \
         != ("Table", "Screening Question", 1, "custom_jd_screening_section"):
     fail.append("the JD carries its screening questions, with Download and Upload: %s" % table)
-if (by_name.get("Designation-custom_jd_signoff_section") or {}).get("insert_after") != "custom_jd_screening_questions":
-    fail.append("the sign-off stays last on the JD")
+if (by_name.get("Designation-custom_jd_medical_section") or {}).get("insert_after") != "custom_jd_screening_questions" \
+        or (by_name.get("Designation-custom_jd_signoff_section") or {}).get("insert_after") != "custom_fitness_requirements":
+    fail.append("the screening questions, then the medical check before joining, and the sign-off stays last on the JD")
 for name in ("Designation-custom_jd_screening_section", "Designation-custom_jd_screening_questions"):
     if '"%s",' % name not in hooks:
         fail.append("hooks.py fixtures must list %s" % name)
