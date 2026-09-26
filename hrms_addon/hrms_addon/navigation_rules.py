@@ -79,6 +79,13 @@ CARDS = {
             ("District", "District", DOCTYPE),
             ("Relationship", "Relationship", DOCTYPE),
         ]),
+        # how the panels score, how each round goes, how long a hire takes
+        # (interview_analytics_rules.py)
+        ("Reports", [
+            ("Interviewer Calibration", "Interviewer Calibration", REPORT),
+            ("Interview Pass Rate", "Interview Pass Rate", REPORT),
+            ("Time to Hire", "Time to Hire", REPORT),
+        ]),
     ],
     "Tenure": [
         ("Probation and Contracts", [
@@ -327,6 +334,9 @@ SIDEBAR = {
         ("Interview Criterion", "Interview Criterion", DOCTYPE, "Setup", None),
         ("Interview Criteria Group", "Interview Criteria Group", DOCTYPE, "Setup", None),
         ("Qualification Type", "Qualification Type", DOCTYPE, "Setup", None),
+        ("Interviewer Calibration", "Interviewer Calibration", REPORT, "Reports", None),
+        ("Interview Pass Rate", "Interview Pass Rate", REPORT, "Reports", None),
+        ("Time to Hire", "Time to Hire", REPORT, "Reports", None),
     ],
     # a promotion follows an appraisal, so it is reachable from here too
     "Performance": [
