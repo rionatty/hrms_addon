@@ -667,6 +667,14 @@ fixtures = [
                     "Interview Feedback-custom_score_percent",
                     "Interview Feedback-custom_score_band",
                     "Interview Feedback-custom_recommendation",
+                    "Interview Type-custom_round",
+                    "Interview Type-custom_questions_section",
+                    "Interview Type-custom_questions",
+                    "Interview-custom_round",
+                    "Interview-custom_questions_section",
+                    "Interview-custom_questions",
+                    "Interview Feedback-custom_answers_section",
+                    "Interview Feedback-custom_answers",
                     "Training Event-custom_branch",
                     "Training Event-custom_department",
                     "Training Event-custom_schedule",
@@ -1252,6 +1260,7 @@ fixtures = [
                     "Training Feedback-feedback-reqd",
                     "Interview Type-expected_skill_set-hidden",
                     "Interview Type-expected_average_rating-description",
+                    "Interview Type-designation-reqd",
                     "Appraisal-appraisal_template-mandatory_depends_on",
                     "Appraisal-appraisal_template-description",
                     "Appraisal-appraisal_kra-hidden",
@@ -1347,6 +1356,8 @@ doc_events = {
         "validate": "hrms_addon.hrms_addon.interviews.feedback_validate",
     },
     "Interview": {
+        # the Interview Type's round and questions, as they were when booked
+        "validate": "hrms_addon.hrms_addon.interviews.interview_validate",
         # Cancelling a submitted interview to correct it: the shortlist and the
         # report that list it are records of it, not dependants
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",

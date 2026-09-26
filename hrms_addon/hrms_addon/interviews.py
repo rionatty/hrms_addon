@@ -11,7 +11,12 @@ scripts/verify_interviews.py). This wires them into HRMS:
                        criterion, its totals are worked out, the result follows
                        the recommendation, and HRMS's average rating becomes the
                        sheet's percentage, so the Interview's panel average and
-                       star summary use the scores
+                       star summary use the scores; it starts with the
+                       interview's questions too, for the candidate's answers
+  interview_validate   Interview validate: the Interview Type's round and
+                       questions, as they were when it was booked
+  get_interview_questions
+                       the questions a new score sheet starts with
   get_score_criteria   the rows a new sheet starts with, for the form script
   get_skill_wise_average_rating
                        the Interview's Feedback tab shows the panel's average per
@@ -33,8 +38,9 @@ and the Interview Shortlist (one per Job Opening, like Luuka's shortlist sheet):
   get_shortlist_candidates / get_candidate_details
                        applicants written out from their Bio-Data (Get
                        Applicants, Refresh Details)
-  schedule_interviews  an HRMS Interview per candidate, back to back, with the
-                       Interview Type's panel
+  schedule_interviews  an HRMS Interview per candidate chosen (a batch, or
+                       everyone), for a round (Interview Type) they do not have
+                       yet, back to back, with the Interview Type's panel
 
 and the Interview Report (one per Job Opening and interview day):
 
@@ -89,12 +95,54 @@ def feedback_validate(doc, method=None):
     if doc.get("custom_recommendation"):
         doc.result = rules.result_for(doc.custom_recommendation)
     doc.custom_interviewer_designation = _designation_of(doc.interviewer)
+    # the interview's questions, each with the candidate's answer to note
+    if not doc.get("custom_answers") and doc.get("interview"):
+        for question in _questions_asked(doc.interview):
+            doc.append("custom_answers", {"question": question})
 
 
 @frappe.whitelist()
 def get_score_criteria():
     """The rows a new score sheet starts with: every criterion not disabled, in order."""
     return _sheet_rows()
+
+
+def interview_validate(doc, method=None):
+    """An interview carries its type's round and questions as they were when
+    it was booked: the questions are filled while it has none, and again
+    when its type changes."""
+    before = doc.get_doc_before_save()
+    changed = before is not None and before.get("interview_type") != doc.get("interview_type")
+    if doc.get("interview_type") and (changed or not doc.get("custom_questions")):
+        doc.set("custom_questions", type_questions(doc.interview_type))
+    doc.custom_round = frappe.db.get_value("Interview Type", doc.interview_type, "custom_round") \
+        if doc.get("interview_type") else None
+
+
+def type_questions(interview_type):
+    """An Interview Type's questions, in order."""
+    return frappe.get_all("Interview Question",
+                          filters={"parent": interview_type, "parenttype": "Interview Type",
+                                   "parentfield": "custom_questions"},
+                          fields=["question", "guidance"], order_by="idx asc")
+
+
+@frappe.whitelist()
+def get_interview_questions(interview: str) -> list:
+    """The questions a new score sheet starts with: the interview's own."""
+    frappe.has_permission("Interview", "read", interview, throw=True)
+    return [{"question": question} for question in _questions_asked(interview)]
+
+
+def _questions_asked(interview):
+    """The interview's questions, or its type's where it carries none."""
+    asked = frappe.get_all("Interview Question",
+                           filters={"parent": interview, "parenttype": "Interview", "parentfield": "custom_questions"},
+                           pluck="question", order_by="idx asc")
+    if asked:
+        return asked
+    interview_type = frappe.db.get_value("Interview", interview, "interview_type")
+    return [row.question for row in type_questions(interview_type)] if interview_type else []
 
 
 @frappe.whitelist()
@@ -282,9 +330,14 @@ def unmark_shortlisted(doc):
 
 
 @frappe.whitelist(methods=["POST"])
-def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, from_time: str, minutes: int) -> dict:
-    """An Interview for every candidate on a submitted shortlist not yet given one:
-    back-to-back slots from `from_time`, with the Interview Type's panel.
+def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, from_time: str, minutes: int,
+                        applicants: str | None = None) -> dict:
+    """An Interview of this type, the round, for the candidates HR chose on a
+    submitted shortlist (everyone on it when none is chosen) who do not have
+    that round yet: back-to-back slots from `from_time`, with the Interview
+    Type's panel.
+
+    applicants: JSON list of the chosen job applicants, a batch.
 
     Each candidate is booked on their own, so one HRMS refuses (an Interview
     Type for another position, say) is reported and the rest still go ahead.
@@ -297,7 +350,13 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
     panel = frappe.get_all("Interviewer", filters={"parent": interview_type, "parenttype": "Interview Type"}, pluck="user")
     if not panel:
         frappe.throw(_("Interview Type {0} has no interviewers: add the panel to it first.").format(interview_type))
-    pending = [row for row in doc.candidates if not row.interview]
+    listed = [row.job_applicant for row in doc.candidates if row.job_applicant]
+    already = set(frappe.get_all("Interview", filters={"job_applicant": ["in", listed or [""]],
+                                                       "interview_type": interview_type, "docstatus": ["!=", 2]},
+                                 pluck="job_applicant"))
+    chosen = set(frappe.parse_json(applicants) or []) if applicants else set()
+    booking = rules.to_book(listed, chosen, already)
+    pending = [row for row in doc.candidates if row.job_applicant in booking]
     try:
         slots = rules.interview_slots(from_time, minutes, len(pending))
     except ValueError as error:
@@ -324,7 +383,9 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
             continue
         row.db_set("interview", interview.name)
         booked.append(interview.name)
-    return {"booked": booked, "refused": refused}
+    had = [row.applicant_name or row.job_applicant for row in doc.candidates
+           if row.job_applicant in already and (not chosen or row.job_applicant in chosen)]
+    return {"booked": booked, "refused": refused, "already": had}
 
 
 # ── The interview report ──────────────────────────────────────────────

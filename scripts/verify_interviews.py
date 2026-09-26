@@ -590,12 +590,77 @@ if not filled:
     fail.append("interview_shortlist.js must fill the rows from the server's details")
 for needle, why in (
     ("frm.doc.docstatus === 0 && frm.doc.job_opening", "must offer Get Applicants only on a draft with an opening"),
-    ("frm.doc.docstatus === 1 && unscheduled.length", "must offer Schedule Interviews only once submitted, while someone is unscheduled"),
+    ('frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")',
+     "must offer Schedule Interviews once submitted, a round at a time, to whoever may book"),
     ("filters: { job_title: frm.doc.job_opening", "must pick applicants of this opening only"),
     ("frappe.utils.escape_html(reason)", "must escape the reasons a booking was refused"),
+    ("frm.fields_dict.candidates.grid.get_selected_children().map((row) => row.job_applicant)",
+     "must book the candidates ticked, a batch"),
+    ("applicants: ticked.length ? ticked : null,", "must send the batch, or everyone when none is ticked"),
+    ("get_query: () => ({ filters: { designation: frm.doc.designation } }),",
+     "must offer only this job's interview types, its rounds"),
+    ("result.already.map((name) => frappe.utils.escape_html(name))", "must say who already has the round"),
 ):
     if needle not in sjs:
         fail.append("interview_shortlist.js %s" % why)
+fjs = read("hrms_addon", "public", "js", "interview_feedback.js")
+for needle, why in (
+    ('.xcall("hrms_addon.hrms_addon.interviews.get_interview_questions", { interview: frm.doc.interview })',
+     "a new score sheet starts with the interview's questions"),
+    ("if (frm.is_new() && frm.doc.interview && !(frm.doc[HA_ANSWER_TABLE] || []).length) {",
+     "only a new sheet with none"),
+    ('frm.set_df_property(HA_ANSWER_TABLE, "cannot_add_rows", true);', "the questions are the interview's"),
+):
+    if needle not in fjs:
+        fail.append("interview_feedback.js %s" % why)
+
+# the rounds of a job and their questions (Interview Type, one per round per JD)
+if rules.to_book(["A", "B", "C"], [], ["B"]) != ["A", "C"] or rules.to_book(["A", "B", "C"], ["C", "B"], []) != ["B", "C"] \
+        or rules.to_book(["A", "B"], ["A"], ["A"]) != [] or rules.to_book([], ["A"], []) != []:
+    fail.append("to_book: the ticked (or everyone), in the list's order, less those who have the round")
+for needle, why in (
+    ('    if doc.get("interview_type") and (changed or not doc.get("custom_questions")):\n'
+     '        doc.set("custom_questions", type_questions(doc.interview_type))',
+     "an interview carries its type's questions, again when the type changes"),
+    ('frappe.db.get_value("Interview Type", doc.interview_type, "custom_round")', "and its round"),
+    ('filters={"parent": interview_type, "parenttype": "Interview Type",\n                                   "parentfield": "custom_questions"}',
+     "the type's own questions"),
+    ('    if not doc.get("custom_answers") and doc.get("interview"):\n'
+     '        for question in _questions_asked(doc.interview):\n'
+     '            doc.append("custom_answers", {"question": question})',
+     "a score sheet starts with the interview's questions"),
+    ('frappe.has_permission("Interview", "read", interview, throw=True)', "the questions for whoever may read the interview"),
+    ('"interview_type": interview_type, "docstatus": ["!=", 2]}', "who already has this round, cancelled ones aside"),
+    ("booking = rules.to_book(listed, chosen, already)", "the batch, less those who have the round"),
+    ('return {"booked": booked, "refused": refused, "already": had}', "says who already had it"),
+):
+    if needle not in glue:
+        fail.append("interviews.py: %s" % why)
+if not re.search(r"@frappe\.whitelist\(\)\ndef get_interview_questions\(", glue):
+    fail.append("get_interview_questions must be whitelisted")
+if '"validate": "hrms_addon.hrms_addon.interviews.interview_validate",' not in read("hrms_addon", "hooks.py"):
+    fail.append("hooks.py runs interview_validate on the Interview")
+custom_rows = {row["name"]: row for row in json.load(open(os.path.join(REPO, "hrms_addon", "fixtures", "custom_field.json"),
+                                                          encoding="utf-8"))}
+for name, fieldtype, options in (("Interview Type-custom_round", "Int", None),
+                                 ("Interview Type-custom_questions", "Table", "Interview Question"),
+                                 ("Interview-custom_round", "Int", None),
+                                 ("Interview-custom_questions", "Table", "Interview Question"),
+                                 ("Interview Feedback-custom_answers", "Table", "Interview Answer")):
+    row = custom_rows.get(name) or {}
+    if (row.get("fieldtype"), row.get("options")) != (fieldtype, options):
+        fail.append("%s must be a %s %s" % (name, fieldtype, options or ""))
+if not (custom_rows.get("Interview-custom_questions") or {}).get("read_only") \
+        or (custom_rows.get("Interview-custom_round") or {}).get("fetch_from") != "interview_type.custom_round":
+    fail.append("an interview's round and questions are its type's, not typed in")
+setter_rows = {row["name"]: row for row in json.load(open(os.path.join(REPO, "hrms_addon", "fixtures", "property_setter.json"),
+                                                          encoding="utf-8"))}
+if (setter_rows.get("Interview Type-designation-reqd") or {}).get("value") != "1":
+    fail.append("every Interview Type belongs to a JD (its Designation is mandatory)")
+for child, columns in (("Interview Question", ["question", "guidance"]), ("Interview Answer", ["question", "answer"])):
+    spec_json = doctype_json(child)
+    if not spec_json or not spec_json.get("istable") or [f["fieldname"] for f in spec_json["fields"]] != columns:
+        fail.append("%s must be a child table of %s" % (child, columns))
 stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", sjs, flags=re.S)
 for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):
     if stripped.count(op) != stripped.count(cl):

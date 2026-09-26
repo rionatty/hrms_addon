@@ -13,6 +13,8 @@
 // checks that they do.
 
 const HA_SCORE_TABLE = "custom_scores";
+// the interview's questions, each with the candidate's answer to note
+const HA_ANSWER_TABLE = "custom_answers";
 const HA_SCORE_BANDS = [
 	[90, "Excellent"],
 	[75, "Very Good"],
@@ -33,6 +35,17 @@ frappe.ui.form.on("Interview Feedback", {
 				frm.refresh_field(HA_SCORE_TABLE);
 				ha_show_score_total(frm);
 			});
+		}
+		// the questions come from the interview, not from here
+		frm.set_df_property(HA_ANSWER_TABLE, "cannot_add_rows", true);
+		frm.set_df_property(HA_ANSWER_TABLE, "cannot_delete_rows", true);
+		if (frm.is_new() && frm.doc.interview && !(frm.doc[HA_ANSWER_TABLE] || []).length) {
+			frappe
+				.xcall("hrms_addon.hrms_addon.interviews.get_interview_questions", { interview: frm.doc.interview })
+				.then((rows) => {
+					(rows || []).forEach((row) => frm.add_child(HA_ANSWER_TABLE, row));
+					frm.refresh_field(HA_ANSWER_TABLE);
+				});
 		}
 		ha_show_score_total(frm);
 	},

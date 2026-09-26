@@ -631,7 +631,9 @@ if by_dt.get(IFB):
         order, fields = simulate_layout(IFB, hrms_first=hrms_first)
         visible_sections = [fields[fn].get("label") for fn in order
                             if fields[fn]["fieldtype"] == "Section Break" and not fields[fn].get("hidden")]
-        expected_sections = ["Details", "Candidate Interview Evaluation", "Total Score", "Suitability & Recommendation"]
+        # the interview's questions, then the score sheet
+        expected_sections = ["Details", "Questions", "Candidate Interview Evaluation", "Total Score",
+                             "Suitability & Recommendation"]
         if visible_sections != expected_sections:
             fail.append("Interview Feedback sections %s, expected %s" % (visible_sections, expected_sections))
         for field, after in (("custom_scores", "custom_evaluation_section"), ("custom_recommendation", "feedback"),

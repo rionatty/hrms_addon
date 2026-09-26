@@ -2466,7 +2466,7 @@
   "dt": "Interview Feedback",
   "fieldname": "custom_evaluation_section",
   "fieldtype": "Section Break",
-  "insert_after": "average_rating",
+  "insert_after": "custom_answers",
   "label": "Candidate Interview Evaluation",
   "description": "Excellent = 5 (90-100%), Very Good = 4 (75-89%), Good = 3 (60-74%), Average = 2 (50-59%), Below Average = 1 (49% and below). N/A where a criterion does not apply.",
   "module": "HRMS Addon"
@@ -2558,6 +2558,94 @@
   "options": "\nOffer\nShortlist\nReject",
   "description": "Offer = selected, Shortlist = to be interviewed again, Reject = not selected.",
   "in_list_view": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Type-custom_round",
+  "dt": "Interview Type",
+  "fieldname": "custom_round",
+  "fieldtype": "Int",
+  "insert_after": "designation",
+  "label": "Round",
+  "default": "1",
+  "description": "1 for the first interview, 2 for the next.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Type-custom_questions_section",
+  "dt": "Interview Type",
+  "fieldname": "custom_questions_section",
+  "fieldtype": "Section Break",
+  "insert_after": "description",
+  "label": "Questions",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Type-custom_questions",
+  "dt": "Interview Type",
+  "fieldname": "custom_questions",
+  "fieldtype": "Table",
+  "insert_after": "custom_questions_section",
+  "label": "Questions",
+  "options": "Interview Question",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview-custom_round",
+  "dt": "Interview",
+  "fieldname": "custom_round",
+  "fieldtype": "Int",
+  "insert_after": "interview_type",
+  "label": "Round",
+  "read_only": 1,
+  "fetch_from": "interview_type.custom_round",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview-custom_questions_section",
+  "dt": "Interview",
+  "fieldname": "custom_questions_section",
+  "fieldtype": "Section Break",
+  "insert_after": "interview_details",
+  "label": "Questions",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview-custom_questions",
+  "dt": "Interview",
+  "fieldname": "custom_questions",
+  "fieldtype": "Table",
+  "insert_after": "custom_questions_section",
+  "label": "Questions",
+  "options": "Interview Question",
+  "read_only": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_answers_section",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_answers_section",
+  "fieldtype": "Section Break",
+  "insert_after": "average_rating",
+  "label": "Questions",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview Feedback-custom_answers",
+  "dt": "Interview Feedback",
+  "fieldname": "custom_answers",
+  "fieldtype": "Table",
+  "insert_after": "custom_answers_section",
+  "label": "Questions",
+  "options": "Interview Answer",
   "module": "HRMS Addon"
  },
  {

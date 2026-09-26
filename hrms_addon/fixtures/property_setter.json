@@ -555,5 +555,16 @@
   "value": "1",
   "module": "HRMS Addon",
   "field_name": "requested_by"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Interview Type-designation-reqd",
+  "doc_type": "Interview Type",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "designation"
  }
 ]

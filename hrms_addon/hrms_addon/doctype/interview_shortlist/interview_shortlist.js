@@ -36,9 +36,9 @@ frappe.ui.form.on("Interview Shortlist", {
 				frm.add_custom_button(__("Sort by Match"), () => ha_sort_by_match(frm));
 			}
 		}
-		const unscheduled = (frm.doc.candidates || []).filter((row) => !row.interview);
-		if (frm.doc.docstatus === 1 && unscheduled.length && frappe.model.can_create("Interview")) {
-			frm.add_custom_button(__("Schedule Interviews"), () => ha_schedule_interviews(frm, unscheduled.length));
+		// a round at a time, for the candidates ticked (a batch) or everyone
+		if (frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")) {
+			frm.add_custom_button(__("Schedule Interviews"), () => ha_schedule_interviews(frm));
 		}
 	},
 });
@@ -173,9 +173,10 @@ function ha_sort_by_match(frm) {
 	frm.dirty();
 }
 
-function ha_schedule_interviews(frm, count) {
+function ha_schedule_interviews(frm) {
+	const ticked = frm.fields_dict.candidates.grid.get_selected_children().map((row) => row.job_applicant);
 	const dialog = new frappe.ui.Dialog({
-		title: __("Schedule {0} Interviews", [count]),
+		title: ticked.length ? __("Schedule Interviews for {0} Ticked", [ticked.length]) : __("Schedule Interviews"),
 		fields: [
 			{
 				fieldname: "interview_type",
@@ -183,7 +184,8 @@ function ha_schedule_interviews(frm, count) {
 				options: "Interview Type",
 				label: __("Interview Type"),
 				reqd: 1,
-				description: __("Its Interviewers are the panel for every interview."),
+				description: __("The round. Its interviewers are the panel; its questions come with it."),
+				get_query: () => ({ filters: { designation: frm.doc.designation } }),
 			},
 			{ fieldname: "scheduled_on", fieldtype: "Date", label: __("Date"), reqd: 1 },
 			{ fieldname: "column_break_1", fieldtype: "Column Break" },
@@ -206,10 +208,17 @@ function ha_schedule_interviews(frm, count) {
 					scheduled_on: values.scheduled_on,
 					from_time: values.from_time,
 					minutes: values.minutes,
+					applicants: ticked.length ? ticked : null,
 				})
 				.then((result) => {
 					dialog.hide();
 					const lines = [__("{0} interviews scheduled.", [result.booked.length])];
+					if (result.already.length) {
+						lines.push(
+							__("Already have this round:"),
+							...result.already.map((name) => frappe.utils.escape_html(name))
+						);
+					}
 					if (result.refused.length) {
 						lines.push(__("Not scheduled:"), ...result.refused.map((reason) => frappe.utils.escape_html(reason)));
 					}

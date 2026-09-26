@@ -318,6 +318,15 @@ def interview_slots(start, minutes, count):
     return [(_clock(begin + i * minutes), _clock(begin + (i + 1) * minutes)) for i in range(count)]
 
 
+def to_book(applicants, chosen, already):
+    """The applicants to book for an interview round, in the shortlist's
+    order: the ones HR chose (everyone on the list when none is chosen),
+    less the ones who already have that round."""
+    chosen, already = set(chosen or ()), set(already or ())
+    return [applicant for applicant in applicants or ()
+            if (not chosen or applicant in chosen) and applicant not in already]
+
+
 def _clock(total_minutes):
     return "%02d:%02d:00" % divmod(total_minutes, 60)
 
