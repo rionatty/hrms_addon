@@ -275,6 +275,14 @@ def experience_lines(history):
     return "\n".join(lines)
 
 
+def language_line(row):
+    """'English (read, write, speak)', from one of the applicant's language rows."""
+    abilities = [label for fieldname, label in (("can_read", "read"), ("can_write", "write"), ("can_speak", "speak"))
+                 if _get(row, fieldname)]
+    language = _text(_get(row, "language"))
+    return "%s (%s)" % (language, ", ".join(abilities)) if abilities and language else language
+
+
 def shortlist_errors(job_opening, rows, opening_of, submitting):
     """Problems with a shortlist, as user-facing messages.
 

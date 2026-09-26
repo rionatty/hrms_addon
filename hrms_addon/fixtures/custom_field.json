@@ -2674,6 +2674,26 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Interview-custom_candidate_tab",
+  "dt": "Interview",
+  "fieldname": "custom_candidate_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "amended_from",
+  "label": "Candidate",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Interview-custom_candidate_html",
+  "dt": "Interview",
+  "fieldname": "custom_candidate_html",
+  "fieldtype": "HTML",
+  "insert_after": "custom_candidate_tab",
+  "label": "Candidate",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Training Event-custom_branch",
   "dt": "Training Event",
   "fieldname": "custom_branch",

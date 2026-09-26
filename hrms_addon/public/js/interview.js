@@ -11,10 +11,19 @@
 // only what that event does changes. frappe.ui.form.off is Frappe's way to drop
 // a form's standard handlers. Loaded through hooks.py doctype_js, after HRMS's
 // own form script.
+//
+// The Candidate tab shows the panel what the candidate applied with and opens
+// their CV (interview_access.py): a panel member has no access to the Job
+// Applicant itself.
+
+const HA_ACCESS_METHODS = "hrms_addon.hrms_addon.interview_access.";
 
 frappe.ui.form.off("Interview", "submit_feedback");
 
 frappe.ui.form.on("Interview", {
+	refresh(frm) {
+		ha_candidate_pack(frm);
+	},
 	submit_feedback(frm) {
 		// A new document's values are copied onto it as they are, with no
 		// fetch, so pass what the sheet would otherwise fetch from the Interview.
@@ -26,3 +35,53 @@ frappe.ui.form.on("Interview", {
 		});
 	},
 });
+
+// what the candidate applied with, for the panel
+function ha_candidate_pack(frm) {
+	const field = frm.fields_dict.custom_candidate_html;
+	if (!field) {
+		return;
+	}
+	if (frm.is_new() || !frm.doc.job_applicant) {
+		field.$wrapper.empty();
+		return;
+	}
+	frappe
+		.xcall(HA_ACCESS_METHODS + "get_candidate_pack", { interview: frm.doc.name })
+		.then((pack) => field.$wrapper.html(ha_pack_html(frm, pack || {})));
+}
+
+function ha_pack_html(frm, pack) {
+	const newline = String.fromCharCode(10);
+	const esc = (text) => frappe.utils.escape_html(text || "");
+	const lines = (text) => esc(text).split(newline).join("<br>");
+	const block = (label, body) =>
+		body ? `<div class="mb-4"><div class="text-muted small mb-1">${esc(label)}</div><div>${body}</div></div>` : "";
+
+	let cv = "";
+	if (pack.has_cv) {
+		const url = "/api/method/" + HA_ACCESS_METHODS + "download_cv?interview=" + encodeURIComponent(frm.doc.name);
+		cv = `<a class="btn btn-default btn-sm" href="${url}" target="_blank" rel="noopener">${__("Open CV")}</a>`;
+	} else if (/^https?:/i.test(pack.cv_link || "")) {
+		cv = `<a href="${esc(pack.cv_link)}" target="_blank" rel="noopener noreferrer">${esc(pack.cv_link)}</a>`;
+	}
+	const answers = (pack.answers || [])
+		.map((row) => `<tr><td>${esc(row.question)}</td><td>${esc(row.answer)}</td></tr>`)
+		.join("");
+
+	const html = [
+		block(__("CV"), cv),
+		block(__("Applied For"), esc(pack.designation)),
+		block(__("Education"), lines(pack.education)),
+		block(__("Work Experience"), lines(pack.work_experience)),
+		block(__("Certifications and Licences"), lines(pack.certifications)),
+		block(__("Skills"), esc((pack.skills || []).join(", "))),
+		block(__("Languages"), esc((pack.languages || []).join(", "))),
+		block(
+			__("Screening Answers"),
+			answers ? `<table class="table table-bordered table-sm mb-0"><tbody>${answers}</tbody></table>` : ""
+		),
+		block(__("Cover Letter"), lines(pack.cover_letter)),
+	].join("");
+	return html || `<div class="text-muted">${__("Nothing on the application yet.")}</div>`;
+}

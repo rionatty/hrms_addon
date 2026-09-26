@@ -15,6 +15,8 @@
 const HA_SHORTLIST_METHODS = "hrms_addon.hrms_addon.interviews.";
 const HA_HR_STATES = ["Draft", "Returned to HR"];
 const HA_HOD_STATE = "Pending HOD Screening";
+// who books interviews: interview_access_rules.HR_ROLES
+const HA_BOOKERS = ["HR User", "HR Manager", "System Manager"];
 
 frappe.ui.form.on("Interview Shortlist", {
 	setup(frm) {
@@ -36,8 +38,10 @@ frappe.ui.form.on("Interview Shortlist", {
 				frm.add_custom_button(__("Sort by Match"), () => ha_sort_by_match(frm));
 			}
 		}
-		// a round at a time, for the candidates ticked (a batch) or everyone
-		if (frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")) {
+		// a round at a time, for the candidates ticked (a batch) or everyone; HR
+		// books, a panel member only reads (interview_access.py)
+		if (frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")
+			&& frappe.user.has_role(HA_BOOKERS)) {
 			frm.add_custom_button(__("Schedule Interviews"), () => ha_schedule_interviews(frm));
 		}
 	},

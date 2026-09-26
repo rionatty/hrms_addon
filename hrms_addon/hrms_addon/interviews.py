@@ -66,6 +66,8 @@ from frappe.utils import escape_html, today
 
 from hrms_addon.hrms_addon import cv_screening
 from hrms_addon.hrms_addon import cv_screening_rules
+from hrms_addon.hrms_addon import interview_access as access
+from hrms_addon.hrms_addon import interview_access_rules as access_rules
 from hrms_addon.hrms_addon import interview_report_approval as approval
 from hrms_addon.hrms_addon import interview_rules as rules
 from hrms_addon.hrms_addon import interview_shortlist_approval as screening
@@ -74,6 +76,10 @@ from hrms_addon.hrms_addon import workflows
 
 def feedback_validate(doc, method=None):
     """Runs after HRMS's own validate, so the average rating set here stands."""
+    # a sheet is its interviewer's own: Frappe HR only checks they sit on the panel
+    problem = access_rules.sheet_owner_error(doc.interviewer, frappe.session.user)
+    if problem and not (frappe.flags.in_migrate or frappe.flags.in_patch or frappe.flags.in_install):
+        frappe.throw(_(problem), frappe.PermissionError)
     if not doc.get("custom_scores"):
         for row in _sheet_rows():
             doc.append("custom_scores", row)
@@ -153,6 +159,9 @@ def get_skill_wise_average_rating(interview: str) -> list[dict]:
     by 5). An interview scored the HRMS way, on skills, keeps its skills.
     """
     frappe.has_permission("Interview", "read", interview, throw=True)
+    # a panel member sees the panel's marks once their own sheet is in
+    if not access.sees_panel_scores(interview):
+        return []
     sheets = [
         frappe.get_all(
             "Interview Feedback Score",

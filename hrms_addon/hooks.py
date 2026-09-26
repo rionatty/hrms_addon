@@ -677,6 +677,8 @@ fixtures = [
                     "Interview-custom_questions",
                     "Interview Feedback-custom_answers_section",
                     "Interview Feedback-custom_answers",
+                    "Interview-custom_candidate_tab",
+                    "Interview-custom_candidate_html",
                     "Training Event-custom_branch",
                     "Training Event-custom_department",
                     "Training Event-custom_schedule",
@@ -1306,10 +1308,23 @@ fixtures = [
 # An employee is shown the leave plans of their own plant and department
 permission_query_conditions = {
     "Annual Leave Plan": "hrms_addon.hrms_addon.leave.plan_query_conditions",
+    # A panel member sees the interviews they sit on, their own score sheets
+    # and, once theirs is in, their colleagues'; the shortlists and reports
+    # of those interviews (interview_access.py)
+    "Interview": "hrms_addon.hrms_addon.interview_access.interview_query_conditions",
+    "Interview Feedback": "hrms_addon.hrms_addon.interview_access.feedback_query_conditions",
+    "Interview Shortlist": "hrms_addon.hrms_addon.interview_access.shortlist_query_conditions",
+    "Interview Report": "hrms_addon.hrms_addon.interview_access.report_query_conditions",
 }
 
 has_permission = {
     "Annual Leave Plan": "hrms_addon.hrms_addon.leave.plan_has_permission",
+    # and changes nothing but their own score sheets
+    "Interview": "hrms_addon.hrms_addon.interview_access.interview_has_permission",
+    "Interview Feedback": "hrms_addon.hrms_addon.interview_access.feedback_has_permission",
+    "Interview Type": "hrms_addon.hrms_addon.interview_access.type_has_permission",
+    "Interview Shortlist": "hrms_addon.hrms_addon.interview_access.shortlist_has_permission",
+    "Interview Report": "hrms_addon.hrms_addon.interview_access.report_has_permission",
 }
 
 # DocType Class
@@ -1356,6 +1371,9 @@ doc_events = {
     "Interview Feedback": {
         # Score sheet (LPL/HR/17): totals, rating and result from the scores
         "validate": "hrms_addon.hrms_addon.interviews.feedback_validate",
+        # the Interview's average shows once the whole panel has scored
+        "on_submit": "hrms_addon.hrms_addon.interview_access.hide_panel_average",
+        "on_cancel": "hrms_addon.hrms_addon.interview_access.hide_panel_average",
     },
     "Interview": {
         # the Interview Type's round and questions, as they were when booked
@@ -1646,6 +1664,8 @@ override_whitelisted_methods = {
     "hrms.hr.doctype.interview.interview.get_skill_wise_average_rating": (
         "hrms_addon.hrms_addon.interviews.get_skill_wise_average_rating"
     ),
+    # and the sheets themselves, for whoever may see them yet
+    "hrms.hr.doctype.interview.interview.get_feedback": "hrms_addon.hrms_addon.interview_access.get_feedback",
     # A file uploaded from the website (the careers portal's CV) is stored
     # private, whatever the dialog asks. The dialog posts to "upload_file";
     # the saved web form attaches the file through the full name.
