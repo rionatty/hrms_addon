@@ -1,0 +1,58 @@
+{% extends "frappe/www/login.html" %}
+{#-
+	The sign-in page: Frappe's own page and card, set beside a brand panel in
+	the desk theme's colours. Every section, form, id and class of Frappe's is
+	left as it renders it, since login.js drives the page by them; this only
+	wraps them. The look is login.css beside this file, which Frappe puts on
+	the page itself only while this file names no style block of its own
+	(Frappe looks for the words in the text, comments included). The colours
+	and words come from login.py (hrms_addon/hrms_addon/login_rules.py).
+-#}
+
+{% block head_include %}
+{{ super() }}
+<style>
+	:root {
+	{%- for variable, colour in hal.colours %}
+		{{ variable }}: {{ colour }};
+	{%- endfor %}
+	{%- if hal.image %}
+		--hal-image: url('{{ hal.image }}');
+	{%- endif %}
+	}
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="hal-login{{ ' hal-has-image' if hal.image else '' }}">
+	<aside class="hal-brand">
+		<div class="hal-brand-inner">
+			<div class="hal-logo-tile">
+				<img src="{{ logo }}" alt="{{ app_name | e }}">
+			</div>
+			<div class="hal-brand-text">
+				<span class="hal-rule"></span>
+				<p class="hal-name">{{ app_name | e }}</p>
+				<p class="hal-tagline">{{ _(hal.tagline) | e }}</p>
+			</div>
+			{% if copyright %}
+			<p class="hal-copyright">&copy; {{ copyright | e }}</p>
+			{% endif %}
+		</div>
+	</aside>
+	<div class="hal-main">
+		<div class="hal-card">
+			{{ super() }}
+		</div>
+		{% if show_footer_on_login %}
+		<div class="hal-powered">
+			{%- if footer_powered -%}
+				{{ footer_powered }}
+			{%- else -%}
+				{% include "templates/includes/footer/footer_powered.html" %}
+			{%- endif -%}
+		</div>
+		{% endif %}
+	</div>
+</div>
+{% endblock %}

@@ -15,7 +15,11 @@
   "section_surfaces",
   "splash_image",
   "column_break_surfaces",
-  "footer_powered"
+  "footer_powered",
+  "section_login",
+  "login_tagline",
+  "column_break_login",
+  "login_image"
  ],
  "fields": [
   {
@@ -86,12 +90,34 @@
    "fieldname": "footer_powered",
    "fieldtype": "Small Text",
    "label": "Footer \"Powered By\""
+  },
+  {
+   "fieldname": "section_login",
+   "fieldtype": "Section Break",
+   "label": "Sign-In Page"
+  },
+  {
+   "description": "Under the product name. Empty for the standard line.",
+   "fieldname": "login_tagline",
+   "fieldtype": "Small Text",
+   "label": "Tagline"
+  },
+  {
+   "fieldname": "column_break_login",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Behind the product name, in the theme's colours. A wide picture works best.",
+   "fieldname": "login_image",
+   "fieldtype": "Attach Image",
+   "label": "Panel Picture",
+   "make_attachment_public": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-04 09:00:00.000000",
+ "modified": "2026-09-27 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HRMS Addon Branding",

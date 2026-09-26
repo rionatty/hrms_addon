@@ -1,0 +1,536 @@
+/*
+ * The sign-in page (login.html beside this file). Frappe puts this file on
+ * the page after its own login.bundle.css, so a rule here wins over one of
+ * Frappe's written the same way. Frappe's card, forms and buttons keep their
+ * own classes; this restyles them and lays out the brand panel beside them.
+ *
+ * The four theme colours arrive from login.html on :root (the desk theme,
+ * login_rules.py), with the panel's picture when one is set; the defaults
+ * below sit on html, which :root outranks.
+ */
+
+html {
+	--hal-primary: #14395e;
+	--hal-primary-2: #2a5a8c;
+	--hal-accent: #0a6ed1;
+	--hal-highlight: #f0ab00;
+	--hal-canvas: #f3f6fa;
+	--hal-surface: #ffffff;
+	--hal-ink: #0f2438;
+	--hal-ink-2: #334155;
+	--hal-muted: #5b6b7f;
+	--hal-muted-2: #8795a8;
+	--hal-line: #e3e9f1;
+	--hal-line-strong: #d3dce7;
+	--hal-field: #fafbfd;
+	--hal-tint: #f1f5fa;
+}
+
+/* ── the page: the whole window, none of Frappe's page padding ─────── */
+
+body {
+	background-color: var(--hal-canvas);
+}
+
+body .page-content-wrapper {
+	min-height: 0;
+	padding: 0;
+}
+
+.page-content-wrapper > main.container {
+	max-width: none;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+}
+
+.page-content-wrapper .page-breadcrumbs,
+.page-content-wrapper .page-header-wrapper,
+.page-content-wrapper .page-footer {
+	display: none;
+}
+
+.page-content-wrapper .page_content {
+	margin: 0;
+	padding: 0;
+}
+
+/* login.js shows Frappe's footer with an inline style; the "Powered by"
+   line sits under the card instead */
+.web-footer {
+	display: none !important;
+}
+
+.hal-login {
+	display: flex;
+	min-height: 100vh;
+	min-height: 100svh;
+	background-color: var(--hal-canvas);
+}
+
+/* ── the brand panel ───────────────────────────────────────────────── */
+
+.hal-brand {
+	position: relative;
+	flex: 0 0 44%;
+	max-width: 680px;
+	overflow: hidden;
+	color: #ffffff;
+	background-color: var(--hal-primary);
+	background-image: linear-gradient(155deg, var(--hal-primary) 0%, var(--hal-primary) 35%, var(--hal-primary-2) 100%);
+	background-position: center;
+	background-size: cover;
+}
+
+/* soft rings, top right */
+.hal-brand::before {
+	content: "";
+	position: absolute;
+	top: -190px;
+	right: -210px;
+	width: 560px;
+	height: 560px;
+	border-radius: 50%;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	box-shadow:
+		0 0 0 70px rgba(255, 255, 255, 0.035),
+		0 0 0 140px rgba(255, 255, 255, 0.025);
+	pointer-events: none;
+}
+
+/* a warm glow, bottom left */
+.hal-brand::after {
+	content: "";
+	position: absolute;
+	left: -160px;
+	bottom: -200px;
+	width: 520px;
+	height: 520px;
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(240, 171, 0, 0.22) 0%, rgba(240, 171, 0, 0) 65%);
+	background: radial-gradient(circle, color-mix(in srgb, var(--hal-highlight) 26%, transparent) 0%, transparent 65%);
+	pointer-events: none;
+}
+
+/* a picture chosen in HRMS Addon Branding (--hal-image, from login.html),
+   under the theme's colours */
+.hal-has-image .hal-brand {
+	background-image: var(--hal-image);
+}
+
+.hal-has-image .hal-brand::after {
+	inset: 0;
+	left: 0;
+	bottom: 0;
+	width: auto;
+	height: auto;
+	border-radius: 0;
+	background: linear-gradient(160deg, rgba(20, 57, 94, 0.9) 0%, rgba(42, 90, 140, 0.72) 100%);
+	background: linear-gradient(
+		160deg,
+		color-mix(in srgb, var(--hal-primary) 90%, transparent) 0%,
+		color-mix(in srgb, var(--hal-primary-2) 72%, transparent) 100%
+	);
+}
+
+.hal-brand-inner {
+	position: relative;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: clamp(40px, 5vw, 72px);
+}
+
+.hal-logo-tile {
+	display: inline-flex;
+	align-items: center;
+	align-self: flex-start;
+	padding: 12px 18px;
+	background: #ffffff;
+	border-radius: 14px;
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.hal-logo-tile img {
+	display: block;
+	max-height: 40px;
+	max-width: 180px;
+	width: auto;
+}
+
+.hal-brand-text {
+	margin: auto 0;
+	padding: 48px 0;
+}
+
+.hal-rule {
+	display: block;
+	width: 44px;
+	height: 4px;
+	margin-bottom: 22px;
+	border-radius: 2px;
+	background: var(--hal-highlight);
+}
+
+.hal-name {
+	margin: 0 0 14px;
+	font-size: clamp(30px, 3vw, 42px);
+	font-weight: 700;
+	line-height: 1.12;
+	letter-spacing: -0.02em;
+	color: #ffffff;
+}
+
+.hal-tagline {
+	max-width: 420px;
+	margin: 0;
+	font-size: 17px;
+	line-height: 1.55;
+	color: rgba(255, 255, 255, 0.82);
+}
+
+.hal-copyright {
+	margin: 0;
+	font-size: 13px;
+	color: rgba(255, 255, 255, 0.62);
+}
+
+/* ── the sign-in side ──────────────────────────────────────────────── */
+
+.hal-main {
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 28px;
+	min-width: 0;
+	padding: 48px 24px 28px;
+}
+
+.hal-card {
+	width: 100%;
+	max-width: 440px;
+}
+
+.hal-login .page-card {
+	width: 100%;
+	max-width: none;
+	min-height: 0;
+	margin: 0;
+	padding: 40px 40px 36px;
+	gap: 28px;
+	background-color: var(--hal-surface);
+	border: 1px solid var(--hal-line);
+	border-radius: 18px;
+	box-shadow:
+		0 1px 2px rgba(15, 23, 42, 0.04),
+		0 22px 44px -18px rgba(20, 57, 94, 0.22);
+}
+
+/* the logo is the panel's; the card keeps its words */
+.hal-login .page-card-head img.app-logo {
+	display: none;
+}
+
+.hal-login .page-card-head {
+	gap: 8px;
+}
+
+.hal-login .page-card-head h4 {
+	font-size: 26px;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	color: var(--hal-ink);
+}
+
+.hal-login .page-card-head .page-card-subtitle {
+	font-size: 14.5px;
+	letter-spacing: 0;
+	color: var(--hal-muted);
+}
+
+.hal-login .page-card form {
+	gap: 18px;
+}
+
+.hal-login .page-card .page-card-body {
+	gap: 16px;
+}
+
+.hal-login .page-card .page-card-body .form-label {
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	color: var(--hal-ink-2);
+}
+
+.hal-login .page-card .page-card-body input[type="text"],
+.hal-login .page-card .page-card-body input[type="email"],
+.hal-login .page-card .page-card-body input[type="password"] {
+	height: 46px;
+	padding: 10px 14px;
+	font-size: 15px;
+	color: var(--hal-ink);
+	background-color: var(--hal-field);
+	border: 1px solid var(--hal-line-strong);
+	border-radius: 11px;
+	box-shadow: none;
+	transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.hal-login .page-card .page-card-body .email-field input,
+.hal-login .page-card .page-card-body .password-field input {
+	padding-left: 42px;
+}
+
+.hal-login .page-card .page-card-body .password-field input {
+	padding-right: 42px;
+}
+
+.hal-login .page-card .page-card-body input::placeholder {
+	color: var(--hal-muted-2);
+}
+
+.hal-login .page-card .page-card-body input[type="text"]:hover,
+.hal-login .page-card .page-card-body input[type="email"]:hover,
+.hal-login .page-card .page-card-body input[type="password"]:hover {
+	border-color: #b9c6d6;
+}
+
+.hal-login .page-card .page-card-body input[type="text"]:focus,
+.hal-login .page-card .page-card-body input[type="email"]:focus,
+.hal-login .page-card .page-card-body input[type="password"]:focus {
+	outline: none;
+	background-color: #ffffff;
+	border-color: var(--hal-accent);
+	box-shadow: 0 0 0 4px rgba(10, 110, 209, 0.16);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--hal-accent) 16%, transparent);
+}
+
+.hal-login .page-card .page-card-body .form-group.invalid input[type="text"],
+.hal-login .page-card .page-card-body .form-group.invalid input[type="email"],
+.hal-login .page-card .page-card-body .form-group.invalid input[type="password"] {
+	border-color: #e5484d;
+	box-shadow: 0 0 0 4px rgba(229, 72, 77, 0.12);
+}
+
+.hal-login .page-card .page-card-body .field-icon {
+	left: 14px;
+	fill: var(--hal-muted-2);
+}
+
+.hal-login .page-card .page-card-body .password-field .toggle-password {
+	right: 14px;
+	fill: var(--hal-muted-2);
+}
+
+.hal-login .page-card .page-card-body .password-field .toggle-password:hover {
+	fill: var(--hal-primary);
+}
+
+.hal-login .page-card .page-card-body .forgot-password-message > * {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--hal-accent);
+}
+
+.hal-login .page-card .page-card-body .login-error-banner,
+.hal-login .page-card .page-card-body .login-success-banner {
+	padding: 10px 12px;
+	border-radius: 10px;
+}
+
+/* the main button: the theme's navy */
+.hal-login .page-card .page-card-actions {
+	gap: 12px;
+}
+
+.hal-login .page-card .page-card-actions .btn-login:not(.btn-login-option),
+.hal-login .page-card .page-card-actions .btn-primary,
+.hal-login .page-card .page-card-actions .btn-signup {
+	height: 46px;
+	padding: 0 16px;
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	color: #ffffff;
+	background: var(--hal-primary);
+	border: none;
+	border-radius: 11px;
+	box-shadow:
+		0 1px 2px rgba(15, 23, 42, 0.1),
+		0 8px 18px -8px rgba(20, 57, 94, 0.6);
+	transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.hal-login .page-card .page-card-actions .btn-login:not(.btn-login-option):hover,
+.hal-login .page-card .page-card-actions .btn-login:not(.btn-login-option):active,
+.hal-login .page-card .page-card-actions .btn-primary:hover,
+.hal-login .page-card .page-card-actions .btn-signup:not(:disabled):hover {
+	color: #ffffff;
+	background: #0f2d4a;
+	background: color-mix(in srgb, var(--hal-primary) 86%, #000000);
+	border: none;
+	box-shadow:
+		0 1px 2px rgba(15, 23, 42, 0.12),
+		0 12px 22px -10px rgba(20, 57, 94, 0.7);
+}
+
+.hal-login .page-card .page-card-actions .btn-login:not(.btn-login-option):focus-visible,
+.hal-login .page-card .page-card-actions .btn-primary:focus-visible,
+.hal-login .page-card .page-card-actions .btn-signup:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 4px rgba(10, 110, 209, 0.28);
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--hal-accent) 28%, transparent);
+}
+
+.hal-login .page-card .page-card-actions .btn-signup:disabled,
+.hal-login .page-card .page-card-actions .btn-primary:disabled {
+	color: #ffffff;
+	background: #b8c4d3;
+	box-shadow: none;
+}
+
+/* the other ways in: quiet */
+.hal-login .page-card .page-card-actions .btn-login-option {
+	height: 44px;
+	font-size: 14.5px;
+	font-weight: 600;
+	color: var(--hal-primary);
+	background: var(--hal-surface);
+	border: 1px solid var(--hal-line-strong);
+	border-radius: 11px;
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.hal-login .page-card .page-card-actions .btn-login-option:hover {
+	color: var(--hal-primary);
+	background: var(--hal-tint);
+	border: 1px solid #b9c6d6;
+}
+
+.hal-login .sign-up-message {
+	color: var(--hal-muted);
+}
+
+.hal-login .sign-up-message a {
+	color: var(--hal-accent);
+	font-weight: 500;
+}
+
+.hal-powered {
+	font-size: 12.5px;
+	color: var(--hal-muted-2);
+	text-align: center;
+}
+
+.hal-powered a {
+	color: inherit;
+	text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.hal-login .page-card .page-card-actions .btn-login:not(.btn-login-option):hover,
+	.hal-login .page-card .page-card-actions .btn-primary:hover,
+	.hal-login .page-card .page-card-actions .btn-signup:not(:disabled):hover {
+		transform: translateY(-1px);
+	}
+}
+
+/* ── tablets and phones: the panel becomes a band above the card ───── */
+
+@media (max-width: 991.98px) {
+	.hal-login {
+		flex-direction: column;
+	}
+
+	.hal-brand {
+		flex: none;
+		max-width: none;
+	}
+
+	.hal-brand::before {
+		top: -260px;
+		right: -240px;
+	}
+
+	/* the logo and words line up with the card below them */
+	.hal-brand-inner {
+		height: auto;
+		max-width: 512px;
+		margin: 0 auto;
+		padding: 32px 16px 96px;
+	}
+
+	.hal-logo-tile {
+		padding: 10px 14px;
+		border-radius: 12px;
+	}
+
+	.hal-logo-tile img {
+		max-height: 30px;
+	}
+
+	.hal-brand-text {
+		margin: 0;
+		padding: 24px 0 0;
+	}
+
+	.hal-rule {
+		width: 36px;
+		height: 3px;
+		margin-bottom: 14px;
+	}
+
+	.hal-name {
+		margin-bottom: 8px;
+		font-size: 26px;
+	}
+
+	.hal-tagline {
+		font-size: 15px;
+	}
+
+	.hal-copyright {
+		display: none;
+	}
+
+	.hal-main {
+		justify-content: flex-start;
+		margin-top: -64px;
+		padding: 0 16px 28px;
+		position: relative;
+		z-index: 3;
+	}
+
+	.hal-card {
+		max-width: 480px;
+	}
+}
+
+@media (max-width: 575.98px) {
+	.hal-brand-inner {
+		padding: 24px 16px 88px;
+	}
+
+	.hal-name {
+		font-size: 22px;
+	}
+
+	.hal-tagline {
+		font-size: 14px;
+	}
+
+	.hal-login .page-card {
+		min-height: 0;
+		padding: 28px 22px 24px;
+		border: 1px solid var(--hal-line);
+		border-radius: 16px;
+	}
+
+	.hal-login .page-card-head h4 {
+		font-size: 22px;
+	}
+}

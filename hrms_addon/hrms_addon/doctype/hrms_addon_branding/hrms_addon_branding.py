@@ -11,6 +11,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from hrms_addon.hrms_addon import login_rules
 from hrms_addon.hrms_addon.branding import PLACEHOLDER_LOGO, apply_branding
 
 
@@ -30,6 +31,15 @@ class HRMSAddonBranding(Document):
                 _("Logo saved. A square logo works best in the navbar."),
                 indicator="blue",
                 alert=True,
+            )
+
+        # The sign-in page is seen before anyone signs in, so a private file
+        # never loads there (login_rules.IMAGE_SOURCES).
+        if self.login_image and self.has_value_changed("login_image") \
+                and not login_rules.safe_image(self.login_image):
+            frappe.msgprint(
+                _("The sign-in page cannot show this picture. Attach a public file."),
+                indicator="orange",
             )
 
     def on_update(self):
