@@ -7,14 +7,19 @@
  "field_order": [
   "job_applicant",
   "applicant_name",
+  "round",
   "phone_number",
   "email_id",
   "qualification",
   "experience",
   "average_score",
   "score_band",
+  "question_score",
   "panel_recommendations",
+  "panel_decision",
+  "sheets",
   "decision",
+  "decision_reason",
   "remarks",
   "interview",
   "job_offer"
@@ -37,6 +42,12 @@
    "read_only": 1,
    "in_list_view": 1,
    "columns": 2
+  },
+  {
+   "fieldname": "round",
+   "fieldtype": "Int",
+   "label": "Round",
+   "read_only": 1
   },
   {
    "fieldname": "phone_number",
@@ -79,6 +90,12 @@
    "columns": 1
   },
   {
+   "fieldname": "question_score",
+   "fieldtype": "Percent",
+   "label": "Questions",
+   "read_only": 1
+  },
+  {
    "fieldname": "panel_recommendations",
    "fieldtype": "Data",
    "label": "Panel",
@@ -87,12 +104,31 @@
    "columns": 2
   },
   {
+   "fieldname": "panel_decision",
+   "fieldtype": "Select",
+   "label": "Panel's Decision",
+   "options": "\nOffer\nShortlist\nReject",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sheets",
+   "fieldtype": "Data",
+   "label": "Score Sheets",
+   "read_only": 1
+  },
+  {
    "fieldname": "decision",
    "fieldtype": "Select",
    "label": "Decision",
-   "options": "\nOffer\nShortlist\nReject",
+   "options": "\nOffer\nReserve\nShortlist\nReject",
    "in_list_view": 1,
    "columns": 2
+  },
+  {
+   "fieldname": "decision_reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "description": "Where the decision is not the panel's."
   },
   {
    "fieldname": "remarks",
@@ -118,7 +154,7 @@
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-19 12:00:00.000000",
+ "modified": "2026-09-26 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Interview Report Candidate",

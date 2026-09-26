@@ -46,20 +46,35 @@ and the Interview Shortlist (one per Job Opening, like Luuka's shortlist sheet):
                        applicants written out from their Bio-Data (Get
                        Applicants, Refresh Details)
   schedule_interviews  an HRMS Interview per candidate chosen (a batch, or
-                       everyone), for a round (Interview Type) they do not have
-                       yet, back to back, with the Interview Type's panel
+                       everyone) still in the running, for a round (Interview
+                       Type) they do not have and whose round before they
+                       cleared: slots with a gap, round the lunch break and the
+                       day's end, over working days, while the panel is free
+  send_booking_letters / send_invitation
+                       the candidates invited, by email and SMS, and the panel
+                       sent its schedule
+  mark_interviews_held hourly: an interview over is Under Review
+  regret_on_update / send_regret
+                       a candidate turned down gets the regret email, once
 
-and the Interview Report (one per Job Opening and interview day):
+and the Interview Report (one per Job Opening and interview day, or range of
+days, and round):
 
-  validate_report      its controller's validate: complete once past Draft, and
-                       the sign-off block filled as the approvers act
-  close_report         its controller's on_submit (the approval): the day's
-                       interviews closed with the panel's decisions and the
-                       applicants moved on
+  validate_report      its controller's validate: the panel's figures read again
+                       while HR has it; complete once past Draft, every sheet
+                       in, reasons where the panel is overruled, no more offers
+                       than positions; the sign-off block filled as the
+                       approvers act
+  close_report         its controller's on_submit (the approval): the
+                       interviews closed with the report's decisions and the
+                       applicants moved on (a Reserve on Hold)
   get_interview_results
-                       the day's panel and candidates, with the score sheets
-                       averaged and counted (Get Interview Results)
-  create_job_offers    a draft Job Offer for each candidate offered the job
+                       the panel and candidates of those days and that round,
+                       with the score sheets averaged and counted, who did not
+                       come apart (Get Interview Results)
+  create_job_offers    a draft Job Offer for each candidate offered the job,
+                       while the opening's positions last
+  offer_reserve        a draft Job Offer for a Reserve, once a position is open
   unblock_cancel       Interview and Job Offer on_cancel: the shortlist and the
                        report that list them do not stop a correction
   setup_report_workflow_on_migrate
@@ -779,12 +794,31 @@ def _quietly(function, *args):
 
 
 def validate_report(doc):
-    """Interview Report validate: complete once past Draft, and its sign-off block
-    filled as the HR Manager and the Executive Director act."""
+    """Interview Report validate: while HR has it, each row's panel figures are
+    read again from the score sheets (HR's own decision, reason and remarks
+    stay); once past Draft it must be complete, every sheet of each panel in,
+    a reason wherever the decision is not the panel's, and no more offers
+    than positions open; its sign-off block is filled as the HR Manager and
+    the Executive Director act."""
     before = doc.get_doc_before_save()
     old_state = before.get(approval.STATE_FIELD) if before else None
     new_state = doc.get(approval.STATE_FIELD)
-    errors = rules.report_errors(doc.candidates, doc.recommendations, complete=approval.leaves_draft(new_state))
+    with_hr = doc.docstatus == 0 and new_state in (None, approval.DRAFT, approval.REJECTED)
+    complete = approval.leaves_draft(new_state)
+    offered = _offered(row.job_applicant for row in doc.candidates) if complete else set()
+    rows = []
+    for row in doc.candidates:
+        facts = {"offered": row.job_applicant in offered}
+        if row.get("interview"):
+            figures, facts["sheets_in"], facts["panel_size"] = _panel_figures(row.interview)
+            if with_hr:
+                row.update(figures)
+        facts.update({field: row.get(field) for field in ("job_applicant", "applicant_name", "interview", "decision",
+                                                           "panel_decision", "decision_reason")})
+        rows.append(facts)
+    positions = rules.open_positions(doc.get("vacancies") or frappe.db.get_value("Job Opening", doc.job_opening, "vacancies"),
+                                     _live_offers(doc.job_opening)) if complete else None
+    errors = rules.report_errors(rows, doc.recommendations, complete=complete, open_positions=positions)
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Interview Report"))
 
@@ -796,21 +830,31 @@ def validate_report(doc):
 
 
 @frappe.whitelist()
-def get_interview_results(job_opening: str, interview_date: str) -> dict:
-    """The day's panel and candidates for an Interview Report.
+def get_interview_results(job_opening: str, interview_date: str, to_date: str | None = None,
+                          interview_type: str | None = None) -> dict:
+    """The panel and candidates for an Interview Report.
 
-    Every Interview for the opening on that date (not cancelled), in the order
-    they were held: the panel is everyone who sat on any of them, and each
-    candidate comes with their Bio-Data written out, the panel's score sheets
-    averaged and counted, and their salary expectation.
+    Every Interview for the opening from interview_date to to_date (that day
+    alone without one), of one round where interview_type is given, not
+    cancelled, in the order they were held. Each interview a candidate
+    attended is a row, so a candidate seen twice in the range, round 1 and
+    round 2, has both: their Bio-Data written out, the panel's score sheets
+    averaged and counted, how many of the panel's sheets are in, and their
+    salary expectation. A no-show or a withdrawal is listed apart. The panel
+    is everyone who sat on any of them.
     """
     frappe.has_permission("Interview Report", "write", throw=True)
-    interviews = frappe.get_all(
-        "Interview",
-        filters={"job_opening": job_opening, "scheduled_on": interview_date, "docstatus": ["!=", 2]},
-        fields=["name", "job_applicant"],
-        order_by="from_time asc, creation asc",
-    )
+    filters = [["job_opening", "=", job_opening], ["scheduled_on", ">=", interview_date],
+               ["scheduled_on", "<=", to_date or interview_date], ["docstatus", "!=", 2]]
+    if interview_type:
+        filters.append(["interview_type", "=", interview_type])
+    held, absent = [], []
+    for interview in frappe.get_all("Interview", filters=filters,
+                                    fields=["name", "job_applicant", "scheduled_on", "status", "custom_attendance",
+                                            "custom_round"],
+                                    order_by="scheduled_on asc, from_time asc"):
+        (absent if interview.custom_attendance in rules.ABSENT or interview.status == "Cancelled" else held).append(interview)
+    interviews = held
 
     panel, seated = [], set()
     for interview in interviews:
@@ -825,36 +869,70 @@ def get_interview_results(job_opening: str, interview_date: str) -> dict:
                     "designation": _designation_of(user),
                 })
 
-    candidates, listed = [], set()
+    candidates, contexts = [], {}
     for interview in interviews:
-        if interview.job_applicant in listed:
-            continue
-        listed.add(interview.job_applicant)
-        details = candidate_details(interview.job_applicant)
-        sheets = frappe.get_all(
-            "Interview Feedback",
-            filters={"interview": interview.name, "docstatus": 1},
-            fields=["custom_score_percent as percent", "custom_max_score as maximum", "custom_recommendation as recommendation"],
-        )
-        summary = rules.panel_summary(sheets)
+        details = candidate_details(interview.job_applicant, contexts=contexts)
+        figures, _sheets_in, _panel_size = _panel_figures(interview.name)
         salary = frappe.db.get_value(
             "Job Applicant", interview.job_applicant, ["currency", "lower_range", "upper_range"], as_dict=True
         ) or {}
-        candidates.append({
+        candidates.append(dict(figures, **{
             "job_applicant": details["job_applicant"],
             "applicant_name": details["applicant_name"],
+            "round": interview.custom_round,
             "phone_number": details["phone_number"],
             "email_id": details["email_id"],
             "qualification": "\n".join(part for part in (details["education"], details["certifications"]) if part),
             "experience": details["work_experience"],
-            "average_score": summary["average"] or 0,
-            "score_band": summary["band"],
-            "panel_recommendations": summary["tally"],
-            "decision": summary["decision"],
+            "decision": figures["panel_decision"],
             "remarks": rules.salary_remark(salary.get("currency"), salary.get("lower_range"), salary.get("upper_range")),
             "interview": interview.name,
-        })
-    return {"panel": panel, "candidates": candidates}
+        }))
+    names = dict(frappe.get_all("Job Applicant", filters={"name": ["in", [row.job_applicant for row in absent] or [""]]},
+                                fields=["name", "applicant_name"], as_list=True))
+    absentees = "\n".join("%s (%s, %s)" % (names.get(row.job_applicant) or row.job_applicant,
+                                           _(row.custom_attendance or "Cancelled"), format_date(row.scheduled_on))
+                          for row in absent)
+    return {"panel": panel, "candidates": candidates, "absentees": absentees}
+
+
+def _panel_figures(interview):
+    """What the panel made of one interview, from its submitted score sheets:
+    ({average_score, score_band, panel_recommendations, panel_decision,
+    sheets, question_score}, sheets in, panel size)."""
+    panel = {user for user in frappe.get_all("Interview Detail", filters={"parent": interview, "parenttype": "Interview"},
+                                             pluck="interviewer") if user}
+    sheets = [{"interviewer": row.interviewer, "percent": row.custom_score_percent, "maximum": row.custom_max_score,
+               "recommendation": row.custom_recommendation, "question_percent": row.custom_question_percent}
+              for row in frappe.get_all("Interview Feedback", filters={"interview": interview, "docstatus": 1},
+                                        fields=["interviewer", "custom_score_percent", "custom_max_score",
+                                                "custom_recommendation", "custom_question_percent"])]
+    summary = rules.panel_summary(sheets)
+    sheets_in = len({sheet["interviewer"] for sheet in sheets if sheet["interviewer"] in panel}) if panel else len(sheets)
+    return {
+        "average_score": summary["average"] or 0,
+        "score_band": summary["band"],
+        "panel_recommendations": summary["tally"],
+        "panel_decision": summary["decision"],
+        "sheets": rules.sheets_line(sheets_in, len(panel)),
+        "question_score": summary["questions"] or 0,
+    }, sheets_in, len(panel)
+
+
+def _live_offers(job_opening):
+    """How many of the opening's applicants have an offer not cancelled or declined."""
+    applicants = frappe.get_all("Job Applicant", filters={"job_title": job_opening}, pluck="name") if job_opening else []
+    return len(_offered(applicants))
+
+
+def _offered(applicants):
+    """Of these applicants, the ones with a Job Offer not cancelled or declined."""
+    applicants = [applicant for applicant in applicants if applicant]
+    if not applicants:
+        return set()
+    return set(frappe.get_all("Job Offer", filters={"job_applicant": ["in", applicants], "docstatus": ["!=", 2],
+                                                    "status": ["in", ["Awaiting Response", "Accepted"]]},
+                              pluck="job_applicant"))
 
 
 def close_report(doc):
@@ -869,7 +947,7 @@ def close_report(doc):
     """
     refused = []
     for row in doc.candidates:
-        result = rules.result_for(row.decision)
+        result = rules.decision_result(row.decision)
         if row.interview and result:
             problem = _close_interview(row.interview, result)
             if problem:
@@ -933,8 +1011,11 @@ def create_job_offers(report: str) -> dict:
         )
     ) if applicants else {}
     to_create, to_link = rules.offer_plan(doc.candidates, existing)
-    rows = {row.job_applicant: row for row in doc.candidates}
-    company = frappe.db.get_value("Job Opening", doc.job_opening, "company")
+    rows = {row.job_applicant: row for row in doc.candidates if row.decision == "Offer"}
+    opening = frappe.db.get_value("Job Opening", doc.job_opening, ["company", "vacancies"], as_dict=True) or frappe._dict()
+    company = opening.company
+    # the opening's positions: offers made since the report was approved count too
+    positions = rules.open_positions(opening.vacancies, _live_offers(doc.job_opening))
 
     created, linked, refused = [], [], []
     for applicant, offer in to_link:
@@ -942,6 +1023,10 @@ def create_job_offers(report: str) -> dict:
         linked.append(offer)
     for applicant in to_create:
         row = rows[applicant]
+        if positions is not None and positions <= 0:
+            refused.append("%s: %s" % (row.applicant_name or applicant,
+                                       _("no position left of the opening's {0}").format(opening.vacancies)))
+            continue
         offer = frappe.get_doc({
             "doctype": "Job Offer",
             "job_applicant": applicant,
@@ -959,7 +1044,39 @@ def create_job_offers(report: str) -> dict:
             continue
         row.db_set("job_offer", offer.name)
         created.append(offer.name)
+        if positions is not None:
+            positions -= 1
     return {"created": created, "linked": linked, "refused": refused}
+
+
+@frappe.whitelist(methods=["POST"])
+def offer_reserve(report: str, applicant: str) -> str:
+    """Offer a Reserve: a draft Job Offer for a candidate the approved report
+    kept in reserve, once a position is open (an offer declined, say),
+    linked on the report."""
+    doc = frappe.get_doc("Interview Report", report)
+    doc.check_permission("read")
+    frappe.has_permission("Job Offer", "create", throw=True)
+    if doc.docstatus != 1:
+        frappe.throw(_("Job Offers are made once the report is approved."))
+    row = next((row for row in doc.candidates if row.job_applicant == applicant and row.decision == "Reserve"), None)
+    if not row:
+        frappe.throw(_("{0} is not in reserve on this report.").format(applicant))
+    if row.job_offer or frappe.db.exists("Job Offer", {"job_applicant": applicant, "docstatus": ["!=", 2]}):
+        frappe.throw(_("{0} already has a Job Offer.").format(row.applicant_name or applicant))
+    opening = frappe.db.get_value("Job Opening", doc.job_opening, ["company", "vacancies"], as_dict=True) or frappe._dict()
+    positions = rules.open_positions(opening.vacancies, _live_offers(doc.job_opening))
+    if positions is not None and positions <= 0:
+        frappe.throw(_("No position is open: the opening's {0} are all offered.").format(opening.vacancies))
+    offer = frappe.get_doc({
+        "doctype": "Job Offer",
+        "job_applicant": applicant,
+        "offer_date": today(),
+        "company": opening.company,
+        "designation": doc.designation,
+    }).insert()
+    row.db_set("job_offer", offer.name)
+    return offer.name
 
 
 # Documents that record the Interviews and Job Offers made from them (hooks.py

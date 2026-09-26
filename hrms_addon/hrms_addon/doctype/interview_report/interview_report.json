@@ -10,7 +10,10 @@
   "designation",
   "branch",
   "department",
+  "vacancies",
   "interview_date",
+  "to_date",
+  "interview_type",
   "column_break_1",
   "status",
   "forwarded_to",
@@ -22,6 +25,7 @@
   "panel",
   "candidates_section",
   "candidates",
+  "absentees",
   "recommendations_section",
   "recommendations",
   "signoff_section",
@@ -74,11 +78,31 @@
    "in_standard_filter": 1
   },
   {
+   "fieldname": "vacancies",
+   "fieldtype": "Int",
+   "label": "Positions",
+   "read_only": 1,
+   "fetch_from": "job_opening.vacancies"
+  },
+  {
    "fieldname": "interview_date",
    "fieldtype": "Date",
    "label": "Interviewed On",
    "reqd": 1,
    "in_list_view": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "description": "Empty for one day."
+  },
+  {
+   "fieldname": "interview_type",
+   "fieldtype": "Link",
+   "label": "Round",
+   "options": "Interview Type",
+   "description": "Empty for every round."
   },
   {
    "fieldname": "column_break_1",
@@ -150,6 +174,12 @@
    "fieldtype": "Table",
    "options": "Interview Report Candidate",
    "label": "Candidates"
+  },
+  {
+   "fieldname": "absentees",
+   "fieldtype": "Small Text",
+   "label": "Not Interviewed",
+   "read_only": 1
   },
   {
    "fieldname": "recommendations_section",
@@ -237,7 +267,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-19 18:00:00.000000",
+ "modified": "2026-09-26 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Interview Report",

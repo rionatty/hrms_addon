@@ -1354,7 +1354,49 @@ expect("sent on without recommendations", re_([{"job_applicant": "A", "decision"
        "Write the panel's recommendations")
 expect("sent on empty", re_([], "x", complete=True), "List the candidates interviewed")
 expect("a candidate twice", re_([{"job_applicant": "A"}, {"job_applicant": "A"}], "", complete=False), "Row 2: A is already listed in row 1.")
-expect("a decision off the form", re_([{"job_applicant": "A", "decision": "Hire"}], "", complete=False), "must be Offer, Shortlist or Reject")
+expect("an interview twice", re_([{"job_applicant": "A", "interview": "I1"}, {"job_applicant": "A", "interview": "I1"}], "",
+                                 complete=False), "Row 2: I1 is already listed in row 1.")
+expect("a candidate's two rounds", re_([{"job_applicant": "A", "interview": "I1", "decision": "Shortlist"},
+                                        {"job_applicant": "A", "interview": "I2", "decision": "Offer"}], "x", complete=True))
+expect("a decision off the list", re_([{"job_applicant": "A", "decision": "Hire"}], "", complete=False),
+       "must be Offer, Reserve, Shortlist or Reject")
+SAT = {"sheets_in": 3, "panel_size": 3}
+expect("a panel's sheets missing", re_([dict(SAT, job_applicant="A", applicant_name="Amos", decision="Offer", panel_decision="Offer",
+                                             sheets_in=2)], "x", complete=True),
+       "Row 1 (Amos): 2 of 3 score sheets are in. Wait for the rest, or take off the interview the panel members who did not sit.")
+expect("sheets missing on a draft", re_([dict(SAT, job_applicant="A", decision="Offer", sheets_in=0)], "", complete=False))
+expect("the panel overruled with no reason", re_([dict(SAT, job_applicant="A", applicant_name="Amos", decision="Offer",
+                                                       panel_decision="Reject")], "x", complete=True),
+       "Row 1 (Amos): the panel decided Reject; say why the decision is Offer.")
+expect("the panel overruled with a reason", re_([dict(SAT, job_applicant="A", decision="Offer", panel_decision="Reject",
+                                                      decision_reason="References checked since.")], "x", complete=True))
+expect("an Offer kept in Reserve", re_([dict(SAT, job_applicant="A", decision="Reserve", panel_decision="Offer")], "x", complete=True))
+expect("no majority: the decision is HR's", re_([dict(SAT, job_applicant="A", decision="Reject", panel_decision="")], "x",
+                                                complete=True))
+offers3 = [dict(SAT, job_applicant=a, interview=a, decision="Offer", panel_decision="Offer") for a in ("A", "B", "C")]
+expect("more offers than positions", re_(offers3, "x", complete=True, open_positions=2),
+       "3 candidates are offered the job for 2 open positions: make the rest Reserve.")
+expect("as many offers as positions", re_(offers3, "x", complete=True, open_positions=3))
+expect("an offer already made counts against the opening, not twice", re_([dict(offers3[0], offered=True)] + offers3[1:],
+                                                                         "x", complete=True, open_positions=2))
+expect("an opening with no number", re_(offers3, "x", complete=True, open_positions=None))
+expect("a candidate offered the job in two rounds counts once",
+       re_([dict(SAT, job_applicant="A", interview="I1", decision="Offer", panel_decision="Offer"),
+            dict(SAT, job_applicant="A", interview="I2", decision="Offer", panel_decision="Offer")], "x", complete=True,
+           open_positions=1))
+if (rules.DECISIONS, rules.decision_result("Reserve"), rules.decision_result("Reject"), rules.decision_result("")) \
+        != (("Offer", "Reserve", "Shortlist", "Reject"), "Cleared", "Rejected", ""):
+    fail.append("the report decides Offer, Reserve, Shortlist or Reject; a Reserve clears the interview")
+for args, positions in (((2, 1), 1), ((2, 5), 0), ((0, 3), None), ((None, 0), None), (("3", "1"), 2)):
+    if rules.open_positions(*args) != positions:
+        fail.append("open_positions%s must be %r, got %r" % (args, positions, rules.open_positions(*args)))
+if (rules.sheets_line(3, 5), rules.sheets_line(0, 0), rules.sheets_line(2, 2)) != ("3 of 5", "", "2 of 2"):
+    fail.append("the sheets in read '3 of 5'")
+if rules.panel_summary([{"percent": 80, "maximum": 20, "question_percent": 90}, {"percent": 60, "maximum": 20,
+                                                                                 "question_percent": 70},
+                        {"percent": 70, "maximum": 20, "question_percent": 0}])["questions"] != 80.0 \
+        or rules.panel_summary([{"percent": 80, "maximum": 20}])["questions"] is not None:
+    fail.append("the panel's questions score averages the sheets that scored questions")
 
 rep = doctype_json("Interview Report")
 rep_fields = fields_of(rep)
@@ -1385,8 +1427,24 @@ if not (rep_perms.get(A.CANCELLER) or {}).get("cancel"):
     fail.append("the %s cancels approved reports, so needs cancel on Interview Report" % A.CANCELLER)
 rc = doctype_json("Interview Report Candidate")
 rc_fields = fields_of(rc)
-if [o for o in (rc_fields.get("decision") or {}).get("options", "").split("\n") if o] != list(rules.RECOMMENDATIONS):
-    fail.append("the candidate's decision must be the form's Offer / Shortlist / Reject")
+if [o for o in (rc_fields.get("decision") or {}).get("options", "").split("\n") if o] != list(rules.DECISIONS):
+    fail.append("the candidate's decision must be Offer, Reserve, Shortlist or Reject")
+if [o for o in (rc_fields.get("panel_decision") or {}).get("options", "").split("\n") if o] != list(rules.RECOMMENDATIONS) \
+        or not (rc_fields.get("panel_decision") or {}).get("read_only"):
+    fail.append("the panel's own decision is read-only, one of the sheets' recommendations")
+for fieldname, fieldtype in (("round", "Int"), ("sheets", "Data"), ("question_score", "Percent")):
+    if ((rc_fields.get(fieldname) or {}).get("fieldtype"), (rc_fields.get(fieldname) or {}).get("read_only")) != (fieldtype, 1):
+        fail.append("Interview Report Candidate.%s is the panel's: a read-only %s" % (fieldname, fieldtype))
+if (rc_fields.get("decision_reason") or {}).get("fieldtype") != "Small Text":
+    fail.append("Interview Report Candidate needs the Reason where the decision is not the panel's")
+for fieldname, fieldtype, extra in (("to_date", "Date", {}), ("interview_type", "Link", {"options": "Interview Type"}),
+                                    ("vacancies", "Int", {"fetch_from": "job_opening.vacancies", "read_only": 1}),
+                                    ("absentees", "Small Text", {"read_only": 1})):
+    f = rep_fields.get(fieldname) or {}
+    if f.get("fieldtype") != fieldtype or any(f.get(k) != v for k, v in extra.items()):
+        fail.append("Interview Report.%s must be a %s %s" % (fieldname, fieldtype, extra))
+if (rep.get("modified") or "") <= "2026-09-26 09:00:00" or (rc.get("modified") or "") <= "2026-09-26 09:00:00":
+    fail.append("changed DocTypes need a later modified stamp, or migrate keeps the old ones")
 if sum(f.get("columns") or 0 for f in rc["fields"] if f.get("in_list_view")) > 10:
     fail.append("the report's candidate grid exceeds 10 columns")
 rp_fields = fields_of(doctype_json("Interview Report Panel Member"))
@@ -1404,13 +1462,24 @@ if not panel_keys <= set(rp_fields) or not (returned - panel_keys) <= set(rc_fie
                 % sorted((returned - panel_keys) - set(rc_fields)))
 for needle, why in (
     ("approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current)", "must fill the sign-offs with the tested rules"),
-    ("rules.report_errors(doc.candidates, doc.recommendations, complete=approval.leaves_draft(new_state))",
-     "must check the report with the tested rules, strictly once it leaves Draft"),
+    ("errors = rules.report_errors(rows, doc.recommendations, complete=complete, open_positions=positions)",
+     "must check the report with the tested rules"),
+    ("complete = approval.leaves_draft(new_state)", "strictly once it leaves Draft"),
+    ("with_hr = doc.docstatus == 0 and new_state in (None, approval.DRAFT, approval.REJECTED)",
+     "reading the panel's figures again only while HR has it"),
+    ("            if with_hr:\n                row.update(figures)", "and only the panel's figures"),
     ('frappe.has_permission("Interview Report", "write", throw=True)', "must check the user may write reports"),
-    ('filters={"job_opening": job_opening, "scheduled_on": interview_date, "docstatus": ["!=", 2]}',
-     "must take the opening's interviews on that day, leaving cancelled ones out"),
+    ('filters = [["job_opening", "=", job_opening], ["scheduled_on", ">=", interview_date],\n'
+     '               ["scheduled_on", "<=", to_date or interview_date], ["docstatus", "!=", 2]]',
+     "must take the opening's interviews over the days asked, leaving cancelled ones out"),
+    ('filters.append(["interview_type", "=", interview_type])', "and of the round asked"),
+    ("interview.custom_attendance in rules.ABSENT or interview.status == \"Cancelled\" else held).append(interview)",
+     "a no-show or withdrawal listed apart"),
     ("summary = rules.panel_summary(sheets)", "must sum up the panel with the tested rules"),
-    ('filters={"interview": interview.name, "docstatus": 1}', "must count only submitted score sheets"),
+    ('filters={"interview": interview, "docstatus": 1}', "must count only submitted score sheets"),
+    ('"status": ["in", ["Awaiting Response", "Accepted"]]}', "an offer declined or cancelled frees its position"),
+    ('sheets_in = len({sheet["interviewer"] for sheet in sheets if sheet["interviewer"] in panel}) if panel else len(sheets)',
+     "the sheets in are the panel's own, once each"),
     ("rules.salary_remark(", "must write the salary expectation with the tested rules"),
     ('workflows.setup_on_migrate(approval, "Interview Report approval")', "must build the approval workflow from interview_report_approval"),
 ):
@@ -1418,9 +1487,13 @@ for needle, why in (
         fail.append("interviews.py %s" % why)
 if not re.search(r"@frappe\.whitelist\(\)\s*\ndef get_interview_results\(", glue):
     fail.append("interviews.get_interview_results must be whitelisted")
-for fieldname in re.findall(r'"custom_(\w+) as', report_body):
+figures_body = glue.split("def _panel_figures(")[-1].split("\ndef ")[0]
+for fieldname in re.findall(r'"custom_(\w+)"', figures_body):
     if "Interview Feedback-custom_%s" % fieldname not in by_name:
-        fail.append("get_interview_results reads Interview Feedback.custom_%s, which does not exist" % fieldname)
+        fail.append("_panel_figures reads Interview Feedback.custom_%s, which does not exist" % fieldname)
+figure_keys = set(re.findall(r'^\s+"(\w+)": ', figures_body.split("return {")[-1], re.M))
+if not figure_keys or not figure_keys <= set(rc_fields):
+    fail.append("_panel_figures gives the rows fields they do not have: %s" % sorted(figure_keys - set(rc_fields)))
 if '"hrms_addon.hrms_addon.interviews.setup_report_workflow_on_migrate"' not in hook_block("after_migrate"):
     fail.append("after_migrate must build the Interview Report approval workflow")
 builder = read("hrms_addon", "hrms_addon", "workflows.py")
@@ -1428,8 +1501,19 @@ if '"doc_status": row.get("doc_status", "0")' not in builder:
     fail.append("workflows.py must take each state's doc_status from the rules, or the report is never submitted")
 
 rjs = read("hrms_addon", "hrms_addon", "doctype", "interview_report", "interview_report.js")
-if '.xcall("hrms_addon.hrms_addon.interviews.get_interview_results"' not in rjs:
+if 'const HA_REPORT_METHODS = "hrms_addon.hrms_addon.interviews.";' not in rjs \
+        or '.xcall(HA_REPORT_METHODS + "get_interview_results", {' not in rjs:
     fail.append("interview_report.js must fill the report with interviews.get_interview_results")
+for needle, why in (("to_date: frm.doc.to_date || null,", "must ask for the days"),
+                    ("interview_type: frm.doc.interview_type || null,", "and the round"),
+                    ('frm.set_value("absentees", results.absentees || "");', "must list who did not come"),
+                    ('frm.set_query("interview_type", () => ({ filters: { designation: frm.doc.designation || "" } }));',
+                     "must offer this job's rounds"),
+                    ('.xcall(HA_REPORT_METHODS + "offer_reserve", { report: frm.doc.name, applicant: values.applicant })',
+                     "must offer the job to a reserve through interviews.offer_reserve"),
+                    ('row.decision === "Reserve" && !row.job_offer', "must offer Offer a Reserve only for one not yet offered")):
+    if needle not in rjs:
+        fail.append("interview_report.js %s" % why)
 if '.xcall("hrms_addon.hrms_addon.job_requisition.get_session_employee")' not in rjs \
         or not re.search(r"@frappe\.whitelist\(\)\s*\ndef get_session_employee\(", read("hrms_addon", "hrms_addon", "job_requisition.py")):
     fail.append("interview_report.js must default Prepared By through the whitelisted get_session_employee")
@@ -1479,7 +1563,7 @@ print("report: approval walked end to end, sign-offs, panel summary, checks, doc
 
 # ── 9b. Closing the loop: the approved report's interviews, applicants and offers
 asa = rules.applicant_status_after
-if set(rules.APPLICANT_STATUSES) != set(rules.RECOMMENDATIONS):
+if set(rules.APPLICANT_STATUSES) != set(rules.DECISIONS):
     fail.append("every decision on the report must say what becomes of the applicant: %s" % (rules.APPLICANT_STATUSES,))
 for decision, current, after, why in (
         ("Offer", "Shortlisted", "Accepted", "an offer marks the applicant Accepted, as HRMS does for a cleared interview"),
@@ -1503,6 +1587,26 @@ if plan != (["A", "C"], [("F", "JO-F")]):
                 "already has, nothing for a row already linked or not offered the job: %s" % (plan,))
 if rules.offer_plan([], {}) != ([], []) or rules.offer_plan(None, None) != ([], []):
     fail.append("a report with no candidates makes no offers")
+if rules.offer_plan([{"job_applicant": "A", "decision": "Offer"}, {"job_applicant": "A", "decision": "Offer"},
+                     {"job_applicant": "B", "decision": "Reserve"}], {}) != (["A"], []):
+    fail.append("a candidate offered the job in two rounds' rows gets one offer; a Reserve gets none until offered")
+if asa("Reserve", "Shortlisted") != "Hold" or asa("Reserve", "Accepted") is not None:
+    fail.append("a Reserve waits on Hold; one already hired keeps it")
+offers_now = glue.split("def create_job_offers(")[-1].split("\ndef ")[0]
+reserve_body = glue.split("def offer_reserve(")[-1].split("\ndef ")[0]
+for body, needle, why in (
+        (offers_now, "positions = rules.open_positions(opening.vacancies, _live_offers(doc.job_opening))",
+         "create_job_offers must count the opening's positions left"),
+        (offers_now, "        if positions is not None and positions <= 0:", "and make no offer once none is left"),
+        (reserve_body, 'row.job_applicant == applicant and row.decision == "Reserve"', "offer_reserve only for a Reserve"),
+        (reserve_body, "if positions is not None and positions <= 0:", "only once a position is open"),
+        (reserve_body, 'frappe.db.exists("Job Offer", {"job_applicant": applicant, "docstatus": ["!=", 2]})',
+         "never a second offer"),
+        (reserve_body, "if doc.docstatus != 1:", "only from an approved report")):
+    if needle not in body:
+        fail.append("interviews.py: %s" % why)
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef offer_reserve\(report: str, applicant: str\)', glue):
+    fail.append("interviews.offer_reserve must be whitelisted for POST")
 
 jo = rc_fields.get("job_offer") or {}
 if (jo.get("fieldtype"), jo.get("options")) != ("Link", "Job Offer") or not (jo.get("read_only") and jo.get("allow_on_submit") and jo.get("no_copy")):
@@ -1514,7 +1618,7 @@ close_body = glue.split("def close_report(")[-1].split("\ndef ")[0]
 close_one = glue.split("def _close_interview(")[-1].split("\ndef ")[0]
 offers_body = glue.split("def create_job_offers(")[-1].split("\ndef ")[0]
 for body, needle, why in (
-    (close_body, "result = rules.result_for(row.decision)", "must close each interview with the tested result for its decision"),
+    (close_body, "result = rules.decision_result(row.decision)", "must close each interview with the tested result for its decision"),
     (close_body, "rules.applicant_status_after(row.decision, current)", "must move applicants on with the tested rules"),
     (close_body, 'frappe.db.set_value("Job Applicant", row.job_applicant, "status", status)', "must set the applicant's new status"),
     (close_body, "doc.add_comment(", "must leave HR a note of the interviews it could not close"),
@@ -1540,7 +1644,7 @@ if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\s*\ndef create_job_o
     fail.append("interviews.create_job_offers must be whitelisted for POST")
 offer_given = set(re.findall(r'"(\w+)": ', offers_body.split('"doctype": "Job Offer",')[-1].split("})")[0]))
 for needle, why in (
-    ('.xcall("hrms_addon.hrms_addon.interviews.create_job_offers", { report: frm.doc.name })', "must make the offers through interviews.create_job_offers"),
+    ('.xcall(HA_REPORT_METHODS + "create_job_offers", { report: frm.doc.name })', "must make the offers through interviews.create_job_offers"),
     ('row.decision === "Offer" && !row.job_offer', "must count the Offers still without a Job Offer"),
     ('frm.doc.docstatus === 1 && unoffered.length && frappe.model.can_create("Job Offer")',
      "must offer Create Job Offers only on an approved report, to someone who can create them"),

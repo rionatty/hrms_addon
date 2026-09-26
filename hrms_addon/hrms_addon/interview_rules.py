@@ -698,15 +698,17 @@ def panel_summary(sheets):
     """What a candidate's panel made of them, from their submitted score sheets.
 
     sheets: dicts or objects with the sheet's percent, its maximum (0 when
-    nothing was scored) and its recommendation. Returns {count, average,
-    band, tally, decision}: the average of the scored sheets' percentages,
-    the recommendations counted in the form's order ("Offer 3, Reject 1"),
-    and the decision when more than half the panel agreed on it ("" when
-    they did not, for HR to settle).
+    nothing was scored), its recommendation and its question_percent (0 for
+    an interview with no questions). Returns {count, average, band, tally,
+    decision, questions}: the average of the scored sheets' percentages, the
+    recommendations counted in the form's order ("Offer 3, Reject 1"), the
+    decision when more than half the panel agreed on it ("" when they did
+    not, for HR to settle), and the questions' average score (None without).
     """
     sheets = list(sheets or [])
     percents = [float(_get(s, "percent") or 0) for s in sheets if _int(_get(s, "maximum"))]
     average = round(sum(percents) / len(percents), 2) if percents else None
+    asked = [float(_get(s, "question_percent") or 0) for s in sheets if float(_get(s, "question_percent") or 0) > 0]
     counts = {}
     for sheet in sheets:
         recommendation = _text(_get(sheet, "recommendation"))
@@ -720,7 +722,32 @@ def panel_summary(sheets):
         "band": band_for_percent(average),
         "tally": ", ".join("%s %d" % (r, counts[r]) for r in RECOMMENDATIONS if counts.get(r)),
         "decision": decision,
+        "questions": round(sum(asked) / len(asked), 2) if asked else None,
     }
+
+
+# The report's decisions: the panel's three, and Reserve, for a candidate the
+# panel would offer the job when no position is left: kept on Hold, and
+# offered the job should an offer be declined
+DECISIONS = ("Offer", "Reserve", "Shortlist", "Reject")
+DECISION_RESULTS = dict(RESULTS, Reserve="Cleared")
+
+
+def decision_result(decision):
+    """The Interview's Cleared / Rejected result for a report's decision ("" for none)."""
+    return DECISION_RESULTS.get(decision or "", "")
+
+
+def sheets_line(sheets_in, panel_size):
+    """'3 of 5': the score sheets in, of the panel that sat."""
+    return "%d of %d" % (_int(sheets_in), _int(panel_size)) if _int(panel_size) else ""
+
+
+def open_positions(vacancies, offers_live):
+    """Positions still to offer: the opening's, less the offers made and not
+    cancelled or declined; None when the opening sets no number."""
+    vacancies = _int(vacancies)
+    return max(vacancies - _int(offers_live), 0) if vacancies > 0 else None
 
 
 def salary_remark(currency, low, high):
@@ -734,40 +761,66 @@ def salary_remark(currency, low, high):
     return "Expects %s%s a month." % (prefix, text)
 
 
-def report_errors(candidates, recommendations, complete):
+def report_errors(candidates, recommendations, complete, open_positions=None):
     """Problems with an interview report, as user-facing messages.
 
-    complete: the report is past Draft (sent for approval or beyond), so it
-    must list the candidates, a decision for each, and the panel's
-    recommendations. A candidate twice or a decision off the form is wrong
-    either way.
+    candidates: rows with job_applicant, applicant_name, interview, decision,
+    panel_decision and decision_reason, and, for the checks once it leaves
+    Draft, sheets_in and panel_size (the caller works them out) and offered
+    (the candidate already has a live Job Offer). complete: the report is
+    past Draft, so it must list the candidates; each needs a decision, every
+    sheet of their panel in, and a reason wherever the decision is not the
+    panel's (Offer kept in Reserve needs none); no more new offers than
+    open_positions (None: the opening sets no number); and the panel's
+    recommendations. An interview listed twice, or a candidate twice with no
+    interview, or a decision off the list, is wrong either way.
     """
     candidates = list(candidates or [])
-    errors, seen = [], {}
+    # the candidates to be offered the job: one offer each, whatever their rounds
+    errors, seen, offers = [], {}, set()
     for index, row in enumerate(candidates, start=1):
         applicant = _text(_get(row, "job_applicant"))
-        decision = _text(_get(row, "decision"))
-        if applicant in seen:
-            errors.append("Row %d: %s is already listed in row %d." % (index, applicant, seen[applicant]))
-        elif applicant:
-            seen[applicant] = index
-        if decision and decision not in RECOMMENDATIONS:
-            errors.append("Row %d: the decision must be Offer, Shortlist or Reject, not %s." % (index, decision))
-        elif complete and not decision:
-            errors.append("Row %d (%s): choose the panel's decision." % (index, _text(_get(row, "applicant_name")) or applicant))
+        name = _text(_get(row, "applicant_name")) or applicant
+        key = _text(_get(row, "interview")) or applicant
+        decision, panel = _text(_get(row, "decision")), _text(_get(row, "panel_decision"))
+        if key in seen:
+            errors.append("Row %d: %s is already listed in row %d." % (index, key, seen[key]))
+        elif key:
+            seen[key] = index
+        if decision and decision not in DECISIONS:
+            errors.append("Row %d: the decision must be Offer, Reserve, Shortlist or Reject, not %s." % (index, decision))
+            continue
+        if not complete:
+            continue
+        if not decision:
+            errors.append("Row %d (%s): choose the panel's decision." % (index, name))
+            continue
+        panel_size, sheets_in = _int(_get(row, "panel_size")), _int(_get(row, "sheets_in"))
+        if panel_size and sheets_in < panel_size:
+            errors.append("Row %d (%s): %d of %d score sheets are in. Wait for the rest, or take off the interview the "
+                          "panel members who did not sit." % (index, name, sheets_in, panel_size))
+        if panel and decision != panel and not (panel == "Offer" and decision == "Reserve") \
+                and not _text(_get(row, "decision_reason")):
+            errors.append("Row %d (%s): the panel decided %s; say why the decision is %s." % (index, name, panel, decision))
+        if decision == "Offer" and not _get(row, "offered"):
+            offers.add(applicant or key)
     if complete:
         if not candidates:
             errors.append("List the candidates interviewed (Get Interview Results fills them in).")
         if not _text(recommendations):
             errors.append("Write the panel's recommendations before sending the report on.")
+        if open_positions is not None and len(offers) > open_positions:
+            errors.append("%d candidates are offered the job for %d open position%s: make the rest Reserve."
+                          % (len(offers), open_positions, "" if open_positions == 1 else "s"))
     return errors
 
 
 # What the approved report makes of each applicant (Job Applicant.status):
 # HRMS marks a cleared interview's applicant Accepted and a rejected one
-# Rejected (Interview.get_job_applicant_status), and Shortlist means another
-# interview. The Job Offer moves them on from there.
-APPLICANT_STATUSES = {"Offer": "Accepted", "Shortlist": "Shortlisted", "Reject": "Rejected"}
+# Rejected (Interview.get_job_applicant_status), Shortlist means another
+# interview, and Reserve waits on Hold for a position. The Job Offer moves
+# them on from there.
+APPLICANT_STATUSES = {"Offer": "Accepted", "Reserve": "Hold", "Shortlist": "Shortlisted", "Reject": "Rejected"}
 
 
 def applicant_status_after(decision, current):
@@ -792,11 +845,13 @@ def offer_plan(rows, existing):
     [(applicant, offer)] rows to point at the offer they already have. A row
     already pointing at its live offer is left alone.
     """
-    to_create, to_link = [], []
+    to_create, to_link, seen = [], [], set()
     for row in rows or []:
         applicant = _get(row, "job_applicant")
-        if _get(row, "decision") != "Offer" or not applicant:
+        # a candidate offered the job in two rounds' rows gets one offer
+        if _get(row, "decision") != "Offer" or not applicant or applicant in seen:
             continue
+        seen.add(applicant)
         offer = (existing or {}).get(applicant)
         if offer and _get(row, "job_offer") == offer:
             continue
