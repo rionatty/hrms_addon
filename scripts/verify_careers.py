@@ -104,13 +104,35 @@ if os.path.isdir(APPS_ROOT):
     stripped = re.sub(r'"[^"]*"|\'[^\']*\'', "", "".join(re.findall(r"{[{%](.*?)[}%]}", code, re.S)))
     local = set(re.findall(r"\bset\s+([a-z_]+)\s*=", stripped)) | set(re.findall(r"\bfor\s+([a-z_]+)\s+in\b", stripped))
     local |= set(re.findall(r"\bblock\s+([a-z_]+)", stripped))
-    local |= {"icon", "super", "urlencode", "lower", "e", "replace", "join", "format"}
+    local |= set(re.findall(r"\bmacro\s+([a-z_]+)", stripped))
+    local |= {"icon", "super", "urlencode", "lower", "e", "replace", "join", "format", "tojson"}
     words = set(re.findall(r"(?<![\.\w])([a-z_][a-z0-9_]*)\b", stripped)) - {"if", "else", "elif", "endif", "for", "in",
                 "endfor", "not", "and", "or", "is", "set", "block", "endblock", "extends", "macro", "endmacro"}
-    unknown = sorted(w for w in words - local - context_only if w not in opening_fields and w != "job_posting_details")
+    unknown = sorted(w for w in words - local - context_only
+                     if w not in opening_fields and w not in ("job_posting_details", "job_share_links"))
     if unknown:
         fail.append("page template uses %s, which is neither a Job Opening field nor set in the template" % unknown)
-print("Job Opening page: overrides HRMS's template, links the stylesheet, escapes fields, internal JD parts stay out")
+# the Share card and the preview the networks show
+meta = template.split("{% block meta_block %}", 1)[-1].split("{% endblock %}", 1)[0] \
+    if "{% block meta_block %}" in template else ""
+if "{{ super() }}" not in meta or "job_share_links(doc)" not in meta \
+        or '<meta property="og:url" content="{{ share.url | e }}">' not in meta \
+        or '<meta property="og:image" content="{{ share.image | e }}">' not in meta:
+    fail.append("the page keeps Frappe's meta tags and adds the job's address and the logo for the networks' preview")
+card = template.split("{%- set share = job_share_links(doc) %}")[-1].split("</section>", 1)[0]
+if template.count("job_share_links(doc)") != 2 or "{%- if share %}" not in card \
+        or "{%- for link in share.links %}" not in card or 'href="{{ link.url | e }}"' not in card:
+    fail.append("the Share card lists job_share_links' own links, and only when it returns any")
+if '{%- if not link.url.startswith("mailto:") %} target="_blank" rel="noopener noreferrer"{% endif %}' not in card:
+    fail.append("a network's page opens in a new tab; the email link does not")
+if 'class="lpl-share__link lpl-share__copy" data-url="{{ share.url | e }}"' not in card:
+    fail.append("Copy Link copies the job's own address")
+script = template.split("{% block script %}", 1)[-1] if "{% block script %}" in template else ""
+if "{{ super() }}" not in script or '{{ _("Link Copied") | tojson }}' not in script \
+        or "navigator.clipboard && window.isSecureContext" not in script or 'document.execCommand("copy")' not in script:
+    fail.append("Copy Link keeps Frappe's scripts, and works on a site served without https too")
+print("Job Opening page: overrides HRMS's template, links the stylesheet, escapes fields, internal JD parts stay out, "
+      "a Share card")
 
 # ── 2. What the page may show from a Job Description ─────────────────
 details = jd_rules.posting_details(
@@ -227,8 +249,12 @@ FROM_THE_OPENING = {"custom_branch"}
 FROM_THE_CV = {"custom_cv_text", "custom_cv_read_from"}
 # No longer asked of candidates (A'Level and O'Level results)
 NOT_ASKED = {"custom_school_results"}
-# Written by the system (when the regret email went): never asked
-BY_THE_SYSTEM = {"custom_regret_sent_on"}
+# Written by the system (when the regret email went, the screening kept on
+# the applicant, the employee record of a member of staff applying): never
+# asked
+BY_THE_SYSTEM = {"custom_regret_sent_on", "custom_match_score", "custom_screening_result", "custom_experience_years",
+                 "custom_screened_on", "custom_screening_matched", "custom_screening_missing",
+                 "custom_screening_to_check", "custom_screening_flags", "custom_employee"}
 if BY_THE_SYSTEM & {row.get("fieldname") for row in rows}:
     fail.append("the portal must not ask %s" % sorted(BY_THE_SYSTEM))
 if NOT_ASKED & {row.get("fieldname") for row in rows}:

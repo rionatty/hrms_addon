@@ -3,7 +3,9 @@
 
 """Time to Hire: each Job Offer made, and the days from the application to
 the first interview, to the offer and to joining, with the averages on top.
-The arithmetic is in interview_analytics_rules.py."""
+A member of staff joins the new job on the day their approved Position
+Change takes effect, or their Transfer (internal_hires.py). The arithmetic
+is in interview_analytics_rules.py."""
 
 import frappe
 from frappe import _
@@ -33,11 +35,17 @@ def execute(filters=None):
             first[row.job_applicant] = row.scheduled_on
     joined = dict(frappe.get_all("Employee", filters={"job_applicant": ["in", applicants or [""]]},
                                  fields=["job_applicant", "date_of_joining"], as_list=True))
+    names = [offer.name for offer in offers] or [""]
+    moved = dict(frappe.get_all("Employee Position Change", filters={"job_offer": ["in", names], "docstatus": 1},
+                                fields=["job_offer", "effective_date"], as_list=True))
+    moved.update(dict(frappe.get_all("Employee Transfer", filters={"custom_job_offer": ["in", names], "docstatus": 1},
+                                     fields=["custom_job_offer", "transfer_date"], as_list=True)))
     rows = []
     for offer in offers:
         applicant = applied.get(offer.job_applicant) or frappe._dict()
         if filters.get("job_opening") and applicant.job_title != filters.get("job_opening"):
             continue
+        joined_on = joined.get(offer.job_applicant) or moved.get(offer.name)
         rows.append(dict({
             "job_offer": offer.name,
             "job_applicant": offer.job_applicant,
@@ -48,9 +56,8 @@ def execute(filters=None):
             "first_interview": first.get(offer.job_applicant),
             "offer_date": offer.offer_date,
             "status": offer.status,
-            "joined_on": joined.get(offer.job_applicant),
-        }, **rules.hire_timeline(applicant.creation, first.get(offer.job_applicant), offer.offer_date,
-                                 joined.get(offer.job_applicant))))
+            "joined_on": joined_on,
+        }, **rules.hire_timeline(applicant.creation, first.get(offer.job_applicant), offer.offer_date, joined_on)))
     means = rules.averages(rows, DAYS)
     summary = [{"value": means[field], "label": label, "datatype": "Float", "indicator": "Blue"}
                for field, label in zip(DAYS, (_("Average Days to First Interview"), _("Average Days to Offer"),

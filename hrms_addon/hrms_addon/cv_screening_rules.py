@@ -306,6 +306,65 @@ def filter_candidates(rows, wanted):
     return kept, len(rows) - len(kept)
 
 
+def removals(rows, results=(), below=None):
+    """The applicants Remove by Result takes off a shortlist: those whose
+    result is one of `results` (Not Checked for none), and those scored below
+    `below`. An applicant nothing could be checked for has no score, so a
+    lowest match never removes them; ticking Not Checked does. rows: the
+    shortlist's columns (job_applicant, screening_result, match_score)."""
+    results = {result for result in results or () if result in RESULTS + (NOT_CHECKED,)}
+    below = number(below)
+    out = []
+    for row in rows or ():
+        score = row.get("match_score")
+        low = bool(below) and score not in (None, "") and float(score) < below
+        if row.get("job_applicant") and ((row.get("screening_result") or NOT_CHECKED) in results or low):
+            out.append(row["job_applicant"])
+    return out
+
+
+# ── The screening kept on the applicant ───────────────────────────────
+# the Job Applicant's field -> the shortlist's column it is the same as
+STORED = {
+    "custom_match_score": "match_score",
+    "custom_screening_result": "screening_result",
+    "custom_experience_years": "experience_years",
+    "custom_screening_matched": "matched",
+    "custom_screening_missing": "missing",
+    "custom_screening_to_check": "to_check",
+    "custom_screening_flags": "flags",
+}
+
+
+def stored_values(screened):
+    """The applicant's screening fields from one screening (the shortlist's
+    columns, cv_screening.screen); a result nothing could decide is blank."""
+    values = {field: (screened or {}).get(column) for field, column in STORED.items()}
+    values["custom_screening_result"] = values["custom_screening_result"] or None
+    return values
+
+
+def jd_signature(competencies, specifications):
+    """What a job description screens on, to tell whether a save changed it."""
+    return (
+        tuple((_get(row, "competency"), _get(row, "priority")) for row in competencies or ()),
+        tuple((_get(row, "specification_type"), _get(row, "requirement"), _get(row, "keywords"),
+               float(_get(row, "minimum_years") or 0), _get(row, "priority")) for row in specifications or ()),
+    )
+
+
+def opening_signature(pass_mark, questions):
+    """What an opening screens on beyond its job description: its pass mark
+    and its questions."""
+    return (float(pass_mark or 0), tuple(
+        (_get(row, "question"), _get(row, "answer_type"), _get(row, "wanted"), float(_get(row, "minimum") or 0),
+         float(_get(row, "maximum") or 0), _get(row, "priority")) for row in questions or ()))
+
+
+def _get(row, key):
+    return row.get(key) if hasattr(row, "get") else getattr(row, key, None)
+
+
 def _passes(row, wanted):
     if wanted.get("results") and (row.get("screening_result") or NOT_CHECKED) not in wanted["results"]:
         return False

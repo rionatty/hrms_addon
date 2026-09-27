@@ -14,6 +14,10 @@ from hrms_addon.hrms_addon import interviews
 
 
 class InterviewShortlist(Document):
+    def onload(self):
+        # HR Settings: names hidden while HR screens (the form hides them)
+        self.set_onload("hide_names", interviews.hide_names())
+
     def validate(self):
         interviews.validate_shortlist(self)
 

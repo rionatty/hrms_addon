@@ -1,14 +1,15 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""The interview reports' arithmetic: how each panel member scores against
-their colleagues on the same candidates, how many pass each round, and how
-long a hire takes.
+"""The recruitment reports' arithmetic: how each panel member scores against
+their colleagues on the same candidates, how many pass each round, how long
+a hire takes, and how long a requisition takes to fill.
 
 No Frappe import, like the other *_rules.py modules, so
-scripts/verify_interview_reports.py exercises it without a bench. The three
+scripts/verify_interview_reports.py exercises it without a bench. The four
 Script Reports (report/interviewer_calibration, report/interview_pass_rate,
-report/time_to_hire) read the documents and hand them here.
+report/time_to_hire, report/time_to_fill) read the documents and hand them
+here.
 """
 
 import datetime
@@ -105,6 +106,26 @@ def hire_timeline(applied_on, first_interview, offer_date, joined_on):
         "days_to_offer": _days(start, offer_date),
         "days_to_join": _days(start, joined_on),
     }
+
+
+def fill_timeline(requested_on, approved_on, advertised_on, first_offer, filled_on):
+    """Days from the requisition to its approval, to the advert, to the first
+    offer and to the job being filled (None where a step has not happened).
+    Filled is Frappe HR's own completed_on, so Days to Fill is its Time to
+    Fill in days."""
+    start = _date(requested_on)
+    return {
+        "days_to_approve": _days(start, approved_on),
+        "days_to_advertise": _days(start, advertised_on),
+        "days_to_offer": _days(start, first_offer),
+        "days_to_fill": _days(start, filled_on),
+    }
+
+
+def earliest(values):
+    """The earliest of the dates given, None when there is none."""
+    days = [_date(value) for value in values or () if value]
+    return min(days) if days else None
 
 
 def averages(rows, fields):

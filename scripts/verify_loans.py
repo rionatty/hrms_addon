@@ -131,16 +131,22 @@ expect("somebody whose department says nothing", R.eligibility_errors(dict(ok, c
 car = dict(ok, loan_type="Car Loan", amount=30000000, instalments=12)
 expect("a car loan of UGX 30 million, whatever the gross", R.eligibility_errors(car))
 expect("a car loan over it", R.eligibility_errors(dict(car, amount=30000001)), "at most UGX 30,000,000")
-study = dict(ok, loan_type="Study Loan", amount=9000000, fee_structure="/files/fees.pdf")
+study = dict(ok, loan_type="Study Loan", amount=9000000, fee_structure="/files/fees.pdf", course_fee=9000000)
 expect("a study loan with its fees, over three months' gross", R.eligibility_errors(study))
 expect("a study loan with no fee structure", R.eligibility_errors(dict(study, fee_structure=None)), "fee structure")
+expect("a study loan with no course fees typed", R.eligibility_errors(dict(study, course_fee=0)),
+       "Enter the Course Fees")
+expect("a study loan above its course fees", R.eligibility_errors(dict(study, amount=9000001)),
+       "at most the course fees, UGX 9,000,000")
+expect("a study loan below its course fees", R.eligibility_errors(dict(study, amount=4500000)))
 expect("a loan Luuka do not offer", R.eligibility_errors(dict(ok, loan_type="Holiday Loan")), "not a valid loan type")
 expect("no pay on record, for a loan worked out from it", R.eligibility_errors(dict(ok, gross_pay=0)),
        "no gross pay on record")
 expect("a car loan's ceiling needs no gross", R.eligibility_errors(dict(car, gross_pay=0)))
 if R.limit_for_type("Car Loan", 500000) != 30000000 or R.limit_for_type("Study Loan", 500000) is not None \
+        or R.limit_for_type("Study Loan", 500000, course_fee=7200000) != 7200000 \
         or R.limit_for_type("Other", 500000) != 1500000:
-    fail.append("the ceiling follows the kind of loan: 30 million, the course, or three months' gross")
+    fail.append("the ceiling follows the kind of loan: 30 million, the course fees, or three months' gross")
 if R.limit_for_type("Car Loan", 500000, settings={"car_loan_max": 20000000}) != 20000000:
     fail.append("the car loan's ceiling the form shows is the one Luuka set")
 
@@ -292,6 +298,16 @@ for name, have, wanted in (
     for fieldname in wanted:
         if have and fieldname not in have:
             fail.append("%s has no %s, which the loan process asks for" % (name, fieldname))
+fee = loan.get("course_fee") or {}
+if fee.get("fieldtype") != "Currency" or "Study Loan" not in (fee.get("depends_on") or "") \
+        or "Study Loan" not in (fee.get("mandatory_depends_on") or "") \
+        or fee.get("read_only_depends_on") != (loan.get("loan_amount") or {}).get("read_only_depends_on"):
+    fail.append("a study loan's Course Fees are asked for with it, and locked with the amount once it leaves Draft")
+loans_source = read("hrms_addon", "hrms_addon", "loans.py")
+if '"course_fee"' not in loans_source.split("ASKED = ")[1].split(chr(10))[0] \
+        or '"course_fee": doc.get("course_fee")' not in body(loans_source, "_facts") \
+        or 'course_fee=doc.get("course_fee")' not in body(loans_source, "_fill_money"):
+    fail.append("the Course Fees reach the eligibility check and the Maximum Loan Amount, and cannot change after Draft")
 if not doctype("Loan Settings").get("issingle"):
     fail.append("Loan Settings are one set for the site")
 for key, value in R.DEFAULTS.items():

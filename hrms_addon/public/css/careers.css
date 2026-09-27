@@ -396,8 +396,80 @@
 	font-weight: 600;
 }
 
+/* the Share card: each network's own share page, and the job's address copied */
+.lpl-share__list {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.lpl-share__link {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	min-width: 0;
+	padding: 9px 12px;
+	border: 1px solid var(--lpl-line);
+	border-radius: var(--lpl-radius-sm);
+	background: var(--lpl-white);
+	color: var(--lpl-ink);
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	text-align: left;
+	text-decoration: none;
+	cursor: pointer;
+	transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.lpl-share__link:hover,
+.lpl-share__link:focus {
+	border-color: var(--lpl-blue-100);
+	background: var(--lpl-blue-50);
+	color: var(--lpl-blue);
+	text-decoration: none;
+}
+
+.lpl-share__link:focus-visible {
+	outline: none;
+	box-shadow: var(--lpl-focus);
+}
+
+.lpl-share__link svg {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 16px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	color: var(--lpl-blue);
+}
+
+/* Copy Link, across both columns */
+.lpl-share__list li:last-child {
+	grid-column: 1 / -1;
+}
+
+.lpl-share__copy {
+	justify-content: center;
+}
+
 .lpl-apply-bar {
 	display: none;
+}
+
+/* a short window cannot hold both cards while they stick */
+@media (max-height: 820px) {
+	.lpl-aside {
+		position: static;
+	}
 }
 
 @media (max-width: 991px) {

@@ -28,6 +28,9 @@
   "new_designation",
   "new_supervisor",
   "job_description",
+  "new_branch",
+  "new_department",
+  "job_offer",
   "column_break_3",
   "new_salary",
   "new_salary_in_words",
@@ -249,6 +252,31 @@
    "fetch_from": "new_designation.name",
    "fetch_if_empty": 1,
    "depends_on": "eval:doc.change_type == \"Promotion\""
+  },
+  {
+   "fieldname": "new_branch",
+   "fieldtype": "Link",
+   "label": "New Plant",
+   "options": "Branch",
+   "depends_on": "eval:doc.change_type != \"Salary Increment\"",
+   "description": "Empty to stay at the same plant."
+  },
+  {
+   "fieldname": "new_department",
+   "fieldtype": "Link",
+   "label": "New Department / Section",
+   "options": "Department",
+   "depends_on": "eval:doc.change_type != \"Salary Increment\"",
+   "description": "Empty to stay in the same department."
+  },
+  {
+   "fieldname": "job_offer",
+   "fieldtype": "Link",
+   "label": "Job Offer",
+   "options": "Job Offer",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "job_offer"
   },
   {
    "fieldname": "column_break_3",
@@ -551,7 +579,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-24 12:00:00.000000",
+ "modified": "2026-09-27 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Position Change",

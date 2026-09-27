@@ -46,7 +46,7 @@ BOOKERS = {PAYMENT: {"Accounts User", "Accounts Manager", "System Manager"},
 TERMS = ("approved_amount", "interest_rate", "first_repayment", "recovery_component")
 # the request as asked: the employee's while it is a draft; Accounts settle
 # the months
-ASKED = ("loan_type", "loan_amount", "instalments")
+ASKED = ("loan_type", "loan_amount", "instalments", "course_fee")
 
 
 # ── 0. Luuka's rules, as set ──────────────────────────────────────────
@@ -115,7 +115,8 @@ def _fill_money(doc, s):
     if doc.get("employee"):
         doc.gross_pay = pay.monthly_gross(doc.employee)
         doc.outstanding_before = _owed_elsewhere(doc.employee, doc.name)
-    doc.limit = rules.limit_for_type(doc.get("loan_type"), doc.get("gross_pay"), settings=s) or 0
+    doc.limit = rules.limit_for_type(doc.get("loan_type"), doc.get("gross_pay"), settings=s,
+                                     course_fee=doc.get("course_fee")) or 0
     doc.total_interest = rules.interest_for(_amount(doc), doc.get("interest_rate"), doc.get("instalments"))
     doc.monthly_instalment = rules.monthly_instalment(_amount(doc), doc.get("interest_rate"), doc.get("instalments"))
     doc.recovered_amount = sum(flt(row.total) for row in doc.get("repayments") or [] if row.recovered)
@@ -164,7 +165,7 @@ def _facts(doc):
         "instalments": doc.get("instalments"), "purpose": doc.get("purpose"), "loan_type": doc.get("loan_type"),
         "category": (frappe.db.get_value("Department", doc.department, "custom_position_category")
                      if doc.get("department") else None),
-        "fee_structure": doc.get("fee_structure"),
+        "fee_structure": doc.get("fee_structure"), "course_fee": doc.get("course_fee"),
     }
 
 
@@ -345,7 +346,7 @@ def _asked_changed(doc, before, old_state):
         if field == "instalments":
             if old_state != approval.PENDING_ACCOUNTS and cint(doc.get(field)) != cint(before.get(field)):
                 return True
-        elif field == "loan_amount":
+        elif field in ("loan_amount", "course_fee"):
             if flt(doc.get(field)) != flt(before.get(field)):
                 return True
         elif (doc.get(field) or "") != (before.get(field) or ""):

@@ -118,18 +118,18 @@ def limit_for(gross, months=MAX_MONTHS_OF_GROSS):
     return round(_num(gross) * float(months), 2)
 
 
-def limit_for_type(loan_type, gross, months=None, settings=None):
+def limit_for_type(loan_type, gross, months=None, settings=None, course_fee=None):
     """The most a loan of this kind may be.
 
     A car loan, the settings' ceiling whatever the gross. A study loan, what
-    the course costs — shown on its fee structure, so no figure here (None).
-    Anything else, so many months of the gross.
+    the course costs: the Course Fees typed from its fee structure (None
+    until they are). Anything else, so many months of the gross.
     """
     s = settings_from(settings)
     if loan_type == CAR_LOAN:
         return s["car_loan_max"]
     if loan_type == STUDY_LOAN:
-        return None
+        return _num(course_fee) or None
     return limit_for(gross, s["other_months_of_gross"] if months is None else months)
 
 
@@ -149,7 +149,7 @@ def eligibility_errors(facts, settings=None):
     "outstanding" (still owed on running loans), "waiting" (another request
     of theirs waiting for approval), "instalments", "rate", "purpose",
     "loan_type", "category" (the employee's department: Administrative or
-    not), "fee_structure".
+    not), "fee_structure", "course_fee" (the fees it shows).
     """
     s = settings_from(settings)
     errors = []
@@ -177,8 +177,13 @@ def eligibility_errors(facts, settings=None):
         if amount > s["car_loan_max"]:
             errors.append("A car loan is at most %s." % _money(s["car_loan_max"]))
     elif loan_type == STUDY_LOAN:
+        fee = _num(facts.get("course_fee"))
         if not facts.get("fee_structure"):
             errors.append("A study loan is what the course costs: attach the course's fee structure.")
+        if fee <= 0:
+            errors.append("Enter the Course Fees shown on the fee structure.")
+        elif amount > fee:
+            errors.append("A study loan is at most the course fees, %s." % _money(fee))
     elif not gross:
         errors.append("This employee has no gross pay on record, so the most that may be lent cannot be "
                       "worked out.")

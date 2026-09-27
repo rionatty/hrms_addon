@@ -13,11 +13,25 @@
 // Once the candidate accepts, the offer starts the onboarding (Create >
 // Employee Onboarding, which fills itself from the candidate), or opens the
 // one already started.
+//
+// A member of staff (Current Employee) is moved into the job instead: Create
+// > Position Change when the job title changes, else Transfer, or the one
+// already made (internal_hires.py). No second employee record is made for
+// them, so Frappe HR's Create Employee is taken away.
+
+const HA_INTERNAL = "hrms_addon.hrms_addon.internal_hires.";
 
 frappe.ui.form.on("Job Offer", {
 	refresh(frm) {
 		ha_offer_letter(frm);
+		if (frm.doc.custom_employee) {
+			frm.remove_custom_button(__("Create Employee"));
+		}
 		if (frm.doc.docstatus !== 1 || frm.doc.status !== "Accepted") {
+			return;
+		}
+		if (frm.doc.custom_employee) {
+			ha_internal_move(frm);
 			return;
 		}
 		frappe.db
@@ -44,6 +58,25 @@ frappe.ui.form.on("Job Offer", {
 			});
 	},
 });
+
+// a member of staff: the move already made, or the one to make
+function ha_internal_move(frm) {
+	frappe.xcall(HA_INTERNAL + "get_internal_move", { job_offer: frm.doc.name }).then((move) => {
+		if (!move || !move.doctype) {
+			return;
+		}
+		const label = move.doctype === "Employee Transfer" ? __("Transfer") : __("Position Change");
+		if (move.name) {
+			frm.add_custom_button(label, () => frappe.set_route("Form", move.doctype, move.name), __("View"));
+		} else if (frappe.model.can_create(move.doctype)) {
+			frm.add_custom_button(
+				label,
+				() => frappe.model.open_mapped_doc({ method: HA_INTERNAL + "make_internal_move", frm: frm }),
+				__("Create")
+			);
+		}
+	});
+}
 
 // the offer by email, and its appointment letter
 function ha_offer_letter(frm) {

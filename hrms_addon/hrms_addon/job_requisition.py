@@ -19,6 +19,12 @@ tested without a bench. This module only applies it:
                       the Job Description tab for a Job Title, which the form
                       fills in when the Job Title is picked
   get_jd_department() the Job Title's department, which the form takes too
+  headcount_values()  the Headcount section: the job title's staffing plan,
+                      the people it has, the positions already being filled
+                      and the gap (staffing_rules.py); drawn on every save
+                      until the requisition is approved or refused, and by
+                      the form as the job title or the number changes
+                      (get_headcount)
 
 To change who approves, change requisition_approval.py, not the Workflow in
 the desk — a desk edit is overwritten on the next deploy.
@@ -30,11 +36,15 @@ from frappe.utils import strip_html, today
 
 from hrms_addon.hrms_addon import careers, jd_rules
 from hrms_addon.hrms_addon import requisition_approval as rules
+from hrms_addon.hrms_addon import staffing_rules
 from hrms_addon.hrms_addon import workflows
 
 # The requisition's Job Description tab: Responsibilities, Reporting Line of
 # the New Employee and Subordinates of the New Employee
 JD_FIELDS = ("description", "custom_reporting_line", "custom_subordinates")
+# The Headcount section
+HEADCOUNT_FIELDS = ("custom_staffing_plan", "custom_planned_positions", "custom_current_headcount",
+                    "custom_positions_filling", "custom_headcount_gap", "custom_against_plan")
 
 # ── Doc events ───────────────────────────────────────────────────────
 
@@ -80,6 +90,92 @@ def validate(doc, method=None):
     stamped = rules.compute_stamp_values(old_state, new_state, frappe.session.user, today(), current)
     for field, value in stamped.items():
         doc.set(field, value)
+
+    # the figures the approvers acted on stay once the requisition is decided
+    if new_state not in (rules.APPROVED, rules.REJECTED) or old_state not in (rules.APPROVED, rules.REJECTED):
+        values = headcount_values(doc.get("designation"), doc.get("company"), doc.get("no_of_positions"),
+                                  doc.get("posting_date"), doc.name)
+        doc.update({field: values[field] for field in HEADCOUNT_FIELDS})
+
+
+# ── The headcount against the staffing plan ─────────────────────────
+
+
+@frappe.whitelist()
+def get_headcount(designation: str, company: str, no_of_positions: int | None = None,
+                  posting_date: str | None = None, requisition: str | None = None) -> dict:
+    """The Headcount section for the form, read on behalf of whoever writes
+    requisitions: they may not read staffing plans or employees."""
+    frappe.has_permission("Job Requisition", "write", throw=True)
+    return headcount_values(designation, company, no_of_positions, posting_date, requisition)
+
+
+def headcount_values(designation, company, requested, day=None, requisition=None):
+    """{field: value} for the Headcount section, and "over_by": how many the
+    requisition asks beyond the plan (staffing_rules.headcount)."""
+    values = dict.fromkeys(HEADCOUNT_FIELDS)
+    values["over_by"] = 0
+    if not designation or not company:
+        return values
+    companies = _companies(company)
+    plan = _staffing_plan(designation, company, day or today())
+    current = frappe.db.count("Employee", {"designation": designation, "status": "Active",
+                                           "company": ["in", companies]})
+    openings = frappe.get_all("Job Opening", filters={"designation": designation, "status": "Open",
+                                                      "company": ["in", companies]},
+                              fields=["vacancies", "job_requisition"])
+    filters = {"designation": designation, "company": ["in", companies],
+               "status": ["in", list(staffing_rules.LIVE_STATUSES)], "name": ["!=", requisition or ""]}
+    if frappe.get_meta("Job Requisition").has_field(rules.STATE_FIELD):
+        filters[rules.STATE_FIELD] = ["not in", [rules.DRAFT, rules.REJECTED]]
+    others = frappe.get_all("Job Requisition", filters=filters, fields=["name", "no_of_positions"])
+    filling = staffing_rules.being_filled(openings, others, requisition)
+    planned = plan.get("number_of_positions") if plan else 0
+    result = staffing_rules.headcount(planned, current, filling, requested, bool(plan))
+    values.update({
+        "custom_staffing_plan": plan.get("name") if plan else None,
+        "custom_planned_positions": planned,
+        "custom_current_headcount": current,
+        "custom_positions_filling": filling,
+        "custom_headcount_gap": result["gap"],
+        "custom_against_plan": result["verdict"],
+        "over_by": result["over_by"],
+    })
+    return values
+
+
+def _staffing_plan(designation, company, day):
+    """The submitted staffing plan covering the day with a line for the job
+    title: the company's own, else its parent company's, as Frappe HR looks
+    (staffing_plan.get_active_staffing_plan_details)."""
+    seen = set()
+    while company and company not in seen:
+        seen.add(company)
+        plans = frappe.get_all("Staffing Plan", filters={"company": company, "docstatus": 1},
+                               fields=["name", "from_date", "to_date"])
+        if plans:
+            lines = {row.parent: row.number_of_positions for row in frappe.get_all(
+                "Staffing Plan Detail",
+                filters={"parent": ["in", [plan.name for plan in plans]], "parenttype": "Staffing Plan",
+                         "designation": designation},
+                fields=["parent", "number_of_positions"])}
+            found = staffing_rules.plan_for(
+                [dict(plan, number_of_positions=lines[plan.name]) for plan in plans if plan.name in lines], day)
+            if found:
+                return found
+        company = frappe.db.get_value("Company", company, "parent_company")
+    return None
+
+
+def _companies(company):
+    """The company and the companies under it, as Frappe HR counts people
+    (staffing_plan.get_designation_counts)."""
+    try:
+        from frappe.utils.nestedset import get_descendants_of
+
+        return [company, *get_descendants_of("Company", company)]
+    except Exception:
+        return [company]
 
 
 @frappe.whitelist()

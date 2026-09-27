@@ -14,13 +14,47 @@
 	purpose, responsibilities, requirements and competencies come from
 	job_posting_details() (hrms_addon/hrms_addon/careers.py); weightings,
 	reporting lines and the other internal parts never do.
+
+	While the job is open, a Share card links to each network's own share
+	page, and the page tells those networks its address and picture for the
+	preview (job_share_links(), careers.py).
 -#}
 {% extends "templates/web.html" %}
 
+{% block meta_block %}
+	{{ super() }}
+	{%- set share = job_share_links(doc) %}
+	{%- if share %}
+	<meta property="og:url" content="{{ share.url | e }}">
+	{%- if share.image %}
+	<meta property="og:image" content="{{ share.image | e }}">
+	<meta name="twitter:image" content="{{ share.image | e }}">
+	{%- endif %}
+	{%- endif %}
+{% endblock %}
+
 {% block style %}
 	{{ super() }}
-	<link rel="stylesheet" href="/assets/hrms_addon/css/careers.css?v=2026091702">
+	<link rel="stylesheet" href="/assets/hrms_addon/css/careers.css?v=2026092701">
 {% endblock %}
+
+{% macro share_icon(name) -%}
+	<svg viewBox="0 0 24 24" aria-hidden="true">
+		{%- if name == "WhatsApp" -%}
+			<path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4.1A8 8 0 1 1 20 11.5z"></path><path d="M9 9.5c.5 2.5 2 4 4.5 4.5"></path>
+		{%- elif name == "LinkedIn" -%}
+			<rect x="3" y="3" width="18" height="18" rx="3"></rect><path d="M8 10v7M8 7v.01M12 17v-4a2 2 0 0 1 4 0v4M12 10v7"></path>
+		{%- elif name == "Facebook" -%}
+			<path d="M15 3h-2a4 4 0 0 0-4 4v3H7v4h2v7h4v-7h3l1-4h-4V7a1 1 0 0 1 1-1h2z"></path>
+		{%- elif name == "X" -%}
+			<path d="M5 4l14 16M19 4L5 20"></path>
+		{%- elif name == "Email" -%}
+			<rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path>
+		{%- else -%}
+			<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path>
+		{%- endif -%}
+	</svg>
+{%- endmacro %}
 
 {% macro icon(name) -%}
 	<svg viewBox="0 0 24 24" aria-hidden="true">
@@ -159,6 +193,28 @@
 					<p class="lpl-empty">{{ _("This opening is closed.") }}</p>
 				{%- endif %}
 			</section>
+
+			{%- set share = job_share_links(doc) %}
+			{%- if share %}
+			<section class="lpl-card">
+				<h2>{{ _("Share This Job") }}</h2>
+				<ul class="lpl-share__list">
+					{%- for link in share.links %}
+					<li>
+						<a class="lpl-share__link" href="{{ link.url | e }}"
+							{%- if not link.url.startswith("mailto:") %} target="_blank" rel="noopener noreferrer"{% endif %}>
+							{{- share_icon(link.network) }}<span>{{ _(link.network) }}</span>
+						</a>
+					</li>
+					{%- endfor %}
+					<li>
+						<button type="button" class="lpl-share__link lpl-share__copy" data-url="{{ share.url | e }}">
+							{{- share_icon("Link") }}<span>{{ _("Copy Link") }}</span>
+						</button>
+					</li>
+				</ul>
+			</section>
+			{%- endif %}
 		</aside>
 	</div>
 
@@ -169,3 +225,44 @@
 	{%- endif %}
 </div>
 {% endblock page_content %}
+
+{% block script %}
+	{{ super() }}
+	<script>
+		(function () {
+			var copied = {{ _("Link Copied") | tojson }};
+			document.addEventListener("click", function (event) {
+				var button = event.target.closest ? event.target.closest(".lpl-share__copy") : null;
+				if (!button) {
+					return;
+				}
+				var url = button.getAttribute("data-url");
+				var label = button.querySelector("span");
+				var shown = function () {
+					var before = label.textContent;
+					label.textContent = copied;
+					setTimeout(function () { label.textContent = before; }, 2000);
+				};
+				if (navigator.clipboard && window.isSecureContext) {
+					navigator.clipboard.writeText(url).then(shown);
+					return;
+				}
+				var field = document.createElement("textarea");
+				field.value = url;
+				field.setAttribute("readonly", "");
+				field.style.position = "fixed";
+				field.style.opacity = "0";
+				document.body.appendChild(field);
+				field.select();
+				try {
+					if (document.execCommand("copy")) {
+						shown();
+					}
+				} catch (error) {
+					window.prompt("", url);
+				}
+				document.body.removeChild(field);
+			});
+		})();
+	</script>
+{% endblock %}

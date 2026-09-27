@@ -12,8 +12,22 @@
 // (job_requisition.get_jd_department), and the Responsibilities, Reporting
 // Line and Subordinates (job_requisition.get_job_description). What someone
 // has written in those three is only replaced when they say so.
+//
+// The Headcount section is the gap analysis: the job title's staffing plan,
+// the people it has, the positions already being filled and the room left
+// (job_requisition.get_headcount, drawn again on every save until it is
+// decided). Asking for more than the plan leaves shows a notice.
 
 const HA_JD_FIELDS = ["description", "custom_reporting_line", "custom_subordinates"];
+const HA_HEADCOUNT_FIELDS = [
+	"custom_staffing_plan",
+	"custom_planned_positions",
+	"custom_current_headcount",
+	"custom_positions_filling",
+	"custom_headcount_gap",
+	"custom_against_plan",
+];
+const HA_DECIDED = ["Approved", "Rejected"];
 
 frappe.ui.form.on("Job Requisition", {
 	onload(frm) {
@@ -38,14 +52,66 @@ frappe.ui.form.on("Job Requisition", {
 		if (frm.is_new() && frm.doc.designation && !frm.doc.department) {
 			ha_fill_department(frm);
 		}
+		ha_headcount_notice(frm);
 	},
 	designation(frm) {
 		if (frm.doc.designation) {
 			ha_fill_job_description(frm);
 			ha_fill_department(frm);
 		}
+		ha_fill_headcount(frm);
+	},
+	company(frm) {
+		ha_fill_headcount(frm);
+	},
+	no_of_positions(frm) {
+		ha_fill_headcount(frm);
 	},
 });
+
+// The gap analysis, as the job title, the company or the number changes;
+// a requisition already decided keeps the figures its approvers saw
+function ha_fill_headcount(frm) {
+	if (HA_DECIDED.includes(frm.doc.workflow_state)) {
+		return;
+	}
+	const asked = [frm.doc.designation, frm.doc.company, frm.doc.no_of_positions];
+	if (!frm.doc.designation || !frm.doc.company) {
+		return;
+	}
+	frappe
+		.xcall("hrms_addon.hrms_addon.job_requisition.get_headcount", {
+			designation: frm.doc.designation,
+			company: frm.doc.company,
+			no_of_positions: frm.doc.no_of_positions || 0,
+			posting_date: frm.doc.posting_date || null,
+			requisition: frm.is_new() ? null : frm.doc.name,
+		})
+		.then((values) => {
+			if ([frm.doc.designation, frm.doc.company, frm.doc.no_of_positions].join("|") !== asked.join("|")) {
+				return; // changed again while this was on its way
+			}
+			HA_HEADCOUNT_FIELDS.forEach((field) => (frm.doc[field] = values[field] ?? null));
+			frm.refresh_fields(HA_HEADCOUNT_FIELDS);
+			ha_headcount_notice(frm, values.over_by || 0);
+		});
+}
+
+// the notice is this script's own: another one on the form is left alone
+function ha_headcount_notice(frm, over_by) {
+	const above =
+		over_by === undefined ? String(frm.doc.custom_against_plan || "").includes("above the plan") : over_by > 0;
+	if (above) {
+		frm.set_intro(
+			__("This requisition asks for more than the staffing plan allows: {0}.", [frm.doc.custom_against_plan]),
+			"orange"
+		);
+		frm.ha_headcount_intro = true;
+	} else if (frm.ha_headcount_intro) {
+		frm.set_intro("");
+		frm.ha_headcount_intro = false;
+	}
+}
 
 // The Department comes with the Job Title, from its JD
 function ha_fill_department(frm) {

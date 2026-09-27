@@ -24,6 +24,7 @@
   "loan_amount",
   "purpose",
   "fee_structure",
+  "course_fee",
   "column_break_2",
   "gross_pay",
   "limit",
@@ -231,6 +232,15 @@
    "fieldtype": "Attach",
    "label": "Course Fee Structure",
    "depends_on": "eval:doc.loan_type=='Study Loan'"
+  },
+  {
+   "fieldname": "course_fee",
+   "fieldtype": "Currency",
+   "label": "Course Fees",
+   "depends_on": "eval:doc.loan_type=='Study Loan'",
+   "mandatory_depends_on": "eval:doc.loan_type=='Study Loan'",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && doc.workflow_state!=='Draft')",
+   "description": "As on the fee structure."
   },
   {
    "fieldname": "column_break_2",
@@ -598,7 +608,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 23:00:00.000000",
+ "modified": "2026-09-27 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Loan",

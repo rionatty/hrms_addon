@@ -83,7 +83,37 @@ question = json.load(open(os.path.join(APP, "doctype", "screening_question", "sc
 if tuple(f["fieldname"] for f in question["fields"] if f["fieldtype"] not in ("Column Break", "Section Break")) \
         != R.QUESTION_FIELDS:
     fail.append("QUESTION_FIELDS must be exactly a Screening Question's columns")
-print("the rules: the requisition's blanks, HRMS's route made unique, the JD's questions as rows")
+# advertising: a published, open job needs its job title's job description
+if R.advert_errors(1, "Open", "Machine Operator", False) != [
+        "Machine Operator has no job description yet. Add it before publishing the job on the website."]:
+    fail.append("a job published without a job description is refused, naming the job title")
+for publish, status, has_jd in ((1, "Open", True), (0, "Open", False), (1, "Closed", False), ("0", "Open", False)):
+    if R.advert_errors(publish, status, "Machine Operator", has_jd):
+        fail.append("only an open job published on the website needs the job description (%r, %r, %r)"
+                    % (publish, status, has_jd))
+# sharing: each network's own share page, the address and the line encoded
+url = "https://careers.example.com/jobs/luuka/machine-operator?x=1&y=2"
+links = R.share_links(url, "Machine Operator", "Luuka Plastics Limited")
+by_network = {link["network"]: link["url"] for link in links}
+if [link["network"] for link in links] != list(R.SHARE_NETWORKS):
+    fail.append("every network is offered, in order: %s" % [link["network"] for link in links])
+encoded = "https%3A%2F%2Fcareers.example.com%2Fjobs%2Fluuka%2Fmachine-operator%3Fx%3D1%26y%3D2"
+if by_network.get("LinkedIn") != "https://www.linkedin.com/sharing/share-offsite/?url=" + encoded \
+        or by_network.get("Facebook") != "https://www.facebook.com/sharer/sharer.php?u=" + encoded:
+    fail.append("LinkedIn and Facebook are given the job's address, encoded whole: %s" % by_network)
+if by_network.get("WhatsApp") != ("https://wa.me/?text=Job%20opening%3A%20Machine%20Operator%20at%20Luuka%20Plastics"
+                                  "%20Limited%20" + encoded):
+    fail.append("WhatsApp is given the job's line and address: %s" % by_network.get("WhatsApp"))
+if by_network.get("X") != ("https://twitter.com/intent/tweet?text=Job%20opening%3A%20Machine%20Operator%20at%20Luuka"
+                           "%20Plastics%20Limited&url=" + encoded) \
+        or by_network.get("Email") != ("mailto:?subject=Job%20opening%3A%20Machine%20Operator%20at%20Luuka%20Plastics"
+                                       "%20Limited&body=" + encoded):
+    fail.append("X and email carry the line and the address as their own parameters: %s" % by_network)
+if R.share_links("", "Machine Operator") or R.share_text("Driver") != "Job opening: Driver" \
+        or "&" in R.share_links("https://x.example/j", "R&D Lead", "A & B")[0]["url"].split("?", 1)[1]:
+    fail.append("nothing to share without an address, and a title with & in it cannot break a link")
+print("the rules: the requisition's blanks, HRMS's route made unique, the JD's questions as rows, the job "
+      "description before the advert, the share links")
 
 # ── 2. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "job_openings.py")
@@ -131,12 +161,32 @@ for name in ("make_job_opening", "get_requisition_values", "get_jd_questions"):
 for name in ("get_requisition_values", "get_jd_questions"):
     if 'frappe.has_permission("Job Opening", "write", throw=True)' not in body(glue, name):
         fail.append("%s is for whoever may write openings" % name)
-print("glue: the blanks, the JD's questions and a route of its own on save; Create Job Opening with its requisition")
+if 'rules.advert_errors(doc.get("publish"), doc.get("status"), doc.get("designation"),\n' \
+        '                                 careers.has_job_description(doc.get("designation")))' not in body(glue, "validate"):
+    fail.append("validate: the job description is looked for on the opening's own job title")
+if not re.search(r"@frappe\.whitelist\(\)\ndef get_share_links\(", glue) \
+        or 'frappe.has_permission("Job Opening", "read", job_opening, throw=True)' not in body(glue, "get_share_links"):
+    fail.append("get_share_links is whitelisted, for whoever may read the opening")
+careers_py = read("hrms_addon", "hrms_addon", "careers.py")
+if 'if not job_opening or not job_opening.get("publish") or job_opening.get("status") != "Open":' \
+        not in body(careers_py, "job_share_links") \
+        or 'if not route or not job_opening.get("publish"):' not in body(careers_py, "share_card") \
+        or 'get_url("/" + route.lstrip("/"))' not in body(careers_py, "share_card"):
+    fail.append("a job is shared only while published (and on the page, while open), at its own full address")
+if "return bool(posting_details_of(frappe.get_doc(\"Designation\", designation)))" \
+        not in body(careers_py, "has_job_description"):
+    fail.append("a job description is what the careers page could show of it: posting_details_of")
+print("glue: the blanks, the JD's questions and a route of its own on save; Create Job Opening with its requisition; "
+      "the advert checked; the share links")
 
 # ── 3. Wiring ─────────────────────────────────────────────────────────
 hooks = read("hrms_addon", "hooks.py")
 if '"before_validate": "hrms_addon.hrms_addon.job_openings.before_validate"' not in hooks.split('"Job Opening": {', 1)[-1][:400]:
     fail.append("hooks.py doc_events must run job_openings.before_validate on Job Opening")
+if '"validate": "hrms_addon.hrms_addon.job_openings.validate"' not in hooks.split('"Job Opening": {', 1)[-1][:600]:
+    fail.append("hooks.py doc_events must run job_openings.validate on Job Opening")
+if '"hrms_addon.hrms_addon.careers.job_share_links",' not in hooks.split("jinja = {", 1)[-1][:600]:
+    fail.append("hooks.py jinja methods must offer careers.job_share_links to the job page")
 if '"hrms.hr.doctype.job_requisition.job_requisition.make_job_opening": (\n        "hrms_addon.hrms_addon.job_openings.make_job_opening"' \
         not in hooks:
     fail.append("hooks.py must route Create Job Opening through job_openings.make_job_opening")
@@ -165,7 +215,11 @@ for needle, why in (
         ("if (frm.doc.designation && !(frm.doc.custom_screening_questions || []).length) {",
          "the JD's questions only when it has none"),
         ("if (frm.doc.designation !== designation || (frm.doc.custom_screening_questions || []).length) {",
-         "an answer for a job since changed, or questions since added, is ignored")):
+         "an answer for a job since changed, or questions since added, is ignored"),
+        ('if (!frm.is_new() && frm.doc.publish && frm.doc.status === "Open" && frm.doc.route) {\n\t\t\tha_share_buttons(frm);',
+         "Share only on a published, open job"),
+        ('window.open(link.url, "_blank", "noopener"), __("Share")', "each network's page from the Share group"),
+        ("frappe.utils.copy_to_clipboard(share.url)", "Copy Link copies the job's address")):
     if needle not in js:
         fail.append("job_opening.js: %s" % why)
 print("wiring: the hook, Create Job Opening, the JD's questions table, the form script")

@@ -10,12 +10,17 @@ of its own. The rules are in opening_rules.py.
   make_job_opening        HRMS's Create Job Opening (hooks.py
                           override_whitelisted_methods), with the requisition
                           and the number of positions it leaves out
+  validate                an opening published on the website needs its job
+                          title's job description
   get_requisition_values  the blanks, for the form to fill as it opens
   get_jd_questions        the JD's screening questions, for the form
+  get_share_links         where the form shares a published job
 """
 
 import frappe
+from frappe import _
 
+from hrms_addon.hrms_addon import careers
 from hrms_addon.hrms_addon import opening_rules as rules
 from hrms_addon.hrms_addon.job_requisition import _has_content
 
@@ -27,6 +32,20 @@ def before_validate(doc, method=None):
         doc.set(field, value)
     _add_jd_questions(doc)
     _unique_route(doc)
+
+
+def validate(doc, method=None):
+    errors = rules.advert_errors(doc.get("publish"), doc.get("status"), doc.get("designation"),
+                                 careers.has_job_description(doc.get("designation")))
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Job Description Needed"))
+
+
+@frappe.whitelist()
+def get_share_links(job_opening: str) -> dict:
+    """The published job's address and where to share it, for the form."""
+    frappe.has_permission("Job Opening", "read", job_opening, throw=True)
+    return careers.share_card(frappe.get_doc("Job Opening", job_opening))
 
 
 @frappe.whitelist()

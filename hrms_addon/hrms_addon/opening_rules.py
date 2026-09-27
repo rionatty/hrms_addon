@@ -1,12 +1,14 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Job Opening: what it takes from its Job Requisition and its JD, and the
-route of its careers page. No Frappe here, so scripts/verify_openings.py
-runs without a bench; job_openings.py applies it.
+"""Job Opening: what it takes from its Job Requisition and its JD, the
+route of its careers page, when it may be advertised and where it is shared.
+No Frappe here, so scripts/verify_openings.py runs without a bench;
+job_openings.py and careers.py apply it.
 """
 
 import re
+from urllib.parse import quote
 
 # the opening's field -> the requisition's field it is taken from, when the
 # opening leaves it blank (the description, "Responsibilities" on the
@@ -63,6 +65,48 @@ def unique_route(route, taken):
 def question_rows(rows):
     """The JD's screening questions as rows for an opening."""
     return [{field: row.get(field) for field in QUESTION_FIELDS} for row in rows or () if row.get("question")]
+
+
+# ── Advertising ───────────────────────────────────────────────────────
+def advert_errors(publish, status, designation, has_job_description):
+    """Why an opening may not be advertised: while it is open and published
+    on the website, its job title must have a job description (flow chart
+    step 4 comes before the advert)."""
+    if _ticked(publish) and status != "Closed" and not has_job_description:
+        return ["%s has no job description yet. Add it before publishing the job on the website."
+                % (designation or "The job title")]
+    return []
+
+
+# the networks a published job is shared on, in the order they are offered
+SHARE_NETWORKS = ("WhatsApp", "LinkedIn", "Facebook", "X", "Email")
+
+
+def share_text(title, company=None):
+    """The line a shared job goes out with."""
+    title = str(title or "").strip()
+    company = str(company or "").strip()
+    return "Job opening: %s at %s" % (title, company) if company else "Job opening: %s" % title
+
+
+def share_links(url, title, company=None):
+    """[{"network", "url"}]: each network's own share page for the job's
+    address, with the job's line where the network takes one. Nothing
+    without an address."""
+    if not url:
+        return []
+    text = share_text(title, company)
+
+    def q(value):
+        return quote(str(value), safe="")
+
+    return [
+        {"network": "WhatsApp", "url": "https://wa.me/?text=" + q("%s %s" % (text, url))},
+        {"network": "LinkedIn", "url": "https://www.linkedin.com/sharing/share-offsite/?url=" + q(url)},
+        {"network": "Facebook", "url": "https://www.facebook.com/sharer/sharer.php?u=" + q(url)},
+        {"network": "X", "url": "https://twitter.com/intent/tweet?text=%s&url=%s" % (q(text), q(url))},
+        {"network": "Email", "url": "mailto:?subject=%s&body=%s" % (q(text), q(url))},
+    ]
 
 
 def _scrub(text):

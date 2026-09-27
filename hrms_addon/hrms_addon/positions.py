@@ -159,6 +159,11 @@ def _apply(doc):
         update["designation"] = doc.new_designation
     if doc.get("new_supervisor"):
         update["reports_to"] = doc.new_supervisor
+    # a move to another plant or department with it (an internal hire, internal_hires.py)
+    if changes_designation and doc.get("new_branch"):
+        update["branch"] = doc.new_branch
+    if changes_designation and doc.get("new_department"):
+        update["department"] = doc.new_department
     if update:
         frappe.db.set_value("Employee", doc.employee, update, update_modified=False)
     plan = rules.contract_plan(doc.get("contract_action"), doc.get("contract"), doc.get("effective_date"),
@@ -231,6 +236,10 @@ def change_on_cancel(doc, method=None):
         update["designation"] = doc.current_designation
     if doc.get("new_supervisor") and doc.get("current_supervisor"):
         update["reports_to"] = doc.current_supervisor
+    if doc.get("new_branch") and doc.get("branch"):
+        update["branch"] = doc.branch
+    if doc.get("new_department") and doc.get("department"):
+        update["department"] = doc.department
     if update:
         frappe.db.set_value("Employee", doc.employee, update, update_modified=False)
     if doc.get("contract") and doc.get("contract_action") == rules.AMEND:

@@ -7,11 +7,17 @@
 // A new opening fills what it leaves blank from its Job Requisition (the
 // description among them) and starts with its JD's screening questions, as
 // the server does on save (job_openings.before_validate).
+//
+// A published, open job is shared from here (Share): each network's own
+// share page, or its address copied (job_openings.get_share_links).
 
 const HA_OPENINGS = "hrms_addon.hrms_addon.job_openings.";
 
 frappe.ui.form.on("Job Opening", {
 	refresh(frm) {
+		if (!frm.is_new() && frm.doc.publish && frm.doc.status === "Open" && frm.doc.route) {
+			ha_share_buttons(frm);
+		}
 		if (!frm.is_new()) {
 			return;
 		}
@@ -28,6 +34,22 @@ frappe.ui.form.on("Job Opening", {
 		}
 	},
 });
+
+function ha_share_buttons(frm) {
+	frappe.xcall(HA_OPENINGS + "get_share_links", { job_opening: frm.doc.name }).then((share) => {
+		if (!share || !share.url) {
+			return;
+		}
+		(share.links || []).forEach((link) => {
+			frm.add_custom_button(__(link.network), () => window.open(link.url, "_blank", "noopener"), __("Share"));
+		});
+		frm.add_custom_button(
+			__("Copy Link"),
+			() => frappe.utils.copy_to_clipboard(share.url),
+			__("Share")
+		);
+	});
+}
 
 function ha_fill_from_requisition(frm) {
 	frappe.xcall(HA_OPENINGS + "get_requisition_values", { doc: frm.doc }).then((values) => {

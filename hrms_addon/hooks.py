@@ -211,6 +211,8 @@ doctype_js = {
 jinja = {
     "methods": [
         "hrms_addon.hrms_addon.careers.job_posting_details",
+        # the job page's Share card and the preview the networks show of it
+        "hrms_addon.hrms_addon.careers.job_share_links",
         # the Training Evaluation Summary print: every evaluation of a session consolidated
         "hrms_addon.hrms_addon.training.consolidated",
         # the promotion, designation and salary letters print the gross both
@@ -437,6 +439,14 @@ fixtures = [
                     "Job Requisition-custom_branch",
                     "Job Requisition-custom_position_category",
                     "Job Requisition-custom_employment_type",
+                    "Job Requisition-custom_headcount_section",
+                    "Job Requisition-custom_staffing_plan",
+                    "Job Requisition-custom_planned_positions",
+                    "Job Requisition-custom_current_headcount",
+                    "Job Requisition-custom_headcount_cb",
+                    "Job Requisition-custom_positions_filling",
+                    "Job Requisition-custom_headcount_gap",
+                    "Job Requisition-custom_against_plan",
                     "Job Requisition-custom_reason_section",
                     "Job Requisition-custom_reason_type",
                     "Job Requisition-custom_recruitment_heading",
@@ -545,6 +555,7 @@ fixtures = [
                     "KRA-custom_source",
                     "KRA-custom_frequency",
                     "Job Applicant-custom_branch",
+                    "Job Applicant-custom_employee",
                     "Job Applicant-custom_previous_salary",
                     "Job Applicant-custom_current_benefits",
                     "Job Applicant-custom_expected_benefits",
@@ -553,6 +564,16 @@ fixtures = [
                     "Job Applicant-custom_cv_read_from",
                     "Job Applicant-custom_screening_section",
                     "Job Applicant-custom_screening_answers",
+                    "Job Applicant-custom_screening_result_section",
+                    "Job Applicant-custom_match_score",
+                    "Job Applicant-custom_screening_result",
+                    "Job Applicant-custom_experience_years",
+                    "Job Applicant-custom_screened_on",
+                    "Job Applicant-custom_screening_result_cb",
+                    "Job Applicant-custom_screening_matched",
+                    "Job Applicant-custom_screening_missing",
+                    "Job Applicant-custom_screening_to_check",
+                    "Job Applicant-custom_screening_flags",
                     "Job Applicant-custom_bio_data_tab",
                     "Job Applicant-custom_personal_section",
                     "Job Applicant-custom_date_of_birth",
@@ -623,6 +644,8 @@ fixtures = [
                     "Employee-custom_employee_tools",
                     "Job Offer-custom_branch",
                     "Job Offer-custom_signed_appointment_letter",
+                    "Job Offer-custom_employee",
+                    "Employee Transfer-custom_job_offer",
                     "Appointment Letter-custom_job_offer",
                     "Employee Onboarding-custom_branch",
                     "Employee Onboarding-custom_onboarding_status",
@@ -706,6 +729,8 @@ fixtures = [
                     "HR Settings-custom_interviews_cb",
                     "HR Settings-custom_lunch_from",
                     "HR Settings-custom_lunch_to",
+                    "HR Settings-custom_applicant_screening_section",
+                    "HR Settings-custom_blind_screening",
                     "HR Settings-custom_letters_section",
                     "HR Settings-custom_invitation_template",
                     "HR Settings-custom_send_invitation_sms",
@@ -1390,16 +1415,25 @@ doc_events = {
         # its blanks from the requisition, the JD's screening questions, a
         # route of its own (job_openings.py)
         "before_validate": "hrms_addon.hrms_addon.job_openings.before_validate",
+        # published on the website only with its job title's job description
+        "validate": "hrms_addon.hrms_addon.job_openings.validate",
+        # a new pass mark or questions: its applicants screened again (cv_screening.py)
+        "on_update": "hrms_addon.hrms_addon.cv_screening.opening_on_update",
     },
     "Designation": {
         # Job Description tables: KRA weightings total 100%, nothing listed twice
         "validate": "hrms_addon.hrms_addon.designation.validate",
+        # what the job description screens on changed: its open openings' applicants again
+        "on_update": "hrms_addon.hrms_addon.cv_screening.designation_on_update",
     },
     "Job Applicant": {
         # Pre-Interview Bio-Data (LPL/HR/19): dates, years, repeated rows;
-        # then the CV read and the screening answers lined up (cv_screening.py)
+        # a member of staff applying linked to their employee record
+        # (internal_hires.py); then the CV read, the screening answers lined
+        # up and the screening kept on the applicant (cv_screening.py)
         "validate": [
             "hrms_addon.hrms_addon.bio_data.validate",
+            "hrms_addon.hrms_addon.internal_hires.link_employee",
             "hrms_addon.hrms_addon.cv_screening.applicant_validate",
         ],
         # an applicant turned down gets the regret email, where HR Settings says so

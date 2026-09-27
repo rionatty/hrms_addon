@@ -101,12 +101,27 @@ if A.hire_timeline(None, "2026-09-10", "2026-09-20", "2026-10-01") != {"days_to_
     fail.append("with no application date there is nothing to count from")
 if A.averages([{"a": 10, "b": None}, {"a": 20, "b": 5}, {"a": None}], ("a", "b", "c")) != {"a": 15.0, "b": 5.0, "c": None}:
     fail.append("averages leave out what is not set")
-print("arithmetic: calibration against colleagues, pass rates per round, days to hire")
+# time to fill: from the requisition, each step in days
+if A.fill_timeline("2026-07-01", "2026-07-08", datetime.datetime(2026, 7, 10, 9, 30), "2026-08-01", "2026-08-31") \
+        != {"days_to_approve": 7, "days_to_advertise": 9, "days_to_offer": 31, "days_to_fill": 61}:
+    fail.append("days from the requisition to its approval, the advert, the first offer and filling it")
+if A.fill_timeline("2026-07-01", None, None, None, None) != {"days_to_approve": None, "days_to_advertise": None,
+                                                             "days_to_offer": None, "days_to_fill": None} \
+        or A.fill_timeline(None, "2026-07-08", None, None, "2026-08-31")["days_to_fill"] is not None:
+    fail.append("a step not yet taken, or no requisition date, leaves its days empty")
+if A.earliest(["2026-08-03", None, datetime.date(2026, 7, 30), "2026-09-01 10:00:00"]) != datetime.date(2026, 7, 30) \
+        or A.earliest([]) is not None or A.earliest(None) is not None:
+    fail.append("earliest: the first of the dates given, none when there is none")
+print("arithmetic: calibration against colleagues, pass rates per round, days to hire, days to fill")
 
 # ── 4. The reports ────────────────────────────────────────────────────
 custom = json.load(open(os.path.join(REPO, "hrms_addon", "fixtures", "custom_field.json"), encoding="utf-8"))
 custom_names = {row["name"] for row in custom}
-REPORTS = {"Interviewer Calibration": "Interview Feedback", "Interview Pass Rate": "Interview", "Time to Hire": "Job Offer"}
+REPORTS = {"Interviewer Calibration": "Interview Feedback", "Interview Pass Rate": "Interview", "Time to Hire": "Job Offer",
+           "Time to Fill": "Job Requisition"}
+# the documents whose custom fields each report reads
+READS = {"Interviewer Calibration": ("Interview Feedback", "Interview"), "Interview Pass Rate": ("Interview",),
+         "Time to Hire": ("Interview", "Job Offer", "Employee Transfer"), "Time to Fill": ("Job Requisition",)}
 for name, ref in REPORTS.items():
     folder = name.lower().replace(" ", "_")
     base = os.path.join(APP, "report", folder)
@@ -131,9 +146,8 @@ for name, ref in REPORTS.items():
     if not {"from_date", "to_date"} <= declared:
         fail.append("%s needs its From and To dates" % name)
     for field in set(re.findall(r'"(custom_\w+)"', py)):
-        dt = "Interview Feedback" if field in ("custom_score_percent", "custom_recommendation") else "Interview"
-        if "%s-%s" % (dt, field) not in custom_names:
-            fail.append("%s reads %s.%s, which does not exist" % (name, dt, field))
+        if not any("%s-%s" % (dt, field) in custom_names for dt in READS[name]):
+            fail.append("%s reads %s, which none of %s has" % (name, field, ", ".join(READS[name])))
     columns = re.findall(r'\{"fieldname": "(\w+)"', py.split("def columns():")[-1])
     if len(columns) != len(set(columns)) or not columns:
         fail.append("%s: each column once" % name)
@@ -143,7 +157,7 @@ for name, ref in REPORTS.items():
         given = set(rates[0])
     else:
         given = set(re.findall(r'^\s+"(\w+)": ', py.split("rows.append(dict({")[-1].split("})")[0], re.M)) \
-            | set(A.hire_timeline(None, None, None, None))
+            | set(A.hire_timeline(None, None, None, None)) | set(A.fill_timeline(None, None, None, None, None))
     if not set(columns) <= given:
         fail.append("%s shows columns its rows do not have: %s" % (name, sorted(set(columns) - given)))
 tth = read("hrms_addon", "hrms_addon", "report", "time_to_hire", "time_to_hire.py")
@@ -151,6 +165,22 @@ if "return columns(), rows, None, None, summary" not in tth or "means = rules.av
     fail.append("Time to Hire must put the average days on top (its report summary)")
 if '"status": ["in", ["Awaiting Response", "Accepted"]]' in tth:
     fail.append("Time to Hire lists every offer made, declined ones too")
+if 'filters={"job_offer": ["in", names], "docstatus": 1}' not in tth \
+        or 'filters={"custom_job_offer": ["in", names], "docstatus": 1}' not in tth \
+        or "joined_on = joined.get(offer.job_applicant) or moved.get(offer.name)" not in tth:
+    fail.append("a member of staff joins on the approved Position Change's date, or the submitted Transfer's")
+ttf = read("hrms_addon", "hrms_addon", "report", "time_to_fill", "time_to_fill.py")
+for needle, why in (
+        ("return columns(), rows, None, None, summary", "the average days on top"),
+        ("means = rules.averages(rows, DAYS)", "the averages of the rows"),
+        ('filters={"job_requisition": ["in", names or [""]]}', "the openings made from the requisitions"),
+        ('"docstatus": ["!=", 2]}', "every offer made, cancelled ones aside"),
+        ("rules.fill_timeline(requisition.posting_date, requisition.custom_ed_date, advert, first_offer,\n"
+         "                                 requisition.completed_on)",
+         "from the request, the Executive Director's approval, the first advert and offer, Frappe HR's completed_on"),
+        ('conditions.append(["custom_branch", "=", filters.get("branch")])', "a branch's own requisitions")):
+    if needle not in ttf:
+        fail.append("Time to Fill: %s" % why)
 cal = read("hrms_addon", "hrms_addon", "report", "interviewer_calibration", "interviewer_calibration.py")
 if 'filters={"interview": ["in", interviews or [""]], "docstatus": 1}' not in cal:
     fail.append("Interviewer Calibration counts the submitted sheets of the interviews in range")
@@ -161,11 +191,11 @@ spec = importlib.util.spec_from_file_location("navigation_rules", os.path.join(A
 N = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(N)
 card = dict(N.CARDS.get("Recruitment", [])).get("Reports") or []
-if [link[1] for link in card] != list(REPORTS) or any(link[2] != N.REPORT for link in card):
-    fail.append("the Recruitment page's Reports card must list the three reports: %s" % card)
+if [link[1] for link in card if link[1] in REPORTS] != list(REPORTS) or any(link[2] != N.REPORT for link in card):
+    fail.append("the Recruitment page's Reports card must list the four reports: %s" % card)
 side = [entry for entry in N.SIDEBAR.get("Recruitment", []) if entry[2] == N.REPORT]
-if [entry[1] for entry in side] != list(REPORTS) or any(entry[3] != "Reports" for entry in side):
-    fail.append("the Recruitment sidebar's Reports section must list the three reports: %s" % side)
+if [entry[1] for entry in side if entry[1] in REPORTS] != list(REPORTS) or any(entry[3] != "Reports" for entry in side):
+    fail.append("the Recruitment sidebar's Reports section must list the four reports: %s" % side)
 for name in REPORTS:
     if N.report_facts(name)[0] not in N.QUERY_REPORT_TYPES:
         fail.append("%s must open as a query report from the menu" % name)
@@ -185,6 +215,20 @@ if UPSTREAM_OK:
     if '"fieldname": "job_applicant"' not in upstream("hrms", "setup.py") \
             and "job_applicant" not in upstream("hrms", "setup.py"):
         fail.append("Frappe HR no longer adds job_applicant to Employee: recheck Time to Hire's joining date")
+    requisition = {f["fieldname"] for f in json.loads(upstream("hrms", "hr", "doctype", "job_requisition",
+                                                               "job_requisition.json"))["fields"]}
+    opening = {f["fieldname"] for f in json.loads(upstream("hrms", "hr", "doctype", "job_opening",
+                                                           "job_opening.json"))["fields"]}
+    if not {"posting_date", "completed_on", "no_of_positions", "designation", "department", "status"} <= requisition \
+            or not {"job_requisition", "posted_on"} <= opening:
+        fail.append("Frappe HR's requisition or opening changed: recheck Time to Fill")
+    if 'job_requisition.status = "Filled"\n\t\t\tjob_requisition.completed_on = getdate()' \
+            not in upstream("hrms", "hr", "doctype", "job_opening", "job_opening.py"):
+        fail.append("Frappe HR no longer marks a requisition Filled when its opening closes: recheck Days to Fill")
+    transfer = {f["fieldname"] for f in json.loads(upstream("hrms", "hr", "doctype", "employee_transfer",
+                                                            "employee_transfer.json"))["fields"]}
+    if "transfer_date" not in transfer:
+        fail.append("Frappe HR's Employee Transfer has no transfer_date: recheck Time to Hire's joining date")
     upstream_note = "checked against Frappe HR"
 else:
     upstream_note = "Frappe HR not found at %s, upstream contract not checked" % APPS_ROOT

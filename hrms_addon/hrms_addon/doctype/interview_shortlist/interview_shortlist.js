@@ -11,12 +11,18 @@
 // builds the list; while it is with the HOD they only remove candidates and
 // add remarks, so Get Applicants is HR's alone, and each screener writes
 // only their own remarks.
+//
+// Remove by Result takes off, in one go, the applicants of a result or below
+// a match (interviews.pick_removals). Where HR Settings says so, the names,
+// phones and emails stay hidden while HR screens (interviews.hide_names).
 
 const HA_SHORTLIST_METHODS = "hrms_addon.hrms_addon.interviews.";
 const HA_HR_STATES = ["Draft", "Returned to HR"];
 const HA_HOD_STATE = "Pending HOD Screening";
 // who books interviews: interview_access_rules.HR_ROLES
 const HA_BOOKERS = ["HR User", "HR Manager", "System Manager"];
+// what a blind first screening hides
+const HA_NAME_FIELDS = ["applicant_name", "phone_number", "email_id"];
 
 frappe.ui.form.on("Interview Shortlist", {
 	setup(frm) {
@@ -31,11 +37,13 @@ frappe.ui.form.on("Interview Shortlist", {
 		frm.toggle_enable("hod_comments", with_hod);
 		frm.fields_dict.candidates.grid.toggle_enable("hr_remarks", with_hr);
 		frm.fields_dict.candidates.grid.toggle_enable("hod_remarks", with_hod);
+		ha_hide_names(frm, !!(frm.doc.__onload && frm.doc.__onload.hide_names) && with_hr && frm.doc.docstatus === 0);
 		if (frm.doc.docstatus === 0 && frm.doc.job_opening && with_hr) {
 			frm.add_custom_button(__("Get Applicants"), () => ha_get_applicants(frm));
 			if ((frm.doc.candidates || []).length) {
 				frm.add_custom_button(__("Refresh Details"), () => ha_refresh_details(frm));
 				frm.add_custom_button(__("Sort by Match"), () => ha_sort_by_match(frm));
+				frm.add_custom_button(__("Remove by Result"), () => ha_remove_by_result(frm));
 			}
 		}
 		// a round at a time, for the candidates ticked (a batch) or everyone; HR
@@ -175,6 +183,84 @@ function ha_sort_by_match(frm) {
 	frm.doc.candidates.forEach((row, index) => (row.idx = index + 1));
 	frm.refresh_field("candidates");
 	frm.dirty();
+}
+
+// The applicants of the results ticked, or below the match given, off the
+// list in one go; HR saves to keep the change
+function ha_remove_by_result(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Remove by Result"),
+		fields: [
+			{
+				fieldname: "results",
+				fieldtype: "MultiCheck",
+				label: __("Result"),
+				columns: 2,
+				options: [
+					{ label: __("Does Not Meet"), value: "Does Not Meet", checked: 1 },
+					{ label: __("Below Pass Mark"), value: "Below Pass Mark", checked: 0 },
+					{ label: __("Not Checked"), value: "Not Checked", checked: 0 },
+				],
+			},
+			{
+				fieldname: "below",
+				fieldtype: "Percent",
+				label: __("Match Below"),
+				description: __("Empty to go by the result alone."),
+			},
+		],
+		primary_action_label: __("Remove"),
+		primary_action(values) {
+			const rows = (frm.doc.candidates || []).map((row) => ({
+				job_applicant: row.job_applicant,
+				screening_result: row.screening_result,
+				match_score: row.match_score,
+			}));
+			frappe
+				.xcall(HA_SHORTLIST_METHODS + "pick_removals", {
+					rows: rows,
+					results: values.results || [],
+					below: values.below || null,
+				})
+				.then((names) => {
+					if (!names.length) {
+						frappe.msgprint(__("No applicant on the list matches."));
+						return;
+					}
+					frappe.confirm(__("Remove {0} applicants from the list?", [names.length]), () => {
+						const gone = new Set(names);
+						(frm.doc.candidates || [])
+							.filter((row) => gone.has(row.job_applicant))
+							.forEach((row) => frappe.model.clear_doc(row.doctype, row.name));
+						frm.refresh_field("candidates");
+						frm.dirty();
+						dialog.hide();
+						frappe.show_alert({
+							message: __("{0} removed. Save to keep the change.", [names.length]),
+							indicator: "green",
+						});
+					});
+				});
+		},
+	});
+	dialog.show();
+}
+
+// A blind first screening: the names, phones and emails hidden on the list
+// and in each row while HR screens (HR Settings, Hide Names While HR Screens)
+function ha_hide_names(frm, hide) {
+	const grid = frm.fields_dict.candidates.grid;
+	let changed = false;
+	HA_NAME_FIELDS.forEach((field) => {
+		const df = frappe.meta.get_docfield("Interview Shortlist Candidate", field, frm.doc.name);
+		if (df && !!df.hidden !== hide) {
+			df.hidden = hide ? 1 : 0;
+			changed = true;
+		}
+	});
+	if (changed) {
+		grid.reset_grid();
+	}
 }
 
 function ha_schedule_interviews(frm) {

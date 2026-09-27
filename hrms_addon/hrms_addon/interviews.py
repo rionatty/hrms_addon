@@ -394,6 +394,21 @@ def get_candidate_details(job_applicants: str) -> dict:
             for applicant in frappe.parse_json(job_applicants) or []}
 
 
+@frappe.whitelist()
+def pick_removals(rows: str, results: str | None = None, below: float | None = None) -> list:
+    """Remove by Result: the applicants on the list (JSON rows as the form has
+    them, saved or not) that the choice takes off (cv_screening_rules.removals)."""
+    frappe.has_permission("Interview Shortlist", "write", throw=True)
+    return cv_screening_rules.removals(frappe.parse_json(rows) or [], frappe.parse_json(results) if results else [],
+                                       below)
+
+
+def hide_names():
+    """HR Settings: the applicants' names and contacts hidden on the shortlist
+    while HR screens it."""
+    return cint(frappe.db.get_single_value("HR Settings", "custom_blind_screening"))
+
+
 def candidate_details(applicant, context=None, contexts=None, with_text=False):
     """One applicant as the shortlist lists them, written out from their Bio-Data,
     and screened against the job they applied for (cv_screening.py). with_text:

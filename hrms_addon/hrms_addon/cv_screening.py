@@ -5,12 +5,19 @@
 cv_screening_rules.py.
 
   applicant_validate    Job Applicant validate: reads the uploaded CV once,
-                        and lines the screening answers up with the
-                        opening's questions.
+                        lines the screening answers up with the opening's
+                        questions, and keeps the applicant's screening on
+                        them (Match, Result and the rest).
   context_for           what an opening's applicants are screened against:
                         its designation's job description, its screening
                         questions and its pass mark.
   screen                one applicant's result, for the Interview Shortlist.
+  rescreen_opening      every applicant of an opening screened again and
+                        kept, in the background, when its job description,
+                        pass mark, questions or the priorities' weights
+                        change (the on_update hooks below), or when HR asks
+                        (the Applicant Screening report's Screen Again).
+  set_applicant_status  the report's Set Status, for the applicants ticked.
   set_priority_weights  the seeded priorities' weights (after install, patch).
 """
 
@@ -21,7 +28,7 @@ import zipfile
 
 import frappe
 from frappe import _
-from frappe.utils import flt, formatdate, getdate, today
+from frappe.utils import flt, formatdate, getdate, now_datetime, today
 
 from hrms_addon.hrms_addon import cv_screening_rules as rules
 
@@ -31,12 +38,28 @@ ANSWERS = "custom_screening_answers"
 MAX_CV_BYTES = 10 * 1024 * 1024
 MAX_CV_PAGES = 20
 MAX_CV_CHARACTERS = 100000
+# the statuses the report's Set Status gives, and the ones it leaves alone:
+# a shortlisted or hired applicant moves on through the interviews and offers
+SETTABLE_STATUSES = ("Open", "Replied", "Hold", "Rejected")
+MOVED_ON = ("Shortlisted", "Accepted")
 
 
 # ── The applicant ─────────────────────────────────────────────────────
 def applicant_validate(doc, method=None):
     _read_cv(doc)
     _line_up_answers(doc)
+    _store(doc)
+
+
+def _store(doc):
+    """The applicant's screening against the opening they applied for, kept
+    on them for the Job Applicant list and the Applicant Screening report."""
+    if not doc.get("job_title"):
+        doc.update(dict.fromkeys(rules.STORED))
+        doc.custom_screened_on = None
+        return
+    doc.update(rules.stored_values(screen(doc, context_for(doc.job_title))))
+    doc.custom_screened_on = now_datetime()
 
 
 def _read_cv(doc):
@@ -229,11 +252,7 @@ def flags(doc):
             title = frappe.db.get_value("Job Opening", earlier.job_title, "job_title") if earlier.job_title else None
             notes.append(_("Applied before for {0} ({1}, {2})").format(
                 title or _("another opening"), _(earlier.status or "Open"), formatdate(earlier.creation)))
-        worked = {key: value for key, value in (("custom_nin", nin), ("personal_email", email),
-                                                ("company_email", email), ("cell_number", ["in", phones]))
-                  if value and value != ["in", []]}
-        for employee in frappe.get_all("Employee", or_filters=worked, fields=[
-                "name", "status", "designation", "relieving_date", "reason_for_leaving"], limit=3) if worked else []:
+        for employee in employees_like(doc):
             if employee.status == "Active":
                 notes.append(_("Already an employee: {0}{1}").format(
                     employee.name, ", " + employee.designation if employee.designation else ""))
@@ -242,6 +261,9 @@ def flags(doc):
                     employee.name,
                     _(", left {0}").format(formatdate(employee.relieving_date)) if employee.relieving_date else "",
                     ": " + employee.reason_for_leaving if employee.reason_for_leaving else ""))
+    staff = doc.get("custom_employee")
+    if staff and not any(staff in note for note in notes):
+        notes.append(_("Already an employee: {0}").format(staff))
     if not doc.get("resume_attachment") and not doc.get("resume_link"):
         notes.append(_("No CV"))
     elif not doc.get("resume_attachment"):
@@ -253,6 +275,115 @@ def flags(doc):
     if not nin:
         notes.append(_("No NIN"))
     return notes
+
+
+def employees_like(doc, limit=3):
+    """The employee records an application points to: the same NIN, email or
+    phone (however the number is written)."""
+    nin = (doc.get("custom_nin") or "").strip()
+    email = (doc.get("email_id") or "").strip()
+    phones = rules.phone_variants(doc.get("phone_number"))
+    worked = {key: value for key, value in (("custom_nin", nin), ("personal_email", email),
+                                            ("company_email", email), ("cell_number", ["in", phones]))
+              if value and value != ["in", []]}
+    if not worked:
+        return []
+    return frappe.get_all("Employee", or_filters=worked, fields=[
+        "name", "status", "designation", "relieving_date", "reason_for_leaving"], limit=limit)
+
+
+# ── Screening again ───────────────────────────────────────────────────
+def rescreen_opening(job_opening):
+    """Background: every applicant of the opening screened again and kept.
+    Written straight to the database: nothing else about them changes, and
+    their own hooks (the regret email among them) stay quiet."""
+    context = context_for(job_opening)
+    for name in frappe.get_all("Job Applicant", filters={"job_title": job_opening}, pluck="name"):
+        values = rules.stored_values(screen(frappe.get_doc("Job Applicant", name), context))
+        values["custom_screened_on"] = now_datetime()
+        frappe.db.set_value("Job Applicant", name, values, update_modified=False)
+
+
+def queue_rescreen(job_opening):
+    """rescreen_opening after this transaction, once for each opening however
+    often it is asked for meanwhile."""
+    frappe.enqueue("hrms_addon.hrms_addon.cv_screening.rescreen_opening", queue="long", job_opening=job_opening,
+                   job_id="rescreen-applicants-%s" % job_opening, deduplicate=True, enqueue_after_commit=True)
+
+
+def opening_on_update(doc, method=None):
+    """Job Opening on_update: its pass mark or questions changed."""
+    before = doc.get_doc_before_save()
+    if before and rules.opening_signature(before.get("custom_pass_mark"), before.get(QUESTIONS)) \
+            != rules.opening_signature(doc.get("custom_pass_mark"), doc.get(QUESTIONS)):
+        queue_rescreen(doc.name)
+
+
+def designation_on_update(doc, method=None):
+    """Designation on_update: what its job description screens on changed;
+    each open opening for it is screened again."""
+    before = doc.get_doc_before_save()
+    if not before or rules.jd_signature(before.get("custom_jd_competencies"), before.get("custom_jd_specifications")) \
+            == rules.jd_signature(doc.get("custom_jd_competencies"), doc.get("custom_jd_specifications")):
+        return
+    for opening in frappe.get_all("Job Opening", filters={"designation": doc.name, "status": "Open"}, pluck="name"):
+        queue_rescreen(opening)
+
+
+def priority_on_update(doc, method=None):
+    """JD Requirement Priority on_update: a weight or a must-have changed;
+    every open opening is screened again."""
+    before = doc.get_doc_before_save()
+    if not before or (flt(before.get("weight")), int(before.get("must_have") or 0)) \
+            == (flt(doc.get("weight")), int(doc.get("must_have") or 0)):
+        return
+    for opening in frappe.get_all("Job Opening", filters={"status": "Open"}, pluck="name"):
+        queue_rescreen(opening)
+
+
+@frappe.whitelist(methods=["POST"])
+def rescreen(job_opening: str) -> str:
+    """The Applicant Screening report's Screen Again, for one opening."""
+    frappe.has_permission("Job Applicant", "write", throw=True)
+    if not frappe.db.exists("Job Opening", job_opening):
+        frappe.throw(_("Choose the Job Opening to screen again."), title=_("Screen Again"))
+    queue_rescreen(job_opening)
+    return _("The applicants for {0} are being screened again. Refresh the report in a minute.").format(job_opening)
+
+
+@frappe.whitelist(methods=["POST"])
+def set_applicant_status(applicants: str | list, status: str) -> dict:
+    """The report's Set Status: each applicant ticked is saved with the
+    status, as if HR had set it on the form, so one turned down gets the
+    regret email where HR Settings says so. One already shortlisted or hired
+    moves on through the interviews and the offers instead, and is left.
+
+    Returns {"changed": [names], "skipped": [(name, why)]}."""
+    if status not in SETTABLE_STATUSES:
+        frappe.throw(_("Set Status gives {0}.").format(", ".join(_(value) for value in SETTABLE_STATUSES)),
+                     title=_("Set Status"))
+    changed, skipped = [], []
+    for name in frappe.parse_json(applicants) if isinstance(applicants, str) else applicants or []:
+        if not frappe.db.exists("Job Applicant", name):
+            continue
+        doc = frappe.get_doc("Job Applicant", name)
+        if not doc.has_permission("write"):
+            skipped.append((name, _("not yours to change")))
+            continue
+        if doc.status == status:
+            continue
+        if doc.status in MOVED_ON:
+            skipped.append((name, _("already {0}").format(_(doc.status).lower())))
+            continue
+        doc.status = status
+        try:
+            doc.save()
+        except frappe.ValidationError as error:
+            frappe.clear_last_message()
+            skipped.append((name, str(error)))
+            continue
+        changed.append(name)
+    return {"changed": changed, "skipped": skipped}
 
 
 # ── Setup ─────────────────────────────────────────────────────────────

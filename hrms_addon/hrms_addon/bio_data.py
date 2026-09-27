@@ -34,6 +34,9 @@ def validate(doc, method=None):
 def make_employee_from_job_offer(source_name, target_doc=None):
     from hrms.hr.doctype.job_offer.job_offer import make_employee
 
+    from hrms_addon.hrms_addon import internal_hires
+
+    internal_hires.refuse_new_employee(frappe.db.get_value("Job Offer", source_name, "job_applicant"))
     employee = add_bio_data(make_employee(source_name, target_doc), "Job Offer", source_name)
     return onboarding.add_placement(employee, "Job Offer", source_name)
 
@@ -42,6 +45,9 @@ def make_employee_from_job_offer(source_name, target_doc=None):
 def make_employee_from_onboarding(source_name, target_doc=None):
     from hrms.hr.doctype.employee_onboarding.employee_onboarding import make_employee
 
+    from hrms_addon.hrms_addon import internal_hires
+
+    internal_hires.refuse_new_employee(frappe.db.get_value("Employee Onboarding", source_name, "job_applicant"))
     employee = add_bio_data(make_employee(source_name, target_doc), "Employee Onboarding", source_name)
     return onboarding.add_placement(employee, "Employee Onboarding", source_name)
 
