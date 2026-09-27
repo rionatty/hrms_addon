@@ -165,3 +165,32 @@ def _ready_for_approval(facts):
         errors.append("The job needs a medical check before joining: attach the Medical Fitness Certificate "
                       "(Orientation section) before sending the onboarding to the HR Manager.")
     return errors
+
+
+def structure_hint(company, structures):
+    """Why no Salary Structure can be picked for the company, as the Salary
+    Structure field's hint; None when one can. Only a submitted, active
+    structure of the onboarding's own company can be assigned (Frappe HR's
+    Salary Structure Assignment offers no other).
+
+    structures: every salary structure on the site ("company", "docstatus",
+    "is_active"), cancelled ones included.
+    """
+    mine = [row for row in structures or () if not company or row.get("company") == company]
+    if any(row.get("docstatus") == 1 and row.get("is_active") == "Yes" for row in mine):
+        return None
+    drafts = sum(1 for row in mine if row.get("docstatus") == 0)
+    inactive = sum(1 for row in mine if row.get("docstatus") == 1 and row.get("is_active") != "Yes")
+    elsewhere = sorted({row.get("company") for row in structures or ()
+                        if company and row.get("company") != company and row.get("docstatus") == 1
+                        and row.get("is_active") == "Yes" and row.get("company")})
+    reasons = []
+    if drafts:
+        reasons.append("%d not submitted yet: open each in Salary Structure and Submit it" % drafts)
+    if inactive:
+        reasons.append("%d submitted but not active: set Is Active to Yes" % inactive)
+    if elsewhere:
+        reasons.append("the active ones belong to %s" % ", ".join(elsewhere))
+    if not reasons:
+        reasons.append("there is none yet: create one in Salary Structure and submit it")
+    return "No salary structure can be picked%s: %s." % (" for %s" % company if company else "", "; ".join(reasons))

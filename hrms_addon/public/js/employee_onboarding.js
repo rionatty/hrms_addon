@@ -11,6 +11,10 @@
 // Department, the holiday list, then the template, whose activities HRMS's
 // script loads. Only blank fields are filled; the server applies the same
 // defaults on save.
+//
+// The Salary Structure list offers only the company's submitted, active
+// structures, as Frappe HR's own assignment does. When it has none, the
+// field says why (onboarding.get_salary_structure_hint).
 
 const HA_ONBOARDING_FIELDS = [
 	"job_offer",
@@ -39,9 +43,16 @@ frappe.ui.form.on("Employee Onboarding", {
 		if (frm.is_new() && frm.doc.job_applicant) {
 			ha_onboarding_defaults(frm);
 		}
+		ha_structure_hint(frm);
 	},
 	job_applicant(frm) {
 		ha_onboarding_defaults(frm);
+	},
+	company(frm) {
+		ha_structure_hint(frm);
+	},
+	custom_salary_structure(frm) {
+		ha_structure_hint(frm);
 	},
 	employee_onboarding_template(frm) {
 		// The template's company, department and Job Title are fetched over
@@ -54,6 +65,23 @@ frappe.ui.form.on("Employee Onboarding", {
 		}
 	},
 });
+
+// why the Salary Structure list is empty, while nothing is chosen from it
+function ha_structure_hint(frm) {
+	if (frm.doc.docstatus === 2 || frm.doc.custom_salary_structure) {
+		frm.set_df_property("custom_salary_structure", "description", "");
+		return;
+	}
+	const company = frm.doc.company || null;
+	frappe
+		.xcall("hrms_addon.hrms_addon.onboarding.get_salary_structure_hint", { company })
+		.then((hint) => {
+			if ((frm.doc.company || null) !== company || frm.doc.custom_salary_structure) {
+				return; // changed while this was on its way
+			}
+			frm.set_df_property("custom_salary_structure", "description", hint ? frappe.utils.escape_html(hint) : "");
+		});
+}
 
 function ha_onboarding_defaults(frm, template_chosen) {
 	const job_applicant = frm.doc.job_applicant;

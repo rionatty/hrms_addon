@@ -819,6 +819,53 @@ for name in ("Job Offer-custom_signed_appointment_letter", "Appointment Letter-c
         fail.append("hooks.py fixtures must list %s" % name)
 print("the offer: sent by email, its appointment letter made from it, the signed letter attached")
 
+# ── 8c. Why no Salary Structure can be picked ─────────────────────────
+LPL, OTHER = "Luuka Plastics Limited", "Luuka Holdings"
+live = {"company": LPL, "docstatus": 1, "is_active": "Yes"}
+for structures, company, wanted in (
+        ([live], LPL, None),
+        ([live, {"company": LPL, "docstatus": 0, "is_active": "Yes"}], LPL, None),
+        ([], LPL, "No salary structure can be picked for Luuka Plastics Limited: there is none yet: create one in "
+                  "Salary Structure and submit it."),
+        ([{"company": LPL, "docstatus": 0, "is_active": "Yes"}, {"company": LPL, "docstatus": 0, "is_active": "Yes"}],
+         LPL, "No salary structure can be picked for Luuka Plastics Limited: 2 not submitted yet: open each in "
+              "Salary Structure and Submit it."),
+        ([{"company": LPL, "docstatus": 1, "is_active": "No"}, dict(live, company=OTHER)], LPL,
+         "No salary structure can be picked for Luuka Plastics Limited: 1 submitted but not active: set Is Active "
+         "to Yes; the active ones belong to Luuka Holdings."),
+        ([{"company": OTHER, "docstatus": 0, "is_active": "Yes"}], LPL,
+         "No salary structure can be picked for Luuka Plastics Limited: there is none yet: create one in Salary "
+         "Structure and submit it."),
+        ([dict(live, company=OTHER)], None, None),
+        ([{"company": OTHER, "docstatus": 0, "is_active": "Yes"}], None,
+         "No salary structure can be picked: 1 not submitted yet: open each in Salary Structure and Submit it.")):
+    got = A.structure_hint(company, structures)
+    if got != wanted:
+        fail.append("structure_hint(%r, %r) should be %r, is %r" % (company, structures, wanted, got))
+glue_py = read("hrms_addon", "hrms_addon", "onboarding.py")
+hint_fn = glue_py.split("def get_salary_structure_hint(", 1)[-1].split(chr(10) + "def ", 1)[0]
+if not re.search(r"@frappe\.whitelist\(\)\ndef get_salary_structure_hint\(", glue_py) \
+        or 'frappe.has_permission("Employee Onboarding", "read", throw=True)' not in hint_fn \
+        or 'filters={"docstatus": ["!=", 2]}' not in hint_fn or "approval.structure_hint(company, structures)" not in hint_fn:
+    fail.append("get_salary_structure_hint: whitelisted for whoever reads onboardings, every structure not cancelled")
+onboarding_js = read("hrms_addon", "public", "js", "employee_onboarding.js")
+for needle, why in (
+        ('frm.set_query("custom_salary_structure", () => ({\n\t\t\tfilters: { docstatus: 1, is_active: "Yes", '
+         'company: frm.doc.company },', "the list offers what Frappe HR's assignment offers"),
+        ("\t\tha_structure_hint(frm);\n\t},\n\tjob_applicant(frm) {", "the hint on every refresh"),
+        ("\tcompany(frm) {\n\t\tha_structure_hint(frm);", "and when the company changes"),
+        ("if (frm.doc.docstatus === 2 || frm.doc.custom_salary_structure) {", "only while nothing is chosen"),
+        ('frm.set_df_property("custom_salary_structure", "description", hint ? frappe.utils.escape_html(hint) : "");',
+         "shown on the field itself")):
+    if needle not in onboarding_js:
+        fail.append("employee_onboarding.js: %s" % why)
+if os.path.isdir(APPS_ROOT):
+    ssa_js = open(os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "salary_structure_assignment",
+                               "salary_structure_assignment.js"), encoding="utf-8").read()
+    if "docstatus: 1," not in ssa_js or 'is_active: "Yes",' not in ssa_js:
+        fail.append("Frappe HR's assignment offers other structures now: recheck the onboarding's list and hint")
+print("salary structure: the list Frappe HR's assignment offers, and why it is empty when it is")
+
 # ── 9. Workplace Rules and Regulations print (LPL/HR/05) ─────────────
 pf_path = os.path.join(APP, "print_format", "workplace_rules_and_regulations", "workplace_rules_and_regulations.json")
 pf = json.load(open(pf_path, encoding="utf-8")) if os.path.exists(pf_path) else {}

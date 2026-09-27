@@ -387,6 +387,16 @@ def get_onboarding_defaults(job_applicant, job_offer=None):
     return onboarding_defaults(job_applicant, job_offer)
 
 
+@frappe.whitelist()
+def get_salary_structure_hint(company: str | None = None) -> str | None:
+    """For the form: why no Salary Structure can be picked for the company,
+    when none can (approval.structure_hint); None when one can."""
+    frappe.has_permission("Employee Onboarding", "read", throw=True)
+    structures = frappe.get_all("Salary Structure", filters={"docstatus": ["!=", 2]},
+                                fields=["company", "docstatus", "is_active"])
+    return approval.structure_hint(company, structures)
+
+
 def onboarding_defaults(job_applicant, job_offer=None):
     """{field: value} an onboarding takes from its candidate: the accepted
     Job Offer, the company, Job Title and Branch offered, the Job Opening's
