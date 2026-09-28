@@ -48,10 +48,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate, today
 
-from hrms_addon.hrms_addon import contracts, people, probation, reviews, workflows
+from hrms_addon.hrms_addon import contracts, pay, people, probation, reviews, workflows
 from hrms_addon.hrms_addon import onboarding_approval as approval
 from hrms_addon.hrms_addon import onboarding_rules as rules
 from hrms_addon.hrms_addon import probation_rules
+from hrms_addon.hrms_addon import training_rules
 
 # {onboarding: {activity idx: [users]}} for after_tasks, within one request
 _ASSIGNEES = "hrms_addon_onboarding_assignees"
@@ -66,6 +67,10 @@ def validate(doc, method=None):
     _apply_defaults(doc)
     _medical_check(doc)
     _check_step(doc)
+    _supervisor_name(doc)
+    _trainings_once(doc)
+    assign_holiday_list(doc.get("employee"), doc.get("holiday_list"), doc.get("date_of_joining"))
+    _sync_salary(doc)
     if doc.docstatus == 1:  # validate runs for a submit, never an update after one: the onboarding starts
         _request_tools(doc)
         _resolve_assignees(doc)
@@ -76,12 +81,85 @@ def before_update_after_submit(doc, method=None):
     _link_employee(doc)
     _medical_check(doc)
     old_state, new_state = _check_step(doc)
+    _supervisor_name(doc)
+    _trainings_once(doc)
+    # the employee on the holiday list before Frappe HR dates any new task by it
+    assign_holiday_list(doc.get("employee"), doc.get("holiday_list"), doc.get("date_of_joining"))
     if new_state != old_state and new_state == approval.PENDING_HRM:
         _draft_salary(doc)
+    elif new_state in (approval.ONBOARDING, approval.PENDING_HRM):
+        _sync_salary(doc)
     if new_state != old_state and new_state == approval.APPROVED:
         _approve(doc)
+    elif new_state == approval.APPROVED and doc.get("custom_training_required"):
+        _schedule_training(doc)  # a training added once approved is booked too
     _request_tools(doc)
     _resolve_assignees(doc)
+
+
+def _supervisor_name(doc):
+    """The supervisor's name beside their employee code."""
+    supervisor = doc.get("custom_supervisor")
+    doc.custom_supervisor_name = frappe.db.get_value("Employee", supervisor, "employee_name") if supervisor else None
+
+
+def _trainings_once(doc):
+    """A training programme is listed once."""
+    twice = training_rules.duplicates([row.training_program for row in doc.get("custom_trainings") or []])
+    if twice:
+        frappe.throw(_("{0} is listed more than once in Trainings.").format(", ".join(twice)), title=_("Trainings"))
+
+
+def assign_holiday_list(employee, holiday_list, joining=None):
+    """The employee on the onboarding's holiday list, from the joining date,
+    with no prompt: Frappe HR v16 keeps an employee's holiday list in a
+    submitted Holiday List Assignment and stops a task, leave or attendance
+    that finds none. Nothing is done when one already assigns them this list,
+    when the list is over before they join, or on a Frappe HR without it."""
+    if not (employee and holiday_list) or not frappe.db.exists("DocType", "Holiday List Assignment"):
+        return None
+    day = getdate(joining or today())
+    current = frappe.get_all("Holiday List Assignment", filters={
+        "assigned_to": employee, "docstatus": 1, "from_date": ["<=", day]},
+        fields=["holiday_list"], order_by="from_date desc", limit=1)
+    if current and current[0].holiday_list == holiday_list:
+        return None
+    starts, ends = frappe.db.get_value("Holiday List", holiday_list, ["from_date", "to_date"]) or (None, None)
+    from_date = rules.assignment_start(day, starts, ends)
+    if not from_date or frappe.db.exists("Holiday List Assignment", {
+            "assigned_to": employee, "from_date": from_date, "docstatus": 1}):
+        return None
+    holidays = frappe.new_doc("Holiday List Assignment")
+    holidays.update({"applicable_for": "Employee", "assigned_to": employee, "holiday_list": holiday_list,
+                     "from_date": from_date})
+    holidays.flags.ignore_permissions = True
+    holidays.insert()
+    holidays.submit()
+    return holidays.name
+
+
+def _sync_salary(doc):
+    """The Salary Structure Assignment drafted as soon as the onboarding has
+    its employee, structure and start date, and kept up to date, so the
+    employee shows on the structure while the onboarding goes on; the HR
+    Manager's approval submits it. A draft that cannot be made yet (a tax
+    slab still to choose, a date before joining) stops nothing here: the
+    onboarding says why, and the step to the HR Manager checks it again. The
+    draft goes when the structure is taken off."""
+    if not doc.get("employee") or doc.docstatus == 2:
+        return
+    if not (doc.get("custom_salary_structure") and doc.get("custom_salary_from")):
+        name = doc.get("custom_salary_structure_assignment")
+        if name and frappe.db.get_value("Salary Structure Assignment", name, "docstatus") == 0:
+            frappe.delete_doc("Salary Structure Assignment", name, ignore_permissions=True)
+            doc.custom_salary_structure_assignment = None
+        return
+    try:
+        _draft_salary(doc)
+    except frappe.ValidationError as error:
+        frappe.clear_last_message()
+        frappe.msgprint(_("The salary structure assignment is not drafted yet: {0}").format(error),
+                        indicator="orange", alert=True)
 
 
 def on_cancel(doc, method=None):
@@ -104,6 +182,8 @@ def link_onboarding(employee, method=None):
     )
     if onboarding:
         frappe.db.set_value("Employee Onboarding", onboarding, "employee", employee.name, update_modified=False)
+        values = frappe.db.get_value("Employee Onboarding", onboarding, ["holiday_list", "date_of_joining"], as_dict=True)
+        assign_holiday_list(employee.name, values.holiday_list, values.date_of_joining or employee.get("date_of_joining"))
 
 
 def _link_employee(doc):
@@ -214,7 +294,7 @@ def _facts(doc):
         "tax_slab_needed": structure if structure and not doc.get("custom_income_tax_slab") and _deducts_tax(structure) else None,
         "tools_pending": rules.pending_tools([{"tool": row.tool, "status": row.status} for row in doc.get("custom_tools") or []]),
         "training_required": doc.get("custom_training_required"),
-        "training_missing": rules.training_missing(doc.as_dict()),
+        "training_missing": rules.training_missing([row.as_dict() for row in doc.get("custom_trainings") or []]),
         "medical_certificate_missing": bool(doc.get("custom_medical_check") and not doc.get("custom_medical_certificate")),
     }
 
@@ -283,6 +363,11 @@ def _draft_salary(doc):
     assignment.flags.ignore_permissions = True
     assignment.save()
     doc.custom_salary_structure_assignment = assignment.name
+    offered = frappe.db.get_value("Job Offer", doc.job_offer, "custom_gross_salary") if doc.get("job_offer") else None
+    note = rules.gross_note(offered, doc.custom_base_salary, pay.assignment_gross(assignment),
+                            doc.custom_salary_structure)
+    if note:
+        frappe.msgprint(_(note), indicator="orange", alert=True)
     return assignment
 
 
@@ -326,35 +411,50 @@ def _update_employee(doc, probation_end):
 
 
 def _schedule_training(doc):
-    """"Training Required?" Yes: the Training Event for the new employee, and
-    the supervisor's task to evaluate it (an activity like the others)."""
-    if doc.get("custom_training_event"):
+    """"Training Required?" Yes: a Training Event for each training listed and
+    not yet booked, and the supervisor's task to evaluate it (an activity like
+    the others)."""
+    rows = [row for row in doc.get("custom_trainings") or [] if not row.get("training_event")]
+    if not rows:
         return
-    start, end = rules.training_window(doc.custom_training_start, doc.custom_training_days)
-    program = doc.get("custom_training_program")
-    introduction = (doc.get("custom_training_scope") or "").strip() or (
-        frappe.db.get_value("Training Program", program, "description") if program else "") or "Induction training"
+    missing = rules.training_missing([row.as_dict() for row in rows])
+    if missing:
+        frappe.throw(_("Complete the Trainings table before it is booked: {0}.").format("; ".join(missing)),
+                     title=_("Trainings"))
+    supervisor_user = frappe.db.get_value("Employee", doc.custom_supervisor, "user_id") if doc.get("custom_supervisor") else None
+    for row in rows:
+        row.training_event = _book_training(doc, row)
+        activity = rules.training_evaluation_activity(doc.boarding_begins_on, row.start, row.days, row.training_program)
+        activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})
+        doc.append("activities", activity)
+
+
+def _book_training(doc, row):
+    """One training of the new employee as a Training Event, its trainer in
+    the event's Trainers table."""
+    start, end = rules.training_window(row.start, row.days)
+    program = row.training_program
+    introduction = (row.get("scope") or "").strip() or frappe.db.get_value("Training Program", program, "description") or program
+    name = "%s: %s (%s)" % ((doc.employee_name or "")[:50], program[:50], doc.name)
+    if frappe.db.exists("Training Event", name):
+        name = "%s %s" % (name, row.idx)
     event = frappe.get_doc({
         "doctype": "Training Event",
-        "event_name": "%s: %s (%s)" % ((doc.employee_name or "")[:50], (program or "Induction training")[:50], doc.name),
+        "event_name": name,
         "training_program": program,
+        "course": program,
         "event_status": "Scheduled",
-        "type": doc.get("custom_training_type") or "Workshop",
+        "type": row.get("training_type") or "Workshop",
         "company": doc.company,
-        "trainer_name": doc.custom_trainer_name,
-        "trainer_email": doc.get("custom_trainer_email"),
-        "location": doc.custom_training_location,
+        "location": row.location,
         "start_time": start,
         "end_time": end,
         "introduction": introduction,
         "employees": [{"employee": doc.employee}],
+        "custom_trainers": [{"trainer_name": row.trainer_name, "trainer_email": row.get("trainer_email")}],
     })
     event.insert(ignore_permissions=True)
-    doc.custom_training_event = event.name
-    activity = rules.training_evaluation_activity(doc.boarding_begins_on, doc.custom_training_start, doc.custom_training_days)
-    supervisor_user = frappe.db.get_value("Employee", doc.custom_supervisor, "user_id") if doc.get("custom_supervisor") else None
-    activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})
-    doc.append("activities", activity)
+    return event.name
 
 
 def _resolve_assignees(doc):
@@ -415,7 +515,8 @@ def onboarding_defaults(job_applicant, job_offer=None):
         ) or opening
     offer = frappe._dict()
     if job_offer:
-        offer = frappe.db.get_value("Job Offer", job_offer, ["company", "designation", "custom_branch"], as_dict=True) or offer
+        offer = frappe.db.get_value("Job Offer", job_offer, ["company", "designation", "custom_branch",
+                                                              "custom_gross_salary"], as_dict=True) or offer
 
     company = offer.company or opening.company
     branch, department = offer.custom_branch or opening.location, opening.department
@@ -445,8 +546,9 @@ def onboarding_defaults(job_applicant, job_offer=None):
             rules.activity_assignees(rules.HR_OFFICER_ROLE, {}, people.holders(rules.HR_OFFICER_ROLE), branch, department)
         ),
         "custom_supervisor": supervisor,
-        # the requisition's Recommended Salary, as the base to confirm
-        "custom_base_salary": flt(requisition.expected_compensation) or None,
+        # the offer's Gross Salary, else the requisition's Recommended Salary,
+        # as the assignment's Base to confirm
+        "custom_base_salary": flt(offer.custom_gross_salary) or flt(requisition.expected_compensation) or None,
         "holiday_list": frappe.get_cached_value("Company", company, "default_holiday_list") if company else None,
         "employee_onboarding_template": rules.pick_template(
             frappe.get_all("Employee Onboarding Template", fields=["name", "title", "company", "department", "designation"]),

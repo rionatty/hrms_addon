@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "creation": "2026-09-28 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "trainer_name",
+  "trainer_email",
+  "contact_number"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "description": "For a trainer on the staff.",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "trainer_name",
+   "fieldtype": "Data",
+   "label": "Trainer",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3,
+   "fetch_from": "employee.employee_name",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "trainer_email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "contact_number",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-28 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Event Trainer",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

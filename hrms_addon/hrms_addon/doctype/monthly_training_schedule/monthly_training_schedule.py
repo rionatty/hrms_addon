@@ -21,3 +21,6 @@ class MonthlyTrainingSchedule(Document):
 
     def on_cancel(self):
         training.schedule_on_cancel(self)
+
+    def on_trash(self):
+        training.schedule_on_trash(self)

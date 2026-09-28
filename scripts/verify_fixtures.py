@@ -764,12 +764,14 @@ if by_dt.get(EO):
     baseline = positions_of([fn for fn in m["field_order"]], {f["fieldname"]: f for f in m["fields"]})
     EO_AFTER = {"custom_branch": "company", "custom_onboarding_status": "boarding_status",
                 "custom_hr_officer": "boarding_begins_on", "custom_head_of_department": "custom_hr_officer",
-                "custom_supervisor": "custom_head_of_department", "custom_orientation_section": "amended_from",
+                "custom_supervisor": "custom_head_of_department", "custom_supervisor_name": "custom_supervisor",
+                "custom_orientation_section": "amended_from",
                 "custom_medical_check": "custom_signed_workplace_rules",
                 "custom_medical_certificate": "custom_medical_check",
                 "custom_tools_section": "custom_medical_certificate", "custom_salary_section": "custom_tools",
                 "custom_training_section": "custom_salary_structure_assignment",
-                "custom_hrm_approval_section": "custom_training_event"}
+                "custom_trainings": "custom_training_required",
+                "custom_hrm_approval_section": "custom_trainings"}
     # the induction's order: orientation, tools of work, salary, training, then the approval
     EO_SECTIONS = ["Employee Details", "Onboarding Activities", "Orientation", "Tools of Work", "Salary", "Training",
                    "HR Manager Approval"]
@@ -843,6 +845,20 @@ REMOVED = (
     "Job Requisition-connections_tab-hidden",
     "Job Requisition-custom_connections_section",
     "Job Requisition-custom_connections_html",
+    # the onboarding's one training became a table of them (Onboarding Training)
+    "Employee Onboarding-custom_training_program",
+    "Employee Onboarding-custom_training_type",
+    "Employee Onboarding-custom_training_scope",
+    "Employee Onboarding-custom_training_cb",
+    "Employee Onboarding-custom_trainer_name",
+    "Employee Onboarding-custom_trainer_email",
+    "Employee Onboarding-custom_training_start",
+    "Employee Onboarding-custom_training_days",
+    "Employee Onboarding-custom_training_location",
+    "Employee Onboarding-custom_training_event",
+    # a Training Event's trainers are a table (Training Event Trainer)
+    "Training Event-custom_trainer_2",
+    "Training Event-custom_trainer_3",
 )
 patch_sources = ""
 for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-8"):

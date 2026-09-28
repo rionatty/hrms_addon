@@ -138,16 +138,87 @@ def consolidate(evaluations):
 def requisition_errors(facts):
     """Problems with a requisition as it is submitted, as user-facing messages.
 
-    facts: "topic", "skills", "employees" (count), "justification".
+    facts: "topics" ([{"topic", "required_skills"}]), "employees" (count).
     """
     errors = []
-    if not (facts.get("topic") or "").strip():
-        errors.append("Give the training a topic.")
-    if not (facts.get("skills") or "").strip():
-        errors.append("Say which skills or knowledge the training must give (Required Skills).")
+    topics = facts.get("topics") or []
+    if not topics:
+        errors.append("List the training topics (Training Topics).")
+    elif any(not (row.get("topic") or "").strip() for row in topics):
+        errors.append("Every row of Training Topics needs its topic.")
+    if topics and any(not (row.get("required_skills") or "").strip() for row in topics):
+        errors.append("Say which skills or knowledge each topic must give (Required Skills).")
     if not facts.get("employees"):
         errors.append("List the employees to be trained (Target Employees).")
     return errors
+
+
+def topics_summary(topics, limit=140):
+    """The requisition's topics in one line, for its list and its messages."""
+    text = ", ".join((row.get("topic") or "").strip() for row in topics or () if (row.get("topic") or "").strip())
+    return text if len(text) <= limit else text[:limit - 3].rstrip(", ") + "..."
+
+
+def need_rows(requisition, topics):
+    """The Training Needs rows one requisition gives: one per topic, each
+    naming its requisition. requisition: "requisition", "department",
+    "preferred_month", "target_group"; topics: the requisition's rows."""
+    return [{
+        "topic": (row.get("topic") or "").strip(), "section": requisition.get("department"),
+        "method": row.get("method"), "trainer": row.get("trainer"), "budget": row.get("budget") or 0,
+        "duration": row.get("duration"), "month": requisition.get("preferred_month"),
+        "target_group": requisition.get("target_group"), "objectives": row.get("required_skills"),
+        "requisition": requisition.get("requisition"),
+    } for row in topics or () if (row.get("topic") or "").strip()]
+
+
+# ── Nobody twice ──────────────────────────────────────────────────────
+def duplicates(values):
+    """The values listed more than once, each once, in the order they first
+    repeat; blanks aside."""
+    seen, twice = set(), []
+    for value in values or ():
+        if not value:
+            continue
+        if value in seen and value not in twice:
+            twice.append(value)
+        seen.add(value)
+    return twice
+
+
+# ── The result: only those who attended, marks and effectiveness ─────
+def result_errors(employees, participants):
+    """Who a Training Result may not list: someone never booked for the
+    session, or booked and not present. employees: the result's rows' employees;
+    participants: {employee: attendance} of the Training Event.
+    Returns [(employee, "not booked" | "absent")]."""
+    out = []
+    for employee in employees or ():
+        if not employee:
+            continue
+        if employee not in (participants or {}):
+            out.append((employee, "not booked"))
+        elif (participants or {}).get(employee) != PRESENT:
+            out.append((employee, "absent"))
+    return out
+
+
+EFFECTIVE, NOT_EFFECTIVE = "Effective", "Not Effective"
+PASS_MARK = 50
+
+
+def effectiveness(marks, pass_mark=PASS_MARK):
+    """Effective when the marks reach the programme's pass mark (50 when it
+    has none); None while no marks are given."""
+    if marks in (None, ""):
+        return None
+    return EFFECTIVE if float(marks) >= (float(pass_mark or 0) or PASS_MARK) else NOT_EFFECTIVE
+
+
+def trainers_line(names, limit=140):
+    """A session's trainers in Frappe HR's one Trainer Name field."""
+    text = ", ".join(name.strip() for name in names or () if (name or "").strip())
+    return text if len(text) <= limit else text[:limit - 3].rstrip(", ") + "..."
 
 
 def assessment_errors(facts):

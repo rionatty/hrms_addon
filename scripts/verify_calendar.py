@@ -291,9 +291,18 @@ for needle, why in (
     ('row.add === "apply"', "an employee applies on an empty day"),
     ("before_change", "a form saves its own edits before the calendar changes the document"),
     ("after_change", "and reloads after"),
+    ("hrms_addon.pick_employees({", "a training's participants are picked from a list"),
+    ("if (!picked.some((person) => person.employee === row.employee)) picked.push(row);", "each once"),
+    ("employees: JSON.stringify(picked.map((person) => person.employee)),", "and booked on it as it is saved"),
+    ('fieldname: "training_program",', "a training has its programme"),
+    ('this.change("remove_session", { event: block.key.slice(4) }, __("Removed"))',
+     "a training booked here and not yet held can be taken off"),
 ):
     if needle not in view:
         fail.append(why)
+for field in ("venue", "trainer"):
+    if not re.search(r'fieldname: "%s",\n\t+label: __\("[A-Za-z]+"\),\n\t+reqd: 1,' % field, view):
+        fail.append("a training is booked at once: its %s is asked for" % field)
 target = view.split("target_of(cell) {")[1].split("\n\t\t}\n")[0] if "target_of(cell) {" in view else ""
 if "row !== block.row" not in target or 'block.key.indexOf("evt:") === 0' not in target or "!block.move" not in target:
     fail.append("leave and booked trainings stay on their row; only a block that may move is dragged")

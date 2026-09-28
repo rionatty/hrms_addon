@@ -84,8 +84,8 @@ days, and round):
 
 import frappe
 from frappe import _
-from frappe.utils import (cint, escape_html, format_date, format_time, get_url_to_form, getdate, now_datetime,
-                          strip_html, today)
+from frappe.utils import (cint, escape_html, flt, format_date, format_time, get_url_to_form, getdate,
+                          now_datetime, strip_html, today)
 
 from hrms_addon.hrms_addon import cv_screening
 from hrms_addon.hrms_addon import cv_screening_rules
@@ -1104,6 +1104,20 @@ def unblock_cancel(doc, method=None):
     interviews and offers made from them, as records, so cancelling one to
     correct it does not need the approved shortlist or report cancelled first."""
     doc.ignore_linked_doctypes = tuple(doc.get("ignore_linked_doctypes") or ()) + RECORDS
+
+
+def offer_validate(doc, method=None):
+    """Job Offer validate: the Gross Salary, while a draft offer has none, is
+    the requisition's Recommended Salary (its applicant's opening's). The
+    onboarding and its salary structure assignment take it from the offer
+    (onboarding.onboarding_defaults)."""
+    if doc.docstatus != 0 or flt(doc.get("custom_gross_salary")) or not doc.get("job_applicant"):
+        return
+    opening = frappe.db.get_value("Job Applicant", doc.job_applicant, "job_title")
+    requisition = frappe.db.get_value("Job Opening", opening, "job_requisition") if opening else None
+    recommended = frappe.db.get_value("Job Requisition", requisition, "expected_compensation") if requisition else None
+    if flt(recommended):
+        doc.custom_gross_salary = flt(recommended)
 
 
 def setup_report_workflow_on_migrate():

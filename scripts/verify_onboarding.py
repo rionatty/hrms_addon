@@ -167,7 +167,7 @@ ALL = {"head_of_department": "hod@luuka", "activities": 4, "holiday_list": "Luuk
        "rules_signed_on": "2026-10-01", "bio_data_signed_on": "2026-10-02", "hrm_remarks": "",
        "supervisor": "HR-EMP-00042", "supervisor_is_employee": False, "salary_structure": "Luuka Staff 2026",
        "base_salary": 850000, "salary_from": "2026-10-01", "date_of_joining": "2026-10-01", "tax_slab_needed": None,
-       "tools_pending": [], "training_required": 0, "training_missing": ["Trainer"]}
+       "tools_pending": [], "training_required": 0, "training_missing": ["row 1: Trainer"]}
 step = A.step_errors
 expect("start with everything", step(A.DRAFT, A.ONBOARDING, ALL))
 expect("start without a Head of Department", step(A.DRAFT, A.ONBOARDING, dict(ALL, head_of_department=None)),
@@ -199,7 +199,7 @@ expect("a structure deducting tax with no slab", step(A.ONBOARDING, A.PENDING_HR
 expect("tools not yet issued", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, tools_pending=["Computer", "PPE"])),
        "Issue the tools of work, or mark them Not Needed, before sending the onboarding to the HR Manager: Computer, PPE.")
 expect("a required training not set up", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, training_required=1)),
-       "Training is required: fill in the Trainer (Training section)")
+       "Training is required: complete the Trainings table (row 1: Trainer)")
 expect("training details not needed when no training", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, training_required=0)))
 # the health question the interview no longer asks: a doctor's check, where the JD needs one
 expect("a medical check the JD needs, not yet done", step(A.ONBOARDING, A.PENDING_HRM, dict(ALL, medical_certificate_missing=True)),
@@ -320,18 +320,39 @@ if any(a["required_for_employee_creation"] or a["begin_on"] or len(a["activity_n
 if R.pending_tools([{"tool": "A", "status": "Issued"}, {"tool": "B", "status": "Not Needed"}, {"tool": "C", "status": "Requested"},
                     {"tool": "D", "status": ""}]) != ["C", "D"]:
     fail.append("pending_tools: everything not Issued or Not Needed")
-if R.training_missing({"custom_training_program": "GMP", "custom_trainer_name": "Peter", "custom_training_start": "2026-10-05",
-                       "custom_training_days": 2, "custom_training_location": "Kawempe"}) != []:
-    fail.append("training_missing: a training with its trainer, start, duration, place and program lacks nothing")
-if R.training_missing({"custom_training_scope": "  "}) != ["Trainer", "Training Starts On", "Duration (Days)", "Location",
-                                                           "Training Program or Training Scope"]:
-    fail.append("training_missing must name every missing detail: %s" % R.training_missing({"custom_training_scope": "  "}))
+FULL_TRAINING = {"training_program": "GMP", "trainer_name": "Peter", "start": "2026-10-05", "days": 2, "location": "Kawempe"}
+if R.training_missing([FULL_TRAINING]) != []:
+    fail.append("training_missing: a training with its programme, trainer, start, days and place lacks nothing")
+if R.training_missing([FULL_TRAINING, {"idx": 2, "training_program": "First Aid"}]) != [
+        "row 2: Trainer, Starts On, Days, Location"]:
+    fail.append("training_missing must name every missing detail, row by row: %s"
+                % R.training_missing([FULL_TRAINING, {"idx": 2, "training_program": "First Aid"}]))
+if R.training_missing([]) != ["add a training"]:
+    fail.append("training_missing: training is required and none is listed")
 start, end = R.training_window("2026-10-05", 3)
 if (str(start), str(end)) != ("2026-10-05 08:00:00", "2026-10-07 17:00:00"):
     fail.append("training_window: from 08:00 on the first day to 17:00 on the last: %s to %s" % (start, end))
-evaluation = R.training_evaluation_activity("2026-10-01", "2026-10-05", 3)
-if (evaluation["begin_on"], evaluation["required_for_employee_creation"]) != (7, 0):
-    fail.append("the supervisor's evaluation begins as the training ends (day 7 here): %s" % evaluation)
+evaluation = R.training_evaluation_activity("2026-10-01", "2026-10-05", 3, "Good Manufacturing Practices")
+if (evaluation["begin_on"], evaluation["required_for_employee_creation"], evaluation["activity_name"]) != (
+        7, 0, "Training evaluation: Good Manufacturing Practices"):
+    fail.append("the supervisor's evaluation of each training begins as it ends (day 7 here), named after it: %s" % evaluation)
+long_name = R.training_evaluation_activity("2026-10-01", "2026-10-05", 1, "x" * 140)["activity_name"]
+if len(long_name) > R.ACTIVITY_NAME_MAX or R.ACTIVITY_NAME_MAX > 70:
+    fail.append("a training's evaluation fits the task subject: %d characters" % len(long_name))
+# the holiday list assigned as it is chosen, from the joining day
+for joining, starts, ends, want in (("2026-10-05", "2026-01-01", "2026-12-31", "2026-10-05"),
+                                    ("2026-12-20", "2027-01-01", "2027-12-31", "2027-01-01"),
+                                    ("2027-02-01", "2026-01-01", "2026-12-31", None), (None, "2026-01-01", "2026-12-31", None)):
+    got = R.assignment_start(joining, starts, ends)
+    if (str(got) if got else None) != want:
+        fail.append("assignment_start(%s, %s, %s) must be %s, got %s" % (joining, starts, ends, want, got))
+# the gross offered against what the structure makes of it
+if R.gross_note(900000, 900000, 900000.4, "Luuka Staff 2026") is not None or R.gross_note(None, 1, 2, "S") is not None \
+        or R.gross_note(900000, 900000, None, "S") is not None:
+    fail.append("gross_note says nothing when the gross agrees with the offer, or a figure is unknown")
+note = R.gross_note(900000, 900000, 1035000, "Luuka Staff 2026") or ""
+if "Luuka Staff 2026" not in note or "UGX 1,035,000" not in note or "UGX 900,000 offered" not in note:
+    fail.append("gross_note names the structure, the gross it makes and the gross offered: %r" % note)
 if set(R.PROVIDERS) != {"EHS", "IT", "HR", "Department", "Stores", "Procurement"} or R.PROVIDER_ROLES != {"Department": R.HOD_ROLE}:
     fail.append("the seeded providers are the Tools of Work sheet's; the department's own tools go to its Head of Department")
 tool_json = json.load(open(os.path.join(APP, "doctype", "onboarding_tool", "onboarding_tool.json"), encoding="utf-8"))
@@ -475,22 +496,38 @@ for name, (fieldtype, options) in {
     "custom_salary_structure": ("Link", "Salary Structure"), "custom_salary_from": ("Date", None),
     "custom_income_tax_slab": ("Link", "Income Tax Slab"), "custom_base_salary": ("Currency", None),
     "custom_variable_pay": ("Currency", None), "custom_salary_structure_assignment": ("Link", "Salary Structure Assignment"),
-    "custom_training_required": ("Check", None), "custom_training_program": ("Link", "Training Program"),
-    "custom_training_scope": ("Small Text", None), "custom_trainer_name": ("Data", None), "custom_training_start": ("Date", None),
-    "custom_training_days": ("Int", None), "custom_training_location": ("Data", None),
-    "custom_training_event": ("Link", "Training Event"),
+    "custom_training_required": ("Check", None), "custom_trainings": ("Table", "Onboarding Training"),
+    "custom_supervisor_name": ("Data", None),
 }.items():
     f = field(name)
     if (f.get("fieldtype"), f.get("options") or None) != (fieldtype, options):
         fail.append("Employee Onboarding.%s must be %s %s" % (name, fieldtype, options or ""))
     if not f.get("allow_on_submit"):
         fail.append("Employee Onboarding.%s is filled or set after the onboarding starts: it must be allow_on_submit" % name)
-for name in ("custom_salary_structure_assignment", "custom_training_event"):
+for name in ("custom_salary_structure_assignment", "custom_supervisor_name"):
     if not (field(name).get("read_only") and field(name).get("no_copy")):
-        fail.append("Employee Onboarding.%s is set by the approval: read-only and never copied" % name)
+        fail.append("Employee Onboarding.%s is set by the system: read-only and never copied" % name)
+if field("custom_trainings").get("depends_on") != "custom_training_required":
+    fail.append("Employee Onboarding.custom_trainings shows only when training is required")
+if field("custom_supervisor_name").get("fetch_from") != "custom_supervisor.employee_name":
+    fail.append("the supervisor's name shows beside their code")
+offer_gross = next((f for f in custom if f["dt"] == "Job Offer" and f["fieldname"] == "custom_gross_salary"), {})
+if (offer_gross.get("fieldtype"), offer_gross.get("allow_on_submit")) != ("Currency", 1):
+    fail.append("Job Offer.custom_gross_salary: the gross offered, a Currency that can be corrected once the offer is out")
+training_json = json.load(open(os.path.join(APP, "doctype", "onboarding_training", "onboarding_training.json"), encoding="utf-8"))
+training_fields = {f["fieldname"]: f for f in training_json["fields"]}
 for field_name, label in R.TRAINING_DETAILS:
-    if field(field_name).get("depends_on") != "custom_training_required":
-        fail.append("Employee Onboarding.%s shows only when training is required" % field_name)
+    if field_name not in training_fields:
+        fail.append("Onboarding Training has no %s (%s)" % (field_name, label))
+for field_name, f in training_fields.items():
+    if f["fieldtype"] not in ("Column Break", "Section Break") and not f.get("allow_on_submit"):
+        fail.append("Onboarding Training.%s is added or changed after the onboarding starts: allow_on_submit" % field_name)
+for field_name in ("training_event", "attendance", "marks", "effectiveness"):
+    f = training_fields.get(field_name) or {}
+    if not (f.get("read_only") and f.get("no_copy")):
+        fail.append("Onboarding Training.%s is written by the system: read-only and never copied" % field_name)
+if (training_fields.get("training_program") or {}).get("reqd") != 1:
+    fail.append("each training names its Training Program")
 print("fixtures: status, stamps, branch chain and the step fields are what the workflow needs")
 
 # ── 6. Upstream: what the glue relies on ─────────────────────────────
@@ -584,14 +621,15 @@ if eo:
     event_fields = {f["fieldname"]: f for f in (event or {}).get("fields", [])}
     if event:
         written = set(re.findall(r'^\s+"(\w+)": ', re.search(r'"doctype": "Training Event",(.*?)\n    \}\)', glue, re.S).group(1), re.M))
+        ours_on_event = {f["fieldname"] for f in custom if f["dt"] == "Training Event"}
         for name in sorted(written - {"doctype"}):
-            if name not in event_fields:
+            if name not in event_fields and name not in ours_on_event:
                 fail.append("the training booked sets Training Event.%s, which does not exist upstream" % name)
         for name, f in event_fields.items():
             if f.get("reqd") and name not in written:
                 fail.append("Training Event.%s is mandatory upstream and the training booked leaves it out" % name)
         kinds = set((event_fields.get("type") or {}).get("options", "").split("\n"))
-        ours = {o for o in (field("custom_training_type").get("options") or "").split("\n") if o}
+        ours = {o for o in ((training_fields.get("training_type") or {}).get("options") or "").split("\n") if o}
         if not ours or not ours <= kinds:
             fail.append("the Training Type offered must be Training Event's own kinds: %s" % sorted(ours - kinds))
         if "Scheduled" not in (event_fields.get("event_status") or {}).get("options", ""):
@@ -662,6 +700,27 @@ for needle, why in (
     ("contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get(\"custom_base_salary\")), doc.name)",
      "the contract, drafted"),
     ("if doc.get(\"custom_training_required\"):\n        _schedule_training(doc)", "the training, when required"),
+    ("elif new_state == approval.APPROVED and doc.get(\"custom_training_required\"):\n        _schedule_training(doc)",
+     "a training added once the onboarding is approved is booked too"),
+    ('rows = [row for row in doc.get("custom_trainings") or [] if not row.get("training_event")]',
+     "each training is booked once"),
+    ("row.training_event = _book_training(doc, row)", "and remembers its Training Event"),
+    ('"custom_trainers": [{"trainer_name": row.trainer_name, "trainer_email": row.get("trainer_email")}],',
+     "its trainer goes on the event's Trainers table"),
+    ('training_rules.duplicates([row.training_program for row in doc.get("custom_trainings") or []])',
+     "a training programme is listed once"),
+    ('doc.custom_supervisor_name = frappe.db.get_value("Employee", supervisor, "employee_name") if supervisor else None',
+     "the supervisor's name, not only the code"),
+    ('holidays.update({"applicable_for": "Employee", "assigned_to": employee, "holiday_list": holiday_list,',
+     "the employee is put on the holiday list with no prompt"),
+    ("holidays.insert()\n    holidays.submit()", "and the assignment is submitted"),
+    ("if current and current[0].holiday_list == holiday_list:\n        return None", "never twice"),
+    ("assign_holiday_list(employee.name, values.holiday_list, values.date_of_joining", "an Employee linked later is assigned too"),
+    ("except frappe.ValidationError as error:\n        frappe.clear_last_message()",
+     "a draft salary that cannot be made yet stops nothing and says why"),
+    ('frappe.db.get_value("Job Offer", doc.job_offer, "custom_gross_salary")', "the gross offered is compared"),
+    ('"custom_base_salary": flt(offer.custom_gross_salary) or flt(requisition.expected_compensation) or None,',
+     "the offer's gross is carried to the onboarding"),
     ('activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})',
      "the supervisor evaluates the training (the HOD when the supervisor has no login)"),
     ("for row in rows:\n        row.status = rules.TOOL_REQUESTED", "the tools asked for are Requested"),
@@ -683,6 +742,15 @@ def body_of(name):
 for name in ("validate", "before_update_after_submit"):
     if "_check_step(doc)" not in body_of(name) or "_resolve_assignees(doc)" not in body_of(name):
         fail.append("%s must check the step and hand out new activities" % name)
+    for call in ("_supervisor_name(doc)", "_trainings_once(doc)", "assign_holiday_list(doc.get(\"employee\"), "
+                 "doc.get(\"holiday_list\"), doc.get(\"date_of_joining\"))"):
+        if call not in body_of(name):
+            fail.append("%s must run %s" % (name, call))
+if "_sync_salary(doc)" not in body_of("validate"):
+    fail.append("validate drafts the salary structure assignment as the structure is chosen")
+if "elif new_state in (approval.ONBOARDING, approval.PENDING_HRM):\n        _sync_salary(doc)" not in body_of(
+        "before_update_after_submit"):
+    fail.append("once started, the draft follows the structure until the HR Manager approves")
 if "if doc.docstatus == 1:" not in body_of("validate"):
     fail.append("validate hands the activities out only as the onboarding starts (it is submitted)")
 for name in ("validate", "before_update_after_submit"):
@@ -731,6 +799,17 @@ if "hrms_addon.hrms_addon.onboarding.after_install" not in (hooks.get("after_ins
 for doctype, path in (("Employee Onboarding", "public/js/employee_onboarding.js"), ("Job Offer", "public/js/job_offer.js")):
     if (hooks.get("doctype_js") or {}).get(doctype) != path or not os.path.exists(os.path.join(REPO, "hrms_addon", path)):
         fail.append("doctype_js %s must be %s, and exist" % (doctype, path))
+if ((hooks.get("doc_events") or {}).get("Job Offer") or {}).get("validate") != "hrms_addon.hrms_addon.interviews.offer_validate":
+    fail.append("a Job Offer's Gross Salary starts at the requisition's Recommended Salary (interviews.offer_validate)")
+offer_glue = read("hrms_addon", "hrms_addon", "interviews.py")
+for needle, why in (
+    ('if doc.docstatus != 0 or flt(doc.get("custom_gross_salary")) or not doc.get("job_applicant"):',
+     "only a draft offer with no Gross Salary is filled; one typed is kept"),
+    ('frappe.db.get_value("Job Requisition", requisition, "expected_compensation")', "from the requisition's Recommended Salary"),
+    ("doc.custom_gross_salary = flt(recommended)", "the gross set"),
+):
+    if needle not in offer_glue:
+        fail.append("interviews.py: %s (%r not found)" % (why, needle))
 bio_glue = read("hrms_addon", "hrms_addon", "bio_data.py")
 for source in ("Job Offer", "Employee Onboarding"):
     if 'return onboarding.add_placement(employee, "%s", source_name)' % source not in bio_glue:

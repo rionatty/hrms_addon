@@ -39,6 +39,15 @@ def monthly_gross(employee, on=None):
     return _previewed_gross(assignment, on)
 
 
+def assignment_gross(assignment):
+    """The monthly gross a Salary Structure Assignment (saved or not) works
+    out to, as monthly_gross does; None on a Frappe HR that cannot say."""
+    if not hasattr(type(assignment), "calculate_ctc_and_gross"):
+        return None
+    assignment.calculate_ctc_and_gross()
+    return flt(flt(assignment.annual_gross_earning) / 12, 2)
+
+
 def _previewed_gross(assignment, on):
     """For a Frappe HR without calculate_ctc_and_gross: the gross of a salary
     slip previewed from the structure (full payment days), without the

@@ -59,14 +59,18 @@ TOOL_DONE = (TOOL_ISSUED, TOOL_NOT_NEEDED)
 PROVIDERS = ("EHS", "IT", "HR", "Department", "Stores", "Procurement")
 PROVIDER_ROLES = {"Department": HOD_ROLE}
 ONBOARDING_MASTERS = {"Tool Provider": ("provider_name", PROVIDERS)}
-# Training (the flowchart's "Training Required?"): what a required training
-# needs before the onboarding goes to the HR Manager
+# Training (the flowchart's "Training Required?"): what each training of the
+# Trainings table needs before the onboarding goes to the HR Manager
 TRAINING_DETAILS = (
-    ("custom_trainer_name", "Trainer"),
-    ("custom_training_start", "Training Starts On"),
-    ("custom_training_days", "Duration (Days)"),
-    ("custom_training_location", "Location"),
+    ("training_program", "Training Program"),
+    ("trainer_name", "Trainer"),
+    ("start", "Starts On"),
+    ("days", "Days"),
+    ("location", "Location"),
 )
+# The supervisor's evaluation task is named after its training; Frappe HR
+# puts the employee's name after it in the task's subject (140 characters)
+ACTIVITY_NAME_MAX = 70
 TRAINING_DAY_STARTS, TRAINING_DAY_ENDS = datetime.time(8, 0), datetime.time(17, 0)
 
 # A required activity stops Create Employee until its task is one of these
@@ -232,12 +236,17 @@ def pending_tools(tools):
     return [row["tool"] for row in tools if row.get("status") not in TOOL_DONE]
 
 
-def training_missing(values):
-    """What a required training still lacks, by label."""
-    missing = [label for field, label in TRAINING_DETAILS if not values.get(field)]
-    if not (values.get("custom_training_program") or (values.get("custom_training_scope") or "").strip()):
-        missing.append("Training Program or Training Scope")
-    return missing
+def training_missing(trainings):
+    """What the required trainings still lack: ["row 2: Trainer, Location"],
+    or ["add a training"] when the table is empty."""
+    if not trainings:
+        return ["add a training"]
+    out = []
+    for number, row in enumerate(trainings, 1):
+        missing = [label for field, label in TRAINING_DETAILS if not row.get(field)]
+        if missing:
+            out.append("row %s: %s" % (row.get("idx") or number, ", ".join(missing)))
+    return out
 
 
 def training_window(start, days):
@@ -247,12 +256,13 @@ def training_window(start, days):
     return datetime.datetime.combine(start, TRAINING_DAY_STARTS), datetime.datetime.combine(end, TRAINING_DAY_ENDS)
 
 
-def training_evaluation_activity(boarding_begins_on, training_start, days):
-    """The supervisor's task to evaluate the training (the flowchart's
+def training_evaluation_activity(boarding_begins_on, training_start, days, program=None):
+    """The supervisor's task to evaluate one training (the flowchart's
     "Supervisor Evaluates the Employee"), due as the training ends."""
     begin = max((_date(training_start) - _date(boarding_begins_on)).days + max(int(days or 1), 1), 0)
+    name = "Training evaluation: %s" % program if program else "Training evaluation by the supervisor"
     return {
-        "activity_name": "Training evaluation by the supervisor",
+        "activity_name": name if len(name) <= ACTIVITY_NAME_MAX else name[:ACTIVITY_NAME_MAX - 3].rstrip() + "...",
         "begin_on": begin,
         "duration": 2,
         "required_for_employee_creation": 0,
@@ -289,6 +299,35 @@ def pending_message(onboarding, pending):
         "<p>Whoever has a task opens it and sets its Status to Completed.</p>"
         % (quote(onboarding or ""), html.escape(onboarding or ""), "".join(items))
     )
+
+
+def assignment_start(joining, list_starts, list_ends):
+    """The day a new employee's Holiday List Assignment starts: the joining
+    day, or the list's first day when the list starts later (Frappe HR takes
+    no start outside the list's dates). None when the list is over before
+    they join, or a date is missing."""
+    if not (joining and list_starts and list_ends):
+        return None
+    joining, list_starts, list_ends = _date(joining), _date(list_starts), _date(list_ends)
+    if joining > list_ends:
+        return None
+    return max(joining, list_starts)
+
+
+def gross_note(offered, base, gross, structure):
+    """Why the structure's gross is not the gross offered: the Gross Salary
+    goes to the assignment as its Base and the structure's formulas work the
+    gross out from it (with Luuka's, Basic = Base, the two agree). None when
+    they agree, or when either figure is unknown."""
+    offered = float(offered or 0)
+    if not offered or gross is None or abs(float(gross) - offered) < 1:
+        return None
+    return ("With the Salary Structure %s, a Gross Salary of %s gives a monthly gross of %s, not the %s offered. "
+            "Check the structure or the amount." % (structure, _money(base), _money(gross), _money(offered)))
+
+
+def _money(value):
+    return "UGX {:,.0f}".format(float(value or 0))
 
 
 def _date(value):

@@ -17,13 +17,8 @@
   "status",
   "training_section",
   "training_topic",
-  "required_skills",
+  "topics",
   "justification",
-  "column_break_2",
-  "proposed_method",
-  "proposed_trainer",
-  "estimated_budget",
-  "duration",
   "employees_section",
   "target_employees",
   "hr_section",
@@ -117,15 +112,16 @@
   {
    "fieldname": "training_topic",
    "fieldtype": "Data",
-   "label": "Training Topic",
-   "reqd": 1,
-   "in_list_view": 1,
-   "description": "e.g. Good Manufacturing Practices, Machine settings, First Aid"
+   "label": "Training Topics",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
   },
   {
-   "fieldname": "required_skills",
-   "fieldtype": "Small Text",
-   "label": "Required Skills / Knowledge",
+   "fieldname": "topics",
+   "fieldtype": "Table",
+   "label": "Training Topics",
+   "options": "Training Requisition Topic",
    "reqd": 1
   },
   {
@@ -135,36 +131,10 @@
    "description": "e.g. targets missed, audit findings, new equipment"
   },
   {
-   "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "proposed_method",
-   "fieldtype": "Select",
-   "label": "Proposed Method",
-   "options": "\nInternal\nExternal\nOn the Job\nOnline\nWorkshop\nCoaching"
-  },
-  {
-   "fieldname": "proposed_trainer",
-   "fieldtype": "Data",
-   "label": "Proposed Trainer"
-  },
-  {
-   "fieldname": "estimated_budget",
-   "fieldtype": "Currency",
-   "label": "Estimated Budget"
-  },
-  {
-   "fieldname": "duration",
-   "fieldtype": "Data",
-   "label": "Duration",
-   "description": "e.g. 2 hours, 1 day, 3 days"
-  },
-  {
    "fieldname": "employees_section",
    "fieldtype": "Section Break",
    "label": "Target Employees",
-   "description": "Use Get Needs Forms to bring in employees who filled in a Training Needs Form. Others can be added by hand."
+   "description": "Get Needs Forms brings in those who filled in a Training Needs Form; Add Employees picks others."
   },
   {
    "fieldname": "target_employees",
@@ -220,7 +190,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 09:00:00.000000",
+ "modified": "2026-09-28 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Training Requisition",

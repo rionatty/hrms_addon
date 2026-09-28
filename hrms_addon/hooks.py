@@ -95,6 +95,9 @@ app_include_js = [
     # the HR calendar's roster, drawn on its page, the Annual Leave Plan and
     # the Monthly Training Schedule (calendar_board.py)
     "/assets/hrms_addon/js/hr_calendar_view.js",
+    # employees picked from a list, by company and department: a training's
+    # participants and a requisition's target employees
+    "/assets/hrms_addon/js/employee_picker.js",
 ]
 
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout
@@ -146,6 +149,8 @@ doctype_js = {
     # list and the evaluation forms, key the evaluations in, the summary
     "Training Event": "public/js/training_event.js",
     "Training Feedback": "public/js/training_feedback.js",
+    # a result for the participants marked Present only, each once
+    "Training Result": "public/js/training_result.js",
     # The Supervisory Skills Evaluation Form (LPL/HR/18) lives on Frappe
     # HR's Appraisal; the cycle carries the sheet for appraising offline
     "Appraisal": "public/js/appraisal.js",
@@ -645,6 +650,7 @@ fixtures = [
                     "Job Offer-custom_branch",
                     "Job Offer-custom_signed_appointment_letter",
                     "Job Offer-custom_employee",
+                    "Job Offer-custom_gross_salary",
                     "Employee Transfer-custom_job_offer",
                     "Appointment Letter-custom_job_offer",
                     "Employee Onboarding-custom_branch",
@@ -652,6 +658,7 @@ fixtures = [
                     "Employee Onboarding-custom_hr_officer",
                     "Employee Onboarding-custom_head_of_department",
                     "Employee Onboarding-custom_supervisor",
+                    "Employee Onboarding-custom_supervisor_name",
                     "Employee Onboarding-custom_orientation_section",
                     "Employee Onboarding-custom_rules_signed_on",
                     "Employee Onboarding-custom_orientation_cb",
@@ -668,16 +675,7 @@ fixtures = [
                     "Employee Onboarding-custom_salary_structure_assignment",
                     "Employee Onboarding-custom_training_section",
                     "Employee Onboarding-custom_training_required",
-                    "Employee Onboarding-custom_training_program",
-                    "Employee Onboarding-custom_training_type",
-                    "Employee Onboarding-custom_training_scope",
-                    "Employee Onboarding-custom_training_cb",
-                    "Employee Onboarding-custom_trainer_name",
-                    "Employee Onboarding-custom_trainer_email",
-                    "Employee Onboarding-custom_training_start",
-                    "Employee Onboarding-custom_training_days",
-                    "Employee Onboarding-custom_training_location",
-                    "Employee Onboarding-custom_training_event",
+                    "Employee Onboarding-custom_trainings",
                     "Employee Onboarding-custom_hrm_approval_section",
                     "Employee Onboarding-custom_hrm_approved_by",
                     "Employee Onboarding-custom_hrm_approved_on",
@@ -742,8 +740,8 @@ fixtures = [
                     "Training Event-custom_department",
                     "Training Event-custom_schedule",
                     "Training Event-custom_calendar_entry",
-                    "Training Event-custom_trainer_2",
-                    "Training Event-custom_trainer_3",
+                    "Training Event-custom_trainers_section",
+                    "Training Event-custom_trainers",
                     "Training Event-custom_shift",
                     "Training Event-custom_memo_approved_by",
                     "Training Event-custom_memo_approved_on",
@@ -754,6 +752,9 @@ fixtures = [
                     "Training Event-custom_evaluations",
                     "Training Event-custom_evaluation_score",
                     "Training Event-custom_evaluation_band",
+                    "Training Result Employee-custom_marks",
+                    "Training Result Employee-custom_effective",
+                    "Training Program-custom_pass_mark",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -1296,6 +1297,8 @@ fixtures = [
                     "Job Requisition-expected_compensation-reqd",
                     "Job Requisition-department-reqd",
                     "Job Requisition-main-field_order",
+                    "Training Event-trainer_name-hidden",
+                    "Training Event-trainer_email-hidden",
                     "Job Requisition-status-read_only",
                     "Job Requisition-requested_by-ignore_user_permissions",
                     "Job Opening-employment_type-fetch_from",
@@ -1458,6 +1461,8 @@ doc_events = {
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
     },
     "Job Offer": {
+        # the Gross Salary starts at the requisition's Recommended Salary (interviews.py)
+        "validate": "hrms_addon.hrms_addon.interviews.offer_validate",
         # the same for an offer made from an approved Interview Report
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
     },
@@ -1628,8 +1633,22 @@ doc_events = {
     # (training.py): submitting the event says the training was held; each
     # evaluation scores itself and the event keeps the consolidated score
     "Training Event": {
+        # the Trainers table behind Frappe HR's Trainer Name, the programme
+        # from the course, nobody booked twice
+        "validate": "hrms_addon.hrms_addon.training.event_validate",
         "on_submit": "hrms_addon.hrms_addon.training.event_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.training.event_on_cancel",
+        # a draft one deleted: its requisitions and its schedule line let go
+        "on_trash": "hrms_addon.hrms_addon.training.event_on_trash",
+    },
+    # Only those who attended get a result; the marks say whether the
+    # training worked, and reach a new employee's onboarding
+    "Training Result": {
+        "validate": "hrms_addon.hrms_addon.training.result_validate",
+        "before_update_after_submit": "hrms_addon.hrms_addon.training.result_marks",
+        "on_submit": "hrms_addon.hrms_addon.training.result_on_submit",
+        "on_update_after_submit": "hrms_addon.hrms_addon.training.result_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.training.result_on_cancel",
     },
     "Training Feedback": {
         "validate": "hrms_addon.hrms_addon.training.feedback_validate",
@@ -1737,6 +1756,10 @@ override_whitelisted_methods = {
     "hrms.hr.doctype.job_offer.job_offer.make_employee": "hrms_addon.hrms_addon.bio_data.make_employee_from_job_offer",
     "hrms.hr.doctype.employee_onboarding.employee_onboarding.make_employee": (
         "hrms_addon.hrms_addon.bio_data.make_employee_from_onboarding"
+    ),
+    # a Training Result fills itself with the participants marked Present only
+    "hrms.hr.doctype.training_result.training_result.get_employees": (
+        "hrms_addon.hrms_addon.training.result_employees"
     ),
     # the Interview's Feedback tab: averages per score sheet criterion
     "hrms.hr.doctype.interview.interview.get_skill_wise_average_rating": (

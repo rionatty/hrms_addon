@@ -104,8 +104,34 @@ if summary["count"] != 3 or summary["score"] != 70.0 or summary["band"] != "Good
 print("evaluation form: 10 items, 5 to 1, the bands, the consolidated report")
 
 # ── 2. What each step needs ───────────────────────────────────────────
-expect("a requisition", R.requisition_errors({"topic": "GMP", "skills": "Hygiene", "employees": 3}))
-expect("a requisition with nothing", R.requisition_errors({}), "Give the training a topic", "Required Skills", "Target Employees")
+TOPIC = {"topic": "GMP", "required_skills": "Hygiene"}
+expect("a requisition", R.requisition_errors({"topics": [TOPIC, dict(TOPIC, topic="First Aid")], "employees": 3}))
+expect("a requisition with nothing", R.requisition_errors({}), "List the training topics", "Target Employees")
+expect("a topic without its skills", R.requisition_errors({"topics": [TOPIC, {"topic": "First Aid"}], "employees": 1}),
+       "Required Skills")
+expect("a topic row left blank", R.requisition_errors({"topics": [{"topic": " ", "required_skills": "x"}], "employees": 1}),
+       "needs its topic")
+if R.topics_summary([{"topic": "GMP"}, {"topic": " "}, {"topic": "First Aid"}]) != "GMP, First Aid" \
+        or len(R.topics_summary([{"topic": "x" * 100}, {"topic": "y" * 100}])) > 140:
+    fail.append("topics_summary: the requisition's topics in one line, within 140 characters")
+needs = R.need_rows({"requisition": "HR-TRQ-1", "department": "Production", "preferred_month": "March", "target_group": "Operators"},
+                    [{"topic": "GMP", "required_skills": "Hygiene", "method": "Internal", "trainer": "PO", "budget": 500,
+                      "duration": "1 day"}, {"topic": " "}, {"topic": "First Aid"}])
+if [(n["topic"], n["requisition"], n["section"], n["month"], n["target_group"]) for n in needs] != [
+        ("GMP", "HR-TRQ-1", "Production", "March", "Operators"), ("First Aid", "HR-TRQ-1", "Production", "March", "Operators")] \
+        or (needs[0]["objectives"], needs[0]["method"], needs[0]["budget"], needs[1]["budget"]) != ("Hygiene", "Internal", 500, 0):
+    fail.append("need_rows: one Training Need per topic, each naming its requisition and department: %s" % needs)
+if R.duplicates(["A", "B", "A", None, "", "B", "A", None]) != ["A", "B"] or R.duplicates([]) != []:
+    fail.append("duplicates: what is listed more than once, each once, blanks aside")
+if R.result_errors(["E1", "E2", "E3", "E5", None], {"E1": "Present", "E2": "Absent", "E4": "Present", "E5": None}) != [
+        ("E2", "absent"), ("E3", "not booked"), ("E5", "absent")]:
+    fail.append("result_errors: a result only for a participant marked Present")
+for marks, pass_mark, want in ((70, 50, "Effective"), (50, 50, "Effective"), (49.9, 50, "Not Effective"), (None, 50, None),
+                               ("", 50, None), (50, 0, "Effective"), (40, None, "Not Effective"), (80, 90, "Not Effective")):
+    if R.effectiveness(marks, pass_mark) != want:
+        fail.append("effectiveness(%r, %r) is %r, expected %r" % (marks, pass_mark, R.effectiveness(marks, pass_mark), want))
+if R.trainers_line(["Peter", " ", "Grace"]) != "Peter, Grace" or len(R.trainers_line(["x" * 100, "y" * 100])) > 140:
+    fail.append("trainers_line: the trainers in Frappe HR's one Trainer Name, within 140 characters")
 NEED = {"topic": "GMP", "method": "Internal", "objectives": "Fewer defects"}
 expect("an assessment", R.assessment_errors({"needs": [NEED], "objectives": "Fewer defects"}))
 expect("an assessment with nothing", R.assessment_errors({}), "List the training needs", "training objectives")
@@ -200,7 +226,7 @@ print("workflows: the assessment's two approvers and the calendar's one, returns
 OURS = ("Training Needs Form", "Training Requisition", "Training Requisition Employee", "Training Needs Assessment",
         "TNA Requisition", "Training Need", "Training Calendar", "Training Calendar Entry", "Training Calendar Signatory",
         "Monthly Training Schedule", "Training Schedule Line", "Training Evaluation Item", "Training Evaluation Rating",
-        "Meeting Record", "Meeting Participant")
+        "Meeting Record", "Meeting Participant", "Training Requisition Topic", "Training Event Trainer")
 specs = {name: doctype(name) for name in OURS}
 for name, spec in specs.items():
     if not spec:
@@ -221,11 +247,28 @@ for name, module in (("Training Needs Assessment", T), ("Training Calendar", C))
         if not (perms.get(t["allowed"]) or {}).get(need):
             fail.append("%s: %s moves it to %s and needs %s" % (name, t["allowed"], t["next_state"], need))
 req = fields_of(specs["Training Requisition"])
-for field, kind in (("training_topic", "Data"), ("required_skills", "Small Text"), ("target_employees", "Table"),
+for field, kind in (("training_topic", "Data"), ("topics", "Table"), ("target_employees", "Table"),
                     ("department", "Link"), ("branch", "Link"), ("hr_officer", "Link"), ("assessment", "Link"),
                     ("training_event", "Link")):
     if (req.get(field) or {}).get("fieldtype") != kind:
-        fail.append("Training Requisition.%s must be %s (test case 1: topic, skills, target employees)" % (field, kind))
+        fail.append("Training Requisition.%s must be %s (test case 1: topics, skills, target employees)" % (field, kind))
+if ((req.get("topics") or {}).get("options"), (req.get("topics") or {}).get("reqd")) != ("Training Requisition Topic", 1):
+    fail.append("Training Requisition.topics: a table of Training Requisition Topic, at least one")
+if not ((req.get("training_topic") or {}).get("read_only") and specs["Training Requisition"].get("title_field") == "training_topic"):
+    fail.append("Training Requisition.training_topic is the topics in one line, set from the table: its title")
+for field in ("required_skills", "proposed_method", "proposed_trainer", "estimated_budget", "duration"):
+    if field in req:
+        fail.append("Training Requisition.%s moved to its Training Topics table" % field)
+topic_fields = fields_of(specs["Training Requisition Topic"])
+if not (topic_fields.get("topic") or {}).get("reqd") or "required_skills" not in topic_fields \
+        or [o for o in ((topic_fields.get("method") or {}).get("options") or "").split("\n") if o] != list(R.METHODS):
+    fail.append("Training Requisition Topic: its topic, the skills it gives, and the methods of the assessment")
+taken = fields_of(specs["TNA Requisition"])
+if "training_topic" in taken or (taken.get("department") or {}).get("fetch_from") != "requisition.department" \
+        or (taken.get("requester_name") or {}).get("fetch_from") != "requisition.requester_name":
+    fail.append("Requisitions Taken Up: each requisition with its department and who asked, no topic")
+if not (fields_of(specs["Training Need"]).get("requisition") or {}).get("in_list_view"):
+    fail.append("each Training Need shows the requisition it came from")
 if [o for o in (req["status"]["options"] or "").split("\n") if o] != list(R.REQUISITION_STATUSES):
     fail.append("Training Requisition.status must offer exactly training_rules.REQUISITION_STATUSES")
 perms = {p["role"]: p for p in specs["Training Requisition"]["permissions"]}
@@ -275,9 +318,29 @@ te_custom = {f["fieldname"]: f for f in custom if f["dt"] == "Training Event"}
 tf_custom = {f["fieldname"]: f for f in custom if f["dt"] == "Training Feedback"}
 for field in ("custom_branch", "custom_department", "custom_schedule", "custom_calendar_entry", "custom_signed_attendance",
               "custom_reminders_sent", "custom_evaluations", "custom_evaluation_score", "custom_evaluation_band",
-              "custom_trainer_2", "custom_trainer_3", "custom_shift", "custom_memo_approved_by", "custom_memo_approved_on"):
+              "custom_trainers", "custom_shift", "custom_memo_approved_by", "custom_memo_approved_on"):
     if field not in te_custom:
         fail.append("Training Event.%s is missing" % field)
+if (te_custom.get("custom_trainers") or {}).get("options") != "Training Event Trainer":
+    fail.append("Training Event.custom_trainers must be a Table of Training Event Trainer")
+for field in ("custom_trainer_2", "custom_trainer_3"):
+    if field in te_custom:
+        fail.append("Training Event.%s went into the Trainers table" % field)
+trainer_fields = fields_of(specs["Training Event Trainer"])
+if not (trainer_fields.get("trainer_name") or {}).get("reqd") or "trainer_email" not in trainer_fields \
+        or (trainer_fields.get("employee") or {}).get("options") != "Employee":
+    fail.append("Training Event Trainer: a trainer's name, email, and the Employee when on the staff")
+result_custom = {f["fieldname"]: f for f in custom if f["dt"] == "Training Result Employee"}
+if (result_custom.get("custom_marks") or {}).get("fieldtype") != "Percent":
+    fail.append("Training Result Employee.custom_marks: marks out of a hundred, a Percent like the pass mark")
+for field in ("custom_marks", "custom_effective"):
+    if not (result_custom.get(field) or {}).get("allow_on_submit"):
+        fail.append("Training Result Employee.%s: marks may come in after the result is submitted (allow_on_submit)" % field)
+if not (result_custom.get("custom_effective") or {}).get("read_only"):
+    fail.append("Training Result Employee.custom_effective is worked out from the marks: read-only")
+pass_mark = next((f for f in custom if f["dt"] == "Training Program" and f["fieldname"] == "custom_pass_mark"), {})
+if (pass_mark.get("fieldtype"), str(pass_mark.get("default"))) != ("Percent", str(R.PASS_MARK)):
+    fail.append("Training Program.custom_pass_mark: a Percent, %s unless HR set another" % R.PASS_MARK)
 for field in ("custom_signed_attendance", "custom_reminders_sent", "custom_evaluations", "custom_evaluation_score", "custom_evaluation_band"):
     if not (te_custom.get(field) or {}).get("allow_on_submit"):
         fail.append("Training Event.%s is set after the training was held (submitted): allow_on_submit" % field)
@@ -293,6 +356,10 @@ setters = json.loads(read("hrms_addon", "fixtures", "property_setter.json"))
 if not any(s["doc_type"] == "Training Feedback" and s.get("field_name") == "feedback" and s["property"] == "reqd" and s["value"] == "0"
            for s in setters):
     fail.append("Training Feedback.feedback is optional once the paper form's ratings and answers are keyed in")
+for field in ("trainer_name", "trainer_email"):
+    if not any(s["doc_type"] == "Training Event" and s.get("field_name") == field and s["property"] == "hidden" and s["value"] == "1"
+               for s in setters):
+        fail.append("Training Event.%s is kept from the Trainers table: hidden" % field)
 print("doctypes: the flowchart's forms with their statuses, signatures and rights; Frappe HR's event and feedback extended")
 
 # ── 5. The glue reads what exists ─────────────────────────────────────
@@ -318,6 +385,8 @@ READS = {
     "Training Calendar": (("calendar_",), set(fields_of(specs["Training Calendar"]))),
     "Monthly Training Schedule": (("schedule_", "_book_event"), set(fields_of(specs["Monthly Training Schedule"]))),
     "Training Feedback": (("feedback_",), upstream_fields("Training Feedback")),
+    "Training Event": (("event_", "_sync_trainers"), upstream_fields("Training Event")),
+    "Training Result": (("result_",), upstream_fields("Training Result")),
 }
 for name, (prefixes, known) in READS.items():
     if known is None:
@@ -352,7 +421,39 @@ for needle, why in (
     ("people.people_for(HOD_ROLE, schedule.get(\"branch\"), event.get(\"custom_department\"))", "the HOD is told and asked to confirm"),
     ("rules.due_for_schedule(", "the HR Officer reminded a month before"),
     ("rules.reminders_due(event.start_time, day, event.custom_reminders_sent)", "the session reminders"),
-    ('frappe.delete_doc("Training Event", line.training_event, ignore_permissions=True)', "a cancelled schedule drops a session not held"),
+    ("line.db_set(\"training_event\", None, update_modified=False)\n            drop_event(event)",
+     "a cancelled schedule drops a session not held"),
+    ('frappe.delete_doc("Training Event", name, ignore_permissions=True)', "the draft event is deleted"),
+    ('{"training_event": None, "status": "In Assessment" if requisition.assessment else "Submitted"}',
+     "its requisitions open to be scheduled again"),
+    ('_twice_or_throw(doc.get("target_employees"), _("Target Employees"))', "a requisition lists each employee once"),
+    ('_twice_or_throw(doc.get("requisitions"), _("Requisitions Taken Up"), "requisition")', "an assessment takes a requisition once"),
+    ('_twice_or_throw(doc.get("employees"), _("Employees"))', "a session and a result list each employee once"),
+    ('"employee": doc.employee, "year": doc.year, "docstatus": ["!=", 2], "name": ["!=", doc.name]}',
+     "one Training Needs Form an employee a year"),
+    ('"training_event": doc.training_event, "employee": doc.employee, "docstatus": ["!=", 2], "name": ["!=", doc.name]}',
+     "one evaluation an employee a training"),
+    ("refused = rules.result_errors([row.employee for row in doc.get(\"employees\") or []], participants)",
+     "a result only for those who attended"),
+    ("if row.attendance == rules.PRESENT]", "the result fills itself with those marked Present"),
+    ('row.custom_effective = rules.effectiveness(row.get("custom_marks"), pass_mark)', "the marks say whether it worked"),
+    ('{"marks": row.get("custom_marks"), "effectiveness": row.get("custom_effective")}', "and reach the onboarding"),
+    ('{row.employee: {"attendance": row.attendance} for row in doc.employees}', "as does the attendance"),
+    ('doc.trainer_name = rules.trainers_line([row.trainer_name for row in rows])', "Frappe HR's Trainer Name from the table"),
+    ("for email in _trainer_emails(event):", "every trainer is told"),
+    ('program = line.get("training_program") or program_for(line.course, doc.company)', "a session booked has its programme"),
+    ('doc.training_program = program_for(doc.course, doc.get("company"))', "so does a session made by hand"),
+    ('requisition["needs"] = rules.need_rows(requisition, topics)', "each requisition's topics become Training Needs"),
+    ("def drop_event(name):\n", "a session not yet held is taken away"),
+    ("    _release(name)\n    frappe.delete_doc(\"Training Event\", name, ignore_permissions=True)",
+     "what points at it let go first"),
+    ('frappe.db.set_value("Training Schedule Line", line.name, "training_event", None, update_modified=False)',
+     "a line of a schedule still drawn up forgets a session deleted"),
+    ("def event_on_trash(doc, method=None):\n    \"\"\"A draft session deleted from its form: let go of what points at it.\"\"\"\n"
+     "    _release(doc.name)",
+     "a draft session deleted from its form lets go the same way"),
+    ("            line.db_set(\"training_event\", None, update_modified=False)\n            drop_event(event)",
+     "a schedule deleted or cancelled takes its sessions not yet held with it"),
     ("workflows.setup_on_migrate(tna_approval,", "the assessment workflow is built"),
     ("workflows.setup_on_migrate(calendar_approval,", "and the calendar's"),
     ("workflows.grant_on_migrate(rules,", "the HR Officer's and the HOD's rights on Frappe HR's training documents are granted"),
@@ -390,7 +491,7 @@ granting = re.search(r"\ndef grant_on_migrate\(rules, label\):\n(.*?)\n\n\ndef "
 if not granting or "_ensure_roles(rules)" not in granting.group(1) or "_ensure_permissions(rules)" not in granting.group(1) \
         or "frappe.db.savepoint(" not in granting.group(1):
     fail.append("workflows.grant_on_migrate must create the roles and grant the permissions, inside a savepoint")
-for name in ("get_needs_forms", "get_requisitions", "get_approved_needs", "get_calendar_trainings"):
+for name in ("get_needs_forms", "get_requisitions", "get_approved_needs", "get_calendar_trainings", "result_employees"):
     if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % name, glue):
         fail.append("%s must be whitelisted for the form buttons" % name)
 if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef create_evaluations\(', glue):
@@ -401,6 +502,49 @@ for js_path in glob.glob(os.path.join(APP, "doctype", "*", "*.js")) + glob.glob(
     for method in re.findall(r'xcall\(\s*"hrms_addon\.hrms_addon\.training\.(\w+)"', js):
         if not re.search(r"^def %s\(" % method, glue, re.M):
             fail.append("%s calls training.%s, which is not there" % (os.path.basename(js_path), method))
+picker = read("hrms_addon", "public", "js", "employee_picker.js")
+for needle, why in (
+    ("new frappe.ui.form.MultiSelectDialog({", "employees are picked from a list"),
+    ("company: opts.company || frappe.defaults.get_user_default(\"Company\") || null,", "filtered by company"),
+    ("department: opts.department || null,", "and by department"),
+    ('filters: Object.assign({ status: "Active" }, skip.length ? { name: ["not in", skip] } : {}),',
+     "active employees only, those already listed left out"),
+    ("(names || []).filter((name) => name && !skip.includes(name))", "nobody already listed comes back"),
+):
+    if needle not in picker:
+        fail.append("employee_picker.js: %s" % why)
+scripts = {
+    "training_requisition.js": read("hrms_addon", "hrms_addon", "doctype", "training_requisition", "training_requisition.js"),
+    "training_needs_assessment.js": read("hrms_addon", "hrms_addon", "doctype", "training_needs_assessment",
+                                         "training_needs_assessment.js"),
+    "training_event.js": read("hrms_addon", "public", "js", "training_event.js"),
+    "training_result.js": read("hrms_addon", "public", "js", "training_result.js"),
+}
+for script, needle, why in (
+    ("training_requisition.js", "grid.add_custom_button(__(\"Add Employees\"), () =>\n\t\t\thrms_addon.pick_employees({",
+     "the target employees are picked from a list"),
+    ("training_requisition.js", "if (!row.employee || have.has(row.employee)) continue;", "each employee once"),
+    ("training_requisition.js", 'if (listed(frm).length) filters.name = ["not in", listed(frm)];',
+     "one already listed is not offered again"),
+    ("training_needs_assessment.js",
+     "requisition: row.requisition, department: row.department, requester_name: row.requester_name,",
+     "each requisition taken up with its department and who asked"),
+    ("training_needs_assessment.js", 'for (const need of row.needs || []) frm.add_child("needs", need);',
+     "each of its topics a need naming it"),
+    ("training_needs_assessment.js", "const fresh = rows.filter((row) => !have.has(row.requisition));", "a requisition once"),
+    ("training_event.js", "hrms_addon.pick_employees({", "the participants are picked from a list"),
+    ("training_event.js", 'return { filters: Object.assign({ status: "Active" }, listed.length ? { name: ["not in", listed] } : {}) };',
+     "one already booked is not offered again"),
+    ("training_result.js", 'return { filters: { name: ["in", present.length ? present : [""]] } };',
+     "a result is for a participant marked Present"),
+    ("training_result.js", '.xcall("hrms_addon.hrms_addon.training.result_employees", { training_event: frm.doc.training_event })',
+     "as the server says who was"),
+):
+    if needle not in scripts[script]:
+        fail.append("%s: %s" % (script, why))
+meeting = read("hrms_addon", "hrms_addon", "doctype", "meeting_record", "meeting_record.py")
+if 'training._twice_or_throw(self.get("participants"), _("Participants"))' not in meeting:
+    fail.append("a meeting lists each participant once")
 print("glue: every field read exists, the session booked complete, the buttons' methods whitelisted")
 
 # ── 6. Wiring ─────────────────────────────────────────────────────────
@@ -412,7 +556,14 @@ for node in ast.parse(read("hrms_addon", "hooks.py")).body:
         except ValueError:
             pass
 events = hooks.get("doc_events") or {}
-for doctype_name, event, function in (("Training Event", "on_submit", "event_on_submit"), ("Training Event", "on_cancel", "event_on_cancel"),
+for doctype_name, event, function in (("Training Event", "validate", "event_validate"),
+                                      ("Training Event", "on_trash", "event_on_trash"),
+                                      ("Training Event", "on_submit", "event_on_submit"), ("Training Event", "on_cancel", "event_on_cancel"),
+                                      ("Training Result", "validate", "result_validate"),
+                                      ("Training Result", "before_update_after_submit", "result_marks"),
+                                      ("Training Result", "on_submit", "result_on_submit"),
+                                      ("Training Result", "on_update_after_submit", "result_on_submit"),
+                                      ("Training Result", "on_cancel", "result_on_cancel"),
                                       ("Training Feedback", "validate", "feedback_validate"),
                                       ("Training Feedback", "on_submit", "feedback_on_submit"),
                                       ("Training Feedback", "on_cancel", "feedback_on_cancel")):
@@ -426,7 +577,14 @@ if "hrms_addon.hrms_addon.pick_lists.seed_training_masters" not in (hooks.get("a
     fail.append("a fresh install seeds the evaluation form's items")
 if "hrms_addon.hrms_addon.training.consolidated" not in ((hooks.get("jinja") or {}).get("methods") or []):
     fail.append("the consolidated evaluation is a jinja method, for the summary print to come")
-for doctype_name, path in (("Training Event", "public/js/training_event.js"), ("Training Feedback", "public/js/training_feedback.js")):
+if (hooks.get("override_whitelisted_methods") or {}).get("hrms.hr.doctype.training_result.training_result.get_employees") \
+        != "hrms_addon.hrms_addon.training.result_employees":
+    fail.append("a Training Result fills itself with the participants marked Present only (override get_employees)")
+if "/assets/hrms_addon/js/employee_picker.js" not in (hooks.get("app_include_js") or []) \
+        or not os.path.exists(os.path.join(REPO, "hrms_addon", "public", "js", "employee_picker.js")):
+    fail.append("the employee picker loads on every desk page")
+for doctype_name, path in (("Training Event", "public/js/training_event.js"), ("Training Feedback", "public/js/training_feedback.js"),
+                           ("Training Result", "public/js/training_result.js")):
     if (hooks.get("doctype_js") or {}).get(doctype_name) != path or not os.path.exists(os.path.join(REPO, "hrms_addon", path)):
         fail.append("doctype_js %s must load %s" % (doctype_name, path))
 if "seed_masters(training_rules.TRAINING_MASTERS)" not in read("hrms_addon", "hrms_addon", "pick_lists.py"):
@@ -437,7 +595,7 @@ if "hrms_addon.patches.v1_0.seed_training" not in patches or "seed_training_mast
 for name, methods in (("training_requisition", ("validate", "on_submit", "on_cancel")),
                       ("training_needs_assessment", ("validate", "on_submit", "on_cancel")),
                       ("training_calendar", ("validate", "on_submit", "on_cancel")),
-                      ("monthly_training_schedule", ("validate", "on_submit", "on_cancel")),
+                      ("monthly_training_schedule", ("validate", "on_submit", "on_cancel", "on_trash")),
                       ("training_needs_form", ("validate", "on_submit", "on_cancel"))):
     controller = open(os.path.join(APP, "doctype", name, name + ".py"), encoding="utf-8").read()
     prefix = {"training_requisition": "requisition", "training_needs_assessment": "assessment", "training_calendar": "calendar",

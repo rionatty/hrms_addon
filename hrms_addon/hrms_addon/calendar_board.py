@@ -558,9 +558,12 @@ def _hr_only():
 
 @frappe.whitelist(methods=["POST"])
 def save_session(date=None, course=None, department=None, start_time=None, end_time=None, venue=None,
-                 trainer=None, target_group=None, calendar_entry=None, line=None, schedule=None, branch=None):
+                 trainer=None, target_group=None, calendar_entry=None, line=None, schedule=None, branch=None,
+                 training_program=None, employees=None):
     """A session put on the month's draft schedule (on `schedule`, else the
-    month's draft for the plant, made if there is none), or `line` changed."""
+    month's draft for the plant, made if there is none), or `line` changed;
+    either way booked at once as a draft Training Event with the employees
+    picked (`employees`, a list), so it is on the calendar as a training."""
     _hr_only()
     if not date:
         frappe.throw(_("Pick the day."))
@@ -570,26 +573,32 @@ def save_session(date=None, course=None, department=None, start_time=None, end_t
     values = {"course": course or (entry.course if entry else None), "training_date": day,
               "department": department or None, "start_time": start_time or None, "end_time": end_time or None,
               "venue": venue or None, "trainer": trainer or (entry.trainer if entry else None),
-              "target_group": target_group or (entry.target_group if entry else None)}
+              "target_group": target_group or (entry.target_group if entry else None),
+              "training_program": training_program or None}
     if entry:
-        values.update(calendar_entry=calendar_entry, training_program=entry.training_program)
+        values.update(calendar_entry=calendar_entry, training_program=training_program or entry.training_program)
     if not values["course"]:
         frappe.throw(_("Say which course."))
     if line:
         doc = _schedule_of(line)
         _session_day_or_throw(doc, day)
-        next(row for row in doc.lines if row.name == line).update(values)
+        row = next(row for row in doc.lines if row.name == line)
+        row.update(values)
     else:
         doc = frappe.get_doc(SCHEDULE, schedule) if schedule else _draft_schedule_for(day, branch)
         _draft_schedule_or_throw(doc)
         _session_day_or_throw(doc, day)
-        doc.append("lines", values)
+        row = doc.append("lines", values)
         if entry and not doc.get("training_calendar"):
             doc.training_calendar = entry.parent
     if doc.is_new():
         doc.insert()
     else:
         doc.save()
+    if not row.get("training_event"):
+        picked = frappe.parse_json(employees) if isinstance(employees, str) else employees
+        event = training._book_event(doc, row, picked or [])
+        row.db_set("training_event", event.name, update_modified=False)
     return doc.name
 
 
@@ -647,11 +656,14 @@ def move_session(key, date, department=None):
         event = frappe.get_doc(EVENT, name)
         if rules.session_status(event.event_status, event.docstatus) != rules.SCHEDULED or event.docstatus != 0:
             frappe.throw(_("Only a training still to be held and not yet submitted is moved here. Open it to change it."))
+        booked = frappe.db.get_value(LINE, {"training_event": name}, ["name", "parent"], as_dict=True)
+        if booked and frappe.db.get_value(SCHEDULE, booked.parent, "docstatus") == 0:
+            # booked from a schedule still being drawn up: it stays in that schedule's month
+            _session_day_or_throw(frappe.get_doc(SCHEDULE, booked.parent), day)
         event.start_time, event.end_time = rules.shifted_session(event.start_time, event.end_time, day)
         event.save()
-        booked = frappe.db.get_value(LINE, {"training_event": name}, "name")
         if booked:
-            frappe.db.set_value(LINE, booked, "training_date", day, update_modified=False)
+            frappe.db.set_value(LINE, booked.name, "training_date", day, update_modified=False)
         _tell_moved(event)
         return event.name
     frappe.throw(_("Choose the session to move."))
@@ -668,10 +680,26 @@ def _tell_moved(event):
 
 
 @frappe.whitelist(methods=["POST"])
-def remove_session(line):
-    """A session taken off a draft schedule; a schedule left empty goes too."""
+def remove_session(line=None, event=None):
+    """A session taken off a draft schedule, the training booked for it
+    deleted with it; a schedule left empty goes too. `event`: a training on
+    the calendar, found by its Training Event."""
     _hr_only()
+    if event and not line:
+        if frappe.db.get_value(EVENT, event, "docstatus") != 0:
+            frappe.throw(_("Only a training not yet held is removed here. Open it to cancel it."))
+        line = frappe.db.get_value(LINE, {"training_event": event, "parenttype": SCHEDULE}, "name")
+        if not line:
+            training.drop_event(event)
+            return None
     doc = _schedule_of(line)
+    target = next(row for row in doc.lines if row.name == line)
+    booked = target.get("training_event")
+    if booked:
+        if frappe.db.get_value(EVENT, booked, "docstatus") != 0:
+            frappe.throw(_("{0} was held: it stays on the schedule.").format(target.course))
+        target.db_set("training_event", None, update_modified=False)
+        training.drop_event(booked)
     rest = [row for row in doc.lines if row.name != line]
     if not rest:
         frappe.delete_doc(SCHEDULE, doc.name)

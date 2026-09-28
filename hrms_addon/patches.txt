@@ -41,3 +41,5 @@ hrms_addon.patches.v1_0.remove_licence_qualification_type
 hrms_addon.patches.v1_0.retire_health_appearance_criteria
 hrms_addon.patches.v1_0.seed_interview_letters
 hrms_addon.patches.v1_0.screen_existing_applicants
+hrms_addon.patches.v1_0.trainings_as_tables
+hrms_addon.patches.v1_0.requisition_topics

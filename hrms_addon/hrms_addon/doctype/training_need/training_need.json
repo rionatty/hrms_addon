@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "topic",
+  "requisition",
   "section",
   "target_group",
   "method",
@@ -13,8 +14,7 @@
   "budget",
   "objectives",
   "trainer",
-  "duration",
-  "requisition"
+  "duration"
  ],
  "fields": [
   {
@@ -24,6 +24,14 @@
    "reqd": 1,
    "in_list_view": 1,
    "columns": 3
+  },
+  {
+   "fieldname": "requisition",
+   "fieldtype": "Link",
+   "label": "Training Requisition",
+   "options": "Training Requisition",
+   "in_list_view": 1,
+   "columns": 2
   },
   {
    "fieldname": "section",
@@ -37,8 +45,6 @@
    "fieldname": "target_group",
    "fieldtype": "Data",
    "label": "Target Group",
-   "in_list_view": 1,
-   "columns": 2,
    "description": "e.g. Machine Operators and Helpers, Kawempe"
   },
   {
@@ -78,17 +84,11 @@
    "fieldname": "duration",
    "fieldtype": "Data",
    "label": "Duration"
-  },
-  {
-   "fieldname": "requisition",
-   "fieldtype": "Link",
-   "label": "Training Requisition",
-   "options": "Training Requisition"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-21 09:00:00.000000",
+ "modified": "2026-09-28 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Training Need",

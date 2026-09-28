@@ -8,23 +8,29 @@ frappe.ui.form.on("Training Needs Assessment", {
 				frappe
 					.xcall("hrms_addon.hrms_addon.training.get_requisitions", { branch: frm.doc.branch, year: frm.doc.year })
 					.then((rows) => {
-						if (!rows.length) {
+						const have = new Set((frm.doc.requisitions || []).map((r) => r.requisition));
+						const fresh = rows.filter((row) => !have.has(row.requisition));
+						if (!fresh.length) {
 							frappe.show_alert({ message: __("No requisitions waiting for assessment."), indicator: "blue" });
 							return;
 						}
-						const have = new Set((frm.doc.requisitions || []).map((r) => r.requisition));
-						for (const row of rows) {
-							if (have.has(row.requisition)) continue;
-							frm.add_child("requisitions", { requisition: row.requisition });
-							frm.add_child("needs", {
-								topic: row.training_topic, section: row.department, method: row.proposed_method,
-								trainer: row.proposed_trainer, budget: row.estimated_budget, duration: row.duration,
-								month: row.preferred_month, target_group: row.target_group, objectives: row.required_skills,
-								requisition: row.requisition,
+						// the blank rows a new assessment opens with go first
+						for (const row of (frm.doc.requisitions || []).filter((r) => !r.requisition)) {
+							frappe.model.clear_doc(row.doctype, row.name);
+						}
+						for (const row of (frm.doc.needs || []).filter((r) => !r.topic)) {
+							frappe.model.clear_doc(row.doctype, row.name);
+						}
+						// each requisition once, each of its topics a need naming it
+						for (const row of fresh) {
+							frm.add_child("requisitions", {
+								requisition: row.requisition, department: row.department, requester_name: row.requester_name,
 							});
+							for (const need of row.needs || []) frm.add_child("needs", need);
 						}
 						frm.refresh_field("requisitions");
 						frm.refresh_field("needs");
+						frm.dirty();
 					})
 			);
 		}

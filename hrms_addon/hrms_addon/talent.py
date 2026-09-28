@@ -321,21 +321,18 @@ def _push_to_ld(program, topics=None):
         return program.training_requisition
     if topics is None:
         topics = [row.action for row in program.get("actions") or []]
-    topic = ", ".join(text for text in topics if text)
-    if not topic:
-        topic = program.get("objectives") or program.program_type
+    topics = [text for text in topics if text] or [program.get("objectives") or program.program_type]
+    method = "Coaching" if program.program_type == "Mentoring and Coaching" else "Internal"
     try:
         requisition = frappe.get_doc({
             "doctype": REQUISITION, "requested_by": frappe.session.user,
             "department": program.get("department"), "branch": program.get("branch"),
             "request_date": today(), "priority": "Medium", "status": "Draft",
-            "training_topic": topic[:140],
+            "topics": [{"topic": text[:140], "required_skills": text, "method": method} for text in topics],
             "justification": _("From talent programme {0} ({1}).").format(
                 program.name, program.program_type),
-            "proposed_method": "Coaching" if program.program_type == "Mentoring and Coaching"
-            else "Internal",
             "target_employees": [{"employee": program.employee,
-                                  "skill_areas": topic[:500]}],
+                                  "skill_areas": ", ".join(topics)[:500]}],
         })
         requisition.flags.ignore_permissions = True
         requisition.flags.ignore_mandatory = True
@@ -656,10 +653,10 @@ def _send_needs_to_ld(doc):
                 "doctype": REQUISITION, "requested_by": frappe.session.user,
                 "department": doc.get("department"), "branch": doc.get("branch"),
                 "request_date": today(), "priority": "High" if doc.get("gap") else "Medium",
-                "status": "Draft", "training_topic": gaps[:140],
+                "status": "Draft",
+                "topics": [{"topic": gaps[:140], "required_skills": gaps, "method": "On the Job"}],
                 "justification": _("Succession for {0}: {1} is {2}.").format(
                     doc.designation, row.get("employee_name") or row.employee, row.readiness),
-                "proposed_method": "On the Job",
                 "target_employees": [{"employee": row.employee, "skill_areas": gaps[:500]}],
             })
             requisition.flags.ignore_permissions = True

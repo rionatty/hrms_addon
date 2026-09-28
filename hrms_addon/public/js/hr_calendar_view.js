@@ -156,6 +156,9 @@ frappe.provide("hrms_addon");
 .hrv-info b { color: var(--hrv-ink); }
 .hrv-facts dt { margin-top: 8px; font-size: 11px; font-weight: 500; color: var(--hrv-muted); }
 .hrv-facts dd { margin: 0; }
+.hrv-people { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; font-size: 12px; }
+.hrv-person { padding: 2px 4px 2px 10px; border-radius: 12px; background: var(--hrv-head); color: var(--hrv-ink); }
+.hrv-person button { border: 0; background: none; padding: 0 4px; color: var(--hrv-muted); cursor: pointer; }
 `;
 
 	function hrv_style() {
@@ -838,6 +841,28 @@ frappe.provide("hrms_addon");
 					label: [item.course, item.target].filter(Boolean).join(" · "),
 				}))
 			);
+			// the participants picked here, each once; booked on the training as it is saved
+			const picked = [];
+			const show_people = () => {
+				const wrapper = dialog.fields_dict.people_list.$wrapper;
+				wrapper.html(
+					picked.length
+						? `<div class="hrv-people">${picked
+								.map(
+									(person) =>
+										`<span class="hrv-person">${esc(person.employee_name)}<button type="button" data-employee="${esc(
+											person.employee
+										)}" title="${esc(__("Remove"))}">&times;</button></span>`
+								)
+								.join("")}</div>`
+						: `<div class="hrv-info">${esc(__("No one picked yet."))}</div>`
+				);
+				wrapper.find("button[data-employee]").on("click", (event) => {
+					const at = picked.findIndex((person) => person.employee === $(event.currentTarget).attr("data-employee"));
+					if (at >= 0) picked.splice(at, 1);
+					show_people();
+				});
+			};
 			const dialog = new frappe.ui.Dialog({
 				title: line ? __("Training") : __("Add Training"),
 				fields: [
@@ -856,6 +881,16 @@ frappe.provide("hrms_addon");
 							dialog.set_value("course", picked.course || "");
 							dialog.set_value("trainer", picked.trainer || "");
 							dialog.set_value("target_group", picked.target || "");
+						},
+					},
+					{
+						fieldtype: "Link",
+						fieldname: "training_program",
+						label: __("Training Program"),
+						options: "Training Program",
+						change: () => {
+							const program = dialog.get_value("training_program");
+							if (program && !dialog.get_value("course")) dialog.set_value("course", program);
 						},
 					},
 					{
@@ -892,11 +927,18 @@ frappe.provide("hrms_addon");
 						label: __("End"),
 						default: (line && line.end_time ? line.end_time : "09:00") + ":00",
 					},
-					{ fieldtype: "Data", fieldname: "venue", label: __("Venue"), default: line ? line.venue || "" : "" },
+					{
+						fieldtype: "Data",
+						fieldname: "venue",
+						label: __("Venue"),
+						reqd: 1,
+						default: line ? line.venue || "" : "",
+					},
 					{
 						fieldtype: "Data",
 						fieldname: "trainer",
 						label: __("Trainer"),
+						reqd: 1,
 						default: line ? line.trainer || "" : entry ? entry.trainer || "" : "",
 					},
 					{
@@ -904,6 +946,24 @@ frappe.provide("hrms_addon");
 						fieldname: "target_group",
 						label: __("Target Group"),
 						default: line ? line.target || "" : entry ? entry.target || "" : "",
+					},
+					{ fieldtype: "Section Break", fieldname: "people_section", label: __("Participants") },
+					{ fieldtype: "HTML", fieldname: "people_list" },
+					{
+						fieldtype: "Button",
+						fieldname: "pick_people",
+						label: __("Select Employees"),
+						click: () =>
+							hrms_addon.pick_employees({
+								department: dialog.get_value("department"),
+								skip: picked.map((person) => person.employee),
+								action: (rows) => {
+									for (const row of rows) {
+										if (!picked.some((person) => person.employee === row.employee)) picked.push(row);
+									}
+									show_people();
+								},
+							}),
 					},
 				],
 				primary_action_label: __("Save"),
@@ -914,10 +974,12 @@ frappe.provide("hrms_addon");
 							line: line ? line.key.slice(5) : null,
 							schedule: line ? null : this.opts.schedule || null,
 							branch: this.filters.branch || null,
+							employees: JSON.stringify(picked.map((person) => person.employee)),
 						}),
 						line ? __("Saved") : __("Training added")
 					).then(() => dialog.hide()),
 			});
+			show_people();
 			if (line) {
 				dialog.set_secondary_action_label(__("Remove"));
 				dialog.set_secondary_action(() =>
@@ -963,6 +1025,17 @@ frappe.provide("hrms_addon");
 					frappe.set_route("Form", block.link[0], block.link[1]);
 				},
 			});
+			// a training booked here and not yet held can be taken off again
+			if (block.key.indexOf("evt:") === 0 && block.move) {
+				dialog.set_secondary_action_label(__("Remove"));
+				dialog.set_secondary_action(() =>
+					frappe.confirm(esc(__("Take {0} off the schedule?", [block.title])), () =>
+						this.change("remove_session", { event: block.key.slice(4) }, __("Removed")).then(() =>
+							dialog.hide()
+						)
+					)
+				);
+			}
 			dialog.show();
 		}
 	};

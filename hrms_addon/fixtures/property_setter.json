@@ -577,5 +577,27 @@
   "value": "1",
   "module": "HRMS Addon",
   "field_name": "designation"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Training Event-trainer_name-hidden",
+  "doc_type": "Training Event",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "trainer_name"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Training Event-trainer_email-hidden",
+  "doc_type": "Training Event",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "trainer_email"
  }
 ]
