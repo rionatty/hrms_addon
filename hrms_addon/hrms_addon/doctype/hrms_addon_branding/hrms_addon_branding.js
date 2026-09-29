@@ -2,11 +2,13 @@
 // For license information, please see license.txt
 //
 // The form's job beyond the fields themselves: say plainly where each
-// value is going to land, and let someone re-push without saving.
+// value is going to land, let someone re-push without saving, and fill the
+// Desk Modules table from the desk's current tiles (desk_modules.py).
 
 frappe.ui.form.on("HRMS Addon Branding", {
 	refresh(frm) {
 		ha_branding_headline(frm);
+		ha_desk_modules_help(frm);
 
 		frm.add_custom_button(__("Apply Now"), () => {
 			frappe.call({
@@ -61,6 +63,70 @@ frappe.ui.form.on("HRMS Addon Branding", {
 		ha_branding_headline(frm);
 	},
 });
+
+// Frappe's desktop shows the modules of a hidden group (an app or a folder)
+// on their own instead of hiding them, which is rarely what unticking the
+// group means: offer to take them off the desk too, and to bring them back.
+frappe.ui.form.on("HRMS Addon Desk Module", {
+	show_on_desk(frm, cdt, cdn) {
+		const group = locals[cdt][cdn];
+		if (!["App", "Folder"].includes(group.icon_type)) return;
+		const members = (frm.doc.desk_modules || []).filter((row) => row.group === group.module);
+		const shown = members.filter((row) => row.show_on_desk);
+		if (!group.show_on_desk && shown.length) {
+			frappe.confirm(
+				__("Hide the {0} modules in {1} too? If not, they show on the desk on their own.", [
+					shown.length,
+					frappe.utils.escape_html(group.module),
+				]),
+				() => ha_set_shown(frm, shown, 0)
+			);
+		} else if (group.show_on_desk && members.length && !shown.length) {
+			frappe.confirm(
+				__("Show the {0} modules in {1} again?", [members.length, frappe.utils.escape_html(group.module)]),
+				() => ha_set_shown(frm, members, 1)
+			);
+		}
+	},
+});
+
+function ha_set_shown(frm, rows, value) {
+	rows.forEach((row) => frappe.model.set_value(row.doctype, row.name, "show_on_desk", value));
+	frm.refresh_field("desk_modules");
+}
+
+function ha_load_desk_modules(frm) {
+	frm.call("refresh_desk_modules").then(() => {
+		frm.dirty();
+		frm.refresh_field("desk_modules");
+		frappe.show_alert({
+			message: __("Module list loaded. Untick what should not show, then save."),
+			indicator: "blue",
+		});
+	});
+}
+
+function ha_desk_modules_help(frm) {
+	const field = frm.get_field("desk_modules_help");
+	if (!field) return;
+	// the rows are the desk's own tiles, loaded from the server: none typed in or deleted
+	frm.set_df_property("desk_modules", "cannot_add_rows", 1);
+	frm.set_df_property("desk_modules", "cannot_delete_rows", 1);
+	frappe
+		.xcall("hrms_addon.hrms_addon.doctype.hrms_addon_branding.hrms_addon_branding.get_desk_modules_status")
+		.then((status) => {
+			const usable = status && status.available;
+			const message = usable
+				? __("Untick a module to hide its tile from everyone's desk, then save.")
+				: (status && status.message) || "";
+			field.$wrapper.html(`
+				<div class="text-muted small" style="margin-bottom: 10px">${frappe.utils.escape_html(message)}</div>
+				${usable ? `<button type="button" class="btn btn-default btn-sm ha-load-modules">${frappe.utils.escape_html(__("Load Desk Modules"))}</button>` : ""}
+			`);
+			field.$wrapper.find(".ha-load-modules").on("click", () => ha_load_desk_modules(frm));
+			frm.set_df_property("desk_modules", "read_only", usable ? 0 : 1);
+		});
+}
 
 // Spell out the destinations. These are Frappe's own fields, and knowing
 // which one is being written is the difference between "it didn't work"

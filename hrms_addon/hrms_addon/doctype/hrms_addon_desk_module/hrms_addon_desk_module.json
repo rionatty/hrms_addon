@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "creation": "2026-09-29 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "module",
+  "group",
+  "icon_type",
+  "show_on_desk",
+  "app"
+ ],
+ "fields": [
+  {
+   "fieldname": "module",
+   "fieldtype": "Data",
+   "label": "Module",
+   "in_list_view": 1,
+   "columns": 4,
+   "read_only": 1
+  },
+  {
+   "fieldname": "group",
+   "fieldtype": "Data",
+   "label": "Group",
+   "description": "The app or folder whose tile holds this module.",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "icon_type",
+   "fieldtype": "Data",
+   "label": "Type",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "show_on_desk",
+   "fieldtype": "Check",
+   "label": "Show on Desk",
+   "default": "1",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "app",
+   "fieldtype": "Data",
+   "label": "App",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-29 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HRMS Addon Desk Module",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

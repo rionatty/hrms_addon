@@ -4,6 +4,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_branding",
   "enabled",
   "intro_html",
   "section_identity",
@@ -19,9 +20,17 @@
   "section_login",
   "login_tagline",
   "column_break_login",
-  "login_image"
+  "login_image",
+  "tab_desk_modules",
+  "desk_modules_help",
+  "desk_modules"
  ],
  "fields": [
+  {
+   "fieldname": "tab_branding",
+   "fieldtype": "Tab Break",
+   "label": "Branding"
+  },
   {
    "default": "0",
    "description": "When on, the values below replace the Website and Navbar settings.",
@@ -112,12 +121,28 @@
    "fieldtype": "Attach Image",
    "label": "Panel Picture",
    "make_attachment_public": 1
+  },
+  {
+   "fieldname": "tab_desk_modules",
+   "fieldtype": "Tab Break",
+   "label": "Desk Modules"
+  },
+  {
+   "fieldname": "desk_modules_help",
+   "fieldtype": "HTML"
+  },
+  {
+   "description": "Hiding a module does not change who can open it.",
+   "fieldname": "desk_modules",
+   "fieldtype": "Table",
+   "label": "Modules on the Desk",
+   "options": "HRMS Addon Desk Module"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-27 09:00:00.000000",
+ "modified": "2026-09-29 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HRMS Addon Branding",

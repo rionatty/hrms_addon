@@ -83,14 +83,17 @@ app_include_css = "hrms_addon.bundle.css"
 #    notifications down the right of the desk (hrms_addon/hrms_addon/alerts.py)
 #  - e_signature.js: the Sign button and the signatures a document already
 #    carries, on every signable form at once (signature_rules.SIGNABLE)
+#  - hrms_addon_desk_modules.js: the tiles taken off the desk, hidden for
+#    users with a desktop layout of their own too (desk_modules.py)
 app_include_js = [
     "/assets/hrms_addon/js/hrms_addon_theme.js",
     "/assets/hrms_addon/js/form_sidebar_toggle.js",
     "/assets/hrms_addon/js/hrms_addon_branding.js",
     "/assets/hrms_addon/js/hrms_addon_alerts.js",
     "/assets/hrms_addon/js/e_signature.js",
-    # "Salary Advance", "Leave Advance" and "Special Advance" by name in the
-    # search bar: each is Frappe HR's Employee Advance with an Advance Type
+    "/assets/hrms_addon/js/hrms_addon_desk_modules.js",
+    # "Salary Advance" (the Salary Advance Request) and "Special Advance" (an
+    # Employee Advance of that type) by name in the search bar
     "/assets/hrms_addon/js/hrms_addon_search.js",
     # the HR calendar's roster, drawn on its page, the Annual Leave Plan and
     # the Monthly Training Schedule (calendar_board.py)
@@ -303,6 +306,9 @@ after_migrate = [
     # editing the route above does nothing on a site that already has the
     # app. See apps_screen.py.
     "hrms_addon.hrms_addon.apps_screen.sync_on_migrate",
+    # The tiles taken off the desk (HRMS Addon Branding > Desk Modules): an
+    # app update can bring one back. See desk_modules.py.
+    "hrms_addon.hrms_addon.desk_modules.apply_on_migrate",
     # Job Requisition approval: roles, permissions, Workflow States and
     # Actions, and the Workflow. Python rather than fixtures because
     # workflow.json would import before the states it links to. See

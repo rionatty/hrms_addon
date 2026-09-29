@@ -4,14 +4,15 @@
 """HRMS Addon Branding (Single).
 
 Thin shell. All the reasoning about where each value lands lives in
-hrms_addon/hrms_addon/branding.py — read that first.
+hrms_addon/hrms_addon/branding.py — read that first. The Desk Modules tab
+(which tiles show on the desk) is desk_modules.py.
 """
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from hrms_addon.hrms_addon import login_rules
+from hrms_addon.hrms_addon import desk_modules, login_rules
 from hrms_addon.hrms_addon.branding import PLACEHOLDER_LOGO, apply_branding
 
 
@@ -44,6 +45,8 @@ class HRMSAddonBranding(Document):
 
     def on_update(self):
         changed = apply_branding()
+        if desk_modules.apply():
+            changed.append("Desktop Icon.hidden")
         if changed:
             frappe.msgprint(
                 _("Branding applied to: {0}").format(", ".join(sorted(set(changed)))),
@@ -51,17 +54,34 @@ class HRMSAddonBranding(Document):
                 alert=True,
             )
 
+    @frappe.whitelist()
+    def refresh_desk_modules(self):
+        """Load Desk Modules: the table brought in line with the desk's
+        current tiles, keeping the choices already made."""
+        frappe.only_for(("System Manager", "Administrator"))
+        desk_modules.refresh_rows(self)
+
 
 @frappe.whitelist()
 def apply_now():
     """Push the values again without saving — the form's Apply button.
 
     Useful after someone has edited Website Settings by hand and wants
-    this screen to win again.
+    this screen to win again, or after an update brought back a tile
+    taken off the desk.
     """
     frappe.only_for(("System Manager", "Administrator"))
     changed = apply_branding(force=True)
+    if desk_modules.apply():
+        changed.append("Desktop Icon.hidden")
     return {"changed": sorted(set(changed))}
+
+
+@frappe.whitelist()
+def get_desk_modules_status():
+    """Whether the Desk Modules tab can be used on this site, and why not."""
+    frappe.only_for(("System Manager", "Administrator"))
+    return desk_modules.status()
 
 
 @frappe.whitelist()
