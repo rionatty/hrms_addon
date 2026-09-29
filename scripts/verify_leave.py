@@ -468,6 +468,24 @@ for fieldname in ("custom_qualifies", "custom_limit", "custom_gross_pay", "custo
                   "custom_recovered_amount", "custom_outstanding", "custom_advance_status"):
     if not (advance.get(fieldname) or {}).get("read_only"):
         fail.append("Employee Advance.%s is worked out, not typed" % fieldname)
+# the plan year is picked from a list, and the totals sit under the table, not beside it
+plan_spec = doctype("Annual Leave Plan")
+year_field = fields_of(plan_spec).get("year") or {}
+if year_field.get("fieldtype") != "Select" or \
+        tuple(int(value) for value in (year_field.get("options") or "").split("\n") if value) != L.PLAN_YEARS:
+    fail.append("the Plan Year is a list of years (leave_rules.PLAN_YEARS): %s" % year_field.get("fieldtype"))
+order = plan_spec.get("field_order") or []
+if not (order.index("employees") < order.index("clashes") < order.index("totals_section")
+        < order.index("total_employees") < order.index("total_days")):
+    fail.append("the plan's table has the width of the form, its totals below it: %s" % order)
+if [f["fieldname"] for f in plan_spec["fields"]] != order:
+    fail.append("the plan's fields are listed in the order they show")
+if L.default_plan_year("2026-09-30") != 2026 or L.default_plan_year("2026-10-01") != 2027:
+    fail.append("a plan is for this year until the last quarter, then for next year")
+if L.plan_years("2026-12-01") != ["2025", "2026", "2027", "2028"] or \
+        L.plan_years("2026-12-01", "2024") != ["2024", "2025", "2026", "2027", "2028"]:
+    fail.append("the Plan Year list shows last year to two ahead, and the plan's own year: %s"
+                % L.plan_years("2026-12-01"))
 print("the paper: the plan and its rows, LPL/HR/15 on their leave form, LPL/HR/21 on their advance")
 
 # ── 4. The glue reads fields that exist ───────────────────────────────
@@ -530,6 +548,29 @@ if "return leave_advances.raise_advance(leave_application)" not in glue_leave:
 for glue, name in ((glue_leave, "leave.py"), (glue_leave_advances, "leave_advances.py")):
     if 'check_permission(' not in glue:
         fail.append("%s: a whitelisted method must check the caller may act" % name)
+# a row fills in as its employee is picked, from what they are allocated or
+# their policy gives them (30, 21...), not only when the plan is saved
+plan_row = glue_leave.split("def plan_row(")[1].split("\ndef ")[0] if "def plan_row(" in glue_leave else ""
+if not re.search(r"@frappe\.whitelist\(\)\ndef plan_row\(", glue_leave) or \
+        'frappe.has_permission(PLAN, "write")' not in plan_row or "_available(employee, cint(year))" not in plan_row:
+    fail.append("leave.plan_row gives a picked employee's row, to those who may draw the plan up")
+plan_script = read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.js")
+for needle, why in (
+    ('frappe.ui.form.on("Annual Leave Plan Employee", {', "the row's own events are handled"),
+    ('HA_LEAVE + "plan_row"', "picking the employee fills the row"),
+    ('HA_LEAVE + "plan_years"', "the Plan Year list is filled from the server"),
+):
+    if needle not in plan_script:
+        fail.append("annual_leave_plan.js: %s (%r not found)" % (why, needle))
+available = glue_leave.split("def _available(")[1].split("\ndef ")[0]
+policy = glue_leave.split("def _policy_days(")[1].split("\ndef ")[0]
+if "if not days or cint(" not in available:
+    fail.append("an allocation that still reads nothing takes the year's days from the policy")
+if '"Leave Management Settings", "default_leave_policy"' not in policy:
+    fail.append("someone with no policy of their own has the default policy's days")
+if 'filters={"docstatus": 1, "year": ["in", _years(' not in glue_leave or '"year": cint(year)' in \
+        read("hrms_addon", "hrms_addon", "calendar_board.py"):
+    fail.append("plans are found by their year as the Plan Year list keeps it")
 print("glue: fields that exist here and upstream, the rules followed, the buttons whitelisted")
 
 # ── 5. The signatures ─────────────────────────────────────────────────

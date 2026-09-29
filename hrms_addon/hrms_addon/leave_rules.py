@@ -91,10 +91,42 @@ ROW_STATUSES = (PLANNED, APPLIED, TAKEN, NOT_APPLIED)
 APPLIED, ON_LEAVE, REPORTED_BACK = "Applied", "On Leave", "Reported Back"
 
 
+# the plan is drawn up at the end of a year for the next: from this month
+# on, a new plan is for next year
+NEXT_YEAR_FROM_MONTH = 10
+# the Plan Year list: the years the form offers (the doctype's own options)
+PLAN_YEARS = tuple(range(2024, 2041))
+
+
 def year_window(year):
     """The plan year: 1 January to 31 December."""
     year = int(year)
     return datetime.date(year, 1, 1), datetime.date(year, 12, 31)
+
+
+def default_plan_year(today):
+    """The year a new plan is for: this one, or next year once the year's
+    last quarter has begun."""
+    today = _plain_date(today)
+    return today.year + 1 if today.month >= NEXT_YEAR_FROM_MONTH else today.year
+
+
+def plan_years(today, have=None):
+    """The years the Plan Year list shows: last year to two years ahead,
+    and the year the plan already has."""
+    year = _plain_date(today).year
+    shown = [number for number in range(year - 1, year + 3) if number in PLAN_YEARS]
+    if have and str(have).isdigit() and int(have) not in shown:
+        shown.append(int(have))
+    return [str(number) for number in sorted(shown)]
+
+
+def _plain_date(value):
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    return datetime.date.fromisoformat(str(value)[:10])
 
 
 def days_between(start, end):

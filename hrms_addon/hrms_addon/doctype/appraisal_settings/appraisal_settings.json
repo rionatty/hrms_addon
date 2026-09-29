@@ -1,0 +1,81 @@
+{
+ "actions": [],
+ "creation": "2026-09-29 18:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "self_section",
+  "self_appraisal",
+  "cycle_section",
+  "kra_evaluation_method"
+ ],
+ "fields": [
+  {
+   "fieldname": "self_section",
+   "fieldtype": "Section Break",
+   "label": "Self-Appraisal"
+  },
+  {
+   "fieldname": "self_appraisal",
+   "fieldtype": "Check",
+   "label": "Employees Appraise Themselves",
+   "default": "1",
+   "description": "The employee rates themselves before the supervisor does."
+  },
+  {
+   "fieldname": "cycle_section",
+   "fieldtype": "Section Break",
+   "label": "Appraisal Cycles"
+  },
+  {
+   "fieldname": "kra_evaluation_method",
+   "fieldtype": "Select",
+   "label": "KRA Evaluation Method",
+   "options": "Automated Based on Goal Progress\nManual Rating",
+   "default": "Automated Based on Goal Progress",
+   "description": "For the cycles an appraisal plan opens."
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-29 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Appraisal Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1,
+ "track_changes": 1
+}

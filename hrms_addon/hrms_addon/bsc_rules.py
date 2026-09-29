@@ -19,9 +19,11 @@ THE FORM
 
   Section A   the KPIs, grouped under the four balanced scorecard
               perspectives, worth 80 of the 100. The weight is set once per
-              PERSPECTIVE, not per KPI, and the four must total 80. Each
-              quarter records the percentage achieved against target; at
-              year end a score out of ten is given instead.
+              PERSPECTIVE, not per KPI, and the four must total 80: the
+              template, like the workbook, writes it on the perspective's
+              first KPI (arrange_kpis). Each quarter records the percentage
+              achieved against target; at year end a score out of ten is
+              given instead.
   Assignments other tasks given during the period, recorded, not scored
   Section B   five competencies with their behavioural indicators, scored
               out of ten, their weights totalling 20
@@ -109,6 +111,8 @@ PERCENT_PERIODS, SCORE_PERIODS = QUARTERS, (ANNUAL,)
 FORM_SUPERVISORY = "Supervisory Skills (LPL/HR/18)"
 FORM_BSC = "Balanced Scorecard"
 FORM_TYPES = (FORM_SUPERVISORY, FORM_BSC)
+# the supervisory form's own limit on objectives (appraisal_rules.MAX_OBJECTIVES)
+MAX_OBJECTIVES = 8
 
 
 def quarter_score(weight, percent):
@@ -199,6 +203,63 @@ def normalise_perspective(text):
     return PERSPECTIVE_ALIASES.get(clean.lower(), clean)
 
 
+def arrange_kpis(rows):
+    """Section A of a template laid out as the workbook lays it out: each
+    perspective's KPIs together, in the order the perspectives first
+    appear, and the perspective's weight on its first KPI.
+
+    A weight typed on another of the perspective's KPIs is added to it, so
+    nothing typed is lost and the total stays what was typed.
+
+    rows: [{"perspective", "kpi", "timing", "weight"}]
+    Returns (rows, perspectives): the rows in order with the weight on each
+    perspective's first KPI only, and [{"perspective", "weight"}], one per
+    perspective, which is what the appraisal is scored on.
+    """
+    order, groups, weights = [], {}, {}
+    for row in rows or []:
+        perspective = row.get("perspective")
+        if perspective not in groups:
+            order.append(perspective)
+            groups[perspective] = []
+            weights[perspective] = None
+        groups[perspective].append(dict(row))
+        weight = _number(row.get("weight"))
+        if weight:
+            weights[perspective] = round((weights[perspective] or 0) + weight, 2)
+    arranged, perspectives = [], []
+    for perspective in order:
+        for index, row in enumerate(groups[perspective]):
+            row["weight"] = weights[perspective] if index == 0 else None
+            arranged.append(row)
+        if perspective:
+            perspectives.append({"perspective": perspective, "weight": weights[perspective] or 0})
+    return arranged, perspectives
+
+
+def supervisory_template_errors(facts):
+    """Problems with a template for the Supervisory Skills form (LPL/HR/18)
+    as it is made ready to use.
+
+    facts: "factors" ([{"factor"}]), "objectives" ([{"objective"}]).
+    """
+    errors = []
+    factors = [row.get("factor") for row in facts.get("factors") or [] if row.get("factor")]
+    if not factors:
+        errors.append("List the ratable factors the form carries (Section A).")
+    twice = sorted({name for name in factors if factors.count(name) > 1})
+    if twice:
+        errors.append("These factors are listed twice: %s." % ", ".join(twice))
+    objectives = [" ".join(str(row.get("objective") or "").split()) for row in facts.get("objectives") or []]
+    objectives = [text for text in objectives if text]
+    if len(objectives) > MAX_OBJECTIVES:
+        errors.append("The form carries at most %d objectives; this template has %d." % (MAX_OBJECTIVES, len(objectives)))
+    twice = sorted({text for text in objectives if objectives.count(text) > 1})
+    if twice:
+        errors.append("These objectives are listed twice: %s." % ", ".join(twice))
+    return errors
+
+
 def template_errors(facts):
     """Problems with a BSC template as it is made ready to use.
 
@@ -243,21 +304,26 @@ def template_errors(facts):
 def appraisal_errors(facts):
     """Problems with a balanced scorecard appraisal at the step it is at.
 
-    facts: "step" ("appraiser"), "period", "perspectives", "competencies".
+    facts: "step" ("self" or "appraiser"), "period", "perspectives",
+    "competencies". The employee's self-appraisal is read from each row's
+    self_score, the appraiser's from the period's own column and the
+    competency's score.
     """
     errors = []
-    if facts.get("step") != "appraiser":
+    step = facts.get("step")
+    if step not in ("self", "appraiser"):
         return errors
     period = facts.get("period") or ANNUAL
     perspectives = facts.get("perspectives") or []
     if not perspectives:
         errors.append("The balanced scorecard has no perspectives: pick the role's template first.")
         return errors
-    field = field_for(period)
+    field = "self_score" if step == "self" else field_for(period)
+    whose = "your own " if step == "self" else ""
     unscored = [str(row.get("perspective")) for row in perspectives if row.get(field) in (None, "")]
     if unscored:
-        errors.append("Record the %s for every perspective: %s."
-                      % ("annual score out of ten" if period == ANNUAL else "%s percentage achieved" % period,
+        errors.append("Record %s%s for every perspective: %s."
+                      % (whose, "annual score out of ten" if period == ANNUAL else "%s percentage achieved" % period,
                          ", ".join(unscored)))
     out_of_range = [str(row.get("perspective")) for row in perspectives
                     if row.get(field) not in (None, "") and not _within(row[field], period)]
@@ -265,10 +331,26 @@ def appraisal_errors(facts):
         errors.append("%s is out of range for %s: %s."
                       % ("The score" if period == ANNUAL else "The percentage", period, ", ".join(out_of_range)))
     competencies = facts.get("competencies") or []
-    unscored = [str(row.get("competency")) for row in competencies if row.get("score") in (None, "")]
+    field = "self_score" if step == "self" else "score"
+    unscored = [str(row.get("competency")) for row in competencies if row.get(field) in (None, "")]
     if unscored:
-        errors.append("Score every competency out of ten: %s." % ", ".join(unscored))
+        errors.append("Score %severy competency out of ten: %s." % ("yourself on " if step == "self" else "",
+                                                                    ", ".join(unscored)))
+    out_of_range = [str(row.get("competency")) for row in competencies
+                    if row.get(field) not in (None, "") and not _within(row[field], ANNUAL)]
+    if out_of_range:
+        errors.append("A competency is scored out of ten: %s." % ", ".join(out_of_range))
     return errors
+
+
+def self_scores(perspectives, competencies, period):
+    """The employee's own Section A, Section B and overall, worked out the
+    way the appraiser's are: {"section_a", "section_b", "overall"}."""
+    own_a = [dict(row, **{field_for(period): row.get("self_score")}) for row in perspectives or []]
+    own_b = [{"weight": row.get("weight"), "score": row.get("self_score")} for row in competencies or []]
+    section_a_total, section_b_total = section_a(own_a, period), section_b(own_b)
+    return {"section_a": section_a_total, "section_b": section_b_total,
+            "overall": overall(section_a_total, section_b_total)}
 
 
 def _within(value, period):
@@ -291,16 +373,20 @@ ROLE_MARK, DEPARTMENT_MARK, GRADE_MARK, PERIOD_MARK = "Role / Position", "Depart
 def parse_sheet(rows):
     """One role's sheet of an LPL PMS workbook, read into a template:
 
-      {"role", "department", "grade", "review_period",
+      {"role", "department", "grade", "review_period", "form_reference",
+       "revision",
        "perspectives": [{"perspective", "weight"}],
-       "kpis": [{"perspective", "kpi", "timing"}],
+       "kpis": [{"perspective", "kpi", "timing", "weight"}],
        "competencies": [{"competency", "indicators", "weight"}]}
 
     rows: the sheet as lists of cell values, the way openpyxl gives them.
     Blank cells and the workbook's own totals are skipped; a KPI marked with
-    the continuation arrow belongs to the perspective above it.
+    the continuation arrow belongs to the perspective above it, and carries
+    no weight of its own. The footer names the form (PROC/002) and its
+    revision (Rev 01).
     """
     found = {"role": None, "department": None, "grade": None, "review_period": None,
+             "form_reference": None, "revision": None,
              "perspectives": [], "kpis": [], "competencies": []}
     section = None
     perspective = None
@@ -312,6 +398,8 @@ def parse_sheet(rows):
                               (GRADE_MARK, "grade"), (PERIOD_MARK, "review_period")):
                 if found[key] is None and cell.rstrip(":").strip() == mark:
                     found[key] = _next_value(cells, index)
+        if found["form_reference"] is None and first.count("|") >= 3:
+            found["form_reference"], found["revision"] = footer_parts(first)
         if first.startswith(WEIGHT_CHECK) or first.startswith(COMPETENCY_CHECK):
             section = None
             continue
@@ -325,13 +413,15 @@ def parse_sheet(rows):
             name, kpi, timing, weight = _at(cells, 1), _at(cells, 2), _at(cells, 3), _at(cells, 4)
             if not kpi or kpi.lower().startswith("kpi"):
                 continue
-            if name and name != CONTINUATION:
+            first_kpi = bool(name and name != CONTINUATION)
+            if first_kpi:
                 perspective = normalise_perspective(name)
                 if weight:
                     found["perspectives"].append({"perspective": perspective, "weight": _number(weight)})
             if perspective:
                 found["kpis"].append({"perspective": perspective, "kpi": kpi,
-                                      "timing": timing if timing in TIMINGS else (timing or None)})
+                                      "timing": timing if timing in TIMINGS else (timing or None),
+                                      "weight": _number(weight) if (first_kpi and weight) else None})
         elif section == "B":
             competency, indicators, weight = _at(cells, 0), _at(cells, 3), _at(cells, 9)
             if not competency or competency.lower() == "competency":
@@ -339,6 +429,20 @@ def parse_sheet(rows):
             found["competencies"].append({"competency": competency, "indicators": indicators or None,
                                           "weight": _number(weight)})
     return found
+
+
+def footer_parts(text):
+    """(form reference, revision) from the workbook's footer, "Luuka Plastics
+    Limited | PMS BSC Appraisal Form FY 2026 | Procurement | PROC/002 |
+    CONFIDENTIAL | Rev 01"; (None, None) when it is not that footer."""
+    parts = [" ".join(part.split()) for part in str(text or "").split("|")]
+    marks = [index for index, part in enumerate(parts) if part.upper() == "CONFIDENTIAL"]
+    if not marks:
+        return None, None
+    index = marks[0]
+    reference = parts[index - 1] if index >= 1 and parts[index - 1] else None
+    revision = parts[index + 1] if index + 1 < len(parts) and parts[index + 1] else None
+    return reference, revision
 
 
 def _at(cells, index):

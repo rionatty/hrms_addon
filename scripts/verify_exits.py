@@ -414,6 +414,13 @@ controller = read("hrms_addon", "hrms_addon", "doctype", "clearance_form", "clea
 for method in ("validate", "on_submit", "on_cancel"):
     if "    def %s(self):\n        exits.clearance_%s(self)" % (method, method) not in controller:
         fail.append("the Clearance Form controller must hand %s to exits.clearance_%s" % (method, method))
+# box A names each tool as it was issued: its brand, serial number and plate
+register = fields_of(doctype("Employee Tool"))
+if not {"brand", "serial_no", "number_plate"} <= set(register):
+    fail.append("the Employee's tools register carries each tool's brand, serial number and number plate")
+if 'fields=["name", "tool", "brand", "serial_no", "number_plate"]' not in glue_exits or \
+        '(tool.get("brand"), tool.get("serial_no"),' not in glue_exits:
+    fail.append("the clearance names the tool the employee holds by its brand, serial number and plate")
 print("glue: fields that exist upstream, the rules followed, the buttons whitelisted")
 
 # ── 5. The signatures ─────────────────────────────────────────────────

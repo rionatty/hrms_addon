@@ -181,6 +181,7 @@ CARDS = {
         # not two: their page never listed it, and this puts it on the page.
         ("Appraisal Setup", [
             ("Appraisal Template", "Appraisal Template", DOCTYPE),
+            ("Appraisal Settings", "Appraisal Settings", DOCTYPE),
             ("BSC Competency", "BSC Competency", DOCTYPE),
             ("Appraisal Factor (LPL/HR/18)", "Appraisal Factor", DOCTYPE),
             ("Employee Feedback Criteria", "Employee Feedback Criteria", DOCTYPE),
@@ -383,6 +384,7 @@ SIDEBAR = {
         # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
         ("Appraisal Factor", "Appraisal Factor", DOCTYPE, "Setup", None),
+        ("Appraisal Settings", "Appraisal Settings", DOCTYPE, "Setup", None),
     ],
     "Loans": [
         ("Employee Loan", "Employee Loan", DOCTYPE, None, None),

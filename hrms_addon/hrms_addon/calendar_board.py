@@ -155,7 +155,7 @@ def _plans(year, drafts=True):
     """The year's plans in view: {name: info}; a plan being drawn up only
     for those who see every plan."""
     return {doc.name: _plan_info(doc) for doc in frappe.get_all(
-        PLAN, filters={"year": cint(year), "docstatus": ["in", [0, 1] if drafts else [1]]},
+        PLAN, filters={"year": str(cint(year)), "docstatus": ["in", [0, 1] if drafts else [1]]},
         fields=["name", "docstatus", "status", "company", "branch", "department"])}
 
 
@@ -224,7 +224,7 @@ def _applications(names, start, end):
 
 def _most_off(year, branch, department):
     """The tightest Most Off at Once of the year's approved plans in view."""
-    filters = {"docstatus": 1, "year": cint(year)}
+    filters = {"docstatus": 1, "year": str(cint(year))}
     if branch:
         filters["branch"] = branch
     if department:
@@ -277,7 +277,7 @@ def save_leave(employee=None, from_date=None, to_date=None, plan_row=None, reaso
             frappe.throw(_("The {0} plan is waiting for approval. It can be changed once it is returned.").format(
                 first.year))
         doc = frappe.get_doc(PLAN, info.name) if info else frappe.get_doc({
-            "doctype": PLAN, "year": first.year, "company": person.company, "branch": person.branch,
+            "doctype": PLAN, "year": str(first.year), "company": person.company, "branch": person.branch,
             "department": person.department, "posting_date": today()})
     _drawing_up_or_throw(doc)
     if first.year != cint(doc.year):
@@ -403,7 +403,7 @@ def apply_leave(employee, from_date, to_date, leave_type=None):
     if last < first:
         frappe.throw(_("The leave ends before it starts."))
     if leave_type == leave_rules.ANNUAL:
-        approved = frappe.get_all(PLAN, filters={"docstatus": 1, "year": first.year}, pluck="name")
+        approved = frappe.get_all(PLAN, filters={"docstatus": 1, "year": str(first.year)}, pluck="name")
         same = frappe.get_all(ROW, filters={"parent": ["in", approved or [""]], "parenttype": PLAN,
                                             "employee": employee, "planned_from": first, "planned_to": last},
                               pluck="name", limit=1)

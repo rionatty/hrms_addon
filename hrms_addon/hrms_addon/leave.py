@@ -48,6 +48,8 @@ HR_ROLES = {"HR User", "HR Manager", "System Manager"}
 
 # ── 1. The Annual Leave Plan ──────────────────────────────────────────
 def plan_validate(doc, method=None):
+    # the year is picked from a list, and kept as the list writes it
+    doc.year = str(cint(doc.get("year")) or rules.default_plan_year(getdate(today())))
     doc.title = _("Leave Plan %s") % (doc.get("year") or "")
     _fill_plan_rows(doc)
     rows = doc.get("employees") or []
@@ -125,7 +127,10 @@ def _available(employee, year):
                                  fields=["new_leaves_allocated", "unused_leaves"])
     if allocations:
         days = flt(sum(flt(row.new_leaves_allocated) for row in allocations))
-        if cint(frappe.db.get_value("Leave Type", rules.ANNUAL, "is_earned_leave")):
+        # an earned type is credited as it is earned, and an allocation made
+        # from a policy can still read nothing, so the year's days (30, 21)
+        # come from the employee's policy then
+        if not days or cint(frappe.db.get_value("Leave Type", rules.ANNUAL, "is_earned_leave")):
             days = _policy_days(employee, start, end) or days
         # unused_leaves is what was brought into the allocation; its
         # carry_forwarded_leaves_count is what it later passed on
@@ -134,23 +139,65 @@ def _available(employee, year):
 
 
 def _policy_days(employee, start, end):
-    """The annual days on the leave policy the employee has in the year,
-    else what their last annual allocation gave them."""
+    """The annual days on the leave policy the employee has in the year: the
+    one assigned to them, else what their last annual allocation gave them,
+    else the default policy in Leave Management Settings, which the yearly
+    allocation gives anyone without one."""
     for assignment in frappe.get_all("Leave Policy Assignment",
                                      filters={"employee": employee, "docstatus": 1, "effective_from": ["<=", end]},
                                      fields=["leave_policy", "effective_to"], order_by="effective_from desc"):
         if assignment.effective_to and getdate(assignment.effective_to) < start:
             continue
-        days = frappe.get_all("Leave Policy Detail",
-                              filters={"parent": assignment.leave_policy, "parenttype": "Leave Policy",
-                                       "leave_type": rules.ANNUAL}, pluck="annual_allocation")
+        days = _annual_days(assignment.leave_policy)
         if days:
-            return flt(days[0])
+            return days
     last = frappe.get_all("Leave Allocation",
                           filters={"employee": employee, "leave_type": rules.ANNUAL, "docstatus": 1,
                                    "to_date": ["<", start]},
-                          fields=["new_leaves_allocated"], order_by="to_date desc", limit=1)
-    return flt(last[0].new_leaves_allocated) if last else 0.0
+                          fields=["new_leaves_allocated", "leave_policy"], order_by="to_date desc", limit=1)
+    if last:
+        days = _annual_days(last[0].get("leave_policy")) or flt(last[0].new_leaves_allocated)
+        if days:
+            return days
+    if frappe.db.exists("DocType", "Leave Management Settings"):
+        return _annual_days(frappe.db.get_single_value("Leave Management Settings", "default_leave_policy")) or 0.0
+    return 0.0
+
+
+def _years(first, last):
+    """Plan years as the Plan Year list keeps them, from `first` to `last`."""
+    return [str(year) for year in range(first, last + 1)]
+
+
+def _annual_days(policy):
+    """The annual leave days a Leave Policy gives; None without one."""
+    if not policy:
+        return None
+    days = frappe.get_all("Leave Policy Detail", filters={"parent": policy, "parenttype": "Leave Policy",
+                                                          "leave_type": rules.ANNUAL}, pluck="annual_allocation")
+    return flt(days[0]) if days else None
+
+
+@frappe.whitelist()
+def plan_row(employee, year):
+    """A row of the plan as the employee is picked: their name, department
+    and what they have available for the year."""
+    if not frappe.has_permission(PLAN, "write"):
+        frappe.throw(_("You may not draw up a leave plan."), frappe.PermissionError)
+    found = frappe.db.get_value("Employee", employee, ["employee_name", "department", "designation"],
+                                as_dict=True) or frappe._dict()
+    entitled, brought = _available(employee, cint(year)) if cint(year) else (0.0, 0.0)
+    return {"employee_name": found.employee_name, "department": found.department, "designation": found.designation,
+            "entitlement_days": entitled, "brought_forward": brought,
+            "available_days": flt(entitled) + flt(brought)}
+
+
+@frappe.whitelist()
+def plan_years(year=None):
+    """The Plan Year list: last year to two years ahead, the plan's own year,
+    and the year a new plan is for."""
+    day = getdate(today())
+    return {"years": rules.plan_years(day, year), "default": str(rules.default_plan_year(day))}
 
 
 def _carried_into(employee, start):
@@ -699,7 +746,8 @@ def _tell_not_applied():
     the HR Officer and the immediate supervisor are told once, in its first
     week."""
     now = getdate(today())
-    plans = frappe.get_all(PLAN, filters={"docstatus": 1, "year": ["in", [now.year - 1, now.year]]}, pluck="name")
+    plans = frappe.get_all(PLAN, filters={"docstatus": 1, "year": ["in", _years(now.year - 1, now.year)]},
+                           pluck="name")
     if not plans:
         return
     for row in frappe.get_all(ROW, filters={"parent": ["in", plans], "parenttype": PLAN,
@@ -727,7 +775,7 @@ def _tell_not_applied():
 def _refresh_plan_statuses():
     """Each planned leave's status, as it stands today."""
     now = getdate(today())
-    plans = frappe.get_all(PLAN, filters={"docstatus": 1, "year": ["in", [now.year - 1, now.year, now.year + 1]]},
+    plans = frappe.get_all(PLAN, filters={"docstatus": 1, "year": ["in", _years(now.year - 1, now.year + 1)]},
                            pluck="name")
     if not plans:
         return

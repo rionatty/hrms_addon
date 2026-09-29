@@ -7,10 +7,12 @@ The rules are in bsc_rules.py, without a Frappe import
 (scripts/verify_performance.py). This reads and writes the site.
 
   template_*   the role's scorecard. It lives on Frappe HR's own Appraisal
-               Template, extended with the perspectives and their weights
-               out of 80, the KPIs under each, and the competencies out of
-               20 — the same way both appraisal forms live on Frappe HR's
-               Appraisal, rather than in a doctype standing beside it
+               Template, laid out as the workbook lays it out: Section A's
+               KPIs under their perspectives with each perspective's weight
+               out of 80 on its first KPI, and the competencies out of 20.
+               The same template carries the supervisory form (LPL/HR/18)
+               instead when its Form Type says so: the ratable factors and
+               the objectives. Every Job Title names its template.
   import_*     Luuka's own PMS workbooks read straight in — one sheet per
                role, ten departments, eighty-four roles — so the scorecards
                are not retyped. A sheet whose weights do not add up is
@@ -32,16 +34,23 @@ from hrms_addon.hrms_addon import bsc_rules as rules
 TEMPLATE = "Appraisal Template"  # Frappe HR's own, carrying Luuka's scorecard
 PERSPECTIVE_MASTER = "KRA Perspective"
 COMPETENCY_MASTER = "BSC Competency"
+# the template the supervisory form's Job Titles share (seed_supervisory_template)
+SUPERVISORY_TEMPLATE = "Supervisory Skills Evaluation (LPL/HR/18)"
 
 
-# ── 1. The role's scorecard ───────────────────────────────────────────
+# ── 1. The role's template ────────────────────────────────────────────
 def template_validate(doc, method=None):
+    doc.custom_form_type = doc.get("custom_form_type") or rules.FORM_BSC
+    if doc.custom_form_type == rules.FORM_SUPERVISORY:
+        _supervisory_template(doc)
+        return
+    _arrange_kpis(doc)
     doc.custom_objectives_weight = sum(flt(row.weight) for row in doc.get("custom_perspectives") or [])
     doc.custom_competencies_weight = sum(flt(row.weight) for row in doc.get("custom_competencies") or [])
     for row in doc.get("custom_competencies") or []:
         if row.competency and not row.indicators:
             row.indicators = frappe.db.get_value(COMPETENCY_MASTER, row.competency, "indicators")
-    if not doc.get("custom_perspectives") and not doc.get("custom_competencies"):
+    if not doc.get("custom_kpis") and not doc.get("custom_competencies"):
         # a plain Frappe HR template, with KRAs on it and no scorecard
         doc.custom_import_remarks = None
         return
@@ -60,6 +69,46 @@ def template_validate(doc, method=None):
                      ("<br><br>" + _("Untick Active to save it as it stands and put the weights right later.")),
                      title=_("Scorecard Template"))
     doc.custom_import_remarks = "; ".join(errors) if errors else None
+
+
+def _arrange_kpis(doc):
+    """Section A as the workbook lays it out: each perspective's KPIs
+    together and its weight on the first of them. The perspectives' own
+    weights, which the appraisal is scored on, follow from the KPIs; they
+    are not typed a second time."""
+    rows = doc.get("custom_kpis") or []
+    arranged, perspectives = rules.arrange_kpis([
+        {"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing, "weight": row.get("weight"),
+         "at": index} for index, row in enumerate(rows)])
+    ordered = []
+    for position, found in enumerate(arranged, 1):
+        row = rows[found["at"]]
+        row.weight = found["weight"]
+        row.idx = position
+        ordered.append(row)
+    doc.set("custom_kpis", ordered)
+    have = [(row.perspective, flt(row.weight)) for row in doc.get("custom_perspectives") or []]
+    if have != [(row["perspective"], flt(row["weight"])) for row in perspectives]:
+        doc.set("custom_perspectives", [{"perspective": row["perspective"], "weight": row["weight"]}
+                                        for row in perspectives])
+
+
+def _supervisory_template(doc):
+    """A template for the Supervisory Skills form (LPL/HR/18): the ratable
+    factors, the twelve on the form unless HR chose otherwise, and the
+    objectives, up to eight; with none listed the appraisal takes the Job
+    Title's Key Result Areas. One such template can serve many Job Titles."""
+    if not doc.get("custom_factors"):
+        factors = frappe.get_all("Appraisal Factor", pluck="name", order_by="creation asc")
+        doc.set("custom_factors", [{"factor": factor} for factor in factors])
+    errors = rules.supervisory_template_errors({
+        "factors": [row.as_dict() for row in doc.get("custom_factors") or []],
+        "objectives": [row.as_dict() for row in doc.get("custom_objectives") or []],
+    })
+    if errors and doc.get("custom_is_active"):
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Appraisal Template"))
+    doc.custom_import_remarks = "; ".join(errors) if errors else None
+    _drop_blank_upstream_rows(doc)
 
 
 def _drop_blank_upstream_rows(doc):
@@ -113,9 +162,12 @@ def fill(doc, template=None):
             continue
         doc.append("custom_bsc_perspectives", {"perspective": row.perspective, "weight": flt(row.weight)})
         added += 1
+    # the KPIs as the template has them now, each keeping its comments
+    said = {(row.perspective, row.kpi): row.get("comments") for row in doc.get("custom_bsc_kpis") or []}
     doc.set("custom_bsc_kpis", [])
     for row in card.custom_kpis:
-        doc.append("custom_bsc_kpis", {"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing})
+        doc.append("custom_bsc_kpis", {"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing,
+                                       "comments": said.get((row.perspective, row.kpi))})
     have = {row.competency for row in doc.get("custom_bsc_competencies") or []}
     for row in card.custom_competencies:
         if row.competency in have:
@@ -150,6 +202,11 @@ def score(doc):
     doc.custom_bsc_overall = overall
     doc.custom_bsc_band = rules.band(overall)
     doc.custom_bsc_band_meaning = rules.BAND_MEANING.get(doc.custom_bsc_band)
+    # the employee's own scores, worked out the same way, where they rate themselves
+    own = rules.self_scores([row.as_dict() for row in perspectives], [row.as_dict() for row in competencies],
+                            period) if doc.get("custom_self_appraisal") else {"overall": None}
+    doc.custom_bsc_self_score = own["overall"]
+    doc.self_score = flt(own["overall"] or 0)
     return {"section_a": section_a, "section_b": section_b, "overall": overall, "band": doc.custom_bsc_band}
 
 
@@ -163,18 +220,11 @@ def facts(doc, step=None):
 
 @frappe.whitelist(methods=["POST"])
 def get_scorecard(appraisal, template=None):
-    """The form's Get Scorecard: fill Section A and B from the role's
-    template. Returns how many rows were added."""
-    doc = frappe.get_doc("Appraisal", appraisal)
-    doc.check_permission("write")
-    name = template or doc.get("appraisal_template") or template_for(employee=doc.employee)
-    if not name:
-        frappe.throw(_("No active scorecard for {0}. Import or draw one up first.").format(
-            frappe.db.get_value("Employee", doc.employee, "designation") or doc.employee))
-    added = fill(doc, name)
-    doc.flags.ignore_permissions = True
-    doc.save()
-    return added
+    """The form's Get from Template, by its older name
+    (appraisals.apply_template)."""
+    from hrms_addon.hrms_addon import appraisals
+
+    return appraisals.apply_template(appraisal, template)
 
 
 # ── 3. Luuka's own workbooks, read straight in ────────────────────────
@@ -218,20 +268,23 @@ def _save_template(found, year, company, file_url, sheet, activate):
         # name it; a title already taken keeps the sheet's own name apart
         doc.template_title = _title(designation, year, sheet)
     doc.update({
-        "custom_designation": designation,
+        "custom_form_type": rules.FORM_BSC, "custom_designation": designation,
         "custom_review_year": year, "custom_grade": found.get("grade"),
         "custom_review_period": found.get("review_period"), "custom_company": company,
         "custom_department": _department(found.get("department")),
+        "custom_form_reference": found.get("form_reference"), "custom_revision": found.get("revision"),
         "custom_source_file": file_url, "custom_source_sheet": sheet,
     })
-    doc.set("custom_perspectives", [])
-    for row in found["perspectives"]:
-        doc.append("custom_perspectives", {"perspective": _perspective(row["perspective"]),
-                                           "weight": flt(row["weight"])})
+    # Section A as the sheet has it: each perspective's weight on its first KPI
+    kpis, perspectives = rules.arrange_kpis([dict(row, perspective=_perspective(row["perspective"]))
+                                             for row in found["kpis"]])
     doc.set("custom_kpis", [])
-    for row in found["kpis"]:
-        doc.append("custom_kpis", {"perspective": _perspective(row["perspective"]), "kpi": row["kpi"],
-                                   "timing": row["timing"] if row["timing"] in rules.TIMINGS else None})
+    for row in kpis:
+        doc.append("custom_kpis", {"perspective": row["perspective"], "kpi": row["kpi"],
+                                   "timing": row["timing"] if row["timing"] in rules.TIMINGS else None,
+                                   "weight": row["weight"]})
+    doc.set("custom_perspectives", [{"perspective": row["perspective"], "weight": flt(row["weight"])}
+                                    for row in perspectives])
     doc.set("custom_competencies", [])
     for row in found["competencies"]:
         doc.append("custom_competencies", {"competency": _competency(row["competency"], row.get("indicators"),
@@ -246,7 +299,21 @@ def _save_template(found, year, company, file_url, sheet, activate):
     doc.custom_is_active = 1 if (activate and not problems) else 0
     doc.flags.ignore_permissions = True
     doc.save()
+    _link_designation(designation, doc.name, year)
     return doc.name, not existing, problems
+
+
+def _link_designation(designation, template, year):
+    """The Job Title names the template it is appraised on: this one, where
+    it names none yet or names a scorecard of an earlier year."""
+    current = frappe.db.get_value("Designation", designation, "appraisal_template")
+    if current and current != template:
+        current_year = frappe.db.get_value(TEMPLATE, current, "custom_review_year") \
+            if frappe.db.exists(TEMPLATE, current) else None
+        if current_year and int(current_year) >= int(year):
+            return
+    if current != template:
+        frappe.db.set_value("Designation", designation, "appraisal_template", template, update_modified=False)
 
 
 def _title(designation, year, sheet):
@@ -263,10 +330,36 @@ def _title(designation, year, sheet):
 
 
 def _designation(role):
+    """The Job Title a sheet is for, made where there is none. Every Job Title
+    must name its Appraisal Template, and this one's is being made now, so
+    it is named as soon as the template is saved (_link_designation)."""
     name = " ".join(str(role or "").split())
     if not frappe.db.exists("Designation", name):
-        frappe.get_doc({"doctype": "Designation", "designation_name": name}).insert(ignore_permissions=True)
+        designation = frappe.get_doc({"doctype": "Designation", "designation_name": name})
+        designation.flags.ignore_mandatory = True
+        designation.insert(ignore_permissions=True)
     return name
+
+
+def seed_supervisory_template():
+    """The template for the Supervisory Skills Evaluation Form (LPL/HR/18),
+    made once with the form's twelve factors, so a supervisor's Job Title
+    has a template to name."""
+    found = frappe.db.get_value(TEMPLATE, {"template_title": SUPERVISORY_TEMPLATE}, "name")
+    if found:
+        return found
+    doc = frappe.new_doc(TEMPLATE)
+    doc.template_title = SUPERVISORY_TEMPLATE
+    doc.custom_form_type = rules.FORM_SUPERVISORY
+    doc.custom_is_active = 1
+    doc.custom_form_reference = "LPL/HR/18"
+    doc.custom_revision = "Rev 01"
+    factors = frappe.get_all("Appraisal Factor", pluck="name", order_by="creation asc")
+    doc.set("custom_factors", [{"factor": factor} for factor in factors])
+    doc.flags.ignore_permissions = True
+    doc.flags.ignore_mandatory = True
+    doc.insert()
+    return doc.name
 
 
 def _department(text):

@@ -28,7 +28,7 @@ def execute(filters=None):
 
 
 def rows_for(year, branch=None, department=None):
-    plans = frappe.get_all("Annual Leave Plan", filters=dict({"docstatus": 1, "year": year},
+    plans = frappe.get_all("Annual Leave Plan", filters=dict({"docstatus": 1, "year": str(year)},
                                                             **({"branch": branch} if branch else {})),
                            pluck="name")
     if not plans:

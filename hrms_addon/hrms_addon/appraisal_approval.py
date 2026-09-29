@@ -14,8 +14,9 @@ signed by different people. The Appraisal's Form Type picks the route, the
 way a Job Requisition's Position Category picks its own:
 
   Supervisory Skills (LPL/HR/18)
-    Draft (the employee assesses themselves)
-      --Submit Self-Assessment--> Pending Supervisor
+    Draft (HR raises it)
+      --Send for Self-Appraisal--> Pending Self-Appraisal
+      --Submit Self-Appraisal--> Pending Supervisor
       --Rate--> Pending HR Manager
       --Approve--> Pending Production Manager
       --Approve--> Pending General Manager
@@ -23,8 +24,9 @@ way a Job Requisition's Position Category picks its own:
 
   Balanced Scorecard (LPL PMS)
     Draft (HR raises it from the role's scorecard)
-      --Submit Self-Assessment--> Pending Supervisor  (the appraiser scores)
-      --Rate--> Pending Employee                      (the employee comments)
+      --Send for Self-Appraisal--> Pending Self-Appraisal
+      --Submit Self-Appraisal--> Pending Supervisor  (the appraiser scores)
+      --Rate--> Pending Employee                    (the employee comments)
       --Approve--> Pending Head of Department
       --Approve--> Pending HR Manager
       --Approve--> Pending Executive Director
@@ -34,9 +36,18 @@ way a Job Requisition's Position Category picks its own:
                                 clears every signature)
   Completed --Cancel--> Cancelled (the HR Manager)
 
+THE SELF-APPRAISAL, ON OR OFF
+
+Whether the employee rates themselves first is Appraisal Settings' to say,
+and each appraisal keeps the answer it was raised with (custom_self_appraisal),
+so changing the setting halfway through a round moves nobody's appraisal.
+With it off, Draft goes straight to the supervisor:
+
+    Draft --Send to Supervisor--> Pending Supervisor
+
 Both routes share Draft, Pending Supervisor, Pending HR Manager, Completed
-and Cancelled, so the two junctions that differ carry a condition on the
-form type and nothing else does.
+and Cancelled, so the junctions that differ carry a condition on the form
+type or on the self-appraisal and nothing else does.
 """
 
 DOCTYPE = "Appraisal"
@@ -52,8 +63,13 @@ FORM_BSC = "Balanced Scorecard"
 FORM_TYPES = (FORM_SUPERVISORY, FORM_BSC)
 IS_BSC = 'doc.custom_form_type == "Balanced Scorecard"'
 NOT_BSC = 'doc.custom_form_type != "Balanced Scorecard"'
+# whether the employee rates themselves first, kept on each appraisal
+SELF_FIELD = "custom_self_appraisal"
+SELF_ON = "doc.custom_self_appraisal"
+SELF_OFF = "not doc.custom_self_appraisal"
 
 DRAFT = "Draft"
+PENDING_SELF = "Pending Self-Appraisal"
 PENDING_SUPERVISOR = "Pending Supervisor"
 PENDING_EMPLOYEE = "Pending Employee"
 PENDING_HOD = "Pending Head of Department"
@@ -64,12 +80,14 @@ PENDING_ED = "Pending Executive Director"
 COMPLETED = "Completed"
 CANCELLED = "Cancelled"
 
-SELF = "Submit Self-Assessment"
+SEND_SELF = "Send for Self-Appraisal"
+SEND_SUPERVISOR = "Send to Supervisor"
+SELF = "Submit Self-Appraisal"
 RATE = "Rate"
 APPROVE = "Approve"
 RETURN = "Return"
 CANCEL = "Cancel"
-ACTIONS = (SELF, RATE, APPROVE, RETURN, CANCEL)
+ACTIONS = (SEND_SELF, SEND_SUPERVISOR, SELF, RATE, APPROVE, RETURN, CANCEL)
 
 PREPARERS = ("HR User", "HR Manager")
 APPRAISEE = "Employee"
@@ -91,17 +109,25 @@ PERMISSIONS = {
     "Employee Performance Feedback": {"HR User": ("read", "write", "create", "submit")},
 }
 
-PENDING_STATES = (PENDING_SUPERVISOR, PENDING_EMPLOYEE, PENDING_HOD, PENDING_HRM, PENDING_PRODUCTION,
+PENDING_STATES = (PENDING_SELF, PENDING_SUPERVISOR, PENDING_EMPLOYEE, PENDING_HOD, PENDING_HRM, PENDING_PRODUCTION,
                   PENDING_GM, PENDING_ED)
-# the states each form actually passes through
+# the states each form passes through when the employee appraises
+# themselves; route() leaves the self-appraisal out when they do not
 ROUTES = {
-    FORM_SUPERVISORY: (DRAFT, PENDING_SUPERVISOR, PENDING_HRM, PENDING_PRODUCTION, PENDING_GM, COMPLETED),
-    FORM_BSC: (DRAFT, PENDING_SUPERVISOR, PENDING_EMPLOYEE, PENDING_HOD, PENDING_HRM, PENDING_ED, COMPLETED),
+    FORM_SUPERVISORY: (DRAFT, PENDING_SELF, PENDING_SUPERVISOR, PENDING_HRM, PENDING_PRODUCTION, PENDING_GM,
+                       COMPLETED),
+    FORM_BSC: (DRAFT, PENDING_SELF, PENDING_SUPERVISOR, PENDING_EMPLOYEE, PENDING_HOD, PENDING_HRM, PENDING_ED,
+               COMPLETED),
 }
+# where a raised appraisal goes first, and the action that sends it there
+OPENING = {True: (SEND_SELF, PENDING_SELF), False: (SEND_SUPERVISOR, PENDING_SUPERVISOR)}
 
 STATES = (
     *({"state": DRAFT, "allow_edit": role, "status": DRAFT, "style": "", "send_email": 0}
-      for role in PREPARERS + (APPRAISEE,)),
+      for role in PREPARERS),
+    # the employee's own ratings; HR may fill them in for someone with no login
+    *({"state": PENDING_SELF, "allow_edit": role, "status": PENDING_SELF, "style": "Warning", "send_email": 1}
+      for role in (APPRAISEE,) + PREPARERS),
     *({"state": PENDING_SUPERVISOR, "allow_edit": role, "status": PENDING_SUPERVISOR, "style": "Warning", "send_email": 1}
       for role in SUPERVISORS),
     {"state": PENDING_EMPLOYEE, "allow_edit": APPRAISEE, "status": PENDING_EMPLOYEE, "style": "Warning", "send_email": 1},
@@ -116,11 +142,16 @@ STATES = (
 )
 
 TRANSITIONS = (
-    # the employee rates themselves first on the supervisory form; on the
-    # scorecard HR opens it for the appraiser. Either way HR may act for
-    # someone with no login.
-    *({"state": DRAFT, "action": SELF, "next_state": PENDING_SUPERVISOR, "allowed": role}
-      for role in PREPARERS + (APPRAISEE,)),
+    # HR sends the appraisal to the employee when they appraise themselves,
+    # else straight to the supervisor
+    *({"state": DRAFT, "action": SEND_SELF, "next_state": PENDING_SELF, "allowed": role, "condition": SELF_ON}
+      for role in PREPARERS),
+    *({"state": DRAFT, "action": SEND_SUPERVISOR, "next_state": PENDING_SUPERVISOR, "allowed": role,
+       "condition": SELF_OFF} for role in PREPARERS),
+    # the employee's self-appraisal; HR may submit it for someone with no login
+    *({"state": PENDING_SELF, "action": SELF, "next_state": PENDING_SUPERVISOR, "allowed": role}
+      for role in (APPRAISEE,) + PREPARERS),
+    *({"state": PENDING_SELF, "action": RETURN, "next_state": DRAFT, "allowed": role} for role in PREPARERS),
     # the junction that differs: the scorecard goes back to the employee
     *({"state": PENDING_SUPERVISOR, "action": RATE, "next_state": PENDING_HRM, "allowed": role,
        "condition": NOT_BSC} for role in SUPERVISORS),
@@ -148,11 +179,11 @@ TRANSITIONS = (
 )
 
 # Who signs as each step is passed: form -> state left -> (by, on).
-# The two forms sign different blocks, so Draft means the employee's own
-# self-assessment on one and HR opening the file on the other.
+# The two forms sign different blocks: the employee signs their own
+# self-appraisal on LPL/HR/18, and the appraiser's scores on the scorecard.
 STAMPS_BY_FORM = {
     FORM_SUPERVISORY: {
-        DRAFT: ("custom_employee_signed_by", "custom_employee_signed_on"),
+        PENDING_SELF: ("custom_employee_signed_by", "custom_employee_signed_on"),
         PENDING_SUPERVISOR: ("custom_supervisor_by", "custom_supervisor_on"),
         PENDING_HRM: ("custom_hrm_by", "custom_hrm_on"),
         PENDING_PRODUCTION: ("custom_production_by", "custom_production_on"),
@@ -173,7 +204,7 @@ ALL_STAMP_FIELDS = tuple(dict.fromkeys(
 # the comment each signatory writes on the form, beside their signature
 REMARK_FIELDS_BY_FORM = {
     FORM_SUPERVISORY: {
-        DRAFT: ("custom_employee_remarks", "Employee"),
+        PENDING_SELF: ("custom_employee_remarks", "Employee"),
         PENDING_SUPERVISOR: ("custom_supervisor_remarks", "Supervisor"),
         PENDING_HRM: ("custom_hrm_remarks", "HR Manager"),
         PENDING_PRODUCTION: ("custom_production_remarks", "Production Manager"),
@@ -192,6 +223,7 @@ ALL_REMARK_FIELDS = tuple(dict.fromkeys(
     pair[0] for remarks in REMARK_FIELDS_BY_FORM.values() for pair in remarks.values()))
 # who is told when the appraisal reaches a state waiting on them
 ROLE_WAITING = {
+    PENDING_SELF: APPRAISEE,
     PENDING_SUPERVISOR: SUPERVISORS[0],
     PENDING_EMPLOYEE: APPRAISEE,
     PENDING_HOD: HOD,
@@ -251,28 +283,38 @@ def step_errors(old_state, new_state, facts):
     return errors
 
 
-def next_states(state, roles, form_type=None):
+def next_states(state, roles, form_type=None, self_appraisal=True):
     """[(action, next state)] the holder of `roles` may take from `state` on
-    this form."""
+    this form, with or without the employee's self-appraisal."""
     roles = set(roles or ())
     is_bsc = (form_type or FORM_SUPERVISORY) == FORM_BSC
     out = []
     for transition in TRANSITIONS:
         if transition["state"] != state or transition["allowed"] not in roles:
             continue
-        condition = transition.get("condition")
-        if condition == IS_BSC and not is_bsc:
-            continue
-        if condition == NOT_BSC and is_bsc:
+        if not holds(transition.get("condition"), is_bsc, self_appraisal):
             continue
         if (transition["action"], transition["next_state"]) not in out:
             out.append((transition["action"], transition["next_state"]))
     return out
 
 
-def route(form_type):
+def holds(condition, is_bsc, self_appraisal):
+    """Whether a transition's condition holds for this form and setting."""
+    return {None: True, "": True, IS_BSC: is_bsc, NOT_BSC: not is_bsc,
+            SELF_ON: bool(self_appraisal), SELF_OFF: not self_appraisal}[condition]
+
+
+def route(form_type, self_appraisal=True):
     """The states this form passes through, in order."""
-    return ROUTES.get(form_type or FORM_SUPERVISORY, ROUTES[FORM_SUPERVISORY])
+    states = ROUTES.get(form_type or FORM_SUPERVISORY, ROUTES[FORM_SUPERVISORY])
+    return states if self_appraisal else tuple(state for state in states if state != PENDING_SELF)
+
+
+def opening(self_appraisal):
+    """(action, state) a raised appraisal is sent on with: to the employee
+    when they appraise themselves, else to the supervisor."""
+    return OPENING[bool(self_appraisal)]
 
 
 def _text(value):

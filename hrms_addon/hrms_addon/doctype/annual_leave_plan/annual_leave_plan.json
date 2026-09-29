@@ -20,6 +20,7 @@
   "employees_section",
   "employees",
   "clashes",
+  "totals_section",
   "total_employees",
   "column_break_2",
   "total_days",
@@ -61,11 +62,12 @@
   },
   {
    "fieldname": "year",
-   "fieldtype": "Int",
+   "fieldtype": "Select",
    "label": "Plan Year",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "options": "2024\n2025\n2026\n2027\n2028\n2029\n2030\n2031\n2032\n2033\n2034\n2035\n2036\n2037\n2038\n2039\n2040"
   },
   {
    "fieldname": "company",
@@ -146,6 +148,10 @@
    "label": "Clashes",
    "read_only": 1,
    "depends_on": "clashes"
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "total_employees",
@@ -255,7 +261,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 11:00:00.000000",
+ "modified": "2026-09-29 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Annual Leave Plan",

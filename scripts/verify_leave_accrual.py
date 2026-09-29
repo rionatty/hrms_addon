@@ -388,8 +388,9 @@ for needle, why in (
 ):
     if needle not in patch:
         fail.append("the patch: %s" % why)
-if "if cint(frappe.db.get_value(\"Leave Type\", rules.ANNUAL, \"is_earned_leave\")):\n            days = _policy_days(" \
-        not in leave_glue or 'fields=["new_leaves_allocated", "unused_leaves"])' not in leave_glue:
+if "if not days or cint(frappe.db.get_value(\"Leave Type\", rules.ANNUAL, \"is_earned_leave\")):\n" \
+        "            days = _policy_days(" not in leave_glue \
+        or 'fields=["new_leaves_allocated", "unused_leaves"])' not in leave_glue:
     fail.append("the leave plan takes the year's days from the policy for earned leave, and what was brought forward "
                 "from unused_leaves")
 if "flt(sum(flt(row.unused_leaves) for row in allocations))" not in leave_glue:

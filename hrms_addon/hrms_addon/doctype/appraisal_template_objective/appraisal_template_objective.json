@@ -1,0 +1,31 @@
+{
+ "actions": [],
+ "creation": "2026-09-29 18:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "objective"
+ ],
+ "fields": [
+  {
+   "fieldname": "objective",
+   "fieldtype": "Small Text",
+   "label": "Objective / KPI",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 10
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-29 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Appraisal Template Objective",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

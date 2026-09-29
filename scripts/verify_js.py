@@ -181,13 +181,43 @@ def doctype_json(name, roots):
     return None
 
 
+def setup_fields(name):
+    """The fields Frappe HR adds to a DocType in code (hrms/setup.py,
+    get_custom_fields), as (fieldname, fieldtype, options)."""
+    if not hasattr(setup_fields, "found"):
+        setup_fields.found = {}
+        path = os.path.join(APPS_ROOT, "hrms", "hrms", "setup.py")
+        if os.path.exists(path):
+            import ast
+
+            tree = ast.parse(open(path, encoding="utf-8").read())
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Dict):
+                    continue
+                for key, value in zip(node.keys, node.values):
+                    if not (isinstance(key, ast.Constant) and isinstance(key.value, str)
+                            and isinstance(value, ast.List)):
+                        continue
+                    for item in value.elts:
+                        if not isinstance(item, ast.Dict):
+                            continue
+                        spec = {k.value: v.value for k, v in zip(item.keys, item.values)
+                                if isinstance(k, ast.Constant) and isinstance(v, ast.Constant)}
+                        if spec.get("fieldname") and spec.get("fieldtype"):
+                            setup_fields.found.setdefault(key.value, []).append(
+                                (spec["fieldname"], spec["fieldtype"], spec.get("options")))
+    return setup_fields.found.get(name, [])
+
+
 def fields_of(name):
     """(fields, {table: child columns}) of a DocType as the site has it: its
-    own JSON, here or upstream, and this app's Custom Fields. None if unknown."""
+    own JSON, here or upstream, the fields Frappe HR adds in code, and this
+    app's Custom Fields. None if unknown."""
     spec = doctype_json(name, [APP]) or doctype_json(name, [os.path.join(APPS_ROOT, app) for app in ("hrms", "erpnext", "frappe")])
     if spec is None:
         return None
     rows = [(f["fieldname"], f["fieldtype"], f.get("options")) for f in spec.get("fields", [])]
+    rows += setup_fields(name)
     rows += [(f["fieldname"], f["fieldtype"], f.get("options")) for f in CUSTOM_FIELDS if f.get("dt") == name]
     tables = {}
     for fieldname, fieldtype, options in rows:

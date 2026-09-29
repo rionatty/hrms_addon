@@ -28,6 +28,9 @@ frappe.ui.form.on("Designation", {
 			"dirty",
 			frappe.utils.debounce(() => ha_show_kra_totals(frm), 300)
 		);
+		// every Job Title names the template its people are appraised on:
+		// one made ready to be used
+		frm.set_query("appraisal_template", () => ({ filters: { custom_is_active: 1 } }));
 	},
 	onload(frm) {
 		frappe

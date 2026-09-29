@@ -268,9 +268,11 @@ def draw_up_clearance(separation):
     for row in rules.default_rows(form.exit_type):
         form.append("items", row)
     for tool in _tools(exit_doc.employee):
+        # what identifies the one issued: its brand, serial number and plate
         form.append("items", {"section": "A", "section_name": rules.SECTION_NAMES["A"],
                               "item": tool.tool, "returned": 0, "tool": tool.tool,
-                              "remarks": tool.serial_no})
+                              "remarks": ", ".join(part for part in (tool.get("brand"), tool.get("serial_no"),
+                                                                     tool.get("number_plate")) if part) or None})
     for code, name, _items in rules.SECTIONS:
         form.append("sections", {"section": code, "section_name": name})
     form.flags.ignore_permissions = True
@@ -288,7 +290,7 @@ def _tools(employee):
                           filters={"parent": employee, "parenttype": "Employee",
                                    "parentfield": "custom_employee_tools",
                                    "returned_on": ["is", "not set"]},
-                          fields=["name", "tool", "serial_no"], limit=100)
+                          fields=["name", "tool", "brand", "serial_no", "number_plate"], limit=100)
 
 
 def _leave_balance(employee):

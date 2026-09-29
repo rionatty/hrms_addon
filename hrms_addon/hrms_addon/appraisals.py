@@ -22,11 +22,15 @@ round keeps all of it and the chart fills up as appraisals are scored.
                due (case 2), and everyone appraising is reminded a week, a
                day and on the day before the hard deadline, and on the soft
                one (the recommendation)
-  open_quarter raises the appraisals for a quarter and tells the supervisor
-               and the employee (case 3)
-  appraisal_*  the form itself: the scores, the signatures (case 4)
-  sheet        the flowchart's other branch: export the sheet, the
-               supervisor fills it away from the system, HR uploads it
+  open_quarter raises the appraisals for a quarter from each employee's
+               Appraisal Template and sends them on: to the employee for
+               their self-appraisal, or straight to the supervisor, as
+               Appraisal Settings say (case 3)
+  appraisal_*  the form itself: the template it is filled from, the
+               scores, the signatures (case 4)
+  sheet        the flowchart's other branch: Luuka's own form downloaded
+               (appraisal_sheet.py), filled in away from the system, and
+               uploaded again
   review_*     the report to top management and the decision (cases 5, 6,
                10); a promotion or an increase raises an Employee Position
                Change (cases 8, 9), a PIP a Performance Improvement Plan
@@ -40,6 +44,7 @@ from frappe.utils import flt, getdate, today
 from hrms_addon.hrms_addon import (
     appraisal_approval as approval,
     appraisal_rules as rules,
+    appraisal_sheet as sheet,
     bsc,
     bsc_rules,
     people,
@@ -49,6 +54,23 @@ from hrms_addon.hrms_addon import (
 )
 
 HOD_ROLE = "Head of Department"
+SETTINGS = "Appraisal Settings"
+TEMPLATE = "Appraisal Template"
+# who writes which comment block, on either form
+REMARKS = {"supervisor": "custom_supervisor_remarks", "employee": "custom_employee_remarks",
+           "hod": "custom_hod_remarks", "hrm": "custom_hrm_remarks", "ed": "custom_ed_remarks",
+           "production": "custom_production_remarks", "gm": "custom_gm_remarks"}
+# the sections a template fills, on either form
+SECTIONS = ("custom_factors", "custom_objectives", "custom_bsc_perspectives", "custom_bsc_kpis",
+            "custom_bsc_competencies")
+
+
+def settings():
+    """Appraisal Settings, with their defaults where nothing is saved yet.
+    Read as stored: Frappe reads a Check never saved as 0, not as its
+    default of 1."""
+    stored = frappe.db.get_singles_dict(SETTINGS) if frappe.db.exists("DocType", SETTINGS) else {}
+    return frappe._dict(rules.settings_values(stored))
 
 
 # ── 1. The annual plan ────────────────────────────────────────────────
@@ -136,7 +158,7 @@ def _cycle_for(plan, row):
         "doctype": "Appraisal Cycle", "cycle_name": name, "company": plan.company,
         "start_date": row.from_date, "end_date": row.to_date, "status": "In Progress",
         "branch": plan.get("branch"), "department": plan.get("department"),
-        "kra_evaluation_method": "Manual Rating",
+        "kra_evaluation_method": settings().kra_evaluation_method,
         "custom_plan": plan.name, "custom_quarter": row.quarter,
         "custom_soft_deadline": row.soft_deadline, "custom_hard_deadline": row.hard_deadline,
     })
@@ -166,31 +188,120 @@ def _employees_for(plan):
 
 
 def _raise_appraisal(plan, row, cycle, employee):
+    """The employee's appraisal for the quarter, filled from their Appraisal
+    Template, then sent on: to them for their self-appraisal, or to their
+    supervisor."""
     appraisal = frappe.get_doc({
         "doctype": "Appraisal", "employee": employee.name, "employee_name": employee.employee_name,
         "appraisal_cycle": cycle.name, "company": plan.company, "department": employee.department,
         "designation": employee.designation, "start_date": row.from_date, "end_date": row.to_date,
-        "rate_goals_manually": 1,
+        "rate_goals_manually": rules.rates_goals_manually(cycle.get("kra_evaluation_method")),
         "custom_plan": plan.name, "custom_quarter": row.quarter, "custom_supervisor": employee.reports_to,
+        "custom_self_appraisal": settings().self_appraisal,
         "custom_appraisal_status": approval.DRAFT, "workflow_state": approval.DRAFT,
     })
-    # the role's scorecard decides which form: a graded role with an active
-    # BSC template is appraised on it, everyone else on LPL/HR/18
-    card = bsc.template_for(designation=employee.get("designation"), year=plan.get("year"))
-    if card:
-        appraisal.custom_form_type = approval.FORM_BSC
-        appraisal.appraisal_template = card
-        appraisal.custom_period = row.quarter if row.quarter in bsc_rules.QUARTERS else bsc_rules.ANNUAL
-        bsc.fill(appraisal, card)
-    else:
-        appraisal.custom_form_type = approval.FORM_SUPERVISORY
-        appraisal.set("custom_factors", [{"item": factor} for factor in _factors()])
-        appraisal.set("custom_objectives", [{"item": objective} for objective in _objectives(employee)])
+    template = template_for(employee.name, employee.get("designation"), cycle.name, plan.get("year"))
+    appraisal.custom_period = row.quarter if row.quarter in bsc_rules.QUARTERS else bsc_rules.ANNUAL
+    _take_template(appraisal, template, employee)
     appraisal.flags.ignore_permissions = True
     appraisal.flags.ignore_mandatory = True
     appraisal.insert()
+    appraisal = _send_on(appraisal)
     _tell_about(appraisal, employee)
     return appraisal
+
+
+def _send_on(appraisal):
+    """A raised appraisal leaves Draft by the workflow's own step (to the
+    employee, or to the supervisor), so it is routed, signed and told like
+    any other."""
+    _action, state = approval.opening(appraisal.get("custom_self_appraisal"))
+    appraisal = frappe.get_doc("Appraisal", appraisal.name)
+    appraisal.workflow_state = state
+    appraisal.flags.ignore_permissions = True
+    appraisal.save()
+    return appraisal
+
+
+# ── The template each appraisal is filled from ────────────────────────
+def template_for(employee, designation=None, cycle=None, year=None):
+    """The Appraisal Template an employee is appraised on: the one the cycle
+    names for them, else their Job Title's (which every Job Title must
+    have), else an active scorecard made for the role."""
+    if cycle:
+        named = frappe.db.get_value("Appraisee", {"parent": cycle, "parenttype": "Appraisal Cycle",
+                                                  "employee": employee}, "appraisal_template")
+        if named and frappe.db.exists(TEMPLATE, named):
+            return named
+    designation = designation or (frappe.db.get_value("Employee", employee, "designation") if employee else None)
+    if designation:
+        assigned = frappe.db.get_value("Designation", designation, "appraisal_template")
+        if assigned and frappe.db.exists(TEMPLATE, assigned):
+            return assigned
+    return bsc.template_for(designation=designation, year=year)
+
+
+def form_of(template):
+    """Which of the two forms a template carries. A scorecard with no KPIs on
+    it cannot be scored, so it counts as the supervisory form."""
+    if not template:
+        return approval.FORM_SUPERVISORY
+    form = frappe.db.get_value(TEMPLATE, template, "custom_form_type")
+    if form == approval.FORM_SUPERVISORY:
+        return form
+    has_kpis = frappe.db.exists("BSC Template KPI", {"parent": template, "parenttype": TEMPLATE})
+    return approval.FORM_BSC if has_kpis else approval.FORM_SUPERVISORY
+
+
+def _take_template(doc, template, employee=None):
+    """The form and its sections from the template. Rows already there are
+    kept, so taking the template again never wipes a rating."""
+    doc.appraisal_template = template or None
+    doc.custom_form_type = form_of(template)
+    if doc.custom_form_type == approval.FORM_BSC:
+        if not doc.get("custom_period"):
+            doc.custom_period = bsc_rules.ANNUAL
+        bsc.fill(doc, template)
+        return
+    card = frappe.get_doc(TEMPLATE, template) if template else None
+    if not doc.get("custom_factors"):
+        factors = [row.factor for row in (card.get("custom_factors") or []) if row.factor] if card else []
+        doc.set("custom_factors", [{"item": factor} for factor in factors or _factors()])
+    if not doc.get("custom_objectives"):
+        objectives = [row.objective for row in (card.get("custom_objectives") or []) if row.objective] \
+            if card else []
+        objectives = rules.objectives_from_kras(objectives) or _objectives(
+            employee or frappe._dict(designation=doc.get("designation")))
+        doc.set("custom_objectives", [{"item": objective} for objective in objectives])
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_template(appraisal, template=None):
+    """The form's Get from Template: the appraisal takes its template again
+    (the one given, else the one it names, else the employee's), and a
+    template of the other form changes the form. Only before the supervisor
+    has rated: after that the form stays as it was rated."""
+    doc = frappe.get_doc("Appraisal", appraisal)
+    doc.check_permission("write")
+    if doc.docstatus != 0 or (doc.get("workflow_state") or approval.DRAFT) not in (approval.DRAFT,
+                                                                                   approval.PENDING_SELF):
+        frappe.throw(_("The template can be taken again only before the supervisor rates the appraisal."))
+    template = template or doc.get("appraisal_template") or template_for(
+        doc.employee, doc.get("designation"), doc.get("appraisal_cycle"),
+        getdate(doc.start_date).year if doc.get("start_date") else None)
+    if not template:
+        frappe.throw(_("{0} has no Appraisal Template: set one on the Job Title.").format(
+            doc.get("designation") or doc.employee))
+    if template != doc.get("appraisal_template") or form_of(template) != doc.get("custom_form_type"):
+        # another template: its own sections, nothing of the last one's
+        for table in SECTIONS:
+            doc.set(table, [])
+    _take_template(doc, template)
+    # taken now, so the save does not take it a second time
+    doc.flags.template_taken = True
+    doc.flags.ignore_permissions = True
+    doc.save()
+    return {"template": doc.appraisal_template, "form_type": doc.custom_form_type}
 
 
 def _factors():
@@ -211,29 +322,28 @@ def _objectives(employee):
 
 
 def _tell_about(appraisal, employee):
-    """The supervisor and the employee are told the appraisal is open."""
-    when = _("{0} {1}").format(appraisal.custom_quarter or "", appraisal.get("custom_plan") or "")
-    supervisor = frappe.db.get_value("Employee", appraisal.custom_supervisor, "user_id") \
-        if appraisal.get("custom_supervisor") else None
-    message = _("Appraisal open for {0} ({1}). Rate them once they have assessed themselves.").format(
-        employee.employee_name or employee.name, when)
-    people.notify([supervisor], "Appraisal", appraisal.name, message)
-    people.assign("Appraisal", appraisal.name, [supervisor], message,
-                  date=appraisal.get("end_date"))
-    if employee.get("user_id"):
-        people.notify([employee.user_id], "Appraisal", appraisal.name,
-                      _("Your appraisal for {0} is open. Complete the self-assessment.").format(when))
+    """While the employee appraises themselves, the supervisor knows it is
+    coming; told when it reaches them (_tell_next), as is the employee."""
+    if not appraisal.get("custom_self_appraisal") or not appraisal.get("custom_supervisor"):
+        return
+    supervisor = frappe.db.get_value("Employee", appraisal.custom_supervisor, "user_id")
+    when = " ".join(part for part in (appraisal.get("custom_quarter"), appraisal.get("custom_plan")) if part)
+    people.notify([supervisor], "Appraisal", appraisal.name,
+                  _("Appraisal open for {0} ({1}): you rate them once they have appraised themselves.").format(
+                      employee.employee_name or employee.name, when))
 
 
 # ── 4. The form ───────────────────────────────────────────────────────
 def appraisal_validate(doc, method=None):
+    if doc.is_new():
+        # each appraisal keeps the setting it was raised with
+        doc.custom_self_appraisal = settings().self_appraisal
     if not doc.get("custom_supervisor") and doc.get("employee"):
         doc.custom_supervisor = frappe.db.get_value("Employee", doc.employee, "reports_to")
-    if not doc.get("custom_form_type"):
-        doc.custom_form_type = approval.FORM_BSC if bsc.template_for(employee=doc.get("employee")) \
-            else approval.FORM_SUPERVISORY
+    doc.custom_supervisor_name = frappe.db.get_value("Employee", doc.custom_supervisor, "employee_name") \
+        if doc.get("custom_supervisor") else None
+    _attach_template(doc)
     if _is_bsc(doc):
-        _attach_scorecard(doc)
         bsc.score(doc)
         _carry_scores(doc, doc.get("custom_bsc_overall"), doc.get("custom_bsc_band"))
     else:
@@ -249,24 +359,41 @@ def _is_bsc(doc):
     return doc.get("custom_form_type") == approval.FORM_BSC
 
 
-def _attach_scorecard(doc):
-    """The role's scorecard, attached and filled in without being asked for.
+def _attach_template(doc):
+    """The employee's Appraisal Template, attached and filled in without
+    being asked for.
 
     Luuka: "these templates will be already attached to the
     employee/designation and will automatically populate the information."
-    The plan already did this when it raised an appraisal; an appraisal made
-    by hand gets it here too. Nothing already scored is touched, and a
-    submitted appraisal is left exactly as it was approved.
+    The plan does this when it raises an appraisal and Frappe HR's cycle
+    names the template when it creates one; an appraisal made by hand gets
+    it here. Nothing already rated is touched, and an appraisal that has
+    left the employee's hands keeps the form it was rated on.
     """
-    if doc.docstatus != 0 or not doc.get("employee"):
+    if doc.docstatus != 0 or not doc.get("employee") or doc.flags.get("template_taken"):
+        return
+    before = doc.get_doc_before_save()
+    started = (before.get(approval.STATE_FIELD) if before else None) not in (None, approval.DRAFT,
+                                                                           approval.PENDING_SELF)
+    if started and doc.get("custom_form_type"):
+        # it is being rated on its template: another one picked now is not taken
+        if before.get("appraisal_template") != doc.get("appraisal_template"):
+            doc.appraisal_template = before.get("appraisal_template")
+            frappe.msgprint(_("The appraisal keeps the template it is being rated on."), indicator="orange",
+                            alert=True)
+        return
+    # HR picked another template: the form is filled from it afresh
+    if before and doc.get("appraisal_template") and before.get("appraisal_template") != doc.appraisal_template:
+        for table in SECTIONS:
+            doc.set(table, [])
+    empty = not (doc.get("custom_bsc_perspectives") or doc.get("custom_factors"))
+    if not empty and doc.get("custom_form_type"):
         return
     if not doc.get("appraisal_template"):
-        year = None
-        if doc.get("start_date"):
-            year = getdate(doc.start_date).year
-        doc.appraisal_template = bsc.template_for(employee=doc.employee, year=year)
-    if doc.get("appraisal_template") and not doc.get("custom_bsc_perspectives"):
-        bsc.fill(doc, doc.appraisal_template)
+        doc.appraisal_template = template_for(
+            doc.employee, doc.get("designation"), doc.get("appraisal_cycle"),
+            getdate(doc.start_date).year if doc.get("start_date") else None)
+    _take_template(doc, doc.get("appraisal_template"))
 
 
 def _carry_scores(doc, total, band):
@@ -288,7 +415,8 @@ def _score(doc):
     doc.custom_total_score = found["total"]
     doc.custom_band = rules.band(found["total"])
     self_found = rules.scores([row.employee_rating for row in doc.get("custom_factors") or []],
-                              [row.employee_rating for row in doc.get("custom_objectives") or []])
+                              [row.employee_rating for row in doc.get("custom_objectives") or []]) \
+        if doc.get("custom_self_appraisal") else {"total": None}
     # Frappe HR's fields, so its chart and its list views read the round
     doc.final_score = flt(found["total"] or 0)
     doc.total_score = flt(found["objectives"] or 0)
@@ -326,18 +454,15 @@ def _check_step(doc):
     form_type = doc.get("custom_form_type")
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, _facts(doc))
-        if new_state != approval.DRAFT and old_state in (None, approval.DRAFT, approval.PENDING_SUPERVISOR):
-            if _is_bsc(doc):
-                # the scorecard is scored by the appraiser, not self-assessed
-                if old_state == approval.PENDING_SUPERVISOR:
-                    errors = bsc_rules.appraisal_errors(bsc.facts(doc, "appraiser")) + errors
-            else:
-                step = {approval.PENDING_SUPERVISOR: "self", approval.PENDING_HRM: "supervisor"}.get(new_state)
-                if step:
-                    errors = rules.appraisal_errors(_facts(doc, step)) + errors
+        forward = new_state != approval.DRAFT
+        if forward and old_state == approval.PENDING_SELF:
+            # the employee's own ratings, on whichever form they are on
+            errors = _rating_errors(doc, "self") + errors
+        if forward and old_state == approval.PENDING_SUPERVISOR:
+            errors = _rating_errors(doc, "supervisor") + errors
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_("Appraisal"))
-        if new_state != approval.DRAFT:
+        if forward:
             doc.custom_return_remarks = None
     current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
     for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(), current,
@@ -347,16 +472,29 @@ def _check_step(doc):
         _tell_next(doc, new_state)
 
 
+def _rating_errors(doc, step):
+    """What the employee (step "self") or the supervisor ("supervisor")
+    must fill in before passing the form on."""
+    if _is_bsc(doc):
+        return bsc_rules.appraisal_errors(bsc.facts(doc, "self" if step == "self" else "appraiser"))
+    return rules.appraisal_errors(_facts(doc, step))
+
+
 def _tell_next(doc, state):
     role = approval.ROLE_WAITING[state]
+    name = doc.get("employee_name") or doc.get("employee")
     if state == approval.PENDING_SUPERVISOR and doc.get("custom_supervisor"):
         users = [frappe.db.get_value("Employee", doc.custom_supervisor, "user_id")]
-    elif state == approval.PENDING_EMPLOYEE:
+    elif state in (approval.PENDING_SELF, approval.PENDING_EMPLOYEE):
         users = [frappe.db.get_value("Employee", doc.employee, "user_id")]
     else:
         users = people.people_for(role, doc.get("custom_branch"), doc.get("department"))
-    message = _("Appraisal of {0}: your rating and signature are needed.").format(
-        doc.get("employee_name") or doc.get("employee"))
+    if state == approval.PENDING_SELF:
+        message = _("Your appraisal is open: rate yourself and submit your self-appraisal.")
+    elif state == approval.PENDING_EMPLOYEE:
+        message = _("Your appraisal has been rated: read it, comment and sign.")
+    else:
+        message = _("Appraisal of {0}: your rating and signature are needed.").format(name)
     people.notify(users, doc.doctype, doc.name, message)
     people.assign(doc.doctype, doc.name, users, message)
 
@@ -366,56 +504,373 @@ def appraisal_on_cancel(doc, method=None):
 
 
 # ── The sheet, for appraising away from the system ────────────────────
-@frappe.whitelist()
-def download_sheet(appraisal_cycle=None, appraisal=None):
-    """The flowchart's other branch: the quarter's appraisals as one sheet
-    the supervisor fills in, then HR uploads."""
-    names = [appraisal] if appraisal else frappe.get_all(
-        "Appraisal", filters={"appraisal_cycle": appraisal_cycle, "docstatus": 0}, pluck="name", order_by="name asc")
-    if not names:
-        frappe.throw(_("No appraisals to export for this cycle."))
-    rows = []
-    for name in names:
-        doc = frappe.get_doc("Appraisal", name)
-        doc.check_permission("read")
-        rows.extend(rules.sheet_rows(doc.name, doc.employee, doc.employee_name,
-                                     [row.as_dict() for row in doc.get("custom_factors") or []],
-                                     [row.as_dict() for row in doc.get("custom_objectives") or []]))
-    from frappe.utils.xlsxutils import build_xlsx_response
+# what an uploaded sheet may still change, by where the appraisal stands:
+# the employee's part until they have submitted it (or, on the scorecard,
+# until they have signed the appraiser's scores), the supervisor's until
+# they have passed the form on
+EMPLOYEE_STATES = (approval.DRAFT, approval.PENDING_SELF)
+SUPERVISOR_STATES = (approval.DRAFT, approval.PENDING_SELF, approval.PENDING_SUPERVISOR)
 
-    build_xlsx_response([list(rules.SHEET_COLUMNS)] + rows, "Appraisal Sheet")
+
+@frappe.whitelist()
+def download_sheet(appraisal_cycle=None, appraisal=None, supervisor=None):
+    """The flowchart's other branch: Luuka's own form, one sheet per
+    appraisal still open, filled in with what the system knows. From a
+    cycle, a supervisor's own people only, when one is named."""
+    if appraisal:
+        names = [appraisal]
+    else:
+        filters = {"appraisal_cycle": appraisal_cycle, "docstatus": 0}
+        if supervisor:
+            filters["custom_supervisor"] = supervisor
+        names = frappe.get_all("Appraisal", filters=filters, pluck="name", order_by="employee_name asc")
+    docs = [frappe.get_doc("Appraisal", name) for name in names]
+    docs = [doc for doc in docs if doc.has_permission("read")]
+    if not docs:
+        frappe.throw(_("No open appraisals to download here."))
+    content = sheet.build([_sheet_data(doc) for doc in docs], logo=_logo(docs[0].company))
+    title = docs[0].employee_name if appraisal else (appraisal_cycle or "Appraisals")
+    frappe.response["type"] = "binary"
+    frappe.response["filecontent"] = content
+    frappe.response["filename"] = "%s %s.xlsx" % (_("Appraisal Sheet"), title)
+
+
+def _sheet_data(doc):
+    """Everything the sheet shows for one appraisal, as appraisal_sheet.build
+    takes it."""
+    template = frappe.get_doc(TEMPLATE, doc.appraisal_template) \
+        if doc.get("appraisal_template") and frappe.db.exists(TEMPLATE, doc.appraisal_template) else None
+    person = frappe.db.get_value("Employee", doc.employee, ["branch", "grade", "designation"], as_dict=True) \
+        or frappe._dict()
+    boss = frappe.db.get_value("Employee", doc.custom_supervisor, ["employee_name", "designation"], as_dict=True) \
+        if doc.get("custom_supervisor") else None
+    year = getdate(doc.start_date).year if doc.get("start_date") else (template.get("custom_review_year")
+                                                                       if template else None)
+    data = {
+        "name": doc.name, "form_type": doc.custom_form_type, "period": doc.get("custom_period"),
+        "self_appraisal": doc.get("custom_self_appraisal"), "company": doc.company, "year": year,
+        "currency": frappe.db.get_value("Company", doc.company, "default_currency") if doc.get("company") else None,
+        "employee_name": doc.employee_name, "designation": doc.get("designation") or person.designation,
+        "department": doc.get("department"), "branch": doc.get("custom_branch") or person.branch,
+        "grade": person.grade or (template.get("custom_grade") if template else None),
+        "supervisor": ", ".join(part for part in (boss.employee_name, boss.designation) if part) if boss else None,
+        "review_period": _review_period(doc, template, year),
+        "form_reference": template.get("custom_form_reference") if template else None,
+        "revision": template.get("custom_revision") if template else None,
+        "remarks": {key: doc.get(field) for key, field in REMARKS.items()},
+        "names": {"supervisor": boss.employee_name if boss else None, "employee": doc.employee_name},
+    }
+    if _is_bsc(doc):
+        data.update(_scorecard_data(doc))
+    else:
+        data.update({
+            "factors": [row.as_dict() for row in doc.get("custom_factors") or []],
+            "objectives": [row.as_dict() for row in doc.get("custom_objectives") or []],
+            "answers": {key: doc.get("custom_%s" % key) for key, _question in rules.QUESTIONS},
+        })
+    return data
+
+
+def _scorecard_data(doc):
+    """Section A with the earlier quarters filled in from the employee's
+    earlier appraisals of the year, and the rest of the scorecard."""
+    earlier = _earlier_quarters(doc)
+    perspectives = []
+    for row in doc.get("custom_bsc_perspectives") or []:
+        values = row.as_dict()
+        for quarter, found in earlier.items():
+            field = "%s_percent" % quarter.lower()
+            if values.get(field) in (None, "") and row.perspective in found["percent"]:
+                values[field] = found["percent"][row.perspective]
+        perspectives.append(values)
+    kpis = []
+    for row in doc.get("custom_bsc_kpis") or []:
+        comments = {quarter: found["comments"].get((row.perspective, row.kpi)) for quarter, found in earlier.items()}
+        if doc.get("custom_period") in bsc_rules.QUARTERS:
+            comments[doc.custom_period] = row.get("comments")
+        kpis.append({"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing, "comments": comments})
+    return {
+        "perspectives": perspectives, "kpis": kpis,
+        "assignments": [row.as_dict() for row in doc.get("custom_assignments") or []],
+        "competencies": [row.as_dict() for row in doc.get("custom_bsc_competencies") or []],
+        "plan": {"continue": doc.get("custom_continue"), "stop": doc.get("custom_stop"),
+                 "start": doc.get("custom_start")},
+        "actions": [row.as_dict() for row in doc.get("custom_development_actions") or []],
+    }
+
+
+def _earlier_quarters(doc):
+    """{quarter: {"percent": {perspective: %}, "comments": {(perspective,
+    kpi): text}}} from the employee's appraisals of the same plan for the
+    quarters before this one."""
+    period = doc.get("custom_period")
+    if not (doc.get("custom_plan") and period in bsc_rules.PERIODS):
+        return {}
+    before = bsc_rules.PERIODS[:bsc_rules.PERIODS.index(period)]
+    found = {}
+    for name, quarter in frappe.get_all("Appraisal", filters={
+            "employee": doc.employee, "custom_plan": doc.custom_plan, "docstatus": ["!=", 2],
+            "custom_period": ["in", list(before)], "name": ["!=", doc.name]},
+            fields=["name", "custom_period"], order_by="modified asc", as_list=True):
+        other = frappe.get_doc("Appraisal", name)
+        field = "%s_percent" % quarter.lower()
+        found[quarter] = {
+            "percent": {row.perspective: row.get(field) for row in other.get("custom_bsc_perspectives") or []
+                        if row.get(field) not in (None, "")},
+            "comments": {(row.perspective, row.kpi): row.get("comments")
+                         for row in other.get("custom_bsc_kpis") or [] if row.get("comments")},
+        }
+    return found
+
+
+def _review_period(doc, template, year):
+    """What the sheet says is being reviewed: the quarter and its months, or
+    the year."""
+    quarter = doc.get("custom_period") if _is_bsc(doc) else doc.get("custom_quarter")
+    if quarter in rules.QUARTERS:
+        if doc.get("start_date") and doc.get("end_date"):
+            return "%s %s (%s to %s)" % (quarter, year or "", getdate(doc.start_date).strftime("%B"),
+                                         getdate(doc.end_date).strftime("%B"))
+        return "%s %s" % (quarter, year or "")
+    if template and template.get("custom_review_period"):
+        return template.custom_review_period
+    return "January to December %s" % (year or "")
+
+
+def _plain(text):
+    """Text compared the way a sheet gives it back: spaces and line breaks
+    count as one space."""
+    return " ".join(str(text or "").split())
+
+
+def _logo(company):
+    """The company's logo for the sheet's header: the company's own, else
+    the site's. None when there is none to read."""
+    urls = [frappe.db.get_value("Company", company, "company_logo") if company else None]
+    if frappe.db.exists("DocType", "HRMS Addon Branding"):
+        urls.append(frappe.db.get_single_value("HRMS Addon Branding", "company_logo"))
+    urls.append(frappe.db.get_single_value("Navbar Settings", "app_logo")
+                if frappe.db.exists("DocType", "Navbar Settings") else None)
+    for url in urls:
+        if not url:
+            continue
+        try:
+            return _file_bytes(url)
+        except Exception:  # noqa: BLE001 - a missing picture never stops the download
+            continue
+    return None
+
+
+def _file_bytes(file_url):
+    """A file's content as it is kept on the site."""
+    if frappe.db.exists("File", {"file_url": file_url}):
+        path = frappe.get_doc("File", {"file_url": file_url}).get_full_path()
+    else:
+        path = frappe.get_site_path("public", str(file_url).lstrip("/"))
+    with open(path, "rb") as handle:
+        return handle.read()
 
 
 @frappe.whitelist(methods=["POST"])
-def upload_sheet(file_url, appraisal_cycle=None):
-    """The filled sheet back in: each appraisal's supervisor ratings and
-    comments are written onto it. Returns how many were updated."""
-    from frappe.utils.xlsxutils import read_xlsx_file_from_attached_file
+def upload_sheet(file_url, appraisal_cycle=None, appraisal=None):
+    """The filled sheet back in: each sheet is written onto its appraisal.
 
-    found = rules.read_sheet(read_xlsx_file_from_attached_file(file_url=file_url))
+    What each appraisal accepts depends on where it stands: the employee's
+    ratings and answers until their self-appraisal is submitted, the
+    supervisor's ratings, comments and plan until the supervisor has passed
+    it on. Returns what was updated and what was not, and why."""
+    found = sheet.read(_file_bytes(file_url))
     if not found:
-        frappe.throw(_("Nothing on that sheet: keep the columns it was downloaded with."))
-    updated = 0
-    for name, sections in found.items():
-        if not frappe.db.exists("Appraisal", name):
+        frappe.throw(_("This is not an appraisal sheet from here: download the sheet again and fill that one in."))
+    updated, skipped, problems = [], [], []
+    for name, values in found.items():
+        where = values.get("sheet") or name
+        reason = _not_taken(name, values, appraisal_cycle, appraisal)
+        if reason:
+            skipped.append({"sheet": where, "appraisal": name, "reason": reason})
             continue
         doc = frappe.get_doc("Appraisal", name)
-        if appraisal_cycle and doc.appraisal_cycle != appraisal_cycle:
+        taken, left = _apply_sheet(doc, values)
+        problems.extend({"sheet": where, "appraisal": name, "problem": text} for text in values.get("problems") or [])
+        problems.extend({"sheet": where, "appraisal": name, "problem": text} for text in left)
+        if not taken:
+            skipped.append({"sheet": where, "appraisal": name, "reason": _("Nothing on the sheet to take.")})
             continue
-        doc.check_permission("write")
-        if doc.docstatus != 0:
-            continue
-        for table, key in (("custom_factors", "A"), ("custom_objectives", "B")):
-            for row in doc.get(table) or []:
-                rating, comment = sections.get(key, {}).get((row.item or "").strip(), (None, None))
-                if rating:
-                    row.supervisor_rating = rating
-                if comment:
-                    row.supervisor_comment = comment
         doc.flags.ignore_permissions = True
         doc.save()
-        updated += 1
-    return updated
+        updated.append({"sheet": where, "appraisal": name, "employee_name": doc.employee_name, "fields": taken})
+    return {"updated": updated, "skipped": skipped, "problems": problems}
+
+
+def _not_taken(name, values, appraisal_cycle=None, appraisal=None):
+    """Why a sheet is not written onto its appraisal; None when it is."""
+    if appraisal and name != appraisal:
+        return _("The sheet is for another appraisal ({0}).").format(name)
+    if not frappe.db.exists("Appraisal", name):
+        return _("No appraisal {0} on the system.").format(name)
+    doc = frappe.db.get_value("Appraisal", name, ["appraisal_cycle", "docstatus", "workflow_state",
+                                                  "custom_form_type", "custom_period"], as_dict=True)
+    if appraisal_cycle and doc.appraisal_cycle != appraisal_cycle:
+        return _("The appraisal belongs to another cycle ({0}).").format(doc.appraisal_cycle)
+    if not frappe.has_permission("Appraisal", "write", name):
+        return _("You may not change this appraisal.")
+    if doc.docstatus != 0:
+        return _("The appraisal is already {0}.").format(_("completed") if doc.docstatus == 1 else _("cancelled"))
+    if (doc.custom_form_type or approval.FORM_SUPERVISORY) != (values.get("form_type") or approval.FORM_SUPERVISORY):
+        return _("The sheet is for the {0} form, the appraisal is on the {1}.").format(
+            values.get("form_type"), doc.custom_form_type)
+    if doc.custom_form_type == approval.FORM_BSC and (values.get("period") or None) != (doc.custom_period or None):
+        return _("The sheet is for {0}, the appraisal for {1}.").format(values.get("period"), doc.custom_period)
+    state = doc.workflow_state or approval.DRAFT
+    if state not in SUPERVISOR_STATES + (approval.PENDING_EMPLOYEE,):
+        return _("The appraisal has moved on to {0}: it is changed on the system from here.").format(_(state))
+    return None
+
+
+def _apply_sheet(doc, values):
+    """Write what the sheet says onto the appraisal, where the appraisal
+    still takes it; a blank cell leaves what the system has. Returns (the
+    parts taken, what could not be taken)."""
+    state = doc.get("workflow_state") or approval.DRAFT
+    employee = state in EMPLOYEE_STATES or (state == approval.PENDING_EMPLOYEE and _is_bsc(doc))
+    supervisor = state in SUPERVISOR_STATES
+    taken, left = [], []
+    remarks = values.get("remarks") or {}
+    if employee and remarks.get("employee") and remarks["employee"] != doc.get("custom_employee_remarks"):
+        doc.custom_employee_remarks = remarks["employee"]
+        taken.append(_("employee's comments"))
+    if supervisor and remarks.get("supervisor") and remarks["supervisor"] != doc.get("custom_supervisor_remarks"):
+        doc.custom_supervisor_remarks = remarks["supervisor"]
+        taken.append(_("supervisor's comments"))
+    others = [key for key in remarks if key not in ("employee", "supervisor")
+              and remarks[key] != doc.get(REMARKS.get(key) or "")]
+    if others:
+        left.append(_("Comments by {0} are written on the system at their own step.").format(
+            ", ".join(_(key.upper() if len(key) <= 3 else key.title()) for key in others)))
+    if _is_bsc(doc):
+        taken += _apply_scorecard(doc, values, employee, supervisor)
+    else:
+        taken += _apply_supervisory(doc, values, employee, supervisor, left)
+    return taken, left
+
+
+def _apply_scorecard(doc, values, employee, supervisor):
+    taken = []
+    if supervisor:
+        field = bsc_rules.field_for(doc.get("custom_period") or bsc_rules.ANNUAL)
+        scores = values.get("scores") or {}
+        changed = 0
+        for row in doc.get("custom_bsc_perspectives") or []:
+            if row.perspective in scores and scores[row.perspective] != row.get(field):
+                row.set(field, scores[row.perspective])
+                changed += 1
+        comments = {(perspective, _plain(kpi)): text for (perspective, kpi), text
+                    in (values.get("comments") or {}).items()}
+        for row in doc.get("custom_bsc_kpis") or []:
+            text = comments.get((row.perspective, _plain(row.kpi)))
+            if text and text != row.get("comments"):
+                row.comments = text
+                changed += 1
+        competencies = values.get("competencies") or {}
+        for row in doc.get("custom_bsc_competencies") or []:
+            if row.competency in competencies and competencies[row.competency] != row.get("score"):
+                row.score = competencies[row.competency]
+                changed += 1
+        if changed:
+            taken.append(_("Section A and B scores"))
+        for table, key, label, fields in (
+                ("custom_assignments", "assignments", _("assignments"),
+                 ("task", "assignment_given", "expected_outcome", "employee_comments", "supervisor_comments")),
+                ("custom_development_actions", "actions", _("development actions"),
+                 ("action", "duration", "by_when", "by_whom", "estimated_cost"))):
+            rows = values.get(key) or []
+            if _table_of(doc, table, fields) != _table_of(None, rows, fields):
+                doc.set(table, rows)
+                taken.append(label)
+        plan = values.get("plan") or {}
+        if any(plan.get(key) and plan[key] != doc.get("custom_%s" % key) for key in ("continue", "stop", "start")):
+            for key in ("continue", "stop", "start"):
+                if plan.get(key):
+                    doc.set("custom_%s" % key, plan[key])
+            taken.append(_("development plan"))
+    elif employee:
+        # the employee comments on their assignments at their own step
+        found = values.get("assignments") or []
+        changed = 0
+        for index, row in enumerate(doc.get("custom_assignments") or []):
+            match = next((one for one in found if _plain(one.get("task")) == _plain(row.get("task"))), None) \
+                or (found[index] if index < len(found) else None)
+            if match and match.get("employee_comments") and match["employee_comments"] != row.get("employee_comments"):
+                row.employee_comments = match["employee_comments"]
+                changed += 1
+        if changed:
+            taken.append(_("assignments"))
+    return taken
+
+
+def _table_of(doc, rows, fields):
+    """A table's rows as plain values, to see whether a sheet changes it:
+    the document's table when `doc` is given, else the sheet's rows."""
+    rows = (doc.get(rows) or []) if doc is not None else rows
+
+    def plain(value):
+        if isinstance(value, (int, float)):
+            return "%g" % value if value else ""
+        return _plain(value)
+
+    return [tuple(plain(row.get(field)) for field in fields) for row in rows]
+
+
+def _apply_supervisory(doc, values, employee, supervisor, left):
+    taken = []
+    for table, key, label in (("custom_factors", "factors", _("factors")),
+                              ("custom_objectives", "objectives", _("objectives"))):
+        rows = {_plain(row.item): row for row in doc.get(table) or []}
+        changed = 0
+        for found in values.get(key) or []:
+            row = rows.get(_plain(found["item"]))
+            if row is None:
+                if key == "objectives" and supervisor and len(doc.get(table) or []) < rules.MAX_OBJECTIVES:
+                    row = doc.append(table, {"item": found["item"]})
+                    rows[_plain(found["item"])] = row
+                    changed += 1
+                else:
+                    left.append(_("{0} is not on the appraisal and was not added.").format(found["item"]))
+                    continue
+            if employee and found.get("employee_rating") and found["employee_rating"] != row.get("employee_rating"):
+                row.employee_rating = found["employee_rating"]
+                changed += 1
+            if supervisor and found.get("supervisor_rating") and \
+                    found["supervisor_rating"] != row.get("supervisor_rating"):
+                row.supervisor_rating = found["supervisor_rating"]
+                changed += 1
+            if supervisor and found.get("supervisor_comment") and \
+                    found["supervisor_comment"] != row.get("supervisor_comment"):
+                row.supervisor_comment = found["supervisor_comment"]
+                changed += 1
+        if changed:
+            taken.append(label)
+    if employee:
+        answers = values.get("answers") or {}
+        for key, _question in rules.QUESTIONS:
+            if answers.get(key) and answers[key] != doc.get("custom_%s" % key):
+                doc.set("custom_%s" % key, answers[key])
+                if _("answers") not in taken:
+                    taken.append(_("answers"))
+    return taken
+
+
+@frappe.whitelist(methods=["POST"])
+def send_drafts(appraisal_cycle):
+    """The cycle's Send Drafts On: every appraisal still in Draft goes on as
+    the plan's would, to the employee or to the supervisor. Returns how many."""
+    frappe.only_for(approval.PREPARERS)
+    sent = 0
+    for name in frappe.get_all("Appraisal", filters={"appraisal_cycle": appraisal_cycle, "docstatus": 0,
+                                                     "workflow_state": approval.DRAFT}, pluck="name"):
+        _send_on(frappe.get_doc("Appraisal", name))
+        sent += 1
+    return sent
 
 
 # ── 5, 6, 10. The report and the decision ─────────────────────────────
@@ -569,9 +1024,12 @@ def _remind_of_deadlines(day):
         if not due:
             continue
         waiting = frappe.get_all("Appraisal", filters={"appraisal_cycle": cycle.name, "docstatus": 0},
-                                 fields=["name", "custom_supervisor"])
+                                 fields=["name", "custom_supervisor", "employee", "workflow_state"])
         users = {frappe.db.get_value("Employee", row.custom_supervisor, "user_id")
                  for row in waiting if row.custom_supervisor}
+        # and whoever has still to appraise themselves
+        users |= {frappe.db.get_value("Employee", row.employee, "user_id")
+                  for row in waiting if row.workflow_state == approval.PENDING_SELF}
         users |= set(people.hr_officers(cycle.get("branch"), cycle.get("department")))
         message = _("{0} appraisals are due by {1}: {2} still to be completed.").format(
             cycle.cycle_name, frappe.utils.format_date(cycle.custom_hard_deadline), len(waiting))

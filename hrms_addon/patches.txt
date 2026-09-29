@@ -45,3 +45,4 @@ hrms_addon.patches.v1_0.trainings_as_tables
 hrms_addon.patches.v1_0.requisition_topics
 hrms_addon.patches.v1_0.leave_accrual_and_advance
 hrms_addon.patches.v1_0.allowance_request
+hrms_addon.patches.v1_0.appraisal_templates_and_self_appraisal

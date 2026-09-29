@@ -360,8 +360,26 @@ statuses = next((f.get("options") or "") for f in tool_json["fields"] if f["fiel
 if [o for o in statuses if o] != list(R.TOOL_STATUSES):
     fail.append("Onboarding Tool status options must be exactly onboarding_rules.TOOL_STATUSES: %s" % statuses)
 for f in tool_json["fields"]:
-    if f["fieldname"] in ("status", "serial_no", "issued_on", "remarks", "qty") and not f.get("allow_on_submit"):
+    if f["fieldname"] in ("status", "brand", "serial_no", "number_plate", "issued_on", "remarks", "qty") \
+            and not f.get("allow_on_submit"):
         fail.append("Onboarding Tool.%s is filled after the onboarding starts: it must be allow_on_submit" % f["fieldname"])
+# what identifies the one issued: its brand, serial number and number plate,
+# on the onboarding's rows and on the Employee's register they are copied to
+register_json = json.load(open(os.path.join(APP, "doctype", "employee_tool", "employee_tool.json"), encoding="utf-8"))
+for spec_json, name in ((tool_json, "Onboarding Tool"), (register_json, "Employee Tool")):
+    labels = {f["fieldname"]: f.get("label") for f in spec_json["fields"]}
+    if (labels.get("brand"), labels.get("serial_no"), labels.get("number_plate")) != ("Brand", "Serial Number",
+                                                                                       "Number Plate"):
+        fail.append("%s carries Brand, Serial Number and Number Plate: %s" % (name, labels))
+    shown = [f["fieldname"] for f in spec_json["fields"] if f.get("in_list_view")]
+    if not {"brand", "serial_no", "number_plate"} <= set(shown):
+        fail.append("%s shows the brand, serial number and plate in its grid: %s" % (name, shown))
+    if sum(f.get("columns") or 0 for f in spec_json["fields"] if f.get("in_list_view")) > 10:
+        fail.append("%s's grid asks for more than the ten columns Frappe shows" % name)
+copied = read("hrms_addon", "hrms_addon", "onboarding.py").split("def _update_employee(")[1].split("\ndef ")[0]
+for needle in ('"brand": row.get("brand")', '"serial_no": row.serial_no', '"number_plate": row.get("number_plate")'):
+    if needle not in copied:
+        fail.append("the tools issued reach the Employee's register with what identifies them (%r not found)" % needle)
 print("tools of work and training: defaults, one request per provider, what is pending, the training window")
 
 # ── 3b. What still stops the Employee ────────────────────────────────

@@ -599,5 +599,16 @@
   "value": "1",
   "module": "HRMS Addon",
   "field_name": "trainer_email"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Designation-appraisal_template-reqd",
+  "doc_type": "Designation",
+  "doctype_or_field": "DocField",
+  "field_name": "appraisal_template",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
  }
 ]

@@ -104,14 +104,20 @@ PIP_BELOW = 60
 # a decision that is carried out by an Employee Position Change
 POSITION_CHANGE_FOR = {PROMOTION: "Promotion", INCREASE: "Salary Increment"}
 
-STATUSES = ("Draft", "Pending Supervisor", "Pending HR Manager", "Pending Production Manager",
-            "Pending General Manager", "Completed", "Cancelled")
+# every state of both forms' routes (appraisal_approval.py), which the
+# workflow writes into the Appraisal Status
+STATUSES = ("Draft", "Pending Self-Appraisal", "Pending Supervisor", "Pending Employee", "Pending Head of Department",
+            "Pending HR Manager", "Pending Production Manager", "Pending General Manager",
+            "Pending Executive Director", "Completed", "Cancelled")
 CYCLE_STATUSES = ("Not Started", "In Progress", "Completed")
 
-# the columns of the sheet the supervisor fills away from the system
-SHEET_COLUMNS = ("Appraisal", "Employee", "Employee Name", "Section", "No.", "Item",
-                 "Employee Rating", "Supervisor Rating", "Supervisor Comment")
-SECTION_A, SECTION_B = "A. Ratable Factors", "B. Objectives / KPIs"
+# Frappe HR's two ways of scoring the KRAs on an Appraisal Cycle; the
+# cycles a plan opens follow Appraisal Settings, which default to the first
+KRA_AUTOMATED = "Automated Based on Goal Progress"
+KRA_MANUAL = "Manual Rating"
+KRA_METHODS = (KRA_AUTOMATED, KRA_MANUAL)
+# Appraisal Settings, as they stand before anyone has saved them
+SETTINGS_DEFAULTS = {"self_appraisal": 1, "kra_evaluation_method": KRA_AUTOMATED}
 
 
 def section_percent(ratings):
@@ -313,42 +319,38 @@ def record_reminders(sent, reached):
     return ", ".join(sorted(done, key=lambda n: (n == "soft", -int(n) if n.isdigit() else 0)))
 
 
-def sheet_rows(appraisal, employee, employee_name, factors, objectives):
-    """The sheet the supervisor fills away from the system, one row per item
-    (the flowchart's export/fill/upload branch)."""
-    rows = []
-    for index, row in enumerate(factors, 1):
-        rows.append([appraisal, employee, employee_name, SECTION_A, index, row.get("item"),
-                     row.get("employee_rating"), row.get("supervisor_rating"), row.get("supervisor_comment")])
-    for index, row in enumerate(objectives, 1):
-        rows.append([appraisal, employee, employee_name, SECTION_B, index, row.get("item"),
-                     row.get("employee_rating"), row.get("supervisor_rating"), row.get("supervisor_comment")])
-    return rows
+def settings_values(stored):
+    """Appraisal Settings with the defaults filled in where nothing is saved:
+    a Check that was never saved reads as None, not as its default."""
+    values = dict(SETTINGS_DEFAULTS)
+    for key, value in (stored or {}).items():
+        if key in values and value not in (None, ""):
+            values[key] = value
+    if values["kra_evaluation_method"] not in KRA_METHODS:
+        values["kra_evaluation_method"] = KRA_AUTOMATED
+    values["self_appraisal"] = 0 if str(values["self_appraisal"]).strip() in ("0", "False", "false") else 1
+    return values
 
 
-def read_sheet(rows):
-    """What an uploaded sheet says, keyed by appraisal:
-    {appraisal: {"A": {item: (rating, comment)}, "B": {...}}}.
+def rates_goals_manually(method):
+    """Frappe HR's rate_goals_manually for an appraisal in a cycle scored this
+    way: only a cycle rated by hand rates its goals by hand."""
+    return 1 if method == KRA_MANUAL else 0
 
-    The header row is skipped, blank rows ignored, and a rating that is not
-    on the scale is left out rather than guessed at.
-    """
-    found = {}
-    for row in rows or []:
-        cells = list(row) + [None] * (len(SHEET_COLUMNS) - len(row))
-        name, _employee, _employee_name, section, _no, item, _self, supervisor, comment = cells[:9]
-        if not name or str(name).strip() == SHEET_COLUMNS[0]:
-            continue
-        if section not in (SECTION_A, SECTION_B):
-            continue
-        rating = str(supervisor).strip() if supervisor not in (None, "") else None
-        if rating and rating.endswith(".0"):
-            rating = rating[:-2]
-        if rating not in RATINGS:
-            rating = None
-        key = "A" if section == SECTION_A else "B"
-        found.setdefault(str(name).strip(), {"A": {}, "B": {}})[key][str(item).strip()] = (rating, comment)
-    return found
+
+def rating(value):
+    """A rating as the form keeps it ("1" to "5" or "N/A"), from whatever a
+    sheet holds (5, 5.0, "5", " n/a "); None when it is not on the scale."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    text = str(value).strip()
+    if text.endswith(".0"):
+        text = text[:-2]
+    if text.upper() == NOT_APPLICABLE.upper():
+        return NOT_APPLICABLE
+    return text if text in RATINGS else None
 
 
 def objectives_from_kras(kras, limit=MAX_OBJECTIVES):

@@ -400,7 +400,8 @@ def _update_employee(doc, probation_end):
     for row in doc.get("custom_tools") or []:
         if row.status == rules.TOOL_ISSUED and (row.tool, doc.name) not in have:
             employee.append("custom_employee_tools", {
-                "tool": row.tool, "qty": row.qty, "serial_no": row.serial_no, "issued_on": row.issued_on,
+                "tool": row.tool, "qty": row.qty, "brand": row.get("brand"), "serial_no": row.serial_no,
+                "number_plate": row.get("number_plate"), "issued_on": row.issued_on,
                 "onboarding": doc.name, "remarks": row.remarks,
             })
     if not employee.get("custom_probation_end_date"):

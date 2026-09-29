@@ -5,6 +5,14 @@ const HA_LEAVE = "hrms_addon.hrms_addon.leave.";
 const HA_PLAN_HR = ["HR User", "HR Manager", "System Manager"];
 
 frappe.ui.form.on("Annual Leave Plan", {
+	// the Plan Year list: last year to two years ahead, and the plan's own
+	onload(frm) {
+		frappe.xcall(HA_LEAVE + "plan_years", { year: frm.doc.year || "" }).then((found) => {
+			frm.set_df_property("year", "options", [""].concat(found.years));
+			if (frm.is_new() && !frm.doc.year) frm.set_value("year", found.default);
+			frm.refresh_field("year");
+		});
+	},
 	refresh(frm) {
 		const hr = frappe.user.has_role(HA_PLAN_HR);
 		const drawing_up = frm.doc.docstatus === 0 && ["Draft", undefined, null, ""].includes(frm.doc.workflow_state);
@@ -97,8 +105,32 @@ frappe.ui.form.on("Annual Leave Plan", {
 		if (frm.doc.year && !frm.doc.posting_date) {
 			frm.set_value("posting_date", frappe.datetime.get_today());
 		}
+		// what each has available is the new year's
+		(frm.doc.employees || []).filter((row) => row.employee).forEach((row) => ha_fill_row(frm, row));
 	},
 });
+
+// A row filled in as the employee is picked: their name and department, and
+// what they have for the year (their allocation, else their leave policy,
+// with what they bring forward)
+frappe.ui.form.on("Annual Leave Plan Employee", {
+	employee(frm, cdt, cdn) {
+		ha_fill_row(frm, locals[cdt][cdn]);
+	},
+});
+
+function ha_fill_row(frm, row) {
+	if (!row.employee || !frm.doc.year || frm.doc.docstatus !== 0) return;
+	frappe
+		.xcall(HA_LEAVE + "plan_row", { employee: row.employee, year: frm.doc.year })
+		.then((found) => {
+			for (const field of ["employee_name", "department", "designation", "entitlement_days",
+				"brought_forward", "available_days"]) {
+				frappe.model.set_value(row.doctype, row.name, field, found[field]);
+			}
+			frm.trigger("show_totals");
+		});
+}
 
 // this month when the plan is this year's, else the first planned month
 function ha_plan_month(frm) {

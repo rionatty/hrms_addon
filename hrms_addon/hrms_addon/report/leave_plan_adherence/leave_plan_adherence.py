@@ -16,7 +16,7 @@ from hrms_addon.hrms_addon import leave_accrual, leave_rules as rules
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     year = cint(filters.get("year")) or getdate().year
-    plans = frappe.get_all("Annual Leave Plan", filters=dict({"docstatus": 1, "year": year},
+    plans = frappe.get_all("Annual Leave Plan", filters=dict({"docstatus": 1, "year": str(year)},
                                                             **({"branch": filters.branch} if filters.get("branch")
                                                                else {})),
                            pluck="name")

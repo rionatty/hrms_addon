@@ -226,45 +226,81 @@ if R.reminders_due("2026-04-30", "2026-04-29", None) != ["1"]:
 if "7" not in R.record_reminders(None, ["1"]) or "1" not in R.record_reminders(None, ["1"]):
     fail.append("recording the nearest threshold marks the ones already passed")
 
-rows = R.sheet_rows("HR-APR-0001", "HR-EMP-1", "John", [{"item": "Job performance", "employee_rating": "4"}],
-                    [{"item": "Output", "employee_rating": "3"}])
-if len(rows) != 2 or rows[0][3] != R.SECTION_A or rows[1][3] != R.SECTION_B:
-    fail.append("the sheet carries Section A then Section B, one row per item: %s" % rows)
-if len(rows[0]) != len(R.SHEET_COLUMNS):
-    fail.append("every sheet row must have a cell for each column")
-back = R.read_sheet([list(R.SHEET_COLUMNS),
-                     ["HR-APR-0001", "HR-EMP-1", "John", R.SECTION_A, 1, "Job performance", "4", "5", "Strong"],
-                     ["HR-APR-0001", "HR-EMP-1", "John", R.SECTION_B, 1, "Output", "3", 4.0, ""],
-                     ["HR-APR-0001", "HR-EMP-1", "John", R.SECTION_B, 2, "Waste", "3", "rubbish", ""],
-                     [None, None, None, None, None, None, None, None, None]])
-if back.get("HR-APR-0001", {}).get("A", {}).get("Job performance") != ("5", "Strong"):
-    fail.append("the sheet read back must carry the supervisor's rating and comment: %s" % back)
-if back.get("HR-APR-0001", {}).get("B", {}).get("Output", (None,))[0] != "4":
-    fail.append("a rating that came back as a number is read as the scale's: %s" % back)
-if back.get("HR-APR-0001", {}).get("B", {}).get("Waste", (None,))[0] is not None:
-    fail.append("a rating that is not on the scale is left out, not guessed at: %s" % back)
-if R.read_sheet([]) != {}:
-    fail.append("an empty sheet says nothing")
-print("rules: the form's sections and scale, the bands, the quarters and deadlines, the year, the sheet")
+for given, wanted in (("5", "5"), (5, "5"), (5.0, "5"), (" n/a ", R.NOT_APPLICABLE), ("7", None), ("", None),
+                      (None, None), ("rubbish", None), (4.5, None)):
+    if R.rating(given) != wanted:
+        fail.append("a rating read from a sheet: %r must be %r, not %r" % (given, wanted, R.rating(given)))
+# Appraisal Settings: a Check never saved reads as nothing, not as off
+if R.settings_values({}) != {"self_appraisal": 1, "kra_evaluation_method": R.KRA_AUTOMATED}:
+    fail.append("unsaved Appraisal Settings are the defaults: employees appraise themselves, KRAs scored "
+                "automatically: %s" % R.settings_values({}))
+if R.settings_values({"self_appraisal": "0"})["self_appraisal"] != 0 or \
+        R.settings_values({"self_appraisal": None})["self_appraisal"] != 1:
+    fail.append("the self-appraisal is off only when saved off")
+if R.settings_values({"kra_evaluation_method": "Something else"})["kra_evaluation_method"] != R.KRA_AUTOMATED:
+    fail.append("a method Frappe HR does not have falls back to the automated one")
+if R.SETTINGS_DEFAULTS["kra_evaluation_method"] != "Automated Based on Goal Progress":
+    fail.append("the KRA evaluation method defaults to Automated Based on Goal Progress")
+if (R.rates_goals_manually(R.KRA_MANUAL), R.rates_goals_manually(R.KRA_AUTOMATED)) != (1, 0):
+    fail.append("an appraisal rates its goals by hand only in a cycle rated by hand")
+print("rules: the form's sections and scale, the bands, the quarters and deadlines, the year, the settings")
 
 # ── 2. The signatures ─────────────────────────────────────────────────
 if A.DOCTYPE != "Appraisal":
     fail.append("the workflow runs on Frappe HR's Appraisal, so the round keeps its cycle and its chart")
 if A.STATUS_FIELD != "custom_appraisal_status":
     fail.append("Frappe HR's Appraisal has no status field; ours must carry the workflow's states")
-route = [A.DRAFT, A.PENDING_SUPERVISOR, A.PENDING_HRM, A.PENDING_PRODUCTION, A.PENDING_GM, A.COMPLETED]
+route = [A.DRAFT, A.PENDING_SELF, A.PENDING_SUPERVISOR, A.PENDING_HRM, A.PENDING_PRODUCTION, A.PENDING_GM,
+         A.COMPLETED]
 walked, state = [A.DRAFT], A.DRAFT
 while True:
-    forward = [t for t in A.TRANSITIONS if t["state"] == state and t["action"] in (A.SELF, A.RATE, A.APPROVE)]
+    forward = [t for t in A.TRANSITIONS if t["state"] == state
+               and t["action"] in (A.SEND_SELF, A.SELF, A.RATE, A.APPROVE)]
     if not forward:
         break
     state = forward[0]["next_state"]
     walked.append(state)
 if walked != route:
     fail.append("the form is signed Employee, Supervisor, HR Manager, Production Manager, General Manager: %s" % walked)
-SUPERVISORY_SIGNING = {state for state in A.route(A.FORM_SUPERVISORY) if state != A.COMPLETED}
+SUPERVISORY_SIGNING = {state for state in A.route(A.FORM_SUPERVISORY) if state in A.PENDING_STATES}
 if set(A.STAMPS) != SUPERVISORY_SIGNING or set(A.REMARK_FIELDS) != SUPERVISORY_SIGNING:
     fail.append("every comment block on LPL/HR/18 is stamped and signed: %s" % sorted(A.STAMPS))
+# the self-appraisal, on or off (Appraisal Settings), each appraisal keeping its own
+if A.opening(True) != (A.SEND_SELF, A.PENDING_SELF) or A.opening(False) != (A.SEND_SUPERVISOR, A.PENDING_SUPERVISOR):
+    fail.append("a raised appraisal goes to the employee when they appraise themselves, else to the supervisor")
+if A.next_states(A.DRAFT, {"HR User"}, A.FORM_SUPERVISORY, True) != [(A.SEND_SELF, A.PENDING_SELF)] or \
+        A.next_states(A.DRAFT, {"HR User"}, A.FORM_SUPERVISORY, False) != [(A.SEND_SUPERVISOR, A.PENDING_SUPERVISOR)]:
+    fail.append("from Draft HR send it one way or the other, never both: %s / %s"
+                % (A.next_states(A.DRAFT, {"HR User"}, A.FORM_SUPERVISORY, True),
+                   A.next_states(A.DRAFT, {"HR User"}, A.FORM_SUPERVISORY, False)))
+if A.next_states(A.DRAFT, {"Employee"}):
+    fail.append("Draft is HR's: the employee acts at their own self-appraisal")
+if A.next_states(A.PENDING_SELF, {"Employee"}) != [(A.SELF, A.PENDING_SUPERVISOR)]:
+    fail.append("the employee submits their self-appraisal to the supervisor: %s"
+                % A.next_states(A.PENDING_SELF, {"Employee"}))
+if (A.SELF, A.PENDING_SUPERVISOR) not in A.next_states(A.PENDING_SELF, {"HR User"}):
+    fail.append("HR may submit the self-appraisal for someone with no login")
+if [row for row in A.STATES if row["state"] == A.DRAFT and row["allow_edit"] == A.APPRAISEE]:
+    fail.append("the employee edits their appraisal at Pending Self-Appraisal, not in HR's Draft")
+if not [row for row in A.STATES if row["state"] == A.PENDING_SELF and row["allow_edit"] == A.APPRAISEE]:
+    fail.append("the employee must be able to fill their self-appraisal in")
+for form in A.FORM_TYPES:
+    if A.PENDING_SELF in A.route(form, False) or A.route(form, True)[1] != A.PENDING_SELF:
+        fail.append("%s: the self-appraisal comes first, and only where the employee appraises themselves" % form)
+if A.holds(A.SELF_ON, False, True) is not True or A.holds(A.SELF_OFF, False, True) is not False \
+        or A.holds(A.SELF_OFF, True, False) is not True or A.holds(None, True, True) is not True:
+    fail.append("the self-appraisal's conditions read the appraisal's own setting")
+for condition in {t.get("condition") for t in A.TRANSITIONS if t.get("condition")}:
+    try:
+        compile(condition, "condition", "eval")
+    except SyntaxError:
+        fail.append("the workflow's condition %r must be a Python expression Frappe can evaluate" % condition)
+    if condition not in (A.IS_BSC, A.NOT_BSC, A.SELF_ON, A.SELF_OFF):
+        fail.append("next_states does not know the condition %r" % condition)
+if A.SELF_FIELD != "custom_self_appraisal" or A.SELF_FIELD not in A.SELF_ON:
+    fail.append("the conditions read the appraisal's own Self-Appraisal")
+if A.ROLE_WAITING.get(A.PENDING_SELF) != A.APPRAISEE:
+    fail.append("the self-appraisal waits on the employee's own desk")
 for state in A.PENDING_STATES:
     if not [t for t in A.TRANSITIONS if t["state"] == state and t["action"] == A.RETURN and t["next_state"] == A.DRAFT]:
         fail.append("%s must be able to return the appraisal to Draft" % state)
@@ -467,10 +503,15 @@ for needle, why in (
     ("rules.annual_average(", "the year is the average of the quarters"),
     ("rules.due_quarters(", "the HR Officer is told when a quarter closes"),
     ("rules.reminders_due(", "everyone appraising is reminded before the deadlines"),
-    ("rules.sheet_rows(", "the sheet is built by the rules"),
-    ("rules.read_sheet(", "and read back by them"),
-    ("build_xlsx_response(", "the sheet comes down as a spreadsheet"),
-    ("read_xlsx_file_from_attached_file(", "and the filled one is read back"),
+    ("sheet.build(", "the sheet is Luuka's own form, built by appraisal_sheet.py"),
+    ("sheet.read(", "and read back by it"),
+    ('frappe.response["type"] = "binary"', "the sheet comes down as a file"),
+    ('frappe.response["filecontent"] = content', "carrying the workbook built"),
+    ("settings().kra_evaluation_method", "the plan's cycles score KRAs as Appraisal Settings say"),
+    ("rules.rates_goals_manually(cycle.get(\"kra_evaluation_method\"))",
+     "an appraisal rates its goals by hand only in a cycle rated by hand"),
+    ('"custom_self_appraisal": settings().self_appraisal', "an appraisal keeps the setting it was raised with"),
+    ("approval.opening(", "a raised appraisal is sent on to the employee or the supervisor"),
     ('frappe.new_doc("Employee Position Change")', "a promotion or an increase is an Employee Position Change"),
     ('frappe.new_doc("Performance Improvement Plan")', "a PIP decision raises the plan"),
     ("people.hr_officers(", "the branch HR Officer is told"),
@@ -488,14 +529,27 @@ for needle, why in (
         fail.append("pips.py: %s (%r not found)" % (why, needle))
 if 'doc.check_permission("submit")' not in body_of(glue, "open_quarter"):
     fail.append("open_quarter raises documents for everyone in scope: it must check the caller may submit the plan")
-if 'doc.check_permission("write")' not in body_of(glue, "upload_sheet"):
-    fail.append("upload_sheet writes onto an appraisal: it must check the caller may write it")
-if "if doc.docstatus != 0:" not in body_of(glue, "upload_sheet"):
-    fail.append("upload_sheet must leave a submitted appraisal alone")
+if "reason = _not_taken(" not in body_of(glue, "upload_sheet"):
+    fail.append("upload_sheet writes onto appraisals: each sheet is judged before anything is written")
+not_taken = body_of(glue, "_not_taken")
+for needle, why in (
+    ('frappe.has_permission("Appraisal", "write", name)', "the caller may write the appraisal"),
+    ("if doc.docstatus != 0:", "a completed or cancelled appraisal is left alone"),
+    ("doc.appraisal_cycle != appraisal_cycle", "a sheet of another cycle is not taken from this one"),
+    ("if appraisal and name != appraisal:", "an appraisal's own upload takes only its own sheet"),
+    ('values.get("period")', "a scorecard sheet is taken only for the period it was downloaded for"),
+    ("SUPERVISOR_STATES + (approval.PENDING_EMPLOYEE,)", "an appraisal past its rating is changed on the system"),
+):
+    if needle not in not_taken:
+        fail.append("the upload checks %s (%r not found in _not_taken)" % (why, needle))
+if glue.count("doc.has_permission(\"read\")") < 1 or "doc.has_permission(\"read\")" not in body_of(glue,
+                                                                                                "download_sheet"):
+    fail.append("download_sheet gives only the appraisals the caller may read")
 for name in ("fill_year", "get_appraisals", "download_sheet"):
     if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % name, glue):
         fail.append("appraisals.%s must be whitelisted for the form" % name)
 for source, module, name in ((glue, "appraisals", "open_quarter"), (glue, "appraisals", "upload_sheet"),
+                             (glue, "appraisals", "apply_template"), (glue, "appraisals", "send_drafts"),
                              (glue, "appraisals", "share_with_management"), (pips, "pips", "start")):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, source):
         fail.append("%s.%s changes something: a whitelisted POST method" % (module, name))
@@ -725,38 +779,116 @@ if len(from_sheet["competencies"]) != 5 or from_sheet["competencies"][0]["weight
     fail.append("Section B is read with its indicators and weights: %s" % from_sheet["competencies"])
 expect("Luuka's own sheet", S.template_errors({"designation": from_sheet["role"], **from_sheet}))
 if S.parse_sheet([]) != {"role": None, "department": None, "grade": None, "review_period": None,
+                         "form_reference": None, "revision": None,
                          "perspectives": [], "kpis": [], "competencies": []}:
     fail.append("an empty sheet reads as nothing")
 if S.normalise_perspective(S.CONTINUATION) is not None or S.normalise_perspective("") is not None:
     fail.append("the continuation arrow is not a perspective")
-print("the scorecard: 80 and 20, its own bands, the quarterly score whole, Luuka's workbook read")
+# the weight rides on the perspective's first KPI, as the workbook writes it
+if [row["weight"] for row in from_sheet["kpis"]] != [25.0, None, 15.0, 30.0, 10.0]:
+    fail.append("each perspective's weight is read onto its first KPI, and nowhere else: %s"
+                % [row["weight"] for row in from_sheet["kpis"]])
+footer = "Luuka Plastics Limited  |  PMS BSC Appraisal Form FY 2026  |  Procurement  |  PROC/002  |  CONFIDENTIAL  |  Rev 01"
+if S.footer_parts(footer) != ("PROC/002", "Rev 01") or S.footer_parts("Nothing here") != (None, None):
+    fail.append("the footer names the form and its revision: %s" % (S.footer_parts(footer),))
+if S.parse_sheet(SHEET + [[footer]])["form_reference"] != "PROC/002":
+    fail.append("the sheet's form reference is read from its footer")
+
+# ── the template laid out as the workbook is ──────────────────────────
+typed = [{"perspective": "Financial", "kpi": "Savings", "weight": 25},
+         {"perspective": "Customer / Stakeholder", "kpi": "Lead times", "weight": 15},
+         {"perspective": "Financial", "kpi": "Variance", "weight": None},
+         {"perspective": "Internal Business Processes", "kpi": "Quotations", "weight": 20},
+         {"perspective": "Internal Business Processes", "kpi": "Approvals", "weight": 10},
+         {"perspective": "Learning & Growth", "kpi": "CIPS", "weight": 10}]
+arranged, perspectives = S.arrange_kpis(typed)
+if [row["kpi"] for row in arranged] != ["Savings", "Variance", "Lead times", "Quotations", "Approvals", "CIPS"]:
+    fail.append("a perspective's KPIs sit together, in the order the perspectives first appear: %s"
+                % [row["kpi"] for row in arranged])
+if [row["weight"] for row in arranged] != [25, None, 15, 30, None, 10]:
+    fail.append("the weight sits on each perspective's first KPI, a second one typed added to it: %s"
+                % [row["weight"] for row in arranged])
+if perspectives != [{"perspective": "Financial", "weight": 25}, {"perspective": "Customer / Stakeholder", "weight": 15},
+                    {"perspective": "Internal Business Processes", "weight": 30},
+                    {"perspective": "Learning & Growth", "weight": 10}]:
+    fail.append("the perspectives the appraisal is scored on follow from the KPIs: %s" % perspectives)
+if sum(row["weight"] for row in perspectives) != S.OBJECTIVES_WEIGHT:
+    fail.append("what was typed still totals what was typed")
+if S.arrange_kpis(arranged)[0] != arranged:
+    fail.append("laying out a laid-out template changes nothing")
+if S.arrange_kpis([]) != ([], []):
+    fail.append("no KPIs, no perspectives")
+expect("a supervisory template with its factors", S.supervisory_template_errors(
+    {"factors": [{"factor": "Attendance"}], "objectives": [{"objective": "Output"}]}))
+expect("one with none", S.supervisory_template_errors({"factors": []}), "ratable factors")
+expect("one with a factor twice", S.supervisory_template_errors(
+    {"factors": [{"factor": "Attendance"}, {"factor": "Attendance"}]}), "listed twice")
+expect("one with nine objectives", S.supervisory_template_errors(
+    {"factors": [{"factor": "A"}], "objectives": [{"objective": "O%d" % n} for n in range(9)]}), "at most 8")
+
+# ── the employee's own scorecard ──────────────────────────────────────
+OWN = {"step": "self", "period": "Q1",
+       "perspectives": [{"perspective": "Financial", "weight": 50, "self_score": 80},
+                        {"perspective": "Customer / Stakeholder", "weight": 30, "self_score": 50}],
+       "competencies": [{"competency": "One", "weight": 20, "self_score": 7}]}
+expect("a self-appraisal scored throughout", S.appraisal_errors(OWN))
+expect("a self-appraisal with a perspective left", S.appraisal_errors(dict(OWN, perspectives=[
+    {"perspective": "Financial", "weight": 50}])), "your own Q1 percentage achieved")
+expect("a self-appraisal with a competency left", S.appraisal_errors(dict(OWN, competencies=[
+    {"competency": "One", "weight": 20}])), "Score yourself on every competency")
+expect("a self-appraisal scoring a competency eleven", S.appraisal_errors(dict(OWN, competencies=[
+    {"competency": "One", "weight": 20, "self_score": 11}])), "out of ten")
+expect("the appraiser's own step does not read the employee's figures",
+       S.appraisal_errors(dict(OWN, step="appraiser")), "Record Q1 percentage achieved", "Score every competency")
+own = S.self_scores(OWN["perspectives"], OWN["competencies"], "Q1")
+if own != {"section_a": 55.0, "section_b": 14.0, "overall": 69.0}:
+    fail.append("the employee's own scores are worked out as the appraiser's are: %s" % own)
+if S.self_scores([], [], "Annual") != {"section_a": None, "section_b": None, "overall": None}:
+    fail.append("nothing rated, no score of their own")
+print("the scorecard: 80 and 20, its own bands, the quarterly score whole, Luuka's workbook read, the template "
+      "laid out like it, the self-appraisal")
 
 # ── 8. Two forms, two chains, one workflow ────────────────────────────
 if set(A.ROUTES) != set(A.FORM_TYPES):
     fail.append("each form must declare the states it passes through")
-for form, wanted in ((A.FORM_SUPERVISORY, (A.DRAFT, A.PENDING_SUPERVISOR, A.PENDING_HRM, A.PENDING_PRODUCTION,
-                                           A.PENDING_GM, A.COMPLETED)),
-                     (A.FORM_BSC, (A.DRAFT, A.PENDING_SUPERVISOR, A.PENDING_EMPLOYEE, A.PENDING_HOD,
+for form, wanted in ((A.FORM_SUPERVISORY, (A.DRAFT, A.PENDING_SELF, A.PENDING_SUPERVISOR, A.PENDING_HRM,
+                                           A.PENDING_PRODUCTION, A.PENDING_GM, A.COMPLETED)),
+                     (A.FORM_BSC, (A.DRAFT, A.PENDING_SELF, A.PENDING_SUPERVISOR, A.PENDING_EMPLOYEE, A.PENDING_HOD,
                                    A.PENDING_HRM, A.PENDING_ED, A.COMPLETED))):
-    if A.route(form) != wanted:
-        fail.append("%s is signed %s, not %s" % (form, wanted, A.route(form)))
-    walked, state = [A.DRAFT], A.DRAFT
-    guard = 0
-    while guard < 12:
-        guard += 1
-        forward = [step for action, step in A.next_states(state, {"HR User", "Employee", "Supervisor",
-                                                                  "Head of Department", "HR Manager",
-                                                                  "Production Manager", "General Manager",
-                                                                  "Executive Director"}, form)
-                   if step != A.DRAFT and step not in walked]
-        if not forward:
-            break
-        state = forward[0]
-        walked.append(state)
-        if state == A.COMPLETED:
-            break
-    if tuple(walked) != wanted:
-        fail.append("walking %s by its own transitions gives %s, not %s" % (form, walked, wanted))
+    for own in (True, False):
+        expected = wanted if own else tuple(state for state in wanted if state != A.PENDING_SELF)
+        if A.route(form, own) != expected:
+            fail.append("%s is signed %s, not %s" % (form, expected, A.route(form, own)))
+        walked, state = [A.DRAFT], A.DRAFT
+        guard = 0
+        while guard < 12:
+            guard += 1
+            forward = [step for action, step in A.next_states(state, {"HR User", "Employee", "Supervisor",
+                                                                      "Head of Department", "HR Manager",
+                                                                      "Production Manager", "General Manager",
+                                                                      "Executive Director"}, form, own)
+                       if step != A.DRAFT and step not in walked]
+            if not forward:
+                break
+            state = forward[0]
+            walked.append(state)
+            if state == A.COMPLETED:
+                break
+        if tuple(walked) != expected:
+            fail.append("walking %s (self-appraisal %s) by its own transitions gives %s, not %s"
+                        % (form, "on" if own else "off", walked, expected))
+# every state either form can reach has a way on and a way back, whoever holds it
+for form in A.FORM_TYPES:
+    for own in (True, False):
+        for state in A.route(form, own):
+            if state in (A.DRAFT, A.COMPLETED):
+                continue
+            holders = {row["allow_edit"] for row in A.STATES if row["state"] == state}
+            moves = [pair for role in holders for pair in A.next_states(state, {role}, form, own)]
+            if not [pair for pair in moves if pair[1] != A.DRAFT]:
+                fail.append("%s (%s): whoever edits it cannot pass it on" % (form, state))
+            if not [pair for pair in moves if pair == (A.RETURN, A.DRAFT)]:
+                fail.append("%s (%s): whoever holds it cannot return it" % (form, state))
 if A.next_states(A.PENDING_HRM, {"HR Manager"}, A.FORM_BSC) == A.next_states(A.PENDING_HRM, {"HR Manager"},
                                                                             A.FORM_SUPERVISORY):
     fail.append("after the HR Manager the two forms part: one to Production, one to the Executive Director")
@@ -765,10 +897,10 @@ for state in A.PENDING_STATES:
         fail.append("%s must be able to return the appraisal to Draft" % state)
 for form in A.FORM_TYPES:
     stamps, remarks = A.stamps_for(form), A.remarks_for(form)
-    # Draft is the employee's own self-assessment on LPL/HR/18 and HR
-    # opening the file on the scorecard, so only the first is signed there
+    # every pending state signs the form, except the scorecard's
+    # self-appraisal: its employee block is signed over the appraiser's scores
     signing = [state for state in A.route(form)
-               if state in A.PENDING_STATES or (state == A.DRAFT and form == A.FORM_SUPERVISORY)]
+               if state in A.PENDING_STATES and not (state == A.PENDING_SELF and form == A.FORM_BSC)]
     if set(stamps) != set(signing):
         fail.append("%s: every state it passes through signs the form (%s vs %s)"
                     % (form, sorted(stamps), sorted(signing)))
@@ -776,14 +908,19 @@ for form in A.FORM_TYPES:
         fail.append("%s: everyone who signs also comments" % form)
 if A.stamps_for(A.FORM_BSC).get(A.PENDING_EMPLOYEE) != ("custom_employee_signed_by", "custom_employee_signed_on"):
     fail.append("on the scorecard the employee signs after the appraiser has scored, not in Draft")
-if A.stamps_for(A.FORM_SUPERVISORY).get(A.DRAFT) != ("custom_employee_signed_by", "custom_employee_signed_on"):
-    fail.append("on the supervisory form the employee signs their own self-assessment in Draft")
-if A.compute_stamps(A.DRAFT, A.PENDING_SUPERVISOR, "hr@luuka", "2026-09-24", {},
+if A.stamps_for(A.FORM_SUPERVISORY).get(A.PENDING_SELF) != ("custom_employee_signed_by", "custom_employee_signed_on"):
+    fail.append("on the supervisory form the employee signs their own self-appraisal")
+if A.DRAFT in A.stamps_for(A.FORM_SUPERVISORY) or A.DRAFT in A.stamps_for(A.FORM_BSC):
+    fail.append("HR sending the appraisal on from Draft signs nobody's block")
+if A.compute_stamps(A.PENDING_SELF, A.PENDING_SUPERVISOR, "emp@luuka", "2026-09-24", {},
                     A.FORM_BSC).get("custom_employee_signed_by"):
-    fail.append("HR opening a scorecard must not sign as the employee")
-if A.compute_stamps(A.DRAFT, A.PENDING_SUPERVISOR, "emp@luuka", "2026-09-24", {},
+    fail.append("the scorecard's self-appraisal is not the employee's signature over the appraiser's scores")
+if A.compute_stamps(A.PENDING_SELF, A.PENDING_SUPERVISOR, "emp@luuka", "2026-09-24", {},
                     A.FORM_SUPERVISORY).get("custom_employee_signed_by") != "emp@luuka":
-    fail.append("the supervisory form's self-assessment is signed by whoever submitted it")
+    fail.append("the supervisory form's self-appraisal is signed by whoever submitted it")
+if A.compute_stamps(A.DRAFT, A.PENDING_SUPERVISOR, "hro@luuka", "2026-09-24", {},
+                    A.FORM_SUPERVISORY).get("custom_employee_signed_by"):
+    fail.append("with no self-appraisal, HR sending it to the supervisor does not sign as the employee")
 if set(A.ROLE_WAITING) != set(A.PENDING_STATES):
     fail.append("every pending state must know whose desk it is on")
 if A.ROLE_WAITING[A.PENDING_EMPLOYEE] != A.APPRAISEE or A.ROLE_WAITING[A.PENDING_ED] != A.ED:
@@ -940,16 +1077,23 @@ for needle, why in (
 ):
     if needle not in glue_bsc:
         fail.append("bsc.py: %s (%r not found)" % (why, needle))
-if 'doc.check_permission("write")' not in glue_bsc:
-    fail.append("bsc.get_scorecard writes onto an appraisal: it must check the caller may write it")
+if "return appraisals.apply_template(appraisal, template)" not in glue_bsc:
+    fail.append("bsc.get_scorecard, the button's older name, takes the template the one way apply_template does")
+glue_appraisals = read("hrms_addon", "hrms_addon", "appraisals.py")
+if 'doc.check_permission("write")' not in body_of(glue_appraisals, "apply_template"):
+    fail.append("apply_template writes onto an appraisal: it must check the caller may write it")
 for name in ("get_scorecard", "import_workbook"):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue_bsc):
         fail.append("bsc.%s changes something: a whitelisted POST method" % name)
-glue_appraisals = read("hrms_addon", "hrms_addon", "appraisals.py")
 for needle, why in (
-    ("bsc.template_for(", "the role's scorecard decides which form an employee is on"),
-    ("doc.appraisal_template = bsc.template_for(",
-     "the role's template attaches itself, on Frappe HR's own link"),
+    ("bsc.template_for(", "an active scorecard made for the role is the last place the template is looked for"),
+    ('frappe.db.get_value("Designation", designation, "appraisal_template")',
+     "the Job Title's own template comes before any other"),
+    ('"Appraisee", {"parent": cycle, "parenttype": "Appraisal Cycle"',
+     "and the one the cycle names for the employee before that"),
+    ("doc.appraisal_template = template_for(",
+     "the employee's template attaches itself, on Frappe HR's own link"),
+    ("doc.custom_form_type = form_of(template)", "the template says which form the employee is on"),
     ("bsc.fill(", "a scorecard appraisal is filled from the template"),
     ("bsc.score(", "and scored by the scorecard's own rules"),
     ("bsc_rules.appraisal_errors(", "and judged by them"),
@@ -972,6 +1116,253 @@ for name in ("BSC Competency",):
     if name not in sidebarred:
         fail.append("%s is in no sidebar" % name)
 print("the scorecard's forms, its glue, the importer guarded, the seed and the way in")
+
+# ── 10. The template each appraisal is filled from, and the self-appraisal ──
+status = custom_fields("Appraisal").get("custom_appraisal_status") or {}
+missing = sorted({row["status"] for row in A.STATES} - set((status.get("options") or "").split("\n")))
+if missing:
+    fail.append("the workflow writes %s into the Appraisal Status, which does not offer them: the save would be "
+                "refused" % missing)
+if set(R.STATUSES) != set((status.get("options") or "").split("\n")):
+    fail.append("appraisal_rules.STATUSES and the Appraisal Status options are one list")
+ours = custom_fields("Appraisal")
+name_field = ours.get("custom_supervisor_name") or {}
+if name_field.get("fetch_from") != "custom_supervisor.employee_name" or not name_field.get("read_only") \
+        or name_field.get("insert_after") != "custom_supervisor":
+    fail.append("the supervisor's name shows beside the supervisor, fetched and read-only: %s" % name_field)
+if "custom_supervisor_name = frappe.db.get_value(\"Employee\", doc.custom_supervisor, \"employee_name\")" \
+        not in glue_appraisals:
+    fail.append("the supervisor's name is filled on the server too, wherever the appraisal is made")
+if "if (boss !== (frm.doc.custom_supervisor || \"\")) frm.set_value(\"custom_supervisor\", boss);" \
+        not in read("hrms_addon", "public", "js", "appraisal.js"):
+    fail.append("picking the employee fills in their supervisor, even over one already there")
+for fieldname in ("custom_self_appraisal", "custom_bsc_self_score"):
+    if not (ours.get(fieldname) or {}).get("read_only"):
+        fail.append("Appraisal.%s is set by the system: read-only" % fieldname)
+if "doc.custom_self_appraisal = settings().self_appraisal" not in body_of(glue_appraisals, "appraisal_validate"):
+    fail.append("an appraisal made by hand keeps the setting it was made with")
+for child, fieldname in (("BSC Appraisal Perspective", "self_score"), ("BSC Appraisal Competency", "self_score"),
+                         ("BSC Appraisal KPI", "comments"), ("BSC Template KPI", "weight"),
+                         ("Appraisal Template Factor", "factor"), ("Appraisal Template Objective", "objective")):
+    if fieldname not in fields_of(doctype(child)):
+        fail.append("%s has no %s" % (child, fieldname))
+for child in ("BSC Appraisal Perspective", "BSC Appraisal Competency", "BSC Appraisal KPI", "BSC Template KPI",
+              "Employee Tool", "Onboarding Tool"):
+    listed = sum(f.get("columns") or 0 for f in doctype(child)["fields"] if f.get("in_list_view"))
+    if listed > 10:
+        fail.append("%s's grid asks for %d columns: Frappe shows ten, and drops the rest" % (child, listed))
+settings_spec = doctype("Appraisal Settings")
+settings_fields = fields_of(settings_spec)
+if not settings_spec.get("issingle") or (settings_fields.get("self_appraisal") or {}).get("default") != "1" \
+        or (settings_fields.get("kra_evaluation_method") or {}).get("default") != R.KRA_AUTOMATED \
+        or tuple((settings_fields.get("kra_evaluation_method") or {}).get("options", "").split("\n")) != R.KRA_METHODS:
+    fail.append("Appraisal Settings: a single, self-appraisal on and KRAs automated unless changed")
+if set(settings_fields) - {"self_section", "cycle_section"} != set(R.SETTINGS_DEFAULTS):
+    fail.append("Appraisal Settings holds what settings_values reads, and nothing else")
+if "frappe.db.get_singles_dict(SETTINGS)" not in body_of(glue_appraisals, "settings"):
+    fail.append("the settings are read as stored: a Check never saved would read 0, turning the self-appraisal off")
+if "Appraisal Settings" not in carded or "Appraisal Settings" not in sidebarred:
+    fail.append("Appraisal Settings has a way in, beside the templates")
+
+template = custom_fields("Appraisal Template")
+form = template.get("custom_form_type") or {}
+if tuple((form.get("options") or "").split("\n")) != (S.FORM_BSC, S.FORM_SUPERVISORY) or form.get("default") != S.FORM_BSC:
+    fail.append("a template says which form it carries, the scorecard unless it says otherwise: %s" % form)
+if not (template.get("custom_perspectives") or {}).get("hidden"):
+    fail.append("the perspectives' weights follow from the KPIs; the table they are kept in is not typed into")
+if (template.get("custom_kpis") or {}).get("label") != "Objectives & KPIs":
+    fail.append("Section A is one table, as the workbook has it")
+for fieldname, options in (("custom_factors", "Appraisal Template Factor"),
+                           ("custom_objectives", "Appraisal Template Objective")):
+    if (template.get(fieldname) or {}).get("options") != options:
+        fail.append("a supervisory template carries its %s" % fieldname)
+for fieldname in ("custom_factors_section", "custom_objectives_section"):
+    if S.FORM_SUPERVISORY not in ((template.get(fieldname) or {}).get("depends_on") or ""):
+        fail.append("%s shows only on a supervisory template" % fieldname)
+for fieldname in ("custom_section_a", "custom_section_b"):
+    if S.FORM_SUPERVISORY not in ((template.get(fieldname) or {}).get("depends_on") or ""):
+        fail.append("%s shows only on a scorecard" % fieldname)
+chain, seen = [], set()
+by_after = {}
+for fieldname, row in template.items():
+    by_after.setdefault(row.get("insert_after"), []).append(fieldname)
+twice = {after: names for after, names in by_after.items() if len(names) > 1}
+if twice:
+    fail.append("two template fields follow the same field, so their order is left to chance: %s" % twice)
+SETTERS = json.load(open(os.path.join(PACKAGE, "fixtures", "property_setter.json"), encoding="utf-8"))
+if not [row for row in SETTERS if row["doc_type"] == "Designation" and row.get("field_name") == "appraisal_template"
+        and row["property"] == "reqd" and str(row["value"]) == "1"]:
+    fail.append("every Job Title must name its Appraisal Template: Designation.appraisal_template is mandatory")
+if "frm.set_query(\"appraisal_template\", () => ({ filters: { custom_is_active: 1 } }));" \
+        not in read("hrms_addon", "public", "js", "designation.js"):
+    fail.append("a Job Title picks from the templates made ready to be used")
+if "designation.flags.ignore_mandatory = True" not in body_of(glue_bsc, "_designation"):
+    fail.append("a Job Title the workbook makes is saved before its template exists, so its template is named after")
+if "_link_designation(designation, doc.name, year)" not in glue_bsc:
+    fail.append("the workbook names each Job Title's template once the template is saved")
+if "hrms_addon.hrms_addon.bsc.seed_supervisory_template" not in (hooks.get("after_install") or []):
+    fail.append("a fresh install makes the supervisory form's template")
+if "doc.custom_form_type == rules.FORM_SUPERVISORY" not in body_of(glue_bsc, "template_validate") \
+        or "_arrange_kpis(doc)" not in body_of(glue_bsc, "template_validate"):
+    fail.append("the template is checked as the form it carries, its Section A laid out like the workbook")
+patch = read("hrms_addon", "patches", "v1_0", "appraisal_templates_and_self_appraisal.py")
+for needle, why in (
+    ('sync_fixtures("hrms_addon")', "the fields exist before the patch writes them"),
+    ("frappe.db.get_singles_dict(SETTINGS)", "settings someone already saved are kept"),
+    ("_lay_out(name)", "each template is laid out like the workbook"),
+    ("bsc.seed_supervisory_template()", "the supervisory form gets its template"),
+    ('"appraisal_template": ["is", "not set"]', "only a Job Title with no template is given one"),
+    ("set custom_self_appraisal = 1", "the appraisals under way keep the self-appraisal they had"),
+    ('"workflow_state": approval.PENDING_SELF', "a plan's draft waits on the employee's self-appraisal"),
+    ("continue  # goals rated by hand stay rated by hand", "a cycle with goals rated by hand is left as it is"),
+):
+    if needle not in patch:
+        fail.append("the patch: %s (%r not found)" % (why, needle))
+if "hrms_addon.patches.v1_0.appraisal_templates_and_self_appraisal" not in read("hrms_addon", "patches.txt"):
+    fail.append("the patch is listed in patches.txt")
+print("templates: the form each carries, laid out like the workbook, named by every Job Title; the self-appraisal "
+      "set once; every state a status")
+
+# ── 11. The sheet, Luuka's own form, out and back ─────────────────────
+SH = load("appraisal_sheet")
+if tuple(floor for floor, *_rest in SH.BSC_BANDS) != tuple(floor for floor, _name in S.BANDS) or \
+        tuple(name for _floor, name, *_rest in SH.BSC_BANDS) != tuple(name for _floor, name in S.BANDS):
+    fail.append("the sheet rates on the scorecard's own bands")
+if tuple(SH.SUPERVISORY_BANDS) != tuple(R.BANDS) or tuple(SH.RATINGS) != tuple(R.RATINGS):
+    fail.append("the supervisory sheet rates on LPL/HR/18's bands and scale")
+if SH.MAX_OBJECTIVES != R.MAX_OBJECTIVES or (SH.FORM_BSC, SH.FORM_SUPERVISORY) != (S.FORM_BSC, S.FORM_SUPERVISORY):
+    fail.append("the sheet and the rules name the forms and the limits alike")
+if [key for key, _question in SH.QUESTIONS] != [key for key, _question in R.QUESTIONS]:
+    fail.append("the sheet asks LPL/HR/18's General questions")
+BSC_DATA = {
+    "name": "HR-APR-2026-00012", "form_type": S.FORM_BSC, "period": "Q2", "self_appraisal": 1,
+    "company": "Luuka Plastics Limited", "year": 2026, "employee_name": "Ferdinand: Musembi / Senior Procurement",
+    "perspectives": [{"perspective": "Financial", "weight": 50, "q1_percent": 90},
+                     {"perspective": "Customer / Stakeholder", "weight": 30}],
+    "kpis": [{"perspective": "Financial", "kpi": "Savings", "timing": "Monthly", "comments": {"Q1": "On track."}},
+             {"perspective": "Financial", "kpi": "Variance\ntracked", "timing": "Monthly", "comments": {}},
+             {"perspective": "Customer / Stakeholder", "kpi": "Stock-outs", "timing": "Weekly", "comments": {}}],
+    "competencies": [{"competency": "One", "weight": 12}, {"competency": "Two", "weight": 8}],
+    "assignments": [], "remarks": {}, "names": {}, "plan": {}, "actions": [],
+}
+LPL_DATA = {
+    "name": "HR-APR-2026-00013", "form_type": S.FORM_SUPERVISORY, "self_appraisal": 0, "company": "Luuka",
+    "employee_name": "John Okello",
+    "factors": [{"item": "Attendance and time management", "employee_rating": "4"}],
+    "objectives": [{"item": "Daily output"}], "answers": {}, "remarks": {},
+}
+content = SH.build([BSC_DATA, LPL_DATA, dict(BSC_DATA, name="HR-APR-2026-00014")], logo=b"not a picture")
+import io  # noqa: E402
+
+from openpyxl import load_workbook  # noqa: E402
+
+book = load_workbook(io.BytesIO(content))
+titles = book.sheetnames
+if len(titles) != 3 or len(set(title.lower() for title in titles)) != 3 or \
+        any(len(title) > 31 or set(title) & set("[]:*?/\\") for title in titles):
+    fail.append("one sheet per appraisal, titled as Excel allows, each once: %s" % titles)
+card, lpl = book.worksheets[0], book.worksheets[1]
+if (card["R1"].value, card["R2"].value, card["R4"].value) != (SH.MARK, "HR-APR-2026-00012", "Q2") \
+        or not card.column_dimensions["R"].hidden:
+    fail.append("each sheet names its appraisal and period in a hidden column")
+if not card.protection.sheet or card.protection.formatColumns:
+    fail.append("the sheet is locked where the system filled it in, and its columns can still be widened")
+if card["K8"].value != "HR-APR-2026-00012":
+    fail.append("the HR Ref on the sheet is the appraisal")
+rows = {card["C%d" % row].value: row for row in range(12, 20) if card["R%d" % row].value == "kpi"}
+first = rows.get("Savings")
+if not first or card["J%d" % first].protection.locked or not card["G%d" % first].protection.locked:
+    fail.append("only the quarter being appraised is open: Q2's % open, Q1's locked")
+if first and card["G%d" % first].value != 0.9:
+    fail.append("an earlier quarter shows what was recorded for it (Q1 90%% as 0.9): %s" % card["G%d" % first].value)
+if first and card["K%d" % first].value != '=IF(J%d="","",E%d*J%d)' % (first, first, first):
+    fail.append("a quarter scores weight times percent, as the system does, without the workbook's tenth: %s"
+                % card["K%d" % first].value)
+if first and card["F%d" % first].value != "On track.":
+    fail.append("an earlier quarter's comments show against its KPIs")
+if first and (card["I%d" % first].protection.locked is not False or not card["F%d" % first].protection.locked):
+    fail.append("the quarter appraised takes a comment against each KPI; an earlier quarter's are locked")
+if first and card["B%d" % (first + 1)].value != S.CONTINUATION:
+    fail.append("a KPI under the same perspective carries the workbook's arrow")
+if first and "E%d:E%d" % (first, first + 1) not in [str(span) for span in card.merged_cells.ranges]:
+    fail.append("a perspective's weight spans its KPIs")
+checks = [(check.type, check.formula1, check.formula2) for check in card.data_validations.dataValidation
+          if first and "J%d" % first in str(check.sqref).split()]
+if checks != [("decimal", "0", "1")]:
+    fail.append("the percentage achieved is checked as it is typed, 0%% to 100%%: %s" % checks)
+if lpl["G12"].protection.locked is False:
+    fail.append("with the self-appraisal off, the employee's column is not filled in")
+if lpl["I12"].protection.locked is not False:
+    fail.append("the supervisor's rating is open")
+if lpl["G12"].value != 4 or lpl["B12"].value != "Attendance and time management":
+    fail.append("the supervisory sheet carries the factors and what is rated: %s" % [lpl["B12"].value, lpl["G12"].value])
+# the appraiser fills it in, renames the sheet and uploads it
+card.title = "Renamed"
+card["J%d" % first] = 0.85
+card["J%d" % rows["Stock-outs"]] = 1.4
+card["I%d" % (first + 1)] = "Variance down"
+blank = [row for row in range(1, card.max_row + 1) if card["R%d" % row].value == "assignment"]
+card["B%d" % blank[0]] = "Stocktake"
+card["C%d" % blank[0]] = "Count the stores"
+for row in range(1, card.max_row + 1):
+    if card["R%d" % row].value == "competency":
+        card["L%d" % row] = {"One": 8, "Two": 11}[card["S%d" % row].value]
+    if card["R%d" % row].value == "remark" and card["S%d" % row].value == "supervisor":
+        card["C%d" % row] = "Strong quarter."
+lpl["I12"] = 5
+lpl["K12"] = "Always early"
+objective_row = next(row for row in range(1, lpl.max_row + 1) if lpl["R%d" % row].value == "objective")
+lpl["I%d" % objective_row] = "seven"
+out = io.BytesIO()
+book.save(out)
+found = SH.read(out.getvalue())
+got = found.get("HR-APR-2026-00012") or {}
+if got.get("sheet") != "Renamed" or got.get("period") != "Q2":
+    fail.append("a renamed sheet is still matched to its appraisal: %s" % sorted(found))
+if got.get("scores") != {"Financial": 85.0}:
+    fail.append("the percentage comes back as a percentage, and one over 100 is not taken: %s" % got.get("scores"))
+if not any("Customer / Stakeholder" in text for text in got.get("problems") or []):
+    fail.append("a percentage over 100 is reported, not guessed at")
+if got.get("comments") != {("Financial", "Variance tracked"): "Variance down"}:
+    fail.append("a comment comes back against its KPI, only for the quarter appraised: %s" % got.get("comments"))
+if got.get("competencies") != {"One": 8.0} or not any("Two" in text for text in got.get("problems") or []):
+    fail.append("a competency over ten is reported, the rest taken: %s" % got.get("competencies"))
+if got.get("remarks") != {"supervisor": "Strong quarter."}:
+    fail.append("the appraiser's comments come back: %s" % got.get("remarks"))
+if [row["task"] for row in got.get("assignments") or []] != ["Stocktake"]:
+    fail.append("an assignment typed on the sheet comes back: %s" % got.get("assignments"))
+supervisory = found.get("HR-APR-2026-00013") or {}
+factor = (supervisory.get("factors") or [{}])[0]
+if (factor.get("supervisor_rating"), factor.get("supervisor_comment")) != ("5", "Always early"):
+    fail.append("a supervisory rating comes back on the scale's own terms: %s" % factor)
+if not any("seven" in text for text in supervisory.get("problems") or []):
+    fail.append("a rating off the scale is reported")
+if "HR-APR-2026-00014" not in found:
+    fail.append("every sheet of the workbook is read, not only the first")
+bare = io.BytesIO()
+from openpyxl import Workbook  # noqa: E402
+
+Workbook().save(bare)
+if SH.read(bare.getvalue()) != {}:
+    fail.append("a workbook this app did not make says nothing")
+foreign = Workbook()
+foreign.active["R2"] = "HR-APR-2026-00012"
+foreign.active["R3"] = S.FORM_BSC
+bare = io.BytesIO()
+foreign.save(bare)
+if SH.read(bare.getvalue()) != {}:
+    fail.append("a workbook without the sheet's own mark is not read, whatever its cells hold")
+for needle, why in (
+    ("_earlier_quarters(doc)", "the earlier quarters come from the employee's earlier appraisals"),
+    ("EMPLOYEE_STATES = (approval.DRAFT, approval.PENDING_SELF)", "the employee's part is taken until they submit it"),
+    ("SUPERVISOR_STATES = (approval.DRAFT, approval.PENDING_SELF, approval.PENDING_SUPERVISOR)",
+     "the supervisor's until they pass it on"),
+    ("_logo(docs[0].company)", "the sheet carries the company's logo"),
+):
+    if needle not in glue_appraisals:
+        fail.append("appraisals.py: %s (%r not found)" % (why, needle))
+print("the sheet: Luuka's own form per appraisal, locked but for the period appraised, scored by the system's "
+      "rules, read back whatever it is renamed to, every sheet of it")
 
 print()
 if fail:
