@@ -1,0 +1,187 @@
+{
+ "actions": [],
+ "creation": "2026-09-29 15:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "allowance_type",
+  "disabled",
+  "description",
+  "column_break_1",
+  "paid_through",
+  "salary_component",
+  "worked_section",
+  "needs_trip",
+  "per_diem_column",
+  "column_break_2",
+  "standard_rate",
+  "needs_acting_for",
+  "accounts_section",
+  "accounts"
+ ],
+ "fields": [
+  {
+   "fieldname": "allowance_type",
+   "fieldtype": "Data",
+   "label": "Allowance Type",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled",
+   "default": "0",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "paid_through",
+   "fieldtype": "Select",
+   "label": "Paid By",
+   "options": "Accounts\nPayroll",
+   "default": "Accounts",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Accounts pay it from the bank, or the payroll adds it to the salary."
+  },
+  {
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "depends_on": "eval:doc.paid_through=='Payroll'",
+   "mandatory_depends_on": "eval:doc.paid_through=='Payroll'"
+  },
+  {
+   "fieldname": "worked_section",
+   "fieldtype": "Section Break",
+   "label": "Worked Out"
+  },
+  {
+   "fieldname": "needs_trip",
+   "fieldtype": "Check",
+   "label": "For Field Work or Travel",
+   "default": "0",
+   "description": "Asks for the dates and the destination."
+  },
+  {
+   "fieldname": "per_diem_column",
+   "fieldtype": "Select",
+   "label": "Rate From the Per Diem Scale",
+   "options": "\nLodging\nDaily Allowance\nConveyance",
+   "depends_on": "eval:doc.needs_trip"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "standard_rate",
+   "fieldtype": "Currency",
+   "label": "Standard Rate",
+   "description": "Used when the scale gives none."
+  },
+  {
+   "fieldname": "needs_acting_for",
+   "fieldtype": "Check",
+   "label": "For Standing In",
+   "default": "0",
+   "description": "Asks whom the employee stands in for."
+  },
+  {
+   "fieldname": "accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Expense Accounts",
+   "depends_on": "eval:doc.paid_through=='Accounts'"
+  },
+  {
+   "fieldname": "accounts",
+   "fieldtype": "Table",
+   "label": "Expense Accounts",
+   "options": "Allowance Type Account"
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-29 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Allowance Type",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "create": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "role": "Accounts Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "Accounts User"
+  },
+  {
+   "read": 1,
+   "select": 1,
+   "role": "Employee"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "field:allowance_type",
+ "naming_rule": "By fieldname",
+ "title_field": "allowance_type"
+}

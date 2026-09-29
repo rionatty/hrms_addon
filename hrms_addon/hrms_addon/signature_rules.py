@@ -58,7 +58,7 @@ METHODS = (DESK, PORTAL, MOBILE)
 # what the test case asks for.
 SIGNABLE = (
     "Employee Contract", "Disciplinary Case", "Appraisal", "Performance Review",
-    "Performance Improvement Plan", "Probation Evaluation", "Travel Request",
+    "Performance Improvement Plan", "Probation Evaluation", "Allowance Request",
     "Expense Claim", "Employee Advance", "Employee Loan", "Employee Separation",
     "Clearance Form", "Employee Data Change Request", "Employee Position Change",
     "Off Duty Request", "Overtime Request", "Gate Pass",

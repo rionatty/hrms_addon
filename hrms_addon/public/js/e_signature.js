@@ -19,7 +19,7 @@ hrms_addon.signatures.DOCTYPES = [
 	"Performance Review",
 	"Performance Improvement Plan",
 	"Probation Evaluation",
-	"Travel Request",
+	"Allowance Request",
 	"Expense Claim",
 	"Employee Advance",
 	"Employee Loan",

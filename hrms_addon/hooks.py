@@ -171,8 +171,6 @@ doctype_js = {
     "Employee": "public/js/employee.js",
     # Luuka's three advances on their Employee Advance (advances.py)
     "Employee Advance": "public/js/employee_advance.js",
-    # LPL.HR.31 on their Travel Request (allowances.py)
-    "Travel Request": "public/js/travel_request.js",
     # LPL/HR/27 on their Expense Claim (benefits.py)
     "Expense Claim": "public/js/expense_claim.js",
     # Both exits on their Employee Separation, with the two buttons the
@@ -256,8 +254,9 @@ after_install = [
     "hrms_addon.hrms_addon.pick_lists.seed_bsc_masters",
     # the five kinds of leave LPL/HR/15 offers
     "hrms_addon.hrms_addon.leave.seed_leave_types",
-    # the five lines LPL.HR.31 prints, and the standard claims Luuka pay
-    "hrms_addon.hrms_addon.allowances.seed_allowance_lines",
+    # the allowances the minutes name (LPL.HR.31's five lines, airtime,
+    # travel, acting), and the standard claims Luuka pay
+    "hrms_addon.hrms_addon.allowances.seed_allowance_types",
     "hrms_addon.hrms_addon.benefits.seed_standard_claims",
     # the disciplinary ladder and the misconduct the HR manual lists
     "hrms_addon.hrms_addon.discipline.seed_discipline_masters",
@@ -363,8 +362,8 @@ after_migrate = [
     # The Leave Advance: raised from the approved leave, approved by the
     # Accounts Manager (minutes §4.4). See leave_advance_approval.py.
     "hrms_addon.hrms_addon.leave_advances.setup_on_migrate",
-    # The allowance application (Supervisor, HR Officer, General Manager,
-    # then Accounts) and the Employees Claim Form's five desks. See
+    # The Allowance Request (Supervisor, HR Officer, General Manager, then
+    # Accounts) and the Employees Claim Form's five desks. See
     # allowance_approval.py and claim_approval.py.
     "hrms_addon.hrms_addon.allowances.setup_workflows_on_migrate",
     "hrms_addon.hrms_addon.benefits.setup_workflows_on_migrate",
@@ -1070,49 +1069,6 @@ fixtures = [
                     "Employee Advance-custom_bank_reference",
                     "Journal Entry-custom_employee_loan",
                     "Journal Entry-custom_loan_purpose",
-                    "Travel Request-custom_lpl_section",
-                    "Travel Request-custom_badge_no",
-                    "Travel Request-custom_grade",
-                    "Travel Request-custom_department",
-                    "Travel Request-custom_branch",
-                    "Travel Request-custom_lpl_cb",
-                    "Travel Request-custom_start_date",
-                    "Travel Request-custom_start_time",
-                    "Travel Request-custom_end_date",
-                    "Travel Request-custom_end_time",
-                    "Travel Request-custom_allowance_status",
-                    "Travel Request-custom_totals_section",
-                    "Travel Request-custom_total",
-                    "Travel Request-custom_advance",
-                    "Travel Request-custom_less_advance",
-                    "Travel Request-custom_totals_cb",
-                    "Travel Request-custom_balance_due",
-                    "Travel Request-custom_qualifies",
-                    "Travel Request-custom_eligibility_remarks",
-                    "Travel Request-custom_approval_section",
-                    "Travel Request-custom_supervisor_remarks",
-                    "Travel Request-custom_supervisor_by",
-                    "Travel Request-custom_supervisor_on",
-                    "Travel Request-custom_approval_cb",
-                    "Travel Request-custom_hr_remarks",
-                    "Travel Request-custom_hr_by",
-                    "Travel Request-custom_hr_on",
-                    "Travel Request-custom_approval_cb2",
-                    "Travel Request-custom_gm_remarks",
-                    "Travel Request-custom_gm_by",
-                    "Travel Request-custom_gm_on",
-                    "Travel Request-custom_return_remarks",
-                    "Travel Request-custom_payment_section",
-                    "Travel Request-custom_paid_amount",
-                    "Travel Request-custom_paid_on",
-                    "Travel Request-custom_payment_cb",
-                    "Travel Request-custom_payment_reference",
-                    "Travel Request-custom_accounts_remarks",
-                    "Travel Request-custom_accounts_by",
-                    "Travel Request-custom_accounts_on",
-                    "Travel Request Costing-custom_days",
-                    "Travel Request Costing-custom_rate",
-                    "Travel Request Costing-custom_remarks",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",
@@ -1156,7 +1112,6 @@ fixtures = [
                     "Expense Claim Type-custom_lpl_cb",
                     "Expense Claim Type-custom_occasion",
                     "Expense Claim Type-custom_requires_evidence",
-                    "Expense Claim Type-custom_is_allowance_line",
                     "Expense Claim Type-custom_for_gender",
                     "Expense Claim Type-custom_relations",
                     "Employee Separation-custom_lpl_section",
@@ -1276,11 +1231,6 @@ fixtures = [
                     "Employee Grade-custom_second_approval",
                     "Employee Grade-custom_steps_section",
                     "Employee Grade-custom_steps",
-                    "Travel Request-custom_destination",
-                    "Travel Request-custom_currency",
-                    "Travel Request-custom_per_diem_rate",
-                    "Travel Request-custom_scale_remarks",
-                    "Travel Request Costing-custom_from_scale",
                     "Employee-custom_documents_tab",
                     "Employee-custom_documents_section",
                     "Employee-custom_documents",
@@ -1567,14 +1517,6 @@ doc_events = {
     "Salary Slip": {
         "on_submit": "hrms_addon.hrms_addon.recoveries.slip_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.recoveries.slip_on_cancel",
-    },
-    # LPL.HR.31, the travel allowance, on Frappe HR's own Travel Request:
-    # the days and the rate on each line, the totals, and the four
-    # signatures the chart gives (allowances.py)
-    "Travel Request": {
-        "validate": "hrms_addon.hrms_addon.allowances.allowance_validate",
-        "on_submit": "hrms_addon.hrms_addon.allowances.allowance_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.allowances.allowance_on_cancel",
     },
     # LPL/HR/27, the Employees Claim Form, on their own Expense Claim: the
     # supervisor's "genuine" line and the chain above it (benefits.py)

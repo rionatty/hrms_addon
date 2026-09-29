@@ -316,6 +316,17 @@ CARDS = {
             ("JD Competency Category", "JD Competency Category", DOCTYPE),
         ]),
     ],
+    # The Allowance Request (4.3) is a document of its own, beside the claim
+    # and the advance on Frappe HR's page for money paid to employees
+    # (allowances.py); its types and the per-diem scale with it.
+    "Expenses": [
+        ("Allowances", [
+            ("Allowance Request", "Allowance Request", DOCTYPE),
+            ("Allowance Type", "Allowance Type", DOCTYPE),
+            ("Per Diem Rate", "Per Diem Rate", DOCTYPE),
+            ("Travel Destination", "Travel Destination", DOCTYPE),
+        ]),
+    ],
 }
 
 # The desk routes a Report link by its kind: a Script or Query Report opens
@@ -449,6 +460,10 @@ SIDEBAR = {
         ("Tool of Work", "Tool of Work", DOCTYPE, "Setup", None),
         ("Tool Provider", "Tool Provider", DOCTYPE, "Setup", None),
         ("Probation Factor", "Probation Factor", DOCTYPE, "Setup", None),
+    ],
+    "Expenses": [
+        ("Allowance Request", "Allowance Request", DOCTYPE, None, "Expense Claim"),
+        ("Allowance Type", "Allowance Type", DOCTYPE, "Setup", None),
     ],
 }
 

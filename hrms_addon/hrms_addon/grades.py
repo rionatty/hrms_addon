@@ -11,8 +11,8 @@ The rules are in grade_rules.py, without a Frappe import
   destination_*  somewhere Luuka travel to, and what it is paid in
   rate_*         the per-diem scale: this grade, to this destination,
                  from this date
-  apply_scale    the travel form's rates, read off the scale rather than
-                 typed by the traveller (allowances.py calls it)
+  apply_scale    an Allowance Request's rates, read off the scale rather
+                 than typed by the employee (allowances.py calls it)
   assignment_*   a salary set outside its grade's band is said, on the
                  Salary Structure Assignment where it is set
 
@@ -142,36 +142,45 @@ def scale_for(grade, destination, on=None):
     return rules.rate_row([dict(row) for row in rows], grade, destination, on or today())
 
 
-def apply_scale(doc):
-    """Travel & Expense, case 2. Called from allowances.allowance_validate:
-    the rates on LPL.HR.31 come off the scale for the traveller's grade and
-    the destination, and a line the scale says nothing about is named on
-    the form rather than quietly paid at whatever was typed."""
-    destination = doc.get("custom_destination")
-    grade = doc.get("custom_grade") or (
+def apply_scale(doc, types):
+    """Travel & Expense, case 2. Called from allowances.request_validate:
+    a line whose Allowance Type is paid off the per-diem scale takes the
+    rate for the employee's grade and the destination unless a rate was
+    typed, and a line the scale says nothing about is named on the form
+    rather than quietly paid at whatever was typed. A rate the scale filled
+    in is read again on every save, so a new destination brings its own.
+
+    types: {Allowance Type: its "per_diem_column"}. Returns the currency the
+    scale (else the destination) pays in, or None with no destination."""
+    destination = doc.get("destination")
+    grade = doc.get("grade") or (
         frappe.db.get_value("Employee", doc.employee, "grade") if doc.get("employee") else None)
-    if not (destination and grade):
-        doc.custom_scale_remarks = None
-        return
-    row = scale_for(grade, destination, doc.get("custom_start_date"))
-    doc.custom_per_diem_rate = (row or {}).get("name")
-    doc.custom_currency = (row or {}).get("currency") or rules.currency_for(
-        frappe.db.get_value(DESTINATION, destination, ["is_foreign", "currency"], as_dict=True))
-    if not row:
-        doc.custom_scale_remarks = _(
+    scaled = [line for line in doc.get("lines") or []
+              if (types.get(line.get("allowance_type")) or {}).get("per_diem_column")]
+    row = scale_for(grade, destination, doc.get("start_date")) if (destination and grade) else None
+    doc.per_diem_rate = (row or {}).get("name")
+    currency = None
+    if destination:
+        currency = (row or {}).get("currency") or rules.currency_for(
+            frappe.db.get_value(DESTINATION, destination, ["is_foreign", "currency"], as_dict=True))
+    rates = rules.rates_for(row)
+    lines = [{"expense_type": types[line.allowance_type]["per_diem_column"],
+              "rate": 0 if line.get("from_scale") else line.get("rate")} for line in scaled]
+    filled = rules.apply_scale(lines, rates)
+    for line, result in zip(scaled, filled["lines"]):
+        if result.get("from_scale"):
+            line.rate, line.from_scale = result["rate"], 1
+        elif line.get("from_scale"):
+            # the scale no longer gives it: the rate is the employee's to give
+            line.rate, line.from_scale = 0, 0
+    if scaled and destination and grade and not row:
+        doc.scale_remarks = _(
             "There is no per-diem rate for {0} to {1}. Set the scale, or the rates here are "
             "somebody's own figures.").format(grade, destination)
-        return
-    rates = rules.rates_for(row)
-    lines = [{"expense_type": line.get("expense_type"), "rate": line.get("custom_rate")}
-             for line in doc.get("costings") or []]
-    filled = rules.apply_scale(lines, rates)
-    for line, scaled in zip(doc.get("costings") or [], filled["lines"]):
-        if scaled.get("from_scale"):
-            line.custom_rate = scaled["rate"]
-    gaps = rules.scale_gap(rates, lines)
-    doc.custom_scale_remarks = _("The scale says nothing about {0}.").format(
-        ", ".join(gaps)) if gaps else None
+    else:
+        gaps = rules.scale_gap(rates, lines) if row else []
+        doc.scale_remarks = _("The scale says nothing about {0}.").format(", ".join(gaps)) if gaps else None
+    return currency
 
 
 # ── 4. The nineteen grades, as masters ────────────────────────────────

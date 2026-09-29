@@ -1,28 +1,28 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Allowance Application workflow (4.3), on Frappe HR's Travel Request.
+"""Allowance Request workflow (4.3).
 
 No Frappe import, like the other approval modules; workflows.py builds the
 Workflow from it on every migrate (allowances.setup_workflows_on_migrate).
 
     Draft (the employee, or HR for someone with no login)
-      --Submit--> Pending Supervisor
+      --Submit--> Pending Supervisor           (only a request that qualifies)
       --Approve--> Pending HR Officer
       --Approve--> Pending General Manager
-      --Approve--> Pending Accounts   (step 3: Accounts process the payment)
-      --Pay--> Paid                   (step 4: Accounts set it to Paid)
+      --Approve--> Pending Accounts            (step 3: Accounts pay it)
+      --Pay--> Paid                            (step 4: the journal entry, or
+                                                the payroll's Additional Salary)
     any Pending state --Return--> Draft (the reason in Return Remarks)
-    any Pending state --Reject--> Rejected
-
-Frappe HR's Travel Request has no status field of its own, so the state
-goes in `custom_allowance_status`.
+    any Pending state but Accounts --Reject--> Rejected (the reason in that
+                                                approver's remarks)
+    Paid --Cancel--> Cancelled (HR Manager or Accounts Manager)
 """
 
-DOCTYPE = "Travel Request"
-WORKFLOW_NAME = "Allowance Application"
+DOCTYPE = "Allowance Request"
+WORKFLOW_NAME = "Allowance Request"
 STATE_FIELD = "workflow_state"
-STATUS_FIELD = "custom_allowance_status"
+STATUS_FIELD = "status"
 
 DRAFT = "Draft"
 PENDING_SUPERVISOR = "Pending Supervisor"
@@ -46,18 +46,10 @@ SUPERVISORS = ("Supervisor", "Head of Department")
 HR_OFFICER, HRM = "HR User", "HR Manager"
 GM = "General Manager"
 ACCOUNTS = "Accounts User"
+ACCOUNTS_MANAGER = "Accounts Manager"
 NEW_ROLES = ("Supervisor", "Head of Department", GM)
-PERMISSIONS = {
-    DOCTYPE: {
-        HR_OFFICER: ("read", "write", "create", "submit", "cancel"),
-        HRM: ("read", "write", "create", "submit", "cancel"),
-        "Supervisor": ("read", "write", "submit"),
-        "Head of Department": ("read", "write", "submit"),
-        GM: ("read", "write", "submit"),
-        ACCOUNTS: ("read", "write", "submit"),
-        "Accounts Manager": ("read", "write", "submit"),
-    },
-}
+# the permissions are the DocType's own (allowance_request.json)
+PERMISSIONS = {}
 
 PENDING_STATES = (PENDING_SUPERVISOR, PENDING_HR, PENDING_GM, PENDING_ACCOUNTS)
 
@@ -69,13 +61,13 @@ STATES = (
       for role in (HR_OFFICER, HRM)),
     {"state": PENDING_GM, "allow_edit": GM, "status": PENDING_GM, "style": "Warning", "send_email": 1},
     *({"state": PENDING_ACCOUNTS, "allow_edit": role, "status": PENDING_ACCOUNTS, "style": "Warning",
-       "send_email": 1} for role in (ACCOUNTS, "Accounts Manager")),
-    {"state": PAID, "allow_edit": ACCOUNTS, "status": PAID, "style": "Success", "send_email": 0,
-     "doc_status": "1"},
+       "send_email": 1} for role in (ACCOUNTS, ACCOUNTS_MANAGER)),
+    *({"state": PAID, "allow_edit": role, "status": PAID, "style": "Success", "send_email": 0,
+       "doc_status": "1"} for role in (ACCOUNTS, ACCOUNTS_MANAGER)),
     {"state": REJECTED, "allow_edit": HRM, "status": REJECTED, "style": "Danger", "send_email": 0,
      "doc_status": "1"},
-    {"state": CANCELLED, "allow_edit": HRM, "status": CANCELLED, "style": "Danger", "send_email": 0,
-     "doc_status": "2"},
+    *({"state": CANCELLED, "allow_edit": role, "status": CANCELLED, "style": "Danger", "send_email": 0,
+       "doc_status": "2"} for role in (HRM, ACCOUNTS_MANAGER)),
 )
 
 TRANSITIONS = (
@@ -96,24 +88,25 @@ TRANSITIONS = (
     {"state": PENDING_GM, "action": RETURN, "next_state": DRAFT, "allowed": GM},
     {"state": PENDING_GM, "action": REJECT, "next_state": REJECTED, "allowed": GM},
     *({"state": PENDING_ACCOUNTS, "action": PAY, "next_state": PAID, "allowed": role}
-      for role in (ACCOUNTS, "Accounts Manager")),
+      for role in (ACCOUNTS, ACCOUNTS_MANAGER)),
     *({"state": PENDING_ACCOUNTS, "action": RETURN, "next_state": DRAFT, "allowed": role}
-      for role in (ACCOUNTS, "Accounts Manager")),
-    {"state": PAID, "action": CANCEL, "next_state": CANCELLED, "allowed": HRM},
+      for role in (ACCOUNTS, ACCOUNTS_MANAGER)),
+    *({"state": PAID, "action": CANCEL, "next_state": CANCELLED, "allowed": role}
+      for role in (HRM, ACCOUNTS_MANAGER)),
 )
 
 STAMPS = {
-    PENDING_SUPERVISOR: ("custom_supervisor_by", "custom_supervisor_on"),
-    PENDING_HR: ("custom_hr_by", "custom_hr_on"),
-    PENDING_GM: ("custom_gm_by", "custom_gm_on"),
-    PENDING_ACCOUNTS: ("custom_accounts_by", "custom_accounts_on"),
+    PENDING_SUPERVISOR: ("supervisor_by", "supervisor_on"),
+    PENDING_HR: ("hr_by", "hr_on"),
+    PENDING_GM: ("gm_by", "gm_on"),
+    PENDING_ACCOUNTS: ("accounts_by", "accounts_on"),
 }
 ALL_STAMP_FIELDS = tuple(field for pair in STAMPS.values() for field in pair)
 REMARK_FIELDS = {
-    PENDING_SUPERVISOR: ("custom_supervisor_remarks", "Supervisor"),
-    PENDING_HR: ("custom_hr_remarks", "HR Officer"),
-    PENDING_GM: ("custom_gm_remarks", "General Manager"),
-    PENDING_ACCOUNTS: ("custom_accounts_remarks", "Accounts Officer"),
+    PENDING_SUPERVISOR: ("supervisor_remarks", "Supervisor"),
+    PENDING_HR: ("hr_remarks", "HR Officer"),
+    PENDING_GM: ("gm_remarks", "General Manager"),
+    PENDING_ACCOUNTS: ("accounts_remarks", "Accounts Officer"),
 }
 ROLE_WAITING = {
     PENDING_SUPERVISOR: SUPERVISORS[0],
@@ -137,6 +130,7 @@ def compute_stamps(old_state, new_state, user, today, current):
 
 
 def step_errors(old_state, new_state, facts):
+    """facts: "return_remarks", each approver's remarks, "qualifies"."""
     if old_state == new_state:
         return []
     errors = []
@@ -148,6 +142,8 @@ def step_errors(old_state, new_state, facts):
         field, who = REMARK_FIELDS[old_state]
         if not _text(facts.get(field)):
             errors.append("Write the %s's remarks saying why the allowance is refused." % who)
+    if new_state in PENDING_STATES + (PAID,) and not facts.get("qualifies"):
+        errors.append("The request does not qualify (see Why Not).")
     return errors
 
 

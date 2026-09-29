@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "creation": "2026-09-29 15:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "allowance_type",
+  "days",
+  "rate",
+  "amount",
+  "paid_through",
+  "remarks",
+  "from_scale",
+  "needs_trip",
+  "needs_acting_for",
+  "expense_account",
+  "additional_salary"
+ ],
+ "fields": [
+  {
+   "fieldname": "allowance_type",
+   "fieldtype": "Link",
+   "label": "Allowance",
+   "options": "Allowance Type",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "days",
+   "fieldtype": "Float",
+   "label": "No. of Days",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Rate",
+   "options": "currency",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "options": "currency",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "paid_through",
+   "fieldtype": "Data",
+   "label": "Paid By",
+   "fetch_from": "allowance_type.paid_through",
+   "in_list_view": 1,
+   "columns": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Data",
+   "label": "Remarks",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "from_scale",
+   "fieldtype": "Check",
+   "label": "From the Scale",
+   "read_only": 1
+  },
+  {
+   "fieldname": "needs_trip",
+   "fieldtype": "Check",
+   "label": "For Field Work or Travel",
+   "fetch_from": "allowance_type.needs_trip",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "needs_acting_for",
+   "fieldtype": "Check",
+   "label": "For Standing In",
+   "fetch_from": "allowance_type.needs_acting_for",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "expense_account",
+   "fieldtype": "Link",
+   "label": "Expense Account",
+   "options": "Account",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "additional_salary",
+   "fieldtype": "Link",
+   "label": "Additional Salary",
+   "options": "Additional Salary",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-29 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Allowance Request Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

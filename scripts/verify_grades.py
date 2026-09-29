@@ -273,25 +273,27 @@ for line, fieldname in G.SCALE_FIELDS.items():
 if rate_fields.get("grade", {}).get("options") != "Employee Grade":
     fail.append("a rate is for a grade of Frappe HR's own")
 
-travel = custom_fields("Travel Request")
-for fieldname in ("custom_destination", "custom_currency", "custom_per_diem_rate",
-                  "custom_scale_remarks", "custom_grade"):
-    if fieldname not in travel:
-        fail.append("the travel request has no %s" % fieldname)
-if travel.get("custom_destination", {}).get("options") != "Travel Destination":
-    fail.append("the travel request points at a real destination")
-for fieldname in ("custom_currency", "custom_per_diem_rate", "custom_scale_remarks"):
-    if not travel.get(fieldname, {}).get("read_only"):
+request = fields_of(doctype("Allowance Request"))
+for fieldname in ("destination", "currency", "per_diem_rate", "scale_remarks", "grade", "start_date"):
+    if fieldname not in request:
+        fail.append("the Allowance Request has no %s" % fieldname)
+if request.get("destination", {}).get("options") != "Travel Destination":
+    fail.append("the Allowance Request points at a real destination")
+for fieldname in ("currency", "per_diem_rate", "scale_remarks"):
+    if not request.get(fieldname, {}).get("read_only"):
         fail.append("%s is read off the scale, not typed" % fieldname)
-costing = custom_fields("Travel Request Costing")
-if "custom_from_scale" not in costing:
+request_line = fields_of(doctype("Allowance Request Line"))
+if "from_scale" not in request_line:
     fail.append("a line does not say whether its rate came from the scale")
+kind = fields_of(doctype("Allowance Type"))
+if [o for o in (kind.get("per_diem_column", {}).get("options") or "").split("\n") if o] != list(G.SCALE_LINES):
+    fail.append("an Allowance Type is paid off one of the scale's columns: %s" % ", ".join(G.SCALE_LINES))
 print("the paper: the band on their Employee Grade, and the two masters they do not ship")
 
 # ── 4. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "grades.py")
-known = set(grade) | set(destination) | set(rate_fields) | set(travel)
-known |= {"doctype", "name", "docstatus", "employee", "company", "flags", "costings", "base",
+known = set(grade) | set(destination) | set(rate_fields) | set(request)
+known |= {"doctype", "name", "docstatus", "employee", "company", "flags", "lines", "base",
           "currency", "grade", "destination", "effective_from", "lodging", "daily_allowance",
           "conveyance", "country", "is_foreign", "destination_name"}
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
@@ -321,9 +323,9 @@ if "check_permission(" not in glue:
 if "frappe.throw" in glue.split("def assignment_validate")[1].split("def ")[0]:
     fail.append("a salary outside its band is said, not refused: payroll is not ours to block")
 allowances = read("hrms_addon", "hrms_addon", "allowances.py")
-if "grades.apply_scale(" not in allowances:
-    fail.append("the travel form must read the scale before it costs its lines")
-if allowances.index("grades.apply_scale(") > allowances.index("_cost_lines(doc)"):
+if "grades.apply_scale(doc, types)" not in allowances:
+    fail.append("the Allowance Request must read the scale before it costs its lines")
+elif allowances.index("grades.apply_scale(doc, types)") > allowances.index("_cost_lines(doc, types)"):
     fail.append("and read it before, not after")
 for name, prefix in (("travel_destination", "destination"), ("per_diem_rate", "rate")):
     controller = read("hrms_addon", "hrms_addon", "doctype", name, name + ".py")
