@@ -354,6 +354,9 @@ after_migrate = [
     # The Salary Advance Request: the employee applies, the supervisor
     # approves. See advance_request_approval.py.
     "hrms_addon.hrms_addon.salary_advances.setup_on_migrate",
+    # The Leave Advance: raised from the approved leave, approved by the
+    # Accounts Manager (minutes §4.4). See leave_advance_approval.py.
+    "hrms_addon.hrms_addon.leave_advances.setup_on_migrate",
     # The allowance application (Supervisor, HR Officer, General Manager,
     # then Accounts) and the Employees Claim Form's five desks. See
     # allowance_approval.py and claim_approval.py.
@@ -771,6 +774,7 @@ fixtures = [
                     "Training Feedback-custom_signed_on",
                     "Employee-custom_bank_branch",
                     "Employee-custom_bank_account_name",
+                    "Employee-custom_bank_code",
                     "Employee-custom_salary_from_month",
                     "Employee-custom_wages_phone_section",
                     "Employee-custom_wages_phone",
@@ -910,6 +914,7 @@ fixtures = [
                     "Leave Application-custom_date_of_appointment",
                     "Leave Application-custom_medical_certificate",
                     "Leave Application-custom_salary_requested_in_advance",
+                    "Leave Application-custom_leave_advance",
                     "Leave Application-custom_advance",
                     "Leave Application-custom_plan",
                     "Leave Application-custom_plan_row",
@@ -919,6 +924,11 @@ fixtures = [
                     "Leave Application-custom_last_leave_to",
                     "Leave Application-custom_last_leave_days",
                     "Leave Application-custom_hro_cb",
+                    "Leave Application-custom_leave_earned",
+                    "Leave Application-custom_earned_by",
+                    "Leave Application-custom_days_worked",
+                    "Leave Application-custom_leave_brought_forward",
+                    "Leave Application-custom_leave_available",
                     "Leave Application-custom_balance_before",
                     "Leave Application-custom_balance_after",
                     "Leave Application-custom_sick_balance_before",
@@ -1401,6 +1411,14 @@ override_doctype_class = {
     "Employee Onboarding": "hrms_addon.hrms_addon.overrides.employee_onboarding.EmployeeOnboarding",
 }
 
+# Frappe HR's three leave reports gain the leave earned beside the balances.
+# A report has no hook of its own; v16 mixes this in ahead of the Report
+# controller, alongside any other app's, and it touches only those three
+# (report_extensions.py).
+extend_doctype_class = {
+    "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns"],
+}
+
 # Document Events
 # ---------------
 # Hook on document methods and events
@@ -1530,9 +1548,12 @@ doc_events = {
     # off a staff loan (loans.py)
     "Journal Entry": {
         "on_submit": ["hrms_addon.hrms_addon.advances.payment_on_submit",
-                      "hrms_addon.hrms_addon.loans.journal_on_submit"],
+                      "hrms_addon.hrms_addon.loans.journal_on_submit",
+                      # the Leave Advance Processing's bank entry (leave_advances.py)
+                      "hrms_addon.hrms_addon.leave_advances.payment_on_submit"],
         "on_cancel": ["hrms_addon.hrms_addon.advances.payment_on_cancel",
-                      "hrms_addon.hrms_addon.loans.journal_on_cancel"],
+                      "hrms_addon.hrms_addon.loans.journal_on_cancel",
+                      "hrms_addon.hrms_addon.leave_advances.payment_on_cancel"],
     },
     # The slip that takes a loan's, a penalty's or an advance's monthly
     # deduction marks that month recovered, and a cancelled slip gives it
@@ -1685,6 +1706,10 @@ scheduler_events = {
         # Leave: a planned leave falling due told to the employee and their
         # supervisor, and a leave nobody has reported back from (leave.py)
         "hrms_addon.hrms_addon.leave.daily",
+        # Leave earned: a leave year that has ended gives up what was never
+        # earned, and each year's (and each joiner's) leave is allocated when
+        # the settings say so (leave_accrual.py)
+        "hrms_addon.hrms_addon.leave_accrual.daily",
         # Advances: one waiting to be paid, and one still owed after its
         # last instalment should have been taken (advances.py)
         "hrms_addon.hrms_addon.advances.daily",

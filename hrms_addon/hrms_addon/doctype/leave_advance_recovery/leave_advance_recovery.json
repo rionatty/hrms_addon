@@ -1,0 +1,65 @@
+{
+ "actions": [],
+ "creation": "2026-09-28 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "payroll_date",
+  "amount",
+  "additional_salary",
+  "recovered"
+ ],
+ "fields": [
+  {
+   "fieldname": "payroll_date",
+   "fieldtype": "Date",
+   "label": "Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "additional_salary",
+   "fieldtype": "Link",
+   "label": "Deduction",
+   "options": "Additional Salary",
+   "in_list_view": 1,
+   "columns": 3,
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "recovered",
+   "fieldtype": "Check",
+   "label": "Recovered",
+   "in_list_view": 1,
+   "columns": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-28 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Leave Advance Recovery",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

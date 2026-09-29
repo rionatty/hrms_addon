@@ -1,0 +1,244 @@
+{
+ "actions": [],
+ "creation": "2026-09-28 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "earned_section",
+  "absent_days_earn",
+  "count_up_to",
+  "earned_cb",
+  "remove_unearned",
+  "allocation_section",
+  "auto_allocate",
+  "default_leave_policy",
+  "allocation_cb",
+  "allocate_now",
+  "last_allocated_on",
+  "last_allocation",
+  "advance_section",
+  "advance_percent",
+  "per_meter_months",
+  "more_than_days",
+  "raise_on_approval",
+  "advance_cb",
+  "regular_only",
+  "not_regular_types",
+  "no_loans",
+  "instalments",
+  "max_instalments",
+  "accounts_section",
+  "leave_advance_account",
+  "accounts_cb",
+  "recovery_component"
+ ],
+ "fields": [
+  {
+   "fieldname": "earned_section",
+   "fieldtype": "Section Break",
+   "label": "Leave Earned"
+  },
+  {
+   "fieldname": "absent_days_earn",
+   "fieldtype": "Check",
+   "label": "Absent Days Earn Leave",
+   "default": "0",
+   "description": "Ticked, a day marked Absent still earns leave."
+  },
+  {
+   "fieldname": "count_up_to",
+   "fieldtype": "Select",
+   "label": "Count Leave Earned Up To",
+   "options": "The Day the Leave Starts\nThe Day of Applying",
+   "default": "The Day the Leave Starts"
+  },
+  {
+   "fieldname": "earned_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remove_unearned",
+   "fieldtype": "Check",
+   "label": "Take Off Unearned Leave When the Leave Year Ends",
+   "default": "1",
+   "description": "So only leave earned is carried forward."
+  },
+  {
+   "fieldname": "allocation_section",
+   "fieldtype": "Section Break",
+   "label": "Allocation"
+  },
+  {
+   "fieldname": "auto_allocate",
+   "fieldtype": "Check",
+   "label": "Allocate Leave Automatically",
+   "default": "0",
+   "description": "Each leave year and each new joiner. Last year's leave policy, else the default."
+  },
+  {
+   "fieldname": "default_leave_policy",
+   "fieldtype": "Link",
+   "label": "Default Leave Policy",
+   "options": "Leave Policy"
+  },
+  {
+   "fieldname": "allocation_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allocate_now",
+   "fieldtype": "Button",
+   "label": "Allocate Now"
+  },
+  {
+   "fieldname": "last_allocated_on",
+   "fieldtype": "Datetime",
+   "label": "Last Allocated On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_allocation",
+   "fieldtype": "Small Text",
+   "label": "Last Allocation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "advance_section",
+   "fieldtype": "Section Break",
+   "label": "Leave Advance"
+  },
+  {
+   "fieldname": "advance_percent",
+   "fieldtype": "Percent",
+   "label": "Advance, % of Gross",
+   "default": "60"
+  },
+  {
+   "fieldname": "per_meter_months",
+   "fieldtype": "Int",
+   "label": "Per Meter: Average Gross Over (Months)",
+   "default": "2"
+  },
+  {
+   "fieldname": "more_than_days",
+   "fieldtype": "Int",
+   "label": "Accrued Leave Longer Than (Days)",
+   "default": "19"
+  },
+  {
+   "fieldname": "raise_on_approval",
+   "fieldtype": "Check",
+   "label": "Raise When the Leave Is Approved",
+   "default": "1"
+  },
+  {
+   "fieldname": "advance_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "regular_only",
+   "fieldtype": "Check",
+   "label": "Regular Employees Only",
+   "default": "1"
+  },
+  {
+   "fieldname": "not_regular_types",
+   "fieldtype": "Table MultiSelect",
+   "label": "Employment Types That Are Not Regular",
+   "options": "Leave Advance Employment Type"
+  },
+  {
+   "fieldname": "no_loans",
+   "fieldtype": "Check",
+   "label": "No Bank or Company Loan",
+   "default": "1"
+  },
+  {
+   "fieldname": "instalments",
+   "fieldtype": "Int",
+   "label": "Recovered In (Months)",
+   "default": "1"
+  },
+  {
+   "fieldname": "max_instalments",
+   "fieldtype": "Int",
+   "label": "Recovered In at Most (Months)",
+   "default": "3"
+  },
+  {
+   "fieldname": "accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Accounts"
+  },
+  {
+   "fieldname": "leave_advance_account",
+   "fieldtype": "Link",
+   "label": "Leave Advance Account",
+   "options": "Account",
+   "description": "An asset account, not a receivable."
+  },
+  {
+   "fieldname": "accounts_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recovery_component",
+   "fieldtype": "Link",
+   "label": "Recovery Component",
+   "options": "Salary Component",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-28 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Leave Management Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "role": "Accounts Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "role": "Payroll Officer"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1,
+ "track_changes": 1
+}

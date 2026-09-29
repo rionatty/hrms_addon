@@ -1,0 +1,465 @@
+{
+ "actions": [],
+ "creation": "2026-09-28 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "company",
+  "branch",
+  "department",
+  "column_break_1",
+  "posting_date",
+  "status",
+  "approval_status",
+  "leave_section",
+  "leave_application",
+  "leave_type",
+  "leave_days",
+  "leave_cb",
+  "from_date",
+  "to_date",
+  "amount_section",
+  "pay_category",
+  "gross_pay",
+  "gross_basis",
+  "amount_cb",
+  "allowed_amount",
+  "amount",
+  "qualifies",
+  "eligibility_remarks",
+  "recovery_section",
+  "instalments",
+  "first_deduction",
+  "recovery_cb",
+  "recovered_amount",
+  "outstanding",
+  "recoveries_section",
+  "recoveries",
+  "payment_section",
+  "processing",
+  "journal_entry",
+  "payment_cb",
+  "paid_on",
+  "approval_section",
+  "accounts_manager_remarks",
+  "approval_cb",
+  "accounts_manager_by",
+  "accounts_manager_on",
+  "workflow_state",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-LVA-.YYYY.-",
+   "default": "LPL-LVA-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "in_standard_filter": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "default": "Today"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending Accounts Manager\nApproved\nRejected\nIn Processing\nPaid\nRecovering\nRecovered\nCancelled",
+   "default": "Draft",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Draft\nPending Accounts Manager\nApproved\nRejected\nCancelled",
+   "default": "Draft",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "leave_section",
+   "fieldtype": "Section Break",
+   "label": "Leave"
+  },
+  {
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Leave Application",
+   "options": "Leave Application",
+   "reqd": 1
+  },
+  {
+   "fieldname": "leave_type",
+   "fieldtype": "Link",
+   "label": "Leave Type",
+   "options": "Leave Type",
+   "fetch_from": "leave_application.leave_type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "leave_days",
+   "fieldtype": "Float",
+   "label": "Leave Days",
+   "fetch_from": "leave_application.total_leave_days",
+   "read_only": 1
+  },
+  {
+   "fieldname": "leave_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "Leave From",
+   "fetch_from": "leave_application.from_date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "Leave To",
+   "fetch_from": "leave_application.to_date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_section",
+   "fieldtype": "Section Break",
+   "label": "Amount"
+  },
+  {
+   "fieldname": "pay_category",
+   "fieldtype": "Data",
+   "label": "Pay Category",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gross_pay",
+   "fieldtype": "Currency",
+   "label": "Gross",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gross_basis",
+   "fieldtype": "Small Text",
+   "label": "Worked Out From",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "allowed_amount",
+   "fieldtype": "Currency",
+   "label": "Most That May Be Advanced",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "in_list_view": 1,
+   "description": "Up to the most that may be advanced."
+  },
+  {
+   "fieldname": "qualifies",
+   "fieldtype": "Check",
+   "label": "Qualifies",
+   "read_only": 1
+  },
+  {
+   "fieldname": "eligibility_remarks",
+   "fieldtype": "Small Text",
+   "label": "Why Not",
+   "depends_on": "eval:!doc.qualifies",
+   "read_only": 1
+  },
+  {
+   "fieldname": "recovery_section",
+   "fieldtype": "Section Break",
+   "label": "Recovery"
+  },
+  {
+   "fieldname": "instalments",
+   "fieldtype": "Int",
+   "label": "Recovered In (Months)",
+   "default": "1",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "first_deduction",
+   "fieldtype": "Date",
+   "label": "First Deduction Month",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "recovery_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recovered_amount",
+   "fieldtype": "Currency",
+   "label": "Recovered",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "outstanding",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "in_list_view": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "recoveries_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "recoveries",
+   "fieldtype": "Table",
+   "label": "Deductions",
+   "options": "Leave Advance Recovery",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "processing",
+   "fieldtype": "Link",
+   "label": "Leave Advance Processing",
+   "options": "Leave Advance Processing",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "label": "Bank Entry",
+   "options": "Journal Entry",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "payment_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "paid_on",
+   "fieldtype": "Date",
+   "label": "Paid On",
+   "read_only": 1,
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Approval"
+  },
+  {
+   "fieldname": "accounts_manager_remarks",
+   "fieldtype": "Small Text",
+   "label": "Accounts Manager's Remarks"
+  },
+  {
+   "fieldname": "approval_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "accounts_manager_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "accounts_manager_on",
+   "fieldtype": "Date",
+   "label": "Approved On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Leave Advance",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-09-28 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Leave Advance",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "create": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "role": "Accounts Manager"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "Payroll Officer"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "Finance Officer"
+  },
+  {
+   "read": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "report": 1,
+   "export": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "is_submittable": 1,
+ "title_field": "employee_name",
+ "track_changes": 1,
+ "search_fields": "employee_name,leave_application"
+}

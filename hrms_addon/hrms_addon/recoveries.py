@@ -3,12 +3,13 @@
 
 """What the payroll took, marked back onto what it was taken for.
 
-A staff loan (loans.py), a penalty (penalties.py) and an advance
-(advances.py) are each recovered through Additional Salary deductions, one
-a month. The Salary Slip that carries a deduction is the proof it was
-taken: when the slip is submitted, that month is marked recovered on the
-loan, penalty or advance and what is outstanding falls; when the slip is
-cancelled, the month is unmarked and the balance goes back up.
+A staff loan (loans.py), a penalty (penalties.py), an advance
+(advances.py) and a leave advance (leave_advances.py) are each recovered
+through Additional Salary deductions, one a month. The Salary Slip that
+carries a deduction is the proof it was taken: when the slip is
+submitted, that month is marked recovered on the loan, penalty or advance
+and what is outstanding falls; when the slip is cancelled, the month is
+unmarked and the balance goes back up.
 
 Once a day, anything a slip took that is not marked yet is caught up —
 slips submitted before this was installed, or while it failed.
@@ -22,14 +23,15 @@ from frappe.utils import today
 SCHEDULES = {
     "Loan Repayment": ("Employee Loan", "Employee Penalty"),
     "Advance Recovery": ("Employee Advance",),
+    "Leave Advance Recovery": ("Leave Advance",),
 }
 
 
 def _refreshers():
-    from hrms_addon.hrms_addon import advances, loans, penalties
+    from hrms_addon.hrms_addon import advances, leave_advances, loans, penalties
 
     return {"Employee Loan": loans.refresh_recovered, "Employee Penalty": penalties.refresh_recovered,
-            "Employee Advance": advances.refresh_recovered}
+            "Employee Advance": advances.refresh_recovered, "Leave Advance": leave_advances.refresh_recovered}
 
 
 def slip_on_submit(doc, method=None):

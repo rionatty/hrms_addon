@@ -2,14 +2,15 @@
 # For license information, please see license.txt
 
 """The year's approved leave plans, month by month, as the employees are
-shown them. HR, heads of department and supervisors see every plant and
-department; an employee sees their own."""
+shown them, with the annual leave each has earned so far and can take
+(leave_accrual.py). HR, heads of department and supervisors see every plant
+and department; an employee sees their own."""
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, format_date, getdate
+from frappe.utils import cint, flt, format_date, getdate, today
 
-from hrms_addon.hrms_addon import leave, leave_rules as rules
+from hrms_addon.hrms_addon import leave, leave_accrual, leave_rules as rules
 
 MONTHS = ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
 
@@ -54,10 +55,14 @@ def rows_for(year, branch=None, department=None):
         entry["total"] += flt(row.planned_days)
         entry["dates"].append(_("{0} to {1}").format(format_date(row.planned_from, "d MMM"),
                                                      format_date(row.planned_to, "d MMM")))
+    earned = leave_accrual.earned_for(list(out), rules.ANNUAL, min(max(getdate(today()), start), end))
     data = []
     for entry in out.values():
         entry.pop("holidays")
         entry["dates"] = "; ".join(entry["dates"])
+        found = earned.get(entry["employee"])
+        entry["earned"] = found.earned if found else None
+        entry["available"] = found.available if found else None
         data.append(entry)
     return data
 
@@ -72,4 +77,6 @@ def columns():
         *({"fieldname": month, "label": _(month.capitalize()), "fieldtype": "Float", "precision": 1, "width": 60}
           for month in MONTHS),
         {"fieldname": "total", "label": _("Total"), "fieldtype": "Float", "precision": 1, "width": 70},
+        {"fieldname": "earned", "label": _("Earned So Far"), "fieldtype": "Float", "precision": 2, "width": 110},
+        {"fieldname": "available", "label": _("Can Be Taken"), "fieldtype": "Float", "precision": 2, "width": 110},
     ]

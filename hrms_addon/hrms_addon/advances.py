@@ -22,8 +22,10 @@ which, and the workflow carries all three chains (advance_approval.py).
               more of an advance than has been paid out; and the payroll
               books each one back against the advance, which Frappe HR then
               shows as Returned.
-  from_leave  step 7 of the leave process: the Leave Advance raised from an
-              approved LPL/HR/15 (leave.py).
+  leave       a leave advance is its own document now, the Leave Advance
+              (leave_advances.py), apart from the loans and these advances:
+              a new one is not made here. One made here before stays, and
+              finishes its own chain.
   daily       the monitoring both charts ask for: the salary advance run
               (chart 4.10 step 2, "System monitoring Advance payment
               date"), an advance due to be paid, and one whose recovery
@@ -99,6 +101,9 @@ def advance_validate(doc, method=None):
     if doc.custom_advance_type == rules.SALARY_ADVANCE and doc.is_new() and not from_run:
         frappe.throw(_("Salary advances are requested on a Salary Advance Request and paid through the "
                        "monthly Salary Advance Processing."), title=_("Employee Advance"))
+    if doc.custom_advance_type == rules.LEAVE_ADVANCE and doc.is_new():
+        frappe.throw(_("A leave advance is raised from the approved Leave Application, as a Leave Advance."),
+                     title=_("Employee Advance"))
     _stamp_requested(doc)
     if doc.custom_advance_type == rules.SALARY_ADVANCE and not from_run:
         _plan_salary(doc, s)
@@ -569,40 +574,6 @@ def _mark_leave(doc):
         "custom_advance": doc.name, "custom_advance_amount": amount,
         "custom_accounts_by": frappe.session.user, "custom_accounts_on": today(),
     }, update_modified=False)
-
-
-# ── 2. Raised from a leave form ───────────────────────────────────────
-@frappe.whitelist(methods=["POST"])
-def from_leave(leave_application):
-    """Step 1 of the Leave Advance process: the HR Officer raises it from
-    the employee's leave form, and the Accounts Manager is told."""
-    leave = frappe.get_doc("Leave Application", leave_application)
-    leave.check_permission("read")
-    if leave.docstatus != 1 or leave.status != "Approved":
-        frappe.throw(_("The leave advance follows an approved leave application."))
-    if leave.get("custom_advance"):
-        return leave.custom_advance
-    advance = frappe.new_doc(DOCTYPE)
-    advance.update({
-        "employee": leave.employee, "company": leave.company, "posting_date": today(),
-        "custom_advance_type": rules.LEAVE_ADVANCE, "custom_leave_application": leave.name,
-        "custom_branch": leave.get("custom_branch"),
-        "purpose": _("Salary in advance for leave from {0} to {1}").format(
-            frappe.utils.format_date(leave.from_date), frappe.utils.format_date(leave.to_date)),
-        "custom_reason": leave.get("description"),
-        "custom_first_recovery_month": leave.to_date,
-        "custom_instalments": 1,
-    })
-    advance.flags.ignore_permissions = True
-    advance.flags.ignore_mandatory = True
-    advance.insert()
-    frappe.db.set_value("Leave Application", leave.name, "custom_advance", advance.name,
-                        update_modified=False)
-    users = people.people_for("Accounts Manager", leave.get("custom_branch"), leave.get("department"))
-    if users:
-        people.notify(users, DOCTYPE, advance.name,
-                      _("Leave advance raised for {0}.").format(leave.employee_name or leave.employee))
-    return advance.name
 
 
 # ── 3. The monitoring both charts draw ────────────────────────────────

@@ -687,6 +687,9 @@ if by_dt.get(EM):
                  # (the wages phone number) sit with Frappe's own bank details
                  "custom_bank_branch": ("Salary", "bank_name"),
                  "custom_bank_account_name": ("Salary", "custom_bank_branch"),
+                 # the bank code the leave advance file for Finance carries
+                 # (leave_advances.py, minutes §4.4)
+                 "custom_bank_code": ("Salary", "custom_bank_account_name"),
                  "custom_salary_from_month": ("Salary", "bank_ac_no"),
                  "custom_wages_phone_section": ("Salary", "custom_salary_from_month"),
                  "custom_wages_phone": ("Salary", "custom_wages_phone_section"),

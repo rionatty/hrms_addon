@@ -516,9 +516,18 @@ for needle, why in (
 for name in ("inform_employees", "raise_advance", "get_employees", "apply_from_plan", "request_change"):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue_leave):
         fail.append("leave.%s changes something: a whitelisted POST method" % name)
-if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef from_leave\(', glue_advances):
-    fail.append("advances.from_leave changes something: a whitelisted POST method")
-for glue, name in ((glue_leave, "leave.py"), (glue_advances, "advances.py")):
+# the leave advance is its own document now (leave_advances.py): none is
+# made on Employee Advance, and the leave form's button raises the new one
+glue_leave_advances = read("hrms_addon", "hrms_addon", "leave_advances.py")
+if "if doc.custom_advance_type == rules.LEAVE_ADVANCE and doc.is_new():" not in glue_advances:
+    fail.append("advances.py: a new leave advance is refused on Employee Advance")
+if "def from_leave(" in glue_advances:
+    fail.append("advances.py: the leave advance is no longer raised on Employee Advance")
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef raise_advance\(', glue_leave_advances):
+    fail.append("leave_advances.raise_advance changes something: a whitelisted POST method")
+if "return leave_advances.raise_advance(leave_application)" not in glue_leave:
+    fail.append("leave.raise_advance raises the Leave Advance")
+for glue, name in ((glue_leave, "leave.py"), (glue_leave_advances, "leave_advances.py")):
     if 'check_permission(' not in glue:
         fail.append("%s: a whitelisted method must check the caller may act" % name)
 print("glue: fields that exist here and upstream, the rules followed, the buttons whitelisted")

@@ -25,8 +25,12 @@ The rules are in leave_rules.py, without a Frappe import
                 has started with nothing applied for tells HR, each planned
                 leave's status is brought up to date, and a leave whose last
                 day has passed asks for the report back.
-  raise_advance step 7: the form's "Salary Requested in Advance" raises the
-                Leave Advance for the HR Officer (advances.py).
+  raise_advance step 7: the form's "Leave Advance Requested" raises the Leave
+                Advance, its own document (leave_advances.py); on approval
+                it is raised by itself.
+  Leave earned  Part 2 shows what the employee has earned by the days
+                worked and what can be taken, and a leave longer than that
+                is refused (leave_accrual.py).
 """
 
 import frappe
@@ -109,17 +113,23 @@ def holidays_between(employee, start, end):
 def _available(employee, year):
     """(days for the year, days brought forward): the year's annual Leave
     Allocation where there is one; before it is made, the days on the
-    employee's leave policy and what their balance carries into the year."""
+    employee's leave policy and what their balance carries into the year.
+    Earned leave grows through the year as it is earned, so its plan takes
+    the year's days from the policy instead of what is credited so far."""
     if not (employee and year):
         return 0.0, 0.0
     start, end = rules.year_window(year)
     allocations = frappe.get_all("Leave Allocation",
                                  filters={"employee": employee, "leave_type": rules.ANNUAL, "docstatus": 1,
                                           "from_date": ["<=", end], "to_date": [">=", start]},
-                                 fields=["new_leaves_allocated", "carry_forwarded_leaves_count"])
+                                 fields=["new_leaves_allocated", "unused_leaves"])
     if allocations:
-        return (flt(sum(flt(row.new_leaves_allocated) for row in allocations)),
-                flt(sum(flt(row.carry_forwarded_leaves_count) for row in allocations)))
+        days = flt(sum(flt(row.new_leaves_allocated) for row in allocations))
+        if cint(frappe.db.get_value("Leave Type", rules.ANNUAL, "is_earned_leave")):
+            days = _policy_days(employee, start, end) or days
+        # unused_leaves is what was brought into the allocation; its
+        # carry_forwarded_leaves_count is what it later passed on
+        return days, flt(sum(flt(row.unused_leaves) for row in allocations))
     return _policy_days(employee, start, end), _carried_into(employee, start)
 
 
@@ -466,9 +476,10 @@ def _retotal(plan):
 
 # ── 2. LPL/HR/15 ──────────────────────────────────────────────────────
 def application_validate(doc, method=None):
-    from hrms_addon.hrms_addon import leave_approval as approval
+    from hrms_addon.hrms_addon import leave_accrual, leave_approval as approval
 
-    _fill_balances(doc)
+    earned = leave_accrual.check_application(doc)
+    _fill_balances(doc, earned)
     _check_application_step(doc)
     state = doc.get("workflow_state")
     doc.custom_leave_status = state or doc.get("custom_leave_status") or approval.DRAFT
@@ -479,11 +490,16 @@ def application_validate(doc, method=None):
         doc.custom_reported_back_on = today()
 
 
-def _fill_balances(doc):
+def _fill_balances(doc, earned=None):
     """Part 2 of the form: what was left before the leave and what is left
-    after it. The HR Officer types the balance before; the rest follows."""
-    if doc.get("custom_balance_before") in (None, 0) and doc.get("leave_balance"):
-        doc.custom_balance_before = flt(doc.leave_balance)
+    after it. For earned leave, what can be taken by the days worked
+    (leave_accrual.py); else Frappe HR's balance, unless the HR Officer typed
+    one."""
+    if doc.get("custom_balance_before") in (None, 0):
+        if earned is not None:
+            doc.custom_balance_before = flt(earned.available)
+        elif doc.get("leave_balance"):
+            doc.custom_balance_before = flt(doc.leave_balance)
     if doc.get("custom_balance_before"):
         doc.custom_balance_after = rules.balance_after(doc.custom_balance_before, doc.get("total_leave_days"))
     if doc.get("custom_sick_balance_before"):
@@ -557,19 +573,17 @@ def _tell_application(doc, state):
 
 
 def application_on_submit(doc, method=None):
-    """Approved. Step 7: an advance was asked for, so the HR Officer is told
-    to start the Leave Advance process."""
+    """Approved. Step 7: an advance was asked for, so the Leave Advance is
+    raised and goes to the Accounts Manager (leave_advances.py)."""
+    from hrms_addon.hrms_addon import leave_advances
+
     if doc.get("status") != "Approved":
         _unmark_plan_row(doc)
         return
     _mark_plan_row(doc)
     if not rules.advance_wanted({"salary_requested_in_advance": doc.get("custom_salary_requested_in_advance")}):
         return
-    users = people.hr_officers(doc.get("custom_branch"), doc.get("department"))
-    message = _("{0} asked for salary in advance on their leave. Raise the Leave Advance.").format(
-        doc.get("employee_name") or doc.employee)
-    people.notify(users, doc.doctype, doc.name, message)
-    people.assign(doc.doctype, doc.name, users, message, date=doc.get("from_date"))
+    leave_advances.on_leave_approved(doc)
 
 
 def application_on_cancel(doc, method=None):
@@ -622,10 +636,10 @@ def _planned_row_for(employee, from_date, to_date, plan=None, application=None):
 
 @frappe.whitelist(methods=["POST"])
 def raise_advance(leave_application):
-    """Step 7: the Leave Advance, raised from the leave form (advances.py)."""
-    from hrms_addon.hrms_addon import advances
+    """Step 7: the Leave Advance, raised from the leave form (leave_advances.py)."""
+    from hrms_addon.hrms_addon import leave_advances
 
-    return advances.from_leave(leave_application)
+    return leave_advances.raise_advance(leave_application)
 
 
 # ── 3. Step 4: the system watching ────────────────────────────────────
@@ -785,8 +799,10 @@ def leave_type_values(name):
         return {"is_lwp": 1, "max_leaves_allowed": 0, "max_continuous_days_allowed": days}
     values = {"max_leaves_allowed": days}
     if name == rules.ANNUAL:
+        # earned month by month, by the days worked (leave_accrual.py)
         values.update({"is_carry_forward": 1, "allow_encashment": 1,
-                       "maximum_carry_forwarded_leaves": 0})
+                       "maximum_carry_forwarded_leaves": 0, "is_earned_leave": 1,
+                       "earned_leave_frequency": "Monthly", "allocate_on_day": "Last Day", "rounding": ""})
     if name == rules.SICK_HALF_PAY:
         values.update({"is_ppl": 1, "fraction_of_daily_salary_per_leave": rules.HALF_PAY_FRACTION})
     return values

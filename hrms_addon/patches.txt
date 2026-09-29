@@ -43,3 +43,4 @@ hrms_addon.patches.v1_0.seed_interview_letters
 hrms_addon.patches.v1_0.screen_existing_applicants
 hrms_addon.patches.v1_0.trainings_as_tables
 hrms_addon.patches.v1_0.requisition_topics
+hrms_addon.patches.v1_0.leave_accrual_and_advance

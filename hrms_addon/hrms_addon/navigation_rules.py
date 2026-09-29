@@ -223,9 +223,20 @@ CARDS = {
             ("Leave Plan Change", "Leave Plan Change", DOCTYPE),
             ("HR Calendar", "hr-calendar", PAGE),
         ]),
+        # the leave advance, its own document apart from the loans
+        # (leave_advances.py, minutes §4.4)
+        ("Leave Advance", [
+            ("Leave Advance", "Leave Advance", DOCTYPE),
+            ("Leave Advance Processing", "Leave Advance Processing", DOCTYPE),
+        ]),
         ("Reports", [
             ("Leave Schedule", "Leave Schedule", REPORT),
             ("Leave Plan Adherence", "Leave Plan Adherence", REPORT),
+            # leave earned by the days worked (leave_accrual.py)
+            ("Leave Accrual", "Leave Accrual", REPORT),
+        ]),
+        ("Leave Settings", [
+            ("Leave Management Settings", "Leave Management Settings", DOCTYPE),
         ]),
     ],
     # Frappe HR's own attendance page gains Luuka's three forms and the
@@ -379,8 +390,12 @@ SIDEBAR = {
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
         ("Leave Plan Change", "Leave Plan Change", DOCTYPE, None, "Annual Leave Plan"),
         ("HR Calendar", "hr-calendar", PAGE, None, "Leave Plan Change"),
+        ("Leave Advance", "Leave Advance", DOCTYPE, None, "hr-calendar"),
+        ("Leave Advance Processing", "Leave Advance Processing", DOCTYPE, None, "Leave Advance"),
         ("Leave Schedule", "Leave Schedule", REPORT, "Reports", None),
         ("Leave Plan Adherence", "Leave Plan Adherence", REPORT, "Reports", None),
+        ("Leave Accrual", "Leave Accrual", REPORT, "Reports", None),
+        ("Leave Management Settings", "Leave Management Settings", DOCTYPE, "Setup", None),
     ],
     "Shift & Attendance": [
         ("Attendance Board", "attendance-board", PAGE, None, None),
