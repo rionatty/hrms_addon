@@ -610,5 +610,71 @@
   "property_type": "Check",
   "value": "1",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Structure-earnings-allow_on_submit",
+  "doc_type": "Salary Structure",
+  "doctype_or_field": "DocField",
+  "field_name": "earnings",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Structure-deductions-allow_on_submit",
+  "doc_type": "Salary Structure",
+  "doctype_or_field": "DocField",
+  "field_name": "deductions",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Structure-employer_contributions-allow_on_submit",
+  "doc_type": "Salary Structure",
+  "doctype_or_field": "DocField",
+  "field_name": "employer_contributions",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Structure-total_earning-allow_on_submit",
+  "doc_type": "Salary Structure",
+  "doctype_or_field": "DocField",
+  "field_name": "total_earning",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Structure-total_deduction-allow_on_submit",
+  "doc_type": "Salary Structure",
+  "doctype_or_field": "DocField",
+  "field_name": "total_deduction",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Structure-net_pay-allow_on_submit",
+  "doc_type": "Salary Structure",
+  "doctype_or_field": "DocField",
+  "field_name": "net_pay",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
  }
 ]

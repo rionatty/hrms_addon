@@ -106,7 +106,7 @@ frappe.ui.form.on("Annual Leave Plan", {
 			frm.set_value("posting_date", frappe.datetime.get_today());
 		}
 		// what each has available is the new year's
-		(frm.doc.employees || []).filter((row) => row.employee).forEach((row) => ha_fill_row(frm, row));
+		(frm.doc.employees || []).filter((row) => row.employee).forEach((row) => ha_fill_plan_row(frm, row));
 	},
 });
 
@@ -115,11 +115,11 @@ frappe.ui.form.on("Annual Leave Plan", {
 // with what they bring forward)
 frappe.ui.form.on("Annual Leave Plan Employee", {
 	employee(frm, cdt, cdn) {
-		ha_fill_row(frm, locals[cdt][cdn]);
+		ha_fill_plan_row(frm, locals[cdt][cdn]);
 	},
 });
 
-function ha_fill_row(frm, row) {
+function ha_fill_plan_row(frm, row) {
 	if (!row.employee || !frm.doc.year || frm.doc.docstatus !== 0) return;
 	frappe
 		.xcall(HA_LEAVE + "plan_row", { employee: row.employee, year: frm.doc.year })

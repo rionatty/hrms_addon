@@ -59,6 +59,9 @@ DOCFIELD_PROPERTIES = {
     # a Link any employee may be picked in, whatever the user's own
     # permissions (customize_form.py docfield_properties)
     "ignore_user_permissions": "Check",
+    # a table a submitted document still takes new rows in (Salary
+    # Structure's components; customize_form.py docfield_properties)
+    "allow_on_submit": "Check",
 }
 DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not

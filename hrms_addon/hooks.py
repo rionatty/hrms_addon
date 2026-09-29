@@ -161,6 +161,11 @@ doctype_js = {
     # Luuka's scorecard is built on Frappe HR's own Appraisal Template:
     # the weights headline and Import PMS Workbook sit on their form
     "Appraisal Template": "public/js/appraisal_template.js",
+    # Cancelling an assignment or a structure leaves the onboarding and the
+    # position change off the Cancel All list; a submitted structure takes
+    # new rows but keeps its own (salary_structures.py)
+    "Salary Structure Assignment": "public/js/salary_structure_assignment.js",
+    "Salary Structure": "public/js/salary_structure.js",
     # LPL/HR/15 on their Leave Application: the balances headline, the
     # advance the form asks for, and the report back (leave.py)
     "Leave Application": "public/js/leave_application.js",
@@ -1324,6 +1329,12 @@ fixtures = [
                     "Employee-iban-permlevel",
                     "Appraisal Template-goals-reqd",
                     "Designation-appraisal_template-reqd",
+                    "Salary Structure-earnings-allow_on_submit",
+                    "Salary Structure-deductions-allow_on_submit",
+                    "Salary Structure-employer_contributions-allow_on_submit",
+                    "Salary Structure-total_earning-allow_on_submit",
+                    "Salary Structure-total_deduction-allow_on_submit",
+                    "Salary Structure-net_pay-allow_on_submit",
                     "Appraisal Template-goals-description",
                 ],
             ]
@@ -1564,6 +1575,17 @@ doc_events = {
     },
     "Salary Structure Assignment": {
         "validate": "hrms_addon.hrms_addon.grades.assignment_validate",
+        # the onboarding and the position change that made it keep it as a
+        # record: cancelling it to correct it cancels neither, and the one
+        # that replaces it takes its place on them (salary_structures.py)
+        "on_cancel": "hrms_addon.hrms_addon.salary_structures.keep_records",
+        "on_submit": "hrms_addon.hrms_addon.salary_structures.follow_replacement",
+    },
+    # a submitted structure takes new components (never loses one), and its
+    # cancel leaves the records that name it (salary_structures.py)
+    "Salary Structure": {
+        "on_cancel": "hrms_addon.hrms_addon.salary_structures.keep_records",
+        "before_update_after_submit": "hrms_addon.hrms_addon.salary_structures.rows_after_submit",
     },
     # Submitting a signable document is itself an approval, and an
     # approval nobody can point at is not much of one, so it is written

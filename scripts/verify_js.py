@@ -332,7 +332,21 @@ if len(sources) < 20:
 for rel in sorted(sources):
     for problem in scan(sources[rel]):
         fail.append("%s: %s" % (rel, problem))
-print("scanned %d scripts: strings, comments, templates and brackets all closed" % len(sources))
+# Frappe loads every form script into the one page: a const declared twice
+# stops the second script loading (a blank form), and a function declared
+# twice quietly replaces the first, so one form runs the other's code
+declared = {}
+for rel in sorted(sources):
+    if rel.endswith((".bundle.js", ".min.js")):
+        continue
+    for found in re.finditer(r"^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)", sources[rel], re.M):
+        declared.setdefault(found.group(1), []).append(rel)
+for name, where in sorted(declared.items()):
+    if len(set(where)) > 1:
+        fail.append("%s is declared at the top of %s: scripts share one page, so each name once"
+                    % (name, " and ".join(sorted(set(where)))))
+print("scanned %d scripts: strings, comments, templates and brackets all closed, each top-level name once"
+      % len(sources))
 
 # ── 2. And really parses, where an engine is at hand ──────────────────
 kind, errors = really_parse(sources)
