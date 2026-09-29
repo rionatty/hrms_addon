@@ -81,13 +81,16 @@ def _lay_out(name):
                          "weight": weight})
     arranged, _perspectives = bsc_rules.arrange_kpis(rows)
     for idx, row in enumerate(arranged, 1):
+        # a number column cannot hold nothing: a KPI under the first of its
+        # perspective carries a weight of 0, as a saved template does
+        weight = flt(row["weight"])
         if row.get("name"):
-            frappe.db.set_value("BSC Template KPI", row["name"], {"weight": row["weight"], "idx": idx},
+            frappe.db.set_value("BSC Template KPI", row["name"], {"weight": weight, "idx": idx},
                                 update_modified=False)
         else:
             frappe.get_doc({"doctype": "BSC Template KPI", "parent": name, "parenttype": TEMPLATE,
                             "parentfield": "custom_kpis", "idx": idx, "perspective": row["perspective"],
-                            "kpi": row["kpi"], "weight": row["weight"]}).db_insert()
+                            "kpi": row["kpi"], "weight": weight}).db_insert()
 
 
 def _designations():
