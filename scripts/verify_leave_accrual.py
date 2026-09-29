@@ -357,6 +357,17 @@ for key, value in A.DEFAULTS.items():
 for name in ("default_leave_policy", "allocate_now", "leave_advance_account"):
     if name not in page:
         fail.append("Leave Management Settings has no %s" % name)
+# The recovery component is only made on the first Leave Advance Processing;
+# a Link to it refuses every save (and the migrate's patch) until then.
+component = page.get("recovery_component") or {}
+if (component.get("fieldtype"), component.get("read_only")) != ("Data", 1):
+    fail.append("Leave Management Settings.recovery_component names the deduction as read-only text, not a Link to "
+                "a Salary Component that is only made on the first run")
+# every other Link a Single's code fills must point at a record there already is
+for name, spec in page.items():
+    if spec.get("fieldtype") == "Link" and spec.get("read_only"):
+        fail.append("Leave Management Settings.%s is a read-only Link: code fills it, so a missing record would "
+                    "refuse every save" % name)
 seed = re.search(r"def leave_type_values\(name\):(.*?)(?:\n\n\n|\Z)", leave_glue, re.S)
 if not seed or '"is_earned_leave": 1' not in seed.group(1) or '"earned_leave_frequency": "Monthly"' not in seed.group(1) \
         or '"rounding": ""' not in seed.group(1):
@@ -371,6 +382,9 @@ for needle, why in (
     ('"leave_policy_assignment": ["is", "set"]}, limit=1):', "only a policy's allocation"),
     ("if frappe.db.get_singles_dict(SETTINGS):\n        return", "settings saved before are Luuka's own"),
     ('"leave_percent": "advance_percent"', "the leave advance rules come across from Advance Settings"),
+    ("if not leave_advance_rules.settings_errors(leave_advance_rules.settings_from(moved)):",
+     "values the settings would refuse stay at their defaults instead of stopping the migrate"),
+    ("doc.flags.ignore_links = True", "a link that is gone does not stop the migrate"),
 ):
     if needle not in patch:
         fail.append("the patch: %s" % why)
