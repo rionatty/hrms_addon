@@ -1318,6 +1318,7 @@ fixtures = [
                     "Appraisal-appraisal_kra-hidden",
                     "Appraisal-goals-hidden",
                     "Appraisal-self_ratings-hidden",
+                    "Appraisal-self_appraisal_tab-depends_on",
                     "Appraisal Template-goals-hidden",
                     "Appraisal Template-rating_criteria-hidden",
                     "Appraisal Template-section_break_7-hidden",
@@ -1471,6 +1472,11 @@ doc_events = {
         # signatures, and the year to date (appraisals.py)
         "validate": "hrms_addon.hrms_addon.appraisals.appraisal_validate",
         "on_cancel": "hrms_addon.hrms_addon.appraisals.appraisal_on_cancel",
+    },
+    # the appraisals the supervisor does not have yet follow the
+    # self-appraisal setting as soon as it is saved (appraisals.py)
+    "Appraisal Settings": {
+        "on_update": "hrms_addon.hrms_addon.appraisals.settings_on_update",
     },
     "Appraisal Template": {
         # the role's balanced scorecard, carried on Frappe HR's own
@@ -1782,6 +1788,11 @@ override_whitelisted_methods = {
     # the saved web form attaches the file through the full name.
     "upload_file": "hrms_addon.hrms_addon.uploads.upload_file",
     "frappe.handler.upload_file": "hrms_addon.hrms_addon.uploads.upload_file",
+    # the Appraisal Cycle's Self Appraisal Pending counts only the appraisals
+    # waiting on the employee, none while the self-appraisal is off
+    "hrms.hr.doctype.appraisal_cycle.appraisal_cycle.get_appraisal_cycle_summary": (
+        "hrms_addon.hrms_addon.appraisals.get_appraisal_cycle_summary"
+    ),
 }
 #
 # each overriding function accepts a `data` argument;

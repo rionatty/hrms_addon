@@ -65,6 +65,17 @@ def assign(doctype, name, users, description, date=None, notify=0):
               "date": date, "notify": notify}, ignore_permissions=True)
 
 
+def withdraw(doctype, name, users):
+    """Take the document off each user's ToDo list: what they were asked to
+    do on it is no longer asked."""
+    from frappe.desk.form.assign_to import _remove
+
+    for user in [user for user in users if user]:
+        if frappe.db.exists("ToDo", {"reference_type": doctype, "reference_name": name, "allocated_to": user,
+                                     "status": "Open"}):
+            _remove(doctype, name, user, ignore_permissions=True)
+
+
 def notify(users, doctype, name, subject, message=None):
     """An alert in each user's notifications (and email, as they have set)."""
     from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification

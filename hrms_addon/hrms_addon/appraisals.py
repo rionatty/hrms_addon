@@ -73,6 +73,67 @@ def settings():
     return frappe._dict(rules.settings_values(stored))
 
 
+def settings_on_update(doc, method=None):
+    """Appraisal Settings saved: the appraisals the supervisor does not have
+    yet follow them now."""
+    moved = follow_settings()
+    if moved:
+        frappe.msgprint(_("Appraisals sent on to the supervisor: {0}").format(len(moved)), alert=True)
+
+
+def follow_settings():
+    """Every open appraisal the supervisor does not have yet takes the
+    self-appraisal as Appraisal Settings say now, and one waiting on a
+    self-appraisal no longer asked for goes on to the supervisor
+    (approval.follow_setting). Returns the ones sent on."""
+    own = settings().self_appraisal
+    moved = []
+    for row in frappe.get_all("Appraisal", filters={"docstatus": 0},
+                              fields=["name", approval.STATE_FIELD, approval.SELF_FIELD]):
+        wanted = approval.follow_setting(row.get(approval.STATE_FIELD), own)
+        if not wanted:
+            continue
+        flag, state = wanted
+        if state != (row.get(approval.STATE_FIELD) or approval.DRAFT):
+            _skip_self_appraisal(row.name, state)
+            moved.append(row.name)
+        elif int(row.get(approval.SELF_FIELD) or 0) != flag:
+            # modified moves on, so a form opened before the change is reloaded
+            # before it is sent on the old way
+            frappe.db.set_value("Appraisal", row.name, approval.SELF_FIELD, flag)
+    return moved
+
+
+def _skip_self_appraisal(name, state):
+    """The self-appraisal no longer asked for: the employee's task is
+    withdrawn and the supervisor has the appraisal, as if HR had sent it
+    straight to them."""
+    frappe.db.set_value("Appraisal", name, {approval.SELF_FIELD: 0, approval.STATE_FIELD: state,
+                                            approval.STATUS_FIELD: state})
+    doc = frappe.get_doc("Appraisal", name)
+    if doc.get("employee"):
+        people.withdraw("Appraisal", name, [frappe.db.get_value("Employee", doc.employee, "user_id")])
+    doc.add_comment("Info", _("Sent to the supervisor: self-appraisal is off in Appraisal Settings."))
+    _tell_next(doc, state)
+
+
+# the employee's own ratings, where each form keeps them
+SELF_RATINGS = (("Appraisal Factor Rating", "employee_rating"), ("Appraisal Objective Rating", "employee_rating"),
+                ("BSC Appraisal Perspective", "self_score"), ("BSC Appraisal Competency", "self_score"))
+
+
+def gave_self_appraisal(names):
+    """The appraisals among `names` in which the employee rated themselves."""
+    names = list(names or ())
+    ratings, scores = {}, {}
+    for doctype, field in SELF_RATINGS if names else ():
+        kept = scores if field == "self_score" else ratings
+        for row in frappe.get_all(doctype, filters={"parenttype": "Appraisal", "parent": ["in", names]},
+                                  fields=["parent", field]):
+            kept.setdefault(row.parent, []).append(row.get(field))
+    return {name for name in names if rules.gave_self_appraisal(ratings.get(name), scores.get(name))}
+
+
 # ── 1. The annual plan ────────────────────────────────────────────────
 def plan_validate(doc, method=None):
     doc.title = " ".join(str(part) for part in (doc.get("year"), doc.get("branch") or doc.get("company")) if part)
@@ -213,10 +274,12 @@ def _raise_appraisal(plan, row, cycle, employee):
 
 def _send_on(appraisal):
     """A raised appraisal leaves Draft by the workflow's own step (to the
-    employee, or to the supervisor), so it is routed, signed and told like
-    any other."""
-    _action, state = approval.opening(appraisal.get("custom_self_appraisal"))
+    employee, or to the supervisor, as Appraisal Settings say now), so it is
+    routed, signed and told like any other."""
+    own = settings().self_appraisal
+    _action, state = approval.opening(own)
     appraisal = frappe.get_doc("Appraisal", appraisal.name)
+    appraisal.set(approval.SELF_FIELD, own)
     appraisal.workflow_state = state
     appraisal.flags.ignore_permissions = True
     appraisal.save()
@@ -335,8 +398,8 @@ def _tell_about(appraisal, employee):
 
 # ── 4. The form ───────────────────────────────────────────────────────
 def appraisal_validate(doc, method=None):
-    if doc.is_new():
-        # each appraisal keeps the setting it was raised with
+    if doc.is_new() or (doc.get(approval.STATE_FIELD) or approval.DRAFT) == approval.DRAFT:
+        # one HR has not sent on yet follows Appraisal Settings as they are now
         doc.custom_self_appraisal = settings().self_appraisal
     if not doc.get("custom_supervisor") and doc.get("employee"):
         doc.custom_supervisor = frappe.db.get_value("Employee", doc.employee, "reports_to")
@@ -871,6 +934,22 @@ def send_drafts(appraisal_cycle):
         _send_on(frappe.get_doc("Appraisal", name))
         sent += 1
     return sent
+
+
+@frappe.whitelist()
+def get_appraisal_cycle_summary(cycle_name):
+    """Frappe HR's summary on the Appraisal Cycle, its Self Appraisal Pending
+    being the appraisals waiting on the employee's self-appraisal (none
+    while employees do not appraise themselves), not every open one with no
+    self score."""
+    from hrms.hr.doctype.appraisal_cycle.appraisal_cycle import (
+        get_appraisal_cycle_summary as frappe_hr_summary,
+    )
+
+    summary = frappe_hr_summary(cycle_name)
+    summary["self_appraisal_pending"] = frappe.db.count(
+        "Appraisal", {"appraisal_cycle": cycle_name, "docstatus": 0, approval.STATE_FIELD: approval.PENDING_SELF})
+    return summary
 
 
 # ── 5, 6, 10. The report and the decision ─────────────────────────────

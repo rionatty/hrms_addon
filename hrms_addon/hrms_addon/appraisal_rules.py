@@ -338,6 +338,13 @@ def rates_goals_manually(method):
     return 1 if method == KRA_MANUAL else 0
 
 
+def gave_self_appraisal(employee_ratings=(), self_scores=()):
+    """Whether the employee rated themselves: any rating of their own on
+    LPL/HR/18 (N/A counts), or any self score on the scorecard."""
+    return any(rating(value) for value in employee_ratings or ()) or \
+        any(float(score or 0) for score in self_scores or ())
+
+
 def rating(value):
     """A rating as the form keeps it ("1" to "5" or "N/A"), from whatever a
     sheet holds (5, 5.0, "5", " n/a "); None when it is not on the scale."""

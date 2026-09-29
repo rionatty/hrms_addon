@@ -22,6 +22,7 @@ Frappe HR's and ERPNext's own fields are read from FRAPPE_APPS_ROOT
 """
 import ast
 import datetime
+import ast
 import glob
 import importlib.util
 import json
@@ -243,6 +244,14 @@ if R.SETTINGS_DEFAULTS["kra_evaluation_method"] != "Automated Based on Goal Prog
     fail.append("the KRA evaluation method defaults to Automated Based on Goal Progress")
 if (R.rates_goals_manually(R.KRA_MANUAL), R.rates_goals_manually(R.KRA_AUTOMATED)) != (1, 0):
     fail.append("an appraisal rates its goals by hand only in a cycle rated by hand")
+# whether the employee gave a self-appraisal: any rating of their own
+for ratings, scores, wanted in (((), (), False), ((None, ""), (0, None, 0.0), False), ((None, "4"), (), True),
+                                (("N/A",), (), True), ((), (0, 62.5), True), (("rubbish",), (), False)):
+    if R.gave_self_appraisal(ratings, scores) is not wanted:
+        fail.append("ratings %r and self scores %r: the employee %s themselves" % (
+            ratings, scores, "rated" if wanted else "did not rate"))
+if R.gave_self_appraisal(None, None) is not False:
+    fail.append("an appraisal with no rows has no self-appraisal")
 print("rules: the form's sections and scale, the bands, the quarters and deadlines, the year, the settings")
 
 # ── 2. The signatures ─────────────────────────────────────────────────
@@ -301,6 +310,27 @@ if A.SELF_FIELD != "custom_self_appraisal" or A.SELF_FIELD not in A.SELF_ON:
     fail.append("the conditions read the appraisal's own Self-Appraisal")
 if A.ROLE_WAITING.get(A.PENDING_SELF) != A.APPRAISEE:
     fail.append("the self-appraisal waits on the employee's own desk")
+# the appraisals the supervisor does not have yet follow the setting as it is now
+for state, own, wanted in ((A.DRAFT, 1, (1, A.DRAFT)), (A.DRAFT, 0, (0, A.DRAFT)), (None, 0, (0, A.DRAFT)),
+                           (A.PENDING_SELF, 1, (1, A.PENDING_SELF)), (A.PENDING_SELF, 0, (0, A.PENDING_SUPERVISOR)),
+                           (A.PENDING_SUPERVISOR, 0, None), (A.PENDING_SUPERVISOR, 1, None),
+                           (A.PENDING_EMPLOYEE, 0, None), (A.COMPLETED, 1, None)):
+    if A.follow_setting(state, own) != wanted:
+        fail.append("%s with the self-appraisal %s: %s, not %s" % (state, "on" if own else "off", wanted,
+                                                                  A.follow_setting(state, own)))
+if set(A.BEFORE_SUPERVISOR) != {A.DRAFT, A.PENDING_SELF}:
+    fail.append("only Draft and Pending Self-Appraisal come before the supervisor")
+for form in A.FORM_TYPES:
+    states = A.route(form, True)
+    if any(states.index(state) >= states.index(A.PENDING_SUPERVISOR) for state in A.BEFORE_SUPERVISOR):
+        fail.append("%s: Draft and the self-appraisal come before the supervisor" % form)
+for own in (0, 1):
+    for state in A.BEFORE_SUPERVISOR:
+        flag, where = A.follow_setting(state, own)
+        if where != state and (A.SELF, where) not in A.next_states(state, {"HR User"}, None, True):
+            fail.append("an appraisal sent on when the setting changes goes where the workflow would send it")
+        if where == state and flag != own:
+            fail.append("an appraisal staying where it is takes the setting")
 for state in A.PENDING_STATES:
     if not [t for t in A.TRANSITIONS if t["state"] == state and t["action"] == A.RETURN and t["next_state"] == A.DRAFT]:
         fail.append("%s must be able to return the appraisal to Draft" % state)
@@ -510,7 +540,20 @@ for needle, why in (
     ("settings().kra_evaluation_method", "the plan's cycles score KRAs as Appraisal Settings say"),
     ("rules.rates_goals_manually(cycle.get(\"kra_evaluation_method\"))",
      "an appraisal rates its goals by hand only in a cycle rated by hand"),
-    ('"custom_self_appraisal": settings().self_appraisal', "an appraisal keeps the setting it was raised with"),
+    ('"custom_self_appraisal": settings().self_appraisal', "an appraisal is raised with the setting as it is"),
+    ("own = settings().self_appraisal\n    _action, state = approval.opening(own)",
+     "a draft is sent on as the setting says now, not as it said when the draft was made"),
+    ("appraisal.set(approval.SELF_FIELD, own)", "and carries that setting from then on"),
+    ("wanted = approval.follow_setting(row.get(approval.STATE_FIELD), own)",
+     "a saved setting reaches every appraisal the supervisor does not have yet"),
+    ('frappe.db.set_value("Appraisal", row.name, approval.SELF_FIELD, flag)\n',
+     "a draft that follows the setting is marked modified, so a form opened before is reloaded before it is saved"),
+    ('frappe.get_all("Appraisal", filters={"docstatus": 0},', "only open appraisals follow a new setting"),
+    ('people.withdraw("Appraisal", name, [frappe.db.get_value("Employee", doc.employee, "user_id")])',
+     "the employee's self-appraisal task is withdrawn when it is no longer asked for"),
+    ("_tell_next(doc, state)", "and the supervisor told the appraisal is theirs"),
+    ('approval.STATE_FIELD: approval.PENDING_SELF})', "the cycle's Self Appraisal Pending counts those waiting on "
+                                                     "the employee"),
     ("approval.opening(", "a raised appraisal is sent on to the employee or the supervisor"),
     ('frappe.new_doc("Employee Position Change")', "a promotion or an increase is an Employee Position Change"),
     ('frappe.new_doc("Performance Improvement Plan")', "a PIP decision raises the plan"),
@@ -1139,8 +1182,80 @@ if "if (boss !== (frm.doc.custom_supervisor || \"\")) frm.set_value(\"custom_sup
 for fieldname in ("custom_self_appraisal", "custom_bsc_self_score"):
     if not (ours.get(fieldname) or {}).get("read_only"):
         fail.append("Appraisal.%s is set by the system: read-only" % fieldname)
-if "doc.custom_self_appraisal = settings().self_appraisal" not in body_of(glue_appraisals, "appraisal_validate"):
-    fail.append("an appraisal made by hand keeps the setting it was made with")
+def read_upstream(*parts):
+    return open(os.path.join(APPS_ROOT, *parts), encoding="utf-8").read()
+
+
+def appraisals_self_ratings():
+    """appraisals.SELF_RATINGS, read without importing Frappe."""
+    for node in ast.parse(glue_appraisals).body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "SELF_RATINGS":
+            return ast.literal_eval(node.value)
+    return ()
+
+
+validate_body = body_of(glue_appraisals, "appraisal_validate")
+if "if doc.is_new() or (doc.get(approval.STATE_FIELD) or approval.DRAFT) == approval.DRAFT:\n" \
+        "        # one HR has not sent on yet follows Appraisal Settings as they are now\n" \
+        "        doc.custom_self_appraisal = settings().self_appraisal" not in validate_body:
+    fail.append("an appraisal made by hand, and any still in Draft, follows the setting as it is now")
+if ((hooks.get("doc_events") or {}).get("Appraisal Settings") or {}).get("on_update") \
+        != "hrms_addon.hrms_addon.appraisals.settings_on_update":
+    fail.append("saving Appraisal Settings reaches the appraisals already raised")
+if (hooks.get("override_whitelisted_methods") or {}).get(
+        "hrms.hr.doctype.appraisal_cycle.appraisal_cycle.get_appraisal_cycle_summary") \
+        != "hrms_addon.hrms_addon.appraisals.get_appraisal_cycle_summary":
+    fail.append("the Appraisal Cycle's Self Appraisal Pending counts the appraisals waiting on the employee")
+tab_setter = [row for row in json.load(open(os.path.join(PACKAGE, "fixtures", "property_setter.json"),
+                                            encoding="utf-8"))
+              if row["name"] == "Appraisal-self_appraisal_tab-depends_on"]
+if not tab_setter or (tab_setter[0]["doc_type"], tab_setter[0]["field_name"], tab_setter[0]["property"],
+                      tab_setter[0]["value"]) != ("Appraisal", "self_appraisal_tab", "depends_on",
+                                                  "eval:doc.custom_self_appraisal"):
+    fail.append("Frappe HR's Self Appraisal tab shows only on an appraisal with a self-appraisal")
+if (upstream_fields("Appraisal").get("self_appraisal_tab") or {}).get("fieldtype") != "Tab Break":
+    fail.append("Frappe HR's Appraisal has no Self Appraisal tab to hide")
+if '"Appraisal-self_appraisal_tab-depends_on",' not in read("hrms_addon", "hooks.py"):
+    fail.append("hooks.py's fixture filter names the Self Appraisal tab's setter")
+table_of = {row.get("options"): row.get("fieldname") for row in ours.values() if row.get("fieldtype") == "Table"}
+for child, fieldname in appraisals_self_ratings():
+    if child not in table_of or fieldname not in fields_of(doctype(child)):
+        fail.append("the employee's own ratings are %s.%s, a table on the Appraisal" % (child, fieldname))
+if {table_of.get(child) for child, _field in appraisals_self_ratings()} != \
+        {"custom_factors", "custom_objectives", "custom_bsc_perspectives", "custom_bsc_competencies"}:
+    fail.append("every table the employee rates in is read for their self-appraisal")
+people_glue = read("hrms_addon", "hrms_addon", "people.py")
+if "_remove(doctype, name, user, ignore_permissions=True)" not in body_of(people_glue, "withdraw"):
+    fail.append("a task withdrawn is cancelled through Frappe's own assignment, so the document's list follows")
+for path, needle, why in (
+    (("frappe", "frappe", "desk", "form", "assign_to.py"), "def _remove(doctype, name, assign_to, ignore_permissions=False):",
+     "Frappe withdraws an assignment through _remove"),
+    (("frappe", "frappe", "public", "js", "frappe", "form", "layout.js"), "const fields = this.fields_list.concat(this.tabs);",
+     "a tab's depends_on is followed, so the Self Appraisal tab can hide"),
+    (("hrms", "hrms", "hr", "doctype", "appraisal_cycle", "appraisal_cycle.py"),
+     "def get_appraisal_cycle_summary(cycle_name: str) -> dict:", "Frappe HR's cycle summary, which ours wraps"),
+    (("hrms", "hrms", "hr", "doctype", "appraisal_cycle", "appraisal_cycle.py"),
+     'summary["self_appraisal_pending"] = frappe.db.count(', "and the count ours puts right"),
+    (("frappe", "frappe", "model", "workflow.py"), "doc = frappe.get_doc(frappe.parse_json(doc))\n\tdoc.load_from_db()",
+     "a workflow action reads the appraisal as stored, so a form opened before the setting changed cannot send "
+     "it on the old way"),
+):
+    if needle not in read_upstream(*path):
+        fail.append("%s: %s (%r not found)" % ("/".join(path), why, needle))
+follow_patch = read("hrms_addon", "patches", "v1_0", "self_appraisal_follows_settings.py")
+for needle, why in (
+    ("appraisals.follow_settings()", "the appraisals already raised follow the setting as it is"),
+    ("gave = appraisals.gave_self_appraisal(further)", "one further on keeps its self-appraisal where it was given"),
+    ('frappe.db.set_value("Appraisal", name, approval.SELF_FIELD, 0, update_modified=False)',
+     "and loses it where it was not"),
+):
+    if needle not in follow_patch:
+        fail.append("the self-appraisal patch: %s (%r not found)" % (why, needle))
+listed_patches = read("hrms_addon", "patches.txt").split()
+if "hrms_addon.patches.v1_0.self_appraisal_follows_settings" not in listed_patches or \
+        listed_patches.index("hrms_addon.patches.v1_0.self_appraisal_follows_settings") \
+        < listed_patches.index("hrms_addon.patches.v1_0.appraisal_templates_and_self_appraisal"):
+    fail.append("the self-appraisal patch runs after the one that turned it on for everyone")
 for child, fieldname in (("BSC Appraisal Perspective", "self_score"), ("BSC Appraisal Competency", "self_score"),
                          ("BSC Appraisal KPI", "comments"), ("BSC Template KPI", "weight"),
                          ("Appraisal Template Factor", "factor"), ("Appraisal Template Objective", "objective")):
@@ -1221,7 +1336,7 @@ for needle, why in (
 if "hrms_addon.patches.v1_0.appraisal_templates_and_self_appraisal" not in read("hrms_addon", "patches.txt"):
     fail.append("the patch is listed in patches.txt")
 print("templates: the form each carries, laid out like the workbook, named by every Job Title; the self-appraisal "
-      "set once; every state a status")
+      "as Appraisal Settings say now, Frappe HR's tab and count with it; every state a status")
 
 # ── 11. The sheet, Luuka's own form, out and back ─────────────────────
 SH = load("appraisal_sheet")

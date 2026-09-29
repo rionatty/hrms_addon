@@ -20,7 +20,7 @@
    "fieldtype": "Check",
    "label": "Employees Appraise Themselves",
    "default": "1",
-   "description": "The employee rates themselves before the supervisor does."
+   "description": "The employee rates themselves before the supervisor does. Applies to every appraisal the supervisor does not have yet."
   },
   {
    "fieldname": "cycle_section",
@@ -37,7 +37,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-29 18:00:00.000000",
+ "modified": "2026-09-29 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Appraisal Settings",

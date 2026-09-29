@@ -38,10 +38,13 @@ way a Job Requisition's Position Category picks its own:
 
 THE SELF-APPRAISAL, ON OR OFF
 
-Whether the employee rates themselves first is Appraisal Settings' to say,
-and each appraisal keeps the answer it was raised with (custom_self_appraisal),
-so changing the setting halfway through a round moves nobody's appraisal.
-With it off, Draft goes straight to the supervisor:
+Whether the employee rates themselves first is Appraisal Settings' to say.
+An appraisal the supervisor does not have yet follows the setting as it is
+now (custom_self_appraisal, follow_setting): turning it off sends one
+waiting on a self-appraisal on to the supervisor, and turning it on reaches
+the ones still in Draft. One further on keeps what it was sent with, the
+employee's own ratings included. With it off, Draft goes straight to the
+supervisor:
 
     Draft --Send to Supervisor--> Pending Supervisor
 
@@ -121,6 +124,9 @@ ROUTES = {
 }
 # where a raised appraisal goes first, and the action that sends it there
 OPENING = {True: (SEND_SELF, PENDING_SELF), False: (SEND_SUPERVISOR, PENDING_SUPERVISOR)}
+# where an appraisal stands before the supervisor has it: these follow
+# Appraisal Settings as they are now
+BEFORE_SUPERVISOR = (DRAFT, PENDING_SELF)
 
 STATES = (
     *({"state": DRAFT, "allow_edit": role, "status": DRAFT, "style": "", "send_email": 0}
@@ -315,6 +321,20 @@ def opening(self_appraisal):
     """(action, state) a raised appraisal is sent on with: to the employee
     when they appraise themselves, else to the supervisor."""
     return OPENING[bool(self_appraisal)]
+
+
+def follow_setting(state, self_appraisal):
+    """(custom_self_appraisal, state) an appraisal takes when Appraisal
+    Settings say whether employees appraise themselves: one the supervisor
+    does not have yet follows them, and one waiting on a self-appraisal no
+    longer asked for goes on to the supervisor. None for an appraisal
+    further on, which keeps what it was sent with."""
+    state = state or DRAFT
+    if state not in BEFORE_SUPERVISOR:
+        return None
+    if state == PENDING_SELF and not self_appraisal:
+        return 0, PENDING_SUPERVISOR
+    return (1 if self_appraisal else 0), state
 
 
 def _text(value):

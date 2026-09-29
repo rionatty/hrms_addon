@@ -415,6 +415,17 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Appraisal-self_appraisal_tab-depends_on",
+  "doc_type": "Appraisal",
+  "doctype_or_field": "DocField",
+  "field_name": "self_appraisal_tab",
+  "property": "depends_on",
+  "property_type": "Data",
+  "value": "eval:doc.custom_self_appraisal",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
   "name": "Appraisal Template-goals-hidden",
   "doc_type": "Appraisal Template",
   "doctype_or_field": "DocField",
