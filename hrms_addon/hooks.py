@@ -1507,9 +1507,10 @@ doc_events = {
     # Luuka's three advances on Frappe HR's own Employee Advance: who may
     # take one, the two sanctions LPL/HR/21 carries, and the instalments it
     # is recovered in (advances.py)
-    # output pay: Per Meter, Per Piece and the hourly casuals (output_pay.py)
-    "Production Machine": {
-        "validate": "hrms_addon.hrms_addon.output_pay.machine_validate",
+    # output pay: Per Meter, Per Piece and the hourly casuals (output_pay.py);
+    # each size's (or piece category's) Work Units
+    "Output Rate": {
+        "validate": "hrms_addon.hrms_addon.output_pay.size_validate",
     },
     "Daily Production Report": {
         "validate": "hrms_addon.hrms_addon.output_pay.report_validate",

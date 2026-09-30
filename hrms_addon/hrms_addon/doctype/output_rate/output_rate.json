@@ -1,15 +1,14 @@
 {
  "actions": [],
- "creation": "2026-09-23 12:00:00.000000",
+ "creation": "2026-09-30 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "machine_name",
+  "size",
   "section",
-  "machine_group",
   "column_break_1",
-  "branch",
-  "company",
+  "work_unit",
+  "sheet_order",
   "enabled",
   "rates_section",
   "rates",
@@ -17,62 +16,59 @@
  ],
  "fields": [
   {
-   "fieldname": "machine_name",
+   "fieldname": "size",
    "fieldtype": "Data",
-   "label": "Machine",
+   "label": "Size",
    "reqd": 1,
-   "unique": 1
+   "unique": 1,
+   "in_list_view": 1,
+   "description": "For Per Piece, the piece category."
   },
   {
    "fieldname": "section",
    "fieldtype": "Select",
    "label": "Section",
    "options": "Per Meter\nPer Piece",
+   "default": "Per Meter",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1
-  },
-  {
-   "fieldname": "machine_group",
-   "fieldtype": "Data",
-   "label": "Machine Group",
-   "description": "Machines that share a rate."
   },
   {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "branch",
-   "fieldtype": "Link",
-   "label": "Plant",
-   "options": "Branch",
+   "fieldname": "work_unit",
+   "fieldtype": "Currency",
+   "label": "Work Unit",
+   "read_only": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "description": "In force today."
   },
   {
-   "fieldname": "company",
-   "fieldtype": "Link",
-   "label": "Company",
-   "options": "Company"
+   "fieldname": "sheet_order",
+   "fieldtype": "Int",
+   "label": "Order on the Sheet",
+   "description": "Where the size sits in each day's rows."
   },
   {
    "fieldname": "enabled",
    "fieldtype": "Check",
-   "label": "Enabled",
+   "label": "In Use",
    "default": "1"
   },
   {
    "fieldname": "rates_section",
    "fieldtype": "Section Break",
-   "label": "Rates",
-   "description": "One rate per width (Per Meter) or piece category (Per Piece), each from a date."
+   "label": "Work Units",
+   "description": "A new Work Unit takes the day it starts from; earlier days keep theirs."
   },
   {
    "fieldname": "rates",
    "fieldtype": "Table",
-   "label": "Rates",
-   "options": "Machine Rate",
+   "label": "Work Units",
+   "options": "Output Rate Change",
    "reqd": 1
   },
   {
@@ -82,10 +78,10 @@
   }
  ],
  "links": [],
- "modified": "2026-09-23 12:00:00.000000",
+ "modified": "2026-09-30 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
- "name": "Production Machine",
+ "name": "Output Rate",
  "owner": "Administrator",
  "permissions": [
   {
@@ -125,24 +121,25 @@
    "role": "Payroll Officer"
   },
   {
+   "role": "HR User",
    "read": 1,
+   "write": 1,
+   "create": 1,
    "print": 1,
    "report": 1,
-   "export": 1,
-   "role": "HR User"
+   "export": 1
   },
   {
-   "read": 1,
-   "print": 1,
-   "report": 1,
-   "export": 1,
-   "role": "Supervisor"
+   "role": "Supervisor",
+   "read": 1
   }
  ],
- "sort_field": "modified",
- "sort_order": "DESC",
+ "sort_field": "sheet_order",
+ "sort_order": "ASC",
  "states": [],
- "autoname": "field:machine_name",
- "title_field": "machine_name",
+ "autoname": "field:size",
+ "naming_rule": "By fieldname",
+ "title_field": "size",
+ "search_fields": "section",
  "track_changes": 1
 }

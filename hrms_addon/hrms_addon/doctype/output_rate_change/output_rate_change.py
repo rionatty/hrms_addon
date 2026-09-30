@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class MachineRate(Document):
+class OutputRateChange(Document):
     pass

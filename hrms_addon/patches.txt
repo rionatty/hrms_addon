@@ -49,3 +49,4 @@ hrms_addon.patches.v1_0.appraisal_templates_and_self_appraisal
 hrms_addon.patches.v1_0.self_appraisal_follows_settings
 hrms_addon.patches.v1_0.employee_names_split
 hrms_addon.patches.v1_0.hr_modules_on_desk
+hrms_addon.patches.v1_0.output_rates_by_size

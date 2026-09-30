@@ -1,15 +1,11 @@
 {
  "actions": [],
- "creation": "2026-09-23 12:00:00.000000",
+ "creation": "2026-09-30 12:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "employee",
   "employee_name",
-  "size",
-  "shifts",
-  "output",
-  "rate",
   "amount",
   "from_reports"
  ],
@@ -28,40 +24,13 @@
    "label": "Name",
    "fetch_from": "employee.employee_name",
    "read_only": 1,
-   "in_list_view": 0
-  },
-  {
-   "fieldname": "size",
-   "fieldtype": "Link",
-   "label": "Size",
-   "options": "Output Rate",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "shifts",
-   "fieldtype": "Int",
-   "label": "Shifts",
-   "read_only": 1
-  },
-  {
-   "fieldname": "output",
-   "fieldtype": "Float",
-   "label": "Work Done",
-   "reqd": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "rate",
-   "fieldtype": "Currency",
-   "label": "Work Unit",
-   "read_only": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "amount",
    "fieldtype": "Currency",
-   "label": "Total",
-   "read_only": 1,
+   "label": "Looms OT",
+   "reqd": 1,
    "in_list_view": 1
   },
   {
@@ -76,7 +45,7 @@
  "modified": "2026-09-30 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
- "name": "Output Pay Line",
+ "name": "Output Pay Overtime",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",

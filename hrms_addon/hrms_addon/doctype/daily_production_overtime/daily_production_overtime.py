@@ -4,5 +4,5 @@
 from frappe.model.document import Document
 
 
-class ProductionMachine(Document):
+class DailyProductionOvertime(Document):
     pass

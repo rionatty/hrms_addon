@@ -6,13 +6,9 @@
  "field_order": [
   "employee",
   "employee_name",
-  "machine",
-  "width_cm",
-  "piece_category",
+  "size",
   "output",
   "unit",
-  "target",
-  "achieved",
   "rate",
   "amount"
  ],
@@ -30,32 +26,21 @@
    "fieldtype": "Data",
    "label": "Name",
    "fetch_from": "employee.employee_name",
-   "read_only": 1
+   "read_only": 1,
+   "in_list_view": 0
   },
   {
-   "fieldname": "machine",
+   "fieldname": "size",
    "fieldtype": "Link",
-   "label": "Machine",
-   "options": "Production Machine",
+   "label": "Size",
+   "options": "Output Rate",
    "reqd": 1,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "width_cm",
-   "fieldtype": "Int",
-   "label": "Width (cm)",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "piece_category",
-   "fieldtype": "Data",
-   "label": "Piece Category",
    "in_list_view": 1
   },
   {
    "fieldname": "output",
    "fieldtype": "Float",
-   "label": "Output",
+   "label": "Work Done",
    "reqd": 1,
    "in_list_view": 1
   },
@@ -66,33 +51,22 @@
    "read_only": 1
   },
   {
-   "fieldname": "target",
-   "fieldtype": "Float",
-   "label": "Target"
-  },
-  {
-   "fieldname": "achieved",
-   "fieldtype": "Percent",
-   "label": "Achieved",
-   "read_only": 1
-  },
-  {
    "fieldname": "rate",
    "fieldtype": "Currency",
-   "label": "Rate",
+   "label": "Work Unit",
    "read_only": 1,
    "in_list_view": 1
   },
   {
    "fieldname": "amount",
    "fieldtype": "Currency",
-   "label": "Amount",
+   "label": "Total",
    "read_only": 1,
    "in_list_view": 1
   }
  ],
  "links": [],
- "modified": "2026-09-23 12:00:00.000000",
+ "modified": "2026-09-30 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Daily Production Line",

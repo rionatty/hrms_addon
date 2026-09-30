@@ -262,13 +262,13 @@ CARDS = {
             ("Attendance Device Log", "Attendance Device Log", DOCTYPE),
         ]),
     ],
-    # Frappe HR's own payroll page gains the output-pay sheets: the machines
-    # and their rates, the daily report, and the month's run (output_pay.py)
+    # Frappe HR's own payroll page gains the output-pay sheets: the daily
+    # report, the month's run, and each size with its Work Unit (output_pay.py)
     "Payroll": [
         ("Output Pay", [
             ("Daily Production Report", "Daily Production Report", DOCTYPE),
             ("Output Pay Run", "Output Pay Run", DOCTYPE),
-            ("Production Machine", "Production Machine", DOCTYPE),
+            ("Sizes and Work Units", "Output Rate", DOCTYPE),
             ("Output Pay Settings", "Output Pay Settings", DOCTYPE),
         ]),
     ],
@@ -427,7 +427,7 @@ SIDEBAR = {
     "Payroll": [
         ("Daily Production Report", "Daily Production Report", DOCTYPE, None, "Additional Salary"),
         ("Output Pay Run", "Output Pay Run", DOCTYPE, None, "Daily Production Report"),
-        ("Production Machine", "Production Machine", DOCTYPE, "Setup", None),
+        ("Sizes and Work Units", "Output Rate", DOCTYPE, "Setup", None),
         ("Output Pay Settings", "Output Pay Settings", DOCTYPE, "Setup", None),
     ],
     "Tenure": [

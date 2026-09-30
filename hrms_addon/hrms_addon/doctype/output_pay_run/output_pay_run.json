@@ -15,12 +15,16 @@
   "to_date",
   "lines_section",
   "lines",
+  "overtime_section",
+  "overtime",
   "employees_section",
   "employees",
   "totals_section",
   "total_employees",
   "column_break_2",
   "total_amount",
+  "total_overtime",
+  "uploaded_sheet",
   "amended_from"
  ],
  "fields": [
@@ -91,14 +95,26 @@
   {
    "fieldname": "lines_section",
    "fieldtype": "Section Break",
-   "label": "Output by Machine",
-   "description": "Use Get Output to fill from the submitted daily reports. Lines can also be added by hand."
+   "label": "Work Done by Size",
+   "description": "Get Output fills it from the submitted daily reports and the uploaded sheet. Lines can also be added by hand."
   },
   {
    "fieldname": "lines",
    "fieldtype": "Table",
    "label": "Lines",
    "options": "Output Pay Line"
+  },
+  {
+   "fieldname": "overtime_section",
+   "fieldtype": "Section Break",
+   "label": "Looms OT",
+   "depends_on": "eval:doc.section == 'Per Meter'"
+  },
+  {
+   "fieldname": "overtime",
+   "fieldtype": "Table",
+   "label": "Looms OT",
+   "options": "Output Pay Overtime"
   },
   {
    "fieldname": "employees_section",
@@ -133,6 +149,21 @@
    "read_only": 1
   },
   {
+   "fieldname": "total_overtime",
+   "fieldtype": "Currency",
+   "label": "Total Looms OT",
+   "read_only": 1,
+   "depends_on": "eval:doc.section == 'Per Meter'"
+  },
+  {
+   "fieldname": "uploaded_sheet",
+   "fieldtype": "Attach",
+   "label": "Uploaded Sheet",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.section == 'Per Meter'"
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -143,7 +174,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-23 12:00:00.000000",
+ "modified": "2026-09-30 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Output Pay Run",
