@@ -17,7 +17,12 @@ An app's tile ("App") and a folder ("Folder") are groups: the tiles whose
 parent_icon names one show inside it. Hiding a group does not hide what is
 in it: the desktop shows those tiles on their own instead. ERPNext ships its
 app tile hidden, which is why Selling, Stock and the rest each have a tile
-of their own. So the table lists every tile, each module under its group.
+of their own. So the table lists every tile, each module under its group,
+and unticking Frappe HR puts Leaves, Payroll and the rest on the desk.
+
+A user who has rearranged their desktop keeps a copy of every tile of their
+own (Desktop Layout), which the desktop shows instead of the shared list, so
+the table's choices go into those copies too (layout_with).
 """
 
 GROUP_TYPES = ("App", "Folder")
@@ -90,5 +95,29 @@ def changes(rows, icons):
 
 
 def hidden_labels(rows):
-    """The labels of the tiles taken off the desk."""
-    return sorted(row["module"] for row in rows if not row.get("show_on_desk"))
+    """The labels of the modules taken off the desk, for the browser to hide
+    by name as well. Never a group: hidden that way, its tile would take the
+    modules in it along, where the desk shows them on their own."""
+    return sorted(row["module"] for row in rows
+                  if not row.get("show_on_desk") and row.get("icon_type") not in GROUP_TYPES)
+
+
+def layout_with(layout, rows):
+    """A user's saved desktop (their own copy of every tile) with each tile
+    in the table shown or hidden as the table says, or None when nothing
+    changes. What else they arranged (the order, folders of their own)
+    stays as they left it.
+
+    layout: the list of tiles Frappe saved for them."""
+    if not isinstance(layout, list):
+        return None
+    wanted = {row["module"]: 0 if row.get("show_on_desk") else 1 for row in rows}
+    changed = False
+    out = []
+    for icon in layout:
+        label = icon.get("label") if isinstance(icon, dict) else None
+        if label in wanted and (1 if icon.get("hidden") else 0) != wanted[label]:
+            icon = dict(icon, hidden=wanted[label])
+            changed = True
+        out.append(icon)
+    return out if changed else None

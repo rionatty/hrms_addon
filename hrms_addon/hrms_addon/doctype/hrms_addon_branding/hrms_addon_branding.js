@@ -117,7 +117,9 @@ function ha_desk_modules_help(frm) {
 		.then((status) => {
 			const usable = status && status.available;
 			const message = usable
-				? __("Untick a module to hide its tile from everyone's desk, then save.")
+				? __(
+						"Untick a module to hide its tile from everyone's desk, then save. Untick an app, such as Frappe HR, to show its modules on the desk directly."
+				  )
 				: (status && status.message) || "";
 			field.$wrapper.html(`
 				<div class="text-muted small" style="margin-bottom: 10px">${frappe.utils.escape_html(message)}</div>

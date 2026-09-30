@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import xml.etree.ElementTree as ElementTree
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -119,10 +120,45 @@ check("only tiles whose flag differs change",
                 [icon("Selling"), icon("Buying", hidden=1), icon("Stock")]) == [("Selling", 1), ("Buying", 0)])
 check("a row for a tile that is gone is ignored", R.changes([row("Gone", 0)], [icon("Selling")]) == [])
 check("nothing to do when everything matches", R.changes([row("Selling", 1)], [icon("Selling")]) == [])
-check("the unticked, by name, sorted",
-      R.hidden_labels([row("Stock", 0), row("Selling", 1), row("Assets", 0)]) == ["Assets", "Stock"])
+def module_row(module, show, group=""):
+    return {"module": module, "group": group, "app": "hrms", "icon_type": "Link", "show_on_desk": show}
+
+
+check("the modules unticked, by name, sorted",
+      R.hidden_labels([module_row("Stock", 0), module_row("Selling", 1), module_row("Assets", 0)]) == ["Assets", "Stock"])
+check("never a group: hidden by name, its tile would take the modules in it along",
+      R.hidden_labels([row("Frappe HR", 0), dict(row("Mine", 0), icon_type="Folder"), module_row("Leaves", 0)])
+      == ["Leaves"])
 check("an app's tile and a folder are the groups", tuple(R.GROUP_TYPES) == ("App", "Folder"))
-print("rules: nesting, the table, the changes, the hidden")
+
+
+def on_desk(icons):
+    """What the desktop shows as tiles of their own (desktop.js
+    DesktopPage.prepare): the tiles not hidden whose group is not one."""
+    shown = {icon["label"] for icon in icons if icon.get("hidden") != 1}
+    return [icon["label"] for icon in icons
+            if icon.get("hidden") != 1 and (not icon.get("parent_icon") or icon["parent_icon"] not in shown)]
+
+
+SAVED = [icon("Frappe HR", app="hrms"), icon("Leaves", app="hrms", icon_type="Link", parent="Frappe HR"),
+         icon("My HR", app="", icon_type="Folder"),
+         dict(icon("Payroll", app="hrms", icon_type="Link", parent="My HR"), idx=3)]
+TABLE_ROWS = [row("Frappe HR", 0), module_row("Leaves", 1, "Frappe HR"), module_row("Payroll", 0, "Frappe HR")]
+synced = R.layout_with(SAVED, TABLE_ROWS)
+check("a saved desktop takes the table's choices",
+      synced and [(i["label"], i["hidden"]) for i in synced]
+      == [("Frappe HR", 1), ("Leaves", 0), ("My HR", 0), ("Payroll", 1)], synced)
+check("and keeps what its user arranged: their own folder, the order",
+      synced and [i.get("parent_icon") for i in synced] == [None, "Frappe HR", None, "My HR"] and synced[3]["idx"] == 3)
+check("the copy read is not changed in place", SAVED[0]["hidden"] == 0)
+check("nothing to write when it already matches", R.layout_with(synced, TABLE_ROWS) is None)
+check("a layout that is not a list of tiles is left alone",
+      R.layout_with({}, TABLE_ROWS) is None and R.layout_with(None, TABLE_ROWS) is None)
+check("a tile not in the table is left alone", R.layout_with([icon("Mine", app="", icon_type="Link")], TABLE_ROWS) is None)
+check("with Frappe HR's tile off, its modules show on the desk on their own",
+      on_desk(SAVED) == ["Frappe HR", "My HR"] and on_desk(synced or []) == ["Leaves", "My HR"],
+      on_desk(synced or []))
+print("rules: nesting, the table, the changes, the hidden, the saved desktops")
 
 # ── 2. The documents ──────────────────────────────────────────────────
 branding = json.loads(read("hrms_addon", "hrms_addon", "doctype", "hrms_addon_branding", "hrms_addon_branding.json"))
@@ -181,8 +217,41 @@ for needle, why in (
     ('frappe.cache.delete_key("desktop_icons")', "the tiles' cache is cleared (get_desktop_icons reads it)"),
     ('frappe.cache.delete_key("bootinfo")', "and the boot's"),
     ('frappe.log_error(title="HRMS Addon: desk modules could not be applied")', "a failure on migrate is logged, not fatal"),
+    ("layouts = _sync_layouts(rows)", "every saved desktop takes the choices too"),
+    ("return bool(updates or layouts)", "a saved desktop changed counts as a change"),
+    ('if not frappe.db.exists("DocType", LAYOUT):', "a Frappe with no saved desktops is left alone"),
+    ("wanted = rules.layout_with(layout, rows)", "only the flags of the tiles in the table change"),
+    ('frappe.db.set_value(LAYOUT, saved.name, "layout", json.dumps(wanted), update_modified=False)',
+     "written back as Frappe keeps it"),
+    ('if icon.icon_type == "App" and icon.app == app', "an app's tile is found by the app it belongs to"),
 ):
     check("desk_modules.py: %s" % why, needle in glue)
+check("desk_modules.py: a saved desktop that cannot be read is skipped, not fatal",
+      "except ValueError:\n            continue" in function(glue, "_sync_layouts"))
+patch = read("hrms_addon", "patches", "v1_0", "hr_modules_on_desk.py")
+for needle, why in (
+    ("if not desk_modules.available():\n        return", "nothing where the CyveTech UI app decides the desk"),
+    ('group = desk_modules.app_tile("hrms")', "Frappe HR's own tile, whatever its label"),
+    ("desk_modules.refresh_rows(settings)", "a table never filled in comes in with the desk as it is"),
+    ('"parentfield": desk_modules.TABLE, "module": group},\n                        "show_on_desk", 0',
+     "only Frappe HR's tile is unticked: a module taken off before stays off"),
+    ("desk_modules.apply()", "and the desk, saved desktops included, follows"),
+):
+    check("the patch: %s" % why, needle in patch)
+check("the patch is listed in patches.txt",
+      "hrms_addon.patches.v1_0.hr_modules_on_desk" in read("hrms_addon", "patches.txt").split())
+loans_icon = json.loads(read("hrms_addon", "hrms_addon", "desktop_icon", "loans.json"))
+for variant in ("solid", "subtle"):
+    path = os.path.join(REPO, "hrms_addon", "public", "icons", "desktop_icons", variant, "loans.svg")
+    try:
+        svg = ElementTree.parse(path).getroot()
+    except (OSError, ElementTree.ParseError) as error:
+        svg = None
+        check("the Loans tile's %s icon reads: %s" % (variant, error), False)
+    check("the Loans tile has a %s icon drawn as Frappe HR's are (54 by 54)" % variant,
+          svg is not None and svg.get("viewBox") == "0 0 54 54")
+check("found by the Loans tile's own app and label (loans.svg under hrms_addon)",
+      (loans_icon.get("app"), loans_icon.get("label")) == ("hrms_addon", "Loans"))
 check("desk_modules.py: the boot's list never raises",
       "try:" in function(glue, "hidden_labels") and "except Exception:" in function(glue, "hidden_labels"))
 check("desk_modules.py: loading refuses where the table cannot be used",
@@ -245,7 +314,28 @@ else:
     check("a tile still carries its label as data-id", 'class="desktop-icon" data-id="{{ icon.label}}"' in tile)
     header = upstream("frappe", "frappe", "public", "js", "frappe", "ui", "sidebar", "sidebar_header.js") or ""
     check("the sidebar's list of modules still leaves hidden tiles out", "!icon.hidden" in header)
-    print("upstream: Desktop Icon, its cache, the tile markup and the sidebar list as this relies on")
+    check("and lists an app's modules by their app, not by the tile they sit in",
+          "icon.app == frappe.current_app.app_name" in header)
+    page = upstream("frappe", "frappe", "desk", "page", "desktop", "desktop.js") or ""
+    check("the desktop still shows a tile of its own whose group is hidden",
+          "if (icon.hidden != 1) {" in page and "if (!icon.parent_icon || !icon_map[icon.parent_icon]) {" in page)
+    check("and shows a user's saved desktop instead of the shared tiles", "frappe.desktop_icons = this.data;" in page)
+    page_py = upstream("frappe", "frappe", "desk", "page", "desktop", "desktop.py") or ""
+    check("read from their Desktop Layout", 'frappe.get_doc("Desktop Layout", frappe.session.user).layout' in page_py)
+    layout_json = upstream("frappe", "frappe", "desk", "doctype", "desktop_layout", "desktop_layout.json")
+    check("which keeps the tiles in its layout field",
+          layout_json is not None and "layout" in {f["fieldname"] for f in json.loads(layout_json)["fields"]})
+    utils_js = upstream("frappe", "frappe", "public", "js", "frappe", "utils", "utils.js") or ""
+    check("a tile's picture is still its app's icons/desktop_icons/<style>/<label>.svg",
+          "`assets/${app_name}/icons/desktop_icons/${variant}/${frappe.scrub(" in utils_js)
+    boot = upstream("frappe", "frappe", "boot.py") or ""
+    check("found by the boot in each app's public/icons/desktop_icons, solid and subtle",
+          'os.path.join(app_path, "public", "icons", "desktop_icons")' in boot
+          and 'for variant in ["subtle", "solid"]:' in boot)
+    check("and used by the tile before its letter",
+          "frappe.utils.get_desktop_icon(icon.label, frappe.boot.desktop_icon_style )" in tile)
+    print("upstream: Desktop Icon, its cache, the tile markup, the sidebar list, the desktop and its saved "
+          "copies, the icon files, as this relies on")
 
 print()
 if fail:

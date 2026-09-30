@@ -9,18 +9,24 @@ modules under the sidebar's app name. The Desk Modules table lists every
 tile, each module under its group (an app or a folder;
 desk_modules_rules.py explains the nesting); saving sets their flags.
 
-One catch, handled in the browser: a user who has rearranged their own
-desktop keeps a saved copy of every tile (Desktop Layout), and Frappe shows
-that copy instead of the shared list, so a tile hidden here would still show
-for them. public/js/hrms_addon_desk_modules.js hides the tiles listed in
-frappe.boot.hrms_addon_hidden_modules as well, which covers those users
-without rewriting anyone's saved layout.
+A group taken off the desk (Frappe HR's tile, say) leaves each of its
+modules a tile of its own on the desk, as Frappe's desktop does whenever a
+group is hidden.
+
+One catch: a user who has rearranged their own desktop keeps a saved copy
+of every tile (Desktop Layout), and Frappe shows that copy instead of the
+shared list. The flags go into those copies too (_sync_layouts), only the
+flags: what else each user arranged stays. public/js/hrms_addon_desk_modules.js
+also hides the modules listed in frappe.boot.hrms_addon_hidden_modules by
+name, never a group, whose tile would take its modules along.
 
 Where the CyveTech UI app is installed too, its own Desk Modules decide, and
 this does nothing: two tables setting the same flags would undo each other
 on every save and migrate. Frappe v15 has no Desktop Icon, so there this
 does nothing either.
 """
+
+import json
 
 import frappe
 from frappe import _
@@ -31,6 +37,7 @@ SETTINGS = "HRMS Addon Branding"
 CHILD = "HRMS Addon Desk Module"
 TABLE = "desk_modules"
 DESKTOP_ICON = "Desktop Icon"
+LAYOUT = "Desktop Layout"
 # the app whose Desk Modules decide when it is installed alongside this one
 OTHER_APP = "cyvetech_ui"
 
@@ -98,12 +105,35 @@ def apply():
     updates = rules.changes(rows, desk_icons())
     for name, hidden in updates:
         frappe.db.set_value(DESKTOP_ICON, name, "hidden", hidden, update_modified=False)
-    if updates:
+    layouts = _sync_layouts(rows)
+    if updates or layouts:
         # both are read straight from cache by get_desktop_icons(), and
         # set_value does not run Desktop Icon's own on_update that clears them
         frappe.cache.delete_key("desktop_icons")
         frappe.cache.delete_key("bootinfo")
-    return bool(updates)
+    return bool(updates or layouts)
+
+
+def _sync_layouts(rows):
+    """Each saved desktop takes the table's choices as well. How many changed."""
+    if not frappe.db.exists("DocType", LAYOUT):
+        return 0
+    changed = 0
+    for saved in frappe.get_all(LAYOUT, fields=["name", "layout"]):
+        try:
+            layout = json.loads(saved.layout or "null")
+        except ValueError:
+            continue  # not ours to mend: Frappe falls back to the shared tiles
+        wanted = rules.layout_with(layout, rows)
+        if wanted is not None:
+            frappe.db.set_value(LAYOUT, saved.name, "layout", json.dumps(wanted), update_modified=False)
+            changed += 1
+    return changed
+
+
+def app_tile(app):
+    """The label of an app's own tile (Frappe HR's for "hrms"), if it has one."""
+    return next((icon.label for icon in desk_icons() if icon.icon_type == "App" and icon.app == app), None)
 
 
 def hidden_labels():
