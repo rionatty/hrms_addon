@@ -616,10 +616,10 @@ def earlier_round(types, this_round):
 INVITATION_TEMPLATE = "Interview Invitation"
 REGRET_TEMPLATE = "Application Regret"
 INVITATION_KEYS = ("applicant_name", "designation", "company", "date", "time", "mode", "venue", "meeting_link",
-                   "what_to_bring", "interview")
+                   "what_to_bring", "interview", "confirm_link")
 REGRET_KEYS = ("applicant_name", "designation", "company")
 INVITATION_SUBJECT = "Interview for {{ designation }}"
-INVITATION_BODY = "".join((
+_INVITATION_HEAD = (
     "<p>Dear {{ applicant_name | e }},</p>",
     "<p>Thank you for applying for the position of {{ designation }} at {{ company }}. "
     "We would like to invite you to an interview.</p>",
@@ -629,8 +629,18 @@ INVITATION_BODY = "".join((
     "{% elif mode == 'Phone Call' %}<b>Where:</b> by phone, on the number you gave us",
     "{% else %}<b>Where:</b> {{ (venue or company) | e }}{% endif %}</p>",
     "{% if what_to_bring %}<p><b>Please bring:</b> {{ what_to_bring | e }}</p>{% endif %}",
+)
+_INVITATION_SIGN_OFF = "<p>Yours sincerely,<br>Human Resources<br>{{ company }}</p>"
+INVITATION_BODY = "".join(_INVITATION_HEAD + (
+    "<p>Please let us know whether you will attend: <a href=\"{{ confirm_link }}\">confirm your attendance or ask "
+    "for another time</a>. The calendar invitation attached adds the interview to your calendar.</p>",
+    _INVITATION_SIGN_OFF,
+))
+# the body seeded before the link, which the patch interview_confirm_link
+# replaces where HR left it as it was
+PREVIOUS_INVITATION_BODY = "".join(_INVITATION_HEAD + (
     "<p>Please reply to this email to confirm that you will attend, or to ask for another time.</p>",
-    "<p>Yours sincerely,<br>Human Resources<br>{{ company }}</p>",
+    _INVITATION_SIGN_OFF,
 ))
 REGRET_SUBJECT = "Your application for {{ designation }}"
 REGRET_BODY = "".join((
@@ -641,6 +651,185 @@ REGRET_BODY = "".join((
     "<p>We wish you every success.</p>",
     "<p>Yours sincerely,<br>Human Resources<br>{{ company }}</p>",
 ))
+
+
+# ── The candidate's answer, and the calendar ─────────────────────────
+# The invitation links to a page (the Interview's own key) where the
+# candidate confirms or asks for another time. An answer stands for the slot
+# it was given for, so an interview that moves asks again. The invitation and
+# the panel's schedule carry an iCalendar file that adds the interviews to a
+# calendar.
+CONFIRMED, ANOTHER_TIME = "Confirmed", "Asked for Another Time"
+RESPONSES = (CONFIRMED, ANOTHER_TIME)
+NOTE_MAX = 500
+NOT_CONFIRMED = "Not confirmed"
+# the Interview calendar's colours for an interview still to come
+RESPONSE_COLOURS = {CONFIRMED: "#d3f0dc", ANOTHER_TIME: "#ffe3c2"}
+
+
+def slot_of(scheduled_on, from_time):
+    """The interview's slot as text, "2026-10-02 09:30": what an answer was
+    given for. "" with no date."""
+    day, start = _text(scheduled_on)[:10], _minutes_of(from_time)
+    if not day:
+        return ""
+    return day if start is None else "%s %s" % (day, _clock(start)[:5])
+
+
+def response_for_slot(response, response_slot, scheduled_on, from_time):
+    """The candidate's answer while it was given for the interview's slot as
+    it is now; "" once the interview has moved."""
+    if _text(response) not in RESPONSES:
+        return ""
+    return _text(response) if _text(response_slot) == slot_of(scheduled_on, from_time) else ""
+
+
+def response_page_state(docstatus, status, scheduled_on, to_time, now):
+    """What the candidate's page may do: "cancelled", "over" or "open".
+    now: 'YYYY-MM-DD HH:MM[:SS]'."""
+    if _int(docstatus) == 2 or _text(status) == "Cancelled":
+        return "cancelled"
+    if slot_over(scheduled_on, to_time, now):
+        return "over"
+    return "open"
+
+
+def response_errors(answer, note):
+    """What is wrong with a candidate's answer, as messages."""
+    errors = []
+    if _text(answer) not in RESPONSES:
+        errors.append("Choose whether you will attend or would like another time.")
+    elif _text(answer) == ANOTHER_TIME and not _text(note):
+        errors.append("Say when you could come instead.")
+    if len(_text(note)) > NOTE_MAX:
+        errors.append("Please keep the note under %d characters." % NOTE_MAX)
+    return errors
+
+
+def confirm_block(link):
+    """What an invitation adds when its template does not place the link."""
+    return ("<p>Please let us know whether you will attend: <a href=\"%s\">confirm your attendance or ask for "
+            "another time</a>.</p>" % _attribute(link))
+
+
+def calendar_mark(status, answer):
+    """(line, colour) the Interview calendar adds to an interview still to
+    come: the candidate's answer, or that none has come. None once it has
+    been held or cancelled; colour None keeps Frappe HR's."""
+    if _text(status) != "Pending":
+        return None
+    if _text(answer) in RESPONSES:
+        return _text(answer), RESPONSE_COLOURS[_text(answer)]
+    return NOT_CONFIRMED, None
+
+
+def invitation_event_text(context):
+    """(summary, location, description) the candidate's calendar shows, from
+    the invitation's context."""
+    summary = "Interview for %s" % (_text(context.get("designation")) or "a position")
+    if _text(context.get("company")):
+        summary += " at %s" % _text(context.get("company"))
+    location = _where(context.get("mode"), context.get("venue") or context.get("company"),
+                      context.get("meeting_link"))
+    lines = []
+    if _text(context.get("confirm_link")):
+        lines.append("Confirm your attendance or ask for another time: %s" % _text(context.get("confirm_link")))
+    if _text(context.get("what_to_bring")):
+        lines.append("Please bring: %s" % _text(context.get("what_to_bring")))
+    return summary, location, "\n".join(lines)
+
+
+def panel_event_text(candidate, interview_type, mode, venue, meeting_link, form_link):
+    """(summary, location, description) a panel member's calendar shows."""
+    summary = "Interview: %s" % (_text(candidate) or "candidate")
+    if _text(interview_type):
+        summary += " (%s)" % _text(interview_type)
+    description = "The interview, with the CV: %s" % _text(form_link) if _text(form_link) else ""
+    return summary, _where(mode, venue, meeting_link), description
+
+
+def interview_event(uid, day, from_time, to_time, offset_minutes, text, url=""):
+    """One interview for calendar_file: its local day and times turned to UTC
+    by the site's offset from UTC (minutes east). An interview with no end,
+    or one before its start, lasts an hour. None without a day or start.
+
+    text: (summary, location, description)."""
+    start_minutes = _minutes_of(from_time)
+    if not _text(day)[:10] or start_minutes is None:
+        return None
+    base = datetime.datetime.strptime(_text(day)[:10], "%Y-%m-%d")
+    start = base + datetime.timedelta(minutes=start_minutes - _int(offset_minutes))
+    end_minutes = _minutes_of(to_time)
+    length = end_minutes - start_minutes if end_minutes is not None and end_minutes > start_minutes else 60
+    summary, location, description = text
+    return {"uid": _text(uid), "start": start, "end": start + datetime.timedelta(minutes=length),
+            "summary": summary, "location": location, "description": description, "url": _text(url)}
+
+
+def calendar_file(events, stamp):
+    """An iCalendar file (RFC 5545) that adds these interviews to a calendar.
+
+    events: interview_event's (None skipped); stamp: when it is made, naive
+    UTC. A later file for the same interview has the same UID and a higher
+    SEQUENCE, so a calendar that has it moves it instead of adding another."""
+    sequence = max(int((stamp - datetime.datetime(2026, 1, 1)).total_seconds() // 60), 0)
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CyveTech//HRMS Addon//EN", "CALSCALE:GREGORIAN",
+             "METHOD:PUBLISH"]
+    for event in events or ():
+        if not event:
+            continue
+        lines += ["BEGIN:VEVENT", "UID:" + _ics_text(event["uid"]), "SEQUENCE:%d" % sequence,
+                  "DTSTAMP:" + _ics_time(stamp), "DTSTART:" + _ics_time(event["start"]),
+                  "DTEND:" + _ics_time(event["end"]), "SUMMARY:" + _ics_text(event.get("summary"))]
+        if _text(event.get("location")):
+            lines.append("LOCATION:" + _ics_text(event["location"]))
+        if _text(event.get("description")):
+            lines.append("DESCRIPTION:" + _ics_text(event["description"]))
+        if _text(event.get("url")):
+            lines.append("URL:" + _text(event["url"]))
+        lines += ["STATUS:CONFIRMED", "TRANSP:OPAQUE", "END:VEVENT"]
+    lines.append("END:VCALENDAR")
+    return "".join(_fold(line) + "\r\n" for line in lines)
+
+
+def _where(mode, venue, meeting_link):
+    if _text(mode) == "Video Call":
+        return "Video call" + (": %s" % _text(meeting_link) if _text(meeting_link) else "")
+    if _text(mode) == "Phone Call":
+        return "Phone call"
+    return _text(venue)
+
+
+def _ics_time(value):
+    return value.strftime("%Y%m%dT%H%M%SZ")
+
+
+def _ics_text(value):
+    """A TEXT value (RFC 5545 3.3.11): backslash, semicolon, comma and line
+    breaks escaped."""
+    text = _text(value).replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+    return text.replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n")
+
+
+def _fold(line):
+    """A content line folded at 75 octets (RFC 5545 3.1), never inside a
+    character; each continuation starts with a space, which counts."""
+    if len(line.encode("utf-8")) <= 75:
+        return line
+    parts, current, size, limit = [], "", 0, 75
+    for char in line:
+        width = len(char.encode("utf-8"))
+        if size + width > limit:
+            parts.append(current)
+            current, size, limit = "", 0, 74
+        current += char
+        size += width
+    parts.append(current)
+    return "\r\n ".join(parts)
+
+
+def _attribute(value):
+    return _text(value).replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def to_book(applicants, chosen, already):

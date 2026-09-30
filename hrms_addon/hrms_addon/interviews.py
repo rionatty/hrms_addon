@@ -80,6 +80,18 @@ days, and round):
   setup_report_workflow_on_migrate
                        after_migrate: its approval workflow, from
                        interview_report_approval.py
+
+and the candidate's answer and the calendar (the candidate's page is
+interview_response.py):
+
+  response_link        the invitation's link, to confirm or ask for another
+                       time; the invitation and the panel's schedule carry a
+                       calendar file of their interviews
+  clear_moved_response Interview on_change (a save, or Frappe HR's
+                       Reschedule): an answer given for a slot the interview
+                       has left no longer stands
+  get_calendar_events  the Interview calendar, each interview still to come
+                       marked with the candidate's answer
 """
 
 import frappe
@@ -657,8 +669,16 @@ def _invite(name):
     template = frappe.db.get_single_value("HR Settings", "custom_invitation_template")
     if applicant.email_id and template and frappe.db.exists("Email Template", template):
         subject, message = _render(template, context)
+        if context["confirm_link"] not in message:
+            # a template HR changed before the link came in: the link goes at the end
+            message += rules.confirm_block(context["confirm_link"])
+        event = rules.interview_event(
+            "%s@%s" % (name, _calendar_host()), interview.scheduled_on, interview.from_time, interview.to_time,
+            _utc_offset(interview.scheduled_on, interview.from_time), rules.invitation_event_text(context),
+            url=context["confirm_link"])
         frappe.sendmail(recipients=[applicant.email_id], subject=subject, message=message, sender=_hiring_sender(),
-                        reference_doctype="Interview", reference_name=name)
+                        reference_doctype="Interview", reference_name=name,
+                        attachments=[_calendar_attachment([event], "interview.ics")] if event else None)
         sent.append(applicant.email_id)
     if applicant.phone_number and frappe.db.get_single_value("HR Settings", "custom_send_invitation_sms") \
             and frappe.db.get_single_value("SMS Settings", "sms_gateway_url"):
@@ -693,6 +713,7 @@ def _invitation_context(interview, applicant):
         "meeting_link": interview.get("custom_meeting_link") or "",
         "what_to_bring": frappe.db.get_value("Interview Type", interview.interview_type, "custom_what_to_bring") or "",
         "interview": interview.name,
+        "confirm_link": response_link(interview.name),
     }
 
 
@@ -701,7 +722,8 @@ def _send_panel_schedules(interviews):
     link to each Interview, whose Candidate tab has the CV."""
     rows = frappe.get_all("Interview", filters={"name": ["in", interviews]},
                           fields=["name", "job_applicant", "interview_type", "scheduled_on", "from_time", "to_time",
-                                  "custom_mode", "custom_venue"], order_by="scheduled_on asc, from_time asc")
+                                  "custom_mode", "custom_venue", "custom_meeting_link"],
+                          order_by="scheduled_on asc, from_time asc")
     if not rows:
         return
     names = dict(frappe.get_all("Job Applicant", filters={"name": ["in", [row.job_applicant for row in rows]]},
@@ -721,9 +743,16 @@ def _send_panel_schedules(interviews):
             for row in rows if row.name in mine)
         message = "<p>%s</p><table border=\"1\" cellpadding=\"4\" cellspacing=\"0\"><tr>%s</tr>%s</table>" % (
             _("You sit on these interviews. Each one's Candidate tab has the CV and the application."), header, lines)
+        events = [rules.interview_event(
+            "%s.panel@%s" % (row.name, _calendar_host()), row.scheduled_on, row.from_time, row.to_time,
+            _utc_offset(row.scheduled_on, row.from_time),
+            rules.panel_event_text(names.get(row.job_applicant) or row.job_applicant, row.interview_type, row.custom_mode,
+                                   row.custom_venue, row.custom_meeting_link, get_url_to_form("Interview", row.name)))
+            for row in rows if row.name in mine]
         frappe.sendmail(recipients=[frappe.db.get_value("User", user, "email") or user],
                         subject=_("Your interviews: {0}").format(rows[0].interview_type), message=message,
-                        sender=_hiring_sender(), reference_doctype="Interview Type", reference_name=rows[0].interview_type)
+                        sender=_hiring_sender(), reference_doctype="Interview Type", reference_name=rows[0].interview_type,
+                        attachments=[_calendar_attachment(events, "interviews.ics")])
 
 
 def regret_on_update(doc, method=None):
@@ -803,6 +832,86 @@ def _quietly(function, *args):
         function(*args)
     except Exception:
         frappe.log_error(title=_("Interview letter not sent"))
+
+
+# ── The candidate's answer, and the calendar ──────────────────────────
+
+
+def response_link(name):
+    """The page where the candidate confirms or asks for another time
+    (www/interview-response.html), by the Interview's own key."""
+    key = frappe.db.get_value("Interview", name, "custom_response_key")
+    if not key:
+        key = frappe.generate_hash(length=32)
+        frappe.db.set_value("Interview", name, "custom_response_key", key, update_modified=False)
+    return frappe.utils.get_url("/interview-response?key=%s" % key)
+
+
+def _utc_offset(day, clock):
+    """Minutes the site's time zone is ahead of UTC on that day and time."""
+    from zoneinfo import ZoneInfo
+
+    if not day:
+        return 0
+    local = frappe.utils.get_datetime("%s %s" % (str(day)[:10], clock or "00:00:00"))
+    offset = local.replace(tzinfo=ZoneInfo(frappe.utils.get_system_timezone())).utcoffset()
+    return int(offset.total_seconds() // 60) if offset else 0
+
+
+def _calendar_host():
+    """The site's host, which makes each calendar entry's UID its own."""
+    from urllib.parse import urlparse
+
+    return urlparse(frappe.utils.get_url()).netloc or "hrms-addon"
+
+
+def _calendar_attachment(events, fname):
+    """An email's calendar file, sent as text/calendar."""
+    import datetime
+
+    stamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return {"fname": fname, "fcontent": rules.calendar_file(events, stamp), "content_type": "text/calendar"}
+
+
+def clear_moved_response(doc, method=None):
+    """Interview on_change, after a save and after Frappe HR's Reschedule
+    (which writes the new time straight in): the candidate's answer was for
+    the slot they saw, so once the interview moves it no longer stands."""
+    response = doc.get("custom_candidate_response")
+    if not response or rules.response_for_slot(response, doc.get("custom_response_slot"), doc.get("scheduled_on"),
+                                               doc.get("from_time")):
+        return
+    cleared = {"custom_candidate_response": None, "custom_responded_on": None, "custom_response_note": None,
+               "custom_response_slot": None}
+    frappe.db.set_value("Interview", doc.name, cleared, update_modified=False)
+    doc.update(cleared)
+    doc.add_comment("Info", _("The interview moved, so the candidate's answer ({0}) no longer stands. Send the "
+                              "invitation again for them to answer for the new time.").format(_(response)))
+
+
+@frappe.whitelist()
+def get_calendar_events(start: str, end: str, filters: str | None = None) -> list:
+    """The Interview calendar (public/js/interview_calendar.js): Frappe HR's
+    own events, each interview still to come marked with the candidate's
+    answer, or that none has come."""
+    from hrms.hr.doctype.interview.interview import get_events
+
+    events = get_events(start, end, filters)
+    names = [event.get("name") for event in events if event.get("name")]
+    rows = {row.name: row for row in frappe.get_all(
+        "Interview", filters={"name": ["in", names or [""]]},
+        fields=["name", "status", "scheduled_on", "from_time", "custom_candidate_response", "custom_response_slot"])}
+    for event in events:
+        row = rows.get(event.get("name"))
+        mark = row and rules.calendar_mark(row.status, rules.response_for_slot(
+            row.custom_candidate_response, row.custom_response_slot, row.scheduled_on, row.from_time))
+        if not mark:
+            continue
+        line, colour = mark
+        event["subject"] = "%s\n%s" % (event.get("subject") or "", _(line))
+        if colour:
+            event["color"] = colour
+    return events
 
 
 # ── The interview report ──────────────────────────────────────────────

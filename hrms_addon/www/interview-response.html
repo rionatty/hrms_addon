@@ -1,0 +1,183 @@
+{#-
+	The candidate's answer to an interview invitation (/interview-response).
+	interview_response.page_context gives the interview, what may be done
+	with it and the answer so far; the buttons send
+	interview_response.respond. Every value from the database is escaped.
+-#}
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Your interview") }}{% endblock title %}
+
+{% block style %}
+	{{ super() }}
+	<link rel="stylesheet" href="/assets/hrms_addon/css/careers.css?v=2026093002">
+	<style>
+		.lpl-response { max-width: 640px; margin: 32px auto 64px; padding: 0 16px; color: var(--lpl-text); }
+		.lpl-response__card {
+			background: var(--lpl-white);
+			border: 1px solid var(--lpl-line);
+			border-radius: var(--lpl-radius);
+			box-shadow: var(--lpl-shadow);
+			padding: 28px;
+		}
+		.lpl-response h1 { color: var(--lpl-ink); font-size: 1.5rem; margin: 0 0 12px; }
+		.lpl-response__facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 20px 0; }
+		.lpl-response__facts dt { color: var(--lpl-muted); font-weight: 500; }
+		.lpl-response__facts dd { margin: 0; color: var(--lpl-ink); overflow-wrap: anywhere; }
+		.lpl-response__status {
+			border-radius: var(--lpl-radius-sm);
+			padding: 12px 16px;
+			margin: 16px 0;
+			background: var(--lpl-blue-50);
+			color: var(--lpl-blue-deep);
+		}
+		.lpl-response__status--done { background: var(--lpl-green-50); color: var(--lpl-green-600); }
+		.lpl-response__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+		.lpl-response__actions .btn { border-radius: var(--lpl-radius-sm); padding: 10px 18px; font-weight: 600; }
+		.lpl-response__confirm { background: var(--lpl-green); border: 1px solid var(--lpl-green); color: #fff; }
+		.lpl-response__confirm:hover { background: var(--lpl-green-600); color: #fff; }
+		.lpl-response__other { background: var(--lpl-white); border: 1px solid var(--lpl-blue); color: var(--lpl-blue); }
+		.lpl-response__note { margin-top: 20px; }
+		.lpl-response__note label { display: block; color: var(--lpl-ink); font-weight: 500; margin-bottom: 6px; }
+		.lpl-response__note textarea {
+			box-sizing: border-box;
+			font: inherit;
+			width: 100%;
+			min-height: 96px;
+			border: 1px solid var(--lpl-line);
+			border-radius: var(--lpl-radius-sm);
+			padding: 10px 12px;
+		}
+		.lpl-response__note textarea:focus { outline: none; box-shadow: var(--lpl-focus); border-color: var(--lpl-blue); }
+		.lpl-response__error { color: #b42318; margin-top: 12px; }
+		.lpl-hidden { display: none; }
+		@media (max-width: 480px) {
+			.lpl-response__card { padding: 20px; }
+			.lpl-response__facts { grid-template-columns: 1fr; gap: 2px 0; }
+			.lpl-response__facts dd { margin-bottom: 10px; }
+			.lpl-response__actions .btn { width: 100%; }
+		}
+	</style>
+{% endblock %}
+
+{% block page_content %}
+{% set i = interview %}
+<div class="lpl-response"
+	{% if i.valid and i.state == "open" %}
+	data-key="{{ i.key | e }}"
+	data-confirmed="{{ i.confirmed | e }}"
+	data-thanks-confirmed="{{ _('Thank you. You have confirmed that you will attend.') | e }}"
+	data-thanks-other="{{ _('Thank you. We will be in touch about another time.') | e }}"
+	data-note-needed="{{ _('Please say when you could come instead.') | e }}"
+	{% endif %}>
+	<div class="lpl-response__card">
+	{% if not i.valid %}
+		<h1>{{ _("This link is not valid") }}</h1>
+		<p>{{ _("Please use the link in your invitation email.") }}</p>
+	{% else %}
+		<h1>{{ _("Your interview") }}</h1>
+		{% if i.first_name %}<p>{{ _("Dear") }} {{ i.first_name | e }},</p>{% endif %}
+		<dl class="lpl-response__facts">
+			<dt>{{ _("Position") }}</dt><dd>{{ i.designation | e }}</dd>
+			{% if i.company %}<dt>{{ _("Company") }}</dt><dd>{{ i.company | e }}</dd>{% endif %}
+			<dt>{{ _("Date") }}</dt><dd>{{ i.date | e }}</dd>
+			<dt>{{ _("Time") }}</dt><dd>{{ i.time | e }}</dd>
+			<dt>{{ _("Where") }}</dt>
+			<dd>
+				{%- if i.mode == "Video Call" -%}
+					{{ _("By video call") }}
+					{%- if i.meeting_url %}: <a href="{{ i.meeting_url | e }}" target="_blank" rel="noopener">{{ i.meeting_url | e }}</a>
+					{%- elif i.meeting_link %}: {{ i.meeting_link | e }}{% endif %}
+				{%- elif i.mode == "Phone Call" -%}
+					{{ _("By phone, on the number you gave us") }}
+				{%- else -%}
+					{{ i.venue | e }}
+				{%- endif -%}
+			</dd>
+		</dl>
+		{% if i.state == "cancelled" %}
+			<div class="lpl-response__status">{{ _("This interview has been cancelled.") }}</div>
+		{% elif i.state == "over" %}
+			<div class="lpl-response__status">{{ _("This interview has already taken place.") }}</div>
+		{% else %}
+			<div class="lpl-response__status lpl-response__status--done {% if not i.answer %}lpl-hidden{% endif %}" data-role="answered">
+				{%- if i.answer == i.confirmed -%}
+					{{ _("You confirmed on {0} that you will attend.").format(i.answered_on) }}
+				{%- elif i.answer == i.another_time -%}
+					{{ _("You asked for another time on {0}. We will be in touch.").format(i.answered_on) }}
+				{%- endif -%}
+			</div>
+			<p>{% if i.answer %}{{ _("You can change your answer here.") }}{% else %}{{ _("Please let us know whether you will attend.") }}{% endif %}</p>
+			<div class="lpl-response__actions">
+				<button type="button" class="btn lpl-response__confirm" data-answer="{{ i.confirmed | e }}">{{ _("I will attend") }}</button>
+				<button type="button" class="btn lpl-response__other" data-role="show-note">{{ _("Ask for another time") }}</button>
+			</div>
+			<div class="lpl-response__note lpl-hidden" data-role="note">
+				<label for="lpl-response-note">{{ _("When could you come instead?") }}</label>
+				<textarea id="lpl-response-note" maxlength="{{ i.note_max | int }}"></textarea>
+				<div class="lpl-response__actions">
+					<button type="button" class="btn lpl-response__other" data-answer="{{ i.another_time | e }}">{{ _("Send") }}</button>
+				</div>
+			</div>
+			<p class="lpl-response__error lpl-hidden" data-role="error"></p>
+		{% endif %}
+	{% endif %}
+	</div>
+</div>
+{% endblock page_content %}
+
+{% block script %}
+	{{ super() }}
+	<script>
+		(function () {
+			var root = document.querySelector(".lpl-response[data-key]");
+			if (!root) {
+				return;
+			}
+			var answered = root.querySelector("[data-role=answered]");
+			var note_box = root.querySelector("[data-role=note]");
+			var note = root.querySelector("#lpl-response-note");
+			var error = root.querySelector("[data-role=error]");
+
+			function show_error(text) {
+				error.textContent = text;
+				error.classList.remove("lpl-hidden");
+			}
+
+			function send(answer, text) {
+				error.classList.add("lpl-hidden");
+				frappe.call({
+					method: "hrms_addon.hrms_addon.interview_response.respond",
+					args: { key: root.getAttribute("data-key"), answer: answer, note: text || "" },
+					freeze: true,
+					callback: function (r) {
+						if (r.exc) {
+							return;
+						}
+						answered.textContent =
+							answer === root.getAttribute("data-confirmed")
+								? root.getAttribute("data-thanks-confirmed")
+								: root.getAttribute("data-thanks-other");
+						answered.classList.remove("lpl-hidden");
+						note_box.classList.add("lpl-hidden");
+					},
+				});
+			}
+
+			root.querySelector("[data-role=show-note]").addEventListener("click", function () {
+				note_box.classList.remove("lpl-hidden");
+				note.focus();
+			});
+			root.querySelectorAll("[data-answer]").forEach(function (button) {
+				button.addEventListener("click", function () {
+					var answer = button.getAttribute("data-answer");
+					var text = answer === root.getAttribute("data-confirmed") ? "" : note.value.trim();
+					if (answer !== root.getAttribute("data-confirmed") && !text) {
+						show_error(root.getAttribute("data-note-needed"));
+						return;
+					}
+					send(answer, text);
+				});
+			});
+		})();
+	</script>
+{% endblock %}

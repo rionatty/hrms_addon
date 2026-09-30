@@ -188,7 +188,9 @@ doctype_js = {
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
-# doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
+# the Interview calendar marks each interview still to come with the
+# candidate's answer (loaded after Frappe HR's own interview_calendar.js)
+doctype_calendar_js = {"Interview": "public/js/interview_calendar.js"}
 
 # Svg Icons
 # ------------------
@@ -734,6 +736,11 @@ fixtures = [
                     "Interview-custom_meeting_link",
                     "Interview-custom_attendance",
                     "Interview-custom_invited_on",
+                    "Interview-custom_candidate_response",
+                    "Interview-custom_responded_on",
+                    "Interview-custom_response_note",
+                    "Interview-custom_response_slot",
+                    "Interview-custom_response_key",
                     "Interview Type-custom_venue",
                     "Interview Type-custom_what_to_bring",
                     "HR Settings-custom_interviews_section",
@@ -1460,6 +1467,9 @@ doc_events = {
         # Cancelling a submitted interview to correct it: the shortlist and the
         # report that list it are records of it, not dependants
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
+        # after a save or Frappe HR's Reschedule: the candidate's answer for a
+        # slot the interview has left no longer stands
+        "on_change": "hrms_addon.hrms_addon.interviews.clear_moved_response",
     },
     "Job Offer": {
         # the Gross Salary starts at the requisition's Recommended Salary (interviews.py)
