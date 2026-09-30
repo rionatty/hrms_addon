@@ -325,6 +325,23 @@ def missing_values(current, values):
     return missing
 
 
+def name_parts(full_name):
+    """{first_name, middle_name, last_name} of a full name, split the way
+    ERPNext splits an employee's name for their User: the first word, the
+    second when there are three or more, and the rest. A name written
+    "Surname, Other Names" keeps its surname last. {} for no name."""
+    text = " ".join(str(full_name or "").split())
+    surname, comma, others = text.partition(",")
+    given = others.split()
+    if comma and surname.strip() and given:
+        return {"first_name": given[0], "middle_name": " ".join(given[1:]) or None, "last_name": surname.strip()}
+    words = text.replace(",", " ").split()
+    if not words:
+        return {}
+    return {"first_name": words[0], "middle_name": words[1] if len(words) > 2 else None,
+            "last_name": " ".join(words[2:] if len(words) > 2 else words[1:]) or None}
+
+
 def last_year(period):
     """The last four-digit year in "2014 - 2017", "2019" or "Aug 2016 to Jul 2018"; None if there is none."""
     years = re.findall(r"(?<!\d)(?:19|20)\d{2}(?!\d)", str(period or ""))

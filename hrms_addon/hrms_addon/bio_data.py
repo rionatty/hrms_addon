@@ -13,8 +13,9 @@ its save: Employee requires Date of Birth and Gender, so the browser would
 refuse to save the form before any server hook could fill them. HRMS builds
 that form in two places — Create > Employee on a Job Offer and on an
 Employee Onboarding — and hooks.py override_whitelisted_methods routes both
-through the functions below, which call the HRMS original and then add the
-bio-data. Frappe resolves the override in frappe.model.mapper.make_mapped_doc.
+through the functions below, which call the HRMS original, split the name
+it puts whole in First Name into First, Middle and Last Name, and then add
+the bio-data. Frappe resolves the override in frappe.model.mapper.make_mapped_doc.
 """
 
 import frappe
@@ -37,7 +38,7 @@ def make_employee_from_job_offer(source_name, target_doc=None):
     from hrms_addon.hrms_addon import internal_hires
 
     internal_hires.refuse_new_employee(frappe.db.get_value("Job Offer", source_name, "job_applicant"))
-    employee = add_bio_data(make_employee(source_name, target_doc), "Job Offer", source_name)
+    employee = add_bio_data(split_name(make_employee(source_name, target_doc)), "Job Offer", source_name)
     return onboarding.add_placement(employee, "Job Offer", source_name)
 
 
@@ -48,8 +49,18 @@ def make_employee_from_onboarding(source_name, target_doc=None):
     from hrms_addon.hrms_addon import internal_hires
 
     internal_hires.refuse_new_employee(frappe.db.get_value("Employee Onboarding", source_name, "job_applicant"))
-    employee = add_bio_data(make_employee(source_name, target_doc), "Employee Onboarding", source_name)
+    employee = add_bio_data(split_name(make_employee(source_name, target_doc)), "Employee Onboarding", source_name)
     return onboarding.add_placement(employee, "Employee Onboarding", source_name)
+
+
+def split_name(employee):
+    """HRMS puts the whole name in First Name: it goes into First, Middle
+    and Last Name, unless the form already has them apart."""
+    if employee.get("middle_name") or employee.get("last_name"):
+        return employee
+    for field, value in bio_data_rules.name_parts(employee.get("first_name") or employee.get("employee_name")).items():
+        employee.set(field, value)
+    return employee
 
 
 def add_bio_data(employee, source_doctype, source_name):

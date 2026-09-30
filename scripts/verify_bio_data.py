@@ -464,9 +464,10 @@ for original, (function, source_doctype, path) in OVERRIDES.items():
     body = re.search(r"@frappe\.whitelist\(\)\ndef %s\(source_name, target_doc=None\):\n(.*?)(?=\n\n\n|\Z)" % function, glue, re.S)
     module = original.rsplit(".", 1)[0]
     if not body or "from %s import make_employee" % module not in body.group(1) \
-            or 'add_bio_data(make_employee(source_name, target_doc), "%s", source_name)' % source_doctype not in body.group(1):
-        fail.append("bio_data.%s must be whitelisted, call %s.make_employee and add the bio-data from the %s"
-                    % (function, module, source_doctype))
+            or 'add_bio_data(split_name(make_employee(source_name, target_doc)), "%s", source_name)' % source_doctype \
+            not in body.group(1):
+        fail.append("bio_data.%s must be whitelisted, call %s.make_employee, split the name and add the bio-data "
+                    "from the %s" % (function, module, source_doctype))
     upstream = os.path.join(APPS_ROOT, "hrms", "hrms", *path)
     if os.path.exists(upstream) and not re.search(r"@frappe\.whitelist\(\)\ndef make_employee\(source_name", open(upstream, encoding="utf-8").read()):
         fail.append("HRMS no longer has a whitelisted make_employee(source_name, ...) in %s" % "/".join(path))
@@ -477,6 +478,61 @@ for needle, why in (
 ):
     if needle not in glue:
         fail.append("bio_data.add_bio_data %s" % why)
+
+# the name HRMS puts whole in First Name, split into First, Middle and Last Name
+for full, wanted in (
+    ("Micheal Swalez", ("Micheal", None, "Swalez")),
+    ("John Peter Okello", ("John", "Peter", "Okello")),
+    ("  John   Peter  Okello Wandera ", ("John", "Peter", "Okello Wandera")),
+    ("Okello, John Peter", ("John", "Peter", "Okello")),
+    ("Okello Wandera, John", ("John", None, "Okello Wandera")),
+    ("John Okello,", ("John", None, "Okello")),
+    ("Nakato", ("Nakato", None, None)),
+):
+    got = rules.name_parts(full)
+    if (got.get("first_name"), got.get("middle_name"), got.get("last_name")) != wanted or \
+            set(got) != {"first_name", "middle_name", "last_name"}:
+        fail.append("%r must be split %s, not %s" % (full, wanted, got))
+for nothing in (None, "", "   ", ","):
+    if rules.name_parts(nothing) != {}:
+        fail.append("no name, no parts: %r gave %s" % (nothing, rules.name_parts(nothing)))
+split_body = re.search(r"\ndef split_name\(employee\):\n(.*?)(?=\n\n\n|\Z)", glue, re.S)
+for needle, why in (
+    ('if employee.get("middle_name") or employee.get("last_name"):\n        return employee',
+     "leaves a name already apart as it is"),
+    ('bio_data_rules.name_parts(employee.get("first_name") or employee.get("employee_name"))',
+     "splits the whole name HRMS put in First Name"),
+):
+    if not split_body or needle not in split_body.group(1):
+        fail.append("bio_data.split_name %s (%r not found)" % (why, needle))
+for path, needle, why in (
+    (("hrms", "hrms", "hr", "doctype", "employee_onboarding", "employee_onboarding.py"),
+     '"first_name": "employee_name",', "HRMS maps the onboarding's whole name into First Name"),
+    (("hrms", "hrms", "hr", "doctype", "job_offer", "job_offer.py"),
+     'target.personal_email, target.first_name = frappe.db.get_value(\n\t\t\t"Job Applicant", source.job_applicant, '
+     '["email_id", "applicant_name"]', "and the job offer the applicant's whole name"),
+    (("erpnext", "erpnext", "setup", "doctype", "employee", "employee.py"),
+     'user.last_name = " ".join(employee_name[2:])\n\t\t\t\tuser.middle_name = employee_name[1]',
+     "ERPNext splits the name for the User as name_parts does"),
+    (("erpnext", "erpnext", "setup", "doctype", "employee", "employee.py"),
+     "filter(lambda x: x, [self.first_name, self.middle_name, self.last_name])",
+     "and puts the full name back together from the three on save"),
+):
+    upstream_path = os.path.join(APPS_ROOT, *path)
+    if os.path.exists(upstream_path) and needle not in open(upstream_path, encoding="utf-8").read():
+        fail.append("%s: %s (%r not found)" % ("/".join(path), why, needle))
+names_patch = read("hrms_addon", "patches", "v1_0", "employee_names_split.py")
+for needle, why in (
+    ('filters={"job_applicant": ["is", "set"]}', "only employees made from the hiring"),
+    ("if row.middle_name or row.last_name:\n            continue", "a name already apart is left as it is"),
+    ("parts = bio_data_rules.name_parts(row.first_name)", "split as a new one is"),
+    ('frappe.db.set_value("Employee", row.name, parts, update_modified=False)', "without touching the full name"),
+):
+    if needle not in names_patch:
+        fail.append("the names patch: %s (%r not found)" % (why, needle))
+if "hrms_addon.patches.v1_0.employee_names_split" not in read("hrms_addon", "patches.txt").split():
+    fail.append("the names patch is listed in patches.txt")
+print("names: HRMS's whole name split into First, Middle and Last Name, as ERPNext splits it for the User")
 if not re.search(r'for ptype in \("read", "write", "create"\):', glue) or '"delete"' in glue:
     fail.append("allow_hr_user_to_add_skills must grant HR User read, write and create on Skill, not delete")
 if "setup_custom_perms(\"Skill\")" not in glue:
