@@ -255,7 +255,8 @@ print("report: the kept screening, the best first, ticked rows set in one go, an
 form = read("hrms_addon", "hrms_addon", "doctype", "interview_shortlist", "interview_shortlist.js")
 for needle, why in (
         ('frm.add_custom_button(__("Remove by Result"), () => ha_remove_by_result(frm));', "Remove by Result"),
-        ('.xcall(HA_SHORTLIST_METHODS + "pick_removals", {', "the server picks who goes"),
+        ('const args = { rows: rows, results: values.results || [] };', "the server is sent the list and the results"),
+        ('.xcall(HA_SHORTLIST_METHODS + "pick_removals", args)', "the server picks who goes"),
         ("frappe.confirm(__(\"Remove {0} applicants from the list?\", [names.length]), () => {", "HR confirms"),
         (".forEach((row) => frappe.model.clear_doc(row.doctype, row.name));", "rows removed as Frappe removes them"),
         ("frm.dirty();", "the change waits for Save"),
