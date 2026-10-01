@@ -28,7 +28,16 @@ const HA_RESULTS = { Offer: "Cleared", Shortlist: "Cleared", Reject: "Rejected" 
 // a round's own list has already said what applies: no N/A there
 const HA_ROUND_SCALE = ["", "1", "2", "3", "4", "5"];
 
+// Frappe HR fills its own Skill Assessment from the Interview Type's expected
+// skills as the type is set, each row needing a star rating. This sheet
+// scores its own criteria and hides that table, so the rows would stop every
+// save ("Rating is required in every row") with nothing to fill in.
+frappe.ui.form.off("Interview Feedback", "interview_type");
+
 frappe.ui.form.on("Interview Feedback", {
+	validate(frm) {
+		ha_drop_unrated_skills(frm);
+	},
 	refresh(frm) {
 		// the criteria come from the round or the Interview Criterion list, not from here
 		frm.set_df_property(HA_SCORE_TABLE, "cannot_add_rows", true);
@@ -68,6 +77,16 @@ frappe.ui.form.on("Interview Feedback Score", {
 		ha_show_score_total(frm);
 	},
 });
+
+// rows of the hidden Skill Assessment with no rating, which a sheet saved
+// before the filler was switched off may still carry
+function ha_drop_unrated_skills(frm) {
+	const unrated = (frm.doc.skill_assessment || []).filter((row) => !row.rating);
+	unrated.forEach((row) => frappe.model.clear_doc(row.doctype, row.name));
+	if (unrated.length) {
+		frm.refresh_field("skill_assessment");
+	}
+}
 
 function ha_score_options(frm) {
 	const field = frm.fields_dict[HA_SCORE_TABLE];

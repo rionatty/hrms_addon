@@ -480,9 +480,15 @@ for needle, why in (
     ('frm.set_df_property(HA_SCORE_TABLE, "cannot_add_rows", true)', "must stop rows being added by hand"),
     ('frm.set_df_property(HA_SCORE_TABLE, "cannot_delete_rows", true)', "must stop rows being removed by hand"),
     ("total * 100 >= floor * maximum", "must compare in whole numbers, like interview_rules.band_for"),
+    ('frappe.ui.form.off("Interview Feedback", "interview_type");',
+     "must stop Frappe HR filling its hidden Skill Assessment, whose unrated rows stop every save"),
+    ("validate(frm) {\n\t\tha_drop_unrated_skills(frm);", "must drop unrated Skill Assessment rows before the save"),
 ):
     if needle not in fjs:
         fail.append("interview_feedback.js %s" % why)
+if 'doc.set("skill_assessment", [row for row in doc.get("skill_assessment") or [] if row.get("rating")])' \
+        not in glue.split("def feedback_validate(")[-1].split("\ndef ")[0]:
+    fail.append("interviews.feedback_validate must drop unrated Skill Assessment rows before the mandatory check")
 for name, js in (("interview.js", ijs), ("interview_feedback.js", fjs)):
     stripped = re.sub(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`', "", js, flags=re.S)
     for op, cl in (("{", "}"), ("(", ")"), ("[", "]")):

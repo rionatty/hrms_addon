@@ -115,6 +115,10 @@ def feedback_validate(doc, method=None):
     problem = access_rules.sheet_owner_error(doc.interviewer, frappe.session.user)
     if problem and not (frappe.flags.in_migrate or frappe.flags.in_patch or frappe.flags.in_install):
         frappe.throw(_(problem), frappe.PermissionError)
+    # Frappe HR's own Skill Assessment is hidden here (the sheet scores its own
+    # criteria): a row it filled from the Interview Type with no rating would
+    # fail the mandatory check, which runs after this
+    doc.set("skill_assessment", [row for row in doc.get("skill_assessment") or [] if row.get("rating")])
     start, own_list = _sheet_start(doc.get("interview"))
     if not doc.get("custom_scores"):
         for row in start:
