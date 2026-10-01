@@ -390,6 +390,114 @@ if checked < 5:
 print("form scripts: %d register on their own DocType and name only fields, tables and columns that exist%s"
       % (checked, "; not checked (DocType not found under %s): %s" % (APPS_ROOT, ", ".join(sorted(skipped))) if skipped else ""))
 
+
+# ── 5. Nothing empty where a whitelisted method checks the type ───────
+# jQuery sends null and undefined as "", and Frappe v16 checks a whitelisted
+# method's arguments against its type hints before the method runs: "" for a
+# number, list or dict is a FrappeTypeError (417), which the desk shows
+# nowhere. Schedule Interviews did nothing at all with Minutes Between left
+# empty (October 2026). A value that may be empty is left out of the call, or
+# its parameter takes a str as well.
+def whitelisted():
+    """{dotted.method: {parameter: its type hint, "" for none}}"""
+    found = {}
+    for path in glob.glob(os.path.join(PACKAGE, "**", "*.py"), recursive=True):
+        dotted = os.path.relpath(path, REPO)[:-3].replace(os.sep, ".")
+        for node in ast.walk(ast.parse(open(path, encoding="utf-8").read())):
+            if isinstance(node, ast.FunctionDef) and any("whitelist" in ast.unparse(d) for d in node.decorator_list):
+                found[dotted + "." + node.name] = {arg.arg: ast.unparse(arg.annotation) if arg.annotation else ""
+                                                   for arg in node.args.args + node.args.kwonlyargs}
+    return found
+
+
+def takes_empty(hint):
+    """Whether "" gets past the type check: no hint, or str among its types."""
+    types = set(re.findall(r"[A-Za-z_][\w.]*", hint)) - {"None", "Optional", "Union"}
+    return not types or bool(types & {"str", "Any"})
+
+
+def closing(text, opening):
+    """Where the bracket opened at `opening` closes, strings skipped."""
+    depth, quote = 0, None
+    for index in range(opening, len(text)):
+        char = text[index]
+        if quote:
+            if char == quote and text[index - 1] != "\\":
+                quote = None
+        elif char in "\"'`":
+            quote = char
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth == 0:
+                return index
+    return len(text)
+
+
+def top_level_pairs(body):
+    """An object literal's key: value pairs, split at its own commas."""
+    pairs, start, index = [], 0, 0
+    while index <= len(body):
+        char = body[index] if index < len(body) else ","
+        if char in "([{\"'`":
+            index = closing(body, index) + 1 if char in "([{" else body.index(char, index + 1) + 1
+            continue
+        if char == ",":
+            found = re.match(r"\s*([A-Za-z_$][\w$]*)\s*:\s*(.+)$", body[start:index], re.S)
+            if found:
+                pairs.append((found.group(1), found.group(2).strip()))
+            start = index + 1
+        index += 1
+    return pairs
+
+
+def required_field(text, fieldname):
+    """Whether the dialog field of that name is mandatory, so never sent empty."""
+    found = re.search(r"fieldname\s*:\s*[\"']%s[\"']" % re.escape(fieldname), text)
+    if not found:
+        return False
+    opening = text.rindex("{", 0, found.start())
+    return re.search(r"\breqd\s*:\s*1\b", text[opening:closing(text, opening)]) is not None
+
+
+methods = whitelisted()
+calls, empty = 0, []
+for rel in sorted(sources):
+    text = sources[rel]
+    consts = dict(re.findall(r"^\s*const\s+([A-Z_][A-Z0-9_]*)\s*=\s*\"([^\"]+)\"", text, re.M))
+    sites = [(found.group(1), found.end() - 1, found.start())
+             for found in re.finditer(r"frappe\s*\.xcall\(\s*([^,()]+?)\s*,\s*\{", text)]
+    for found in re.finditer(r"frappe\s*\.call\(\s*\{", text):
+        body = text[found.end():closing(text, found.end() - 1)]
+        method = re.search(r"\bmethod\s*:\s*(\"[^\"]+\"|[A-Z_][A-Z0-9_]*\s*\+\s*\"[^\"]+\")", body)
+        args = re.search(r"\bargs\s*:\s*\{", body)
+        if method and args:
+            sites.append((method.group(1), found.end() + args.end() - 1, found.start()))
+    for expr, brace, at in sites:
+        name = "".join(consts.get(piece.strip(), piece.strip().strip("\"'")) for piece in expr.split("+"))
+        params = methods.get(name)
+        if params is None:
+            continue  # a method named at run time, or not this app's
+        calls += 1
+        line = text.count("\n", 0, at) + 1
+        for key, value in top_level_pairs(text[brace + 1:closing(text, brace)]):
+            if key not in params or takes_empty(params[key]):
+                continue
+            bare = re.fullmatch(r"values\.([a-z_][a-z0-9_]*)", value)
+            if re.search(r"\b(null|undefined)\b", value):
+                empty.append("%s:%d sends %s as %s to %s: arriving as \"\", it fails the type %s with nothing shown"
+                             % (rel, line, key, value, name.split(".")[-1], params[key]))
+            elif bare and not required_field(text, bare.group(1)):
+                empty.append("%s:%d sends %s from an optional field to %s: left empty, it arrives as \"\" and fails "
+                             "the type %s with nothing shown" % (rel, line, key, name.split(".")[-1], params[key]))
+if calls < 60:
+    fail.append("only %d calls to this app's whitelisted methods found: the scan is looking in the wrong place" % calls)
+fail.extend(empty)
+print("calls: %d to this app's whitelisted methods, %s" % (
+    calls, "%d sending an empty value where Frappe checks the type" % len(empty) if empty
+    else "none sending an empty value where Frappe checks the type"))
+
 print()
 if fail:
     print("FAILURES:")

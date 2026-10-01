@@ -407,9 +407,12 @@ def get_candidate_details(job_applicants: str) -> dict:
 
 
 @frappe.whitelist()
-def pick_removals(rows: str, results: str | None = None, below: float | None = None) -> list:
+def pick_removals(rows: str, results: str | None = None, below: float | str | None = None) -> list:
     """Remove by Result: the applicants on the list (JSON rows as the form has
-    them, saved or not) that the choice takes off (cv_screening_rules.removals)."""
+    them, saved or not) that the choice takes off (cv_screening_rules.removals).
+
+    below: a str as well, for the "" the browser sends for an empty Match
+    Below (removals reads it as none)."""
     frappe.has_permission("Interview Shortlist", "write", throw=True)
     return cv_screening_rules.removals(frappe.parse_json(rows) or [], frappe.parse_json(results) if results else [],
                                        below)
@@ -481,7 +484,7 @@ def unmark_shortlisted(doc):
 
 @frappe.whitelist(methods=["POST"])
 def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, from_time: str, minutes: int,
-                        applicants: str | None = None, gap: int | None = None, mode: str | None = None,
+                        applicants: str | None = None, gap: int | str | None = None, mode: str | None = None,
                         venue: str | None = None, meeting_link: str | None = None, send_invitations: int = 1) -> dict:
     """An Interview of this type, the round, for the candidates HR chose on a
     submitted shortlist (everyone on it when none is chosen) who are still in
@@ -495,6 +498,9 @@ def schedule_interviews(shortlist: str, interview_type: str, scheduled_on: str, 
     sent its schedule, in the background.
 
     applicants: JSON list of the chosen job applicants, a batch.
+    gap: a str as well, for the "" the browser sends for an empty Minutes
+    Between: Frappe's type check refuses it for an int before this runs, and
+    the desk shows nothing.
 
     Each candidate is booked on their own, so one HRMS refuses (an Interview
     Type for another position, say) is reported and the rest still go ahead.

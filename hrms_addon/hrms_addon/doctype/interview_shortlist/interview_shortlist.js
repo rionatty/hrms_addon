@@ -216,12 +216,14 @@ function ha_remove_by_result(frm) {
 				screening_result: row.screening_result,
 				match_score: row.match_score,
 			}));
+			const args = { rows: rows, results: values.results || [] };
+			// left out when empty: sent as null it arrives as "", which a typed
+			// parameter refuses with nothing shown
+			if (values.below !== undefined && values.below !== null && values.below !== "") {
+				args.below = values.below;
+			}
 			frappe
-				.xcall(HA_SHORTLIST_METHODS + "pick_removals", {
-					rows: rows,
-					results: values.results || [],
-					below: values.below || null,
-				})
+				.xcall(HA_SHORTLIST_METHODS + "pick_removals", args)
 				.then((names) => {
 					if (!names.length) {
 						frappe.msgprint(__("No applicant on the list matches."));
@@ -316,19 +318,30 @@ function ha_schedule_interviews(frm) {
 		],
 		primary_action_label: __("Schedule"),
 		primary_action(values) {
+			const args = {
+				shortlist: frm.doc.name,
+				interview_type: values.interview_type,
+				scheduled_on: values.scheduled_on,
+				from_time: values.from_time,
+				minutes: values.minutes,
+				mode: values.mode,
+				send_invitations: values.send_invitations ? 1 : 0,
+			};
+			// what is empty is left out: sent as null it arrives as "", which a
+			// typed parameter refuses with nothing shown (the method's defaults
+			// stand instead: everyone listed, HR Settings' gap, the type's venue)
+			if (ticked.length) {
+				args.applicants = ticked;
+			}
+			["gap", "venue", "meeting_link"].forEach((key) => {
+				if (values[key] !== undefined && values[key] !== null && values[key] !== "") {
+					args[key] = values[key];
+				}
+			});
 			frappe
-				.xcall(HA_SHORTLIST_METHODS + "schedule_interviews", {
-					shortlist: frm.doc.name,
-					interview_type: values.interview_type,
-					scheduled_on: values.scheduled_on,
-					from_time: values.from_time,
-					minutes: values.minutes,
-					applicants: ticked.length ? ticked : null,
-					gap: values.gap === undefined || values.gap === null || values.gap === "" ? null : values.gap,
-					mode: values.mode,
-					venue: values.venue || null,
-					meeting_link: values.meeting_link || null,
-					send_invitations: values.send_invitations ? 1 : 0,
+				.xcall(HA_SHORTLIST_METHODS + "schedule_interviews", args, "POST", {
+					freeze: true,
+					freeze_message: __("Scheduling interviews"),
 				})
 				.then((result) => {
 					dialog.hide();
