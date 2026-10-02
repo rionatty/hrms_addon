@@ -17,13 +17,7 @@
   "status",
   "requisition",
   "questions_section",
-  "responsibilities",
-  "skill_areas",
-  "industry_trends",
-  "column_break_2",
-  "collaboration_areas",
-  "training_feedback",
-  "comments",
+  "questions",
   "amended_from"
  ],
  "fields": [
@@ -124,40 +118,10 @@
    "description": "One item per line."
   },
   {
-   "fieldname": "responsibilities",
-   "fieldtype": "Small Text",
-   "label": "1. Primary job responsibilities",
-   "reqd": 1
-  },
-  {
-   "fieldname": "skill_areas",
-   "fieldtype": "Small Text",
-   "label": "2. Skills / training areas that will benefit your work progress",
-   "reqd": 1
-  },
-  {
-   "fieldname": "industry_trends",
-   "fieldtype": "Small Text",
-   "label": "3. Emerging trends or advancements you would like training on"
-  },
-  {
-   "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "collaboration_areas",
-   "fieldtype": "Small Text",
-   "label": "4. Areas where inter-departmental collaboration could benefit your work"
-  },
-  {
-   "fieldname": "training_feedback",
-   "fieldtype": "Small Text",
-   "label": "5. Feedback or suggestions on the existing training programmes"
-  },
-  {
-   "fieldname": "comments",
-   "fieldtype": "Small Text",
-   "label": "6. Additional comments on your training needs"
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "Training Needs Answer"
   },
   {
    "fieldname": "amended_from",
@@ -171,7 +135,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 09:00:00.000000",
+ "modified": "2026-10-01 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Training Needs Form",

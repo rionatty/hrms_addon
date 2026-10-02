@@ -226,7 +226,8 @@ print("workflows: the assessment's two approvers and the calendar's one, returns
 OURS = ("Training Needs Form", "Training Requisition", "Training Requisition Employee", "Training Needs Assessment",
         "TNA Requisition", "Training Need", "Training Calendar", "Training Calendar Entry", "Training Calendar Signatory",
         "Monthly Training Schedule", "Training Schedule Line", "Training Evaluation Item", "Training Evaluation Rating",
-        "Meeting Record", "Meeting Participant", "Training Requisition Topic", "Training Event Trainer")
+        "Meeting Record", "Meeting Participant", "Training Requisition Topic", "Training Event Trainer",
+        "Training Needs Answer")
 specs = {name: doctype(name) for name in OURS}
 for name, spec in specs.items():
     if not spec:
@@ -301,10 +302,37 @@ for field in ("course", "training_date", "start_time", "end_time", "venue", "tra
     if field not in line:
         fail.append("Training Schedule Line.%s is missing (test case 6: date, time, venue, trainer)" % field)
 form = fields_of(specs["Training Needs Form"])
-for field in ("responsibilities", "skill_areas", "industry_trends", "collaboration_areas", "training_feedback", "comments",
-              "years_of_experience", "year", "requisition"):
+for field in ("questions", "years_of_experience", "year", "requisition"):
     if field not in form:
-        fail.append("Training Needs Form.%s is missing (LPL/TRG/FRM06's questions)" % field)
+        fail.append("Training Needs Form.%s is missing (LPL/TRG/FRM06)" % field)
+if (form.get("questions") or {}).get("fieldtype") != "Table" or (form.get("questions") or {}).get("options") != "Training Needs Answer":
+    fail.append("Training Needs Form.questions must be a table of Training Needs Answer: the questions as a table")
+NEEDS_KEYS = ["responsibilities", "skill_areas", "industry_trends", "collaboration_areas", "training_feedback", "comments"]
+for old in NEEDS_KEYS:
+    if old in form:
+        fail.append("Training Needs Form.%s is a row of the Questions table now, not a field of its own" % old)
+answer = fields_of(specs["Training Needs Answer"])
+for field, kind, hidden in (("question_key", "Data", 1), ("question", "Data", 0), ("answer", "Small Text", 0),
+                            ("required", "Check", 1)):
+    if (answer.get(field) or {}).get("fieldtype") != kind or bool((answer.get(field) or {}).get("hidden")) != bool(hidden):
+        fail.append("Training Needs Answer.%s must be a %s%s" % (field, kind, ", hidden" if hidden else ""))
+if not (answer.get("question") or {}).get("read_only") or not (answer.get("answer") or {}).get("in_list_view"):
+    fail.append("Training Needs Answer: the question read-only, the answer in the grid")
+if [key for key, _question, _required in R.NEEDS_QUESTIONS] != NEEDS_KEYS \
+        or [key for key, _question, required in R.NEEDS_QUESTIONS if required] != NEEDS_KEYS[:2]:
+    fail.append("training_rules.NEEDS_QUESTIONS must be FRM06's six, in its order, the first two required")
+rows = R.needs_rows([{"question_key": "skill_areas", "answer": "Excel"}, {"question_key": "stray", "answer": "x"},
+                     {"question_key": "skill_areas", "answer": "again"}])
+if [row["question_key"] for row in rows] != NEEDS_KEYS or rows[1]["answer"] != "Excel" or rows[0]["answer"] != "":
+    fail.append("needs_rows: every question once in the form's order, the first answer kept, strays dropped")
+if R.needs_errors(rows) != ["Answer question 1: Primary job responsibilities."]:
+    fail.append("needs_errors must name a required question left empty: %s" % R.needs_errors(rows))
+if R.needs_errors(R.needs_rows([{"question_key": "responsibilities", "answer": "  "}, {"question_key": "skill_areas",
+                                                                                    "answer": "Excel"}])) \
+        != ["Answer question 1: Primary job responsibilities."]:
+    fail.append("needs_errors: a blank answer is no answer")
+if R.needs_errors(R.needs_rows([{"question_key": key, "answer": "x"} for key in NEEDS_KEYS[:2]])):
+    fail.append("needs_errors: the two required answered is enough")
 rating = fields_of(specs["Training Evaluation Rating"])
 if [o for o in (rating["rating"]["options"] or "").split("\n") if o] != list(R.RATINGS):
     fail.append("Training Evaluation Rating.rating must offer exactly the form's five columns")
@@ -592,6 +620,30 @@ if "seed_masters(training_rules.TRAINING_MASTERS)" not in read("hrms_addon", "hr
 patches = read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]
 if "hrms_addon.patches.v1_0.seed_training" not in patches or "seed_training_masters()" not in read("hrms_addon", "patches", "v1_0", "seed_training.py"):
     fail.append("the seed_training patch seeds existing sites")
+# the Training Needs Form's questions as a table
+moved = read("hrms_addon", "patches", "v1_0", "needs_form_questions_table.py")
+if "hrms_addon.patches.v1_0.needs_form_questions_table" not in patches or "rules.needs_rows(answers)" not in moved \
+        or "docstatus=form.docstatus" not in moved or 'frappe.db.exists("Training Needs Answer"' not in moved:
+    fail.append("the needs_form_questions_table patch moves each form's answers into its table once, rows taking "
+                "the form's docstatus")
+needs_validate = glue.split("def needs_form_validate(")[-1].split("\ndef ")[0]
+for needle, why in (("rules.needs_rows(", "must give every form its questions, each once, in order"),
+                    ("_set_question_rows(doc, rows)", "must keep the rows a form already has"),
+                    ("errors = rules.needs_errors(rows)", "must refuse a form without the required answers")):
+    if needle not in needs_validate:
+        fail.append("training.needs_form_validate %s" % why)
+needs_forms = glue.split("def get_needs_forms(")[-1].split("\ndef ")[0]
+if '"Training Needs Answer"' not in needs_forms or '"question_key": rules.SKILLS_QUESTION' not in needs_forms:
+    fail.append("training.get_needs_forms must give the requisition each form's skills answer, from its table")
+if not re.search(r"@frappe\.whitelist\(\)\s*\ndef get_needs_questions\(\):\s*\n(?:\s*\"\"\".*?\"\"\"\s*\n)?\s*"
+                 r"frappe\.has_permission\(\"Training Needs Form\", \"create\", throw=True\)", glue, re.S):
+    fail.append("training.get_needs_questions must be whitelisted, for whoever may make a Training Needs Form")
+needs_js = read("hrms_addon", "hrms_addon", "doctype", "training_needs_form", "training_needs_form.js")
+for needle, why in (('.xcall("hrms_addon.hrms_addon.training.get_needs_questions")', "must start a new form with its questions"),
+                    ('frm.set_df_property("questions", "cannot_add_rows", true);', "must keep rows from being added"),
+                    ('frm.set_df_property("questions", "cannot_delete_rows", true);', "must keep rows from being taken off")):
+    if needle not in needs_js:
+        fail.append("training_needs_form.js %s" % why)
 for name, methods in (("training_requisition", ("validate", "on_submit", "on_cancel")),
                       ("training_needs_assessment", ("validate", "on_submit", "on_cancel")),
                       ("training_calendar", ("validate", "on_submit", "on_cancel")),

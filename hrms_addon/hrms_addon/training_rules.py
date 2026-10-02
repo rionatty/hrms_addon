@@ -60,6 +60,39 @@ QUESTIONS = (
     ("hr_recommendations", "Suggest ways in which the Human Resource office should improve in organising / implementing training, if any."),
 )
 
+# ── Training Needs Form (LPL/TRG/FRM06) ──────────────────────────────
+# Its questions, in the form's order: (key, question, required). The key ties
+# an answer to what reads it: a Training Requisition takes the skills answer
+# as the employee's skill areas.
+NEEDS_QUESTIONS = (
+    ("responsibilities", "Primary job responsibilities", 1),
+    ("skill_areas", "Skills / training areas that will benefit your work progress", 1),
+    ("industry_trends", "Emerging trends or advancements you would like training on", 0),
+    ("collaboration_areas", "Areas where inter-departmental collaboration could benefit your work", 0),
+    ("training_feedback", "Feedback or suggestions on the existing training programmes", 0),
+    ("comments", "Additional comments on your training needs", 0),
+)
+SKILLS_QUESTION = "skill_areas"
+
+
+def needs_rows(rows):
+    """A Training Needs Form's question rows: every question once, in the
+    form's order, each with the answer it was given. rows: what the form
+    holds (question_key, answer)."""
+    answers = {}
+    for row in rows or ():
+        key = str(row.get("question_key") or "")
+        if key and key not in answers:
+            answers[key] = row.get("answer") or ""
+    return [{"question_key": key, "question": question, "required": required, "answer": answers.get(key, "")}
+            for key, question, required in NEEDS_QUESTIONS]
+
+
+def needs_errors(rows):
+    """The required questions left without an answer, as messages."""
+    return ["Answer question %d: %s." % (index, row["question"]) for index, row in enumerate(rows, 1)
+            if row.get("required") and not str(row.get("answer") or "").strip()]
+
 # ── The process ───────────────────────────────────────────────────────
 METHODS = ("Internal", "External", "On the Job", "Online", "Workshop", "Coaching")
 PRIORITIES = ("High", "Medium", "Low")

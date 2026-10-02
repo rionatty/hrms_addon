@@ -55,8 +55,35 @@ def needs_form_validate(doc):
         joined = frappe.db.get_value("Employee", doc.employee, "date_of_joining")
         if joined:
             doc.years_of_experience = max((getdate(doc.get("form_date") or today()) - getdate(joined)).days // 365, 0)
+    # the questions as a table: each once, in the form's order, the first two answered
+    rows = rules.needs_rows([row.as_dict() for row in doc.get("questions") or []])
+    _set_question_rows(doc, rows)
+    errors = rules.needs_errors(rows)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Training Needs Form"))
     if doc.docstatus == 0:
         doc.status = "Draft"
+
+
+def _set_question_rows(doc, rows):
+    """The form's question rows as `rows`, keeping each row it already has
+    (so a save does not churn them), numbered 1..n."""
+    have = {row.get("question_key"): row for row in doc.get("questions") or [] if row.get("question_key")}
+    kept = []
+    for values in rows:
+        row = have.pop(values["question_key"], None) or doc.append("questions", {})
+        row.update(values)
+        kept.append(row)
+    doc.set("questions", kept)
+    for index, row in enumerate(doc.get("questions"), 1):
+        row.idx = index
+
+
+@frappe.whitelist()
+def get_needs_questions():
+    """The question rows a new Training Needs Form starts with."""
+    frappe.has_permission("Training Needs Form", "create", throw=True)
+    return rules.needs_rows([])
 
 
 def needs_form_on_submit(doc):
@@ -77,9 +104,12 @@ def get_needs_forms(department=None, year=None):
         filters["department"] = department
     if cint(year):
         filters["year"] = cint(year)
-    return [{"employee": row.employee, "needs_form": row.name, "skill_areas": row.skill_areas}
-            for row in frappe.get_all("Training Needs Form", filters=filters, fields=["name", "employee", "skill_areas"],
-                                      order_by="form_date asc")]
+    forms = frappe.get_all("Training Needs Form", filters=filters, fields=["name", "employee"], order_by="form_date asc")
+    skills = dict(frappe.get_all("Training Needs Answer", filters={
+        "parenttype": "Training Needs Form", "parent": ["in", [row.name for row in forms] or [""]],
+        "question_key": rules.SKILLS_QUESTION}, fields=["parent", "answer"], as_list=True))
+    return [{"employee": row.employee, "needs_form": row.name, "skill_areas": skills.get(row.name) or ""}
+            for row in forms]
 
 
 # ── 1. Training Requisition ──────────────────────────────────────────
