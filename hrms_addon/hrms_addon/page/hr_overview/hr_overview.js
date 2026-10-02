@@ -299,11 +299,11 @@ hrms_addon.HROverview = class HROverview {
 		const bands = (appraisals.bands || []).map(([band, count]) => `<div class="hro-band">
 				<span>${esc(__(band))}</span>
 				<div class="hro-band-bar"><span style="width:${Math.round((100 * count) / most)}%"></span></div>
-				<b>${count}</b>
+				<b>${this.number(count)}</b>
 			</div>`).join("");
 		return `<div class="hro-card-head"><h4>${__("Appraisals")}</h4><span class="hro-sub">${esc(appraisals.cycle || "")}</span></div>
 			<div class="hro-chart" style="max-width:240px;margin:0 auto">${hro_gauge(appraisals.percent || 0,
-				__("{0} of {1} submitted", [appraisals.submitted, appraisals.total]))}</div>
+				__("{0} of {1} submitted", [this.number(appraisals.submitted), this.number(appraisals.total)]))}</div>
 			<div class="hro-sub" style="text-align:center;font-size:12px;color:var(--hro-muted);margin:2px 0 8px">
 				${__("Average score {0}%", [this.number(appraisals.average)])}</div>
 			<div class="hro-bands">${bands}</div>`;
@@ -319,7 +319,7 @@ hrms_addon.HROverview = class HROverview {
 		}
 		const slices = employment.map(([kind, count], index) => `<div class="hro-slice" data-slice="${index}">
 				<i style="background:${HRO_SLICES[index % HRO_SLICES.length]}"></i><span>${esc(__(kind))}</span>
-				<b>${count}</b></div>`).join("");
+				<b>${this.number(count)}</b></div>`).join("");
 		return `<div class="hro-card-head"><h4>${__("Employment Type")}</h4><span class="hro-sub">${__("Active employees")}</span></div>
 			<div class="hro-donut"><div class="hro-chart">${hro_donut(employment, total)}</div>
 			<div class="hro-slices">${slices}</div></div>`;
