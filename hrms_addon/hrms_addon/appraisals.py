@@ -579,23 +579,60 @@ SUPERVISOR_STATES = (approval.DRAFT, approval.PENDING_SELF, approval.PENDING_SUP
 def download_sheet(appraisal_cycle=None, appraisal=None, supervisor=None):
     """The flowchart's other branch: Luuka's own form, one sheet per
     appraisal still open, filled in with what the system knows. From a
-    cycle, a supervisor's own people only, when one is named."""
-    if appraisal:
-        names = [appraisal]
-    else:
-        filters = {"appraisal_cycle": appraisal_cycle, "docstatus": 0}
-        if supervisor:
-            filters["custom_supervisor"] = supervisor
-        names = frappe.get_all("Appraisal", filters=filters, pluck="name", order_by="employee_name asc")
+    cycle, a supervisor's own people only, when one is named.
+
+    Opened as a download, so a refusal shows as Frappe's bare error page:
+    the cycle's button asks sheet_count first and explains an empty sheet
+    on the form instead."""
+    if not (appraisal or appraisal_cycle):
+        frappe.throw(_("Name the appraisal cycle or the appraisal to download."))
+    names = [appraisal] if appraisal else _sheet_names(appraisal_cycle, supervisor)
     docs = [frappe.get_doc("Appraisal", name) for name in names]
     docs = [doc for doc in docs if doc.has_permission("read")]
     if not docs:
-        frappe.throw(_("No open appraisals to download here."))
+        frappe.throw(_("No open appraisals to download here.") if appraisal
+                     else _(_no_sheet(appraisal_cycle, supervisor, names, docs)))
     content = sheet.build([_sheet_data(doc) for doc in docs], logo=_logo(docs[0].company))
     title = docs[0].employee_name if appraisal else (appraisal_cycle or "Appraisals")
     frappe.response["type"] = "binary"
     frappe.response["filecontent"] = content
     frappe.response["filename"] = "%s %s.xlsx" % (_("Appraisal Sheet"), title)
+
+
+@frappe.whitelist()
+def sheet_count(appraisal_cycle: str, supervisor: str | None = None) -> dict:
+    """What the cycle's Download Sheet would give, asked before the download
+    so an empty sheet is explained on the form: {"count", "reason"}."""
+    names = _sheet_names(appraisal_cycle, supervisor)
+    readable = [name for name in names if frappe.has_permission("Appraisal", "read", name)]
+    return {"count": len(readable),
+            "reason": None if readable else _(_no_sheet(appraisal_cycle, supervisor, names, readable))}
+
+
+def _sheet_names(appraisal_cycle, supervisor=None):
+    """The cycle's appraisals still open, by the employee's name: with a
+    supervisor named, those whose appraisal names them, or that names nobody
+    yet and whose employee reports to them now."""
+    rows = frappe.get_all("Appraisal", filters={"appraisal_cycle": appraisal_cycle, "docstatus": 0},
+                          fields=["name", "employee", "custom_supervisor"], order_by="employee_name asc")
+    if supervisor:
+        unnamed = [row.employee for row in rows if not row.custom_supervisor]
+        theirs = set(frappe.get_all("Employee", filters={"name": ["in", unnamed], "reports_to": supervisor},
+                                    pluck="name")) if unnamed else set()
+        rows = [row for row in rows if row.custom_supervisor == supervisor
+                or (not row.custom_supervisor and row.employee in theirs)]
+    return [row.name for row in rows]
+
+
+def _no_sheet(appraisal_cycle, supervisor, names, readable):
+    """Why the cycle's sheet is empty (rules.no_sheet_reason)."""
+    every = frappe.get_all("Appraisal", filters={"appraisal_cycle": appraisal_cycle, "docstatus": ["!=", 2]},
+                           pluck="docstatus")
+    return rules.no_sheet_reason({
+        "cycle": appraisal_cycle, "appraisals": len(every), "open": sum(1 for docstatus in every if not docstatus),
+        "theirs": len(names), "readable": len(readable),
+        "supervisor": (frappe.db.get_value("Employee", supervisor, "employee_name") or supervisor) if supervisor else None,
+    })
 
 
 def _sheet_data(doc):

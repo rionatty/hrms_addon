@@ -360,6 +360,27 @@ def rating(value):
     return text if text in RATINGS else None
 
 
+def no_sheet_reason(facts):
+    """Why a cycle's Download Sheet would come out empty, said so HR can act
+    on it; None while there is something to download.
+
+    facts: "cycle", "appraisals" (how many it has, cancelled aside), "open"
+    (of those, not yet submitted), "theirs" (of those, the supervisor's, or
+    all open when none is named), "readable" (of those, the ones the user
+    may open), "supervisor" (the name of the one asked for, or None)."""
+    cycle = facts.get("cycle")
+    if facts.get("readable"):
+        return None
+    if not facts.get("appraisals"):
+        return "%s has no appraisals yet: create them from the cycle first." % cycle
+    if not facts.get("open"):
+        return "Every appraisal in %s is submitted: nothing is left to fill in." % cycle
+    if facts.get("supervisor") and not facts.get("theirs"):
+        return ("None of the open appraisals in %s is %s's to rate. Leave the supervisor empty to download "
+                "them all." % (cycle, facts["supervisor"]))
+    return "You may not open the appraisals in %s." % cycle
+
+
 # ── What Frappe chose by itself (Oct 2026) ────────────────────────────
 # Frappe gives a Select with no default its first option on every new
 # document and row. Until the ratings and the decision began with a blank,

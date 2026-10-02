@@ -1492,6 +1492,42 @@ for needle, why in (
 print("the sheet: Luuka's own form per appraisal, locked but for the period appraised, scored by the system's "
       "rules, read back whatever it is renamed to, every sheet of it")
 
+# A cycle's sheet that would come out empty is explained on the form, not
+# as the bare 417 page a refused download opens (Oct 2026)
+for facts, wanted in (
+        ({"cycle": "Q4", "appraisals": 3, "open": 2, "theirs": 1, "readable": 1}, None),
+        ({"cycle": "Q4", "appraisals": 0, "open": 0, "theirs": 0, "readable": 0}, "Q4 has no appraisals yet"),
+        ({"cycle": "Q4", "appraisals": 3, "open": 0, "theirs": 0, "readable": 0}, "Every appraisal in Q4 is submitted"),
+        ({"cycle": "Q4", "appraisals": 3, "open": 2, "theirs": 0, "readable": 0, "supervisor": "Sarah"},
+         "None of the open appraisals in Q4 is Sarah's to rate"),
+        ({"cycle": "Q4", "appraisals": 3, "open": 2, "theirs": 2, "readable": 0}, "You may not open the appraisals in Q4")):
+    got = R.no_sheet_reason(facts)
+    if (got is None) != (wanted is None) or (wanted and wanted not in got):
+        fail.append("no_sheet_reason(%r): got %r, want %r" % (facts, got, wanted))
+cycle_js = read("hrms_addon", "public", "js", "appraisal_cycle.js")
+for needle, why in (
+        ('.xcall("hrms_addon.hrms_addon.appraisals.sheet_count", args)', "the cycle's button asks before downloading"),
+        ("if (values.supervisor) args.supervisor = values.supervisor;", "an empty supervisor is left out of the call"),
+        ("if (!found.count) {", "an empty sheet is explained, not downloaded"),
+        ("frappe.utils.escape_html(found.reason", "the reason is shown as text")):
+    if needle not in cycle_js:
+        fail.append("appraisal_cycle.js: %s (%r not found)" % (why, needle))
+if cycle_js.index("sheet_count") > cycle_js.index("download_sheet?appraisal_cycle="):
+    fail.append("appraisal_cycle.js must ask sheet_count before it opens the download")
+for needle, why in (
+        ("def sheet_count(appraisal_cycle: str, supervisor: str | None = None) -> dict:",
+         "the count the cycle's button asks for"),
+        ("names = [appraisal] if appraisal else _sheet_names(appraisal_cycle, supervisor)",
+         "the download takes the same appraisals as the count"),
+        ("or (not row.custom_supervisor and row.employee in theirs)",
+         "an appraisal naming no supervisor yet is its employee's Reports To's"),
+        ("else _(_no_sheet(appraisal_cycle, supervisor, names, docs)))", "a refused download says why"),
+        ('readable = [name for name in names if frappe.has_permission("Appraisal", "read", name)]',
+         "the count is of what the user may open, as the download's is")):
+    if needle not in glue_appraisals:
+        fail.append("appraisals.py: %s (%r not found)" % (why, needle))
+print("the cycle's sheet: asked for before it downloads, and an empty one explained")
+
 # ── 12. The scorecard template drawn as the workbook's form ───────────
 # The Appraisal Template shows a Balanced Scorecard as the LPL PMS BSC
 # Appraisal Form; it must draw what the offline sheet draws, so the two

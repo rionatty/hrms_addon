@@ -23,14 +23,33 @@ frappe.ui.form.on("Appraisal Cycle", {
 							description: __("Empty for every appraisal in the cycle."),
 						},
 					],
-					(values) =>
-						window.open(
-							frappe.urllib.get_full_url(
-								"/api/method/hrms_addon.hrms_addon.appraisals.download_sheet?appraisal_cycle=" +
-									encodeURIComponent(frm.doc.name) +
-									(values.supervisor ? "&supervisor=" + encodeURIComponent(values.supervisor) : "")
-							)
-						),
+					(values) => {
+						// asked first: a download that is refused opens as a bare
+						// error page, so the reason is said here instead
+						const args = { appraisal_cycle: frm.doc.name };
+						if (values.supervisor) args.supervisor = values.supervisor;
+						frappe
+							.xcall("hrms_addon.hrms_addon.appraisals.sheet_count", args)
+							.then((found) => {
+								if (!found.count) {
+									frappe.msgprint({
+										title: __("Nothing to download"),
+										indicator: "orange",
+										message: frappe.utils.escape_html(found.reason || ""),
+									});
+									return;
+								}
+								window.open(
+									frappe.urllib.get_full_url(
+										"/api/method/hrms_addon.hrms_addon.appraisals.download_sheet?appraisal_cycle=" +
+											encodeURIComponent(frm.doc.name) +
+											(values.supervisor
+												? "&supervisor=" + encodeURIComponent(values.supervisor)
+												: "")
+									)
+								);
+							});
+					},
 					__("Download the appraisal sheet"),
 					__("Download")
 				),
