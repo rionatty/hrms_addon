@@ -58,6 +58,19 @@ PAGES = (
 )
 PAGE_LABELS = tuple(page["label"] for page in PAGES)
 
+# The HR home: the HR Overview page (page/hr_overview) has a launcher tile and
+# a sidebar of its own, shipped as files (desktop_icon/hr_overview.json,
+# workspace_sidebar/hr_overview.json), and no Workspace, so the page keeps its
+# own address, /app/hr-overview. The tile opens the sidebar's first link, the
+# page, and shows only to those the page's roles let in: a link tile is on
+# the grid only while its sidebar has a link the user may open.
+HOME = "HR Overview"
+
+# Our tiles, for the desktops people have arranged themselves. Frappe shows a
+# saved desktop (Desktop Layout) instead of the shared tiles, so a tile made
+# after it was saved never appears on it unless it is added: (label, where)
+OWN_TILES = ((HOME, "first"),) + tuple((label, "last") for label in PAGE_LABELS)
+
 # the icon each standard sidebar section header carries
 SECTION_ICONS = {"Reports": "notepad-text", "Setup": "database", "Settings": "settings"}
 
@@ -565,6 +578,28 @@ def new_sidebar(label, sections=()):
                      "icon": SECTION_ICONS.get(name, "database"), "child": 0, "indent": 1,
                      "collapsible": 1, "keep_closed": 1, "show_arrow": 0})
     return numbered(rows)
+
+
+def with_tiles(layout, tiles):
+    """A saved desktop with each of our tiles it lacks added, first or last,
+    or None when it has them all. What else it holds stays as it was.
+
+    layout: the list of tiles Frappe saved for the user.
+    tiles: [(the tile as get_desktop_icons() gives it, "first" or "last")]."""
+    if not isinstance(layout, list):
+        return None
+    have = {icon.get("label") for icon in layout if isinstance(icon, dict)}
+    out, added = list(layout), False
+    for tile, where in tiles:
+        if not tile or tile.get("label") in have:
+            continue
+        if where == "first":
+            out.insert(0, tile)
+        else:
+            out.append(tile)
+        have.add(tile.get("label"))
+        added = True
+    return out if added else None
 
 
 def sidebar_row(label, link_to, kind, child=0):

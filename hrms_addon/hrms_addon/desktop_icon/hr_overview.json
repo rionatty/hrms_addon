@@ -1,0 +1,22 @@
+{
+ "app": "hrms_addon",
+ "bg_color": "blue",
+ "creation": "2026-10-02 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "chart-column",
+ "icon_type": "Link",
+ "idx": -1,
+ "label": "HR Overview",
+ "link_to": "HR Overview",
+ "link_type": "Workspace Sidebar",
+ "modified": "2026-10-02 09:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "HR Overview",
+ "owner": "Administrator",
+ "parent_icon": "Frappe HR",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}

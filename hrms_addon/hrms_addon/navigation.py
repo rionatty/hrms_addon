@@ -76,6 +76,7 @@ def _units():
               for workspace, cards in rules.CARDS.items()]
     units += [("the %s sidebar" % workspace, lambda w=workspace, e=entries: _apply_sidebar(w, e))
               for workspace, entries in rules.SIDEBAR.items()]
+    units.append(("our tiles on saved desktops", _tiles_on_saved_desktops))
     return units
 
 
@@ -88,6 +89,7 @@ def apply_navigation():
         _apply_cards(workspace, cards)
     for workspace, entries in rules.SIDEBAR.items():
         _apply_sidebar(workspace, entries)
+    _tiles_on_saved_desktops()
     frappe.db.commit()
 
 
@@ -141,6 +143,40 @@ def _ensure_icon(page):
     # this the row is right and the launcher keeps serving the old grid
     frappe.cache.delete_key("desktop_icons")
     frappe.cache.delete_key("bootinfo")
+
+
+# the fields get_desktop_icons() gives a tile, which a saved desktop keeps a copy of
+TILE_FIELDS = ("label", "bg_color", "link", "link_type", "app", "icon_type", "parent_icon", "icon", "link_to",
+               "idx", "standard", "logo_url", "hidden", "name", "restrict_removal", "icon_image")
+
+
+def _tiles_on_saved_desktops():
+    """Our tiles (rules.OWN_TILES) on each desktop someone saved, where they
+    are missing: Frappe shows that copy instead of the shared tiles, so a
+    tile made after it never appears there otherwise. How many changed."""
+    if not frappe.db.exists("DocType", "Desktop Layout"):
+        return 0
+    tiles = []
+    for label, where in rules.OWN_TILES:
+        row = frappe.db.get_value("Desktop Icon", label, list(TILE_FIELDS), as_dict=True)
+        if row:
+            tiles.append((dict(row), where))
+    changed = 0
+    for saved in frappe.get_all("Desktop Layout", fields=["name", "layout"]):
+        try:
+            layout = json.loads(saved.layout or "null")
+        except ValueError:
+            continue  # not ours to mend: Frappe falls back to the shared tiles
+        wanted = rules.with_tiles(layout, tiles)
+        if wanted is not None:
+            frappe.db.set_value("Desktop Layout", saved.name, "layout", json.dumps(wanted, default=str),
+                                update_modified=False)
+            changed += 1
+    if changed:
+        # read straight from cache by get_desktop_icons() and the boot
+        frappe.cache.delete_key("desktop_icons")
+        frappe.cache.delete_key("bootinfo")
+    return changed
 
 
 def _apply_cards(workspace, cards):
