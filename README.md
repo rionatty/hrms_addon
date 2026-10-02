@@ -407,6 +407,19 @@ increase raises an Employee Position Change, a score below 60 a
 the support the company gives, how it is measured and when it is looked
 at again, reviewed while it runs and closed with an outcome.
 
+Every choice someone has to make on these documents starts blank: the
+factor and objective ratings, the review's decision, a plan point's
+progress and the plan's outcome. Frappe gives a Select with no default its
+first option on every new document and row, so until October 2026 an
+appraisal raised by the plan came rated 1 throughout by both raters (and
+passed the "rate every factor" checks), every employee fetched into a review
+came decided as a Promotion (and passed the "decide on everyone" check, to
+be raised as a promotion on submit), and a plan came closed as Improved
+with its points Met. The patch `clear_prefilled_choices` clears what is
+still open and unchosen (`appraisal_rules.prefilled_ratings`,
+`prefilled_decisions`, `pip_rules.prefilled`) and lists in the migrate
+output the submitted appraisals and filed reviews for HR to check.
+
 Luuka runs **two appraisal forms side by side**, so the same check covers
 the **balanced scorecard** (LPL PMS FY 2026) as well. The scorecard is carried on
 Frappe HR's own **Appraisal Template**, the way both forms are carried on

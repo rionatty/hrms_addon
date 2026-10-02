@@ -448,8 +448,12 @@ for fieldname in ("employee", "appraisal", "total_score", "band", "recommended",
                   "improvement_plan"):
     if fieldname not in review_row:
         fail.append("Performance Review Employee has no %s" % fieldname)
-if (review_row.get("decision") or {}).get("options", "").split("\n") != list(R.DECISIONS):
-    fail.append("the decision must offer exactly what management may decide: %s" % (R.DECISIONS,))
+# A choice someone has to make starts blank: Frappe gives a Select with no
+# default its first option on every new row, which made every decision a
+# Promotion, every rating 1, every point Met and every plan Improved
+# before anyone chose (Oct 2026)
+if (review_row.get("decision") or {}).get("options", "").split("\n") != [""] + list(R.DECISIONS):
+    fail.append("the decision must start blank and offer exactly what management may decide: %s" % (R.DECISIONS,))
 
 for name, wanted in (("Appraisal Factor Rating", ("item", "employee_rating", "supervisor_rating", "supervisor_comment")),
                      ("Appraisal Objective Rating", ("item", "employee_rating", "supervisor_rating", "supervisor_comment"))):
@@ -458,15 +462,24 @@ for name, wanted in (("Appraisal Factor Rating", ("item", "employee_rating", "su
         if fieldname not in fields:
             fail.append("%s has no %s: the form is rated by the employee and the supervisor" % (name, fieldname))
     for side in ("employee_rating", "supervisor_rating"):
-        if fields.get(side, {}).get("options", "").split("\n") != list(R.RATINGS):
-            fail.append("%s.%s must offer the form's scale %s" % (name, side, (R.RATINGS,)))
+        if fields.get(side, {}).get("options", "").split("\n") != [""] + list(R.RATINGS):
+            fail.append("%s.%s must start blank and offer the form's scale %s" % (name, side, (R.RATINGS,)))
+        if fields.get(side, {}).get("default"):
+            fail.append("%s.%s must not rate a row before anyone has" % (name, side))
 
 pip_row = fields_of(doctype("PIP Objective"))
 for fieldname in ("area", "expected_standard", "support", "measure", "review_date", "progress", "reviewed_on"):
     if fieldname not in pip_row:
         fail.append("PIP Objective has no %s" % fieldname)
-if (fields_of(doctype("Performance Improvement Plan")).get("outcome") or {}).get("options", "").split("\n") != list(P.OUTCOMES):
-    fail.append("the plan's outcome must offer exactly %s" % (P.OUTCOMES,))
+for name in ("PIP Objective", "PIP Review"):
+    if (fields_of(doctype(name)).get("progress") or {}).get("options", "").split("\n") != [""] + list(P.PROGRESS):
+        fail.append("%s.progress must start blank and offer exactly %s" % (name, (P.PROGRESS,)))
+if (fields_of(doctype("Performance Improvement Plan")).get("outcome") or {}).get("options", "").split("\n") != [""] + list(P.OUTCOMES):
+    fail.append("the plan's outcome must start blank and offer exactly %s" % (P.OUTCOMES,))
+for name, fieldname in (("Performance Review Employee", "decision"), ("PIP Objective", "progress"),
+                        ("PIP Review", "progress"), ("Performance Improvement Plan", "outcome")):
+    if (fields_of(doctype(name)).get(fieldname) or {}).get("default"):
+        fail.append("%s.%s must not be chosen before anyone has" % (name, fieldname))
 
 # LPL/HR/18 on Frappe HR's Appraisal
 appraisal = all_fields("Appraisal")
@@ -1478,6 +1491,60 @@ for needle, why in (
         fail.append("appraisals.py: %s (%r not found)" % (why, needle))
 print("the sheet: Luuka's own form per appraisal, locked but for the period appraised, scored by the system's "
       "rules, read back whatever it is renamed to, every sheet of it")
+
+# ── What Frappe chose by itself, cleared where it is still open ───────
+def rows_rated(employee, supervisor):
+    return [{"name": "r%d" % index, "employee_rating": mine, "supervisor_rating": theirs}
+            for index, (mine, theirs) in enumerate(zip(employee, supervisor))]
+
+
+ONES, BLANKS = ["1", "1", "1"], ["", "", ""]
+for label, rows, supervisor_had_it, employee_had_it, wanted in (
+        ("neither rater has had it: both columns' 1s", rows_rated(ONES, ONES), False, False,
+         {"supervisor_rating": ["r0", "r1", "r2"], "employee_rating": ["r0", "r1", "r2"]}),
+        ("a rater who has had it and left every rating 1", rows_rated(ONES, ONES), True, True,
+         {"supervisor_rating": ["r0", "r1", "r2"], "employee_rating": ["r0", "r1", "r2"]}),
+        ("a rater who changed some keeps their 1s", rows_rated(["3", "1", "1"], ["1", "4", "1"]), True, True, {}),
+        ("before the supervisor, their 1s go even beside other values",
+         rows_rated(["3", "1", "1"], ["1", "4", "1"]), False, True, {"supervisor_rating": ["r0", "r2"]}),
+        ("a blank among 1s is still all 1", rows_rated(["1", "", "1"], BLANKS), True, True,
+         {"employee_rating": ["r0", "r2"]}),
+        ("N/A is a choice", rows_rated(["N/A", "1", "1"], BLANKS), True, True, {}),
+        ("nothing rated, nothing to clear", rows_rated(BLANKS, BLANKS), False, False, {})):
+    got = R.prefilled_ratings(rows, supervisor_had_it, employee_had_it)
+    if got != wanted:
+        fail.append("prefilled_ratings, %s: got %r, want %r" % (label, got, wanted))
+if R.PREFILLED_RATING != R.RATINGS[0] or R.PREFILLED_RATING != "1":
+    fail.append("the rating Frappe filled in was the scale's first, 1")
+if R.prefilled_decisions([{"name": "a", "decision": R.PROMOTION}, {"name": "b", "decision": R.CLOSE},
+                          {"name": "c", "decision": ""}]) != ["a"]:
+    fail.append("prefilled_decisions: every Promotion on an open review, nothing else")
+if P.prefilled(P.IMPROVED, [{"name": "a", "progress": P.MET}, {"name": "b", "progress": P.MET, "reviewed_on": "2026-09-20"},
+                            {"name": "c", "progress": P.NOT_MET}]) != (True, ["a"]) \
+        or P.prefilled(P.EXTENDED, []) != (False, []):
+    fail.append("pip_rules.prefilled: the outcome Improved, and Met where nobody reviewed the point")
+patch = read("hrms_addon", "patches", "v1_0", "clear_prefilled_choices.py")
+if "hrms_addon.patches.v1_0.clear_prefilled_choices" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
+    fail.append("clear_prefilled_choices must run after the doctypes are migrated (patches.txt, post_model_sync)")
+for needle, why in (
+        ("appraisal_rules.prefilled_ratings(", "the appraisals are cleared by the tested rule"),
+        ("supervisor_had_it=state not in approval.BEFORE_SUPERVISOR",
+         "the supervisor has had an appraisal once it is past the employee"),
+        ("employee_had_it=bool(appraisal.get(approval.SELF_FIELD)) and state != approval.DRAFT",
+         "the employee has had it once out of Draft, and only where they appraise themselves"),
+        ("if appraisal.docstatus == 1:\n            filed.append(appraisal.name)\n            continue",
+         "a submitted appraisal is named, never changed"),
+        ("appraisals._score(doc)", "an appraisal cleared is scored again"),
+        ("{field: flt(doc.get(field)) for field in SCORE_FIELDS}", "a score not given is written as 0, never NULL"),
+        ("appraisals.gave_self_appraisal(unrated)", "one left with no rating of the employee's was never self-appraised"),
+        ("appraisal_rules.prefilled_decisions(rows)", "the reviews are cleared by the tested rule"),
+        ("if review.docstatus == 1:", "a filed review is named, never changed"),
+        ('add_comment("Info"', "the review says whose decision was cleared"),
+        ("pip_rules.prefilled(plan.outcome, objectives)", "the plans are cleared by the tested rule"),
+        ('filters={"docstatus": 0}, fields=["name", "outcome"]', "only open plans are touched")):
+    if needle not in patch:
+        fail.append("clear_prefilled_choices.py: %s (%r not found)" % (why, needle))
+print("what Frappe chose by itself: the choices start blank, and the patch clears only what is open and unchosen")
 
 print()
 if fail:

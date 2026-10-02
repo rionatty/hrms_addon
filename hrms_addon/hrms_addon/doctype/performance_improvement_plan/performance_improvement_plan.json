@@ -239,7 +239,7 @@
    "fieldname": "outcome",
    "fieldtype": "Select",
    "label": "Outcome",
-   "options": "Improved\nNot Improved\nExtended",
+   "options": "\nImproved\nNot Improved\nExtended",
    "in_list_view": 1
   },
   {
@@ -290,7 +290,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-23 09:00:00.000000",
+ "modified": "2026-10-02 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Performance Improvement Plan",

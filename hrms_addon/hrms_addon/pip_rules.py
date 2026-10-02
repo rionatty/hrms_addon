@@ -130,6 +130,17 @@ def due_reviews(rows, today):
             if row.get("review_date") and _date(row["review_date"]) <= day and not row.get("reviewed_on")]
 
 
+def prefilled(outcome, objectives):
+    """What Frappe filled in on a plan still open, before the outcome and the
+    progress began with a blank (Oct 2026), to clear: (whether the outcome
+    is its Improved, [the objective rows marked Met that nobody has
+    reviewed]). The outcome is chosen when the plan closes, so on an open
+    plan it was never chosen; a review meeting's own Met stays, since it may
+    have been. objectives: [{"name", "progress", "reviewed_on"}]."""
+    return (outcome == IMPROVED,
+            [row["name"] for row in objectives or [] if row.get("progress") == MET and not row.get("reviewed_on")])
+
+
 def _date(value):
     if isinstance(value, datetime.datetime):
         return value.date()

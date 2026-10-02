@@ -360,6 +360,43 @@ def rating(value):
     return text if text in RATINGS else None
 
 
+# ── What Frappe chose by itself (Oct 2026) ────────────────────────────
+# Frappe gives a Select with no default its first option on every new
+# document and row. Until the ratings and the decision began with a blank,
+# an appraisal raised by the plan, or taken from its template again, came
+# rated 1 on every row by the employee and by the supervisor alike, and
+# every employee fetched into a review came decided as a Promotion. What is
+# still open is put right by the patch clear_prefilled_choices.
+PREFILLED_RATING = RATINGS[0]
+
+
+def prefilled_ratings(rows, supervisor_had_it, employee_had_it):
+    """The ratings Frappe filled in, to clear, by column: {"supervisor_rating":
+    [row names], "employee_rating": [row names]}. A column is cleared of its
+    1s while its rater has not had the appraisal; after that only where every
+    rating in it is 1, which nobody gives on purpose. Any other 1 may have
+    been chosen and stays.
+
+    rows: the factor and objective rows together, [{"name",
+    "employee_rating", "supervisor_rating"}]."""
+    out = {}
+    for column, had_it in (("supervisor_rating", supervisor_had_it), ("employee_rating", employee_had_it)):
+        ones = [row["name"] for row in rows if row.get(column) == PREFILLED_RATING]
+        given = [row.get(column) for row in rows if row.get(column) not in (None, "")]
+        if ones and (not had_it or all(value == PREFILLED_RATING for value in given)):
+            out[column] = ones
+    return out
+
+
+def prefilled_decisions(rows):
+    """A review's decisions Frappe filled in, to clear while the review is
+    open: every Promotion, which cannot be told from one management chose.
+    Clearing one that was chosen costs management a second look; leaving
+    one nobody chose raises a promotion on submit. rows: [{"name",
+    "decision"}]."""
+    return [row["name"] for row in rows if row.get("decision") == PROMOTION]
+
+
 def objectives_from_kras(kras, limit=MAX_OBJECTIVES):
     """Objectives taken from the Job Title's Key Result Areas, each once, at
     most `limit`: the form says they should be in line with the
