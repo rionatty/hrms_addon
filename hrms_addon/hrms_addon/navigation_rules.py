@@ -152,6 +152,8 @@ CARDS = {
             ("Training Calendar", "Training Calendar", DOCTYPE),
             ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE),
             ("HR Calendar", "hr-calendar", PAGE),
+            # what the evaluations add up to, downloaded by HR (case 10)
+            ("Training Report", "Training Report", REPORT),
             ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE),
             ("Meeting Record", "Meeting Record", DOCTYPE),
         ]),
@@ -464,6 +466,7 @@ SIDEBAR = {
         ("Training Calendar", "Training Calendar", DOCTYPE, None, "Training Needs Assessment"),
         ("Monthly Training Schedule", "Monthly Training Schedule", DOCTYPE, None, "Training Calendar"),
         ("HR Calendar", "hr-calendar", PAGE, None, "Monthly Training Schedule"),
+        ("Training Report", "Training Report", REPORT, "Reports", None),
         ("Training Needs Form", "Training Needs Form", DOCTYPE, "Setup", None),
         ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
         ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),

@@ -659,6 +659,9 @@ def consolidated(training_event):
     for feedback in feedbacks:
         ratings = frappe.get_all("Training Evaluation Rating", filters={"parent": feedback.name, "parenttype": "Training Feedback"},
                                  fields=["item", "rating"])
+        # scored from its ratings: Frappe keeps a blank score as 0, which
+        # would count a form with nothing rated as 0%
+        feedback.custom_score = rules.score([r.rating for r in ratings])
         evaluations.append({"items": {r.item: r.rating for r in ratings}, "score": feedback.custom_score})
         for field, _question in rules.QUESTIONS:
             text = (feedback.get("custom_%s" % field) or "").strip()

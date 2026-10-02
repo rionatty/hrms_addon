@@ -114,13 +114,16 @@ SESSION_STARTS, SESSION_ENDS = datetime.time(7, 0), datetime.time(9, 0)  # the u
 # ── Who works on Frappe HR's training documents ──────────────────────
 # Frappe HR leaves creating and submitting them to the HR Manager. At Luuka
 # the branch HR Officer (HR User) books a session, submits it once held and
-# keys in and submits each evaluation; the Head of Department, or the
-# supervisor who raised the requisition, confirms the participants on the
-# draft session. Granted on every migrate, never revoked (workflows.py).
+# keys in and submits each evaluation, then downloads the Training Report,
+# which Frappe exports, prints and makes a PDF of only for those who may do
+# so with its Training Event (Frappe HR gives HR User neither); the Head of
+# Department, or the supervisor who raised the requisition, confirms the
+# participants on the draft session. Granted on every migrate, never
+# revoked (workflows.py).
 NEW_ROLES = ("Head of Department", "Supervisor")
 PERMISSIONS = {
     "Training Event": {
-        "HR User": ("read", "write", "create", "submit"),
+        "HR User": ("read", "write", "create", "submit", "report", "export", "print"),
         "Head of Department": ("read", "write"),
         "Supervisor": ("read", "write"),
     },
@@ -398,6 +401,326 @@ def attendance_days(start, end):
         return 1
     days = (_date(end) - _date(start)).days + 1
     return max(1, min(days, 3))
+
+
+# ── The Training Report (case 10) ─────────────────────────────────────
+# What the HR Officer downloads once a training's evaluations are keyed in
+# (report/training_report): one report, four views of the same trainings.
+#   Trainings         a row per session: who was booked and came, the
+#                     evaluation and how it reads, the marks and how many
+#                     reached the pass mark
+#   Participants      a row per person booked: attendance, evaluation, result
+#   Evaluation Items  the consolidated evaluation form: how each item was
+#                     rated, then the overall
+#   Comments          every comment on an item and every answer to Section B,
+#                     training by training, in the form's order
+# The figures on top are the same in every view.
+TRAININGS, PARTICIPANTS, ITEMS, COMMENTS = "Trainings", "Participants", "Evaluation Items", "Comments"
+VIEWS = (TRAININGS, PARTICIPANTS, ITEMS, COMMENTS)
+# a session stays a draft until it is held (training.py): submitted is held
+HELD, SCHEDULED, CANCELLED = "Held", "Scheduled", "Cancelled"
+NOT_MARKED = "Not Marked"
+OVERALL = "Overall"
+# the trainings on the chart: the latest held
+CHART_TRAININGS = 12
+NAVY, BLUE, SKY, GOLD, RED, GREY = "#14395E", "#3B78B5", "#9DBCE0", "#E8A317", "#D9534F", "#B8C2CF"
+RATING_COLOURS = (NAVY, BLUE, SKY, GOLD, RED)  # Excellent down to Below Average
+
+
+def rating_field(rating):
+    """The column counting one of the form's five ratings."""
+    return "rated_" + rating.lower().replace(" ", "_")
+
+
+# each view's columns: (fieldname, label, fieldtype, options, width)
+REPORT_COLUMNS = {
+    TRAININGS: (
+        ("training_event", "Training", "Link", "Training Event", 210),
+        ("training_program", "Training Program", "Link", "Training Program", 180),
+        ("branch", "Plant", "Link", "Branch", 110),
+        ("department", "Department", "Link", "Department", 150),
+        ("from_date", "From", "Date", None, 100),
+        ("to_date", "To", "Date", None, 100),
+        ("trainer", "Trainers", "Data", None, 160),
+        ("status", "Status", "Data", None, 100),
+        ("participants", "Participants", "Int", None, 105),
+        ("present", "Present", "Int", None, 85),
+        ("absent", "Absent", "Int", None, 85),
+        ("attendance_rate", "Attendance %", "Percent", None, 115),
+        ("evaluations", "Evaluations", "Int", None, 105),
+        ("evaluation_score", "Evaluation Score", "Percent", None, 130),
+        ("rating", "Rating", "Data", None, 115),
+        ("assessed", "Assessed", "Int", None, 95),
+        ("average_marks", "Average Marks", "Percent", None, 120),
+        ("effective", "Effective", "Int", None, 90),
+        ("effectiveness", "Effectiveness %", "Percent", None, 125),
+    ),
+    PARTICIPANTS: (
+        ("training_event", "Training", "Link", "Training Event", 210),
+        ("training_program", "Training Program", "Link", "Training Program", 170),
+        ("from_date", "From", "Date", None, 100),
+        ("branch", "Plant", "Link", "Branch", 110),
+        ("employee", "Employee", "Link", "Employee", 120),
+        ("employee_name", "Employee Name", "Data", None, 170),
+        ("department", "Department", "Link", "Department", 150),
+        ("attendance", "Attendance", "Data", None, 105),
+        ("training_feedback", "Evaluation", "Link", "Training Feedback", 150),
+        ("evaluation_score", "Evaluation Score", "Percent", None, 130),
+        ("rating", "Rating", "Data", None, 115),
+        ("marks", "Marks", "Percent", None, 90),
+        ("result", "Result", "Data", None, 115),
+    ),
+    ITEMS: (("item", "Item Assessed", "Data", None, 330),)
+    + tuple((rating_field(rating), rating, "Int", None, 105) for rating in RATINGS)
+    + (("responses", "Responses", "Int", None, 100),
+       ("score", "Score", "Percent", None, 90),
+       ("rating", "Rating", "Data", None, 115)),
+    COMMENTS: (
+        ("training_event", "Training", "Link", "Training Event", 210),
+        ("employee", "Employee", "Link", "Employee", 120),
+        ("employee_name", "Employee Name", "Data", None, 170),
+        ("question", "Question", "Data", None, 300),
+        ("answer", "Answer", "Data", None, 420),
+    ),
+}
+
+
+def training_status(docstatus, event_status):
+    """Held once the session is submitted, Cancelled when Frappe HR's status
+    says so, otherwise still Scheduled."""
+    if event_status == EVENT_CANCELLED:
+        return CANCELLED
+    return HELD if docstatus == 1 else SCHEDULED
+
+
+def narrow(events, participants, evaluations, results, department=None):
+    """The trainings as one department's people had them: only its people,
+    their evaluations and results, and the trainings they were booked on.
+    Everything as it is without a department.
+
+    events: [{"name", ...}]; participants: [{"training_event", "employee",
+    "department", ...}]; evaluations and results: [{"training_event",
+    "employee", ...}]."""
+    if not department:
+        return list(events), list(participants), list(evaluations), list(results)
+    people = [row for row in participants if row.get("department") == department]
+    booked = {(row.get("training_event"), row.get("employee")) for row in people}
+    trainings = {row.get("training_event") for row in people}
+
+    def theirs(rows):
+        return [row for row in rows if (row.get("training_event"), row.get("employee")) in booked]
+
+    return [event for event in events if event.get("name") in trainings], people, theirs(evaluations), theirs(results)
+
+
+def training_rows(events, participants, evaluations, results):
+    """A row per training, in the order given: who was booked, who came, the
+    consolidated evaluation and how it reads, the marks and how many reached
+    the pass mark. Attendance is a share of those booked, once it is held.
+
+    evaluations: [{"training_event", "employee", "items": {item: rating},
+    "score"}]; results: [{"training_event", "employee", "marks", "effective"}]."""
+    people, forms, marks = _by_event(participants), _by_event(evaluations), _by_event(results)
+    rows = []
+    for event in events:
+        name = event.get("name")
+        booked = people.get(name, [])
+        present = sum(1 for row in booked if row.get("attendance") == PRESENT)
+        status = training_status(event.get("docstatus"), event.get("event_status"))
+        evaluation = consolidate(forms.get(name, []))
+        assessed = _assessed(marks.get(name, []))
+        effective = sum(1 for row in assessed if row.get("effective") == EFFECTIVE)
+        rows.append({
+            "training_event": name, "training_program": event.get("training_program"),
+            "branch": event.get("branch"), "department": event.get("department"),
+            "from_date": _day(event.get("start")), "to_date": _day(event.get("end")),
+            "trainer": event.get("trainer"), "status": status,
+            "participants": len(booked), "present": present,
+            "absent": sum(1 for row in booked if row.get("attendance") == ABSENT),
+            "attendance_rate": _share(present, len(booked)) if status == HELD else None,
+            "evaluations": evaluation["count"], "evaluation_score": evaluation["score"], "rating": evaluation["band"],
+            "assessed": len(assessed), "average_marks": _mean([row.get("marks") for row in assessed]),
+            "effective": effective, "effectiveness": _share(effective, len(assessed)),
+        })
+    return rows
+
+
+def participant_rows(events, participants, evaluations, results):
+    """A row per person booked on a training, training by training in the
+    order given and in the order they were booked: whether they came, their
+    evaluation and their result."""
+    people = _by_event(participants)
+    forms = {(row.get("training_event"), row.get("employee")): row for row in evaluations}
+    marks = {(row.get("training_event"), row.get("employee")): row for row in _assessed(results)}
+    rows = []
+    for event in events:
+        for person in people.get(event.get("name"), []):
+            key = (event.get("name"), person.get("employee"))
+            form, result = forms.get(key) or {}, marks.get(key) or {}
+            rows.append({
+                "training_event": event.get("name"), "training_program": event.get("training_program"),
+                "from_date": _day(event.get("start")), "branch": event.get("branch"),
+                "employee": person.get("employee"), "employee_name": person.get("employee_name"),
+                "department": person.get("department"), "attendance": person.get("attendance") or NOT_MARKED,
+                "training_feedback": form.get("name"), "evaluation_score": form.get("score"),
+                "rating": band(form.get("score")), "marks": result.get("marks"), "result": result.get("effective"),
+            })
+    return rows
+
+
+def item_rows(evaluations, order=()):
+    """The consolidated evaluation form: for each item, how many rated it
+    Excellent down to Below Average, how many rated it at all, its score and
+    how it reads; the items in the form's order (order: the Training
+    Evaluation Item list), any other after them, then the overall over every
+    evaluation, scored as the training's own score is (consolidate)."""
+    tallies = {}
+    for form in evaluations:
+        for item, rating in (form.get("items") or {}).items():
+            if rating in RATING_VALUES:
+                tallies.setdefault(item, dict.fromkeys(RATINGS, 0))[rating] += 1
+    items = [item for item in order if item in tallies] + [item for item in tallies if item not in order]
+    rows = [_item_row(item, tallies[item]) for item in items]
+    if rows:
+        overall = consolidate(evaluations)
+        row = _item_row(OVERALL, {rating: sum(tallies[item][rating] for item in items) for rating in RATINGS})
+        row.update({"responses": overall["count"], "score": overall["score"], "rating": overall["band"]})
+        rows.append(row)
+    return rows
+
+
+def _item_row(item, tally):
+    given = sum(tally.values())
+    score = round(100.0 * sum(RATING_VALUES[rating] * count for rating, count in tally.items())
+                  / (TOP_RATING * given), 1) if given else None
+    row = {"item": item, "responses": given, "score": score, "rating": band(score)}
+    row.update({rating_field(rating): tally.get(rating, 0) for rating in RATINGS})
+    return row
+
+
+def comment_rows(events, evaluations, questions, order=()):
+    """Every comment on an item and every answer to Section B, as the form
+    runs: training by training, Section A's items (in order, any other
+    after them), then each question with everyone's answer under it, by
+    name. questions: [(field, label)]; evaluations carry "comments"
+    {item: text} and "answers" {field: text}."""
+    forms = _by_event(evaluations)
+    rows = []
+    for event in events:
+        theirs = sorted(forms.get(event.get("name"), []),
+                        key=lambda form: str(form.get("employee_name") or form.get("employee") or ""))
+        said = {item for form in theirs for item, text in (form.get("comments") or {}).items() if (text or "").strip()}
+        items = [item for item in order if item in said] + sorted(said - set(order))
+        asked = [(item, item, "comments") for item in items] + [(field, label, "answers") for field, label in questions]
+        for key, question, where in asked:
+            for form in theirs:
+                text = ((form.get(where) or {}).get(key) or "").strip()
+                if text:
+                    rows.append({"training_event": event.get("name"), "employee": form.get("employee"),
+                                 "employee_name": form.get("employee_name"), "question": question, "answer": text})
+    return rows
+
+
+def summary(trainings, participants, evaluations, results):
+    """The figures on top, the same in every view, over the trainings held:
+    how many were held and are still to come, how many people were
+    trained, attendance, the evaluation and how many reached the pass mark."""
+    held = [row for row in trainings if row["status"] == HELD]
+    names = {row["training_event"] for row in held}
+    booked = sum(row["participants"] for row in held)
+    present = sum(row["present"] for row in held)
+    trained = {row.get("employee") for row in participants
+               if row.get("training_event") in names and row.get("attendance") == PRESENT}
+    evaluation = consolidate([form for form in evaluations if form.get("training_event") in names])
+    assessed = _assessed([row for row in results if row.get("training_event") in names])
+    effective = sum(1 for row in assessed if row.get("effective") == EFFECTIVE)
+    return {
+        "held": len(held), "scheduled": sum(1 for row in trainings if row["status"] == SCHEDULED),
+        "trained": len(trained), "attendance": _share(present, booked),
+        "evaluation_score": evaluation["score"], "rating": evaluation["band"],
+        "effectiveness": _share(effective, len(assessed)),
+    }
+
+
+def tone(percent):
+    """The colour of a percentage, on the evaluation form's own scale: Very
+    Good and above green, Good and Average orange, Below Average red."""
+    name = band(percent)
+    if name is None:
+        return "Grey"
+    return {"Excellent": "Green", "Very Good": "Green", "Good": "Orange", "Average": "Orange"}.get(name, "Red")
+
+
+def summary_cards(figures):
+    """The report summary: (label, value, datatype, colour)."""
+    return [
+        ("Trainings Held", figures["held"], "Int", "Blue"),
+        ("Scheduled", figures["scheduled"], "Int", "Blue"),
+        ("People Trained", figures["trained"], "Int", "Blue"),
+        ("Attendance", figures["attendance"], "Percent", tone(figures["attendance"])),
+        ("Evaluation Score", figures["evaluation_score"], "Percent", tone(figures["evaluation_score"])),
+        ("Effectiveness", figures["effectiveness"], "Percent", tone(figures["effectiveness"])),
+    ]
+
+
+def chart(view, trainings, rows):
+    """The chart over a view, or None: attendance and the evaluation score of
+    the latest trainings held; who came, of those booked on a held training;
+    how the ratings fell, over every item."""
+    if view == TRAININGS:
+        held = [row for row in trainings if row["status"] == HELD][-CHART_TRAININGS:]
+        if not held:
+            return None
+        return {"type": "bar", "colors": [NAVY, GOLD], "height": 260,
+                "data": {"labels": [_short(row["training_program"] or row["training_event"]) for row in held],
+                         "datasets": [{"name": "Attendance %", "values": [row["attendance_rate"] or 0 for row in held]},
+                                      {"name": "Evaluation Score", "values": [row["evaluation_score"] or 0 for row in held]}]}}
+    if view == PARTICIPANTS:
+        held = {row["training_event"] for row in trainings if row["status"] == HELD}
+        kinds = (PRESENT, ABSENT, NOT_MARKED)
+        counts = [sum(1 for row in rows if row["training_event"] in held and row["attendance"] == kind) for kind in kinds]
+        if not sum(counts):
+            return None
+        return {"type": "donut", "colors": [BLUE, RED, GREY], "height": 260,
+                "data": {"labels": list(kinds), "datasets": [{"values": counts}]}}
+    if view == ITEMS:
+        overall = rows[-1] if rows and rows[-1]["item"] == OVERALL else None
+        if not overall or not sum(overall[rating_field(rating)] for rating in RATINGS):
+            return None
+        return {"type": "donut", "colors": list(RATING_COLOURS), "height": 260,
+                "data": {"labels": list(RATINGS), "datasets": [{"values": [overall[rating_field(rating)] for rating in RATINGS]}]}}
+    return None
+
+
+def _assessed(results):
+    """The results with a verdict: Frappe keeps a blank mark as 0, so a row is
+    assessed when its marks were judged, not when they read as a number."""
+    return [row for row in results if row.get("effective") in (EFFECTIVE, NOT_EFFECTIVE)]
+
+
+def _by_event(rows):
+    out = {}
+    for row in rows:
+        out.setdefault(row.get("training_event"), []).append(row)
+    return out
+
+
+def _share(part, whole):
+    return round(100.0 * part / whole, 1) if whole else None
+
+
+def _mean(values):
+    values = [float(value) for value in values if value not in (None, "")]
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _short(text, limit=24):
+    text = str(text or "")
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _day(value):
+    return _date(value) if value else None
 
 
 def _date(value):

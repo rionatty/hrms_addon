@@ -606,6 +606,25 @@ The check exercises the rules without a bench, walks both workflows, and
 pins what the glue relies on upstream (the event's mandatory fields, that
 attendance is not allow_on_submit, that feedback needs a submitted event).
 
+`verify_training_report.py` covers the **Training Report** (case 10, Tenure >
+Training and the sidebar's Reports), what the HR Officer downloads once the
+evaluations are keyed in. One report with four views of the same trainings,
+chosen by Show: **Trainings** (per session: booked, present, absent,
+attendance, evaluations, the evaluation score and its rating, how many were
+assessed, their average marks and how many reached the programme's pass
+mark), **Participants** (per person booked: attendance, their evaluation,
+their latest submitted result), **Evaluation Items** (the consolidated
+LPL/TRG/FRM05: each item's Excellent to Below Average counts, its score and
+rating, then the overall) and **Comments** (every item comment and every
+answer to the six questions). The same figures sit on top of each view:
+trainings held and scheduled, people trained, attendance, evaluation score
+and effectiveness. Filters: dates (on the session's start; a training picked
+by name ignores them), plant, programme, and department, which narrows
+everything to that department's people. Trainings are read with get_list,
+so an HR Officer kept to a plant sees that plant's. A form is scored from its
+ratings, here and in the session's own score: Frappe keeps a blank score as
+0, which counted a form with nothing rated as 0%.
+
 `verify_contracts.py` covers contract management: a contract's status on a
 day, the alerts a year, a quarter and a month before its end (each sent
 once, a contract first seen inside several thresholds getting one alert),
