@@ -1492,6 +1492,76 @@ for needle, why in (
 print("the sheet: Luuka's own form per appraisal, locked but for the period appraised, scored by the system's "
       "rules, read back whatever it is renamed to, every sheet of it")
 
+# ── 12. The scorecard template drawn as the workbook's form ───────────
+# The Appraisal Template shows a Balanced Scorecard as the LPL PMS BSC
+# Appraisal Form; it must draw what the offline sheet draws, so the two
+# cannot drift: the same columns, widths, palette, perspective colours,
+# scale and signatories.
+template_js = read("hrms_addon", "public", "js", "appraisal_template.js")
+sheet_source = read("hrms_addon", "hrms_addon", "appraisal_sheet.py")
+on_template = custom_fields("Appraisal Template")
+for fieldname, fieldtype, after in (("custom_form_section", "Section Break", "template_title"),
+                                    ("custom_form_view", "HTML", "custom_form_section"),
+                                    ("custom_role_section", "Section Break", "custom_form_view")):
+    row = on_template.get(fieldname) or {}
+    if (row.get("fieldtype"), row.get("insert_after")) != (fieldtype, after):
+        fail.append("Appraisal Template.%s must be a %s after %s, so the form comes first" % (fieldname, fieldtype, after))
+if (on_template.get("custom_form_section") or {}).get("depends_on") != 'eval:doc.custom_form_type == "Balanced Scorecard"':
+    fail.append("the workbook's form is the scorecard's: shown on a Balanced Scorecard template only")
+
+
+def js_list(name):
+    found = re.search(r"const %s = (\[[^\n]*\]|\[.*?\n\]);" % name, template_js, re.S)
+    return found.group(1) if found else ""
+
+
+widths = [int(value) for value in re.findall(r"\d+", js_list("HA_SHEET_WIDTHS"))]
+if widths != [SH.WIDTHS[column] for column in "ABCDEFGHIJKLMNOP"]:
+    fail.append("the form's columns must be the sheet's, A to P, in its widths: %s" % widths)
+drawn_heads = re.findall(r'\["([^"]*)", "head', js_list("HA_SHEET_HEADS"))
+sheet_heads = re.findall(r'\("[A-P]", "([^"]*)", TEAL', sheet_source.split("def _section_a(")[1].split("for column, text, fill in heads")[0])
+if not sheet_heads or drawn_heads != sheet_heads:
+    fail.append("Section A's headings must be the sheet's: %s against %s" % (drawn_heads, sheet_heads))
+palette = dict(re.findall(r'^\t(\w+): "#(\w{6})",$', template_js.split("const HA_SHEET = {")[1].split("};")[0], re.M))
+if palette != {"navy": SH.NAVY, "teal": SH.TEAL, "tealDark": SH.TEAL_DARK, "gold": SH.GOLD, "label": SH.LABEL,
+               "note": SH.NOTE, "soft": SH.SOFT, "cream": SH.CREAM, "green": SH.GREEN_SOFT, "grey": SH.GREY_SOFT}:
+    fail.append("the form's palette must be the sheet's: %s" % palette)
+colours = re.findall(r'\["(\w+)", "#(\w{6})", "#(\w{6})"\]', js_list("HA_PERSPECTIVE_COLOURS"))
+for perspective, (light, dark) in SH.PERSPECTIVE_COLOURS.items():
+    match = [(fill, text) for word, fill, text in colours if word in perspective.lower()]
+    if match != [(light, dark)]:
+        fail.append("the form must colour %s as the sheet does (%s on %s)" % (perspective, dark, light))
+if re.findall(r'"([^"]+)"', js_list("HA_SIGNATORIES")) != [label for _key, label in SH.BSC_SIGNATORIES]:
+    fail.append("Part D must be signed by the sheet's signatories")
+scale = re.findall(r'\["(\w[\w ]*)", "[^"]*", "#(\w{6})", "([^"]*)"\]',
+                   template_js.split('"Balanced Scorecard": [')[1].split("],\n\t[")[0])
+if scale != [(name, colour, meaning) for _floor, name, colour, meaning in SH.BSC_BANDS]:
+    fail.append("the form's scale must be the sheet's: %s" % scale)
+for needle, why in (
+        ('frm.trigger("show_scale");\n\t\tfrm.trigger("show_form");', "drawn when the template opens and as its form type changes"),
+        ("show_form(frm) {\n\t\tha_bsc_form(frm);", "the form is drawn by ha_bsc_form"),
+        ('const field = frm.get_field("custom_form_view");', "into the form view field"),
+        ("if (frm.doc.custom_form_type !== HA_TEMPLATE_BSC) {\n\t\tfield.$wrapper.empty();",
+         "a supervisory template shows no scorecard"),
+        ("frappe.utils.escape_html(", "what is typed is shown as text"),
+        ("${td(esc(kpi.kpi))}", "a KPI is escaped"),
+        ("td(esc(kpi.perspective)", "a perspective is escaped"),
+        ("${td(esc(row.competency)", "a competency is escaped"),
+        ("esc(row.indicators)", "its indicators are escaped"),
+        ("/^(\\/|https?:\\/\\/)/.test(logo)", "only a logo the site serves is shown"),
+        ("custom_kpis_remove(frm) {\n\t\tfrm.trigger(\"show_weights\");\n\t\tfrm.trigger(\"show_form\");",
+         "a KPI taken off redraws the form"),
+        ("custom_competencies_remove(frm) {\n\t\tfrm.trigger(\"show_weights\");\n\t\tfrm.trigger(\"show_form\");",
+         "a competency taken off redraws the form")):
+    if needle not in template_js:
+        fail.append("appraisal_template.js: %s (%r not found)" % (why, needle))
+if template_js.count('frm.trigger("show_scale");\n\t\tfrm.trigger("show_form");') != 2:
+    fail.append("appraisal_template.js: the form is drawn both when the template opens and when its form type changes")
+if re.search(r"(?<![\w-])(eval|new Function)\(|\.innerHTML\s*=", template_js):
+    fail.append("appraisal_template.js must not evaluate or write raw HTML")
+print("the template: a scorecard drawn as Luuka's BSC Appraisal Form, the offline sheet's columns, palette, scale "
+      "and signatories")
+
 # ── What Frappe chose by itself, cleared where it is still open ───────
 def rows_rated(employee, supervisor):
     return [{"name": "r%d" % index, "employee_rating": mine, "supervisor_rating": theirs}

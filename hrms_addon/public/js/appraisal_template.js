@@ -34,6 +34,94 @@ const HA_SCALES = {
 	],
 };
 
+// ── The scorecard as Luuka's workbook lays it out ─────────────────────
+// A Balanced Scorecard template is shown as the LPL PMS BSC Appraisal Form:
+// the header, Section A with its quarters, the assignments, Section B, the
+// overall score, the scale and Parts D and E. What the template holds is
+// filled in; what an appraisal fills in is left blank, as on the sheet. The
+// palette and columns are the workbook's, as the offline sheet paints them
+// (appraisal_sheet.py). It is shown here and set in the tables below.
+const HA_TEMPLATE_BSC = "Balanced Scorecard";
+const HA_SHEET = {
+	navy: "#1A2B4A",
+	teal: "#007B87",
+	tealDark: "#005F6B",
+	gold: "#C9A42B",
+	label: "#EEF2F6",
+	note: "#E8EDF4",
+	soft: "#E0F4F6",
+	cream: "#FFF8E1",
+	green: "#E8F5E9",
+	grey: "#F9F9F9",
+};
+// (a word in the perspective's name, its fill, its text)
+const HA_PERSPECTIVE_COLOURS = [
+	["financ", "#E3F2FD", "#1A5276"],
+	["customer", "#E8F5E9", "#1E8449"],
+	["internal", "#FFFDE7", "#7D6608"],
+	["learning", "#F3E5F5", "#6C3483"],
+];
+// the workbook's columns A to P, in its own widths
+const HA_SHEET_WIDTHS = [5, 16, 36, 9, 8, 18, 8, 9, 18, 8, 9, 18, 8, 9, 10, 10];
+const HA_SHEET_HEADS = [
+	["#", "head"],
+	["BSC\nPerspective", "head"],
+	["KPI / Objective", "head"],
+	["Timing", "head"],
+	["Weight\n(total=80%)", "head"],
+	["Q1 Comments", "head"],
+	["Q1 %\nAchieved", "head dark"],
+	["Q1 Wtd\nScore", "head dark"],
+	["Q2 Comments", "head"],
+	["Q2 %\nAchieved", "head dark"],
+	["Q2 Wtd\nScore", "head dark"],
+	["Q3 Comments", "head"],
+	["Q3 %\nAchieved", "head dark"],
+	["Q3 Wtd\nScore", "head dark"],
+	["Annual\nScore\n(0–10)", "head"],
+	["Annual\nWtd\nScore", "head"],
+];
+const HA_SIGNATORIES = [
+	"Appraiser / Line Manager",
+	"Employee / Appraisee",
+	"HOD / Reviewing Manager",
+	"HR Manager",
+	"Executive Director",
+];
+const HA_SHEET_STYLE = `
+.ha-bsc { overflow-x: auto; margin-bottom: var(--margin-md); }
+.ha-bsc table { border-collapse: collapse; width: 100%; min-width: 1240px; table-layout: fixed;
+	font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.3; color: #000; background: #fff; }
+.ha-bsc td { border: 1px solid #7F7F7F; padding: 3px 5px; vertical-align: middle; overflow-wrap: anywhere;
+	white-space: pre-wrap; height: 20px; }
+.ha-bsc .c { text-align: center; }
+.ha-bsc .r { text-align: right; }
+.ha-bsc .b { font-weight: 700; }
+.ha-bsc .i { font-style: italic; }
+.ha-bsc .small { font-size: 10px; }
+.ha-bsc .band { background: ${HA_SHEET.navy}; color: #fff; font-weight: 700; text-align: center; font-size: 12px; }
+.ha-bsc .band.teal { background: ${HA_SHEET.teal}; }
+.ha-bsc .head { background: ${HA_SHEET.teal}; color: #fff; font-weight: 700; text-align: center; font-size: 9px;
+	padding: 3px 2px; overflow-wrap: normal; }
+.ha-bsc .head.dark { background: ${HA_SHEET.tealDark}; }
+.ha-bsc .head.gold { background: ${HA_SHEET.gold}; color: ${HA_SHEET.navy}; }
+.ha-bsc .label { background: ${HA_SHEET.label}; font-weight: 700; }
+.ha-bsc .note { background: ${HA_SHEET.note}; }
+.ha-bsc .soft { background: ${HA_SHEET.soft}; }
+.ha-bsc .cream { background: ${HA_SHEET.cream}; }
+.ha-bsc .green { background: ${HA_SHEET.green}; }
+.ha-bsc .grey { background: ${HA_SHEET.grey}; color: #666; }
+.ha-bsc .weight { background: ${HA_SHEET.cream}; color: #1A5276; font-weight: 700; text-align: center; font-size: 12px; }
+.ha-bsc .gold { background: ${HA_SHEET.gold}; font-weight: 700; text-align: center; }
+.ha-bsc .total { background: ${HA_SHEET.teal}; color: #fff; font-weight: 700; text-align: center; }
+.ha-bsc .company { font-size: 17px; letter-spacing: .5px; height: 34px; }
+.ha-bsc .title { background: ${HA_SHEET.teal}; height: 30px; }
+.ha-bsc .logo { background: #fff; text-align: left; }
+.ha-bsc .logo img { max-height: 56px; max-width: 100%; }
+.ha-bsc .kpi td { height: 40px; }
+.ha-bsc .tall td { height: 56px; }
+`;
+
 frappe.ui.form.on("Appraisal Template", {
 	refresh(frm) {
 		frm.add_custom_button(__("Import PMS Workbook"), () =>
@@ -110,11 +198,25 @@ frappe.ui.form.on("Appraisal Template", {
 		ha_kpi_arrows(frm);
 		frm.trigger("show_weights");
 		frm.trigger("show_scale");
+		frm.trigger("show_form");
 	},
 	custom_form_type(frm) {
 		frm.trigger("show_weights");
 		frm.trigger("show_scale");
+		frm.trigger("show_form");
 	},
+	show_form(frm) {
+		ha_bsc_form(frm);
+	},
+	// what the form's header shows, redrawn as it is typed
+	custom_designation: (frm) => frm.trigger("show_form"),
+	custom_department: (frm) => frm.trigger("show_form"),
+	custom_grade: (frm) => frm.trigger("show_form"),
+	custom_review_period: (frm) => frm.trigger("show_form"),
+	custom_review_year: (frm) => frm.trigger("show_form"),
+	custom_company: (frm) => frm.trigger("show_form"),
+	custom_form_reference: (frm) => frm.trigger("show_form"),
+	custom_revision: (frm) => frm.trigger("show_form"),
 	// Frappe HR's own KRA and rating tables are hidden on these templates,
 	// but hiding a table does not stop its rows being checked: one blank
 	// row left in it refuses the save with "KRA is required in every row",
@@ -200,6 +302,251 @@ frappe.ui.form.on("Appraisal Template", {
 	},
 });
 
+// The scorecard template drawn as the workbook's form, into custom_form_view
+function ha_bsc_form(frm) {
+	const field = frm.get_field("custom_form_view");
+	if (!field) return;
+	if (frm.doc.custom_form_type !== HA_TEMPLATE_BSC) {
+		field.$wrapper.empty();
+		return;
+	}
+	if (!document.getElementById("ha-bsc-style")) {
+		$('<style id="ha-bsc-style"></style>').text(HA_SHEET_STYLE).appendTo("head");
+	}
+	const esc = (value) => frappe.utils.escape_html(value === undefined || value === null ? "" : String(value));
+	const td = (text, cls = "", span = 1, extra = "") =>
+		`<td${span > 1 ? ` colspan="${span}"` : ""}${cls ? ` class="${cls}"` : ""}${extra}>${text}</td>`;
+	const percent = (value) => (value || value === 0 ? `${esc(Math.round(value * 100) / 100)}%` : "");
+	const band = (text, cls = "band") => `<tr>${td(esc(text), cls, 16)}</tr>`;
+	const doc = frm.doc;
+	const year = doc.custom_review_year || "";
+	const rows = [];
+
+	// the header: the logo, the company, the form; then who and what is appraised
+	rows.push(
+		`<tr>${td("", "logo", 4, ' rowspan="2"')}${td(
+			esc(String(doc.custom_company || "").toUpperCase()),
+			"band company",
+			12
+		)}</tr>`,
+		`<tr>${td(
+			esc(`PERFORMANCE MANAGEMENT SYSTEM  ·  BSC APPRAISAL FORM  ·  FY ${year}`),
+			"band title",
+			12
+		)}</tr>`
+	);
+	for (const [left, leftValue, right, rightValue] of [
+		["Role / Position:", doc.custom_designation, "Department:", doc.custom_department],
+		["Employee Name:", "", "Grade:", doc.custom_grade],
+		["Appraiser Name & Title:", "", "Review Period:", doc.custom_review_period],
+		["Date of Review:", "", "HR Ref:", ""],
+	]) {
+		rows.push(
+			`<tr>${td(esc(__(left)), "label", 2)}${td(esc(leftValue), "", 5)}${td(esc(__(right)), "label", 3)}${td(
+				esc(rightValue),
+				"",
+				6
+			)}</tr>`
+		);
+	}
+	rows.push(
+		`<tr>${td(
+			esc(
+				__(
+					"HOW TO USE:  (1) Distribute the 80% weight across the perspectives: they must sum to 80%.  (2) Enter Q1–Q3 % Achieved against target: the quarterly weighted scores work themselves out.  (3) Enter the annual score (0–10) at year-end: the annual weighted score works itself out.  (4) Section B competencies = 20% of total.  RATING: Excellent ≥90  ·  Very Good 80–89  ·  Good 70–79  ·  Fair 60–69  ·  Poor <60"
+				)
+			),
+			"note i small",
+			16
+		)}</tr>`
+	);
+
+	// Section A: each perspective's KPIs together, its weight on the first
+	rows.push(
+		band(
+			__(
+				"SECTION A  —  OBJECTIVES & KPIs  (80% of Total Score)  |  Distribute 80% weight across the perspectives"
+			)
+		),
+		`<tr>${HA_SHEET_HEADS.map(([text, cls]) => td(esc(__(text)), cls)).join("")}</tr>`
+	);
+	const kpis = doc.custom_kpis || [];
+	let weights = 0;
+	(kpis.length ? kpis : [{}]).forEach((kpi, index) => {
+		const first = index === 0 || kpi.perspective !== kpis[index - 1].perspective;
+		const name = String(kpi.perspective || "").toLowerCase();
+		const [, fill, text] = HA_PERSPECTIVE_COLOURS.find(([word]) => name.includes(word)) || [
+			"",
+			HA_SHEET.label,
+			HA_SHEET.navy,
+		];
+		weights += kpi.weight || 0;
+		rows.push(
+			`<tr class="kpi">${td(index + 1, "label c")}${
+				first
+					? td(esc(kpi.perspective), "c b", 1, ` style="background:${fill};color:${text}"`)
+					: td("↳", "grey c")
+			}${td(esc(kpi.kpi))}${td(esc(kpi.timing), "label c small")}${td(
+				first ? percent(kpi.weight) : "",
+				first ? "weight" : "note"
+			)}${["soft", "green", "soft", "label", "green", "soft", "soft", "green", "soft"]
+				.map((cls) => td("", cls))
+				.join("")}${td("", "cream")}${td("", "soft")}</tr>`
+		);
+	});
+	const adds_up = Math.round(weights * 100) / 100 === 80;
+	rows.push(
+		`<tr>${td(esc(__("WEIGHT CHECK & QUARTERLY TOTALS")), "total r", 4)}${td(percent(weights), "gold")}${td(
+			esc(
+				adds_up
+					? __("✓ Total = 80%")
+					: __("⚠ Total must = 80%, currently {0}", [percent(weights)])
+			),
+			"note i",
+			2
+		)}${td("0", "total")}${td(esc(__("Q2 Total →")), "total r small")}${td("")}${td(
+			"0",
+			"total"
+		)}${td(esc(__("Q3 Total →")), "total r small")}${td("")}${td("0", "total")}${td(
+			esc(__("Sec A →")),
+			"total r small"
+		)}${td("0", "total")}</tr>`
+	);
+
+	// what else the appraisal records, and Section B from the template
+	rows.push(
+		band(
+			__("OTHER ASSIGNMENTS / SPECIAL TASKS  (Record only — informational, not scored separately)")
+		),
+		`<tr>${td(esc(__("S/No & Task")), "head", 2)}${td(esc(__("Assignment Given")), "head", 4)}${td(
+			esc(__("Expected Outcome")),
+			"head",
+			3
+		)}${td(esc(__("Employee Comments")), "head", 4)}${td(esc(__("Supervisor Comments")), "head", 3)}</tr>`
+	);
+	for (const number of [1, 2, 3]) {
+		rows.push(`<tr class="kpi">${td(number, "label c")}${td("")}${td("", "", 4)}${td("", "", 3)}${td("", "", 4)}${td("", "", 3)}</tr>`);
+	}
+	rows.push(
+		band(__("SECTION B  —  COMPETENCIES  (20% of Total Score)  |  Score each 0–10  |  Weights must sum to 20%")),
+		`<tr>${td(esc(__("Competency")), "head", 3)}${td(esc(__("Behavioural Indicators")), "head", 6)}${td(
+			esc(__("Weight\n(%)")),
+			"head",
+			2
+		)}${td(esc(__("Score\n(0–10)")), "head gold", 2)}${td(esc(__("Weighted\nScore")), "head", 3)}</tr>`
+	);
+	let competency_weights = 0;
+	(doc.custom_competencies || []).forEach((row, index) => {
+		competency_weights += row.weight || 0;
+		rows.push(
+			`<tr class="kpi">${td(esc(row.competency), "note b", 3)}${td(
+				esc(row.indicators),
+				`small ${index % 2 ? "" : "soft"}`,
+				6
+			)}${td(percent(row.weight), "weight", 2)}${td("", "", 2)}${td("", "soft", 3)}</tr>`
+		);
+	});
+	const b_adds_up = Math.round(competency_weights * 100) / 100 === 20;
+	rows.push(
+		`<tr>${td(esc(__("COMPETENCY WEIGHT CHECK & SECTION B SCORE")), "total r", 9)}${td(
+			percent(competency_weights),
+			"gold",
+			2
+		)}${td(esc(b_adds_up ? __("✓ 20%") : __("⚠ Must = 20%")), "note i small", 2)}${td("0", "total", 3)}</tr>`
+	);
+
+	// the overall, the scale, and the parts the appraisal is signed and planned on
+	rows.push(
+		band(__("OVERALL PERFORMANCE SCORE   =   Section A (×0.8 already embedded in weights) + Section B")),
+		`<tr>${td(esc(__("Section A Score  (sum of weighted KPI scores)")), "label r", 15)}${td("0", "label c b")}</tr>`,
+		`<tr>${td(esc(__("Section B Score  (sum of weighted competency scores)")), "label r", 15)}${td(
+			"0",
+			"label c b"
+		)}</tr>`,
+		`<tr>${td(esc(__("OVERALL SCORE  (Section A + Section B)")), "gold r", 15, ' style="color:#fff"')}${td(
+			"0",
+			"gold",
+			1,
+			' style="color:#fff"'
+		)}</tr>`,
+		band(__("PERFORMANCE RATING SCALE"), "band teal")
+	);
+	const scale = HA_SCALES[HA_TEMPLATE_BSC];
+	const spans = [3, 3, 3, 3, 4];
+	rows.push(
+		`<tr>${scale
+			.map(([name, range, colour], index) =>
+				td(esc(`${__(name)}  ${range}`), "c b small", spans[index], ` style="background:${colour};color:#fff"`)
+			)
+			.join("")}</tr>`,
+		`<tr>${scale.map(([, , , meaning], index) => td(esc(__(meaning)), "label c small", spans[index])).join("")}</tr>`,
+		band(__("PART D  —  COMMENTS & SIGNATURES"))
+	);
+	for (const who of HA_SIGNATORIES) {
+		rows.push(
+			`<tr class="kpi">${td(esc(__(who)), "label", 2)}${td(
+				esc(__("Comments:")) + " _______________________________________________",
+				"",
+				7
+			)}${td(esc(__("Name:")) + " _______________________  " + esc(__("Sig:")) + " __________________  " + esc(__("Date:")) + " ________", "small", 7)}</tr>`
+		);
+	}
+	rows.push(
+		band(__("PART E  —  DEVELOPMENT PLAN")),
+		`<tr>${td(esc(__("Continue / Strengths")), "head", 5)}${td(esc(__("Stop / Weaknesses")), "head", 5)}${td(
+			esc(__("Start / Gaps to Fill")),
+			"head",
+			6
+		)}</tr>`,
+		`<tr class="tall">${td("", "", 5)}${td("", "", 5)}${td("", "", 6)}</tr>`,
+		`<tr>${td(esc(__("Development Action")), "head", 6)}${td(esc(__("Duration")), "head", 3)}${td(
+			esc(__("By When")),
+			"head",
+			3
+		)}${td(esc(__("By Whom")), "head", 2)}${td(esc(__("Est. Cost ({0})", ["UGX"])), "head ha-bsc-currency", 2)}</tr>`
+	);
+	for (let index = 0; index < 3; index++) {
+		rows.push(`<tr class="kpi">${td("", "", 6)}${td("", "", 3)}${td("", "", 3)}${td("", "", 2)}${td("", "", 2)}</tr>`);
+	}
+	rows.push(
+		`<tr>${td(
+			esc(
+				[
+					doc.custom_company,
+					`PMS BSC Appraisal Form FY ${year}`,
+					doc.custom_department,
+					doc.custom_form_reference,
+					"CONFIDENTIAL",
+					doc.custom_revision,
+				]
+					.filter(Boolean)
+					.join("  |  ")
+			),
+			"band small",
+			16
+		)}</tr>`
+	);
+
+	field.$wrapper.html(
+		`<div class="ha-bsc"><table><colgroup>${HA_SHEET_WIDTHS.map(
+			(width) => `<col style="width:${((100 * width) / 191).toFixed(2)}%">`
+		).join("")}</colgroup><tbody>${rows.join("")}</tbody></table></div>`
+	);
+	// the company's logo and currency, as the offline sheet carries them
+	if (doc.custom_company) {
+		frappe.db.get_value("Company", doc.custom_company, ["company_logo", "default_currency"]).then((r) => {
+			const company = (r && r.message) || {};
+			const logo = company.company_logo || "";
+			if (logo && /^(\/|https?:\/\/)/.test(logo)) {
+				field.$wrapper.find("td.logo").html(`<img src="${esc(logo)}" alt="">`);
+			}
+			if (company.default_currency) {
+				field.$wrapper.find("td.ha-bsc-currency").text(__("Est. Cost ({0})", [company.default_currency]));
+			}
+		});
+	}
+}
+
 // A KPI under the same perspective as the one above it shows the workbook's
 // arrow in place of the perspective's name again.
 function ha_kpi_arrows(frm) {
@@ -220,25 +567,37 @@ function ha_kpi_arrows(frm) {
 	grid.refresh();
 }
 
-// the headline moves as the weights are typed, not only when the form is saved
+// the headline and the form move as the rows are typed, not only when the
+// template is saved
 frappe.ui.form.on("BSC Template KPI", {
 	weight(frm) {
 		frm.trigger("show_weights");
+		frm.trigger("show_form");
 	},
 	perspective(frm) {
 		frm.fields_dict.custom_kpis.grid.refresh();
+		frm.trigger("show_form");
 	},
+	kpi: (frm) => frm.trigger("show_form"),
+	timing: (frm) => frm.trigger("show_form"),
+	custom_kpis_add: (frm) => frm.trigger("show_form"),
 	custom_kpis_remove(frm) {
 		frm.trigger("show_weights");
+		frm.trigger("show_form");
 	},
 });
 
 frappe.ui.form.on("BSC Template Competency", {
 	weight(frm) {
 		frm.trigger("show_weights");
+		frm.trigger("show_form");
 	},
+	competency: (frm) => frm.trigger("show_form"),
+	indicators: (frm) => frm.trigger("show_form"),
+	custom_competencies_add: (frm) => frm.trigger("show_form"),
 	custom_competencies_remove(frm) {
 		frm.trigger("show_weights");
+		frm.trigger("show_form");
 	},
 });
 

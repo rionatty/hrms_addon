@@ -5240,16 +5240,45 @@
  {
   "doctype": "Custom Field",
   "dt": "Appraisal Template",
+  "fieldname": "custom_form_section",
+  "fieldtype": "Section Break",
+  "label": "BSC Appraisal Form",
+  "insert_after": "template_title",
+  "depends_on": "eval:doc.custom_form_type == \"Balanced Scorecard\"",
+  "module": "HRMS Addon",
+  "name": "Appraisal Template-custom_form_section",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-10-02 16:00:00.000000",
+  "modified": "2026-10-02 16:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal Template",
+  "fieldname": "custom_form_view",
+  "fieldtype": "HTML",
+  "label": "BSC Appraisal Form",
+  "insert_after": "custom_form_section",
+  "module": "HRMS Addon",
+  "name": "Appraisal Template-custom_form_view",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-10-02 16:00:00.000000",
+  "modified": "2026-10-02 16:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Appraisal Template",
   "fieldname": "custom_role_section",
   "fieldtype": "Section Break",
   "label": "Role",
-  "insert_after": "template_title",
+  "insert_after": "custom_form_view",
   "module": "HRMS Addon",
   "name": "Appraisal Template-custom_role_section",
   "owner": "Administrator",
   "modified_by": "Administrator",
   "creation": "2026-09-21 09:00:00.000000",
-  "modified": "2026-09-21 09:00:00.000000"
+  "modified": "2026-10-02 16:00:00.000000"
  },
  {
   "doctype": "Custom Field",

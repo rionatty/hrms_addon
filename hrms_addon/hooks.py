@@ -907,6 +907,9 @@ fixtures = [
                     "Appraisal-custom_start",
                     "Appraisal-custom_development_actions",
                     "Employee-custom_automatic_attendance",
+                    # the scorecard template drawn as the workbook's form
+                    "Appraisal Template-custom_form_section",
+                    "Appraisal Template-custom_form_view",
                     "Appraisal Template-custom_role_section",
                     "Appraisal Template-custom_designation",
                     "Appraisal Template-custom_review_year",
