@@ -421,7 +421,14 @@ after_migrate = [
     # Frappe HR ships, and re-applied here because an update rewrites those
     # records; it must run after Frappe has re-imported them.
     "hrms_addon.hrms_addon.navigation.setup_on_migrate",
+    # The HR Alert notification type: the app's alerts go as it, and Frappe
+    # emails every type but its own Alert (alerts.py, people.notify).
+    "hrms_addon.hrms_addon.alerts.install_alert_type",
 ]
+
+# An alert is delivered to the person it names even when they caused it, as
+# Frappe does for its own Alert type.
+notification_self_notify_types = ["HR Alert"]
 
 # Fixtures
 # --------

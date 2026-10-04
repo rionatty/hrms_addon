@@ -14,6 +14,7 @@ among them.
 import frappe
 
 from hrms_addon.hrms_addon import onboarding_rules as rules
+from hrms_addon.hrms_addon.alerts_rules import EMAILED_TYPE
 
 HR_OFFICER = rules.HR_OFFICER_ROLE
 
@@ -77,15 +78,26 @@ def withdraw(doctype, name, users):
 
 
 def notify(users, doctype, name, subject, message=None):
-    """An alert in each user's notifications (and email, as they have set)."""
+    """An alert in each user's notifications, and by email to each of them.
+
+    Only to the users given: each notification is for the person it names.
+    Frappe never emails its own "Alert" type, so these go as the app's HR
+    Alert (alerts_rules.EMAILED_TYPE), which each user receives by email
+    unless they turn it off in their Notification Settings."""
     from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
 
     users = [user for user in users if user]
     if users:
         enqueue_create_notification(users, {
-            "type": "Alert",
+            "type": alert_type(),
             "document_type": doctype,
             "document_name": name,
             "subject": subject,
             "email_content": message or subject,
         })
+
+
+def alert_type():
+    """HR Alert once it is installed (alerts.install_alert_type); before that,
+    Frappe's own Alert, shown but never emailed."""
+    return EMAILED_TYPE if frappe.db.exists("Notification Type", EMAILED_TYPE) else "Alert"

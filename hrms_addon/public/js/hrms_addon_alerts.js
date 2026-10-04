@@ -86,6 +86,12 @@
 		if (!row) return;
 		event.preventDefault();
 		const { kind, key, doctype, docname } = row.dataset;
+		// an assignment marked done leaves the list; the row is not opened
+		if (event.target.closest(".ha-alert-done")) {
+			event.stopPropagation();
+			frappe.xcall("hrms_addon.hrms_addon.alerts.close_assignment", { name: key }).then(load);
+			return;
+		}
 		if (kind === "notification") {
 			frappe.xcall("hrms_addon.hrms_addon.alerts.mark_read", { name: key }).then(load);
 		}
@@ -96,6 +102,20 @@
 
 	function read_all() {
 		frappe.xcall("hrms_addon.hrms_addon.alerts.mark_all_read").then(load);
+	}
+
+	// A notification is attended to once its document has been opened, from
+	// the rail or anywhere else: it is read, and leaves the rail.
+	function read_document(frm) {
+		const alerts = (answer && answer.alerts) || [];
+		const about = alerts.some(
+			(alert) =>
+				alert.kind === "notification" && alert.unread && alert.doctype === frm.doctype && alert.docname === frm.docname
+		);
+		if (!about || frm.is_new()) return;
+		frappe
+			.xcall("hrms_addon.hrms_addon.alerts.mark_document_read", { doctype: frm.doctype, name: frm.docname })
+			.then(load);
 	}
 
 	function load() {
@@ -145,6 +165,11 @@
 					<span class="ha-alert-title">${escape(alert.title)}</span>
 					<span class="ha-alert-meta">${meta}</span>
 				</span>
+				${
+					alert.kind === "assignment"
+						? `<span class="ha-alert-done" role="button" title="${escape(__("Mark done"))}">✓</span>`
+						: ""
+				}
 			</a>`;
 	}
 
@@ -183,7 +208,24 @@
 		}).observe(document.body, { childList: true });
 	}
 
+	// The Mark done control, styled here rather than in the bundle, so it
+	// needs no `bench build`.
+	function style() {
+		if (document.getElementById("ha-alerts-done-style")) return;
+		const tag = document.createElement("style");
+		tag.id = "ha-alerts-done-style";
+		tag.textContent = `
+			.ha-alert .ha-alert-done { margin-left: auto; flex: 0 0 auto; width: 22px; height: 22px;
+				border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+				font-size: 12px; color: var(--text-muted); border: 1px solid var(--border-color);
+				opacity: .55; transition: opacity .15s ease, background .15s ease; }
+			.ha-alert:hover .ha-alert-done { opacity: 1; }
+			.ha-alert .ha-alert-done:hover { background: var(--green-100, #e4f5e9); color: var(--green-600, #1e8449); }`;
+		document.head.appendChild(tag);
+	}
+
 	function start() {
+		style();
 		build();
 		watch();
 		load();
@@ -193,6 +235,7 @@
 		if (frappe.realtime && frappe.realtime.on) {
 			frappe.realtime.on("notification", load);
 		}
+		$(document).on("form-refresh", (event, frm) => frm && read_document(frm));
 		setInterval(load, POLL_MS);
 	}
 

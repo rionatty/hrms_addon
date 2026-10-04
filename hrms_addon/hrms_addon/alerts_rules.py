@@ -8,7 +8,9 @@ exercises them without a bench.
 
 The rail shows one person their own work: the assignments on their ToDo
 list (an onboarding task, a review due, a probation evaluation, a contract
-coming to its end) and the notifications they have not read. Each row is
+coming to its end) and the notifications they have not read. What has been
+attended to leaves it: a notification once read (opening its document
+reads it), an assignment once its work is done (attended). Each row is
 coloured by how soon it matters, not by what kind of thing it is:
 
     overdue   its date has passed
@@ -32,6 +34,26 @@ SOON_DAYS = 7
 HIGH = "High"
 ASSIGNMENT, NOTIFICATION = "assignment", "notification"
 KINDS = (ASSIGNMENT, NOTIFICATION)
+# The app's own Notification Type. Frappe v16 emails a notification of any
+# type but its own "Alert" (notification_skip_email_types), as each user has
+# chosen in Notification Settings; the app's alerts go as this type so they
+# reach the person by email too (people.notify).
+EMAILED_TYPE = "HR Alert"
+
+
+def attended(facts):
+    """Whether an assignment's work is done, so it leaves the rail and its
+    ToDo is closed: the document is gone or cancelled, or it runs on a
+    workflow that no longer waits on this user. An assignment on a document
+    without a workflow stays until the user marks it done.
+
+    facts: "exists", "docstatus", "workflow" (the document has an active
+    workflow and a state in it), "can_act" (the user has a step to take)."""
+    if not facts.get("exists"):
+        return True
+    if facts.get("docstatus") == 2:
+        return True
+    return bool(facts.get("workflow")) and not facts.get("can_act")
 
 
 def urgency(due, today, priority=None):

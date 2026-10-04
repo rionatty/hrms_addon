@@ -108,25 +108,60 @@ print("order, counts, badge and titles")
 glue = read("hrms_addon", "hrms_addon", "alerts.py")
 tree = ast.parse(glue)
 functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
-for name in ("my_alerts", "mark_read", "mark_all_read"):
+for name in ("my_alerts", "mark_read", "mark_all_read", "mark_document_read", "close_assignment", "install_alert_type"):
     if name not in functions:
         fail.append("alerts.py must define %s" % name)
 for name, node in functions.items():
     if any(arg.arg in ("user", "for_user", "allocated_to") for arg in node.args.args):
         fail.append("%s takes a user to look at: the rail is the logged-in user's own work" % name)
-for name in ("mark_read", "mark_all_read"):
+for name in ("mark_read", "mark_all_read", "mark_document_read", "close_assignment"):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue):
         fail.append("%s changes something: it must be a whitelisted POST method" % name)
 if not re.search(r"@frappe\.whitelist\(\)\ndef my_alerts\(", glue):
     fail.append("my_alerts must be whitelisted for the rail to read it")
 if 'filters={"allocated_to": frappe.session.user, "status": "Open"}' not in glue:
     fail.append("alerts.py: the user's own open assignments (allocated_to, status Open)")
-if 'filters={"for_user": frappe.session.user},' not in glue:
-    fail.append("alerts.py: the notifications are the ones Frappe's own panel shows, read or not, not only the unread")
+# what has been attended to leaves the rail (Oct 2026): a notification once
+# read, an assignment once its work is done
+if 'filters={"for_user": frappe.session.user, "read": 0},' not in glue:
+    fail.append("alerts.py: the rail lists the notifications still unread: one read has been attended to")
 if '"unread": 0 if row.read else 1' not in glue:
     fail.append("alerts.py: an unread notification must be marked, or the panel cannot show which is new")
 if 'alert["kind"] == rules.ASSIGNMENT or alert.get("unread")' not in glue:
     fail.append("alerts.py: the count is what is still to be dealt with, not the whole list")
+for needle, why in (
+        ("seen[key] = rules.attended(_facts(row.reference_type, row.reference_name))",
+         "an assignment is judged by the tested rule, once per document"),
+        ("if seen[key]:\n                _close(row.name)\n                continue",
+         "an assignment whose work is done is closed and left out"),
+        ('todo.status = "Closed"', "closed as Frappe closes a finished assignment"),
+        ("facts[\"can_act\"] = bool(get_transitions(doc))", "a workflow document waits on the user while they have a step"),
+        ("facts[\"can_act\"] = True  # cannot tell: the assignment stays", "an error never drops an assignment"),
+        ('if frappe.db.get_value("ToDo", name, "allocated_to") != frappe.session.user:',
+         "only the user's own assignment can be marked done"),
+        ('"document_type": doctype, "document_name": name}, pluck="name")',
+         "opening a document reads the user's own notifications about it")):
+    if needle not in glue:
+        fail.append("alerts.py: %s (%r not found)" % (why, needle))
+for facts, wanted in (({"exists": False}, True), ({"exists": True, "docstatus": 2}, True),
+                      ({"exists": True, "docstatus": 1, "workflow": True, "can_act": False}, True),
+                      ({"exists": True, "docstatus": 0, "workflow": True, "can_act": True}, False),
+                      ({"exists": True, "docstatus": 1, "workflow": False}, False),
+                      ({"exists": True, "docstatus": 0}, False)):
+    if R.attended(facts) is not wanted:
+        fail.append("attended(%r) must be %s" % (facts, wanted))
+# the app's alerts reach the person by email too: Frappe never emails its Alert
+people = read("hrms_addon", "hrms_addon", "people.py")
+if '"type": alert_type(),' not in people or \
+        'return EMAILED_TYPE if frappe.db.exists("Notification Type", EMAILED_TYPE) else "Alert"' not in people:
+    fail.append("people.notify must send the app's emailed type once it is installed, Alert before that")
+if R.EMAILED_TYPE in ("Alert", "") or not R.EMAILED_TYPE:
+    fail.append("the app's alerts need a type of their own: Frappe never emails Alert")
+if "settings.append(\"email_notification_types\", {\"notification_type\": EMAILED_TYPE})" not in read(
+        "hrms_addon", "patches", "v1_0", "hr_alerts_by_email.py"):
+    fail.append("the users already there must get the new type ticked for email, once")
+if "hrms_addon.patches.v1_0.hr_alerts_by_email" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
+    fail.append("hr_alerts_by_email must be in patches.txt after the doctypes are migrated")
 
 
 def calls_of(source, name):
@@ -195,6 +230,15 @@ if "Alerts could not be loaded." not in js:
     fail.append("a failure must say so in the panel: an empty one reads as nothing to do")
 if 'frappe.session.user === "Guest"' not in js:
     fail.append("the rail is for a signed-in user")
+for needle, why in (
+        ('$(document).on("form-refresh", (event, frm) => frm && read_document(frm));',
+         "a notification is read once its document is opened, wherever from"),
+        ('alert.kind === "notification" && alert.unread && alert.doctype === frm.doctype && alert.docname === frm.docname',
+         "only when the rail holds an unread one about that document"),
+        ('if (event.target.closest(".ha-alert-done")) {', "an assignment can be marked done from the rail"),
+        ('alert.kind === "assignment"\n\t\t\t\t\t\t? `<span class="ha-alert-done"', "on assignments only")):
+    if needle not in js:
+        fail.append("the rail's script: %s (%r not found)" % (why, needle))
 indicators = re.search(r"const INDICATORS = \{(.*?)\};", js, re.S)
 if not indicators:
     fail.append("the rail must carry the toast colour of each band")
@@ -229,8 +273,11 @@ for band in R.BANDS:
 if ".ha-alert-unread .ha-alert-dot" not in css:
     fail.append("an unread alert must stand out from one already read")
 classes = set(re.findall(r'class="(ha-[\w -]+)"', js)) | set(re.findall(r'className = "(ha-[\w -]+)"', js))
+# styled in the bundle, or in the style the script puts in itself (no build)
+found = re.search(r"tag\.textContent = `(.*?)`;", js, re.S)
+injected = found.group(1) if found else ""
 for name in sorted({cls for group in classes for cls in group.split() if cls.startswith("ha-")}):
-    if "." + name not in css:
+    if "." + name not in css and "." + name not in injected:
         fail.append("the panel draws .%s, which the stylesheet does not style" % name)
 hooks = {}
 for node in ast.parse(read("hrms_addon", "hooks.py")).body:
@@ -241,6 +288,10 @@ for node in ast.parse(read("hrms_addon", "hooks.py")).body:
             pass
 if "/assets/hrms_addon/js/hrms_addon_alerts.js" not in (hooks.get("app_include_js") or []):
     fail.append("app_include_js must load the panel")
+if "hrms_addon.hrms_addon.alerts.install_alert_type" not in (hooks.get("after_migrate") or []):
+    fail.append("after_migrate must install the emailed notification type")
+if R.EMAILED_TYPE not in (hooks.get("notification_self_notify_types") or []):
+    fail.append("an alert must reach the person it names even when they caused it, as Frappe's Alert does")
 print("stylesheet: a sidebar box with a colour for every band, the unread standing out")
 
 print()
