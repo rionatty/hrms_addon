@@ -1,0 +1,34 @@
+<div class="email-footer-container text-muted {% if email_account_footer or sender_address or default_mail_footer %}with-divider{% endif %}">
+	<!-- email_account_footer -->
+	{% if email_account_footer %}
+	<div class="email-account-footer">
+		{{ email_account_footer }}
+	</div>
+	{% endif %}
+
+	<!-- sender_address -->
+	{% if sender_address %}
+	<div class="sender-address">
+		{% for line in sender_address.splitlines(True) %}
+		<div>{{ line }}</div>
+		{% endfor %}
+	</div>
+	{% endif %}
+
+	<!--unsubscribe link here-->
+
+	<div class="email-pixel">
+		<!--email_open_check-->
+	</div>
+
+	<!-- default_mail_footer -->
+	{#- hrms_addon: Frappe's own template, but its last line is CyveTech's in
+	    place of the line other apps' hooks give (default_mail_footer); System
+	    Settings' Disable Standard Email Footer still leaves it out -#}
+	{% if default_mail_footer %}
+	<div class="default-mail-footer">
+		<div>Powered by CyveTech</div>
+	</div>
+	{% endif %}
+
+</div>

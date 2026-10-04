@@ -4,7 +4,9 @@
 """The candidate's answer to an interview invitation, at /interview-response
 (www/interview-response.html).
 
-The invitation links here with the Interview's own key (interviews.response_link).
+Invitations sent before October 2026 linked here with the Interview's own
+key; letters now carry no link into the system and HR records the answer
+from the candidate's reply, but the page still answers the links sent.
 The candidate sees their interview and confirms they will attend, or asks for
 another time with a note on when they could come. The answer is kept on the
 Interview with the slot it was given for (interview_rules.slot_of), so it

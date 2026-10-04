@@ -146,10 +146,10 @@ if not sequence(later) > sequence(text):
     fail.append("a file made later for the same interview has a higher SEQUENCE, so a calendar moves it")
 summary, location, description = R.invitation_event_text({
     "designation": "Machine Operator", "company": "Luuka Plastics", "mode": "Video Call", "venue": "",
-    "meeting_link": "https://meet.example.com/x", "confirm_link": "https://site/i?key=k", "what_to_bring": "ID"})
+    "meeting_link": "https://meet.example.com/x", "confirm_link": "", "what_to_bring": "ID"})
 if (summary, location) != ("Interview for Machine Operator at Luuka Plastics", "Video call: https://meet.example.com/x") \
-        or "https://site/i?key=k" not in description or "Please bring: ID" not in description:
-    fail.append("the candidate's entry says what, where, how to answer and what to bring: %s"
+        or "Please bring: ID" not in description or "Confirm your attendance" in description:
+    fail.append("the candidate's entry says what, where and what to bring, and links to nothing of the system: %s"
                 % ((summary, location, description),))
 if R.panel_event_text("Diana Nakato", "Round 1", "In Person", "Block B", "", "https://site/app/interview/HR-INT-1") \
         != ("Interview: Diana Nakato (Round 1)", "Block B", "The interview, with the CV: https://site/app/interview/HR-INT-1"):
@@ -157,25 +157,57 @@ if R.panel_event_text("Diana Nakato", "Round 1", "In Person", "Block B", "", "ht
 print("the calendar file: UTC times, escaped text, folded lines, one entry per interview, moved not doubled")
 
 # ── 3. The letters ────────────────────────────────────────────────────
+# Oct 2026, Luuka: nothing sent to people outside links into the system;
+# the candidate replies to the email and HR records the answer
 if "confirm_link" not in R.INVITATION_KEYS:
-    fail.append("the invitation's template may name the link")
-if "{{ confirm_link }}" not in R.INVITATION_BODY or "reply to this email" in R.INVITATION_BODY:
-    fail.append("the seeded invitation links to the page instead of asking for a reply")
+    fail.append("a template that still names the link must render (blank), not fail")
+if "confirm_link" in R.INVITATION_BODY or R.REPLY_PARAGRAPH not in R.INVITATION_BODY \
+        or "reply to this email" not in R.INVITATION_BODY:
+    fail.append("the seeded invitation asks for a reply, with no link")
+if R.LINK_PARAGRAPH not in R.LINKED_INVITATION_BODY or "{{ confirm_link }}" not in R.LINK_PARAGRAPH:
+    fail.append("the text seeded with the link stays known, for the patch to recognise")
 if "reply to this email" not in R.PREVIOUS_INVITATION_BODY or "confirm_link" in R.PREVIOUS_INVITATION_BODY:
-    fail.append("the text seeded before stays known, for the patch to recognise")
-block = R.confirm_block("https://site/interview-response?key=a&b\"c")
-if 'href="https://site/interview-response?key=a&amp;b&quot;c"' not in block:
-    fail.append("the link added to a changed template is escaped in its attribute: %s" % block)
-print("the letters: the link in the seeded invitation, and added where HR's text lacks it")
+    fail.append("the text seeded before the link stays known too")
+hosts = ["luukahr.cyvetech.com", "cyveluuka.live"]
+for html, wanted in (
+        ('<p>Answer <a href="">here</a>.</p>', "<p>Answer here.</p>"),
+        ('<a href="https://luukahr.cyvetech.com/interview-response?key=k">confirm</a>', "confirm"),
+        ('<a class="x" href=\'http://cyveluuka.live/app/interview/I-1\' target="_blank">the form</a>', "the form"),
+        ('<a href="/jobs">our jobs</a>', "our jobs"),
+        ('<a href="app/interview/I-1">bare</a>', "bare"),
+        ('<a href="https://meet.google.com/abc">join</a>', '<a href="https://meet.google.com/abc">join</a>'),
+        ('<a href="mailto:hr@luuka.co.ug">write</a>', '<a href="mailto:hr@luuka.co.ug">write</a>'),
+        ('<a href="tel:+256700000000">call</a>', '<a href="tel:+256700000000">call</a>'),
+        ('<A HREF="https://LUUKAHR.cyvetech.com/x">loud</A>', "loud"),
+        # Frappe puts the site's address before any other link as it sends
+        ('<a href="#top">top</a>', "top"),
+        ('<a href="//meet.google.com/x">no scheme</a>', "no scheme"),
+        ('<a href="HTTPS://meet.google.com/x">upper</a>', "upper"),
+        ('<a href=https://luukahr.cyvetech.com/x>unquoted</a>', "unquoted"),
+        ('<a target="_blank" href="https://luukahr.cyvetech.com/x?a=1&amp;b=2"><b>bold</b></a>', "<b>bold</b>"),
+        # an address written out, which the reader's mail makes a link
+        ("<p>See https://luukahr.cyvetech.com/jobs.</p>", "<p>See .</p>"),
+        ("<p>Visit cyveluuka.live today, or https://luukahr.cyvetech.com/</p>", "<p>Visit  today, or </p>"),
+        ('<a href="https://luukahr.cyvetech.com/x">https://luukahr.cyvetech.com/x</a>', ""),
+        ("<p>Write to hr@luukahr.cyvetech.com</p>", "<p>Write to hr@luukahr.cyvetech.com</p>"),
+        ("<p>luukahr.cyvetech.community and www.cyveluuka.live.org</p>",
+         "<p>luukahr.cyvetech.community and www.cyveluuka.live.org</p>"),
+        ('<p><img src="https://luukahr.cyvetech.com/files/logo.png"> https://meet.google.com/x</p>',
+         '<p><img src="https://luukahr.cyvetech.com/files/logo.png"> https://meet.google.com/x</p>')):
+    if R.without_system_links(html, hosts) != wanted:
+        fail.append("without_system_links(%r) gave %r, want %r" % (html, R.without_system_links(html, hosts), wanted))
+print("the letters: no link into the system; a reply asked for; another site's link, a meeting's, kept")
 
 # ── 4. The paper ──────────────────────────────────────────────────────
 rows = {row["fieldname"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))
         if row["dt"] == "Interview"}
 answer_field = rows.get("custom_candidate_response", {})
-if answer_field.get("options", "").split("\n")[1:] != list(R.RESPONSES) or not answer_field.get("read_only") \
+if answer_field.get("options", "").split("\n")[1:] != list(R.RESPONSES) or answer_field.get("read_only") \
         or not answer_field.get("in_list_view") or not answer_field.get("in_standard_filter"):
-    fail.append("the Interview shows the candidate's answer, in its list and filters, and nobody types it")
-for fieldname in ("custom_responded_on", "custom_response_note", "custom_response_slot", "custom_response_key"):
+    fail.append("the Interview shows the candidate's answer, in its list and filters, and HR records it from their reply")
+if rows.get("custom_response_note", {}).get("read_only") or not rows.get("custom_response_note", {}).get("no_copy"):
+    fail.append("HR notes what the candidate asked for, not copied to a new interview")
+for fieldname in ("custom_responded_on", "custom_response_slot", "custom_response_key"):
     if not rows.get(fieldname, {}).get("read_only") or not rows.get(fieldname, {}).get("no_copy"):
         fail.append("%s is written by the system and not copied to a new interview" % fieldname)
 for fieldname in ("custom_response_slot", "custom_response_key"):
@@ -202,21 +234,36 @@ def body(source, name):
     return source.split(marker)[1].split("\ndef ")[0]
 
 
-link = body(glue, "response_link")
-if 'frappe.generate_hash(length=32)' not in link or '"custom_response_key"' not in link \
-        or "/interview-response?key=" not in link:
-    fail.append("each interview gets its own long key once, and the link opens the page with it")
+if "def response_link(" in glue or "generate_hash" in glue or "/interview-response?key=" in glue:
+    fail.append("no letter makes a link to the candidate's page any more (the links sent before still open it)")
 inviting = body(glue, "_invite")
 for needle, why in (
-    ('context["confirm_link"] not in message', "a template that does not place the link"),
-    ("rules.confirm_block(", "gets it added"),
+    ("message = rules.without_system_links(message, system_hosts())", "the letter goes with no link into the system"),
     ("rules.interview_event(", "the invitation's calendar entry"),
     ('_calendar_attachment([event], "interview.ics")', "is attached"),
 ):
     if needle not in inviting:
         fail.append("_invite: %s" % why)
-if '"confirm_link": response_link(interview.name)' not in body(glue, "_invitation_context"):
-    fail.append("the invitation's context has the link")
+if "confirm_block" in inviting or "url=context" in inviting or "response_link(" in inviting:
+    fail.append("_invite must add no link into the system, to the letter or its calendar entry")
+if '"confirm_link": "",' not in body(glue, "_invitation_context"):
+    fail.append("the invitation's context gives a template that still names the link a blank one")
+if "message = rules.without_system_links(message, system_hosts())" not in body(glue, "send_regret"):
+    fail.append("the regret letter goes with no link into the system either")
+hosts_body = body(glue, "system_hosts")
+if "frappe.utils.get_url()" not in hosts_body or 'frappe.conf.get("host_name")' not in hosts_body \
+        or 'getattr(frappe.local, "site", None)' not in hosts_body:
+    fail.append("the system's addresses: its URL's, its host name's and its site name")
+reply = body(glue, "_record_reply")
+for needle, why in (('doc.custom_response_slot = rules.slot_of(doc.get("scheduled_on"), doc.get("from_time"))',
+                     "an answer HR records stands for the slot as it is now"),
+                    ("doc.custom_responded_on = now_datetime()", "and is dated"),
+                    ('if before is not None and answer == before.get("custom_candidate_response"):\n        return',
+                     "only when HR changes it")):
+    if needle not in reply:
+        fail.append("_record_reply: %s" % why)
+if "_record_reply(doc, before)" not in body(glue, "interview_validate"):
+    fail.append("the Interview's validate records HR's entry of the answer")
 panel = body(glue, "_send_panel_schedules")
 if 'rules.panel_event_text(' not in panel or '_calendar_attachment(events, "interviews.ics")' not in panel:
     fail.append("the panel's schedule carries a calendar file of their interviews")
@@ -282,6 +329,27 @@ if "hrms_addon.patches.v1_0.interview_confirm_link" not in read("hrms_addon", "p
 patch = read("hrms_addon", "patches", "v1_0", "interview_confirm_link.py")
 if "rules.PREVIOUS_INVITATION_BODY" not in patch or "rules.INVITATION_BODY" not in patch:
     fail.append("the patch replaces the seeded text only where HR left it as it was")
+if "hrms_addon.patches.v1_0.interview_letters_without_links" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]")[-1]:
+    fail.append("interview_letters_without_links runs on migrate")
+unlinking = read("hrms_addon", "patches", "v1_0", "interview_letters_without_links.py")
+if "if rules.LINK_PARAGRAPH in body:" not in unlinking or "body.replace(rules.LINK_PARAGRAPH, rules.REPLY_PARAGRAPH)" \
+        not in unlinking:
+    fail.append("interview_letters_without_links replaces the seeded paragraph with the link, and only it")
+# the footer Frappe puts on every email, and the website's: CyveTech, not ERPNext
+footer = read("hrms_addon", "templates", "emails", "email_footer.html")
+if "Powered by CyveTech" not in footer or "default_mail_footer %}" not in footer or "ERPNext" in footer \
+        or "<!--email_open_check-->" not in footer or "<!--unsubscribe link here-->" not in footer:
+    fail.append("the email footer says Powered by CyveTech where Frappe put Sent via ERPNext, "
+                "and keeps Frappe's placeholders")
+if '_("Powered by {0}").format("CyveTech")' not in read("hrms_addon", "templates", "includes", "footer",
+                                                         "footer_powered.html"):
+    fail.append("the website footer says Powered by CyveTech")
+print_link = read("hrms_addon", "templates", "emails", "print_link.html").strip()
+if print_link and not (print_link.startswith("{#") and print_link.endswith("#}") and print_link.count("{#") == 1):
+    fail.append("Frappe's View this in your browser link renders nothing: the template is one Jinja comment")
+if 'frappe.db.set_single_value("System Settings", "attach_view_link", 0)' not in unlinking:
+    fail.append("interview_letters_without_links turns Include Web View Link in Email off, so the screen says so")
 print("wiring: the on_change hook, the calendar script, the fixtures and the patch")
 
 if fail:

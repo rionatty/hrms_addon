@@ -28,6 +28,7 @@ the panel member says why in its comments.
 
 import datetime
 import re
+from urllib.parse import urlparse
 
 # LPL/HR/17's criteria, grouped and ordered as the form prints them. Only
 # the seed for the Interview Criteria Group and Interview Criterion masters:
@@ -631,13 +632,18 @@ _INVITATION_HEAD = (
     "{% if what_to_bring %}<p><b>Please bring:</b> {{ what_to_bring | e }}</p>{% endif %}",
 )
 _INVITATION_SIGN_OFF = "<p>Yours sincerely,<br>Human Resources<br>{{ company }}</p>"
-INVITATION_BODY = "".join(_INVITATION_HEAD + (
-    "<p>Please let us know whether you will attend: <a href=\"{{ confirm_link }}\">confirm your attendance or ask "
-    "for another time</a>. The calendar invitation attached adds the interview to your calendar.</p>",
-    _INVITATION_SIGN_OFF,
-))
-# the body seeded before the link, which the patch interview_confirm_link
-# replaces where HR left it as it was
+# Oct 2026, Luuka: nothing sent to people outside links into the system. The
+# candidate replies to the email; HR records the answer on the Interview.
+LINK_PARAGRAPH = ("<p>Please let us know whether you will attend: <a href=\"{{ confirm_link }}\">confirm your "
+                  "attendance or ask for another time</a>. The calendar invitation attached adds the interview to "
+                  "your calendar.</p>")
+REPLY_PARAGRAPH = ("<p>Please reply to this email to confirm that you will attend, or to ask for another time. The "
+                   "calendar invitation attached adds the interview to your calendar.</p>")
+INVITATION_BODY = "".join(_INVITATION_HEAD + (REPLY_PARAGRAPH, _INVITATION_SIGN_OFF))
+# the body seeded with the confirmation link (30 Sep to Oct 2026), which the
+# patch interview_letters_without_links replaces where HR left it as it was
+LINKED_INVITATION_BODY = "".join(_INVITATION_HEAD + (LINK_PARAGRAPH, _INVITATION_SIGN_OFF))
+# the body seeded before the link (the patch interview_confirm_link's)
 PREVIOUS_INVITATION_BODY = "".join(_INVITATION_HEAD + (
     "<p>Please reply to this email to confirm that you will attend, or to ask for another time.</p>",
     _INVITATION_SIGN_OFF,
@@ -706,10 +712,37 @@ def response_errors(answer, note):
     return errors
 
 
-def confirm_block(link):
-    """What an invitation adds when its template does not place the link."""
-    return ("<p>Please let us know whether you will attend: <a href=\"%s\">confirm your attendance or ask for "
-            "another time</a>.</p>" % _attribute(link))
+_LINK = re.compile(r"""<a\b[^>]*?\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>(.*?)</a\s*>""", re.I | re.S)
+_TAG = re.compile(r"(<[^>]*>)")
+# what Frappe sends as it is (frappe.utils.data.expand_relative_urls, as
+# every email goes): any other link it turns into one on the site
+_SENT_AS_IS = ("mailto", "data:", "tel:")
+
+
+def without_system_links(html, hosts):
+    """A letter to someone outside, with no link into the system: a link to
+    one of the system's addresses (hosts), or one Frappe turns into one as it
+    sends (a path, a #, anything not starting http, mailto, data: or tel:),
+    is left as its words, and an address of the system written out in the
+    text, which the reader's mail would make a link, is taken out. Another
+    site's link (a video call's), a mailto: and an email address stay."""
+    hosts = sorted({str(host).lower() for host in hosts or () if host}, key=len, reverse=True)
+
+    def keep(match):
+        href = next((group for group in match.groups()[:3] if group is not None), "").strip()
+        if href.startswith(_SENT_AS_IS):
+            return match.group(0)
+        if href.startswith("http") and urlparse(href.replace("&amp;", "&")).netloc.lower() not in hosts:
+            return match.group(0)  # another site's
+        return match.group(4)
+
+    html = _LINK.sub(keep, html or "")
+    if not hosts:
+        return html
+    written = re.compile(r"(?<![\w.@/-])(?:https?://)?(?:%s)(?![\w-]|\.\w)(?::\d+)?"
+                         r"(?:[/?#](?:[^\s<>\"']*[^\s<>\"'.,;:!?)\]])?)?"
+                         % "|".join(re.escape(host) for host in hosts), re.I)
+    return "".join(part if part.startswith("<") else written.sub("", part) for part in _TAG.split(html))
 
 
 def calendar_mark(status, answer):

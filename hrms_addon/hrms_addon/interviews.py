@@ -84,9 +84,12 @@ days, and round):
 and the candidate's answer and the calendar (the candidate's page is
 interview_response.py):
 
-  response_link        the invitation's link, to confirm or ask for another
-                       time; the invitation and the panel's schedule carry a
-                       calendar file of their interviews
+  _record_reply        Interview validate: the answer HR records from the
+                       candidate's reply, for the slot it was given for (the
+                       letters carry no link into the system, Oct 2026; the
+                       page still answers the links sent before). The
+                       invitation and the panel's schedule carry a calendar
+                       file of their interviews
   clear_moved_response Interview on_change (a save, or Frappe HR's
                        Reschedule): an answer given for a slot the interview
                        has left no longer stands
@@ -205,6 +208,21 @@ def interview_validate(doc, method=None):
     status = rules.status_for_attendance(doc.get("custom_attendance"), doc.get("status"))
     if status and doc.docstatus == 0:
         doc.status = status
+    _record_reply(doc, before)
+
+
+def _record_reply(doc, before):
+    """The candidate's answer, recorded by HR from their reply to the
+    invitation (the invitation no longer links to a page to answer on): it
+    stands for the interview's slot as it is now, and is dated."""
+    answer = doc.get("custom_candidate_response")
+    if before is not None and answer == before.get("custom_candidate_response"):
+        return
+    if answer:
+        doc.custom_response_slot = rules.slot_of(doc.get("scheduled_on"), doc.get("from_time"))
+        doc.custom_responded_on = now_datetime()
+    else:
+        doc.custom_response_slot = doc.custom_responded_on = None
 
 
 def type_questions(interview_type):
@@ -702,13 +720,12 @@ def _invite(name):
     template = frappe.db.get_single_value("HR Settings", "custom_invitation_template")
     if applicant.email_id and template and frappe.db.exists("Email Template", template):
         subject, message = _render(template, context)
-        if context["confirm_link"] not in message:
-            # a template HR changed before the link came in: the link goes at the end
-            message += rules.confirm_block(context["confirm_link"])
+        # nothing sent outside links into the system (Oct 2026): a template
+        # still naming the confirmation page keeps its words, not the link
+        message = rules.without_system_links(message, system_hosts())
         event = rules.interview_event(
             "%s@%s" % (name, _calendar_host()), interview.scheduled_on, interview.from_time, interview.to_time,
-            _utc_offset(interview.scheduled_on, interview.from_time), rules.invitation_event_text(context),
-            url=context["confirm_link"])
+            _utc_offset(interview.scheduled_on, interview.from_time), rules.invitation_event_text(context))
         frappe.sendmail(recipients=[applicant.email_id], subject=subject, message=message, sender=_hiring_sender(),
                         reference_doctype="Interview", reference_name=name,
                         attachments=[_calendar_attachment([event], "interview.ics")] if event else None)
@@ -746,7 +763,9 @@ def _invitation_context(interview, applicant):
         "meeting_link": interview.get("custom_meeting_link") or "",
         "what_to_bring": frappe.db.get_value("Interview Type", interview.interview_type, "custom_what_to_bring") or "",
         "interview": interview.name,
-        "confirm_link": response_link(interview.name),
+        # no longer sent (nothing to people outside links into the system):
+        # kept blank for a template that still names it
+        "confirm_link": "",
     }
 
 
@@ -815,6 +834,7 @@ def send_regret(applicant):
     company = frappe.db.get_value("Job Opening", values.job_title, "company") if values.job_title else ""
     subject, message = _render(template, {"applicant_name": values.applicant_name or "",
                                           "designation": values.designation or "", "company": company or ""})
+    message = rules.without_system_links(message, system_hosts())
     frappe.sendmail(recipients=[values.email_id], subject=subject, message=message, sender=_hiring_sender(),
                     reference_doctype="Job Applicant", reference_name=applicant)
     frappe.db.set_value("Job Applicant", applicant, "custom_regret_sent_on", now_datetime(), update_modified=False)
@@ -870,16 +890,6 @@ def _quietly(function, *args):
 # ── The candidate's answer, and the calendar ──────────────────────────
 
 
-def response_link(name):
-    """The page where the candidate confirms or asks for another time
-    (www/interview-response.html), by the Interview's own key."""
-    key = frappe.db.get_value("Interview", name, "custom_response_key")
-    if not key:
-        key = frappe.generate_hash(length=32)
-        frappe.db.set_value("Interview", name, "custom_response_key", key, update_modified=False)
-    return frappe.utils.get_url("/interview-response?key=%s" % key)
-
-
 def _utc_offset(day, clock):
     """Minutes the site's time zone is ahead of UTC on that day and time."""
     from zoneinfo import ZoneInfo
@@ -896,6 +906,18 @@ def _calendar_host():
     from urllib.parse import urlparse
 
     return urlparse(frappe.utils.get_url()).netloc or "hrms-addon"
+
+
+def system_hosts():
+    """Every address the site answers at: its URL's, its configured host
+    name's and its own name. A letter to someone outside links to none."""
+    from urllib.parse import urlparse
+
+    hosts = {urlparse(frappe.utils.get_url()).netloc, getattr(frappe.local, "site", None)}
+    host_name = frappe.conf.get("host_name") if getattr(frappe, "conf", None) else None
+    if host_name:
+        hosts.add(urlparse(host_name if "//" in host_name else "//" + host_name).netloc)
+    return {host for host in hosts if host}
 
 
 def _calendar_attachment(events, fname):
