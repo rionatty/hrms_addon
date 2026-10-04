@@ -58,3 +58,4 @@ hrms_addon.patches.v1_0.shortlist_cv_column
 hrms_addon.patches.v1_0.training_after_onboarding
 hrms_addon.patches.v1_0.interview_letters_without_links
 hrms_addon.patches.v1_0.scorecard_by_kpi
+hrms_addon.patches.v1_0.careers_without_login

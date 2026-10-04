@@ -4,7 +4,8 @@
 """Careers portal: the Job Opening page and the Job Application Form (/apply).
 
 The page itself is templates/generators/job_opening.html; the form is the
-Web Form job_application_form. This supplies them with data.
+Web Form job_application_form. This supplies them with data, and makes the
+job list the site's home for a visitor who is not signed in (home_page).
 """
 
 import frappe
@@ -12,6 +13,21 @@ from frappe.utils import format_date, get_url
 
 from hrms_addon.hrms_addon import jd_rules
 from hrms_addon.hrms_addon import opening_rules
+
+
+# the job list, www/jobs
+JOBS_PAGE = "jobs"
+
+
+def home_page(user):
+    """The site's home (hooks.py get_website_user_home_page): the job list
+    for a visitor who is not signed in, so the top bar's Home and the bare
+    address open it rather than the login page (Luuka, 4 Oct 2026). Anyone
+    signed in, and a home page an administrator sets in Website Settings,
+    keep Frappe's own lookup: None."""
+    if (user or "Guest") != "Guest" or frappe.db.get_single_value("Website Settings", "home_page"):
+        return None
+    return JOBS_PAGE
 
 
 def job_share_links(job_opening):

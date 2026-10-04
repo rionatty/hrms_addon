@@ -522,6 +522,41 @@ if os.path.isdir(APPS_ROOT):
             fail.append("Frappe changed: %s (%s). Recheck the private uploads" % (why, "/".join(parts)))
 print("uploads: every file sent from the website is stored private; the form's upload dialog starts private and offers no choice")
 
+# ── the top bar: Home opens the job list, no Login (Luuka, 4 Oct 2026) ──
+home_hook = hooks.get("get_website_user_home_page")
+if home_hook is None or ast.literal_eval(home_hook) != "hrms_addon.hrms_addon.careers.home_page":
+    fail.append("hooks.get_website_user_home_page must be careers.home_page: a visitor's Home opens the job list")
+for name in ("role_home_page", "home_page", "website_user_home_page"):
+    if name in hooks:
+        fail.append("hooks.%s would decide the home page as well: every signed-in user has the Guest role" % name)
+home_body = careers.split("def home_page(user):")[1].split("\ndef ")[0] if "def home_page(user):" in careers else ""
+for needle, why in (('(user or "Guest") != "Guest"', "only for a visitor who is not signed in"),
+                    ('frappe.db.get_single_value("Website Settings", "home_page")',
+                     "a home page set in Website Settings wins"),
+                    ("return JOBS_PAGE", "the job list")):
+    if needle not in home_body:
+        fail.append("careers.home_page: %s (%r not found)" % (why, needle))
+if 'JOBS_PAGE = "jobs"' not in careers or not os.path.exists(os.path.join(REPO, "hrms_addon", "www", "jobs",
+                                                                         "index.html")):
+    fail.append("the job list is www/jobs")
+if "hrms_addon.patches.v1_0.careers_without_login" not in read(os.path.join(REPO, "hrms_addon", "patches.txt")).split(
+        "[post_model_sync]")[-1]:
+    fail.append("careers_without_login runs on migrate")
+if 'frappe.db.set_single_value("Website Settings", "hide_login", 1)' not in read(
+        os.path.join(REPO, "hrms_addon", "patches", "v1_0", "careers_without_login.py")):
+    fail.append("careers_without_login ticks Website Settings' Hide Login, Frappe's own way off the top bar")
+if re.search(r"\.navbar[^{]*\{[^}]*display\s*:\s*none", read(os.path.join(REPO, "hrms_addon", "public", "css",
+                                                                         "careers.css"))):
+    fail.append("the top bar stays on the careers pages: its Home opens the job list")
+versions = set()
+for parts in (("templates", "generators", "job_opening.html"), ("www", "jobs", "index.html"),
+              ("www", "interview-response.html"),
+              ("hrms_addon", "web_form", "job_application_form", "job_application_form.css")):
+    versions |= set(re.findall(r"careers\.css\?v=(\d+)", read(os.path.join(REPO, "hrms_addon", *parts))))
+if len(versions) != 1:
+    fail.append("every careers page asks for the same version of careers.css: %s" % sorted(versions))
+print("the top bar: Home opens the job list for a visitor, Login hidden by Website Settings, one careers.css version")
+
 print()
 if fail:
     print("FAILURES:")

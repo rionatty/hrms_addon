@@ -213,6 +213,13 @@ doctype_calendar_js = {"Interview": "public/js/interview_calendar.js"}
 # 	"Role": "home_page"
 # }
 
+# A visitor who is not signed in lands on the job list: the top bar's Home
+# and the bare address open it, not the login page (Luuka, 4 Oct 2026).
+# Signed-in users, and a home page set in Website Settings, keep Frappe's own
+# (careers.home_page). Not role_home_page: every signed-in user has the
+# Guest role too.
+get_website_user_home_page = "hrms_addon.hrms_addon.careers.home_page"
+
 # Generators
 # ----------
 

@@ -1,10 +1,12 @@
 /*
- * Careers portal — the Job Opening page and the Job Application Form (/apply).
+ * Careers portal — the job list (/jobs), the Job Opening page, the Job
+ * Application Form (/apply) and the interview reply page.
  *
  * A plain asset: served from /assets/hrms_addon/css/careers.css without
- * `bench build`. Linked by templates/generators/job_opening.html and
- * @imported by web_form/job_application_form/job_application_form.css, so
- * it only ever loads on those two pages.
+ * `bench build`. Linked by templates/generators/job_opening.html,
+ * www/jobs/index.html and www/interview-response.html, and @imported by
+ * web_form/job_application_form/job_application_form.css, so it only ever
+ * loads on those pages.
  *
  * Colours are Luuka Plastics' logo: the blue oval and the green leaf.
  */
