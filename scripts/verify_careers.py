@@ -234,12 +234,17 @@ for row in rows:
     if (row["fieldtype"], row.get("options") or None) != (meta["fieldtype"], meta.get("options") or None):
         fail.append("web form field %s is %s %r, Job Applicant has %s %r"
                     % (row["fieldname"], row["fieldtype"], row.get("options"), meta["fieldtype"], meta.get("options")))
-if len(pages) != 4 or [p for p in pages if not p]:
-    fail.append("the form must have 4 non-empty steps (application, personal, education, skills), has %d" % len(pages))
+# Oct 2026, Luuka: the phone, the CV and the cover letter are required; the
+# personal information is not asked (it is taken at onboarding)
+if len(pages) != 3 or [p for p in pages if not p]:
+    fail.append("the form must have 3 non-empty steps (application, education, skills), has %d" % len(pages))
+REQUIRED = ["applicant_name", "cover_letter", "email_id", "phone_number", "resume_attachment"]
 mandatory = sorted(row["fieldname"] for p in pages for row in p if row.get("reqd"))
 first_page_mandatory = sorted(row["fieldname"] for row in pages[0] if row.get("reqd"))
-if mandatory != ["applicant_name", "email_id"] or first_page_mandatory != mandatory:
-    fail.append("only Full Name and Email Address may be mandatory, both on step 1: %s" % mandatory)
+if mandatory != REQUIRED or first_page_mandatory != mandatory:
+    fail.append("the name, email, phone, CV and cover letter are required, all on step 1: %s" % mandatory)
+if "resume_link" in {row.get("fieldname") for row in rows}:
+    fail.append("the CV is the file itself: the form no longer asks for a link to one")
 # Family details (parents, next of kin) are collected at onboarding, on the
 # applicant's Bio-Data tab, not asked of every candidate on the portal
 ONBOARDING_ONLY = {"custom_parents", "custom_next_of_kin"}
@@ -247,8 +252,12 @@ ONBOARDING_ONLY = {"custom_parents", "custom_next_of_kin"}
 FROM_THE_OPENING = {"custom_branch"}
 # Read from the uploaded CV: never asked
 FROM_THE_CV = {"custom_cv_text", "custom_cv_read_from"}
-# No longer asked of candidates (A'Level and O'Level results)
-NOT_ASKED = {"custom_school_results"}
+# No longer asked of candidates (A'Level and O'Level results), and since
+# Oct 2026 none of the personal information: it is taken at onboarding
+NOT_ASKED = {"custom_school_results", "custom_date_of_birth", "custom_gender", "custom_marital_status",
+             "custom_no_of_children", "custom_citizenship", "custom_nin", "custom_nssf_no", "custom_tin",
+             "custom_home_village", "custom_home_district", "custom_current_residence", "custom_current_district",
+             "custom_health_issues"}
 # Written by the system (when the regret email went, the screening kept on
 # the applicant, the employee record of a member of staff applying): never
 # asked
@@ -329,7 +338,7 @@ if not re.search(r"^def get_context\(context\):", read(os.path.join(FORM_DIR, "j
 for init in (os.path.join(APP, "web_form", "__init__.py"), os.path.join(FORM_DIR, "__init__.py")):
     if not os.path.exists(init):
         fail.append("%s is missing: Frappe imports the web form's module" % os.path.relpath(init, REPO))
-print("Job Application Form: %d steps, fields match Job Applicant, only step 1 mandatory, every pick list filled" % len(pages))
+print("Job Application Form: %d steps, fields match Job Applicant, name, email, phone, CV and cover letter required on step 1, every pick list filled, saved for later on the device" % len(pages))
 
 # ── 4. Job Openings list (/jobs) ─────────────────────────────────────
 JOBS_DIR = os.path.join(REPO, "hrms_addon", "www", "jobs")
@@ -435,14 +444,43 @@ uploads = read(os.path.join(APP, "uploads.py"))
 for needle, why in (
     ('@frappe.whitelist(allow_guest=True, methods=["POST"])\ndef upload_file():', "must stay open to guests, by POST, as Frappe's is"),
     ('    if "file" in frappe.request.files and from_the_website(frappe.session.user):\n        frappe.form_dict.is_private = 1\n'
+     '        if frappe.session.user == "Guest" and for_no_document(frappe.form_dict):\n            return candidate_cv()\n'
      "    return frappe_upload_file()",
-     "must store a file sent from the website private, then hand over to Frappe's upload"),
+     "must store a file sent from the website private, take a guest's CV for an application not yet made, "
+     "and hand everything else to Frappe's upload"),
     ("from frappe.handler import upload_file as frappe_upload_file", "must call Frappe's own upload, not a copy of it"),
     ('return user == "Guest" or not frappe.get_doc("User", user).has_desk_access()',
      "must treat guests and portal users, and only them, as the website"),
+    # Oct 2026: Frappe v16 refused every CV when System Settings listed any
+    # doctype for guest uploads, the form's upload naming none
+    ('return not any(form.get(key) for key in ("doctype", "docname", "library_file_name", "file_url", "method"))',
+     "takes as a CV only an upload naming no document, file or method"),
+    ("@rate_limit(limit=CVS_AN_HOUR, seconds=60 * 60)\ndef candidate_cv():", "limits how many CVs one address sends"),
+    ('if not frappe.get_system_settings("allow_guests_to_upload_files"):', "still asks that guests may upload at all"),
+    ("if allowed and APPLICANT not in allowed:", "reads System Settings' list as for a Job Applicant"),
+    ("if mimetypes.guess_type(upload.filename or \"\")[0] not in CV_TYPES:", "takes a CV's file types only"),
+    ('"is_private": 1, "folder": "Home"})', "keeps the CV private"),
+    ('"owner": ["in", ["Guest", doc.owner]],\n                                        "attached_to_name": ["is", "not set"]}',
+     "attaches to the applicant only an unattached file the applicant sent"),
 ):
     if needle not in uploads:
         fail.append("uploads.py %s" % why)
+if (ast.literal_eval(hooks["doc_events"]) if "doc_events" in hooks else {}).get("Job Applicant", {}).get(
+        "after_insert") != "hrms_addon.hrms_addon.uploads.attach_cv":
+    fail.append("a Job Applicant made from the website must have its CV attached (uploads.attach_cv after_insert)")
+for needle, why in (
+        ('$(\'<button type="button" class="lpl-save-later btn btn-default btn-sm ml-2"></button>\')',
+         "a Save for later button beside Submit"),
+        ("window.localStorage.setItem(this.draft_key(), JSON.stringify({ saved_on: Date.now(), values }));",
+         "the application kept on the candidate's own device"),
+        ("frappe.web_form.after_save = () => this.clear_draft();", "and cleared once they apply"),
+        ('$(".discard-btn").on("click", () => this.clear_draft());', "or discard"),
+        ('const HA_APPLY_SKIP = ["job_title", "custom_screening_answers"];',
+         "the opening applied for and its questions always come from the page, never the saved copy")):
+    if needle not in script:
+        fail.append("job_application_form.js: %s (%r not found)" % (why, needle))
+if ".lpl-apply-draft" not in style:
+    fail.append("job_application_form.css must style the saved application notice")
 init = re.search(r"\n\tinit\(\) \{\n\t\t([^\n]*)\n", script)
 if not init or init.group(1) != "this.private_uploads();":
     fail.append("job_application_form.js must make uploads private first thing in init, before anything can return early")

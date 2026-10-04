@@ -8,7 +8,7 @@
  "anonymous": 0,
  "apply_document_permissions": 0,
  "button_label": "Submit Application",
- "client_script": "frappe.web_form.after_load = () => hrms_addon_apply.init();\n\nfrappe.web_form.on(\"resume_link\", (field, value) => {\n\tif (value && !frappe.utils.is_url(value)) {\n\t\tfrappe.msgprint(__(\"Please enter a valid link to your CV, starting with https://\"));\n\t}\n});\n",
+ "client_script": "frappe.web_form.after_load = () => hrms_addon_apply.init();\n",
  "condition_json": "[]",
  "creation": "2026-09-19 12:00:00.000000",
  "custom_css": "",
@@ -18,7 +18,7 @@
  "hide_footer": 0,
  "hide_navbar": 0,
  "idx": 0,
- "introduction_text": "<p>Step 1 is all we need to consider your application. Steps 2 to 4 are our Pre-Interview Bio-Data Form: fill in as much as you can now, or complete it at the interview.</p>",
+ "introduction_text": "<p>Step 1 is all we need to consider your application. Steps 2 and 3 tell us about your education, experience and skills: fill in what you can now, or bring it to the interview. Save for later keeps what you have typed on this device until you come back to finish.</p>",
  "is_standard": 1,
  "key_required": 0,
  "list_columns": [],
@@ -26,7 +26,7 @@
  "max_attachment_size": 10,
  "meta_description": "Apply for a job at Luuka Plastics.",
  "meta_title": "Job Application",
- "modified": "2026-09-26 09:00:00.000000",
+ "modified": "2026-10-04 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "job-application-form",
@@ -44,21 +44,24 @@
   {
    "doctype": "Web Form Field",
    "fieldtype": "Section Break",
-   "label": "Your Application"
+   "label": "Your Application",
+   "idx": 1
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Data",
    "fieldname": "job_title",
    "label": "Position",
-   "read_only": 1
+   "read_only": 1,
+   "idx": 2
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Data",
    "fieldname": "applicant_name",
    "label": "Full Name",
-   "reqd": 1
+   "reqd": 1,
+   "idx": 3
   },
   {
    "doctype": "Web Form Field",
@@ -66,11 +69,13 @@
    "fieldname": "email_id",
    "label": "Email Address",
    "options": "Email",
-   "reqd": 1
+   "reqd": 1,
+   "idx": 4
   },
   {
    "doctype": "Web Form Field",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "idx": 5
   },
   {
    "doctype": "Web Form Field",
@@ -78,7 +83,9 @@
    "fieldname": "phone_number",
    "label": "Phone Number",
    "options": "Phone",
-   "placeholder": "+256 7XX XXX XXX"
+   "placeholder": "+256 7XX XXX XXX",
+   "reqd": 1,
+   "idx": 6
   },
   {
    "doctype": "Web Form Field",
@@ -87,7 +94,8 @@
    "label": "Country of Residence",
    "options": "Country",
    "default": "Uganda",
-   "allow_read_on_all_link_options": 1
+   "allow_read_on_all_link_options": 1,
+   "idx": 7
   },
   {
    "doctype": "Web Form Field",
@@ -95,41 +103,37 @@
    "fieldname": "source",
    "label": "How did you hear about this job?",
    "options": "Job Applicant Source",
-   "allow_read_on_all_link_options": 1
+   "allow_read_on_all_link_options": 1,
+   "idx": 8
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Section Break",
-   "label": "CV and Cover Letter"
+   "label": "CV and Cover Letter",
+   "idx": 9
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Attach",
    "fieldname": "resume_attachment",
    "label": "CV / Resume",
-   "description": "PDF or Word document."
+   "description": "PDF or Word document.",
+   "reqd": 1,
+   "idx": 10
   },
   {
    "doctype": "Web Form Field",
-   "fieldtype": "Column Break"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Data",
-   "fieldname": "resume_link",
-   "label": "Or a link to your CV",
-   "placeholder": "https://"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "idx": 11
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Text",
    "fieldname": "cover_letter",
    "label": "Cover Letter",
-   "description": "Why this role, and why you."
+   "description": "Why this role, and why you.",
+   "reqd": 1,
+   "idx": 12
   },
   {
    "doctype": "Web Form Field",
@@ -137,123 +141,14 @@
    "fieldname": "custom_screening_answers",
    "label": "Screening Questions",
    "options": "Screening Answer",
-   "hidden": 1
+   "hidden": 1,
+   "idx": 13
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Page Break",
-   "label": "Personal Information",
-   "description": "Pre-Interview Bio-Data Form. Fill in what you can; anything left blank can be completed at the interview."
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Date",
-   "fieldname": "custom_date_of_birth",
-   "label": "Date of Birth"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Link",
-   "fieldname": "custom_gender",
-   "label": "Gender",
-   "options": "Gender",
-   "allow_read_on_all_link_options": 1
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Select",
-   "fieldname": "custom_marital_status",
-   "label": "Marital Status",
-   "options": "\nSingle\nMarried\nDivorced\nWidowed"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Int",
-   "fieldname": "custom_no_of_children",
-   "label": "No. of Children"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Column Break"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Link",
-   "fieldname": "custom_citizenship",
-   "label": "Citizenship",
-   "options": "Country",
-   "allow_read_on_all_link_options": 1
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Data",
-   "fieldname": "custom_nin",
-   "label": "National ID Number (NIN)"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Data",
-   "fieldname": "custom_nssf_no",
-   "label": "NSSF No."
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Data",
-   "fieldname": "custom_tin",
-   "label": "TIN No."
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Section Break",
-   "label": "Home and Residence"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Data",
-   "fieldname": "custom_home_village",
-   "label": "Home Village"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Link",
-   "fieldname": "custom_home_district",
-   "label": "Home District",
-   "options": "District",
-   "allow_read_on_all_link_options": 1
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Column Break"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Data",
-   "fieldname": "custom_current_residence",
-   "label": "Current Place of Residence"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Link",
-   "fieldname": "custom_current_district",
-   "label": "Current District of Residence",
-   "options": "District",
-   "allow_read_on_all_link_options": 1
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Section Break"
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Small Text",
-   "fieldname": "custom_health_issues",
-   "label": "Health Issues / Diseases",
-   "description": "Only anything the employer should know about for your safety at work."
-  },
-  {
-   "doctype": "Web Form Field",
-   "fieldtype": "Page Break",
-   "label": "Education and Experience"
+   "label": "Education and Experience",
+   "idx": 14
   },
   {
    "doctype": "Web Form Field",
@@ -261,19 +156,22 @@
    "fieldname": "custom_qualifications",
    "label": "Professional and Other Qualifications",
    "options": "Applicant Qualification",
-   "allow_read_on_all_link_options": 1
+   "allow_read_on_all_link_options": 1,
+   "idx": 15
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Table",
    "fieldname": "custom_employment_history",
    "label": "Employment History",
-   "options": "Applicant Employment History"
+   "options": "Applicant Employment History",
+   "idx": 16
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Page Break",
-   "label": "Skills and Salary"
+   "label": "Skills and Salary",
+   "idx": 17
   },
   {
    "doctype": "Web Form Field",
@@ -281,7 +179,8 @@
    "fieldname": "custom_skills",
    "label": "Skills",
    "options": "Applicant Skill",
-   "allow_read_on_all_link_options": 1
+   "allow_read_on_all_link_options": 1,
+   "idx": 18
   },
   {
    "doctype": "Web Form Field",
@@ -289,12 +188,14 @@
    "fieldname": "custom_languages",
    "label": "Languages",
    "options": "Applicant Language",
-   "allow_read_on_all_link_options": 1
+   "allow_read_on_all_link_options": 1,
+   "idx": 19
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Section Break",
-   "label": "Salary"
+   "label": "Salary",
+   "idx": 20
   },
   {
    "doctype": "Web Form Field",
@@ -303,52 +204,60 @@
    "label": "Currency",
    "options": "Currency",
    "default": "UGX",
-   "allow_read_on_all_link_options": 1
+   "allow_read_on_all_link_options": 1,
+   "idx": 21
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Currency",
    "fieldname": "custom_previous_salary",
    "label": "Previous Salary (per month)",
-   "options": "currency"
+   "options": "currency",
+   "idx": 22
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Small Text",
    "fieldname": "custom_current_benefits",
    "label": "Current Benefits",
-   "description": "e.g. transport, lunch, medical cover"
+   "description": "e.g. transport, lunch, medical cover",
+   "idx": 23
   },
   {
    "doctype": "Web Form Field",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "idx": 24
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Currency",
    "fieldname": "lower_range",
    "label": "Expected Salary From (per month)",
-   "options": "currency"
+   "options": "currency",
+   "idx": 25
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Currency",
    "fieldname": "upper_range",
    "label": "Expected Salary To (per month)",
-   "options": "currency"
+   "options": "currency",
+   "idx": 26
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Small Text",
    "fieldname": "custom_expected_benefits",
-   "label": "Expected Benefits"
+   "label": "Expected Benefits",
+   "idx": 27
   },
   {
    "doctype": "Web Form Field",
    "fieldtype": "Data",
    "fieldname": "custom_notice_period",
    "label": "Notice Period",
-   "description": "How soon you could start, e.g. One month"
+   "description": "How soon you could start, e.g. One month",
+   "idx": 28
   }
  ]
 }

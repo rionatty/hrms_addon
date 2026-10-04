@@ -9,3 +9,18 @@
 .file-preview-area .alert-warning {
 	display: none;
 }
+
+/* An application saved for later, brought back (job_application_form.js). */
+.lpl-apply-draft {
+	margin: 10px 0 0;
+	padding: 8px 12px;
+	border-radius: 8px;
+	background: #eef4ff;
+	color: #00339a;
+	font-size: 13px;
+}
+.lpl-apply-draft a {
+	margin-left: 6px;
+	font-weight: 600;
+	text-decoration: underline;
+}

@@ -1459,6 +1459,8 @@ doc_events = {
         ],
         # an applicant turned down gets the regret email, where HR Settings says so
         "on_update": "hrms_addon.hrms_addon.interviews.regret_on_update",
+        # the CV sent from the website, attached to the applicant (uploads.py)
+        "after_insert": "hrms_addon.hrms_addon.uploads.attach_cv",
     },
     "Interview Feedback": {
         # Score sheet (LPL/HR/17): totals, rating and result from the scores
