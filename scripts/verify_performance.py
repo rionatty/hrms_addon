@@ -845,10 +845,9 @@ expect("not the appraiser's step", S.appraisal_errors(dict(SCORED, step=None)))
 expect("a KPI left blank",
        S.appraisal_errors(dict(SCORED, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 20}])),
        "Record Q1 percentage achieved for every KPI: Savings (Financial)")
-expect("a percentage over a hundred",
+expect("a percentage over a hundred is refused at every save (figure_errors), not again at the step",
        S.appraisal_errors(dict(SCORED, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 20,
-                                              "q1_percent": 140}])),
-       "from 0 to 100")
+                                              "q1_percent": 140}])))
 expect("another quarter's figure does not stand for this one's",
        S.appraisal_errors(dict(SCORED, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 20,
                                               "q2_percent": 90}])),
@@ -971,8 +970,8 @@ expect("a self-appraisal with a KPI left", S.appraisal_errors(dict(OWN, kpis=[
     {"perspective": "Financial", "kpi": "Savings", "weight": 50}])), "your own Q1 percentage achieved")
 expect("a self-appraisal with a competency left", S.appraisal_errors(dict(OWN, competencies=[
     {"competency": "One", "weight": 20}])), "Score yourself on every competency")
-expect("a self-appraisal scoring a competency eleven", S.appraisal_errors(dict(OWN, competencies=[
-    {"competency": "One", "weight": 20, "self_score": 11}])), "out of ten")
+expect("a self-appraisal scoring a competency eleven: refused at every save, not again at the step",
+       S.appraisal_errors(dict(OWN, competencies=[{"competency": "One", "weight": 20, "self_score": 11}])))
 expect("the appraiser's own step does not read the employee's figures",
        S.appraisal_errors(dict(OWN, step="appraiser")), "Record Q1 percentage achieved", "Score every competency")
 own = S.self_scores(OWN["kpis"], OWN["competencies"], "Q1")
@@ -2030,6 +2029,77 @@ for needle, why in (
         fail.append("scorecard_by_kpi.py: %s (%r not found)" % (why, needle))
 print("Oct 2026: one field per anchor and the remarks at the bottom, each opened only at its signatory's step; the "
       "quarter, the earlier quarters carried in, the year so far; the improvement plan in red; the patch")
+
+# ── 14. Luuka, 5 Oct 2026: every figure in its range, at every save ──────
+# Q4 400% was kept and scored 28 of a weight of 7
+FIGURES = [{"perspective": "Internal Business Processes", "kpi": "Absolute discretion maintained", "weight": 7,
+            "q3_percent": 900, "q4_percent": 400},
+           {"perspective": "Learning & Growth", "kpi": "At least 1 professional development", "weight": 1.25,
+            "q4_percent": 600},
+           {"perspective": "Financial", "kpi": "Savings", "weight": 20, "q4_percent": 100, "self_percent": 0}]
+expect("Luuka's 400% and 600%, each named by its column, its figure and its KPI", S.figure_errors(FIGURES, [], "Q4"),
+       "A percentage achieved is from 0 to 100: Q4 400% for Absolute discretion maintained (Internal Business "
+       "Processes), Q4 600% for At least 1 professional development (Learning & Growth).")
+if "900" in " ".join(S.figure_errors(FIGURES, [], "Q4")):
+    fail.append("an earlier quarter carried in is its own appraisal's to put right, not judged on this one")
+expect("the quarter appraised is the one judged: Q3's 900%, not Q4's", S.figure_errors(FIGURES, [], "Q3"),
+       "Q3 900% for Absolute discretion maintained")
+EDGES = [{"perspective": "Financial", "kpi": "K%s" % value, "weight": 1, "q2_percent": value, "self_percent": value}
+         for value in (0, 100, 0.0, 100.0, None, "")]
+expect("0 and 100 are in, a blank is not judged", S.figure_errors(EDGES, [], "Q2"))
+expect("just over, just under",
+       S.figure_errors([{"perspective": "Financial", "kpi": "Over", "q2_percent": 100.01},
+                        {"perspective": "Financial", "kpi": "Under", "q2_percent": -0.5}], [], "Q2"),
+       "Q2 100.01% for Over (Financial), Q2 -0.5% for Under (Financial)")
+expect("the employee's own percentage, whatever the quarter or none",
+       S.figure_errors([{"perspective": "Customer", "kpi": "Lead times", "self_percent": 120}], [], None),
+       "Self 120% for Lead times (Customer)")
+expect("a competency's own score and the appraiser's, from 0 to 10",
+       S.figure_errors([], [{"competency": "One", "self_score": 11, "score": 10},
+                            {"competency": "Two", "self_score": 0, "score": -1},
+                            {"competency": "Three", "self_score": None, "score": ""}], "Q1"),
+       "A competency is scored from 0 to 10: Self Score 11 for One, Score -1 for Two.")
+expect("both at once, one message each",
+       S.figure_errors([{"perspective": "Financial", "kpi": "Savings", "q1_percent": 101}],
+                       [{"competency": "One", "score": 12}], "Q1"),
+       "from 0 to 100", "from 0 to 10:")
+expect("seven out of range: five named, the rest counted",
+       S.figure_errors([{"perspective": "Financial", "kpi": "K%d" % n, "q1_percent": 200} for n in range(7)], [], "Q1"),
+       "K4 (Financial) and 2 more")
+expect("nothing to judge", S.figure_errors(None, None, None))
+
+validate_body = body_of(glue_appraisals, "appraisal_validate")
+if "_check_figures(doc)" not in validate_body \
+        or not validate_body.index("_carry_earlier_quarters(doc)") < validate_body.index("_check_figures(doc)") \
+        < validate_body.index("bsc.score(doc)"):
+    fail.append("appraisal_validate: the figures are judged at every save, before anything is scored from them")
+if "frappe.throw(" not in body_of(glue_appraisals, "_check_figures") \
+        or "bsc_rules.figure_errors(" not in body_of(glue_appraisals, "_figure_errors"):
+    fail.append("_check_figures refuses the save with the rules' own messages")
+upload_body = body_of(glue_appraisals, "upload_sheet")
+if "_figure_errors(doc)" not in upload_body \
+        or not upload_body.index("_figure_errors(doc)") < upload_body.index("doc.save()"):
+    fail.append("upload_sheet: an appraisal holding a figure out of range is left with the reason, the other sheets "
+                "still taken")
+on_kpi = appraisal_js.split('frappe.ui.form.on("BSC Appraisal KPI", {')[1].split("});")[0]
+checked = re.findall(r'(\w+): ha_percent_check\("(\w+)"\)', on_kpi)
+if sorted(checked) != sorted((field, field) for field in ["self_percent"] + [S.percent_field(q) for q in S.QUARTERS]):
+    fail.append("appraisal.js: each percentage column is checked as typed, each by its own name: %s" % checked)
+on_competency = appraisal_js.split('frappe.ui.form.on("BSC Appraisal Competency", {')[1].split("});")[0]
+for field in ("self_score", "score"):
+    if 'ha_in_range(cdt, cdn, "%s", 10,' % field not in on_competency:
+        fail.append("appraisal.js: a competency's %s is checked as it is typed" % field)
+for needle, why in (
+    ("flt(value) >= 0 && flt(value) <= top", "from 0 to the top, both in"),
+    ('value === undefined || value === null || value === ""', "a blank is not judged"),
+    ("frappe.model.set_value(cdt, cdn, field, null);", "a figure out of range is taken off"),
+    ('indicator: "red"', "and said in red"),
+    ("ha_in_range(cdt, cdn, field, 100,", "a percentage achieved is from 0 to 100"),
+):
+    if needle not in appraisal_js:
+        fail.append("appraisal.js: %s (%r not found)" % (why, needle))
+print("Oct 2026: a percentage achieved from 0 to 100 and a competency from 0 to 10, refused at every save and taken "
+      "off as typed; an upload leaves only the appraisal that holds one")
 
 print()
 if fail:

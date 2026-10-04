@@ -411,6 +411,7 @@ def appraisal_validate(doc, method=None):
     _attach_template(doc)
     if _is_bsc(doc):
         _carry_earlier_quarters(doc)
+        _check_figures(doc)
         bsc.score(doc)
         _carry_scores(doc, doc.get("custom_bsc_overall"), doc.get("custom_bsc_band"))
     else:
@@ -597,6 +598,21 @@ def _quarter_result(quarter, source):
             "section_b": source.get("custom_bsc_section_b_score" if on_card else "custom_objectives_score"),
             "total": source.get("custom_total_score"), "band": source.get("custom_band"),
             "status": source.get(approval.STATE_FIELD) or approval.DRAFT}
+
+
+def _check_figures(doc):
+    """A percentage achieved over 100, or a competency scored over 10, is
+    refused at every save, whoever saves it (Luuka, 5 Oct 2026: 400% was
+    kept and scored 28 of a weight of 7)."""
+    errors = _figure_errors(doc)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Appraisal"))
+
+
+def _figure_errors(doc):
+    return bsc_rules.figure_errors([row.as_dict() for row in doc.get("custom_bsc_kpis") or []],
+                                   [row.as_dict() for row in doc.get("custom_bsc_competencies") or []],
+                                   doc.get("custom_quarter"))
 
 
 def _check_remarks(doc):
@@ -946,6 +962,12 @@ def upload_sheet(file_url, appraisal_cycle=None, appraisal=None):
         problems.extend({"sheet": where, "appraisal": name, "problem": text} for text in left)
         if not taken:
             skipped.append({"sheet": where, "appraisal": name, "reason": _("Nothing on the sheet to take.")})
+            continue
+        # one saved before figures were held to their range, the sheet not
+        # putting it right: that appraisal is left, the others still taken
+        wrong = _figure_errors(doc) if _is_bsc(doc) else []
+        if wrong:
+            skipped.append({"sheet": where, "appraisal": name, "reason": " ".join(_(text) for text in wrong)})
             continue
         doc.flags.ignore_permissions = True
         doc.save()

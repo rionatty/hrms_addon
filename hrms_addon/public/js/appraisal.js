@@ -268,15 +268,42 @@ for (const table of ["Appraisal Factor Rating", "Appraisal Objective Rating"]) {
 	});
 }
 
+// A percentage achieved is from 0 to 100 and a competency is scored from 0
+// to 10 (bsc_rules.figure_errors, refused at every save): a figure out of
+// its range is taken off as it is typed.
+function ha_in_range(cdt, cdn, field, top, message) {
+	const value = locals[cdt][cdn][field];
+	if (value === undefined || value === null || value === "" || (flt(value) >= 0 && flt(value) <= top)) {
+		return true;
+	}
+	frappe.show_alert({ message: message, indicator: "red" });
+	frappe.model.set_value(cdt, cdn, field, null);
+	return false;
+}
+
+function ha_percent_check(field) {
+	return (frm, cdt, cdn) => {
+		if (ha_in_range(cdt, cdn, field, 100, __("A percentage achieved is from 0 to 100."))) {
+			ha_kpi_scores(frm, cdt, cdn);
+		}
+	};
+}
+
 frappe.ui.form.on("BSC Appraisal KPI", {
-	q1_percent: ha_kpi_scores,
-	q2_percent: ha_kpi_scores,
-	q3_percent: ha_kpi_scores,
-	q4_percent: ha_kpi_scores,
+	self_percent: ha_percent_check("self_percent"),
+	q1_percent: ha_percent_check("q1_percent"),
+	q2_percent: ha_percent_check("q2_percent"),
+	q3_percent: ha_percent_check("q3_percent"),
+	q4_percent: ha_percent_check("q4_percent"),
 });
 
 frappe.ui.form.on("BSC Appraisal Competency", {
-	score(frm) {
-		frm.trigger("show_score");
+	self_score(frm, cdt, cdn) {
+		ha_in_range(cdt, cdn, "self_score", 10, __("A competency is scored from 0 to 10."));
+	},
+	score(frm, cdt, cdn) {
+		if (ha_in_range(cdt, cdn, "score", 10, __("A competency is scored from 0 to 10."))) {
+			frm.trigger("show_score");
+		}
 	},
 });

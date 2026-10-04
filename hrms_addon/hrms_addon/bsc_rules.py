@@ -375,13 +375,47 @@ def template_errors(facts):
     return errors
 
 
+def figure_errors(kpis, competencies, quarter):
+    """Figures out of their range, refused at every save whatever the step
+    (Luuka, 5 Oct 2026: 400% was kept and scored 28 of a weight of 7): this
+    quarter's percentage achieved and the employee's own are from 0 to 100,
+    a competency is scored from 0 to 10. The earlier quarters carried in
+    are their own appraisals' to put right, so they are not judged here."""
+    errors = []
+    # each column as the grid heads it: Self %, Q4 %
+    columns = [("self_percent", "Self")] + ([(percent_field(quarter), quarter)] if quarter in QUARTERS else [])
+    wrong = ["%s %s%% for %s" % (column, _figure(row[field]), _kpi_name(row)) for row in kpis or []
+             for field, column in columns if _out_of(row.get(field), 100)]
+    if wrong:
+        errors.append("A percentage achieved is from 0 to 100: %s." % _some(wrong))
+    off = ["%s %s for %s" % (column, _figure(row[field]), row.get("competency")) for row in competencies or []
+           for field, column in (("self_score", "Self Score"), ("score", "Score"))
+           if _out_of(row.get(field), TOP_SCORE)]
+    if off:
+        errors.append("A competency is scored from 0 to 10: %s." % _some(off))
+    return errors
+
+
+def _out_of(value, top):
+    """A figure given that is not from 0 to `top`."""
+    return value not in (None, "") and not _within(value, top)
+
+
+def _figure(value):
+    try:
+        return "%g" % float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def appraisal_errors(facts):
     """Problems with a balanced scorecard appraisal at the step it is at.
 
     facts: "step" ("self" or "appraiser"), "quarter", "kpis",
     "competencies". The employee's self-appraisal is read from each KPI's
     self_percent, the appraiser's from the quarter's own column, and the
-    competencies' from self_score and score.
+    competencies' from self_score and score. A figure out of its range is
+    figure_errors', refused at every save before the step is judged.
     """
     errors = []
     step = facts.get("step")
@@ -402,9 +436,6 @@ def appraisal_errors(facts):
     unscored = [_kpi_name(row) for row in kpis if not filled or row.get(field) in (None, "")]
     if unscored:
         errors.append("Record %s%s percentage achieved for every KPI: %s." % (whose, quarter, _some(unscored)))
-    out_of_range = [_kpi_name(row) for row in kpis if row.get(field) not in (None, "") and not _within(row[field], 100)]
-    if out_of_range:
-        errors.append("A percentage achieved is from 0 to 100: %s." % _some(out_of_range))
     competencies = facts.get("competencies") or []
     field = "self_score" if step == "self" else "score"
     filled = recorded(competencies, field)
@@ -412,10 +443,6 @@ def appraisal_errors(facts):
     if unscored:
         errors.append("Score %severy competency out of ten: %s." % ("yourself on " if step == "self" else "",
                                                                     ", ".join(unscored)))
-    out_of_range = [str(row.get("competency")) for row in competencies
-                    if row.get(field) not in (None, "") and not _within(row[field], TOP_SCORE)]
-    if out_of_range:
-        errors.append("A competency is scored out of ten: %s." % ", ".join(out_of_range))
     return errors
 
 
