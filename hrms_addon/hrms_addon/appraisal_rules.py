@@ -152,15 +152,6 @@ def band(total):
     return next(name for floor, name in BANDS if total >= floor)
 
 
-def annual_average(quarter_totals):
-    """The year's appraisal: the average of the quarters appraised, as the
-    recommendation asks. None until at least one quarter is scored."""
-    totals = [float(total) for total in quarter_totals if total is not None]
-    if not totals:
-        return None
-    return round(sum(totals) / len(totals), 1)
-
-
 def recommended(total):
     """What the score alone suggests before management meets: below 60 a
     Performance Improvement Plan, otherwise nothing is suggested — a

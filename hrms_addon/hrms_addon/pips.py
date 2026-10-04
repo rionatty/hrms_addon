@@ -85,6 +85,62 @@ def plan_on_cancel(doc, method=None):
     doc.db_set("status", rules.CANCELLED, update_modified=False)
 
 
+def plan_on_change(doc, method=None):
+    """Raised, changed, closed or cancelled: the employee's appraisals say
+    whether they are on a plan now."""
+    mark_appraisals(doc.get("employee"))
+    if doc.get("employee") != (doc.get_doc_before_save() or frappe._dict()).get("employee"):
+        mark_appraisals((doc.get_doc_before_save() or frappe._dict()).get("employee"))
+
+
+def plan_after_delete(doc, method=None):
+    mark_appraisals(doc.get("employee"))
+
+
+def open_plan(employee):
+    """The employee's improvement plan still open (raised, agreed or under
+    way), the latest if there are more; None when they are on none."""
+    if not employee:
+        return None
+    found = frappe.get_all("Performance Improvement Plan", filters={
+        "employee": employee, "docstatus": 0, "status": ["in", list(rules.OPEN)]},
+        pluck="name", order_by="creation desc", limit=1)
+    return found[0] if found else None
+
+
+def mark_appraisals(employee):
+    """Every appraisal of the employee says whether they are on an open
+    plan, and which: the lists show them in red. Written straight in, so a
+    completed appraisal shows it too."""
+    if not employee:
+        return
+    plan = open_plan(employee)
+    for row in frappe.get_all("Appraisal", filters={"employee": employee, "docstatus": ["!=", 2]},
+                              fields=["name", "custom_on_pip", "custom_improvement_plan"]):
+        if (row.custom_improvement_plan or None) != plan or bool(row.custom_on_pip) != bool(plan):
+            frappe.db.set_value("Appraisal", row.name, {"custom_on_pip": 1 if plan else 0,
+                                                        "custom_improvement_plan": plan}, update_modified=False)
+
+
+@frappe.whitelist()
+def open_plans(employees: list | str | None = None) -> dict:
+    """{employee: improvement plan} of those listed who are on an open
+    plan, for the lists that show them in red. Someone who may not read
+    the plans learns only who is on one."""
+    if isinstance(employees, str):
+        employees = frappe.parse_json(employees)
+    employees = [employee for employee in (employees or []) if employee][:500]
+    if not employees:
+        return {}
+    readable = frappe.has_permission("Performance Improvement Plan", "read")
+    found = {}
+    for row in frappe.get_all("Performance Improvement Plan", filters={
+            "employee": ["in", employees], "docstatus": 0, "status": ["in", list(rules.OPEN)]},
+            fields=["name", "employee"], order_by="creation asc"):
+        found[row.employee] = row.name if readable else 1
+    return found
+
+
 @frappe.whitelist(methods=["POST"])
 def start(name):
     """Agreed and under way: the employee and the supervisor have signed."""

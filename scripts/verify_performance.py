@@ -142,8 +142,8 @@ for total, name in ((100, "Excellent"), (90, "Excellent"), (89.9, "Very Good"), 
         fail.append("%s%% is %s, not %r" % (total, name, R.band(total)))
 if R.band(None) is not None:
     fail.append("nothing rated has no band")
-if R.annual_average([80, 60, None, 70]) != 70.0 or R.annual_average([]) is not None:
-    fail.append("the year is the average of the quarters appraised: %s" % R.annual_average([80, 60, None, 70]))
+if hasattr(R, "annual_average"):
+    fail.append("the year to date is bsc_rules.year_to_date, on both forms (Oct 2026): appraisal_rules.annual_average is gone")
 if R.PIP_BELOW != 60:
     fail.append("the recommendation puts anyone below 60 on an improvement plan")
 if R.recommended(59.9) != R.PIP or R.recommended(60) != R.CLOSE or R.recommended(None) is not None:
@@ -543,7 +543,8 @@ for needle, why in (
     ("rules.scores(", "Section C comes from the rules"),
     ("doc.final_score = ", "Frappe HR's own score is written too, or the Appraisal Overview chart stays empty"),
     ("approval.compute_stamps(", "the signatures are stamped by the workflow"),
-    ("rules.annual_average(", "the year is the average of the quarters"),
+    ("bsc_rules.year_to_date(", "the year to date is the average of the quarters appraised, on either form"),
+    ("_year_so_far(doc)", "each appraisal shows the year so far, quarter by quarter"),
     ("rules.due_quarters(", "the HR Officer is told when a quarter closes"),
     ("rules.reminders_due(", "everyone appraising is reminded before the deadlines"),
     ("sheet.build(", "the sheet is Luuka's own form, built by appraisal_sheet.py"),
@@ -712,8 +713,13 @@ if S.BANDS != ((90, "Excellent"), (80, "Very Good"), (70, "Good"), (60, "Fair"),
     fail.append("the scorecard's own scale is 90, 80, 70, 60 — not the supervisory form's")
 if S.BANDS == R.BANDS:
     fail.append("the two forms band differently; they must not share one scale")
-if S.QUARTERS != ("Q1", "Q2", "Q3"):
-    fail.append("the scorecard records three quarters and then the year: %s" % (S.QUARTERS,))
+# Luuka, 4 Oct 2026: four quarters, the year to date their average, in
+# place of the workbook's three and an annual score out of ten
+if S.QUARTERS != ("Q1", "Q2", "Q3", "Q4"):
+    fail.append("the scorecard records four quarters: %s" % (S.QUARTERS,))
+for gone in ("annual_score", "field_for", "PERIODS", "PERCENT_PERIODS", "SCORE_PERIODS"):
+    if hasattr(S, gone):
+        fail.append("the annual score out of ten is gone: bsc_rules.%s is still there" % gone)
 if set(S.PERSPECTIVES) != {"Financial", "Customer / Stakeholder", "Internal Business Processes", "Learning & Growth"}:
     fail.append("the four balanced scorecard perspectives are the job descriptions' own")
 if len(S.COMPETENCIES) != 5 or sum(weight for _n, _i, weight in S.COMPETENCIES) != S.COMPETENCIES_WEIGHT:
@@ -721,25 +727,77 @@ if len(S.COMPETENCIES) != 5 or sum(weight for _n, _i, weight in S.COMPETENCIES) 
 if S.FORM_TYPES != (S.FORM_SUPERVISORY, S.FORM_BSC) or A.FORM_TYPES != S.FORM_TYPES:
     fail.append("the rules and the workflow must name the two forms the same way")
 
-# the quarterly score is a real score: Luuka's workbook divides by a further
-# ten, which scores a perfect quarter 8 of 80. They confirmed it is real.
-if S.quarter_score(25, 100) != 25.0:
-    fail.append("a perspective weighted 25 and fully achieved scores 25 for the quarter, not %s"
-                % S.quarter_score(25, 100))
-if S.annual_score(25, 10) != 25.0:
-    fail.append("and 25 for the year when scored ten out of ten")
-WHOLE_CARD = [{"weight": weight, "q1_percent": 100, "q2_percent": 50, "annual_score": 10}
-              for weight in (25, 15, 30, 10)]
+# a KPI scores its own weight times the percentage achieved: Luuka's
+# workbook divides by a further ten, which they confirmed is not meant
+if S.quarter_score(25, 100) != 25.0 or S.quarter_score(12.5, 80) != 10.0:
+    fail.append("a KPI scores its weight times the percentage achieved: %s, %s"
+                % (S.quarter_score(25, 100), S.quarter_score(12.5, 80)))
+if (S.percent_field("Q2"), S.score_field("Q3"), S.comments_field("Q4")) != ("q2_percent", "q3_score", "q4_comments"):
+    fail.append("each quarter has its percentage, its weighted score and its comments")
+if [S.quarter_of(month) for month in (1, 3, 4, 6, 7, 9, 10, 12)] != ["Q1", "Q1", "Q2", "Q2", "Q3", "Q3", "Q4", "Q4"]:
+    fail.append("a month falls in its calendar quarter")
+CARD_KPIS = [{"perspective": "Financial", "kpi": "Savings", "weight": 12.5},
+             {"perspective": "Financial", "kpi": "Variance", "weight": 12.5},
+             {"perspective": "Customer / Stakeholder", "kpi": "Lead times", "weight": 15},
+             {"perspective": "Internal Business Processes", "kpi": "Quotations", "weight": 20},
+             {"perspective": "Internal Business Processes", "kpi": "Approvals", "weight": 10},
+             {"perspective": "Learning & Growth", "kpi": "CIPS", "weight": 10}]
+WHOLE_CARD = [dict(row, q1_percent=100, q2_percent=50) for row in CARD_KPIS]
 if S.section_a(WHOLE_CARD, "Q1") != 80.0:
     fail.append("a quarter fully achieved scores the whole 80: %s" % S.section_a(WHOLE_CARD, "Q1"))
 if S.section_a(WHOLE_CARD, "Q2") != 40.0:
     fail.append("half achieved scores half: %s" % S.section_a(WHOLE_CARD, "Q2"))
-if S.section_a(WHOLE_CARD, "Annual") != 80.0:
-    fail.append("the year scored ten throughout scores the whole 80: %s" % S.section_a(WHOLE_CARD, "Annual"))
 if S.section_a(WHOLE_CARD, "Q3") is not None:
     fail.append("a quarter with nothing recorded scores nothing at all")
 if S.section_a([], "Q1") is not None or S.quarter_score(25, None) is not None:
     fail.append("nothing recorded is nothing, never a zero that drags the score down")
+SHARED = [dict(row, q2_percent=50) for row in S.spread_weights([{"perspective": "Financial", "weight": 25},
+                                                                 {"perspective": "Financial"},
+                                                                 {"perspective": "Financial"}])]
+if [S.quarter_score(row["weight"], 50) for row in SHARED] != [4.17, 4.17, 4.17] \
+        or S.section_a(SHARED, "Q2") != 12.5 or S.perspective_summary(SHARED)[0]["q2_score"] != 12.5:
+    fail.append("totals add the KPIs' exact scores and round once: 8.33, 8.33 and 8.34 half achieved make 12.5, "
+                "not 12.51: %s" % S.section_a(SHARED, "Q2"))
+summary = S.perspective_summary(WHOLE_CARD)
+if [(row["perspective"], row["weight"], row["q1_score"], row["q2_score"], row["q3_score"], row["year_to_date"])
+        for row in summary] != [("Financial", 25.0, 25.0, 12.5, None, 18.75),
+                                ("Customer / Stakeholder", 15.0, 15.0, 7.5, None, 11.25),
+                                ("Internal Business Processes", 30.0, 30.0, 15.0, None, 22.5),
+                                ("Learning & Growth", 10.0, 10.0, 5.0, None, 7.5)]:
+    fail.append("the perspectives below the KPIs sum them up: their weight, each quarter, their year to date: %s"
+                % summary)
+if S.perspective_summary([{"perspective": None, "weight": 5}]) != [] or S.perspective_summary([]) != []:
+    fail.append("a KPI under no perspective sums into none")
+if (S.year_to_date([80, None, 70]), S.year_to_date([0, 90]), S.year_to_date([]), S.year_to_date([None])) \
+        != (75.0, 45.0, None, None):
+    fail.append("the year to date averages the quarters appraised, a quarter that scored nothing included: %s"
+                % ((S.year_to_date([80, None, 70]), S.year_to_date([0, 90])),))
+# Frappe keeps a number left blank as 0 (Float and Percent are NOT NULL in
+# v16): a column that is 0 throughout was never filled in, and once any KPI
+# has a figure, a 0 beside it is a real 0
+ZEROS = [dict(row, q2_percent=0) for row in CARD_KPIS]
+SOME = [dict(row, q2_percent=(80 if index == 0 else 0)) for index, row in enumerate(CARD_KPIS)]
+if (S.recorded(ZEROS, "q2_percent"), S.recorded(SOME, "q2_percent"), S.recorded([], "q2_percent")) \
+        != (False, True, False):
+    fail.append("a column is filled in once any KPI has a figure in it")
+if S.section_a(ZEROS, "Q2") is not None or S.section_a(SOME, "Q2") != 10.0:
+    fail.append("a quarter left at 0 throughout is not scored; one with a figure counts its 0s as 0%%: %s, %s"
+                % (S.section_a(ZEROS, "Q2"), S.section_a(SOME, "Q2")))
+if [row["q2_score"] for row in S.perspective_summary(SOME)] != [10.0, 0.0, 0.0, 0.0] \
+        or {row["q2_score"] for row in S.perspective_summary(ZEROS)} != {None}:
+    fail.append("a perspective scores 0 in a quarter filled in, nothing in one never filled in: %s"
+                % [row["q2_score"] for row in S.perspective_summary(SOME)])
+expect("a quarter left at 0 throughout is not scored: every KPI named",
+       S.appraisal_errors({"step": "appraiser", "quarter": "Q2", "kpis": ZEROS, "competencies": []}),
+       "Record Q2 percentage achieved for every KPI: Savings (Financial)")
+expect("one filled in takes its 0s as 0%",
+       S.appraisal_errors({"step": "appraiser", "quarter": "Q2", "kpis": SOME, "competencies": []}))
+if S.section_b([{"weight": 4, "score": 0}, {"weight": 16, "score": 0}]) is not None \
+        or S.section_b([{"weight": 4, "score": 0}, {"weight": 16, "score": 5}]) != 8.0:
+    fail.append("Section B left at 0 throughout is not scored; scored, its 0s are 0")
+expect("competencies left at 0 throughout are not scored",
+       S.appraisal_errors({"step": "appraiser", "quarter": "Q2", "kpis": SOME,
+                           "competencies": [{"competency": "One", "score": 0}]}), "Score every competency")
 WHOLE_B = [{"weight": weight, "score": 10} for _n, _i, weight in S.COMPETENCIES]
 if S.section_b(WHOLE_B) != 20.0:
     fail.append("every competency at ten scores the whole 20: %s" % S.section_b(WHOLE_B))
@@ -753,47 +811,52 @@ if S.band(None) is not None:
     fail.append("nothing scored has no rating")
 if set(S.BAND_MEANING) != {name for _floor, name in S.BANDS}:
     fail.append("every band must carry the words the form prints beside it")
-if S.field_for("Q2") != "q2_percent" or S.field_for(S.ANNUAL) != "annual_score":
-    fail.append("a quarter reads its percentage and the year reads its score")
 
-CARD = {"designation": "Procurement Manager",
-        "perspectives": [{"perspective": p, "weight": w}
-                         for p, w in zip(S.PERSPECTIVES, (25, 15, 30, 10))],
-        "kpis": [{"perspective": "Financial", "kpi": "Zero stock-outs"}],
+CARD = {"designation": "Procurement Manager", "kpis": CARD_KPIS,
         "competencies": [{"competency": n, "weight": w} for n, _i, w in S.COMPETENCIES]}
 expect("a whole scorecard", S.template_errors(CARD))
 expect("no role", S.template_errors(dict(CARD, designation=None)), "Name the role")
-expect("weights that do not total 80",
-       S.template_errors(dict(CARD, perspectives=[{"perspective": "Financial", "weight": 90}])),
+expect("KPIs whose weights do not total 80",
+       S.template_errors(dict(CARD, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 90}])),
        "must total 80")
-expect("a KPI under a perspective that carries no weight",
-       S.template_errors(dict(CARD, kpis=CARD["kpis"] + [{"perspective": "Quality", "kpi": "Zero returns"}])),
-       "carries no weight")
+expect("a KPI with no weight, the total still 80",
+       S.template_errors(dict(CARD, kpis=CARD_KPIS + [{"perspective": "Financial", "kpi": "Unweighed"}])),
+       "Give every KPI its weight: Unweighed (Financial)")
+expect("a KPI under no perspective",
+       S.template_errors(dict(CARD, kpis=CARD_KPIS[:-1] + [{"kpi": "Stray", "weight": 10}])),
+       "Put every KPI under one of the perspectives: Stray (no perspective)")
+expect("a negative weight",
+       S.template_errors(dict(CARD, kpis=CARD_KPIS + [{"perspective": "Financial", "kpi": "Minus", "weight": -5},
+                                                      {"perspective": "Financial", "kpi": "Plus", "weight": 5}])),
+       "cannot be negative: Minus (Financial)")
 expect("competencies that do not total 20",
        S.template_errors(dict(CARD, competencies=[{"competency": "One", "weight": 5}])), "must total 20")
-expect("a perspective weighted twice",
-       S.template_errors(dict(CARD, perspectives=CARD["perspectives"] + [{"perspective": "Financial", "weight": 0}])),
-       "is weighted twice")
 expect("no KPIs", S.template_errors(dict(CARD, kpis=[])), "List the KPIs")
+many = [{"perspective": "Financial", "kpi": "K%d" % number} for number in range(8)]
+expect("eight KPIs with no weight: five named, the rest counted",
+       S.template_errors(dict(CARD, kpis=many)), "K0 (Financial), K1 (Financial), K2 (Financial), K3 (Financial), "
+       "K4 (Financial) and 3 more", "not 0")
 
-SCORED = {"step": "appraiser", "period": "Q1",
-          "perspectives": [{"perspective": p, "weight": 20, "q1_percent": 90} for p in S.PERSPECTIVES],
+SCORED = {"step": "appraiser", "quarter": "Q1",
+          "kpis": [dict(row, q1_percent=90) for row in CARD_KPIS],
           "competencies": [{"competency": n, "score": 8} for n, _i, _w in S.COMPETENCIES]}
 expect("a quarter scored", S.appraisal_errors(SCORED))
 expect("not the appraiser's step", S.appraisal_errors(dict(SCORED, step=None)))
-expect("a perspective left blank",
-       S.appraisal_errors(dict(SCORED, perspectives=[{"perspective": "Financial", "weight": 20}])),
-       "percentage achieved")
+expect("a KPI left blank",
+       S.appraisal_errors(dict(SCORED, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 20}])),
+       "Record Q1 percentage achieved for every KPI: Savings (Financial)")
 expect("a percentage over a hundred",
-       S.appraisal_errors(dict(SCORED, perspectives=[{"perspective": "Financial", "weight": 20, "q1_percent": 140}])),
-       "out of range")
-expect("an annual score over ten",
-       S.appraisal_errors(dict(SCORED, period="Annual",
-                               perspectives=[{"perspective": "Financial", "weight": 20, "annual_score": 12}])),
-       "out of range")
+       S.appraisal_errors(dict(SCORED, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 20,
+                                              "q1_percent": 140}])),
+       "from 0 to 100")
+expect("another quarter's figure does not stand for this one's",
+       S.appraisal_errors(dict(SCORED, kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 20,
+                                              "q2_percent": 90}])),
+       "Record Q1 percentage achieved")
+expect("no quarter", S.appraisal_errors(dict(SCORED, quarter=None)), "Say which quarter")
 expect("a competency unscored",
        S.appraisal_errors(dict(SCORED, competencies=[{"competency": "One"}])), "Score every competency")
-expect("no scorecard at all", S.appraisal_errors(dict(SCORED, perspectives=[])), "no perspectives")
+expect("no scorecard at all", S.appraisal_errors(dict(SCORED, kpis=[])), "no KPIs")
 
 # Luuka's own workbook, read as openpyxl hands it over
 SHEET = [
@@ -825,35 +888,44 @@ if from_sheet["role"] != "Procurement Manager" or from_sheet["grade"] != "G15":
 if [(row["perspective"], row["weight"]) for row in from_sheet["perspectives"]] != [
         ("Financial", 25.0), ("Customer / Stakeholder", 15.0),
         ("Internal Business Processes", 30.0), ("Learning & Growth", 10.0)]:
-    fail.append("the weights are read once per perspective, and Internal Process is named as the JDs name it: %s"
-                % from_sheet["perspectives"])
+    fail.append("the weights the sheet writes once per perspective are read, and Internal Process is named as the "
+                "JDs name it: %s" % from_sheet["perspectives"])
 if len(from_sheet["kpis"]) != 5:
     fail.append("every KPI is read, including the ones marked with the continuation arrow: %s" % len(from_sheet["kpis"]))
 if from_sheet["kpis"][1]["perspective"] != "Financial":
     fail.append("a KPI under the continuation arrow belongs to the perspective above it: %s" % from_sheet["kpis"][1])
 if len(from_sheet["competencies"]) != 5 or from_sheet["competencies"][0]["weight"] != 4.0:
     fail.append("Section B is read with its indicators and weights: %s" % from_sheet["competencies"])
-expect("Luuka's own sheet", S.template_errors({"designation": from_sheet["role"], **from_sheet}))
+if [row["weight"] for row in from_sheet["kpis"]] != [25.0, None, 15.0, 30.0, 10.0]:
+    fail.append("each KPI keeps the weight written beside it, the perspective's on its first KPI: %s"
+                % [row["weight"] for row in from_sheet["kpis"]])
+shared = S.spread_weights(from_sheet["kpis"])
+if [row["weight"] for row in shared] != [12.5, 12.5, 15.0, 30.0, 10.0]:
+    fail.append("a perspective the sheet weighs once has its weight shared between its KPIs: %s"
+                % [row["weight"] for row in shared])
+expect("Luuka's own sheet, its weights shared out", S.template_errors(
+    {"designation": from_sheet["role"], "kpis": shared, "competencies": from_sheet["competencies"]}))
+weighed = S.parse_sheet(SHEET[:7] + [["2", S.CONTINUATION, "Savings of 5%", "Monthly", 10]] + SHEET[8:])
+if [row["weight"] for row in weighed["kpis"]][:2] != [25.0, 10.0] \
+        or [row["weight"] for row in S.spread_weights(weighed["kpis"])][:2] != [25.0, 10.0]:
+    fail.append("a KPI the sheet weighs of its own keeps its weight, and its perspective is not shared out: %s"
+                % [row["weight"] for row in weighed["kpis"]])
 if S.parse_sheet([]) != {"role": None, "department": None, "grade": None, "review_period": None,
                          "form_reference": None, "revision": None,
                          "perspectives": [], "kpis": [], "competencies": []}:
     fail.append("an empty sheet reads as nothing")
 if S.normalise_perspective(S.CONTINUATION) is not None or S.normalise_perspective("") is not None:
     fail.append("the continuation arrow is not a perspective")
-# the weight rides on the perspective's first KPI, as the workbook writes it
-if [row["weight"] for row in from_sheet["kpis"]] != [25.0, None, 15.0, 30.0, 10.0]:
-    fail.append("each perspective's weight is read onto its first KPI, and nowhere else: %s"
-                % [row["weight"] for row in from_sheet["kpis"]])
 footer = "Luuka Plastics Limited  |  PMS BSC Appraisal Form FY 2026  |  Procurement  |  PROC/002  |  CONFIDENTIAL  |  Rev 01"
 if S.footer_parts(footer) != ("PROC/002", "Rev 01") or S.footer_parts("Nothing here") != (None, None):
     fail.append("the footer names the form and its revision: %s" % (S.footer_parts(footer),))
 if S.parse_sheet(SHEET + [[footer]])["form_reference"] != "PROC/002":
     fail.append("the sheet's form reference is read from its footer")
 
-# ── the template laid out as the workbook is ──────────────────────────
-typed = [{"perspective": "Financial", "kpi": "Savings", "weight": 25},
+# ── the template laid out as the form is, every KPI weighed ───────────
+typed = [{"perspective": "Financial", "kpi": "Savings", "weight": 15},
          {"perspective": "Customer / Stakeholder", "kpi": "Lead times", "weight": 15},
-         {"perspective": "Financial", "kpi": "Variance", "weight": None},
+         {"perspective": "Financial", "kpi": "Variance", "weight": 10},
          {"perspective": "Internal Business Processes", "kpi": "Quotations", "weight": 20},
          {"perspective": "Internal Business Processes", "kpi": "Approvals", "weight": 10},
          {"perspective": "Learning & Growth", "kpi": "CIPS", "weight": 10}]
@@ -861,19 +933,26 @@ arranged, perspectives = S.arrange_kpis(typed)
 if [row["kpi"] for row in arranged] != ["Savings", "Variance", "Lead times", "Quotations", "Approvals", "CIPS"]:
     fail.append("a perspective's KPIs sit together, in the order the perspectives first appear: %s"
                 % [row["kpi"] for row in arranged])
-if [row["weight"] for row in arranged] != [25, None, 15, 30, None, 10]:
-    fail.append("the weight sits on each perspective's first KPI, a second one typed added to it: %s"
-                % [row["weight"] for row in arranged])
-if perspectives != [{"perspective": "Financial", "weight": 25}, {"perspective": "Customer / Stakeholder", "weight": 15},
-                    {"perspective": "Internal Business Processes", "weight": 30},
-                    {"perspective": "Learning & Growth", "weight": 10}]:
-    fail.append("the perspectives the appraisal is scored on follow from the KPIs: %s" % perspectives)
-if sum(row["weight"] for row in perspectives) != S.OBJECTIVES_WEIGHT:
-    fail.append("what was typed still totals what was typed")
+if [row["weight"] for row in arranged] != [15, 10, 15, 20, 10, 10]:
+    fail.append("every KPI keeps its own weight: %s" % [row["weight"] for row in arranged])
+if perspectives != [{"perspective": "Financial", "weight": 25.0},
+                    {"perspective": "Customer / Stakeholder", "weight": 15.0},
+                    {"perspective": "Internal Business Processes", "weight": 30.0},
+                    {"perspective": "Learning & Growth", "weight": 10.0}]:
+    fail.append("a perspective weighs what its KPIs weigh: %s" % perspectives)
 if S.arrange_kpis(arranged)[0] != arranged:
     fail.append("laying out a laid-out template changes nothing")
 if S.arrange_kpis([]) != ([], []):
     fail.append("no KPIs, no perspectives")
+given = [{"perspective": "A", "weight": 25}, {"perspective": "A"}, {"perspective": "A"},
+         {"perspective": "B", "weight": 0.29}, {"perspective": "B", "weight": None},
+         {"perspective": "C", "weight": 7}, {"perspective": "D", "weight": 4}, {"perspective": "D", "weight": 6}]
+if [row.get("weight") for row in S.spread_weights(given)] != [8.33, 8.33, 8.34, 0.14, 0.15, 7, 4, 6]:
+    fail.append("a perspective's one weight is shared evenly to the hundredth, the last taking what rounding "
+                "leaves; one KPI, or KPIs weighed one by one, are left: %s"
+                % [row.get("weight") for row in S.spread_weights(given)])
+if given[1].get("weight") is not None:
+    fail.append("sharing out the weights leaves the rows it was given as they were")
 expect("a supervisory template with its factors", S.supervisory_template_errors(
     {"factors": [{"factor": "Attendance"}], "objectives": [{"objective": "Output"}]}))
 expect("one with none", S.supervisory_template_errors({"factors": []}), "ratable factors")
@@ -883,26 +962,26 @@ expect("one with nine objectives", S.supervisory_template_errors(
     {"factors": [{"factor": "A"}], "objectives": [{"objective": "O%d" % n} for n in range(9)]}), "at most 8")
 
 # ── the employee's own scorecard ──────────────────────────────────────
-OWN = {"step": "self", "period": "Q1",
-       "perspectives": [{"perspective": "Financial", "weight": 50, "self_score": 80},
-                        {"perspective": "Customer / Stakeholder", "weight": 30, "self_score": 50}],
+OWN = {"step": "self", "quarter": "Q1",
+       "kpis": [{"perspective": "Financial", "kpi": "Savings", "weight": 50, "self_percent": 80},
+                {"perspective": "Customer / Stakeholder", "kpi": "Lead times", "weight": 30, "self_percent": 50}],
        "competencies": [{"competency": "One", "weight": 20, "self_score": 7}]}
 expect("a self-appraisal scored throughout", S.appraisal_errors(OWN))
-expect("a self-appraisal with a perspective left", S.appraisal_errors(dict(OWN, perspectives=[
-    {"perspective": "Financial", "weight": 50}])), "your own Q1 percentage achieved")
+expect("a self-appraisal with a KPI left", S.appraisal_errors(dict(OWN, kpis=[
+    {"perspective": "Financial", "kpi": "Savings", "weight": 50}])), "your own Q1 percentage achieved")
 expect("a self-appraisal with a competency left", S.appraisal_errors(dict(OWN, competencies=[
     {"competency": "One", "weight": 20}])), "Score yourself on every competency")
 expect("a self-appraisal scoring a competency eleven", S.appraisal_errors(dict(OWN, competencies=[
     {"competency": "One", "weight": 20, "self_score": 11}])), "out of ten")
 expect("the appraiser's own step does not read the employee's figures",
        S.appraisal_errors(dict(OWN, step="appraiser")), "Record Q1 percentage achieved", "Score every competency")
-own = S.self_scores(OWN["perspectives"], OWN["competencies"], "Q1")
+own = S.self_scores(OWN["kpis"], OWN["competencies"], "Q1")
 if own != {"section_a": 55.0, "section_b": 14.0, "overall": 69.0}:
     fail.append("the employee's own scores are worked out as the appraiser's are: %s" % own)
-if S.self_scores([], [], "Annual") != {"section_a": None, "section_b": None, "overall": None}:
+if S.self_scores([], [], "Q4") != {"section_a": None, "section_b": None, "overall": None}:
     fail.append("nothing rated, no score of their own")
-print("the scorecard: 80 and 20, its own bands, the quarterly score whole, Luuka's workbook read, the template "
-      "laid out like it, the self-appraisal")
+print("the scorecard: 80 and 20, every KPI weighed and scored, the perspectives summing them up, four quarters and "
+      "their average, its own bands, Luuka's workbook read and shared out, the self-appraisal")
 
 # ── 8. Two forms, two chains, one workflow ────────────────────────────
 if set(A.ROUTES) != set(A.FORM_TYPES):
@@ -1057,12 +1136,16 @@ if (hooks.get("doc_events", {}).get("Appraisal Template", {}).get("validate")
     fail.append("the scorecard's weights are checked when their template is saved")
 if "hrms_addon.patches.v1_0.scorecard_onto_appraisal_template" not in read("hrms_addon", "patches.txt"):
     fail.append("a site that already imported scorecards must have them carried across")
+QUARTER_COLUMNS = tuple("%s_%s" % (quarter.lower(), kind) for quarter in S.QUARTERS
+                        for kind in ("percent", "score", "comments"))
 for name, wanted in (
     ("BSC Template Perspective", ("perspective", "weight")),
-    ("BSC Template KPI", ("perspective", "kpi", "timing")),
+    ("BSC Template KPI", ("perspective", "kpi", "timing", "weight")),
     ("BSC Template Competency", ("competency", "indicators", "weight")),
-    ("BSC Appraisal Perspective", ("perspective", "weight", "q1_percent", "q1_score", "q2_percent", "q2_score",
-                                   "q3_percent", "q3_score", "annual_score", "annual_weighted")),
+    ("BSC Appraisal KPI", ("perspective", "kpi", "timing", "weight", "self_percent", "score") + QUARTER_COLUMNS),
+    ("BSC Appraisal Perspective", ("perspective", "weight", "q1_score", "q2_score", "q3_score", "q4_score",
+                                   "year_to_date")),
+    ("Appraisal Quarter Result", ("quarter", "appraisal", "section_a", "section_b", "total", "band", "status")),
     ("BSC Appraisal Competency", ("competency", "indicators", "weight", "score", "weighted_score")),
     ("BSC Competency", ("competency_name", "indicators", "default_weight")),
     ("Appraisal Assignment", ("task", "assignment_given", "expected_outcome", "employee_comments",
@@ -1076,28 +1159,58 @@ for name, wanted in (
     for fieldname in wanted:
         if fieldname not in fields:
             fail.append("%s has no %s, which the scorecard asks for" % (name, fieldname))
-for name, fieldname in (("BSC Appraisal Perspective", "q1_score"), ("BSC Appraisal Perspective", "annual_weighted"),
-                        ("BSC Appraisal Perspective", "weight"), ("BSC Appraisal Competency", "weighted_score"),
-                        ("BSC Appraisal Competency", "weight")):
+worked_out = [("BSC Appraisal Competency", "weighted_score"), ("BSC Appraisal Competency", "weight"),
+              ("BSC Template Perspective", "weight")]
+worked_out += [("BSC Appraisal Perspective", fieldname) for fieldname in fields_of(doctype("BSC Appraisal Perspective"))]
+worked_out += [("Appraisal Quarter Result", fieldname) for fieldname in fields_of(doctype("Appraisal Quarter Result"))]
+worked_out += [("BSC Appraisal KPI", fieldname) for fieldname in ("perspective", "kpi", "timing", "weight", "score")
+               + tuple(S.score_field(quarter) for quarter in S.QUARTERS)]
+for name, fieldname in worked_out:
     if not (fields_of(doctype(name)).get(fieldname) or {}).get("read_only"):
-        fail.append("%s.%s is worked out, not typed" % (name, fieldname))
+        fail.append("%s.%s is worked out or carried from the template, not typed" % (name, fieldname))
+# each quarter's percentage and comments, and the employee's own figure, are
+# typed: the form opens only the quarter appraised (appraisal.js), the server
+# carries the earlier ones in (appraisals._carry_earlier_quarters)
+for fieldname in ("self_percent",) + tuple(field for quarter in S.QUARTERS
+                                           for field in (S.percent_field(quarter), S.comments_field(quarter))):
+    if (fields_of(doctype("BSC Appraisal KPI")).get(fieldname) or {}).get("read_only"):
+        fail.append("BSC Appraisal KPI.%s is typed for the quarter appraised: it cannot be read-only" % fieldname)
+if (fields_of(doctype("BSC Appraisal KPI")).get("timing") or {}).get("options", "").split("\n")[0] != "":
+    fail.append("a KPI's timing starts blank: Frappe pre-fills a Select's first option")
 ours = custom_fields("Appraisal")
-for fieldname in ("custom_form_type", "custom_period", "custom_bsc_perspectives",
+for fieldname in ("custom_form_type", "custom_quarter", "custom_bsc_perspectives",
                   "custom_bsc_kpis", "custom_bsc_competencies", "custom_assignments",
                   "custom_bsc_section_a_score", "custom_bsc_section_b_score", "custom_bsc_overall",
                   "custom_bsc_band", "custom_bsc_band_meaning", "custom_hod_by", "custom_hod_on",
                   "custom_hod_remarks", "custom_ed_by", "custom_ed_on", "custom_ed_remarks",
-                  "custom_continue", "custom_stop", "custom_start", "custom_development_actions"):
+                  "custom_continue", "custom_stop", "custom_start", "custom_development_actions",
+                  "custom_quarter_results", "custom_annual_score", "custom_year_band", "custom_on_pip",
+                  "custom_improvement_plan"):
     if fieldname not in ours:
         fail.append("the Appraisal has no %s, which the scorecard asks for" % fieldname)
 if (ours.get("custom_form_type") or {}).get("options", "").split("\n") != list(S.FORM_TYPES):
     fail.append("Appraisal.custom_form_type must offer exactly the two forms")
-if (ours.get("custom_period") or {}).get("options", "").split("\n") != list(S.PERIODS):
-    fail.append("Appraisal.custom_period must offer Q1, Q2, Q3 and Annual")
+if "custom_period" in ours:
+    fail.append("the scorecard's own period gave way to the appraisal's quarter: custom_period must go")
+quarter = ours.get("custom_quarter") or {}
+if quarter.get("options", "").split("\n") != [""] + list(S.QUARTERS) or quarter.get("read_only") \
+        or "custom_plan" not in (quarter.get("read_only_depends_on") or "") \
+        or "Pending Self-Appraisal" not in (quarter.get("read_only_depends_on") or ""):
+    fail.append("the quarter is the plan's, or HR's on an appraisal made by hand until it is rated: %s" % quarter)
+if (ours.get("custom_quarter_results") or {}).get("options") != "Appraisal Quarter Result":
+    fail.append("Appraisal.custom_quarter_results is a table of Appraisal Quarter Result")
 for fieldname in ("custom_bsc_section_a_score", "custom_bsc_section_b_score", "custom_bsc_overall",
-                  "custom_bsc_band", "custom_hod_by", "custom_ed_by"):
+                  "custom_bsc_band", "custom_hod_by", "custom_ed_by", "custom_bsc_perspectives",
+                  "custom_quarter_results", "custom_annual_score", "custom_year_band", "custom_on_pip",
+                  "custom_improvement_plan"):
     if not (ours.get(fieldname) or {}).get("read_only"):
         fail.append("Appraisal.%s is worked out, not typed" % fieldname)
+for fieldname in ("custom_annual_score", "custom_quarter_results", "custom_results_section"):
+    if (ours.get(fieldname) or {}).get("depends_on"):
+        fail.append("Appraisal.%s shows the year so far on both forms" % fieldname)
+if not (ours.get("custom_on_pip") or {}).get("in_list_view") \
+        or not (ours.get("custom_on_pip") or {}).get("in_standard_filter"):
+    fail.append("the Appraisal list shows and filters who is on an improvement plan")
 # each form's own sections are shown only for that form
 for fieldname in ("custom_factors", "custom_objectives", "custom_total_score", "custom_production_remarks"):
     if "Balanced Scorecard" not in (ours.get(fieldname) or {}).get("depends_on", ""):
@@ -1118,8 +1231,9 @@ if 'TEMPLATE = "Appraisal Template"' not in glue_bsc:
     fail.append("bsc.py must name Frappe HR's own Appraisal Template as the scorecard's home")
 for needle, why in (
     ("rules.template_errors(", "a scorecard is judged by the rules"),
-    ("rules.quarter_score(", "each quarter is scored by the rules"),
-    ("rules.annual_score(", "and the year"),
+    ("rules.quarter_score(", "each KPI's quarter is scored by the rules"),
+    ("rules.perspective_summary(", "and the perspectives sum them up"),
+    ("rules.spread_weights(", "a workbook's perspective weight is shared out between its KPIs"),
     ("rules.section_a(", "Section A comes from the rules"),
     ("rules.section_b(", "and Section B"),
     ("rules.band(", "and the band"),
@@ -1235,7 +1349,7 @@ for child, fieldname in appraisals_self_ratings():
     if child not in table_of or fieldname not in fields_of(doctype(child)):
         fail.append("the employee's own ratings are %s.%s, a table on the Appraisal" % (child, fieldname))
 if {table_of.get(child) for child, _field in appraisals_self_ratings()} != \
-        {"custom_factors", "custom_objectives", "custom_bsc_perspectives", "custom_bsc_competencies"}:
+        {"custom_factors", "custom_objectives", "custom_bsc_kpis", "custom_bsc_competencies"}:
     fail.append("every table the employee rates in is read for their self-appraisal")
 people_glue = read("hrms_addon", "hrms_addon", "people.py")
 if "_remove(doctype, name, user, ignore_permissions=True)" not in body_of(people_glue, "withdraw"):
@@ -1269,8 +1383,8 @@ if "hrms_addon.patches.v1_0.self_appraisal_follows_settings" not in listed_patch
         listed_patches.index("hrms_addon.patches.v1_0.self_appraisal_follows_settings") \
         < listed_patches.index("hrms_addon.patches.v1_0.appraisal_templates_and_self_appraisal"):
     fail.append("the self-appraisal patch runs after the one that turned it on for everyone")
-for child, fieldname in (("BSC Appraisal Perspective", "self_score"), ("BSC Appraisal Competency", "self_score"),
-                         ("BSC Appraisal KPI", "comments"), ("BSC Template KPI", "weight"),
+for child, fieldname in (("BSC Appraisal KPI", "self_percent"), ("BSC Appraisal Competency", "self_score"),
+                         ("BSC Appraisal KPI", "q1_comments"), ("BSC Template KPI", "weight"),
                          ("Appraisal Template Factor", "factor"), ("Appraisal Template Objective", "objective")):
     if fieldname not in fields_of(doctype(child)):
         fail.append("%s has no %s" % (child, fieldname))
@@ -1296,8 +1410,11 @@ template = custom_fields("Appraisal Template")
 form = template.get("custom_form_type") or {}
 if tuple((form.get("options") or "").split("\n")) != (S.FORM_BSC, S.FORM_SUPERVISORY) or form.get("default") != S.FORM_BSC:
     fail.append("a template says which form it carries, the scorecard unless it says otherwise: %s" % form)
-if not (template.get("custom_perspectives") or {}).get("hidden"):
-    fail.append("the perspectives' weights follow from the KPIs; the table they are kept in is not typed into")
+perspectives = template.get("custom_perspectives") or {}
+if perspectives.get("hidden") or not perspectives.get("read_only") or perspectives.get("insert_after") != "custom_kpis":
+    fail.append("the perspectives follow from the KPIs: shown below them, never typed into: %s" % perspectives)
+if (template.get("custom_kpis") or {}).get("insert_after") != "custom_section_a":
+    fail.append("Section A opens with the KPIs, the perspectives below them")
 if (template.get("custom_kpis") or {}).get("label") != "Objectives & KPIs":
     fail.append("Section A is one table, as the workbook has it")
 for fieldname, options in (("custom_factors", "Appraisal Template Factor"),
@@ -1365,11 +1482,11 @@ if [key for key, _question in SH.QUESTIONS] != [key for key, _question in R.QUES
 BSC_DATA = {
     "name": "HR-APR-2026-00012", "form_type": S.FORM_BSC, "period": "Q2", "self_appraisal": 1,
     "company": "Luuka Plastics Limited", "year": 2026, "employee_name": "Ferdinand: Musembi / Senior Procurement",
-    "perspectives": [{"perspective": "Financial", "weight": 50, "q1_percent": 90},
-                     {"perspective": "Customer / Stakeholder", "weight": 30}],
-    "kpis": [{"perspective": "Financial", "kpi": "Savings", "timing": "Monthly", "comments": {"Q1": "On track."}},
-             {"perspective": "Financial", "kpi": "Variance\ntracked", "timing": "Monthly", "comments": {}},
-             {"perspective": "Customer / Stakeholder", "kpi": "Stock-outs", "timing": "Weekly", "comments": {}}],
+    "kpis": [{"perspective": "Financial", "kpi": "Savings", "timing": "Monthly", "weight": 30, "q1_percent": 90,
+              "q1_comments": "On track."},
+             {"perspective": "Financial", "kpi": "Variance\ntracked", "timing": "Monthly", "weight": 20},
+             {"perspective": "Customer / Stakeholder", "kpi": "Stock-outs", "timing": "Weekly", "weight": 30}],
+    "results": {"Q1": 81.5},
     "competencies": [{"competency": "One", "weight": 12}, {"competency": "Two", "weight": 8}],
     "assignments": [], "remarks": {}, "names": {}, "plan": {}, "actions": [],
 }
@@ -1390,9 +1507,15 @@ if len(titles) != 3 or len(set(title.lower() for title in titles)) != 3 or \
         any(len(title) > 31 or set(title) & set("[]:*?/\\") for title in titles):
     fail.append("one sheet per appraisal, titled as Excel allows, each once: %s" % titles)
 card, lpl = book.worksheets[0], book.worksheets[1]
-if (card["R1"].value, card["R2"].value, card["R4"].value) != (SH.MARK, "HR-APR-2026-00012", "Q2") \
+if (card["R1"].value, card["R2"].value, card["R4"].value, card["R5"].value) != (SH.MARK, "HR-APR-2026-00012", "Q2",
+                                                                              SH.LAYOUT) \
         or not card.column_dimensions["R"].hidden:
-    fail.append("each sheet names its appraisal and period in a hidden column")
+    fail.append("each sheet names its appraisal, its quarter and its layout in a hidden column")
+if SH.QUARTERS != S.QUARTERS or [SH.PERIOD_COLUMNS[quarter] for quarter in SH.QUARTERS] != [
+        ("F", "G", "H"), ("I", "J", "K"), ("L", "M", "N"), ("O", "P", "Q")]:
+    fail.append("the sheet carries the scorecard's four quarters, three columns each, A to Q")
+if sorted(SH.BSC_WIDTHS) != [chr(code) for code in range(ord("A"), ord("Q") + 1)] or sorted(SH.WIDTHS)[-1] != "P":
+    fail.append("the scorecard's sheet runs A to Q, the supervisory form's still A to P")
 if not card.protection.sheet or card.protection.formatColumns:
     fail.append("the sheet is locked where the system filled it in, and its columns can still be widened")
 if card["K8"].value != "HR-APR-2026-00012":
@@ -1412,10 +1535,29 @@ if first and (card["I%d" % first].protection.locked is not False or not card["F%
     fail.append("the quarter appraised takes a comment against each KPI; an earlier quarter's are locked")
 if first and card["B%d" % (first + 1)].value != S.CONTINUATION:
     fail.append("a KPI under the same perspective carries the workbook's arrow")
-if first and "E%d:E%d" % (first, first + 1) not in [str(span) for span in card.merged_cells.ranges]:
-    fail.append("a perspective's weight spans its KPIs")
+if first and ((card["E%d" % first].value, card["E%d" % (first + 1)].value) != (30, 20)
+              or "E%d:E%d" % (first, first + 1) in [str(span) for span in card.merged_cells.ranges]):
+    fail.append("every KPI carries its own weight on its own row")
+if first and (card["P11"].value != "Q4 %\nAchieved" or not card["P%d" % first].protection.locked
+              or card["Q%d" % first].value != '=IF(P%d="","",E%d*P%d)' % (first, first, first)):
+    fail.append("the fourth quarter is on the sheet, locked until it is appraised")
+total_row = next(row for row in range(12, 30) if card["A%d" % row].value == "WEIGHT CHECK & QUARTERLY TOTALS")
+summary_row = next((row for row in range(total_row, total_row + 8) if card["A%d" % row].value == "Financial"), None)
+if not summary_row or card["E%d" % summary_row].value != "=SUMIF($S$12:$S$14,$A%d,$E$12:$E$14)" % summary_row \
+        or "SUMIF($S$12:$S$14,$A%d,$H$12:$H$14)" % summary_row not in str(card["F%d" % summary_row].value):
+    fail.append("the perspectives below the KPIs sum them up by the key each KPI row carries: %s"
+                % (summary_row and card["E%d" % summary_row].value))
+scored_row = next((row for row in range(12, card.max_row + 1) if card["A%d" % row].value == "Overall score"), None)
+overall_row = next((row for row in range(12, card.max_row + 1)
+                    if str(card["A%d" % row].value or "").startswith("OVERALL SCORE")), None)
+if not scored_row or card["F%d" % scored_row].value != 81.5 \
+        or card["I%d" % scored_row].value != '=IFERROR(Q%d,"")' % overall_row \
+        or card["L%d" % scored_row].value is not None or card["O%d" % scored_row].value is not None:
+    fail.append("the year so far: Q1 as its own appraisal recorded it, Q2 from this sheet, the later ones blank")
+if not scored_row or card["Q%d" % (scored_row + 1)].value != '=IFERROR(AVERAGE(F%d:Q%d),"")' % (scored_row, scored_row):
+    fail.append("the year to date is the average of the quarters appraised")
 checks = [(check.type, check.formula1, check.formula2) for check in card.data_validations.dataValidation
-          if first and "J%d" % first in str(check.sqref).split()]
+          if first and "J%d" % first in str(check.sqref).split() and "J%d" % (first + 1) in str(check.sqref).split()]
 if checks != [("decimal", "0", "1")]:
     fail.append("the percentage achieved is checked as it is typed, 0%% to 100%%: %s" % checks)
 if lpl["G12"].protection.locked is False:
@@ -1447,12 +1589,14 @@ found = SH.read(out.getvalue())
 got = found.get("HR-APR-2026-00012") or {}
 if got.get("sheet") != "Renamed" or got.get("period") != "Q2":
     fail.append("a renamed sheet is still matched to its appraisal: %s" % sorted(found))
-if got.get("scores") != {"Financial": 85.0}:
-    fail.append("the percentage comes back as a percentage, and one over 100 is not taken: %s" % got.get("scores"))
-if not any("Customer / Stakeholder" in text for text in got.get("problems") or []):
-    fail.append("a percentage over 100 is reported, not guessed at")
-if got.get("comments") != {("Financial", "Variance tracked"): "Variance down"}:
-    fail.append("a comment comes back against its KPI, only for the quarter appraised: %s" % got.get("comments"))
+if got.get("kpis") != {("Financial", "Savings"): {"percent": 85.0, "comments": None},
+                       ("Financial", "Variance tracked"): {"percent": None, "comments": "Variance down"}}:
+    fail.append("each KPI's percentage comes back as a percentage, its comment with it, only for the quarter "
+                "appraised, and one over 100 is not taken: %s" % got.get("kpis"))
+if not any("Stock-outs (Customer / Stakeholder)" in text for text in got.get("problems") or []):
+    fail.append("a percentage over 100 is reported against its KPI, not guessed at")
+if got.get("outdated"):
+    fail.append("a sheet laid out now is read")
 if got.get("competencies") != {"One": 8.0} or not any("Two" in text for text in got.get("problems") or []):
     fail.append("a competency over ten is reported, the rest taken: %s" % got.get("competencies"))
 if got.get("remarks") != {"supervisor": "Strong quarter."}:
@@ -1467,6 +1611,13 @@ if not any("seven" in text for text in supervisory.get("problems") or []):
     fail.append("a rating off the scale is reported")
 if "HR-APR-2026-00014" not in found:
     fail.append("every sheet of the workbook is read, not only the first")
+older = book.worksheets[2]
+older["R5"] = None
+out = io.BytesIO()
+book.save(out)
+stale = SH.read(out.getvalue()).get("HR-APR-2026-00014") or {}
+if not stale.get("outdated") or stale.get("kpis"):
+    fail.append("a sheet laid out before every KPI carried its own weight is not read: %s" % stale)
 bare = io.BytesIO()
 from openpyxl import Workbook  # noqa: E402
 
@@ -1552,8 +1703,17 @@ def js_list(name):
 
 
 widths = [int(value) for value in re.findall(r"\d+", js_list("HA_SHEET_WIDTHS"))]
-if widths != [SH.WIDTHS[column] for column in "ABCDEFGHIJKLMNOP"]:
-    fail.append("the form's columns must be the sheet's, A to P, in its widths: %s" % widths)
+if widths != [SH.BSC_WIDTHS[column] for column in "ABCDEFGHIJKLMNOPQ"]:
+    fail.append("the form's columns must be the scorecard sheet's, A to Q, in its widths: %s" % widths)
+# the template drawn with the sheet's own heads, the four quarters each
+# with comments, a percentage and a weighted score
+sheet_row = [card["%s11" % column].value for column in "ABCDEFGHIJKLMNOPQ"]
+drawn_first = re.findall(r'\["([^"]*)", "head', js_list("HA_SHEET_HEADS"))[:5]
+drawn_quarters = [head.replace("${quarter}", quarter) for quarter in S.QUARTERS
+                  for head in re.findall(r"\[`([^`]*)`, \"head", js_list("HA_SHEET_HEADS"))]
+if [head.replace("\\n", "\n") for head in drawn_first + drawn_quarters] != sheet_row:
+    fail.append("the template's form heads its columns as the sheet does: %s against %s"
+                % (drawn_first + drawn_quarters, sheet_row))
 drawn_heads = re.findall(r'\["([^"]*)", "head', js_list("HA_SHEET_HEADS"))
 sheet_heads = re.findall(r'\("[A-P]", "([^"]*)", TEAL', sheet_source.split("def _section_a(")[1].split("for column, text, fill in heads")[0])
 if not sheet_heads or drawn_heads != sheet_heads:
@@ -1585,8 +1745,9 @@ for needle, why in (
         ("${td(esc(row.competency)", "a competency is escaped"),
         ("esc(row.indicators)", "its indicators are escaped"),
         ("/^(\\/|https?:\\/\\/)/.test(logo)", "only a logo the site serves is shown"),
-        ("custom_kpis_remove(frm) {\n\t\tfrm.trigger(\"show_weights\");\n\t\tfrm.trigger(\"show_form\");",
-         "a KPI taken off redraws the form"),
+        ("custom_kpis_remove(frm) {\n\t\tha_template_perspectives(frm);\n\t\tfrm.trigger(\"show_weights\");\n"
+         "\t\tfrm.trigger(\"show_form\");", "a KPI taken off redraws the form and its perspectives"),
+        ("weight(frm) {\n\t\tha_template_perspectives(frm);", "a KPI's weight sums into its perspective as it is typed"),
         ("custom_competencies_remove(frm) {\n\t\tfrm.trigger(\"show_weights\");\n\t\tfrm.trigger(\"show_form\");",
          "a competency taken off redraws the form")):
     if needle not in template_js:
@@ -1651,6 +1812,224 @@ for needle, why in (
     if needle not in patch:
         fail.append("clear_prefilled_choices.py: %s (%r not found)" % (why, needle))
 print("what Frappe chose by itself: the choices start blank, and the patch clears only what is open and unchosen")
+
+# ── 13. Luuka, 4 Oct 2026: KPIs weighed, the quarters, the remarks, the PIP ──
+def frappe_order(doctype_json, custom):
+    """Frappe v16's own placing of custom fields (meta.sort_fields and
+    _update_field_order_based_on_insert_after): a field after another's
+    whole chain when two share an anchor, a break anchored on a standard
+    field moved to the end of that field's section."""
+    kinds = {field["fieldname"]: field["fieldtype"] for field in doctype_json["fields"]}
+    kinds.update({field["fieldname"]: field["fieldtype"] for field in custom})
+    order = [name for name in (doctype_json.get("field_order") or []) if name in kinds] \
+        or [field["fieldname"] for field in doctype_json["fields"]]
+    insertion = {}
+    for field in custom:
+        target = field.get("insert_after")
+        if field["fieldtype"] in ("Section Break", "Column Break") and target in order:
+            original = target
+            for current in order[order.index(target) + 1:]:
+                if kinds[current] == "Section Break" or kinds[current] == kinds[original]:
+                    break
+                target = current
+        insertion.setdefault(target, []).append(field["fieldname"])
+    retry = True
+    while retry:
+        retry = False
+        for anchor in list(insertion):
+            if anchor in order:
+                at = order.index(anchor)
+                for name in insertion.pop(anchor):
+                    at += 1
+                    order.insert(at, name)
+                retry = True
+    for names in insertion.values():
+        order.extend(names)
+    return order
+
+
+appraisal_custom = [row for row in CUSTOM if row["dt"] == "Appraisal"]
+# fields sharing an anchor land in the order the database hands them over
+# (every fixture's idx is 0): one field per anchor keeps the form as drawn
+anchors = {}
+for row in appraisal_custom:
+    anchors.setdefault(row.get("insert_after"), []).append(row["fieldname"])
+shared = {anchor: names for anchor, names in anchors.items() if len(names) > 1}
+if shared:
+    fail.append("Appraisal custom fields share an anchor, so their order is the database's: %s" % shared)
+placed = frappe_order(upstream_doctype("Appraisal"), appraisal_custom)
+at = {name: index for index, name in enumerate(placed)}
+remark_sections = ("custom_employee_section", "custom_supervisor_section", "custom_hod_section", "custom_hrm_section",
+                   "custom_production_section", "custom_gm_section", "custom_ed_section")
+content = ("custom_challenges", "custom_bsc_self_score", "custom_year_band", "custom_development_actions",
+           "custom_quarter_results", "custom_bsc_competencies", "custom_factors", "custom_objectives")
+if min(at[name] for name in remark_sections) < max(at[name] for name in content):
+    fail.append("the remarks sit below the appraisal, after both forms, the year so far and the plan: %s"
+                % [name for name in placed if name.startswith("custom_")][:80])
+if [name for name in placed if name in remark_sections] != list(remark_sections):
+    fail.append("the remarks follow the signing order, the HOD before the HR Manager: %s"
+                % [name for name in placed if name in remark_sections])
+if not at["custom_bsc_kpis"] < at["custom_bsc_perspectives"] < at["custom_assignments_section"]:
+    fail.append("Section A shows the KPIs, then the perspectives summing them up")
+if not at["custom_round_section"] < at["custom_form_type"] < at["custom_quarter"] < at["custom_on_pip"] \
+        < at["custom_section_a"]:
+    fail.append("the form, the quarter and the improvement plan sit at the top, with the appraisal's details")
+if not at["custom_band"] < at["custom_general_section"] < at["custom_bsc_section_a"]:
+    fail.append("the supervisory form's General questions follow its own scores, not the year so far")
+gm = next(row for row in appraisal_custom if row["fieldname"] == "custom_gm_section")
+if "Balanced Scorecard" not in (gm.get("depends_on") or ""):
+    fail.append("the General Manager signs the supervisory form only: their remarks are not on the scorecard")
+
+# the remarks are their signatory's, written when the appraisal is with them
+for form, step, field in ((A.FORM_BSC, A.PENDING_SUPERVISOR, "custom_supervisor_remarks"),
+                          (A.FORM_BSC, A.PENDING_EMPLOYEE, "custom_employee_remarks"),
+                          (A.FORM_BSC, A.PENDING_HOD, "custom_hod_remarks"),
+                          (A.FORM_BSC, A.PENDING_ED, "custom_ed_remarks"),
+                          (A.FORM_SUPERVISORY, A.PENDING_SELF, "custom_employee_remarks"),
+                          (A.FORM_SUPERVISORY, A.PENDING_GM, "custom_gm_remarks")):
+    if A.remark_steps(form).get(field) != step:
+        fail.append("%s's %s are written at %s" % (form, field, step))
+    expect("%s writes their own remarks at %s" % (field, step), A.remark_errors(form, step, [field]))
+expect("the HR Manager cannot write the appraiser's remarks",
+       A.remark_errors(A.FORM_BSC, A.PENDING_HRM, ["custom_supervisor_remarks"]), "The Appraiser's remarks")
+expect("nobody writes remarks in Draft", A.remark_errors(A.FORM_SUPERVISORY, A.DRAFT, ["custom_employee_remarks"]),
+       "The Employee's remarks")
+expect("a remark the form has no place for", A.remark_errors(A.FORM_BSC, A.PENDING_HRM, ["custom_gm_remarks"]),
+       "no place for those remarks")
+expect("nothing changed, nothing to say", A.remark_errors(A.FORM_BSC, A.PENDING_HRM, []))
+if set(A.remark_steps(A.FORM_BSC)) | set(A.remark_steps(A.FORM_SUPERVISORY)) != set(A.ALL_REMARK_FIELDS):
+    fail.append("every remark field belongs to one signatory's step")
+appraisal_js = read("hrms_addon", "public", "js", "appraisal.js")
+js_remarks = re.findall(r'"(custom_\w+_remarks)"', appraisal_js.split("const HA_REMARK_FIELDS")[1].split("];")[0])
+if set(js_remarks) != set(A.ALL_REMARK_FIELDS):
+    fail.append("the form opens and closes every signatory's remarks: %s" % js_remarks)
+for needle, why in (
+    ('frm.set_df_property(fieldname, "read_only", steps[fieldname] === state ? 0 : 1);',
+     "a signatory's remarks open only at their own step"),
+    ("frm.doc.__onload && frm.doc.__onload.remark_steps", "the steps come from the server, the rules' own"),
+    ('grid.update_docfield_property(fieldname, "read_only", closed);', "only the quarter appraised is open"),
+    ('quarter.toLowerCase() + "_percent", quarter.toLowerCase() + "_comments"', "its percentage and its comments"),
+    ("flt((flt(row.weight) * flt(percent)) / 100, 2)", "a KPI's weighted score shows as it is typed"),
+    ('frm.set_intro(', "an employee on an improvement plan is said at the top"),
+    ('"red"', "in red"),
+    ('["custom_bsc_kpis", "self_percent"]', "the employee's own percentage is a column of the KPIs"),
+):
+    if needle not in appraisal_js:
+        fail.append("appraisal.js: %s (%r not found)" % (why, needle))
+if "custom_period" in appraisal_js or "custom_period" in glue_appraisals:
+    fail.append("the scorecard's period is gone: the form and the glue read the quarter")
+
+# the glue: the quarter, the earlier quarters carried in, the year so far
+validate_now = body_of(glue_appraisals, "appraisal_validate")
+for needle in ("_settle_quarter(doc)", "_mark_pip(doc)", "_carry_earlier_quarters(doc)", "_year_so_far(doc)",
+               "_check_remarks(doc)"):
+    if needle not in validate_now:
+        fail.append("appraisal_validate must call %s" % needle)
+if validate_now.index("_carry_earlier_quarters(doc)") > validate_now.index("bsc.score(doc)") \
+        or validate_now.index("_year_so_far(doc)") < validate_now.index("bsc.score(doc)") \
+        or validate_now.index("_check_remarks(doc)") > validate_now.index("_check_step(doc)"):
+    fail.append("the earlier quarters are carried in before scoring, the year so far after it, the remarks checked "
+                "before the step")
+for name, needles in (
+    ("_settle_quarter", ('doc.custom_quarter = before.custom_quarter', "approval.BEFORE_SUPERVISOR",
+                         'bsc_rules.quarter_of(getdate(start).month)', 'cycle.custom_quarter')),
+    ("_year_appraisals", ('filters["custom_plan"] = doc.custom_plan', '"between", ["%s-01-01" % year',
+                          'order_by="docstatus asc, modified asc"', '"name": ["!=", doc.name or ""]')),
+    ("_carry_earlier_quarters", ("found = (earlier.get(each) or {}).get(key) or {}", "if each == quarter:", "row.set(bsc_rules.percent_field(each)",
+                                 "row.set(bsc_rules.comments_field(each)")),
+    ("_year_so_far", ("bsc_rules.QUARTERS[:bsc_rules.QUARTERS.index(quarter) + 1]",
+                      "doc.custom_annual_score = bsc_rules.year_to_date(", "doc.custom_year_band =")),
+    ("_check_remarks", ('doc.flags.get("from_sheet")', "approval.remark_errors(")),
+    ("appraisal_on_change", ("row.docstatus != 0", "other.db_update()", 'other.update_child_table(table)')),
+    ("appraisal_onload", ('doc.set_onload("remark_steps", approval.remark_steps(',)),
+    ("_apply_sheet", ("doc.flags.from_sheet = True",)),
+    ("_not_taken", ('values.get("outdated")',)),
+):
+    found = body_of(glue_appraisals, name)
+    for needle in needles:
+        if needle not in found:
+            fail.append("appraisals.%s: %r not found" % (name, needle))
+for event, function in (("onload", "appraisal_onload"), ("on_change", "appraisal_on_change")):
+    if (events.get("Appraisal") or {}).get(event) != "hrms_addon.hrms_addon.appraisals.%s" % function:
+        fail.append("doc_events Appraisal %s must be appraisals.%s" % (event, function))
+if ("BSC Appraisal KPI", "self_percent") not in appraisals_self_ratings():
+    fail.append("a self-appraisal on the scorecard is the employee's own percentage against each KPI")
+
+# the improvement plan, in red wherever its employee is listed
+pip_glue = read("hrms_addon", "hrms_addon", "pips.py")
+if P.OPEN != (P.DRAFT, P.AGREED, P.IN_PROGRESS):
+    fail.append("an employee is on a plan from the day it is raised until it is closed or cancelled")
+for name, needles in (
+    ("open_plan", ('"docstatus": 0, "status": ["in", list(rules.OPEN)]', 'order_by="creation desc", limit=1')),
+    ("mark_appraisals", ('"docstatus": ["!=", 2]', 'update_modified=False', '"custom_improvement_plan": plan')),
+    ("open_plans", ('frappe.has_permission("Performance Improvement Plan", "read")', "[:500]",
+                    "row.name if readable else 1")),
+    ("plan_on_change", ("mark_appraisals(",)),
+):
+    found = body_of(pip_glue, name)
+    for needle in needles:
+        if needle not in found:
+            fail.append("pips.%s: %r not found" % (name, needle))
+if not re.search(r"@frappe\.whitelist\(\)\ndef open_plans\(employees: list \| str \| None = None\) -> dict:", pip_glue):
+    fail.append("pips.open_plans is whitelisted, reads only, and takes the list as Frappe sends it")
+controller = read("hrms_addon", "hrms_addon", "doctype", "performance_improvement_plan",
+                  "performance_improvement_plan.py")
+for needle in ("def on_change(self):\n        pips.plan_on_change(self)",
+               "def after_delete(self):\n        pips.plan_after_delete(self)"):
+    if needle not in controller:
+        fail.append("a plan raised, closed, cancelled or deleted marks its employee's appraisals")
+pip_js = read("hrms_addon", "public", "js", "hrms_addon_pip.js")
+if "/assets/hrms_addon/js/hrms_addon_pip.js" not in (hooks.get("app_include_js") or []):
+    fail.append("the red marking is loaded on every desk page")
+for needle in ('"hrms_addon.hrms_addon.pips.open_plans"', 'grid.update_docfield_property(field || "employee_name", '
+               '"formatter"', 'indicator-pill red', "frappe.utils.escape_html("):
+    if needle not in pip_js:
+        fail.append("hrms_addon_pip.js: %r not found" % needle)
+for path, needle in (
+        (("public", "js", "appraisal_cycle.js"), 'frappe.after_ajax(() => hrms_addon.pip.mark_rows(frm, "appraisees"));'),
+        (("hrms_addon", "doctype", "appraisal_plan", "appraisal_plan.js"),
+         'hrms_addon.pip.mark_rows(frm, "employees", "employee");'),
+        (("hrms_addon", "doctype", "performance_review", "performance_review.js"),
+         'hrms_addon.pip.mark_rows(frm, "employees");'),
+        (("hrms_addon", "doctype", "performance_review", "performance_review.js"),
+         "Number(value) < HA_REVIEW_PASS_MARK")):
+    if needle not in read("hrms_addon", *path):
+        fail.append("%s: %r not found" % (path[-1], needle))
+if (hooks.get("doctype_list_js") or {}).get("Appraisal") != "public/js/appraisal_list.js":
+    fail.append("the Appraisal list has its own settings, for the improvement plan and the pass mark")
+appraisal_list = read("hrms_addon", "public", "js", "appraisal_list.js")
+for needle in ("custom_on_pip(value, df, doc)", "Object.assign(frappe.listview_settings[\"Appraisal\"] || {}",
+               "Number(value) < HA_PASS_MARK"):
+    if needle not in appraisal_list:
+        fail.append("appraisal_list.js: %r not found" % needle)
+for name in ("HA_PASS_MARK", "HA_REVIEW_PASS_MARK"):
+    source = appraisal_list if name == "HA_PASS_MARK" else read(
+        "hrms_addon", "hrms_addon", "doctype", "performance_review", "performance_review.js")
+    if "const %s = %d;" % (name, R.PIP_BELOW) not in source:
+        fail.append("%s is the pass mark the rules recommend a plan below (%d)" % (name, R.PIP_BELOW))
+
+# the patch that moves a site onto all of it
+patch_text = read("hrms_addon", "patches", "v1_0", "scorecard_by_kpi.py")
+listed = read("hrms_addon", "patches.txt").split()
+if "hrms_addon.patches.v1_0.scorecard_by_kpi" not in listed:
+    fail.append("scorecard_by_kpi runs on migrate")
+for needle, why in (
+    ('sync_fixtures("hrms_addon")', "the fields it writes exist first"),
+    ("bsc_rules.spread_weights(", "a template's perspective weight is shared out between its KPIs"),
+    ("round(flt(recorded[\"annual_score\"]) * 10, 2)", "an annual score out of ten becomes the fourth quarter's percentage"),
+    ("doc.custom_quarter = bsc_rules.QUARTERS[-1]", "the old Annual is the fourth quarter"),
+    ("frappe.db.has_column(", "the old columns are read only where they are"),
+    ("if doc.docstatus == 0:", "a submitted appraisal keeps the totals it was submitted with"),
+    ("appraisals._year_so_far(doc)", "every appraisal gets its year so far"),
+    ("pips.mark_appraisals(", "and says who is on a plan"),
+    ('frappe.delete_doc("Custom Field", "Appraisal-custom_period"', "the old period goes"),
+    ("row.docstatus = doc.docstatus", "the rows written carry their record's state"),
+    ("doc.update_child_table(table)", "and are written without the record's checks"),
+):
+    if needle not in patch_text:
+        fail.append("scorecard_by_kpi.py: %s (%r not found)" % (why, needle))
+print("Oct 2026: one field per anchor and the remarks at the bottom, each opened only at its signatory's step; the "
+      "quarter, the earlier quarters carried in, the year so far; the improvement plan in red; the patch")
 
 print()
 if fail:

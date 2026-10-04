@@ -17,3 +17,9 @@ class PerformanceImprovementPlan(Document):
 
     def on_cancel(self):
         pips.plan_on_cancel(self)
+
+    def on_change(self):
+        pips.plan_on_change(self)
+
+    def after_delete(self):
+        pips.plan_after_delete(self)

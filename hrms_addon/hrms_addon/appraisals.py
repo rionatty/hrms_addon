@@ -49,6 +49,7 @@ from hrms_addon.hrms_addon import (
     bsc_rules,
     people,
     pip_rules,
+    pips,
     position_rules,
     workflows,
 )
@@ -117,9 +118,12 @@ def _skip_self_appraisal(name, state):
     _tell_next(doc, state)
 
 
-# the employee's own ratings, where each form keeps them
+# the employee's own ratings, where each form keeps them: a rating on the
+# supervisory form, a figure on the scorecard (each KPI's own percentage
+# since October 2026, each competency's score)
 SELF_RATINGS = (("Appraisal Factor Rating", "employee_rating"), ("Appraisal Objective Rating", "employee_rating"),
-                ("BSC Appraisal Perspective", "self_score"), ("BSC Appraisal Competency", "self_score"))
+                ("BSC Appraisal KPI", "self_percent"), ("BSC Appraisal Competency", "self_score"))
+SELF_FIGURES = ("self_percent", "self_score")
 
 
 def gave_self_appraisal(names):
@@ -127,7 +131,7 @@ def gave_self_appraisal(names):
     names = list(names or ())
     ratings, scores = {}, {}
     for doctype, field in SELF_RATINGS if names else ():
-        kept = scores if field == "self_score" else ratings
+        kept = scores if field in SELF_FIGURES else ratings
         for row in frappe.get_all(doctype, filters={"parenttype": "Appraisal", "parent": ["in", names]},
                                   fields=["parent", field]):
             kept.setdefault(row.parent, []).append(row.get(field))
@@ -262,7 +266,6 @@ def _raise_appraisal(plan, row, cycle, employee):
         "custom_appraisal_status": approval.DRAFT, "workflow_state": approval.DRAFT,
     })
     template = template_for(employee.name, employee.get("designation"), cycle.name, plan.get("year"))
-    appraisal.custom_period = row.quarter if row.quarter in bsc_rules.QUARTERS else bsc_rules.ANNUAL
     _take_template(appraisal, template, employee)
     appraisal.flags.ignore_permissions = True
     appraisal.flags.ignore_mandatory = True
@@ -322,8 +325,6 @@ def _take_template(doc, template, employee=None):
     doc.appraisal_template = template or None
     doc.custom_form_type = form_of(template)
     if doc.custom_form_type == approval.FORM_BSC:
-        if not doc.get("custom_period"):
-            doc.custom_period = bsc_rules.ANNUAL
         bsc.fill(doc, template)
         return
     card = frappe.get_doc(TEMPLATE, template) if template else None
@@ -405,8 +406,11 @@ def appraisal_validate(doc, method=None):
         doc.custom_supervisor = frappe.db.get_value("Employee", doc.employee, "reports_to")
     doc.custom_supervisor_name = frappe.db.get_value("Employee", doc.custom_supervisor, "employee_name") \
         if doc.get("custom_supervisor") else None
+    _settle_quarter(doc)
+    _mark_pip(doc)
     _attach_template(doc)
     if _is_bsc(doc):
+        _carry_earlier_quarters(doc)
         bsc.score(doc)
         _carry_scores(doc, doc.get("custom_bsc_overall"), doc.get("custom_bsc_band"))
     else:
@@ -414,12 +418,201 @@ def appraisal_validate(doc, method=None):
             for factor in _factors():
                 doc.append("custom_factors", {"item": factor})
         _score(doc)
+    _year_so_far(doc)
+    _check_remarks(doc)
     _check_step(doc)
     doc.custom_appraisal_status = doc.get("workflow_state") or doc.get("custom_appraisal_status") or approval.DRAFT
 
 
+def appraisal_onload(doc, method=None):
+    """What the form needs to know beyond the record: the step each
+    signatory's remarks are written at, on this appraisal's form, and the
+    improvement plan the employee is on."""
+    doc.set_onload("remark_steps", approval.remark_steps(doc.get("custom_form_type")))
+    if doc.get("custom_improvement_plan"):
+        doc.set_onload("improvement_plan", frappe.db.get_value(
+            "Performance Improvement Plan", doc.custom_improvement_plan, ["name", "status", "end_date"], as_dict=True))
+
+
+def appraisal_on_change(doc, method=None):
+    """A quarter changed (saved, signed, submitted or cancelled): the
+    employee's later quarters still open carry it as it is now, their
+    earlier quarters and their year to date. Written straight in, so their
+    own checks and signatures are not run again."""
+    quarter = doc.get("custom_quarter")
+    if quarter not in bsc_rules.QUARTERS or not doc.get("employee"):
+        return
+    later = bsc_rules.QUARTERS[bsc_rules.QUARTERS.index(quarter) + 1:]
+    for each, row in _year_appraisals(doc).items():
+        if each not in later or row.docstatus != 0:
+            continue
+        other = frappe.get_doc("Appraisal", row.name)
+        if _is_bsc(other):
+            _carry_earlier_quarters(other)
+            bsc.score(other)
+            _carry_scores(other, other.get("custom_bsc_overall"), other.get("custom_bsc_band"))
+        _year_so_far(other)
+        other.db_update()
+        for table in ("custom_bsc_kpis", "custom_bsc_perspectives", "custom_quarter_results"):
+            other.update_child_table(table)
+
+
 def _is_bsc(doc):
     return doc.get("custom_form_type") == approval.FORM_BSC
+
+
+def _settle_quarter(doc):
+    """The quarter the appraisal is for: the plan's, or the one HR gave an
+    appraisal made by hand, else its cycle's, else the one its period starts
+    in. Once it is being rated the quarter stays: the scores are recorded
+    against it."""
+    before = doc.get_doc_before_save()
+    started = before is not None and (before.get(approval.STATE_FIELD) or approval.DRAFT) \
+        not in approval.BEFORE_SUPERVISOR
+    if started and before.get("custom_quarter") and doc.get("custom_quarter") != before.get("custom_quarter"):
+        doc.custom_quarter = before.custom_quarter
+        frappe.msgprint(_("The appraisal keeps the quarter it is being rated for."), indicator="orange", alert=True)
+    if doc.get("custom_quarter") in bsc_rules.QUARTERS:
+        return
+    cycle = frappe.db.get_value("Appraisal Cycle", doc.appraisal_cycle, ["custom_quarter", "start_date"],
+                                as_dict=True) if doc.get("appraisal_cycle") else None
+    if cycle and cycle.custom_quarter in bsc_rules.QUARTERS:
+        doc.custom_quarter = cycle.custom_quarter
+        return
+    start = doc.get("start_date") or (cycle.start_date if cycle else None)
+    doc.custom_quarter = bsc_rules.quarter_of(getdate(start).month) if start else None
+
+
+def _mark_pip(doc):
+    """An employee on an improvement plan still open is marked, and their
+    appraisals show it (pips.mark_appraisals keeps them right as plans open
+    and close)."""
+    plan = pips.open_plan(doc.get("employee")) if doc.get("employee") else None
+    doc.custom_improvement_plan = plan
+    doc.custom_on_pip = 1 if plan else 0
+
+
+def _year_appraisals(doc):
+    """{quarter: row} of the employee's other appraisals of the year this
+    one is in: the same plan's, or, for one made by hand, those of the same
+    calendar year. One a quarter: a submitted one before an open one, the
+    last changed before an earlier."""
+    if not doc.get("employee"):
+        return {}
+    filters = {"employee": doc.employee, "docstatus": ["!=", 2], "name": ["!=", doc.name or ""],
+               "custom_quarter": ["in", list(bsc_rules.QUARTERS)]}
+    if doc.get("custom_plan"):
+        filters["custom_plan"] = doc.custom_plan
+    elif doc.get("start_date"):
+        year = getdate(doc.start_date).year
+        filters["start_date"] = ["between", ["%s-01-01" % year, "%s-12-31" % year]]
+    else:
+        return {}
+    found = {}
+    for row in frappe.get_all("Appraisal", filters=filters, order_by="docstatus asc, modified asc", fields=[
+            "name", "docstatus", "custom_quarter", "custom_form_type", approval.STATE_FIELD, "custom_total_score",
+            "custom_band", "custom_bsc_section_a_score", "custom_bsc_section_b_score", "custom_factors_score",
+            "custom_objectives_score"]):
+        found[row.custom_quarter] = row
+    return found
+
+
+def _earlier_quarters(doc):
+    """{quarter: {(perspective, kpi): {"percent", "comments"}}} for the
+    quarters before this one, as their own appraisals on the scorecard
+    recorded them."""
+    quarter = doc.get("custom_quarter")
+    if quarter not in bsc_rules.QUARTERS:
+        return {}
+    before = bsc_rules.QUARTERS[:bsc_rules.QUARTERS.index(quarter)]
+    found = {}
+    for each, row in _year_appraisals(doc).items():
+        if each not in before or row.custom_form_type != approval.FORM_BSC:
+            continue
+        percent, comments = bsc_rules.percent_field(each), bsc_rules.comments_field(each)
+        found[each] = {(kpi.perspective, bsc._plain(kpi.kpi)): {"percent": kpi.get(percent),
+                                                                "comments": kpi.get(comments)}
+                       for kpi in frappe.get_all("BSC Appraisal KPI", fields=["perspective", "kpi", percent, comments],
+                                                 filters={"parent": row.name, "parenttype": "Appraisal",
+                                                          "parentfield": "custom_bsc_kpis"})}
+    return found
+
+
+def _carry_earlier_quarters(doc):
+    """The quarters before this one, each KPI's percentage and comments as
+    their own appraisals recorded them, and the quarters after it blank:
+    only the quarter appraised is filled in here (Luuka, 4 Oct 2026)."""
+    quarter = doc.get("custom_quarter")
+    if quarter not in bsc_rules.QUARTERS:
+        return
+    # only the quarters before this one are found, so the ones after it
+    # come out blank: they are recorded on their own appraisals
+    earlier = _earlier_quarters(doc)
+    rows = doc.get("custom_bsc_kpis") or []
+    for row in rows:
+        key = (row.perspective, bsc._plain(row.kpi))
+        for each in bsc_rules.QUARTERS:
+            if each == quarter:
+                continue
+            found = (earlier.get(each) or {}).get(key) or {}
+            row.set(bsc_rules.percent_field(each), found.get("percent"))
+            row.set(bsc_rules.comments_field(each), found.get("comments"))
+    _blank_unrecorded(rows)
+
+
+def _blank_unrecorded(rows):
+    """Frappe keeps a figure left blank as 0: a column of the KPIs never
+    filled in is blank again, so it is neither scored nor shown as 0%."""
+    for field in [bsc_rules.percent_field(each) for each in bsc_rules.QUARTERS] + ["self_percent"]:
+        if not bsc_rules.recorded(rows, field):
+            for row in rows:
+                row.set(field, None)
+
+
+def _year_so_far(doc):
+    """Results This Year, on either form: each quarter up to this one as its
+    own appraisal recorded it, this one as it stands, and the year to date,
+    the average of the quarters appraised (Luuka, 4 Oct 2026). A quarter
+    counts once it is scored, which its rating says: a score not given is
+    kept as 0."""
+    quarter = doc.get("custom_quarter")
+    rows = []
+    if quarter in bsc_rules.QUARTERS:
+        others = _year_appraisals(doc)
+        for each in bsc_rules.QUARTERS[:bsc_rules.QUARTERS.index(quarter) + 1]:
+            source = doc if each == quarter else others.get(each)
+            if source is not None and source.get("custom_band"):
+                rows.append(_quarter_result(each, source))
+    doc.set("custom_quarter_results", rows)
+    doc.custom_annual_score = bsc_rules.year_to_date([row["total"] for row in rows])
+    doc.custom_year_band = (bsc_rules.band if _is_bsc(doc) else rules.band)(doc.custom_annual_score)
+
+
+def _quarter_result(quarter, source):
+    """One quarter's line of Results This Year, from its appraisal (the
+    record itself, or a row of it)."""
+    on_card = source.get("custom_form_type") == approval.FORM_BSC
+    return {"quarter": quarter, "appraisal": source.get("name"),
+            "section_a": source.get("custom_bsc_section_a_score" if on_card else "custom_factors_score"),
+            "section_b": source.get("custom_bsc_section_b_score" if on_card else "custom_objectives_score"),
+            "total": source.get("custom_total_score"), "band": source.get("custom_band"),
+            "status": source.get(approval.STATE_FIELD) or approval.DRAFT}
+
+
+def _check_remarks(doc):
+    """Each signatory's remarks are theirs, written when the appraisal is
+    with them (Luuka, 4 Oct 2026); the form opens only those. An uploaded
+    sheet brings the employee's and the supervisor's while their parts are
+    open (_apply_sheet)."""
+    before = doc.get_doc_before_save()
+    if before is None or doc.flags.get("from_sheet"):
+        return
+    changed = [field for field in approval.ALL_REMARK_FIELDS
+               if _plain(doc.get(field)) != _plain(before.get(field))]
+    errors = approval.remark_errors(doc.get("custom_form_type"), before.get(approval.STATE_FIELD) or approval.DRAFT,
+                                    changed)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Appraisal"))
 
 
 def _attach_template(doc):
@@ -465,7 +658,6 @@ def _carry_scores(doc, total, band):
     doc.custom_total_score = total
     doc.custom_band = band
     doc.final_score = flt(total or 0)
-    doc.custom_annual_score = _annual(doc)
 
 
 def _score(doc):
@@ -484,18 +676,6 @@ def _score(doc):
     doc.final_score = flt(found["total"] or 0)
     doc.total_score = flt(found["objectives"] or 0)
     doc.self_score = flt(self_found["total"] or 0)
-    doc.custom_annual_score = _annual(doc)
-
-
-def _annual(doc):
-    """The year to date: the average of this employee's scored quarters, as
-    the recommendation asks."""
-    if not (doc.get("employee") and doc.get("custom_plan")):
-        return None
-    others = frappe.get_all("Appraisal", filters={"employee": doc.employee, "custom_plan": doc.custom_plan,
-                                                  "docstatus": ["!=", 2], "name": ["!=", doc.name or ""]},
-                            pluck="custom_total_score")
-    return rules.annual_average(list(others) + [doc.get("custom_total_score")])
 
 
 def _facts(doc, step=None):
@@ -647,7 +827,7 @@ def _sheet_data(doc):
     year = getdate(doc.start_date).year if doc.get("start_date") else (template.get("custom_review_year")
                                                                        if template else None)
     data = {
-        "name": doc.name, "form_type": doc.custom_form_type, "period": doc.get("custom_period"),
+        "name": doc.name, "form_type": doc.custom_form_type, "period": doc.get("custom_quarter"),
         "self_appraisal": doc.get("custom_self_appraisal"), "company": doc.company, "year": year,
         "currency": frappe.db.get_value("Company", doc.company, "default_currency") if doc.get("company") else None,
         "employee_name": doc.employee_name, "designation": doc.get("designation") or person.designation,
@@ -672,25 +852,20 @@ def _sheet_data(doc):
 
 
 def _scorecard_data(doc):
-    """Section A with the earlier quarters filled in from the employee's
-    earlier appraisals of the year, and the rest of the scorecard."""
-    earlier = _earlier_quarters(doc)
-    perspectives = []
-    for row in doc.get("custom_bsc_perspectives") or []:
-        values = row.as_dict()
-        for quarter, found in earlier.items():
-            field = "%s_percent" % quarter.lower()
-            if values.get(field) in (None, "") and row.perspective in found["percent"]:
-                values[field] = found["percent"][row.perspective]
-        perspectives.append(values)
-    kpis = []
-    for row in doc.get("custom_bsc_kpis") or []:
-        comments = {quarter: found["comments"].get((row.perspective, row.kpi)) for quarter, found in earlier.items()}
-        if doc.get("custom_period") in bsc_rules.QUARTERS:
-            comments[doc.custom_period] = row.get("comments")
-        kpis.append({"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing, "comments": comments})
+    """The scorecard as the sheet lays it out: each KPI with its weight and
+    every quarter's percentage and comments, the earlier ones as their own
+    appraisals recorded them; the earlier quarters' results; and the rest
+    of the form."""
+    if doc.docstatus == 0:
+        _carry_earlier_quarters(doc)
+    else:
+        _blank_unrecorded(doc.get("custom_bsc_kpis") or [])
+    quarter = doc.get("custom_quarter")
+    earlier = bsc_rules.QUARTERS[:bsc_rules.QUARTERS.index(quarter)] if quarter in bsc_rules.QUARTERS else ()
     return {
-        "perspectives": perspectives, "kpis": kpis,
+        "kpis": [row.as_dict() for row in doc.get("custom_bsc_kpis") or []],
+        "results": {row.quarter: row.total for row in doc.get("custom_quarter_results") or []
+                    if row.quarter in earlier},
         "assignments": [row.as_dict() for row in doc.get("custom_assignments") or []],
         "competencies": [row.as_dict() for row in doc.get("custom_bsc_competencies") or []],
         "plan": {"continue": doc.get("custom_continue"), "stop": doc.get("custom_stop"),
@@ -699,34 +874,10 @@ def _scorecard_data(doc):
     }
 
 
-def _earlier_quarters(doc):
-    """{quarter: {"percent": {perspective: %}, "comments": {(perspective,
-    kpi): text}}} from the employee's appraisals of the same plan for the
-    quarters before this one."""
-    period = doc.get("custom_period")
-    if not (doc.get("custom_plan") and period in bsc_rules.PERIODS):
-        return {}
-    before = bsc_rules.PERIODS[:bsc_rules.PERIODS.index(period)]
-    found = {}
-    for name, quarter in frappe.get_all("Appraisal", filters={
-            "employee": doc.employee, "custom_plan": doc.custom_plan, "docstatus": ["!=", 2],
-            "custom_period": ["in", list(before)], "name": ["!=", doc.name]},
-            fields=["name", "custom_period"], order_by="modified asc", as_list=True):
-        other = frappe.get_doc("Appraisal", name)
-        field = "%s_percent" % quarter.lower()
-        found[quarter] = {
-            "percent": {row.perspective: row.get(field) for row in other.get("custom_bsc_perspectives") or []
-                        if row.get(field) not in (None, "")},
-            "comments": {(row.perspective, row.kpi): row.get("comments")
-                         for row in other.get("custom_bsc_kpis") or [] if row.get("comments")},
-        }
-    return found
-
-
 def _review_period(doc, template, year):
     """What the sheet says is being reviewed: the quarter and its months, or
     the year."""
-    quarter = doc.get("custom_period") if _is_bsc(doc) else doc.get("custom_quarter")
+    quarter = doc.get("custom_quarter")
     if quarter in rules.QUARTERS:
         if doc.get("start_date") and doc.get("end_date"):
             return "%s %s (%s to %s)" % (quarter, year or "", getdate(doc.start_date).strftime("%B"),
@@ -809,7 +960,7 @@ def _not_taken(name, values, appraisal_cycle=None, appraisal=None):
     if not frappe.db.exists("Appraisal", name):
         return _("No appraisal {0} on the system.").format(name)
     doc = frappe.db.get_value("Appraisal", name, ["appraisal_cycle", "docstatus", "workflow_state",
-                                                  "custom_form_type", "custom_period"], as_dict=True)
+                                                  "custom_form_type", "custom_quarter"], as_dict=True)
     if appraisal_cycle and doc.appraisal_cycle != appraisal_cycle:
         return _("The appraisal belongs to another cycle ({0}).").format(doc.appraisal_cycle)
     if not frappe.has_permission("Appraisal", "write", name):
@@ -819,8 +970,11 @@ def _not_taken(name, values, appraisal_cycle=None, appraisal=None):
     if (doc.custom_form_type or approval.FORM_SUPERVISORY) != (values.get("form_type") or approval.FORM_SUPERVISORY):
         return _("The sheet is for the {0} form, the appraisal is on the {1}.").format(
             values.get("form_type"), doc.custom_form_type)
-    if doc.custom_form_type == approval.FORM_BSC and (values.get("period") or None) != (doc.custom_period or None):
-        return _("The sheet is for {0}, the appraisal for {1}.").format(values.get("period"), doc.custom_period)
+    if values.get("outdated"):
+        return _("The sheet was downloaded before each KPI was scored on its own weight: download it again and fill "
+                 "that one in.")
+    if doc.custom_form_type == approval.FORM_BSC and (values.get("period") or None) != (doc.custom_quarter or None):
+        return _("The sheet is for {0}, the appraisal for {1}.").format(values.get("period"), doc.custom_quarter)
     state = doc.workflow_state or approval.DRAFT
     if state not in SUPERVISOR_STATES + (approval.PENDING_EMPLOYEE,):
         return _("The appraisal has moved on to {0}: it is changed on the system from here.").format(_(state))
@@ -834,6 +988,8 @@ def _apply_sheet(doc, values):
     state = doc.get("workflow_state") or approval.DRAFT
     employee = state in EMPLOYEE_STATES or (state == approval.PENDING_EMPLOYEE and _is_bsc(doc))
     supervisor = state in SUPERVISOR_STATES
+    # the sheet's own rules say whose remarks it brings, not the form's
+    doc.flags.from_sheet = True
     taken, left = [], []
     remarks = values.get("remarks") or {}
     if employee and remarks.get("employee") and remarks["employee"] != doc.get("custom_employee_remarks"):
@@ -857,19 +1013,17 @@ def _apply_sheet(doc, values):
 def _apply_scorecard(doc, values, employee, supervisor):
     taken = []
     if supervisor:
-        field = bsc_rules.field_for(doc.get("custom_period") or bsc_rules.ANNUAL)
-        scores = values.get("scores") or {}
+        quarter = doc.get("custom_quarter")
+        percent, said = bsc_rules.percent_field(quarter), bsc_rules.comments_field(quarter)
+        found = {(perspective, _plain(kpi)): entry for (perspective, kpi), entry in (values.get("kpis") or {}).items()}
         changed = 0
-        for row in doc.get("custom_bsc_perspectives") or []:
-            if row.perspective in scores and scores[row.perspective] != row.get(field):
-                row.set(field, scores[row.perspective])
-                changed += 1
-        comments = {(perspective, _plain(kpi)): text for (perspective, kpi), text
-                    in (values.get("comments") or {}).items()}
         for row in doc.get("custom_bsc_kpis") or []:
-            text = comments.get((row.perspective, _plain(row.kpi)))
-            if text and text != row.get("comments"):
-                row.comments = text
+            got = found.get((row.perspective, _plain(row.kpi))) or {}
+            if got.get("percent") is not None and got["percent"] != row.get(percent):
+                row.set(percent, got["percent"])
+                changed += 1
+            if got.get("comments") and got["comments"] != row.get(said):
+                row.set(said, got["comments"])
                 changed += 1
         competencies = values.get("competencies") or {}
         for row in doc.get("custom_bsc_competencies") or []:

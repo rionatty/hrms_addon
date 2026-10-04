@@ -2,12 +2,13 @@
 // For license information, please see license.txt
 //
 // Luuka's appraisal templates are built on Frappe HR's own Appraisal
-// Template rather than beside it, laid out as the LPL PMS workbook lays
-// them out: Section A's KPIs under their perspectives, each perspective's
-// weight on its first KPI and the four totalling 80, then Section B's
+// Template rather than beside it, laid out as the LPL PMS form lays them
+// out: Section A's KPIs under their perspectives, every KPI with its own
+// weight, the perspectives below summing them up to 80, then Section B's
 // competencies totalling 20. The whole workbook is read straight in, one
-// sheet per role. A template for the supervisory form (LPL/HR/18) carries
-// its ratable factors and objectives instead.
+// sheet per role, each perspective's weight shared out between its KPIs.
+// A template for the supervisory form (LPL/HR/18) carries its ratable
+// factors and objectives instead.
 //
 // Every Job Title names its template, and the appraisal fills itself from
 // it, so what is set here is what an appraiser sees already filled in.
@@ -61,25 +62,20 @@ const HA_PERSPECTIVE_COLOURS = [
 	["internal", "#FFFDE7", "#7D6608"],
 	["learning", "#F3E5F5", "#6C3483"],
 ];
-// the workbook's columns A to P, in its own widths
-const HA_SHEET_WIDTHS = [5, 16, 36, 9, 8, 18, 8, 9, 18, 8, 9, 18, 8, 9, 10, 10];
+// the form's columns A to Q, in the offline sheet's widths (appraisal_sheet.WIDTHS)
+const HA_SHEET_WIDTHS = [5, 16, 36, 9, 8, 16, 8, 9, 16, 8, 9, 16, 8, 9, 16, 8, 9];
+const HA_SHEET_COLUMNS = HA_SHEET_WIDTHS.length;
 const HA_SHEET_HEADS = [
 	["#", "head"],
 	["BSC\nPerspective", "head"],
 	["KPI / Objective", "head"],
 	["Timing", "head"],
 	["Weight\n(total=80%)", "head"],
-	["Q1 Comments", "head"],
-	["Q1 %\nAchieved", "head dark"],
-	["Q1 Wtd\nScore", "head dark"],
-	["Q2 Comments", "head"],
-	["Q2 %\nAchieved", "head dark"],
-	["Q2 Wtd\nScore", "head dark"],
-	["Q3 Comments", "head"],
-	["Q3 %\nAchieved", "head dark"],
-	["Q3 Wtd\nScore", "head dark"],
-	["Annual\nScore\n(0–10)", "head"],
-	["Annual\nWtd\nScore", "head"],
+	...["Q1", "Q2", "Q3", "Q4"].flatMap((quarter) => [
+		[`${quarter} Comments`, "head"],
+		[`${quarter} %\nAchieved`, "head dark"],
+		[`${quarter} Wtd\nScore`, "head dark"],
+	]),
 ];
 const HA_SIGNATORIES = [
 	"Appraiser / Line Manager",
@@ -242,9 +238,9 @@ frappe.ui.form.on("Appraisal Template", {
 		drop("rating_criteria", (row) => row.criteria || row.per_weightage);
 	},
 	// The headline says at a glance whether the template adds up: Section A
-	// from each perspective's weight on its first KPI, Section B from the
-	// competencies. The totals are summed from the rows on screen, so a
-	// template being typed reads right before it is saved.
+	// from every KPI's weight, each perspective's share beside it, Section B
+	// from the competencies. The totals are summed from the rows on screen,
+	// so a template being typed reads right before it is saved.
 	show_weights(frm) {
 		frm.dashboard.clear_headline();
 		if (frm.doc.custom_form_type === HA_SUPERVISORY) {
@@ -264,15 +260,24 @@ frappe.ui.form.on("Appraisal Template", {
 		const kpis = frm.doc.custom_kpis || [];
 		const competencies = frm.doc.custom_competencies || [];
 		if (!kpis.length && !competencies.length) return;
-		const total = (rows) => rows.reduce((sum, row) => sum + (row.weight || 0), 0);
+		const total = (rows) => Math.round(rows.reduce((sum, row) => sum + (row.weight || 0), 0) * 100) / 100;
 		const a = total(kpis);
 		const b = total(competencies);
-		const good = a === 80 && b === 20;
+		const unweighed = kpis.filter((row) => !row.weight).length;
+		const good = a === 80 && b === 20 && !unweighed;
+		const shares = ha_perspective_weights(kpis)
+			.map(([perspective, weight]) => `${frappe.utils.escape_html(perspective)} ${weight}`)
+			.join(" · ");
 		frm.dashboard.set_headline(
 			`<span>${__("Section A")} <b>${a}</b>/80 &nbsp;|&nbsp; ${__("Section B")} <b>${b}</b>/20</span>` +
 				` <span class="indicator-pill ${good ? "green" : "orange"}">${
-					good ? __("Adds up") : __("Does not add up")
-				}</span>`
+					good
+						? __("Adds up")
+						: unweighed
+						? __("{0} KPI(s) without a weight", [unweighed])
+						: __("Does not add up")
+				}</span>` +
+				(shares ? `<div class="text-muted small" style="margin-top:4px">${shares}</div>` : "")
 		);
 	},
 	show_scale(frm) {
@@ -302,6 +307,24 @@ frappe.ui.form.on("Appraisal Template", {
 	},
 });
 
+// [fill, text] a perspective is painted in, as the workbook paints it
+function ha_perspective_colour(perspective) {
+	const name = String(perspective || "").toLowerCase();
+	const found = HA_PERSPECTIVE_COLOURS.find(([word]) => name.includes(word));
+	return found ? [found[1], found[2]] : [HA_SHEET.label, HA_SHEET.navy];
+}
+
+// [[perspective, weight]] in the order the perspectives first appear: each
+// weighs what its KPIs weigh (bsc_rules.arrange_kpis)
+function ha_perspective_weights(kpis) {
+	const weights = new Map();
+	for (const row of kpis) {
+		if (!row.perspective) continue;
+		weights.set(row.perspective, (weights.get(row.perspective) || 0) + (row.weight || 0));
+	}
+	return [...weights].map(([perspective, weight]) => [perspective, Math.round(weight * 100) / 100]);
+}
+
 // The scorecard template drawn as the workbook's form, into custom_form_view
 function ha_bsc_form(frm) {
 	const field = frm.get_field("custom_form_view");
@@ -317,7 +340,7 @@ function ha_bsc_form(frm) {
 	const td = (text, cls = "", span = 1, extra = "") =>
 		`<td${span > 1 ? ` colspan="${span}"` : ""}${cls ? ` class="${cls}"` : ""}${extra}>${text}</td>`;
 	const percent = (value) => (value || value === 0 ? `${esc(Math.round(value * 100) / 100)}%` : "");
-	const band = (text, cls = "band") => `<tr>${td(esc(text), cls, 16)}</tr>`;
+	const band = (text, cls = "band") => `<tr>${td(esc(text), cls, HA_SHEET_COLUMNS)}</tr>`;
 	const doc = frm.doc;
 	const year = doc.custom_review_year || "";
 	const rows = [];
@@ -327,12 +350,12 @@ function ha_bsc_form(frm) {
 		`<tr>${td("", "logo", 4, ' rowspan="2"')}${td(
 			esc(String(doc.custom_company || "").toUpperCase()),
 			"band company",
-			12
+			HA_SHEET_COLUMNS - 4
 		)}</tr>`,
 		`<tr>${td(
 			esc(`PERFORMANCE MANAGEMENT SYSTEM  ·  BSC APPRAISAL FORM  ·  FY ${year}`),
 			"band title",
-			12
+			HA_SHEET_COLUMNS - 4
 		)}</tr>`
 	);
 	for (const [left, leftValue, right, rightValue] of [
@@ -345,7 +368,7 @@ function ha_bsc_form(frm) {
 			`<tr>${td(esc(__(left)), "label", 2)}${td(esc(leftValue), "", 5)}${td(esc(__(right)), "label", 3)}${td(
 				esc(rightValue),
 				"",
-				6
+				HA_SHEET_COLUMNS - 10
 			)}</tr>`
 		);
 	}
@@ -353,33 +376,24 @@ function ha_bsc_form(frm) {
 		`<tr>${td(
 			esc(
 				__(
-					"HOW TO USE:  (1) Distribute the 80% weight across the perspectives: they must sum to 80%.  (2) Enter Q1–Q3 % Achieved against target: the quarterly weighted scores work themselves out.  (3) Enter the annual score (0–10) at year-end: the annual weighted score works itself out.  (4) Section B competencies = 20% of total.  RATING: Excellent ≥90  ·  Very Good 80–89  ·  Good 70–79  ·  Fair 60–69  ·  Poor <60"
+					"HOW TO USE:  (1) Give each KPI its weight: a perspective weighs what its KPIs weigh, and the four total 80%.  (2) Each quarter, enter that quarter's % Achieved against each KPI: its weighted score works itself out, and the earlier quarters show what was recorded then.  (3) Score each Section B competency 0 to 10: they are 20% of the total.  (4) The year to date is the average of the quarters appraised.  RATING: Excellent ≥90  ·  Very Good 80–89  ·  Good 70–79  ·  Fair 60–69  ·  Poor <60"
 				)
 			),
 			"note i small",
-			16
+			HA_SHEET_COLUMNS
 		)}</tr>`
 	);
 
-	// Section A: each perspective's KPIs together, its weight on the first
+	// Section A: each perspective's KPIs together, every KPI with its weight
 	rows.push(
-		band(
-			__(
-				"SECTION A  —  OBJECTIVES & KPIs  (80% of Total Score)  |  Distribute 80% weight across the perspectives"
-			)
-		),
+		band(__("SECTION A  —  OBJECTIVES & KPIs  (80% of Total Score)  |  Every KPI carries its own weight")),
 		`<tr>${HA_SHEET_HEADS.map(([text, cls]) => td(esc(__(text)), cls)).join("")}</tr>`
 	);
 	const kpis = doc.custom_kpis || [];
 	let weights = 0;
 	(kpis.length ? kpis : [{}]).forEach((kpi, index) => {
 		const first = index === 0 || kpi.perspective !== kpis[index - 1].perspective;
-		const name = String(kpi.perspective || "").toLowerCase();
-		const [, fill, text] = HA_PERSPECTIVE_COLOURS.find(([word]) => name.includes(word)) || [
-			"",
-			HA_SHEET.label,
-			HA_SHEET.navy,
-		];
+		const [fill, text] = ha_perspective_colour(kpi.perspective);
 		weights += kpi.weight || 0;
 		rows.push(
 			`<tr class="kpi">${td(index + 1, "label c")}${
@@ -387,31 +401,40 @@ function ha_bsc_form(frm) {
 					? td(esc(kpi.perspective), "c b", 1, ` style="background:${fill};color:${text}"`)
 					: td("↳", "grey c")
 			}${td(esc(kpi.kpi))}${td(esc(kpi.timing), "label c small")}${td(
-				first ? percent(kpi.weight) : "",
-				first ? "weight" : "note"
-			)}${["soft", "green", "soft", "label", "green", "soft", "soft", "green", "soft"]
-				.map((cls) => td("", cls))
-				.join("")}${td("", "cream")}${td("", "soft")}</tr>`
+				percent(kpi.weight),
+				kpi.weight ? "weight" : "note"
+			)}${["soft", "label", "soft", "label"]
+				.map((comments) => td("", comments) + td("", "green") + td("", "soft"))
+				.join("")}</tr>`
 		);
 	});
-	const adds_up = Math.round(weights * 100) / 100 === 80;
+	weights = Math.round(weights * 100) / 100;
 	rows.push(
 		`<tr>${td(esc(__("WEIGHT CHECK & QUARTERLY TOTALS")), "total r", 4)}${td(percent(weights), "gold")}${td(
-			esc(
-				adds_up
-					? __("✓ Total = 80%")
-					: __("⚠ Total must = 80%, currently {0}", [percent(weights)])
-			),
+			esc(weights === 80 ? __("✓ Total = 80%") : __("⚠ Total must = 80%, currently {0}", [percent(weights)])),
 			"note i",
 			2
-		)}${td("0", "total")}${td(esc(__("Q2 Total →")), "total r small")}${td("")}${td(
-			"0",
-			"total"
-		)}${td(esc(__("Q3 Total →")), "total r small")}${td("")}${td("0", "total")}${td(
-			esc(__("Sec A →")),
-			"total r small"
-		)}${td("0", "total")}</tr>`
+		)}${td("0", "total")}${["Q2", "Q3", "Q4"]
+			.map((quarter) => td(esc(__("{0} Total →", [quarter])), "total r small", 2) + td("0", "total"))
+			.join("")}</tr>`
 	);
+
+	// the perspectives, below the KPIs, summing them up
+	rows.push(
+		band(__("PERSPECTIVES  —  SUMMED UP FROM THE KPIs ABOVE"), "band teal"),
+		`<tr>${td(esc(__("Perspective")), "head", 4)}${td(esc(__("Weight")), "head")}${["Q1", "Q2", "Q3", "Q4"]
+			.map((quarter) => td(esc(__("{0} Wtd Score", [quarter])), "head dark", 3))
+			.join("")}</tr>`
+	);
+	for (const [perspective, weight] of ha_perspective_weights(kpis)) {
+		const [fill, text] = ha_perspective_colour(perspective);
+		rows.push(
+			`<tr>${td(esc(perspective), "b", 4, ` style="background:${fill};color:${text}"`)}${td(
+				percent(weight),
+				"weight"
+			)}${["soft", "label", "soft", "label"].map((cls) => td("", cls, 3)).join("")}</tr>`
+		);
+	}
 
 	// what else the appraisal records, and Section B from the template
 	rows.push(
@@ -422,10 +445,10 @@ function ha_bsc_form(frm) {
 			esc(__("Expected Outcome")),
 			"head",
 			3
-		)}${td(esc(__("Employee Comments")), "head", 4)}${td(esc(__("Supervisor Comments")), "head", 3)}</tr>`
+		)}${td(esc(__("Employee Comments")), "head", 4)}${td(esc(__("Supervisor Comments")), "head", 4)}</tr>`
 	);
 	for (const number of [1, 2, 3]) {
-		rows.push(`<tr class="kpi">${td(number, "label c")}${td("")}${td("", "", 4)}${td("", "", 3)}${td("", "", 4)}${td("", "", 3)}</tr>`);
+		rows.push(`<tr class="kpi">${td(number, "label c")}${td("")}${td("", "", 4)}${td("", "", 3)}${td("", "", 4)}${td("", "", 4)}</tr>`);
 	}
 	rows.push(
 		band(__("SECTION B  —  COMPETENCIES  (20% of Total Score)  |  Score each 0–10  |  Weights must sum to 20%")),
@@ -433,7 +456,7 @@ function ha_bsc_form(frm) {
 			esc(__("Weight\n(%)")),
 			"head",
 			2
-		)}${td(esc(__("Score\n(0–10)")), "head gold", 2)}${td(esc(__("Weighted\nScore")), "head", 3)}</tr>`
+		)}${td(esc(__("Score\n(0–10)")), "head gold", 2)}${td(esc(__("Weighted\nScore")), "head", 4)}</tr>`
 	);
 	let competency_weights = 0;
 	(doc.custom_competencies || []).forEach((row, index) => {
@@ -443,7 +466,7 @@ function ha_bsc_form(frm) {
 				esc(row.indicators),
 				`small ${index % 2 ? "" : "soft"}`,
 				6
-			)}${td(percent(row.weight), "weight", 2)}${td("", "", 2)}${td("", "soft", 3)}</tr>`
+			)}${td(percent(row.weight), "weight", 2)}${td("", "", 2)}${td("", "soft", 4)}</tr>`
 		);
 	});
 	const b_adds_up = Math.round(competency_weights * 100) / 100 === 20;
@@ -452,27 +475,36 @@ function ha_bsc_form(frm) {
 			percent(competency_weights),
 			"gold",
 			2
-		)}${td(esc(b_adds_up ? __("✓ 20%") : __("⚠ Must = 20%")), "note i small", 2)}${td("0", "total", 3)}</tr>`
+		)}${td(esc(b_adds_up ? __("✓ 20%") : __("⚠ Must = 20%")), "note i small", 2)}${td("0", "total", 4)}</tr>`
 	);
 
-	// the overall, the scale, and the parts the appraisal is signed and planned on
+	// the overall, the year so far, the scale, and the parts the appraisal is
+	// signed and planned on
+	const label_span = HA_SHEET_COLUMNS - 1;
 	rows.push(
 		band(__("OVERALL PERFORMANCE SCORE   =   Section A (×0.8 already embedded in weights) + Section B")),
-		`<tr>${td(esc(__("Section A Score  (sum of weighted KPI scores)")), "label r", 15)}${td("0", "label c b")}</tr>`,
-		`<tr>${td(esc(__("Section B Score  (sum of weighted competency scores)")), "label r", 15)}${td(
+		`<tr>${td(esc(__("Section A Score  (sum of weighted KPI scores, the quarter appraised)")), "label r", label_span)}${td(
 			"0",
 			"label c b"
 		)}</tr>`,
-		`<tr>${td(esc(__("OVERALL SCORE  (Section A + Section B)")), "gold r", 15, ' style="color:#fff"')}${td(
+		`<tr>${td(esc(__("Section B Score  (sum of weighted competency scores)")), "label r", label_span)}${td(
+			"0",
+			"label c b"
+		)}</tr>`,
+		`<tr>${td(esc(__("OVERALL SCORE  (Section A + Section B)")), "gold r", label_span, ' style="color:#fff"')}${td(
 			"0",
 			"gold",
 			1,
 			' style="color:#fff"'
 		)}</tr>`,
+		`<tr>${td(esc(__("YEAR TO DATE  (average of the quarters appraised)")), "label r b", label_span)}${td(
+			"0",
+			"label c b"
+		)}</tr>`,
 		band(__("PERFORMANCE RATING SCALE"), "band teal")
 	);
 	const scale = HA_SCALES[HA_TEMPLATE_BSC];
-	const spans = [3, 3, 3, 3, 4];
+	const spans = [3, 3, 3, 4, 4];
 	rows.push(
 		`<tr>${scale
 			.map(([name, range, colour], index) =>
@@ -488,7 +520,7 @@ function ha_bsc_form(frm) {
 				esc(__("Comments:")) + " _______________________________________________",
 				"",
 				7
-			)}${td(esc(__("Name:")) + " _______________________  " + esc(__("Sig:")) + " __________________  " + esc(__("Date:")) + " ________", "small", 7)}</tr>`
+			)}${td(esc(__("Name:")) + " _______________________  " + esc(__("Sig:")) + " __________________  " + esc(__("Date:")) + " ________", "small", HA_SHEET_COLUMNS - 9)}</tr>`
 		);
 	}
 	rows.push(
@@ -496,17 +528,17 @@ function ha_bsc_form(frm) {
 		`<tr>${td(esc(__("Continue / Strengths")), "head", 5)}${td(esc(__("Stop / Weaknesses")), "head", 5)}${td(
 			esc(__("Start / Gaps to Fill")),
 			"head",
-			6
+			HA_SHEET_COLUMNS - 10
 		)}</tr>`,
-		`<tr class="tall">${td("", "", 5)}${td("", "", 5)}${td("", "", 6)}</tr>`,
+		`<tr class="tall">${td("", "", 5)}${td("", "", 5)}${td("", "", HA_SHEET_COLUMNS - 10)}</tr>`,
 		`<tr>${td(esc(__("Development Action")), "head", 6)}${td(esc(__("Duration")), "head", 3)}${td(
 			esc(__("By When")),
 			"head",
 			3
-		)}${td(esc(__("By Whom")), "head", 2)}${td(esc(__("Est. Cost ({0})", ["UGX"])), "head ha-bsc-currency", 2)}</tr>`
+		)}${td(esc(__("By Whom")), "head", 2)}${td(esc(__("Est. Cost ({0})", ["UGX"])), "head ha-bsc-currency", HA_SHEET_COLUMNS - 14)}</tr>`
 	);
 	for (let index = 0; index < 3; index++) {
-		rows.push(`<tr class="kpi">${td("", "", 6)}${td("", "", 3)}${td("", "", 3)}${td("", "", 2)}${td("", "", 2)}</tr>`);
+		rows.push(`<tr class="kpi">${td("", "", 6)}${td("", "", 3)}${td("", "", 3)}${td("", "", 2)}${td("", "", HA_SHEET_COLUMNS - 14)}</tr>`);
 	}
 	rows.push(
 		`<tr>${td(
@@ -523,13 +555,14 @@ function ha_bsc_form(frm) {
 					.join("  |  ")
 			),
 			"band small",
-			16
+			HA_SHEET_COLUMNS
 		)}</tr>`
 	);
 
+	const widths = HA_SHEET_WIDTHS.reduce((sum, width) => sum + width, 0);
 	field.$wrapper.html(
 		`<div class="ha-bsc"><table><colgroup>${HA_SHEET_WIDTHS.map(
-			(width) => `<col style="width:${((100 * width) / 191).toFixed(2)}%">`
+			(width) => `<col style="width:${((100 * width) / widths).toFixed(2)}%">`
 		).join("")}</colgroup><tbody>${rows.join("")}</tbody></table></div>`
 	);
 	// the company's logo and currency, as the offline sheet carries them
@@ -567,21 +600,36 @@ function ha_kpi_arrows(frm) {
 	grid.refresh();
 }
 
-// the headline and the form move as the rows are typed, not only when the
-// template is saved
+// The perspectives below the KPIs, summed up from them as they are typed;
+// the save works them out again (bsc._arrange_kpis), so nothing typed here
+// is trusted.
+function ha_template_perspectives(frm) {
+	const want = ha_perspective_weights(frm.doc.custom_kpis || []);
+	const have = (frm.doc.custom_perspectives || []).map((row) => [row.perspective, row.weight]);
+	if (JSON.stringify(want) === JSON.stringify(have)) return;
+	frm.clear_table("custom_perspectives");
+	for (const [perspective, weight] of want) frm.add_child("custom_perspectives", { perspective, weight });
+	frm.refresh_field("custom_perspectives");
+}
+
+// the headline, the perspectives and the form move as the rows are typed,
+// not only when the template is saved
 frappe.ui.form.on("BSC Template KPI", {
 	weight(frm) {
+		ha_template_perspectives(frm);
 		frm.trigger("show_weights");
 		frm.trigger("show_form");
 	},
 	perspective(frm) {
 		frm.fields_dict.custom_kpis.grid.refresh();
+		ha_template_perspectives(frm);
 		frm.trigger("show_form");
 	},
 	kpi: (frm) => frm.trigger("show_form"),
 	timing: (frm) => frm.trigger("show_form"),
 	custom_kpis_add: (frm) => frm.trigger("show_form"),
 	custom_kpis_remove(frm) {
+		ha_template_perspectives(frm);
 		frm.trigger("show_weights");
 		frm.trigger("show_form");
 	},

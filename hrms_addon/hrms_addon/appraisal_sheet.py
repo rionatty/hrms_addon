@@ -12,22 +12,23 @@ plain dict build() takes, and writes what read() finds onto the appraisals.
 
 THE SHEET
 
-The balanced scorecard is laid out as LPL PMS FY 2026 lays it out: the
-header and the employee's details, Section A with each perspective's KPIs
-under it and its weight beside them, the other assignments, Section B, the
-overall score and the rating scale, Part D's comments and Part E's
-development plan. The supervisory form (LPL/HR/18) is laid out in the same
-style: Section A's factors and Section B's objectives, each rated by the
-employee and the supervisor, Section C, the General questions and the
-comments.
+The balanced scorecard is laid out as LPL PMS FY 2026 lays it out, with the
+four quarters Luuka asked for (Oct 2026): the header and the employee's
+details, Section A with each perspective's KPIs under it and every KPI's own
+weight, the perspectives below summing them up, the other assignments,
+Section B, the overall score, the results of the year so far and the rating
+scale, Part D's comments and Part E's development plan. The supervisory form
+(LPL/HR/18) is laid out in the same style: Section A's factors and Section
+B's objectives, each rated by the employee and the supervisor, Section C,
+the General questions and the comments.
 
 What the system fills in is locked and what the appraiser fills in is open,
 with a check on what may be typed (a percentage, a score out of ten, a
 rating on the scale). The scores work themselves out as it is filled in,
-by the rules the system scores by (bsc_rules.py): a quarter is the weight
+by the rules the system scores by (bsc_rules.py): a KPI scores its weight
 times the percentage achieved, without the workbook's further tenth.
 
-Only the period being appraised is open. The earlier quarters show what was
+Only the quarter being appraised is open. The earlier quarters show what was
 recorded for them, from the employee's earlier appraisals of the year.
 
 READING IT BACK
@@ -47,11 +48,12 @@ from openpyxl.worksheet.datavalidation import DataValidation
 MARK = "hrms_addon appraisal sheet"
 FORM_SUPERVISORY = "Supervisory Skills (LPL/HR/18)"
 FORM_BSC = "Balanced Scorecard"
-QUARTERS = ("Q1", "Q2", "Q3")
-ANNUAL = "Annual"
-PERIODS = QUARTERS + (ANNUAL,)
+QUARTERS = ("Q1", "Q2", "Q3", "Q4")
 # hidden columns: what a row holds, whose it is, and a perspective's first row
 TAG, KEY, FIRST = "R", "S", "T"
+# the scorecard's layout, in a hidden cell: a sheet downloaded before every
+# KPI carried its own weight (October 2026) is not read, it is refused
+LAYOUT, LAYOUT_CELL = "kpi-weights", TAG + "5"
 
 # Luuka's palette, as the PMS workbook paints it
 NAVY, TEAL, TEAL_DARK, GOLD = "1A2B4A", "007B87", "005F6B", "C9A42B"
@@ -79,10 +81,14 @@ MAX_OBJECTIVES = 8
 # fraction, above it as a percentage typed in plain
 FRACTION_UP_TO = 2
 
+# the supervisory form's columns, A to P
 WIDTHS = {"A": 5, "B": 16, "C": 36, "D": 9, "E": 8, "F": 18, "G": 8, "H": 9, "I": 18, "J": 8, "K": 9, "L": 18,
           "M": 8, "N": 9, "O": 10, "P": 10}
-# the period -> (its comments column, what is entered, its weighted score)
-PERIOD_COLUMNS = {"Q1": ("F", "G", "H"), "Q2": ("I", "J", "K"), "Q3": ("L", "M", "N"), ANNUAL: (None, "O", "P")}
+# the scorecard's, A to Q: three for each of the four quarters
+BSC_WIDTHS = {"A": 5, "B": 16, "C": 36, "D": 9, "E": 8, "F": 16, "G": 8, "H": 9, "I": 16, "J": 8, "K": 9, "L": 16,
+              "M": 8, "N": 9, "O": 16, "P": 8, "Q": 9}
+# the quarter -> (its comments column, its percentage achieved, its weighted score)
+PERIOD_COLUMNS = {"Q1": ("F", "G", "H"), "Q2": ("I", "J", "K"), "Q3": ("L", "M", "N"), "Q4": ("O", "P", "Q")}
 # Part D of the scorecard and the signatures of LPL/HR/18: (key, label)
 BSC_SIGNATORIES = (("supervisor", "Appraiser / Line Manager"), ("employee", "Employee / Appraisee"),
                    ("hod", "HOD / Reviewing Manager"), ("hrm", "HR Manager"), ("ed", "Executive Director"))
@@ -166,13 +172,20 @@ def _open(sheet, span, value=None, **style):
     return _put(sheet, span, value, locked=False, **style)
 
 
+def _edge(sheet):
+    """The sheet's last column: the scorecard's four quarters reach Q, the
+    supervisory form stops at P."""
+    return "Q" if sheet[TAG + "3"].value == FORM_BSC else "P"
+
+
 def _band_row(sheet, row, text, fill=NAVY, size=11, height=18, align="center", colour=WHITE):
     sheet.row_dimensions[row].height = height
-    _put(sheet, "A%d:P%d" % (row, row), text, fill=fill, bold=True, size=size, colour=colour, align=align)
+    _put(sheet, "A%d:%s%d" % (row, _edge(sheet), row), text, fill=fill, bold=True, size=size, colour=colour,
+         align=align)
 
 
 def _setup(sheet, data):
-    for column, width in WIDTHS.items():
+    for column, width in (BSC_WIDTHS if data.get("form_type") == FORM_BSC else WIDTHS).items():
         sheet.column_dimensions[column].width = width
     for column in (TAG, KEY, FIRST):
         sheet.column_dimensions[column].hidden = True
@@ -180,6 +193,8 @@ def _setup(sheet, data):
     sheet[TAG + "2"] = data.get("name")
     sheet[TAG + "3"] = data.get("form_type")
     sheet[TAG + "4"] = data.get("period")
+    if data.get("form_type") == FORM_BSC:
+        sheet[LAYOUT_CELL] = LAYOUT
     sheet.sheet_view.showGridLines = False
     sheet.page_setup.orientation = "landscape"
     sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
@@ -189,7 +204,7 @@ def _setup(sheet, data):
 
 
 def _protect(sheet, last_row):
-    sheet.print_area = "A1:P%d" % last_row
+    sheet.print_area = "A1:%s%d" % (_edge(sheet), last_row)
     sheet.protection.sheet = True
     # widths and heights may still be changed to read a long comment
     sheet.protection.formatColumns = False
@@ -207,10 +222,11 @@ def _tag(sheet, row, tag, key=None, first=False):
 def _header(sheet, data, title, logo):
     for row in range(1, 5):
         sheet.row_dimensions[row].height = 15.75
+    edge = _edge(sheet)
     _put(sheet, "A1:D4", None, fill=WHITE)
-    _put(sheet, "E1:P2", str(data.get("company") or "").upper(), fill=NAVY, bold=True, size=15, colour=WHITE,
+    _put(sheet, "E1:%s2" % edge, str(data.get("company") or "").upper(), fill=NAVY, bold=True, size=15, colour=WHITE,
          align="center")
-    _put(sheet, "E3:P4", title, fill=TEAL, bold=True, size=10, colour=WHITE, align="center")
+    _put(sheet, "E3:%s4" % edge, title, fill=TEAL, bold=True, size=10, colour=WHITE, align="center")
     if logo:
         _logo(sheet, logo)
 
@@ -243,18 +259,18 @@ def _details(sheet, rows):
         put(sheet, "C%d:G%d" % (row, row), left_value, fill=WHITE,
             fmt="dd/mm/yyyy" if isinstance(left_value, datetime.date) or typed == "left" else None)
         _put(sheet, "H%d:J%d" % (row, row), right, fill=LABEL, bold=True)
-        _put(sheet, "K%d:P%d" % (row, row), right_value, fill=WHITE)
+        _put(sheet, "K%d:%s%d" % (row, _edge(sheet), row), right_value, fill=WHITE)
 
 
 def _how_to(sheet, text):
     sheet.row_dimensions[9].height = 43.5
-    _put(sheet, "A9:P9", text, fill=NOTE, size=8)
+    _put(sheet, "A9:%s9" % _edge(sheet), text, fill=NOTE, size=8)
 
 
 def _footer(sheet, row, parts):
     sheet.row_dimensions[row].height = 12.75
-    _put(sheet, "A%d:P%d" % (row, row), "  |  ".join(str(part) for part in parts if part), fill=NAVY, size=8,
-         colour=WHITE, align="center")
+    _put(sheet, "A%d:%s%d" % (row, _edge(sheet), row), "  |  ".join(str(part) for part in parts if part), fill=NAVY,
+         size=8, colour=WHITE, align="center")
 
 
 def _validation(sheet, kind, title, message):
@@ -273,7 +289,7 @@ def _validation(sheet, kind, title, message):
 
 # ── The balanced scorecard ────────────────────────────────────────────
 def _scorecard(sheet, data, logo):
-    period = data.get("period") if data.get("period") in PERIODS else ANNUAL
+    quarter = data.get("period") if data.get("period") in QUARTERS else QUARTERS[0]
     year = data.get("year") or ""
     _setup(sheet, data)
     _header(sheet, data, "PERFORMANCE MANAGEMENT SYSTEM  ·  BSC APPRAISAL FORM  ·  FY %s" % year, logo)
@@ -283,20 +299,17 @@ def _scorecard(sheet, data, logo):
         ("Appraiser Name & Title:", data.get("supervisor"), "Review Period:", data.get("review_period"), None),
         ("Date of Review:", data.get("review_date"), "HR Ref:", data.get("name"), "left"),
     ))
-    if period == ANNUAL:
-        step = "(2) Enter the annual score, 0 to 10, for each perspective in the gold column O; the weighted score " \
-               "works itself out."
-    else:
-        step = "(2) Enter %s's %% Achieved against target for each perspective in the gold column, and a comment " \
-               "against each KPI; the weighted score works itself out." % period
-    _how_to(sheet, "HOW TO USE:  (1) The weights come from the role's scorecard and total 80%%.  %s  (3) Score each "
-                   "competency 0 to 10 in Section B.  (4) Earlier quarters show what was recorded then and cannot be "
-                   "changed.  RATING: Excellent ≥90  ·  Very Good 80–89  ·  Good 70–79  ·  "
-                   "Fair 60–69  ·  Poor <60" % step)
-    total_row = _section_a(sheet, data, period)
-    row = _assignments(sheet, data, total_row + 2)
+    _how_to(sheet, "HOW TO USE:  (1) Each KPI's weight comes from the role's scorecard; the perspectives weigh what "
+                   "their KPIs weigh and total 80%%.  (2) Enter %s's %% Achieved against each KPI in the gold column, "
+                   "and a comment; the weighted score works itself out.  (3) Score each competency 0 to 10 in "
+                   "Section B.  (4) Earlier quarters show what was recorded then and cannot be changed; the year to "
+                   "date is the average of the quarters appraised.  RATING: Excellent ≥90  ·  Very Good 80–89  ·  "
+                   "Good 70–79  ·  Fair 60–69  ·  Poor <60" % quarter)
+    total_row, first, last = _section_a(sheet, data, quarter)
+    row = _perspectives(sheet, total_row + 2, first, last)
+    row = _assignments(sheet, data, row + 2)
     section_b_row = _section_b(sheet, data, row + 2)
-    row = _overall(sheet, period, total_row, section_b_row)
+    row = _overall(sheet, data, quarter, total_row, section_b_row)
     row = _scale(sheet, row + 2)
     row = _signatures(sheet, data, row + 2, BSC_SIGNATORIES, "PART D  —  COMMENTS & SIGNATURES")
     row = _plan(sheet, data, row + 2)
@@ -308,45 +321,40 @@ def _scorecard(sheet, data, logo):
 
 
 def _groups(data):
-    """[(perspective, weight, perspective row, [kpis])] in the scorecard's
-    order; a KPI whose perspective carries no weight is kept, in a group
-    of its own."""
-    rows = {row.get("perspective"): row for row in data.get("perspectives") or []}
-    order = [row.get("perspective") for row in data.get("perspectives") or []]
-    kpis = {}
+    """[(perspective, [kpis])] in the order the perspectives first appear on
+    the scorecard; one empty KPI when there are none, so the form still
+    shows its lines."""
+    order, kpis = [], {}
     for kpi in data.get("kpis") or []:
-        kpis.setdefault(kpi.get("perspective"), []).append(kpi)
-        if kpi.get("perspective") not in order:
+        if kpi.get("perspective") not in kpis:
             order.append(kpi.get("perspective"))
-    out = []
-    for perspective in order:
-        row = rows.get(perspective) or {"perspective": perspective}
-        out.append((perspective, row.get("weight"), row, kpis.get(perspective) or [{"perspective": perspective,
-                                                                                  "kpi": ""}]))
-    return out
+            kpis[kpi.get("perspective")] = []
+        kpis[kpi.get("perspective")].append(kpi)
+    return [(perspective, kpis[perspective]) for perspective in order] or [(None, [{"kpi": ""}])]
 
 
-def _section_a(sheet, data, period):
-    """Section A from row 10; returns the totals row."""
-    _band_row(sheet, 10, "SECTION A  —  OBJECTIVES & KPIs  (80% of Total Score)")
+def _section_a(sheet, data, quarter):
+    """Section A from row 10: every KPI with its own weight and the four
+    quarters, only `quarter` open. Returns (the totals row, the first KPI
+    row, the last)."""
+    _band_row(sheet, 10, "SECTION A  —  OBJECTIVES & KPIs  (80% of Total Score)  |  Every KPI carries its own "
+                         "weight")
     sheet.row_dimensions[11].height = 43.5
-    comments_column, entered_column, _score_column = PERIOD_COLUMNS[period]
+    comments_column, entered_column, _score_column = PERIOD_COLUMNS[quarter]
     open_columns = {entered_column, comments_column}
-    heads = (("A", "#", TEAL), ("B", "BSC\nPerspective", TEAL), ("C", "KPI / Objective", TEAL), ("D", "Timing", TEAL),
-             ("E", "Weight\n(total=80%)", TEAL), ("F", "Q1 Comments", TEAL), ("G", "Q1 %\nAchieved", TEAL_DARK),
-             ("H", "Q1 Wtd\nScore", TEAL_DARK), ("I", "Q2 Comments", TEAL), ("J", "Q2 %\nAchieved", TEAL_DARK),
-             ("K", "Q2 Wtd\nScore", TEAL_DARK), ("L", "Q3 Comments", TEAL), ("M", "Q3 %\nAchieved", TEAL_DARK),
-             ("N", "Q3 Wtd\nScore", TEAL_DARK), ("O", "Annual\nScore\n(0–10)", TEAL),
-             ("P", "Annual\nWtd\nScore", TEAL))
+    heads = [("A", "#", TEAL), ("B", "BSC\nPerspective", TEAL), ("C", "KPI / Objective", TEAL),
+             ("D", "Timing", TEAL), ("E", "Weight\n(total=80%)", TEAL)]
+    for each in QUARTERS:
+        said, entered, scored = PERIOD_COLUMNS[each]
+        heads += [(said, "%s Comments" % each, TEAL), (entered, "%s %%\nAchieved" % each, TEAL_DARK),
+                  (scored, "%s Wtd\nScore" % each, TEAL_DARK)]
     for column, text, fill in heads:
         is_open = column in open_columns
         _put(sheet, "%s11" % column, text, fill=GOLD if is_open else fill, bold=True, size=8,
              colour=NAVY if is_open else WHITE, align="center")
     percent_check = _validation(sheet, "percent", "Percentage achieved", "Enter the percentage achieved, 0% to 100%.")
-    score_check = _validation(sheet, "score", "Annual score", "Enter a score from 0 to 10.")
     row, number = 12, 0
-    for perspective, weight, values, kpis in _groups(data):
-        first, last = row, row + len(kpis) - 1
+    for perspective, kpis in _groups(data):
         light, dark = PERSPECTIVE_COLOURS.get(perspective, (LABEL, NAVY))
         for index, kpi in enumerate(kpis):
             number += 1
@@ -358,54 +366,74 @@ def _section_a(sheet, data, period):
                 _put(sheet, "B%d" % row, "↳", fill=GREY_SOFT, colour="666666", align="center")
             _put(sheet, "C%d" % row, kpi.get("kpi"), fill=WHITE)
             _put(sheet, "D%d" % row, kpi.get("timing"), fill=LABEL, align="center")
-            comments = kpi.get("comments") or {}
-            for quarter, fill in (("Q1", SOFT), ("Q2", LABEL), ("Q3", SOFT)):
-                column = PERIOD_COLUMNS[quarter][0]
-                put = _open if column == comments_column else _put
-                put(sheet, "%s%d" % (column, row), comments.get(quarter), fill=fill)
+            _put(sheet, "E%d" % row, kpi.get("weight"), fill=CREAM, bold=True, size=10, colour="1A5276",
+                 align="center", fmt='0.00"%"')
+            for each, fill in zip(QUARTERS, (SOFT, LABEL, SOFT, LABEL)):
+                said, entered, scored = PERIOD_COLUMNS[each]
+                put = _open if each == quarter else _put
+                put(sheet, "%s%d" % (said, row), kpi.get("%s_comments" % each.lower()), fill=fill)
+                put(sheet, "%s%d" % (entered, row), _fraction(kpi.get("%s_percent" % each.lower())),
+                    fill=GREEN_SOFT, bold=True, colour="1E8449", align="center", fmt="0%")
+                if each == quarter:
+                    percent_check.add("%s%d" % (entered, row))
+                _put(sheet, "%s%d" % (scored, row), '=IF(%s%d="","",E%d*%s%d)' % (entered, row, row, entered, row),
+                     fill=SOFT, colour=NAVY, align="center", fmt="0.00")
             _tag(sheet, row, "kpi", perspective, first=index == 0)
             row += 1
-        span = (lambda column: "%s%d:%s%d" % (column, first, column, last)) if last > first else \
-            (lambda column: "%s%d" % (column, first))
-        _put(sheet, span("E"), weight, fill=CREAM, bold=True, size=10, colour="1A5276", align="center",
-             fmt='0"%"')
-        for quarter in QUARTERS:
-            _comments, entered, scored = PERIOD_COLUMNS[quarter]
-            percent = values.get("%s_percent" % quarter.lower())
-            put = _open if entered == entered_column else _put
-            put(sheet, span(entered), _fraction(percent), fill=GREEN_SOFT, bold=True, colour="1E8449",
-                align="center", fmt="0%")
-            if entered == entered_column:
-                percent_check.add("%s%d" % (entered, first))
-            _put(sheet, span(scored), '=IF(%s%d="","",E%d*%s%d)' % (entered, first, first, entered, first),
-                 fill=SOFT, colour=NAVY, align="center", fmt="0.00")
-        put = _open if entered_column == "O" else _put
-        put(sheet, span("O"), values.get("annual_score"), fill=CREAM, bold=True, size=11, colour=NAVY,
-            align="center", fmt="0.0")
-        if entered_column == "O":
-            score_check.add("O%d" % first)
-        _put(sheet, span("P"), '=IF(O%d="","",E%d*O%d/10)' % (first, first, first), fill=SOFT, bold=True, size=10,
-             colour=NAVY, align="center", fmt="0.00")
-    last = row - 1
+    first, last = 12, row - 1
     total = row
     sheet.row_dimensions[total].height = 19.5
     _put(sheet, "A%d:D%d" % (total, total), "WEIGHT CHECK & QUARTERLY TOTALS", fill=TEAL, bold=True, colour=WHITE,
          align="right")
-    _put(sheet, "E%d" % total, "=SUM(E12:E%d)" % last, fill=GOLD, bold=True, size=10, align="center", fmt='0"%"')
+    _put(sheet, "E%d" % total, "=SUM(E%d:E%d)" % (first, last), fill=GOLD, bold=True, size=10, align="center",
+         fmt='0.00"%"')
     _put(sheet, "F%d:G%d" % (total, total),
-         '=IF(E%d=80,"✓ Total = 80%%","⚠ Total must = 80%%, currently "&E%d&"%%")' % (total, total),
+         '=IF(ROUND(E%d,2)=80,"✓ Total = 80%%","⚠ Total must = 80%%, currently "&E%d&"%%")' % (total, total),
          fill=NOTE)
-    for column, label in (("H", None), ("I", "Q2 Total →"), ("K", None), ("L", "Q3 Total →"), ("N", None),
-                          ("O", "Sec A →"), ("P", None)):
-        if label:
-            _put(sheet, "%s%d" % (column, total), label, fill=TEAL, size=8, colour=WHITE, align="right")
-        else:
-            _put(sheet, "%s%d" % (column, total),
-                 '=IF(COUNT(%s12:%s%d)=0,"",SUM(%s12:%s%d))' % (column, column, last, column, column, last),
-                 fill=TEAL, bold=True, size=11 if column == "P" else 10, colour=WHITE, align="center", fmt="0.00")
-    for column in ("J", "M"):
-        _put(sheet, "%s%d" % (column, total), None, fill=TEAL)
-    return total
+    for each in QUARTERS:
+        said, entered, scored = PERIOD_COLUMNS[each]
+        if each != QUARTERS[0]:
+            _put(sheet, "%s%d:%s%d" % (said, total, entered, total), "%s Total →" % each, fill=TEAL, size=8,
+                 colour=WHITE, align="right")
+        _put(sheet, "%s%d" % (scored, total),
+             '=IF(COUNT(%s%d:%s%d)=0,"",SUM(%s%d:%s%d))' % (scored, first, scored, last, scored, first, scored, last),
+             fill=TEAL, bold=True, size=11 if each == quarter else 10, colour=WHITE, align="center", fmt="0.00")
+    return total, first, last
+
+
+def _perspectives(sheet, row, first, last):
+    """The perspectives below the KPIs, summing them up by the hidden key
+    each KPI row carries: each one's weight and, for every quarter, its
+    weighted score. Returns its last row."""
+    _band_row(sheet, row, "PERSPECTIVES  —  SUMMED UP FROM THE KPIs ABOVE", fill=TEAL, size=10, height=15.75)
+    row += 1
+    sheet.row_dimensions[row].height = 27.75
+    _put(sheet, "A%d:D%d" % (row, row), "Perspective", fill=TEAL, bold=True, colour=WHITE, align="center")
+    _put(sheet, "E%d" % row, "Weight", fill=TEAL, bold=True, size=8, colour=WHITE, align="center")
+    for each in QUARTERS:
+        said, _entered, scored = PERIOD_COLUMNS[each]
+        _put(sheet, "%s%d:%s%d" % (said, row, scored, row), "%s Wtd Score" % each, fill=TEAL_DARK, bold=True, size=8,
+             colour=WHITE, align="center")
+    keys = "$%s$%d:$%s$%d" % (KEY, first, KEY, last)
+    seen = []
+    for at in range(first, last + 1):
+        perspective = sheet["%s%d" % (KEY, at)].value
+        if perspective and perspective not in seen:
+            seen.append(perspective)
+    for perspective in seen:
+        row += 1
+        sheet.row_dimensions[row].height = 19.5
+        light, dark = PERSPECTIVE_COLOURS.get(perspective, (LABEL, NAVY))
+        _put(sheet, "A%d:D%d" % (row, row), perspective, fill=light, bold=True, colour=dark)
+        _put(sheet, "E%d" % row, "=SUMIF(%s,$A%d,$E$%d:$E$%d)" % (keys, row, first, last), fill=CREAM, bold=True,
+             size=10, colour="1A5276", align="center", fmt='0.00"%"')
+        for each, fill in zip(QUARTERS, (SOFT, LABEL, SOFT, LABEL)):
+            said, entered, scored = PERIOD_COLUMNS[each]
+            _put(sheet, "%s%d:%s%d" % (said, row, scored, row),
+                 '=IF(COUNTIFS(%s,$A%d,$%s$%d:$%s$%d,"<>")=0,"",SUMIF(%s,$A%d,$%s$%d:$%s$%d))'
+                 % (keys, row, entered, first, entered, last, keys, row, scored, first, scored, last),
+                 fill=fill, bold=True, colour=NAVY, align="center", fmt="0.00")
+    return row
 
 
 def _assignments(sheet, data, row):
@@ -413,8 +441,9 @@ def _assignments(sheet, data, row):
                           "separately)", size=10)
     row += 1
     sheet.row_dimensions[row].height = 27.75
+    edge = _edge(sheet)
     for span, text in (("A%d:B%d", "S/No & Task"), ("C%d:F%d", "Assignment Given"), ("G%d:I%d", "Expected Outcome"),
-                       ("J%d:M%d", "Employee Comments"), ("N%d:P%d", "Supervisor Comments")):
+                       ("J%d:M%d", "Employee Comments"), ("N%d:" + edge + "%d", "Supervisor Comments")):
         _put(sheet, span % (row, row), text, fill=TEAL, bold=True, colour=WHITE, align="center")
     rows = list(data.get("assignments") or [])
     rows += [{}] * max(3 - len(rows), 1 if len(rows) >= 3 else 0)
@@ -426,7 +455,7 @@ def _assignments(sheet, data, row):
         _open(sheet, "C%d:F%d" % (row, row), assignment.get("assignment_given"), fill=WHITE)
         _open(sheet, "G%d:I%d" % (row, row), assignment.get("expected_outcome"), fill=WHITE)
         _open(sheet, "J%d:M%d" % (row, row), assignment.get("employee_comments"), fill=WHITE)
-        _open(sheet, "N%d:P%d" % (row, row), assignment.get("supervisor_comments"), fill=WHITE)
+        _open(sheet, "N%d:%s%d" % (row, edge, row), assignment.get("supervisor_comments"), fill=WHITE)
         _tag(sheet, row, "assignment")
     return row
 
@@ -437,8 +466,9 @@ def _section_b(sheet, data, row):
                           "must sum to 20%")
     row += 1
     sheet.row_dimensions[row].height = 27.75
+    edge = _edge(sheet)
     for span, text in (("A%d:C%d", "Competency"), ("D%d:I%d", "Behavioural Indicators"), ("J%d:K%d", "Weight\n(%%)"),
-                       ("L%d:M%d", "Score\n(0–10)"), ("N%d:P%d", "Weighted\nScore")):
+                       ("L%d:M%d", "Score\n(0–10)"), ("N%d:" + edge + "%d", "Weighted\nScore")):
         _put(sheet, span % (row, row), text.replace("%%", "%"), fill=GOLD if span.startswith("L") else TEAL,
              bold=True, colour=NAVY if span.startswith("L") else WHITE, align="center")
     check = _validation(sheet, "score", "Competency score", "Score each competency from 0 to 10.")
@@ -454,8 +484,8 @@ def _section_b(sheet, data, row):
         _open(sheet, "L%d:M%d" % (row, row), competency.get("score"), fill=WHITE, bold=True, size=10, align="center",
               fmt="0.0")
         check.add("L%d" % row)
-        _put(sheet, "N%d:P%d" % (row, row), '=IF(L%d="","",J%d*L%d/10)' % (row, row, row), fill=SOFT, bold=True,
-             size=10, colour=NAVY, align="center", fmt="0.00")
+        _put(sheet, "N%d:%s%d" % (row, edge, row), '=IF(L%d="","",J%d*L%d/10)' % (row, row, row), fill=SOFT,
+             bold=True, size=10, colour=NAVY, align="center", fmt="0.00")
         _tag(sheet, row, "competency", competency.get("competency"))
     last = max(row, first)
     row += 1
@@ -465,20 +495,23 @@ def _section_b(sheet, data, row):
     _put(sheet, "J%d:K%d" % (row, row), "=SUM(J%d:J%d)" % (first, last), fill=GOLD, bold=True, size=10,
          align="center", fmt='0"%"')
     _put(sheet, "L%d:M%d" % (row, row), '=IF(J%d=20,"✓ 20%%","⚠ Must = 20%%")' % row, fill=NOTE, size=8)
-    _put(sheet, "N%d:P%d" % (row, row), '=IF(COUNT(N%d:N%d)=0,"",SUM(N%d:N%d))' % (first, last, first, last),
+    _put(sheet, "N%d:%s%d" % (row, edge, row), '=IF(COUNT(N%d:N%d)=0,"",SUM(N%d:N%d))' % (first, last, first, last),
          fill=TEAL, bold=True, size=11, colour=WHITE, align="center", fmt="0.00")
     return row
 
 
-def _overall(sheet, period, total_row, section_b_row):
-    """The overall score for the period appraised, and the scorecard's
-    rating of it; returns its last row."""
+def _overall(sheet, data, quarter, total_row, section_b_row):
+    """The overall score for the quarter appraised and the scorecard's
+    rating of it, then the year so far: each quarter's overall, the earlier
+    ones as their own appraisals recorded them, and the year to date, the
+    average of the quarters appraised. Returns its last row."""
     row = section_b_row + 2
     _band_row(sheet, row, "OVERALL PERFORMANCE SCORE   =   Section A (×0.8 already embedded in weights) + "
                           "Section B")
-    score_column = PERIOD_COLUMNS[period][2]
+    bands = [(floor, name) for floor, name, _c, _m in BSC_BANDS]
+    score_column = PERIOD_COLUMNS[quarter][2]
     lines = (
-        ("Section A Score  (sum of weighted KPI scores, %s)" % period,
+        ("Section A Score  (sum of weighted KPI scores, %s)" % quarter,
          '=IFERROR(%s%d,"")' % (score_column, total_row)),
         ("Section B Score  (sum of weighted competency scores)", '=IFERROR(N%d,"")' % section_b_row),
     )
@@ -486,20 +519,55 @@ def _overall(sheet, period, total_row, section_b_row):
     for label, formula in lines:
         row += 1
         sheet.row_dimensions[row].height = 19.5
-        _put(sheet, "A%d:O%d" % (row, row), label, fill=LABEL, colour=NAVY, align="right")
-        _put(sheet, "P%d" % row, formula, fill=LABEL, bold=True, size=10, colour=NAVY, align="center", fmt="0.0")
+        _put(sheet, "A%d:P%d" % (row, row), label, fill=LABEL, colour=NAVY, align="right")
+        _put(sheet, "Q%d" % row, formula, fill=LABEL, bold=True, size=10, colour=NAVY, align="center", fmt="0.0")
     row += 1
     overall = row
     sheet.row_dimensions[row].height = 19.5
-    _put(sheet, "A%d:O%d" % (row, row), "OVERALL SCORE  (Section A + Section B)", fill=GOLD, bold=True, size=10,
-         colour=WHITE, align="right")
-    _put(sheet, "P%d" % row, '=IF(AND(P%d="",P%d=""),"",N(P%d)+N(P%d))' % (first, first + 1, first, first + 1),
+    _put(sheet, "A%d:P%d" % (row, row), "OVERALL SCORE  (Section A + Section B, %s)" % quarter, fill=GOLD, bold=True,
+         size=10, colour=WHITE, align="right")
+    _put(sheet, "Q%d" % row, '=IF(AND(Q%d="",Q%d=""),"",N(Q%d)+N(Q%d))' % (first, first + 1, first, first + 1),
          fill=GOLD, bold=True, size=13, colour=WHITE, align="center", fmt="0.0")
     row += 1
     sheet.row_dimensions[row].height = 19.5
-    _put(sheet, "A%d:O%d" % (row, row), "RATING", fill=LABEL, bold=True, colour=NAVY, align="right")
-    _put(sheet, "P%d" % row, _band_formula("P%d" % overall, [(floor, name) for floor, name, _c, _m in BSC_BANDS]),
-         fill=LABEL, bold=True, colour=NAVY, align="center")
+    _put(sheet, "A%d:P%d" % (row, row), "RATING", fill=LABEL, bold=True, colour=NAVY, align="right")
+    _put(sheet, "Q%d" % row, _band_formula("Q%d" % overall, bands), fill=LABEL, bold=True, colour=NAVY,
+         align="center")
+    # the year so far
+    row += 2
+    _band_row(sheet, row, "RESULTS THIS YEAR  —  the year to date is the average of the quarters appraised",
+              fill=TEAL, size=10, height=15.75)
+    row += 1
+    sheet.row_dimensions[row].height = 15.75
+    _put(sheet, "A%d:E%d" % (row, row), "Quarter", fill=TEAL, bold=True, colour=WHITE, align="center")
+    for each in QUARTERS:
+        said, _entered, scored = PERIOD_COLUMNS[each]
+        _put(sheet, "%s%d:%s%d" % (said, row, scored, row), each, fill=GOLD if each == quarter else TEAL_DARK,
+             bold=True, colour=NAVY if each == quarter else WHITE, align="center")
+    row += 1
+    scores = row
+    sheet.row_dimensions[row].height = 19.5
+    _put(sheet, "A%d:E%d" % (row, row), "Overall score", fill=LABEL, bold=True, colour=NAVY, align="right")
+    results = data.get("results") or {}
+    for each in QUARTERS:
+        said, _entered, scored = PERIOD_COLUMNS[each]
+        if each == quarter:
+            value = '=IFERROR(Q%d,"")' % overall
+        else:
+            value = results.get(each) if QUARTERS.index(each) < QUARTERS.index(quarter) else None
+        _put(sheet, "%s%d:%s%d" % (said, row, scored, row), value, fill=CREAM if each == quarter else LABEL,
+             bold=True, size=10, colour=NAVY, align="center", fmt="0.0")
+    row += 1
+    year = row
+    sheet.row_dimensions[row].height = 19.5
+    _put(sheet, "A%d:P%d" % (row, row), "YEAR TO DATE  (average of the quarters appraised)", fill=GOLD, bold=True,
+         size=10, colour=WHITE, align="right")
+    _put(sheet, "Q%d" % row, '=IFERROR(AVERAGE(F%d:Q%d),"")' % (scores, scores), fill=GOLD, bold=True, size=13,
+         colour=WHITE, align="center", fmt="0.0")
+    row += 1
+    sheet.row_dimensions[row].height = 19.5
+    _put(sheet, "A%d:P%d" % (row, row), "YEAR TO DATE RATING", fill=LABEL, bold=True, colour=NAVY, align="right")
+    _put(sheet, "Q%d" % row, _band_formula("Q%d" % year, bands), fill=LABEL, bold=True, colour=NAVY, align="center")
     return row
 
 
@@ -512,7 +580,7 @@ def _band_formula(cell, bands):
 
 def _scale(sheet, row):
     _band_row(sheet, row, "PERFORMANCE RATING SCALE", fill=TEAL, size=10, height=13.5)
-    spans = ("A%d:C%d", "D%d:F%d", "G%d:I%d", "J%d:L%d", "M%d:P%d")
+    spans = ("A%d:C%d", "D%d:F%d", "G%d:I%d", "J%d:L%d", "M%d:" + _edge(sheet) + "%d")
     sheet.row_dimensions[row + 1].height = 12.75
     sheet.row_dimensions[row + 2].height = 21.75
     for span, (floor, name, colour, meaning) in zip(spans, BSC_BANDS):
@@ -532,30 +600,32 @@ def _signatures(sheet, data, row, signatories, title):
         _put(sheet, "A%d:B%d" % (row, row), label, fill=LABEL, bold=True)
         _open(sheet, "C%d:I%d" % (row, row), remarks.get(key), fill=WHITE)
         name = names.get(key) or "_______________________"
-        _put(sheet, "J%d:P%d" % (row, row), "Name: %s   Sig: __________________   Date: ________" % name, fill=WHITE,
-             size=8)
+        _put(sheet, "J%d:%s%d" % (row, _edge(sheet), row), "Name: %s   Sig: __________________   Date: ________" % name,
+             fill=WHITE, size=8)
         _tag(sheet, row, "remark", key)
     return row
 
 
 def _plan(sheet, data, row):
     _band_row(sheet, row, "PART E  —  DEVELOPMENT PLAN", height=15.75)
+    edge = _edge(sheet)
     plan = data.get("plan") or {}
     row += 1
     sheet.row_dimensions[row].height = 12.75
     for span, text in (("A%d:E%d", "Continue / Strengths"), ("F%d:J%d", "Stop / Weaknesses"),
-                       ("K%d:P%d", "Start / Gaps to Fill")):
+                       ("K%d:" + edge + "%d", "Start / Gaps to Fill")):
         _put(sheet, span % (row, row), text, fill=TEAL, bold=True, colour=WHITE, align="center")
     row += 1
     sheet.row_dimensions[row].height = 43.5
     _open(sheet, "A%d:E%d" % (row, row), plan.get("continue"), fill=WHITE)
     _open(sheet, "F%d:J%d" % (row, row), plan.get("stop"), fill=WHITE)
-    _open(sheet, "K%d:P%d" % (row, row), plan.get("start"), fill=WHITE)
+    _open(sheet, "K%d:%s%d" % (row, edge, row), plan.get("start"), fill=WHITE)
     _tag(sheet, row, "plan")
     row += 2
     sheet.row_dimensions[row].height = 12.75
     for span, text in (("A%d:F%d", "Development Action"), ("G%d:I%d", "Duration"), ("J%d:L%d", "By When"),
-                       ("M%d:N%d", "By Whom"), ("O%d:P%d", "Est. Cost (%s)" % (data.get("currency") or "UGX"))):
+                       ("M%d:N%d", "By Whom"),
+                       ("O%d:" + edge + "%d", "Est. Cost (%s)" % (data.get("currency") or "UGX"))):
         _put(sheet, span % (row, row), text, fill=TEAL, bold=True, colour=WHITE, align="center")
     actions = list(data.get("actions") or [])
     actions += [{}] * max(3 - len(actions), 1 if len(actions) >= 3 else 0)
@@ -566,7 +636,7 @@ def _plan(sheet, data, row):
         _open(sheet, "G%d:I%d" % (row, row), action.get("duration"), fill=WHITE)
         _open(sheet, "J%d:L%d" % (row, row), _date(action.get("by_when")), fill=WHITE, fmt="dd/mm/yyyy")
         _open(sheet, "M%d:N%d" % (row, row), action.get("by_whom"), fill=WHITE)
-        _open(sheet, "O%d:P%d" % (row, row), action.get("estimated_cost"), fill=WHITE, fmt="#,##0")
+        _open(sheet, "O%d:%s%d" % (row, edge, row), action.get("estimated_cost"), fill=WHITE, fmt="#,##0")
         _tag(sheet, row, "action")
     return row
 
@@ -738,30 +808,28 @@ def _rows(sheet):
             yield row, tag, sheet["%s%d" % (KEY, row)].value, _text(sheet["%s%d" % (FIRST, row)].value) == "first"
 
 
-def _read_scorecard(sheet, period):
-    comments_column, entered_column, _score = PERIOD_COLUMNS.get(period) or PERIOD_COLUMNS[ANNUAL]
-    out = {"scores": {}, "comments": {}, "competencies": {}, "assignments": [], "remarks": {}, "plan": {},
-           "actions": [], "problems": []}
-    for row, tag, key, first in _rows(sheet):
+def _read_scorecard(sheet, quarter):
+    """What a scorecard sheet says for its quarter: each KPI's percentage
+    achieved and comments by (perspective, KPI), and the rest of the form.
+    A sheet laid out before every KPI carried its own weight is not read:
+    {"outdated": True}."""
+    out = {"kpis": {}, "competencies": {}, "assignments": [], "remarks": {}, "plan": {}, "actions": [],
+           "problems": []}
+    if _text(sheet[LAYOUT_CELL].value) != LAYOUT or quarter not in PERIOD_COLUMNS:
+        out["outdated"] = True
+        return out
+    comments_column, entered_column, _score = PERIOD_COLUMNS[quarter]
+    for row, tag, key, _first in _rows(sheet):
         cell = lambda column: sheet["%s%d" % (column, row)].value  # noqa: E731
         if tag == "kpi":
-            perspective = _text(key)
-            if first:
-                value = cell(entered_column)
-                if period == ANNUAL:
-                    score = _number(value)
-                    if score is not None and not 0 <= score <= 10:
-                        out["problems"].append("%s: the annual score must be from 0 to 10." % perspective)
-                        score = None
-                else:
-                    score = _percent(value)
-                    if score is not None and not 0 <= score <= 100:
-                        out["problems"].append("%s: the percentage achieved must be from 0 to 100." % perspective)
-                        score = None
-                if score is not None:
-                    out["scores"][perspective] = score
-            if comments_column and _text(cell(comments_column)):
-                out["comments"][(perspective, _key(cell("C")))] = _text(cell(comments_column))
+            perspective, kpi = _text(key), _key(cell("C"))
+            percent = _percent(cell(entered_column))
+            if percent is not None and not 0 <= percent <= 100:
+                out["problems"].append("%s (%s): the percentage achieved must be from 0 to 100." % (kpi, perspective))
+                percent = None
+            comments = _text(cell(comments_column))
+            if percent is not None or comments:
+                out["kpis"][(perspective, kpi)] = {"percent": percent, "comments": comments or None}
         elif tag == "competency":
             score = _number(cell("L"))
             if score is not None and not 0 <= score <= 10:

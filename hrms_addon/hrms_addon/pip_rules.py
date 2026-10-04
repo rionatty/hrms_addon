@@ -28,6 +28,9 @@ MIN_REVIEWS = 1
 
 DRAFT, AGREED, IN_PROGRESS, CLOSED, CANCELLED = "Draft", "Agreed", "In Progress", "Closed", "Cancelled"
 STATUSES = (DRAFT, AGREED, IN_PROGRESS, CLOSED, CANCELLED)
+# an employee is on a plan from the day it is raised until it is closed or
+# cancelled: these are shown in red wherever they are listed (Oct 2026)
+OPEN = (DRAFT, AGREED, IN_PROGRESS)
 
 IMPROVED, NOT_IMPROVED, EXTENDED = "Improved", "Not Improved", "Extended"
 OUTCOMES = (IMPROVED, NOT_IMPROVED, EXTENDED)

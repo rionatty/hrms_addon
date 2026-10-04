@@ -7,19 +7,23 @@ The rules are in bsc_rules.py, without a Frappe import
 (scripts/verify_performance.py). This reads and writes the site.
 
   template_*   the role's scorecard. It lives on Frappe HR's own Appraisal
-               Template, laid out as the workbook lays it out: Section A's
-               KPIs under their perspectives with each perspective's weight
-               out of 80 on its first KPI, and the competencies out of 20.
-               The same template carries the supervisory form (LPL/HR/18)
-               instead when its Form Type says so: the ratable factors and
-               the objectives. Every Job Title names its template.
+               Template: Section A's KPIs under their perspectives, every
+               KPI with its own weight, the perspectives below summing them
+               up to 80, and the competencies out of 20. The same template
+               carries the supervisory form (LPL/HR/18) instead when its
+               Form Type says so: the ratable factors and the objectives.
+               Every Job Title names its template.
   import_*     Luuka's own PMS workbooks read straight in — one sheet per
                role, ten departments, eighty-four roles — so the scorecards
-               are not retyped. A sheet whose weights do not add up is
-               imported and flagged rather than silently corrected.
+               are not retyped. The workbook weighs a perspective once; its
+               weight is shared out between its KPIs. A sheet whose weights
+               do not add up is imported and flagged rather than silently
+               corrected.
   fill         an appraisal filled from its role's scorecard
-  score        Section A for the period being scored, Section B, and the
-               overall out of 100 on the form's own bands
+  score        each KPI's weighted score for every quarter recorded, the
+               perspectives summing them up, Section A for the quarter
+               appraised, Section B, and the overall out of 100 on the
+               form's own bands
 
 The supervisory form (LPL/HR/18) is in appraisal_rules.py and they run side
 by side; the Appraisal's Form Type says which one an employee is on.
@@ -45,7 +49,7 @@ def template_validate(doc, method=None):
         _supervisory_template(doc)
         return
     _arrange_kpis(doc)
-    doc.custom_objectives_weight = sum(flt(row.weight) for row in doc.get("custom_perspectives") or [])
+    doc.custom_objectives_weight = round(sum(flt(row.weight) for row in doc.get("custom_kpis") or []), 2)
     doc.custom_competencies_weight = sum(flt(row.weight) for row in doc.get("custom_competencies") or [])
     for row in doc.get("custom_competencies") or []:
         if row.competency and not row.indicators:
@@ -57,7 +61,6 @@ def template_validate(doc, method=None):
     _drop_blank_upstream_rows(doc)
     errors = rules.template_errors({
         "designation": doc.get("custom_designation"),
-        "perspectives": [row.as_dict() for row in doc.get("custom_perspectives") or []],
         "kpis": [row.as_dict() for row in doc.get("custom_kpis") or []],
         "competencies": [row.as_dict() for row in doc.get("custom_competencies") or []],
     })
@@ -72,10 +75,9 @@ def template_validate(doc, method=None):
 
 
 def _arrange_kpis(doc):
-    """Section A as the workbook lays it out: each perspective's KPIs
-    together and its weight on the first of them. The perspectives' own
-    weights, which the appraisal is scored on, follow from the KPIs; they
-    are not typed a second time."""
+    """Section A as the form lays it out: each perspective's KPIs together,
+    each with its own weight. The perspectives below them weigh what their
+    KPIs weigh; they are never typed."""
     rows = doc.get("custom_kpis") or []
     arranged, perspectives = rules.arrange_kpis([
         {"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing, "weight": row.get("weight"),
@@ -83,7 +85,6 @@ def _arrange_kpis(doc):
     ordered = []
     for position, found in enumerate(arranged, 1):
         row = rows[found["at"]]
-        row.weight = found["weight"]
         row.idx = position
         ordered.append(row)
     doc.set("custom_kpis", ordered)
@@ -144,30 +145,30 @@ def template_for(employee=None, designation=None, year=None):
 
 
 # ── 2. The appraisal ──────────────────────────────────────────────────
+# what an appraiser or the employee records on a KPI row, kept when the
+# template is taken again
+RECORDED = ("self_percent",) + tuple(field for quarter in rules.QUARTERS
+                                     for field in (rules.percent_field(quarter), rules.comments_field(quarter)))
+
+
 def fill(doc, template=None):
-    """Section A and Section B taken from the role's scorecard. What is
-    already scored is left alone, so re-filling never wipes a rating."""
+    """Section A and Section B taken from the role's scorecard: the KPIs as
+    the template has them now, each with its weight. What is already
+    recorded against a KPI is kept, so re-filling never wipes a rating."""
     name = template or doc.get("appraisal_template")
     if not name or not frappe.db.exists(TEMPLATE, name):
         return 0
     card = frappe.get_doc(TEMPLATE, name)
     doc.appraisal_template = card.name
-    have = {row.perspective for row in doc.get("custom_bsc_perspectives") or []}
-    added = 0
-    for row in card.custom_perspectives:
-        if row.perspective in have:
-            for existing in doc.custom_bsc_perspectives:
-                if existing.perspective == row.perspective:
-                    existing.weight = flt(row.weight)
-            continue
-        doc.append("custom_bsc_perspectives", {"perspective": row.perspective, "weight": flt(row.weight)})
-        added += 1
-    # the KPIs as the template has them now, each keeping its comments
-    said = {(row.perspective, row.kpi): row.get("comments") for row in doc.get("custom_bsc_kpis") or []}
+    recorded = {(row.perspective, _plain(row.kpi)): {field: row.get(field) for field in RECORDED}
+                for row in doc.get("custom_bsc_kpis") or []}
+    added = len([row for row in card.custom_kpis if (row.perspective, _plain(row.kpi)) not in recorded])
     doc.set("custom_bsc_kpis", [])
     for row in card.custom_kpis:
-        doc.append("custom_bsc_kpis", {"perspective": row.perspective, "kpi": row.kpi, "timing": row.timing,
-                                       "comments": said.get((row.perspective, row.kpi))})
+        doc.append("custom_bsc_kpis", dict(recorded.get((row.perspective, _plain(row.kpi))) or {},
+                                           perspective=row.perspective, kpi=row.kpi, timing=row.timing,
+                                           weight=flt(row.weight)))
+    summarise(doc)
     have = {row.competency for row in doc.get("custom_bsc_competencies") or []}
     for row in card.custom_competencies:
         if row.competency in have:
@@ -182,19 +183,22 @@ def fill(doc, template=None):
 
 
 def score(doc):
-    """Section C of the scorecard: each quarter's weighted score, the year's,
-    Section B, and the overall on the form's own bands."""
-    perspectives = doc.get("custom_bsc_perspectives") or []
-    for row in perspectives:
-        for quarter in rules.QUARTERS:
-            row.set("%s_score" % quarter.lower(),
-                    rules.quarter_score(row.weight, row.get("%s_percent" % quarter.lower())))
-        row.annual_weighted = rules.annual_score(row.weight, row.get("annual_score"))
+    """Section C of the scorecard: each KPI's weighted score for every
+    quarter recorded and for the quarter appraised, the perspectives summing
+    them up, Section A for the quarter, Section B, and the overall on the
+    form's own bands."""
+    quarter = doc.get("custom_quarter")
+    kpis = doc.get("custom_bsc_kpis") or []
+    for row in kpis:
+        for each in rules.QUARTERS:
+            row.set(rules.score_field(each), rules.quarter_score(row.weight, row.get(rules.percent_field(each))))
+        row.score = row.get(rules.score_field(quarter)) if quarter in rules.QUARTERS else None
+    summarise(doc)
     competencies = doc.get("custom_bsc_competencies") or []
     for row in competencies:
         row.weighted_score = rules.competency_score(row.weight, row.get("score"))
-    period = doc.get("custom_period") or rules.ANNUAL
-    section_a = rules.section_a([row.as_dict() for row in perspectives], period)
+    rows = [row.as_dict() for row in kpis]
+    section_a = rules.section_a(rows, quarter) if quarter in rules.QUARTERS else None
     section_b = rules.section_b([row.as_dict() for row in competencies])
     overall = rules.overall(section_a, section_b)
     doc.custom_bsc_section_a_score = section_a
@@ -203,19 +207,31 @@ def score(doc):
     doc.custom_bsc_band = rules.band(overall)
     doc.custom_bsc_band_meaning = rules.BAND_MEANING.get(doc.custom_bsc_band)
     # the employee's own scores, worked out the same way, where they rate themselves
-    own = rules.self_scores([row.as_dict() for row in perspectives], [row.as_dict() for row in competencies],
-                            period) if doc.get("custom_self_appraisal") else {"overall": None}
+    own = rules.self_scores(rows, [row.as_dict() for row in competencies], quarter) \
+        if doc.get("custom_self_appraisal") else {"overall": None}
     doc.custom_bsc_self_score = own["overall"]
     doc.self_score = flt(own["overall"] or 0)
     return {"section_a": section_a, "section_b": section_b, "overall": overall, "band": doc.custom_bsc_band}
 
 
+def summarise(doc):
+    """The perspectives below the KPIs, worked out from them: never typed,
+    so they are drawn afresh every time."""
+    doc.set("custom_bsc_perspectives", rules.perspective_summary(
+        [row.as_dict() for row in doc.get("custom_bsc_kpis") or []]))
+
+
 def facts(doc, step=None):
     return {
-        "step": step, "period": doc.get("custom_period") or rules.ANNUAL,
-        "perspectives": [row.as_dict() for row in doc.get("custom_bsc_perspectives") or []],
+        "step": step, "quarter": doc.get("custom_quarter"),
+        "kpis": [row.as_dict() for row in doc.get("custom_bsc_kpis") or []],
         "competencies": [row.as_dict() for row in doc.get("custom_bsc_competencies") or []],
     }
+
+
+def _plain(text):
+    """A KPI's words as they are matched: spaces and line breaks count as one."""
+    return " ".join(str(text or "").split())
 
 
 @frappe.whitelist(methods=["POST"])
@@ -275,9 +291,10 @@ def _save_template(found, year, company, file_url, sheet, activate):
         "custom_form_reference": found.get("form_reference"), "custom_revision": found.get("revision"),
         "custom_source_file": file_url, "custom_source_sheet": sheet,
     })
-    # Section A as the sheet has it: each perspective's weight on its first KPI
-    kpis, perspectives = rules.arrange_kpis([dict(row, perspective=_perspective(row["perspective"]))
-                                             for row in found["kpis"]])
+    # Section A as the sheet has it, each perspective's weight shared out
+    # between its KPIs where the sheet writes it once
+    kpis, perspectives = rules.arrange_kpis(rules.spread_weights(
+        [dict(row, perspective=_perspective(row["perspective"])) for row in found["kpis"]]))
     doc.set("custom_kpis", [])
     for row in kpis:
         doc.append("custom_kpis", {"perspective": row["perspective"], "kpi": row["kpi"],
@@ -292,7 +309,6 @@ def _save_template(found, year, company, file_url, sheet, activate):
                                            "indicators": row.get("indicators"), "weight": flt(row["weight"])})
     problems = rules.template_errors({
         "designation": designation,
-        "perspectives": [row.as_dict() for row in doc.custom_perspectives],
         "kpis": [row.as_dict() for row in doc.custom_kpis],
         "competencies": [row.as_dict() for row in doc.custom_competencies],
     })

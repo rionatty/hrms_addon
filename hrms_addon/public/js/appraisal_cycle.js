@@ -8,6 +8,17 @@
 // `bench build`.
 
 frappe.ui.form.on("Appraisal Cycle", {
+	// employees on an improvement plan, red in the appraisees (hrms_addon_pip.js)
+	onload_post_render(frm) {
+		hrms_addon.pip.mark_rows(frm, "appraisees");
+	},
+	get_employees(frm) {
+		// after Frappe HR's own Get Employees has filled the table
+		frappe.after_ajax(() => hrms_addon.pip.mark_rows(frm, "appraisees"));
+	},
+	after_save(frm) {
+		hrms_addon.pip.mark_rows(frm, "appraisees");
+	},
 	refresh(frm) {
 		if (frm.is_new()) return;
 		frm.add_custom_button(

@@ -9,12 +9,23 @@
 const HA_BSC = "Balanced Scorecard";
 // where the appraisal is still in the employee's hands, before any rating
 const HA_EARLY = ["Draft", "Pending Self-Appraisal"];
+const HA_QUARTERS = ["Q1", "Q2", "Q3", "Q4"];
 // the employee's own columns, shown only where they appraise themselves
 const HA_SELF_COLUMNS = [
 	["custom_factors", "employee_rating"],
 	["custom_objectives", "employee_rating"],
-	["custom_bsc_perspectives", "self_score"],
+	["custom_bsc_kpis", "self_percent"],
 	["custom_bsc_competencies", "self_score"],
+];
+// every signatory's remarks, on either form (appraisal_approval.ALL_REMARK_FIELDS)
+const HA_REMARK_FIELDS = [
+	"custom_employee_remarks",
+	"custom_supervisor_remarks",
+	"custom_hod_remarks",
+	"custom_hrm_remarks",
+	"custom_production_remarks",
+	"custom_gm_remarks",
+	"custom_ed_remarks",
 ];
 
 frappe.ui.form.on("Appraisal", {
@@ -25,6 +36,9 @@ frappe.ui.form.on("Appraisal", {
 	},
 	refresh(frm) {
 		ha_self_columns(frm);
+		ha_quarter_columns(frm);
+		ha_remarks(frm);
+		ha_improvement_plan(frm);
 		if (frm.doc.docstatus === 0 && !frm.is_new()) {
 			frm.add_custom_button(
 				__("Download Sheet"),
@@ -64,14 +78,15 @@ frappe.ui.form.on("Appraisal", {
 		};
 		const bsc = frm.doc.custom_form_type === HA_BSC;
 		const total = bsc ? frm.doc.custom_bsc_overall : frm.doc.custom_total_score;
-		if (total === undefined || total === null) return;
 		const band = bsc ? frm.doc.custom_bsc_band : frm.doc.custom_band;
+		// a score not given is kept as 0: only a rated appraisal has a headline
+		if (!band) return;
 		const number = (value) => frappe.format(value || 0, { fieldtype: "Float" });
 		const parts = bsc
 			? [
 					__("Section A {0}/80", [number(frm.doc.custom_bsc_section_a_score)]),
 					__("Section B {0}/20", [number(frm.doc.custom_bsc_section_b_score)]),
-					__("{0} {1}%", [frm.doc.custom_period || __("Overall"), number(total)]),
+					__("{0} {1}%", [frm.doc.custom_quarter || __("Overall"), number(total)]),
 			  ]
 			: [
 					__("Ratable Factors {0}/60", [number(frm.doc.custom_factors_score)]),
@@ -80,6 +95,10 @@ frappe.ui.form.on("Appraisal", {
 			  ];
 		if (frm.doc.custom_self_appraisal && frm.doc.self_score) {
 			parts.push(__("Self {0}%", [number(frm.doc.self_score)]));
+		}
+		const year = frm.doc.custom_annual_score;
+		if (year !== undefined && year !== null && (frm.doc.custom_quarter_results || []).length > 1) {
+			parts.push(__("Year to Date {0}%", [number(year)]));
 		}
 		frm.dashboard.set_headline(
 			`<span>${parts.map((p) => frappe.utils.escape_html(p)).join(" &nbsp;|&nbsp; ")}</span>` +
@@ -93,7 +112,8 @@ frappe.ui.form.on("Appraisal", {
 	custom_form_type(frm) {
 		frm.trigger("show_score");
 	},
-	custom_period(frm) {
+	custom_quarter(frm) {
+		ha_quarter_columns(frm);
 		frm.trigger("show_score");
 	},
 	custom_self_appraisal(frm) {
@@ -132,6 +152,72 @@ function ha_self_columns(frm) {
 		grid.update_docfield_property(fieldname, "hidden", show ? 0 : 1);
 		grid.reset_grid();
 	}
+}
+
+// Only the quarter appraised is filled in: its percentage and comments open,
+// the earlier quarters as their own appraisals recorded them and the later
+// ones on their own appraisals (the server keeps it so, appraisals.py).
+function ha_quarter_columns(frm) {
+	const grid = frm.fields_dict.custom_bsc_kpis && frm.fields_dict.custom_bsc_kpis.grid;
+	if (!grid) return;
+	let changed = false;
+	for (const quarter of HA_QUARTERS) {
+		const closed = quarter === frm.doc.custom_quarter ? 0 : 1;
+		for (const fieldname of [quarter.toLowerCase() + "_percent", quarter.toLowerCase() + "_comments"]) {
+			const df = (grid.docfields || []).find((d) => d.fieldname === fieldname);
+			if (!df || (df.read_only ? 1 : 0) === closed) continue;
+			grid.update_docfield_property(fieldname, "read_only", closed);
+			changed = true;
+		}
+	}
+	if (changed) grid.reset_grid();
+}
+
+// Each signatory's remarks open only at their own step (appraisal_approval
+// remark_steps, from the server); the others stay as they were written.
+function ha_remarks(frm) {
+	const steps = (frm.doc.__onload && frm.doc.__onload.remark_steps) || {};
+	const state = frm.doc.workflow_state || "Draft";
+	for (const fieldname of HA_REMARK_FIELDS) {
+		if (!frm.fields_dict[fieldname]) continue;
+		frm.set_df_property(fieldname, "read_only", steps[fieldname] === state ? 0 : 1);
+	}
+}
+
+// An employee on an improvement plan, said in red at the top
+function ha_improvement_plan(frm) {
+	if (!frm.doc.custom_on_pip || !frm.doc.custom_improvement_plan) return;
+	const plan = (frm.doc.__onload && frm.doc.__onload.improvement_plan) || {};
+	const link = `<a href="/app/performance-improvement-plan/${encodeURIComponent(
+		frm.doc.custom_improvement_plan
+	)}">${frappe.utils.escape_html(frm.doc.custom_improvement_plan)}</a>`;
+	const until = plan.end_date ? " " + __("until {0}", [frappe.datetime.str_to_user(plan.end_date)]) : "";
+	frm.set_intro(
+		__("{0} is on an improvement plan: {1} ({2}){3}.", [
+			frappe.utils.escape_html(frm.doc.employee_name || frm.doc.employee),
+			link,
+			frappe.utils.escape_html(__(plan.status || "Draft")),
+			until,
+		]),
+		"red"
+	);
+}
+
+// A KPI's weighted scores as its percentages are typed: the weight times
+// the percentage achieved (bsc_rules.quarter_score); the perspectives and
+// the sections follow when the appraisal is saved.
+function ha_kpi_scores(frm, cdt, cdn) {
+	const row = locals[cdt][cdn];
+	for (const quarter of HA_QUARTERS) {
+		const percent = row[quarter.toLowerCase() + "_percent"];
+		row[quarter.toLowerCase() + "_score"] =
+			percent === undefined || percent === null || percent === ""
+				? null
+				: flt((flt(row.weight) * flt(percent)) / 100, 2);
+	}
+	const current = frm.doc.custom_quarter ? row[frm.doc.custom_quarter.toLowerCase() + "_score"] : null;
+	row.score = current === undefined ? null : current;
+	frm.refresh_field("custom_bsc_kpis");
 }
 
 function ha_upload_sheet(frm) {
@@ -182,19 +268,11 @@ for (const table of ["Appraisal Factor Rating", "Appraisal Objective Rating"]) {
 	});
 }
 
-frappe.ui.form.on("BSC Appraisal Perspective", {
-	q1_percent(frm) {
-		frm.trigger("show_score");
-	},
-	q2_percent(frm) {
-		frm.trigger("show_score");
-	},
-	q3_percent(frm) {
-		frm.trigger("show_score");
-	},
-	annual_score(frm) {
-		frm.trigger("show_score");
-	},
+frappe.ui.form.on("BSC Appraisal KPI", {
+	q1_percent: ha_kpi_scores,
+	q2_percent: ha_kpi_scores,
+	q3_percent: ha_kpi_scores,
+	q4_percent: ha_kpi_scores,
 });
 
 frappe.ui.form.on("BSC Appraisal Competency", {

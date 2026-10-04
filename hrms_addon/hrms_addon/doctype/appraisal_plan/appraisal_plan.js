@@ -3,6 +3,8 @@
 
 frappe.ui.form.on("Appraisal Plan", {
 	refresh(frm) {
+		// employees on an improvement plan, red in the list (hrms_addon_pip.js)
+		hrms_addon.pip.mark_rows(frm, "employees", "employee");
 		if (frm.doc.docstatus === 0 && frm.doc.year) {
 			frm.add_custom_button(__("Fill the Year"), () =>
 				frappe
@@ -48,5 +50,11 @@ frappe.ui.form.on("Appraisal Plan", {
 		if (frm.is_new() && !frm.doc.year) {
 			frm.set_value("year", new Date().getFullYear());
 		}
+	},
+});
+
+frappe.ui.form.on("Appraisal Plan Employee", {
+	employee(frm) {
+		hrms_addon.pip.mark_rows(frm, "employees", "employee");
 	},
 });

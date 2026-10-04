@@ -8,7 +8,25 @@
   "perspective",
   "kpi",
   "timing",
-  "comments"
+  "weight",
+  "self_percent",
+  "q1_percent",
+  "q2_percent",
+  "q3_percent",
+  "q4_percent",
+  "score",
+  "quarters_section",
+  "q1_score",
+  "q1_comments",
+  "q2_column",
+  "q2_score",
+  "q2_comments",
+  "q3_column",
+  "q3_score",
+  "q3_comments",
+  "q4_column",
+  "q4_score",
+  "q4_comments"
  ],
  "fields": [
   {
@@ -17,34 +35,148 @@
    "label": "Perspective",
    "options": "KRA Perspective",
    "in_list_view": 1,
-   "columns": 2
+   "columns": 1,
+   "read_only": 1
   },
   {
    "fieldname": "kpi",
    "fieldtype": "Small Text",
    "label": "KPI / Objective",
    "in_list_view": 1,
-   "columns": 4
+   "columns": 2,
+   "read_only": 1
   },
   {
    "fieldname": "timing",
    "fieldtype": "Select",
    "label": "Timing",
-   "options": "Per shift\nDaily\nWeekly\nMonthly\nQuarterly\nSemi-Annual\nAnnual\nOngoing",
+   "options": "\nPer shift\nDaily\nWeekly\nMonthly\nQuarterly\nSemi-Annual\nAnnual\nOngoing",
+   "read_only": 1
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "self_percent",
+   "fieldtype": "Percent",
+   "label": "Self %",
+   "description": "The employee's own percentage achieved for the quarter.",
    "in_list_view": 1,
    "columns": 1
   },
   {
-   "fieldname": "comments",
-   "fieldtype": "Small Text",
-   "label": "Comments",
+   "fieldname": "q1_percent",
+   "fieldtype": "Percent",
+   "label": "Q1 %",
    "in_list_view": 1,
-   "columns": 3
+   "columns": 1
+  },
+  {
+   "fieldname": "q2_percent",
+   "fieldtype": "Percent",
+   "label": "Q2 %",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "q3_percent",
+   "fieldtype": "Percent",
+   "label": "Q3 %",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "q4_percent",
+   "fieldtype": "Percent",
+   "label": "Q4 %",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Weighted Score",
+   "description": "For the quarter being appraised: the weight times the percentage achieved.",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quarters_section",
+   "fieldtype": "Section Break",
+   "label": "Quarters"
+  },
+  {
+   "fieldname": "q1_score",
+   "fieldtype": "Float",
+   "label": "Q1 Weighted Score",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "q1_comments",
+   "fieldtype": "Small Text",
+   "label": "Q1 Comments"
+  },
+  {
+   "fieldname": "q2_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "q2_score",
+   "fieldtype": "Float",
+   "label": "Q2 Weighted Score",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "q2_comments",
+   "fieldtype": "Small Text",
+   "label": "Q2 Comments"
+  },
+  {
+   "fieldname": "q3_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "q3_score",
+   "fieldtype": "Float",
+   "label": "Q3 Weighted Score",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "q3_comments",
+   "fieldtype": "Small Text",
+   "label": "Q3 Comments"
+  },
+  {
+   "fieldname": "q4_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "q4_score",
+   "fieldtype": "Float",
+   "label": "Q4 Weighted Score",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "q4_comments",
+   "fieldtype": "Small Text",
+   "label": "Q4 Comments"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-29 18:00:00.000000",
+ "modified": "2026-10-04 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "BSC Appraisal KPI",

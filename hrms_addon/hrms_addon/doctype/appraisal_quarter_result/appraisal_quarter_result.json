@@ -1,0 +1,88 @@
+{
+ "actions": [],
+ "creation": "2026-10-04 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "quarter",
+  "appraisal",
+  "section_a",
+  "section_b",
+  "total",
+  "band",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "quarter",
+   "fieldtype": "Data",
+   "label": "Quarter",
+   "in_list_view": 1,
+   "columns": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "appraisal",
+   "fieldtype": "Link",
+   "label": "Appraisal",
+   "options": "Appraisal",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_a",
+   "fieldtype": "Float",
+   "label": "Section A",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_b",
+   "fieldtype": "Float",
+   "label": "Section B",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total",
+   "fieldtype": "Percent",
+   "label": "Total",
+   "in_list_view": 1,
+   "columns": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "band",
+   "fieldtype": "Data",
+   "label": "Rating",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "label": "Status",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-04 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Appraisal Quarter Result",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

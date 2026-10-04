@@ -17,13 +17,14 @@ Form Type says which one an employee is on.
 
 THE FORM
 
-  Section A   the KPIs, grouped under the four balanced scorecard
-              perspectives, worth 80 of the 100. The weight is set once per
-              PERSPECTIVE, not per KPI, and the four must total 80: the
-              template, like the workbook, writes it on the perspective's
-              first KPI (arrange_kpis). Each quarter records the percentage
-              achieved against target; at year end a score out of ten is
-              given instead.
+  Section A   the KPIs under the four balanced scorecard perspectives,
+              worth 80 of the 100. Every KPI carries its own weight; a
+              perspective weighs what its KPIs weigh, and the four total 80
+              (Luuka, 4 Oct 2026: the workbook weighed each perspective
+              once). Each quarter the appraiser records the percentage
+              achieved against each KPI, and the KPI scores its weight times
+              that percentage. The perspectives, below the KPIs, sum them up
+              (perspective_summary).
   Assignments other tasks given during the period, recorded, not scored
   Section B   five competencies with their behavioural indicators, scored
               out of ten, their weights totalling 20
@@ -33,15 +34,20 @@ THE FORM
   Part E      the development plan: what to continue, stop and start, and
               the actions agreed with their cost
 
+THE YEAR
+
+Four quarters, one appraisal each. A quarter's appraisal carries the earlier
+quarters as they were recorded, and only its own quarter is filled in. The
+year to date is the average of the quarters appraised so far (year_to_date):
+Luuka, 4 Oct 2026, in place of the workbook's annual score out of ten.
+
 THE QUARTERLY SCORE
 
 Luuka's workbook computes a quarter as weight x percent / 100 / 10, which
-scores a perfect quarter 8 out of 80. The annual column has no such divisor.
-Luuka confirmed the quarterly score is a real score, not an indicator, so
-the stray tenth is dropped here: a quarter is weight x percent / 100, and a
-perfect one scores the full 80, exactly as the year does.
+scores a perfect quarter 8 out of 80. Luuka confirmed the quarterly score is
+a real score, not an indicator, so the stray tenth is dropped here: a KPI
+scores weight x percent / 100, and a perfect quarter scores the full 80.
 """
-
 # ── Section A ─────────────────────────────────────────────────────────
 PERSPECTIVES = (
     "Financial",
@@ -63,7 +69,9 @@ CONTINUATION = "↳"  # the workbook marks a KPI under the perspective above wit
 TIMINGS = ("Per shift", "Daily", "Weekly", "Monthly", "Quarterly", "Semi-Annual", "Annual", "Ongoing")
 
 OBJECTIVES_WEIGHT, COMPETENCIES_WEIGHT = 80, 20
-TOP_SCORE = 10  # the annual column and every competency are scored out of ten
+TOP_SCORE = 10  # every competency is scored out of ten
+# a message names this many KPIs, then says how many more
+NAMED_KPIS = 5
 
 # ── Section B ─────────────────────────────────────────────────────────
 # The competencies are the role's, not one fixed list: Luuka's workbooks
@@ -101,12 +109,10 @@ BAND_MEANING = {
 }
 
 # ── The year ──────────────────────────────────────────────────────────
-# the workbook records three quarters and then the year itself
-QUARTERS = ("Q1", "Q2", "Q3")
+QUARTERS = ("Q1", "Q2", "Q3", "Q4")
+# what the workbook called its last column, and what an appraisal of it is
+# now: the fourth quarter (the patch of October 2026)
 ANNUAL = "Annual"
-PERIODS = QUARTERS + (ANNUAL,)
-# what each period reads off the form: a percentage achieved, or a score
-PERCENT_PERIODS, SCORE_PERIODS = QUARTERS, (ANNUAL,)
 
 FORM_SUPERVISORY = "Supervisory Skills (LPL/HR/18)"
 FORM_BSC = "Balanced Scorecard"
@@ -116,46 +122,102 @@ MAX_OBJECTIVES = 8
 
 
 def quarter_score(weight, percent):
-    """A perspective's weighted score for a quarter: its weight times the
-    percentage achieved. None when nothing is recorded.
+    """A KPI's weighted score for a quarter: its weight times the percentage
+    achieved. None when nothing is recorded.
 
     Luuka's workbook divides by a further ten here; they confirmed the
     quarterly score is real, so it is not divided again.
     """
+    exact = _weighted(weight, percent)
+    return None if exact is None else round(exact, 2)
+
+
+def _weighted(weight, percent):
+    """A KPI's weighted score before rounding: totals add these and round
+    once, so three KPIs of 8.33, 8.33 and 8.34 half achieved make 12.5, not
+    the 12.51 their rounded scores would."""
     if percent in (None, "") or weight in (None, ""):
         return None
-    return round(float(weight) * float(percent) / 100.0, 2)
+    return float(weight) * float(percent) / 100.0
 
 
-def annual_score(weight, score):
-    """A perspective's weighted score for the year: its weight times the
-    score out of ten."""
-    if score in (None, "") or weight in (None, ""):
-        return None
-    return round(float(weight) * float(score) / TOP_SCORE, 2)
+def percent_field(quarter):
+    """The column of a KPI row that holds a quarter's percentage achieved."""
+    return "%s_percent" % quarter.lower()
 
 
-def field_for(period):
-    """Which column of a perspective row a period reads."""
-    return "annual_score" if period == ANNUAL else "%s_percent" % period.lower()
+def score_field(quarter):
+    """The column that holds a quarter's weighted score, on a KPI row and on
+    a perspective's."""
+    return "%s_score" % quarter.lower()
 
 
-def section_a(rows, period):
-    """Section A's total for a period: the weighted scores of the
-    perspectives that have one. None when none of them does.
+def comments_field(quarter):
+    """The column of a KPI row that holds a quarter's comments."""
+    return "%s_comments" % quarter.lower()
 
-    rows: [{"weight", "q1_percent", "q2_percent", "q3_percent", "annual_score"}]
+
+def quarter_of(month):
+    """The quarter a month (1 to 12) falls in."""
+    return QUARTERS[(int(month) - 1) // 3]
+
+
+def recorded(rows, field):
+    """Whether a column of figures has been filled in at all. Frappe keeps a
+    number left blank as 0, so a column that is blank or 0 on every row was
+    never filled in; once any row has a figure, a 0 beside it is a real 0."""
+    return any(_number(row.get(field)) for row in rows or [])
+
+
+def section_a(kpis, quarter):
+    """Section A's total for a quarter: the KPIs' weighted scores. None while
+    the quarter's column has not been filled in (recorded).
+
+    kpis: [{"weight", "q1_percent", ... "q4_percent"}]
     """
-    scored = []
-    for row in rows or []:
-        weight = row.get("weight")
-        if period in PERCENT_PERIODS:
-            value = quarter_score(weight, row.get(field_for(period)))
-        else:
-            value = annual_score(weight, row.get("annual_score"))
-        if value is not None:
-            scored.append(value)
-    return round(sum(scored), 2) if scored else None
+    if quarter not in QUARTERS or not recorded(kpis, percent_field(quarter)):
+        return None
+    scored = [_weighted(row.get("weight"), row.get(percent_field(quarter))) for row in kpis or []]
+    return round(sum(value for value in scored if value is not None), 2)
+
+
+def perspective_summary(kpis):
+    """The perspectives, below the KPIs, summing them up: each one's weight
+    (what its KPIs weigh), its weighted score for each quarter (None for a
+    quarter whose column has not been filled in) and its year to date, in
+    the order the perspectives first appear.
+
+    kpis: [{"perspective", "weight", "q1_percent", ... "q4_percent"}]
+    Returns [{"perspective", "weight", "q1_score", ... "q4_score", "year_to_date"}].
+    """
+    order, groups = [], {}
+    for row in kpis or []:
+        perspective = row.get("perspective")
+        if not perspective:
+            continue
+        if perspective not in groups:
+            order.append(perspective)
+            groups[perspective] = []
+        groups[perspective].append(row)
+    filled = {quarter: recorded(kpis, percent_field(quarter)) for quarter in QUARTERS}
+    out = []
+    for perspective in order:
+        rows = groups[perspective]
+        summary = {"perspective": perspective, "weight": round(sum(_number(row.get("weight")) or 0 for row in rows), 2)}
+        for quarter in QUARTERS:
+            scored = [_weighted(row.get("weight"), row.get(percent_field(quarter))) for row in rows]
+            summary[score_field(quarter)] = round(sum(value for value in scored if value is not None), 2) \
+                if filled[quarter] else None
+        summary["year_to_date"] = year_to_date([summary[score_field(quarter)] for quarter in QUARTERS])
+        out.append(summary)
+    return out
+
+
+def year_to_date(totals):
+    """The year so far: the average of the quarters appraised, each counted
+    once whatever it scored. None until one is."""
+    values = [float(value) for value in totals or [] if value not in (None, "")]
+    return round(sum(values) / len(values), 2) if values else None
 
 
 def competency_score(weight, score):
@@ -172,9 +234,10 @@ def section_b(rows):
 
     rows: [{"weight", "score"}]
     """
+    if not recorded(rows, "score"):
+        return None
     scored = [competency_score(row.get("weight"), row.get("score")) for row in rows or []]
-    scored = [value for value in scored if value is not None]
-    return round(sum(scored), 2) if scored else None
+    return round(sum(value for value in scored if value is not None), 2)
 
 
 def overall(section_a_total, section_b_total):
@@ -204,37 +267,52 @@ def normalise_perspective(text):
 
 
 def arrange_kpis(rows):
-    """Section A of a template laid out as the workbook lays it out: each
+    """Section A of a template laid out as the form lays it out: each
     perspective's KPIs together, in the order the perspectives first
-    appear, and the perspective's weight on its first KPI.
-
-    A weight typed on another of the perspective's KPIs is added to it, so
-    nothing typed is lost and the total stays what was typed.
+    appear, every KPI keeping its own weight.
 
     rows: [{"perspective", "kpi", "timing", "weight"}]
-    Returns (rows, perspectives): the rows in order with the weight on each
-    perspective's first KPI only, and [{"perspective", "weight"}], one per
-    perspective, which is what the appraisal is scored on.
+    Returns (rows, perspectives): the rows in order, and [{"perspective",
+    "weight"}], one per perspective, weighing what its KPIs weigh.
     """
-    order, groups, weights = [], {}, {}
+    order, groups = [], {}
     for row in rows or []:
         perspective = row.get("perspective")
         if perspective not in groups:
             order.append(perspective)
             groups[perspective] = []
-            weights[perspective] = None
         groups[perspective].append(dict(row))
-        weight = _number(row.get("weight"))
-        if weight:
-            weights[perspective] = round((weights[perspective] or 0) + weight, 2)
-    arranged, perspectives = [], []
-    for perspective in order:
-        for index, row in enumerate(groups[perspective]):
-            row["weight"] = weights[perspective] if index == 0 else None
-            arranged.append(row)
-        if perspective:
-            perspectives.append({"perspective": perspective, "weight": weights[perspective] or 0})
+    arranged = [row for perspective in order for row in groups[perspective]]
+    perspectives = [{"perspective": perspective,
+                     "weight": round(sum(_number(row.get("weight")) or 0 for row in groups[perspective]), 2)}
+                    for perspective in order if perspective]
     return arranged, perspectives
+
+
+def spread_weights(rows):
+    """Luuka's workbooks weigh a perspective once, on one of its KPIs. Where
+    that is so, the perspective's weight is shared between all its KPIs,
+    evenly to the hundredth, the last taking what the rounding leaves, so
+    the perspective still weighs what was written. A perspective whose KPIs
+    are weighed one by one, or that has a single KPI, is left as it is.
+
+    rows: [{"perspective", "weight", ...}]; returns copies, in the same order.
+    """
+    rows = [dict(row) for row in rows or []]
+    groups = {}
+    for row in rows:
+        groups.setdefault(row.get("perspective"), []).append(row)
+    for members in groups.values():
+        weighed = [row for row in members if _number(row.get("weight"))]
+        if len(members) < 2 or len(weighed) != 1:
+            continue
+        # in hundredths, whole numbers: 0.29 x 100 is not 28.999...
+        hundredths = int(round(_number(weighed[0]["weight"]) * 100))
+        each = hundredths // len(members)
+        for row in members:
+            row["weight"] = each / 100.0
+        members[-1]["weight"] = (hundredths - each * (len(members) - 1)) / 100.0
+    return rows
 
 
 def supervisory_template_errors(facts):
@@ -263,34 +341,30 @@ def supervisory_template_errors(facts):
 def template_errors(facts):
     """Problems with a BSC template as it is made ready to use.
 
-    facts: "designation", "perspectives" ([{"perspective", "weight"}]),
-    "kpis" ([{"perspective", "kpi"}]), "competencies" ([{"competency", "weight"}]).
+    facts: "designation", "kpis" ([{"perspective", "kpi", "weight"}]),
+    "competencies" ([{"competency", "weight"}]). The perspectives weigh what
+    their KPIs weigh, so they are not checked apart.
     """
     errors = []
     if not facts.get("designation"):
         errors.append("Name the role the template is for.")
-    perspectives = facts.get("perspectives") or []
-    if not perspectives:
-        errors.append("Give each balanced scorecard perspective its weight; they must total %d."
-                      % OBJECTIVES_WEIGHT)
-    else:
-        total = sum(float(row.get("weight") or 0) for row in perspectives)
-        if round(total, 2) != OBJECTIVES_WEIGHT:
-            errors.append("The perspectives' weights must total %d, not %g." % (OBJECTIVES_WEIGHT, total))
-        seen = set()
-        for row in perspectives:
-            name = row.get("perspective")
-            if name in seen:
-                errors.append("%s is weighted twice." % name)
-                break
-            seen.add(name)
     kpis = facts.get("kpis") or []
     if not kpis:
-        errors.append("List the KPIs the role is measured on.")
-    weighted = {row.get("perspective") for row in perspectives}
-    stray = sorted({str(row.get("perspective")) for row in kpis if row.get("perspective") not in weighted})
-    if stray:
-        errors.append("These KPIs sit under a perspective that carries no weight: %s." % ", ".join(stray))
+        errors.append("List the KPIs the role is measured on, each with its weight; they must total %d."
+                      % OBJECTIVES_WEIGHT)
+    else:
+        homeless = [_kpi_name(row) for row in kpis if not row.get("perspective")]
+        if homeless:
+            errors.append("Put every KPI under one of the perspectives: %s." % _some(homeless))
+        unweighed = [_kpi_name(row) for row in kpis if not _number(row.get("weight"))]
+        if unweighed:
+            errors.append("Give every KPI its weight: %s." % _some(unweighed))
+        negative = [_kpi_name(row) for row in kpis if (_number(row.get("weight")) or 0) < 0]
+        if negative:
+            errors.append("A KPI's weight cannot be negative: %s." % _some(negative))
+        total = round(sum(_number(row.get("weight")) or 0 for row in kpis), 2)
+        if total != OBJECTIVES_WEIGHT:
+            errors.append("The KPIs' weights must total %d, not %g." % (OBJECTIVES_WEIGHT, total))
     competencies = facts.get("competencies") or []
     if not competencies:
         errors.append("List the competencies; their weights must total %d." % COMPETENCIES_WEIGHT)
@@ -304,61 +378,77 @@ def template_errors(facts):
 def appraisal_errors(facts):
     """Problems with a balanced scorecard appraisal at the step it is at.
 
-    facts: "step" ("self" or "appraiser"), "period", "perspectives",
-    "competencies". The employee's self-appraisal is read from each row's
-    self_score, the appraiser's from the period's own column and the
-    competency's score.
+    facts: "step" ("self" or "appraiser"), "quarter", "kpis",
+    "competencies". The employee's self-appraisal is read from each KPI's
+    self_percent, the appraiser's from the quarter's own column, and the
+    competencies' from self_score and score.
     """
     errors = []
     step = facts.get("step")
     if step not in ("self", "appraiser"):
         return errors
-    period = facts.get("period") or ANNUAL
-    perspectives = facts.get("perspectives") or []
-    if not perspectives:
-        errors.append("The balanced scorecard has no perspectives: pick the role's template first.")
+    quarter = facts.get("quarter")
+    kpis = facts.get("kpis") or []
+    if not kpis:
+        errors.append("The balanced scorecard has no KPIs: pick the role's template first.")
         return errors
-    field = "self_score" if step == "self" else field_for(period)
+    if quarter not in QUARTERS:
+        errors.append("Say which quarter the appraisal is for.")
+        return errors
+    field = "self_percent" if step == "self" else percent_field(quarter)
     whose = "your own " if step == "self" else ""
-    unscored = [str(row.get("perspective")) for row in perspectives if row.get(field) in (None, "")]
+    # a column never filled in reads 0 throughout once saved (recorded)
+    filled = recorded(kpis, field)
+    unscored = [_kpi_name(row) for row in kpis if not filled or row.get(field) in (None, "")]
     if unscored:
-        errors.append("Record %s%s for every perspective: %s."
-                      % (whose, "annual score out of ten" if period == ANNUAL else "%s percentage achieved" % period,
-                         ", ".join(unscored)))
-    out_of_range = [str(row.get("perspective")) for row in perspectives
-                    if row.get(field) not in (None, "") and not _within(row[field], period)]
+        errors.append("Record %s%s percentage achieved for every KPI: %s." % (whose, quarter, _some(unscored)))
+    out_of_range = [_kpi_name(row) for row in kpis if row.get(field) not in (None, "") and not _within(row[field], 100)]
     if out_of_range:
-        errors.append("%s is out of range for %s: %s."
-                      % ("The score" if period == ANNUAL else "The percentage", period, ", ".join(out_of_range)))
+        errors.append("A percentage achieved is from 0 to 100: %s." % _some(out_of_range))
     competencies = facts.get("competencies") or []
     field = "self_score" if step == "self" else "score"
-    unscored = [str(row.get("competency")) for row in competencies if row.get(field) in (None, "")]
+    filled = recorded(competencies, field)
+    unscored = [str(row.get("competency")) for row in competencies if not filled or row.get(field) in (None, "")]
     if unscored:
         errors.append("Score %severy competency out of ten: %s." % ("yourself on " if step == "self" else "",
                                                                     ", ".join(unscored)))
     out_of_range = [str(row.get("competency")) for row in competencies
-                    if row.get(field) not in (None, "") and not _within(row[field], ANNUAL)]
+                    if row.get(field) not in (None, "") and not _within(row[field], TOP_SCORE)]
     if out_of_range:
         errors.append("A competency is scored out of ten: %s." % ", ".join(out_of_range))
     return errors
 
 
-def self_scores(perspectives, competencies, period):
+def self_scores(kpis, competencies, quarter):
     """The employee's own Section A, Section B and overall, worked out the
     way the appraiser's are: {"section_a", "section_b", "overall"}."""
-    own_a = [dict(row, **{field_for(period): row.get("self_score")}) for row in perspectives or []]
+    own_a = [dict(row, **{percent_field(quarter): row.get("self_percent")}) for row in kpis or []] \
+        if quarter in QUARTERS else []
     own_b = [{"weight": row.get("weight"), "score": row.get("self_score")} for row in competencies or []]
-    section_a_total, section_b_total = section_a(own_a, period), section_b(own_b)
+    section_a_total, section_b_total = section_a(own_a, quarter), section_b(own_b)
     return {"section_a": section_a_total, "section_b": section_b_total,
             "overall": overall(section_a_total, section_b_total)}
 
 
-def _within(value, period):
+def _within(value, top):
     try:
         number = float(value)
     except (TypeError, ValueError):
         return False
-    return 0 <= number <= (TOP_SCORE if period == ANNUAL else 100)
+    return 0 <= number <= top
+
+
+def _kpi_name(row):
+    """A KPI as a message names it: its first line, under its perspective."""
+    text = " ".join(str(row.get("kpi") or "").split())
+    text = text if len(text) <= 60 else text[:57].rstrip() + "..."
+    return "%s (%s)" % (text or "a KPI with no words", row.get("perspective") or "no perspective")
+
+
+def _some(names):
+    """The first few of a list, and how many more."""
+    shown = ", ".join(names[:NAMED_KPIS])
+    return shown if len(names) <= NAMED_KPIS else "%s and %d more" % (shown, len(names) - NAMED_KPIS)
 
 
 # ── Reading Luuka's own workbooks ─────────────────────────────────────
@@ -381,9 +471,11 @@ def parse_sheet(rows):
 
     rows: the sheet as lists of cell values, the way openpyxl gives them.
     Blank cells and the workbook's own totals are skipped; a KPI marked with
-    the continuation arrow belongs to the perspective above it, and carries
-    no weight of its own. The footer names the form (PROC/002) and its
-    revision (Rev 01).
+    the continuation arrow belongs to the perspective above it. Each KPI
+    keeps the weight written beside it: Luuka's workbooks write the
+    perspective's on its first KPI only, which the importer shares out
+    (spread_weights). The footer names the form (PROC/002) and its revision
+    (Rev 01).
     """
     found = {"role": None, "department": None, "grade": None, "review_period": None,
              "form_reference": None, "revision": None,
@@ -421,7 +513,7 @@ def parse_sheet(rows):
             if perspective:
                 found["kpis"].append({"perspective": perspective, "kpi": kpi,
                                       "timing": timing if timing in TIMINGS else (timing or None),
-                                      "weight": _number(weight) if (first_kpi and weight) else None})
+                                      "weight": _number(weight) if weight else None})
         elif section == "B":
             competency, indicators, weight = _at(cells, 0), _at(cells, 3), _at(cells, 9)
             if not competency or competency.lower() == "competency":

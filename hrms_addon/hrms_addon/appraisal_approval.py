@@ -248,6 +248,31 @@ def remarks_for(form_type):
     return REMARK_FIELDS_BY_FORM.get(form_type or FORM_SUPERVISORY, REMARK_FIELDS_BY_FORM[FORM_SUPERVISORY])
 
 
+def remark_steps(form_type):
+    """{remark field: the state it is written at} on this form: the form
+    opens each signatory's remarks only there (Luuka, 4 Oct 2026)."""
+    return {field: state for state, (field, _who) in remarks_for(form_type).items()}
+
+
+def remark_errors(form_type, state, changed):
+    """Problems with remarks changed while the appraisal stood at `state`:
+    each signatory writes their own, when the appraisal is with them.
+
+    changed: the remark fields whose words changed in this save."""
+    remarks = remarks_for(form_type)
+    allowed = remarks.get(state, (None, None))[0]
+    errors = []
+    for field in changed:
+        if field == allowed:
+            continue
+        owner = next((who for _step, (name, who) in remarks.items() if name == field), None)
+        if owner:
+            errors.append("The %s's remarks are written by them, when the appraisal is with them." % owner)
+        else:
+            errors.append("This form has no place for those remarks.")
+    return errors
+
+
 def compute_stamps(old_state, new_state, user, today, current, form_type=None):
     """The signatures after this save: the step just passed forward is
     signed by `user` today, a return to Draft clears them all, and anything

@@ -95,6 +95,9 @@ app_include_js = [
     # "Salary Advance" (the Salary Advance Request) and "Special Advance" (an
     # Employee Advance of that type) by name in the search bar
     "/assets/hrms_addon/js/hrms_addon_search.js",
+    # employees on an improvement plan in red, wherever a form lists them
+    # (the appraisal cycle, the plan, the review; pips.open_plans)
+    "/assets/hrms_addon/js/hrms_addon_pip.js",
     # the HR calendar's roster, drawn on its page, the Annual Leave Plan and
     # the Monthly Training Schedule (calendar_board.py)
     "/assets/hrms_addon/js/hr_calendar_view.js",
@@ -186,7 +189,9 @@ doctype_js = {
     # The non-disciplinary concern's timeline on their Employee Grievance
     "Employee Grievance": "public/js/employee_grievance.js",
 }
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+# the Appraisal list: an employee on an improvement plan, and a score below
+# the pass mark, in red
+doctype_list_js = {"Appraisal": "public/js/appraisal_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # the Interview calendar marks each interview still to come with the
 # candidate's answer (loaded after Frappe HR's own interview_calendar.js)
@@ -881,7 +886,15 @@ fixtures = [
                     "Appraisal Cycle-custom_hard_deadline",
                     "Appraisal Cycle-custom_reminders_sent",
                     "Appraisal-custom_form_type",
-                    "Appraisal-custom_period",
+                    # the year so far, and an employee on an improvement plan
+                    # (Oct 2026; the scorecard's own period gave way to the quarter)
+                    "Appraisal-custom_results_section",
+                    "Appraisal-custom_quarter_results",
+                    "Appraisal-custom_year_section",
+                    "Appraisal-custom_year_cb",
+                    "Appraisal-custom_year_band",
+                    "Appraisal-custom_on_pip",
+                    "Appraisal-custom_improvement_plan",
                     "Appraisal-custom_bsc_section_a",
                     "Appraisal-custom_bsc_perspectives",
                     "Appraisal-custom_bsc_kpis",
@@ -1490,10 +1503,14 @@ doc_events = {
         "on_cancel": "hrms_addon.hrms_addon.interviews.unblock_cancel",
     },
     "Appraisal": {
-        # LPL/HR/18: Section C from the supervisor's ratings, the
-        # signatures, and the year to date (appraisals.py)
+        # LPL/HR/18 and the scorecard: the scores, the signatures, the
+        # quarter's results and the year to date (appraisals.py)
         "validate": "hrms_addon.hrms_addon.appraisals.appraisal_validate",
         "on_cancel": "hrms_addon.hrms_addon.appraisals.appraisal_on_cancel",
+        # the step each signatory's remarks are written at, for the form
+        "onload": "hrms_addon.hrms_addon.appraisals.appraisal_onload",
+        # a quarter changed: the employee's later quarters still open follow
+        "on_change": "hrms_addon.hrms_addon.appraisals.appraisal_on_change",
     },
     # the appraisals the supervisor does not have yet follow the
     # self-appraisal setting as soon as it is saved (appraisals.py)

@@ -32,7 +32,7 @@
    "fieldname": "timing",
    "fieldtype": "Select",
    "label": "Timing",
-   "options": "Per shift\nDaily\nWeekly\nMonthly\nQuarterly\nSemi-Annual\nAnnual\nOngoing",
+   "options": "\nPer shift\nDaily\nWeekly\nMonthly\nQuarterly\nSemi-Annual\nAnnual\nOngoing",
    "in_list_view": 1,
    "columns": 2
   },
@@ -42,12 +42,14 @@
    "label": "Weight",
    "non_negative": 1,
    "in_list_view": 1,
-   "columns": 1
+   "columns": 1,
+   "description": "This KPI's share of the 80. A perspective weighs what its KPIs weigh.",
+   "precision": "2"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-09-29 18:00:00.000000",
+ "modified": "2026-10-04 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "BSC Template KPI",

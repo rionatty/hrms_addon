@@ -865,6 +865,8 @@ REMOVED = (
     # a Training Event's trainers are a table (Training Event Trainer)
     "Training Event-custom_trainer_2",
     "Training Event-custom_trainer_3",
+    # the scorecard's own period gave way to the appraisal's quarter (Oct 2026)
+    "Appraisal-custom_period",
 )
 patch_sources = ""
 for line in open(os.path.join(REPO, "hrms_addon", "patches.txt"), encoding="utf-8"):
