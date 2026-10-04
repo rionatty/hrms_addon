@@ -748,7 +748,7 @@ if not (perms.get("Interviewer") or {}).get("read") or (perms.get("Interviewer")
     fail.append("the panel (Interviewer) may read the shortlist but not change it")
 cand = doctype_json("Interview Shortlist Candidate")
 cand_fields = fields_of(cand)
-if list(cand_fields) != ["job_applicant", "applicant_name", "match_score", "screening_result", "phone_number",
+if list(cand_fields) != ["job_applicant", "applicant_name", "match_score", "screening_result", "cv", "phone_number",
                          "email_id", "education", "work_experience", "certifications", "screening_section",
                          "experience_years", "flags", "screening_cb", "matched", "missing", "to_check",
                          "remarks_section", "hr_remarks", "hod_remarks", "interview"] or not cand.get("istable"):
@@ -821,8 +821,17 @@ if not filled:
     fail.append("interview_shortlist.js must fill the rows from the server's details")
 for needle, why in (
     ("frm.doc.docstatus === 0 && frm.doc.job_opening", "must offer Get Applicants only on a draft with an opening"),
-    ('frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")',
-     "must offer Schedule Interviews once submitted, a round at a time, to whoever may book"),
+    # Oct 2026: on every shortlist with candidates, where HR reviews; booked
+    # only once the HOD has screened it and it is submitted
+    ("if (!frm.is_new() && frm.doc.docstatus !== 2 && (frm.doc.candidates || []).length\n"
+     "\t\t\t&& frappe.model.can_create(\"Interview\") && frappe.user.has_role(HA_BOOKERS)) {",
+     "must offer Schedule Interviews on the shortlist, to whoever may book"),
+    ("frm.doc.docstatus === 1\n\t\t\t\t\t? ha_schedule_interviews(frm)",
+     "and book only once the shortlist is submitted, saying so before"),
+    ("ha_cv_links(frm);", "must make each candidate's CV open from the shortlist"),
+    ('"/api/method/" + HA_SHORTLIST_METHODS + "shortlist_cv?shortlist=" + encodeURIComponent(frm.doc.name) +',
+     "through the shortlist, which the HOD may read, not the applicant, which they may not"),
+    ('"&job_applicant=" + encodeURIComponent(row.job_applicant);', "naming the candidate, encoded"),
     ("filters: { job_title: frm.doc.job_opening", "must pick applicants of this opening only"),
     ("const esc = (text) => frappe.utils.escape_html(text);", "must escape the names and reasons it lists"),
     ('add(__("No longer in the running:"), result.out);', "must say who is no longer in the running"),
@@ -1232,6 +1241,25 @@ for needle, why in (
 ):
     if needle not in sjs:
         fail.append("interview_shortlist.js %s" % why)
+# the CV, opened from the shortlist by whoever may read it (Oct 2026)
+cv_field = cand_fields.get("cv") or {}
+if (cv_field.get("fieldtype"), cv_field.get("read_only"), cv_field.get("in_list_view"), cv_field.get("fetch_from")) \
+        != ("Data", 1, 1, "job_applicant.resume_attachment"):
+    fail.append("Interview Shortlist Candidate needs a read-only CV column in the list, from the applicant's CV")
+if sum(f.get("columns") or 0 for f in cand_fields.values() if f.get("in_list_view")) > 10:
+    fail.append("the shortlist's columns must fit the grid's ten")
+for needle, why in (
+        ('frappe.has_permission("Interview Shortlist", "read", shortlist, throw=True)', "only to whoever may read the shortlist"),
+        ('if not frappe.db.exists("Interview Shortlist Candidate", {"parent": shortlist, "parenttype": "Interview Shortlist",\n'
+         '                                                              "job_applicant": job_applicant}):',
+         "only a candidate on that shortlist"),
+        ('"cv": doc.get("resume_attachment"),', "the shortlist's details carry the CV"),
+        ('frappe.response["type"] = "pdf" if (cv.file_name or "").lower().endswith(".pdf") else "download"',
+         "a PDF opens in the browser")):
+    if needle not in glue:
+        fail.append("interviews.shortlist_cv: %s (%r not found)" % (why, needle))
+if "hrms_addon.patches.v1_0.shortlist_cv_column" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
+    fail.append("the shortlists already there need their CV column filled (shortlist_cv_column)")
 for who, when in (("hr_screened_by", "hr_screened_on"), ("hod_screened_by", "hod_screened_on")):
     if 'frappe.db.get_value("User", doc.%s, "full_name")' % who not in shtml or "frappe.utils.format_date(doc.%s)" % when not in shtml:
         fail.append("the shortlist print format must carry the screening sign-off %s and its date" % who)

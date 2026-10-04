@@ -54,3 +54,4 @@ hrms_addon.patches.v1_0.interview_confirm_link
 hrms_addon.patches.v1_0.needs_form_questions_table
 hrms_addon.patches.v1_0.clear_prefilled_choices
 hrms_addon.patches.v1_0.hr_alerts_by_email
+hrms_addon.patches.v1_0.shortlist_cv_column

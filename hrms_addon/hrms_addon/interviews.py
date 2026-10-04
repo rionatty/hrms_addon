@@ -445,6 +445,7 @@ def candidate_details(applicant, context=None, contexts=None, with_text=False):
         "applicant_name": doc.applicant_name,
         "phone_number": doc.phone_number,
         "email_id": doc.email_id,
+        "cv": doc.get("resume_attachment"),
         "education": rules.qualification_lines(qualifications, certification_types, certifications=False),
         "work_experience": rules.experience_lines(doc.get("custom_employment_history") or []),
         "certifications": rules.qualification_lines(qualifications, certification_types, certifications=True),
@@ -454,6 +455,28 @@ def candidate_details(applicant, context=None, contexts=None, with_text=False):
         facts = cv_screening.applicant_facts(doc)
         details["search_text"] = "%s\n%s" % (facts["bio_data"], facts["cv"])
     return details
+
+
+@frappe.whitelist()
+def shortlist_cv(shortlist: str, job_applicant: str):
+    """An applicant's CV, opened from a shortlist they are on, by whoever
+    may read that shortlist: the Head of Department screening it cannot
+    read Job Applicant, where the private file is attached."""
+    frappe.has_permission("Interview Shortlist", "read", shortlist, throw=True)
+    if not frappe.db.exists("Interview Shortlist Candidate", {"parent": shortlist, "parenttype": "Interview Shortlist",
+                                                              "job_applicant": job_applicant}):
+        frappe.throw(_("{0} is not on this shortlist. Save the shortlist, then open the CV.").format(job_applicant))
+    url = frappe.db.get_value("Job Applicant", job_applicant, "resume_attachment")
+    name = url and (frappe.db.get_value("File", {"file_url": url, "attached_to_doctype": "Job Applicant",
+                                                 "attached_to_name": job_applicant}, "name")
+                    or frappe.db.get_value("File", {"file_url": url}, "name"))
+    if not name:
+        frappe.throw(_("{0} sent no CV file.").format(job_applicant))
+    cv = frappe.get_doc("File", name)
+    frappe.response["filename"] = cv.file_name
+    frappe.response["filecontent"] = cv.get_content()
+    # a PDF opens in the browser; anything else is downloaded
+    frappe.response["type"] = "pdf" if (cv.file_name or "").lower().endswith(".pdf") else "download"
 
 
 def _screen_rows(doc):

@@ -47,13 +47,43 @@ frappe.ui.form.on("Interview Shortlist", {
 			}
 		}
 		// a round at a time, for the candidates ticked (a batch) or everyone; HR
-		// books, a panel member only reads (interview_access.py)
-		if (frm.doc.docstatus === 1 && (frm.doc.candidates || []).length && frappe.model.can_create("Interview")
-			&& frappe.user.has_role(HA_BOOKERS)) {
-			frm.add_custom_button(__("Schedule Interviews"), () => ha_schedule_interviews(frm));
+		// books, a panel member only reads (interview_access.py). The button is
+		// on every shortlist with candidates, so HR finds it where they review;
+		// the interviews are booked once the HOD has screened it.
+		if (!frm.is_new() && frm.doc.docstatus !== 2 && (frm.doc.candidates || []).length
+			&& frappe.model.can_create("Interview") && frappe.user.has_role(HA_BOOKERS)) {
+			frm.add_custom_button(__("Schedule Interviews"), () =>
+				frm.doc.docstatus === 1
+					? ha_schedule_interviews(frm)
+					: frappe.msgprint({
+							title: __("Schedule Interviews"),
+							indicator: "blue",
+							message: __("Interviews are scheduled once the Head of Department has screened the shortlist and it is submitted."),
+					  })
+			);
 		}
+		ha_cv_links(frm);
 	},
 });
+
+// Each candidate's CV, opened from the shortlist (interviews.shortlist_cv):
+// a Head of Department screening it cannot open Job Applicant, where the
+// private file is attached.
+function ha_cv_links(frm) {
+	const grid = frm.fields_dict.candidates && frm.fields_dict.candidates.grid;
+	if (!grid) return;
+	const df = (grid.docfields || []).find((d) => d.fieldname === "cv");
+	if (!df || df.__ha_cv) return;
+	df.__ha_cv = true;
+	df.formatter = (value, field, options, row) => {
+		if (!value || !row || !row.job_applicant) return "";
+		const url =
+			"/api/method/" + HA_SHORTLIST_METHODS + "shortlist_cv?shortlist=" + encodeURIComponent(frm.doc.name) +
+			"&job_applicant=" + encodeURIComponent(row.job_applicant);
+		return `<a href="${url}" target="_blank" rel="noopener">${__("View CV")}</a>`;
+	};
+	grid.refresh();
+}
 
 frappe.ui.form.on("Interview Shortlist Candidate", {
 	job_applicant(frm, cdt, cdn) {
@@ -166,7 +196,7 @@ function ha_fill_row(row, details) {
 	if (!details) {
 		return;
 	}
-	["job_applicant", "applicant_name", "phone_number", "email_id", "education", "work_experience", "certifications",
+	["job_applicant", "applicant_name", "phone_number", "email_id", "cv", "education", "work_experience", "certifications",
 		"screening_result", "matched", "missing", "to_check", "flags"]
 		.forEach((field) => (row[field] = details[field] || ""));
 	["match_score", "experience_years"].forEach((field) => (row[field] = details[field] ?? null));
