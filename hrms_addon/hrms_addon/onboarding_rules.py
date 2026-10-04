@@ -256,9 +256,18 @@ def training_window(start, days):
     return datetime.datetime.combine(start, TRAINING_DAY_STARTS), datetime.datetime.combine(end, TRAINING_DAY_ENDS)
 
 
+def training_evaluation_task(employee_name, program=None):
+    """What the supervisor is asked on the Training Event: to evaluate the new
+    employee's training once it is held. A task there, not an onboarding
+    activity, so the onboarding completes without waiting for the training."""
+    return ("Evaluate %s's training%s once it is held: record the result on the Training Event "
+            "(Create > Training Result)." % (employee_name or "the new employee", " (%s)" % program if program else ""))
+
+
 def training_evaluation_activity(boarding_begins_on, training_start, days, program=None):
-    """The supervisor's task to evaluate one training (the flowchart's
-    "Supervisor Evaluates the Employee"), due as the training ends."""
+    """The onboarding activity the supervisor's evaluation was until Oct 2026,
+    kept so the patch training_after_onboarding finds the ones made: it held
+    the onboarding open until the training was over."""
     begin = max((_date(training_start) - _date(boarding_begins_on)).days + max(int(days or 1), 1), 0)
     name = "Training evaluation: %s" % program if program else "Training evaluation by the supervisor"
     return {

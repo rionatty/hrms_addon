@@ -739,8 +739,14 @@ for needle, why in (
     ('frappe.db.get_value("Job Offer", doc.job_offer, "custom_gross_salary")', "the gross offered is compared"),
     ('"custom_base_salary": flt(offer.custom_gross_salary) or flt(requisition.expected_compensation) or None,',
      "the offer's gross is carried to the onboarding"),
-    ('activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})',
+    # Oct 2026: the evaluation is a task on the Training Event, so the
+    # onboarding completes without waiting for the training
+    ('users = [supervisor] if supervisor else people.people_for(rules.HOD_ROLE, doc.get("custom_branch"), doc.get("department"))',
      "the supervisor evaluates the training (the HOD when the supervisor has no login)"),
+    ('people.assign("Training Event", row.training_event, users,',
+     "as a task on the Training Event, not an onboarding activity the onboarding would wait for"),
+    ("rules.training_evaluation_task(doc.get(\"employee_name\"), row.training_program), date=end.date())",
+     "due as the training ends"),
     ("for row in rows:\n        row.status = rules.TOOL_REQUESTED", "the tools asked for are Requested"),
     ('if name and frappe.db.get_value("Salary Structure Assignment", name, "docstatus") == 0:\n'
      '        frappe.delete_doc("Salary Structure Assignment", name, ignore_permissions=True)',
@@ -989,6 +995,28 @@ for name in set(re.findall(r"\bdoc\.([a-z_]+)", page)):
 if re.findall(r"{{-?\s*doc\.[a-z_]+", page):
     fail.append("the rules print format must print text through v() so it is escaped")
 print("print format: LPL/HR/05 from the rules HR keeps, the acceptance to sign, every field exists")
+
+# ── The training comes after the onboarding (Oct 2026) ────────────────
+# As an onboarding activity, the supervisor's evaluation held the onboarding
+# open until the training was over: it is a task on the Training Event now
+schedule = glue.split("def _schedule_training(doc):")[1].split("\ndef ")[0]
+if 'doc.append("activities"' in schedule:
+    fail.append("_schedule_training must not add an onboarding activity: the onboarding would wait for the training")
+if "_ask_evaluation(doc, row)" not in schedule:
+    fail.append("_schedule_training must ask the supervisor's evaluation on each Training Event it books")
+if "evaluate" not in R.training_evaluation_task("Jane", "GMP").lower() or "Jane" not in R.training_evaluation_task("Jane", "GMP"):
+    fail.append("the evaluation task must name the new employee and ask for the evaluation")
+after = read("hrms_addon", "patches", "v1_0", "training_after_onboarding.py")
+for needle, why in (
+        ('filters={"docstatus": 1, "boarding_status": ["!=", "Completed"]}', "only onboardings not yet completed"),
+        ('task.status = "Cancelled"', "the evaluation task still open cancelled, which Frappe HR counts as done"),
+        ('if frappe.db.get_value("Task", activity.task, "status") not in OPEN:', "only a task still open"),
+        ("onboarding._ask_evaluation(doc, row)", "and the evaluation asked on the Training Event instead")):
+    if needle not in after:
+        fail.append("training_after_onboarding: %s (%r not found)" % (why, needle))
+if "hrms_addon.patches.v1_0.training_after_onboarding" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
+    fail.append("training_after_onboarding must be in patches.txt")
+print("training after the onboarding: the evaluation a task on the Training Event, the onboardings waiting released")
 
 print()
 if fail:

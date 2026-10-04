@@ -413,8 +413,11 @@ def _update_employee(doc, probation_end):
 
 def _schedule_training(doc):
     """"Training Required?" Yes: a Training Event for each training listed and
-    not yet booked, and the supervisor's task to evaluate it (an activity like
-    the others)."""
+    not yet booked. The training comes after the onboarding, so nothing on the
+    onboarding waits for it: the supervisor's evaluation of it is a task on
+    the Training Event, due as it ends (_ask_evaluation). Made an onboarding
+    activity, as it was until Oct 2026, it held the onboarding open until the
+    training was over (Frappe HR counts every task)."""
     rows = [row for row in doc.get("custom_trainings") or [] if not row.get("training_event")]
     if not rows:
         return
@@ -422,12 +425,20 @@ def _schedule_training(doc):
     if missing:
         frappe.throw(_("Complete the Trainings table before it is booked: {0}.").format("; ".join(missing)),
                      title=_("Trainings"))
-    supervisor_user = frappe.db.get_value("Employee", doc.custom_supervisor, "user_id") if doc.get("custom_supervisor") else None
     for row in rows:
         row.training_event = _book_training(doc, row)
-        activity = rules.training_evaluation_activity(doc.boarding_begins_on, row.start, row.days, row.training_program)
-        activity.update({"user": supervisor_user, "role": None if supervisor_user else rules.HOD_ROLE})
-        doc.append("activities", activity)
+        _ask_evaluation(doc, row)
+
+
+def _ask_evaluation(doc, row):
+    """The supervisor's task to evaluate one training (the flowchart's
+    "Supervisor Evaluates the Employee"), on its Training Event, due as it
+    ends: the supervisor, else the department's Head of Department."""
+    supervisor = frappe.db.get_value("Employee", doc.custom_supervisor, "user_id") if doc.get("custom_supervisor") else None
+    users = [supervisor] if supervisor else people.people_for(rules.HOD_ROLE, doc.get("custom_branch"), doc.get("department"))
+    _start, end = rules.training_window(row.start, row.days)
+    people.assign("Training Event", row.training_event, users,
+                  rules.training_evaluation_task(doc.get("employee_name"), row.training_program), date=end.date())
 
 
 def _book_training(doc, row):
