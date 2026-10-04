@@ -259,11 +259,11 @@ NOT_ASKED = {"custom_school_results", "custom_date_of_birth", "custom_gender", "
              "custom_home_village", "custom_home_district", "custom_current_residence", "custom_current_district",
              "custom_health_issues"}
 # Written by the system (when the regret email went, the screening kept on
-# the applicant, the employee record of a member of staff applying): never
-# asked
+# the applicant, the employee record of a member of staff applying, the
+# application's own number): never asked
 BY_THE_SYSTEM = {"custom_regret_sent_on", "custom_match_score", "custom_screening_result", "custom_experience_years",
                  "custom_screened_on", "custom_screening_matched", "custom_screening_missing",
-                 "custom_screening_to_check", "custom_screening_flags", "custom_employee"}
+                 "custom_screening_to_check", "custom_screening_flags", "custom_employee", "custom_application_id"}
 if BY_THE_SYSTEM & {row.get("fieldname") for row in rows}:
     fail.append("the portal must not ask %s" % sorted(BY_THE_SYSTEM))
 if NOT_ASKED & {row.get("fieldname") for row in rows}:

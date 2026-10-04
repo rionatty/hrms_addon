@@ -459,6 +459,7 @@ def candidate_details(applicant, context=None, contexts=None, with_text=False):
     certification_types = frappe.get_all("Qualification Type", filters={"is_certification": 1}, pluck="name")
     qualifications = doc.get("custom_qualifications") or []
     details = {
+        "application_id": doc.get("custom_application_id"),
         "job_applicant": doc.name,
         "applicant_name": doc.applicant_name,
         "phone_number": doc.phone_number,
@@ -477,13 +478,17 @@ def candidate_details(applicant, context=None, contexts=None, with_text=False):
 
 @frappe.whitelist()
 def shortlist_cv(shortlist: str, job_applicant: str):
-    """An applicant's CV, opened from a shortlist they are on, by whoever
-    may read that shortlist: the Head of Department screening it cannot
-    read Job Applicant, where the private file is attached."""
-    frappe.has_permission("Interview Shortlist", "read", shortlist, throw=True)
-    if not frappe.db.exists("Interview Shortlist Candidate", {"parent": shortlist, "parenttype": "Interview Shortlist",
-                                                              "job_applicant": job_applicant}):
-        frappe.throw(_("{0} is not on this shortlist. Save the shortlist, then open the CV.").format(job_applicant))
+    """An applicant's CV, opened from a shortlist: by whoever may read the
+    applicant (HR, before the list is even saved), or by whoever may read a
+    shortlist they are saved on (the Head of Department screening it, who
+    cannot read Job Applicant, where the private file is attached)."""
+    if not frappe.has_permission("Job Applicant", "read", job_applicant):
+        frappe.has_permission("Interview Shortlist", "read", shortlist, throw=True)
+        if not frappe.db.exists("Interview Shortlist Candidate", {"parent": shortlist,
+                                                                  "parenttype": "Interview Shortlist",
+                                                                  "job_applicant": job_applicant}):
+            frappe.throw(_("{0} is not on this shortlist. Save the shortlist, then open the CV.").format(
+                job_applicant))
     url = frappe.db.get_value("Job Applicant", job_applicant, "resume_attachment")
     name = url and (frappe.db.get_value("File", {"file_url": url, "attached_to_doctype": "Job Applicant",
                                                  "attached_to_name": job_applicant}, "name")

@@ -595,6 +595,8 @@ fixtures = [
                     "KRA-custom_kpi_cb2",
                     "KRA-custom_source",
                     "KRA-custom_frequency",
+                    # each application's own number (careers.number_application)
+                    "Job Applicant-custom_application_id",
                     "Job Applicant-custom_branch",
                     "Job Applicant-custom_employee",
                     "Job Applicant-custom_previous_salary",
@@ -1479,6 +1481,9 @@ doc_events = {
         ],
         # an applicant turned down gets the regret email, where HR Settings says so
         "on_update": "hrms_addon.hrms_addon.interviews.regret_on_update",
+        # its own number, APP-2026-0001: Frappe HR names an applicant after
+        # their email (careers.py)
+        "before_insert": "hrms_addon.hrms_addon.careers.number_application",
         # the CV sent from the website, attached to the applicant (uploads.py)
         "after_insert": "hrms_addon.hrms_addon.uploads.attach_cv",
     },

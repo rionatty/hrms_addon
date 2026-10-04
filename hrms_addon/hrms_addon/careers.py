@@ -9,7 +9,8 @@ job list the site's home for a visitor who is not signed in (home_page).
 """
 
 import frappe
-from frappe.utils import format_date, get_url
+from frappe.model.naming import make_autoname
+from frappe.utils import format_date, get_url, getdate
 
 from hrms_addon.hrms_addon import jd_rules
 from hrms_addon.hrms_addon import opening_rules
@@ -17,6 +18,21 @@ from hrms_addon.hrms_addon import opening_rules
 
 # the job list, www/jobs
 JOBS_PAGE = "jobs"
+# an application's own number, by the year it came in: APP-2026-0001. Frappe
+# HR names an applicant after their email (fndolo993@gmail.com-3 is the
+# third application from that address).
+APPLICATION_ID = "APP-{year}-.####"
+
+
+def application_id(year):
+    """The next application number of `year`, from Frappe's own series."""
+    return make_autoname(APPLICATION_ID.format(year=year), "Job Applicant")
+
+
+def number_application(doc, method=None):
+    """Job Applicant before_insert: the application's number, once."""
+    if not doc.get("custom_application_id"):
+        doc.custom_application_id = application_id(getdate().year)
 
 
 def home_page(user):

@@ -67,22 +67,29 @@ frappe.ui.form.on("Interview Shortlist", {
 });
 
 // Each candidate's CV, opened from the shortlist (interviews.shortlist_cv):
-// a Head of Department screening it cannot open Job Applicant, where the
-// private file is attached.
+// HR may open it before the list is saved; a Head of Department screening
+// it, who cannot open Job Applicant where the private file is attached, once
+// it is saved. The link keeps the click to itself, or the grid takes it to
+// edit the row and the link is never followed. A PDF opens in the browser;
+// a Word file downloads, as a browser cannot show one.
 function ha_cv_links(frm) {
 	const grid = frm.fields_dict.candidates && frm.fields_dict.candidates.grid;
 	if (!grid) return;
-	const df = (grid.docfields || []).find((d) => d.fieldname === "cv");
-	if (!df || df.__ha_cv) return;
-	df.__ha_cv = true;
-	df.formatter = (value, field, options, row) => {
+	const formatter = (value, field, options, row) => {
 		if (!value || !row || !row.job_applicant) return "";
 		const url =
 			"/api/method/" + HA_SHORTLIST_METHODS + "shortlist_cv?shortlist=" + encodeURIComponent(frm.doc.name) +
 			"&job_applicant=" + encodeURIComponent(row.job_applicant);
-		return `<a href="${url}" target="_blank" rel="noopener">${__("View CV")}</a>`;
+		const file = String(value).split("/").pop();
+		const label = file.toLowerCase().endsWith(".pdf") ? __("View CV") : __("Download CV");
+		return `<a href="${url}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${frappe.utils.escape_html(
+			file
+		)}">${label}</a>`;
 	};
-	grid.refresh();
+	// rows drawn later take it from the grid's fields, those drawn already here
+	const df = (grid.docfields || []).find((d) => d.fieldname === "cv");
+	if (df) df.formatter = formatter;
+	grid.update_docfield_property("cv", "formatter", formatter);
 }
 
 frappe.ui.form.on("Interview Shortlist Candidate", {
@@ -196,8 +203,8 @@ function ha_fill_row(row, details) {
 	if (!details) {
 		return;
 	}
-	["job_applicant", "applicant_name", "phone_number", "email_id", "cv", "education", "work_experience", "certifications",
-		"screening_result", "matched", "missing", "to_check", "flags"]
+	["application_id", "job_applicant", "applicant_name", "phone_number", "email_id", "cv", "education", "work_experience",
+		"certifications", "screening_result", "matched", "missing", "to_check", "flags"]
 		.forEach((field) => (row[field] = details[field] || ""));
 	["match_score", "experience_years"].forEach((field) => (row[field] = details[field] ?? null));
 }

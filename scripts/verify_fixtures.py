@@ -587,7 +587,9 @@ if by_dt.get(JA):
     # screening answers and the CV's text, with the CV, and the screening
     # kept on the applicant after the answers; when the regret email went,
     # beside the status
-    DETAILS_FIELDS = {"custom_branch", "custom_employee", "custom_cv_text", "custom_cv_read_from", "custom_screening_section",
+    # and the application's own number, under the applicant's name (Oct 2026)
+    DETAILS_FIELDS = {"custom_application_id",
+                      "custom_branch", "custom_employee", "custom_cv_text", "custom_cv_read_from", "custom_screening_section",
                       "custom_screening_answers", "custom_regret_sent_on", "custom_screening_result_section",
                       "custom_match_score", "custom_screening_result", "custom_experience_years", "custom_screened_on",
                       "custom_screening_result_cb", "custom_screening_matched", "custom_screening_missing",

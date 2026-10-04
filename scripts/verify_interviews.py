@@ -748,7 +748,8 @@ if not (perms.get("Interviewer") or {}).get("read") or (perms.get("Interviewer")
     fail.append("the panel (Interviewer) may read the shortlist but not change it")
 cand = doctype_json("Interview Shortlist Candidate")
 cand_fields = fields_of(cand)
-if list(cand_fields) != ["job_applicant", "applicant_name", "match_score", "screening_result", "cv", "phone_number",
+if list(cand_fields) != ["application_id", "job_applicant", "applicant_name", "match_score", "screening_result", "cv",
+                         "phone_number",
                          "email_id", "education", "work_experience", "certifications", "screening_section",
                          "experience_years", "flags", "screening_cb", "matched", "missing", "to_check",
                          "remarks_section", "hr_remarks", "hod_remarks", "interview"] or not cand.get("istable"):
@@ -1248,16 +1249,41 @@ if (cv_field.get("fieldtype"), cv_field.get("read_only"), cv_field.get("in_list_
     fail.append("Interview Shortlist Candidate needs a read-only CV column in the list, from the applicant's CV")
 if sum(f.get("columns") or 0 for f in cand_fields.values() if f.get("in_list_view")) > 10:
     fail.append("the shortlist's columns must fit the grid's ten")
+cv_glue = glue.split("def shortlist_cv(")[1].split("\ndef ")[0] if "def shortlist_cv(" in glue else ""
 for needle, why in (
-        ('frappe.has_permission("Interview Shortlist", "read", shortlist, throw=True)', "only to whoever may read the shortlist"),
-        ('if not frappe.db.exists("Interview Shortlist Candidate", {"parent": shortlist, "parenttype": "Interview Shortlist",\n'
-         '                                                              "job_applicant": job_applicant}):',
-         "only a candidate on that shortlist"),
-        ('"cv": doc.get("resume_attachment"),', "the shortlist's details carry the CV"),
+        ('if not frappe.has_permission("Job Applicant", "read", job_applicant):',
+         "whoever may read the applicant opens it, before the shortlist is saved too (Oct 2026)"),
+        ('frappe.has_permission("Interview Shortlist", "read", shortlist, throw=True)',
+         "anyone else only from a shortlist they may read"),
+        ('if not frappe.db.exists("Interview Shortlist Candidate", {"parent": shortlist,',
+         "and only a candidate saved on that shortlist"),
         ('frappe.response["type"] = "pdf" if (cv.file_name or "").lower().endswith(".pdf") else "download"',
          "a PDF opens in the browser")):
-    if needle not in glue:
+    if needle not in cv_glue:
         fail.append("interviews.shortlist_cv: %s (%r not found)" % (why, needle))
+if '"cv": doc.get("resume_attachment"),' not in glue:
+    fail.append("the shortlist's details carry the CV")
+# the link, inside the grid: it keeps the click, or the grid edits the row
+for needle, why in (('onclick="event.stopPropagation()"', "the CV link keeps its click from the grid"),
+                    ('grid.update_docfield_property("cv", "formatter", formatter);',
+                     "the rows already drawn take the link, an edited row too"),
+                    ('__("View CV") : __("Download CV")', "it says a Word file downloads")):
+    if needle not in sjs:
+        fail.append("interview_shortlist.js: %s (%r not found)" % (why, needle))
+# each application's own number, first on the shortlist (Oct 2026)
+application = cand_fields.get("application_id") or {}
+if (application.get("fieldtype"), application.get("read_only"), application.get("in_list_view"),
+        application.get("fetch_from")) != ("Data", 1, 1, "job_applicant.custom_application_id"):
+    fail.append("the shortlist's first column is the application's own number, from the applicant")
+if '"application_id": doc.get("custom_application_id"),' not in glue or '["application_id", "job_applicant",' not in sjs:
+    fail.append("Get Applicants and a row added by hand fill the Application ID before the shortlist is saved")
+careers_py = read("hrms_addon", "hrms_addon", "careers.py")
+if 'APPLICATION_ID = "APP-{year}-.####"' not in careers_py \
+        or "return make_autoname(APPLICATION_ID.format(year=year), \"Job Applicant\")" not in careers_py \
+        or 'if not doc.get("custom_application_id"):' not in careers_py:
+    fail.append("an application is numbered once, from Frappe's series, by its year: APP-2026-0001")
+if "hrms_addon.patches.v1_0.number_applications" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
+    fail.append("the applications already there are numbered on migrate (number_applications)")
 if "hrms_addon.patches.v1_0.shortlist_cv_column" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
     fail.append("the shortlists already there need their CV column filled (shortlist_cv_column)")
 for who, when in (("hr_screened_by", "hr_screened_on"), ("hod_screened_by", "hod_screened_on")):
