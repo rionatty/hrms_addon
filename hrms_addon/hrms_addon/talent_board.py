@@ -18,6 +18,10 @@ form and no way to manage talent with them).
   advance    the next step for every placement on the board at the step it
              applies to — send to the council, finalise, return — each
              taken as it is on the form, so each is checked and signed
+  get_succession  every critical role, its holder and the risk of losing
+             them, and the successors named by readiness (cases 11 to 15)
+  get_trainees  every graduate trainee by stage, with the milestone each is
+             working towards (cases 16 to 20)
 
 Only those who may see the boxes may use any of it: permission level 1 of
 the Talent Placement, which HR and the Talent Council have (case 10).
@@ -25,12 +29,15 @@ the Talent Placement, which HR and the Talent Council have (case 10).
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, getdate, today
 
 from hrms_addon.hrms_addon import talent, talent_approval as approval, talent_rules as rules
 
 PLACEMENT, REVIEW, PROGRAM = talent.PLACEMENT, talent.REVIEW, talent.PROGRAM
 POSITION, TRAINEE = talent.POSITION, talent.TRAINEE
+# the roles nobody can fill first, then the ones that would cost most to lose
+COVERAGE_ORDER = {rules.POSITION_GAP: 0, rules.AT_RISK: 1, rules.COVERED: 2}
+RISK_ORDER = {"High": 0, "Medium": 1, "Low": 2}
 
 BOARD_FIELDS = ["name", "employee", "employee_name", "designation", "department", "branch", "grade",
                 "workflow_state", "docstatus", "box", "box_name", "performance_score", "performance_band",
@@ -241,3 +248,94 @@ def _plain(error):
     """A refusal as the user reads it: the message, without the markup."""
     text = str(error.args[0]) if getattr(error, "args", None) else str(error)
     return frappe.utils.strip_html(text).strip() or type(error).__name__
+
+
+@frappe.whitelist()
+def get_succession(branch=None, department=None):
+    """Test cases 11 to 15 on the board: every critical role, who holds it
+    and what losing them would cost, the successors named for it by
+    readiness with where each sits on the grid, and how covered the roles
+    are, the gaps first."""
+    _check_access()
+    filters = {"docstatus": ["<", 2]}
+    for field, value in (("branch", branch), ("department", department)):
+        if value:
+            filters[field] = value
+    positions = frappe.get_all(POSITION, filters=filters, fields=[
+        "name", "designation", "department", "branch", "incumbent", "incumbent_name", "single_person_role",
+        "risk_level", "coverage", "bench_depth", "gap", "gap_confirmed", "job_opening", "workflow_state",
+        "retirement_or_exit_due"], limit=500)
+    names = [row.name for row in positions]
+    candidates = frappe.get_all("Succession Candidate", filters={"parent": ["in", names], "parenttype": POSITION},
+                                fields=["parent", "employee", "employee_name", "candidate_designation", "readiness"],
+                                order_by="idx asc", limit=5000) if names else []
+    boxes = _latest_boxes([row.employee for row in candidates] + [row.incumbent for row in positions])
+    slates = {}
+    for row in candidates:
+        found = boxes.get(row.employee) or {}
+        slates.setdefault(row.parent, []).append(dict(row, box=found.get("box"), box_name=found.get("box_name"),
+                                                      colour=found.get("box_colour")))
+    for position in positions:
+        position["slate"] = rules.readiness_order(slates.get(position.name, []))
+        held = boxes.get(position.incumbent) or {}
+        position["incumbent_box"] = held.get("box")
+        position["incumbent_risk"] = held.get("flight_risk")
+    positions.sort(key=lambda row: (COVERAGE_ORDER.get(row.coverage, 3), RISK_ORDER.get(row.risk_level, 3),
+                                    str(row.designation or "")))
+    summary = {"roles": len(positions)}
+    for name in (rules.COVERED, rules.AT_RISK, rules.POSITION_GAP):
+        summary[name] = len([row for row in positions if row.coverage == name])
+    summary["covered_share"] = rules.share(summary[rules.COVERED], len(positions))
+    summary["single_person"] = len([row for row in positions if cint(row.single_person_role)])
+    summary["high_risk"] = len([row for row in positions if row.risk_level == "High"])
+    return {"positions": positions, "summary": summary}
+
+
+def _latest_boxes(employees):
+    """Each employee's box on their latest finalised placement, and the
+    flight risk it carries."""
+    employees = sorted({name for name in employees if name})
+    if not employees:
+        return {}
+    found = {}
+    for row in frappe.get_all(PLACEMENT, filters={"employee": ["in", employees], "docstatus": 1},
+                              fields=["employee", "box", "box_name", "box_colour", "flight_risk", "creation"],
+                              order_by="creation asc", limit=5000):
+        found[row.employee] = row
+    return found
+
+
+@frappe.whitelist()
+def get_trainees(branch=None):
+    """Test cases 16 to 20 on the board: every graduate trainee by the stage
+    they are at, with their mentor, how far they are and the milestone
+    they are working towards."""
+    _check_access()
+    filters = {"docstatus": ["<", 2]}
+    if branch:
+        filters["home_branch"] = branch
+    rows = frappe.get_all(TRAINEE, filters=filters, fields=[
+        "name", "trainee_name", "cohort", "workflow_state", "mentor_name", "home_branch", "designation",
+        "start_date", "end_date", "milestones_passed", "average_score", "last_result", "employee"],
+        order_by="start_date desc", limit=1000)
+    names = [row.name for row in rows]
+    due = {}
+    for row in frappe.get_all("Trainee Milestone", filters={"parent": ["in", names], "parenttype": TRAINEE,
+                                                             "result": ["in", ("", None)]},
+                              fields=["parent", "milestone", "due_on"], order_by="due_on asc", limit=5000) \
+            if names else []:
+        due.setdefault(row.parent, row)
+    today_ = getdate(today())
+    for row in rows:
+        upcoming = due.get(row.name)
+        row["next_milestone"] = upcoming.milestone if upcoming else None
+        row["next_due"] = upcoming.due_on if upcoming else None
+        row["overdue"] = 1 if upcoming and upcoming.due_on and getdate(upcoming.due_on) < today_ else 0
+    stages = [{"stage": stage, "trainees": [row for row in rows if (row.workflow_state or rules.RECRUITED) == stage]}
+              for stage in rules.TRAINEE_STATES]
+    return {"stages": stages, "summary": {
+        "in_programme": len([row for row in rows if row.workflow_state not in (rules.CONFIRMED, rules.EXITED)]),
+        "confirmed": len([row for row in rows if row.workflow_state == rules.CONFIRMED]),
+        "exited": len([row for row in rows if row.workflow_state == rules.EXITED]),
+        "overdue": len([row for row in rows if row.get("overdue")]),
+    }}

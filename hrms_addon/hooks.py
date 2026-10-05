@@ -1809,6 +1809,11 @@ scheduler_events = {
         # daily reminder chases the panel for the missing sheets (interviews.py)
         "hrms_addon.hrms_addon.interviews.mark_interviews_held",
     ],
+    "monthly": [
+        # the month just ended in talent, told to the HR Managers and the
+        # Talent Council with its Monthly Talent Report (talent.py)
+        "hrms_addon.hrms_addon.talent.monthly",
+    ],
 }
 
 # Testing

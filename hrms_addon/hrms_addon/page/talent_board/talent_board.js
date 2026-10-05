@@ -1,15 +1,21 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 
-/* The Talent Board — one review on one grid (talent_board.py).
+/* The Talent Board — talent management on one page (talent_board.py).
  *
- * Everyone in a review sits in their nine-box cell, filtered by plant,
- * department and grade; the talent card of whoever is clicked opens beside
- * the grid. In calibration HR moves a person up or down their column by
- * dragging them, and says why: performance is the appraisal's, so a move
- * across columns is refused. The steps the board takes for everybody at
- * once — send to the council, finalise, return — are in the Actions menu,
- * each placement taken as it is on its own form.
+ * Three views of the same people:
+ *   Nine-box     everyone in a review in their cell, filtered by plant,
+ *                department and grade; the talent card of whoever is
+ *                clicked opens beside the grid. In calibration HR moves a
+ *                person up or down their column by dragging them, and says
+ *                why: performance is the appraisal's, so a move across
+ *                columns is refused. The steps taken for everybody at once
+ *                — send to the council, finalise, return — are in the
+ *                Actions menu, each placement taken as it is on its form.
+ *   Succession   every critical role with its holder, the risk of losing
+ *                them and the successors named by readiness, gaps first
+ *   Trainees     every graduate trainee by the stage they are at, with
+ *                the milestone each is working towards
  *
  * The styles live in this file, as on the HR Overview, so the page never
  * waits on `bench build`. Only HR and the Talent Council open it (the
@@ -25,6 +31,14 @@ const TB_PERFORMANCE = ["Low", "Meeting", "Exceeding"];
 // box -> its column (performance band)
 const TB_COLUMN = { 1: "Low", 2: "Low", 3: "Low", 4: "Meeting", 5: "Meeting", 6: "Meeting", 7: "Exceeding", 8: "Exceeding", 9: "Exceeding" };
 const TB_SHOWN = 6;
+// the page's three views: name -> (label, method, the filters it reads)
+const TB_VIEWS = {
+	grid: ["Nine-box", "get_board", ["review", "branch", "department", "grade"]],
+	succession: ["Succession", "get_succession", ["branch", "department"]],
+	trainees: ["Graduate trainees", "get_trainees", ["branch"]],
+};
+const TB_COVERAGE = { Covered: "tb-good", "At Risk": "tb-warn", Gap: "tb-bad" };
+const TB_RISK = { High: "tb-bad", Medium: "tb-warn", Low: "" };
 
 const TB_STYLE = `
 .tb { padding: 4px 0 28px; color: var(--text-color); }
@@ -73,6 +87,37 @@ const TB_STYLE = `
 .tb-list td:first-child { padding-left: 0; }
 .tb-empty { color: var(--text-muted); font-size: 12px; }
 .tb-start { text-align: center; padding: 60px 10px; color: var(--text-muted); }
+.tb-views { display: inline-flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+  margin-bottom: 12px; }
+.tb-views button { border: 0; background: var(--card-bg); color: var(--text-color); padding: 6px 14px; font-size: 12.5px; }
+.tb-views button + button { border-left: 1px solid var(--border-color); }
+.tb-views button.tb-on { background: #14395E; color: #fff; }
+.tb-good { background: #D7F0DC; color: #1E6B34; }
+.tb-warn { background: #FBF1D3; color: #6B4F00; }
+.tb-bad { background: #F8DADA; color: #8C2323; }
+.tb-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tb-role { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; }
+.tb-role-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tb-role-head a { font-weight: 600; font-size: 14px; color: var(--text-color); }
+.tb-role-sub { color: var(--text-muted); font-size: 12px; margin: 2px 0 8px; }
+.tb-role-holder { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px;
+  padding: 7px 0; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
+.tb-slate { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.tb-slate h6 { margin: 0 0 4px; font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+.tb-slate .tb-chip { margin-top: 4px; cursor: default; }
+.tb-boxno { border-radius: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; }
+.tb-none { color: var(--text-muted); font-size: 12px; }
+.tb-lanes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.tb-lane { background: var(--control-bg); border-radius: 12px; padding: 8px; min-height: 120px; }
+.tb-lane h6 { margin: 2px 4px 8px; font-size: 12.5px; font-weight: 600; display: flex; justify-content: space-between; }
+.tb-trainee { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px;
+  margin-bottom: 8px; font-size: 12px; }
+.tb-trainee a { font-weight: 600; color: var(--text-color); }
+.tb-trainee div { color: var(--text-muted); margin-top: 2px; }
+.tb-trainee .tb-late { color: #A62B25; font-weight: 600; }
+@media (max-width: 1199px) { .tb-lanes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 991px) { .tb-roles { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 575px) { .tb-lanes, .tb-slate { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 1199px) { .tb-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 991px) {
   .tb-main, .tb-lower { grid-template-columns: minmax(0, 1fr); }
@@ -114,31 +159,56 @@ hrms_addon.TalentBoard = class TalentBoard {
 		page.set_secondary_action(__("Refresh"), () => this.refresh(), "refresh");
 		this.picked = null;
 		this.open = {};
+		this.view = "grid";
 	}
 
 	args() {
 		const args = {};
-		Object.entries(this.fields).forEach(([name, control]) => {
-			const value = control.get_value();
+		TB_VIEWS[this.view][2].forEach((name) => {
+			const value = this.fields[name].get_value();
 			if (value) args[name] = value;
 		});
 		return args;
 	}
 
 	refresh() {
+		// only the filters the view reads are shown
+		Object.entries(this.fields).forEach(([name, control]) => {
+			if (control.$wrapper) control.$wrapper.toggle(TB_VIEWS[this.view][2].includes(name));
+		});
+		const view = this.view;
 		return frappe
-			.xcall("hrms_addon.hrms_addon.talent_board.get_board", this.args())
-			.then((data) => this.render(data || {}));
+			.xcall(`hrms_addon.hrms_addon.talent_board.${TB_VIEWS[view][1]}`, this.args())
+			.then((data) => {
+				if (view !== this.view) return;
+				this.page.clear_inner_toolbar();
+				if (view === "grid") this.render(data || {});
+				else if (view === "succession") this.render_succession(data || {});
+				else this.render_trainees(data || {});
+			});
+	}
+
+	views() {
+		const esc = frappe.utils.escape_html;
+		return `<div class="tb-views">${Object.entries(TB_VIEWS).map(([name, spec]) =>
+			`<button data-view="${name}" class="${name === this.view ? "tb-on" : ""}">${esc(__(spec[0]))}</button>`).join("")}</div>`;
+	}
+
+	bind_views() {
+		this.body.find("[data-view]").on("click", (event) => {
+			this.view = $(event.currentTarget).attr("data-view");
+			this.refresh();
+		});
 	}
 
 	render(data) {
 		this.data = data;
 		const esc = frappe.utils.escape_html;
-		this.page.clear_inner_toolbar();
 		if (!data.review) {
-			this.body.html(`<div class="tb-start"><p>${esc(__("No talent review yet."))}</p>
+			this.body.html(`${this.views()}<div class="tb-start"><p>${esc(__("No talent review yet."))}</p>
 				<button class="btn btn-primary btn-sm tb-new">${esc(__("New Talent Review"))}</button></div>`);
 			this.body.find(".tb-new").on("click", () => frappe.new_doc("Talent Review"));
+			this.bind_views();
 			return;
 		}
 		if (this.fields.review.get_value() !== data.review.name) {
@@ -153,7 +223,7 @@ hrms_addon.TalentBoard = class TalentBoard {
 			`<div class="tb-tile"><small>${esc(label)}</small><b>${value}</b>${extra ? `<em>${extra}</em>` : ""}</div>`;
 		const strip = (name) => (strips[name] || { count: 0, share: 0 });
 		const live = ["Open", "In Calibration"].includes(data.review.status);
-		this.body.html(`
+		this.body.html(`${this.views()}
 			<div class="tb-head">
 				<span class="tb-title">${esc(data.review.title || data.review.name)}</span>
 				<span class="tb-pill ${live ? "tb-live" : ""}">${esc(__(data.review.status || "Draft"))}</span>
@@ -250,7 +320,8 @@ hrms_addon.TalentBoard = class TalentBoard {
 	}
 
 	bind() {
-		this.body.find(".tb-chip").on("click", (event) => {
+		this.bind_views();
+		this.body.find(".tb-grid .tb-chip").on("click", (event) => {
 			this.picked = $(event.currentTarget).attr("data-employee");
 			this.body.find(".tb-chip").removeClass("tb-picked");
 			this.body.find(`.tb-chip[data-employee="${CSS.escape(this.picked)}"]`).addClass("tb-picked");
@@ -318,9 +389,103 @@ hrms_addon.TalentBoard = class TalentBoard {
 	}
 
 	actions(data) {
+		this.page.clear_inner_toolbar();
 		(data.actions || []).forEach((action) => {
 			this.page.add_inner_button(__(action), () => this.advance(action), __("Actions"));
 		});
+	}
+
+	// ── Succession: the critical roles and their benches ───────────────
+	render_succession(data) {
+		const esc = frappe.utils.escape_html;
+		const summary = data.summary || {};
+		const tile = (label, value, extra) =>
+			`<div class="tb-tile"><small>${esc(label)}</small><b>${value}</b>${extra ? `<em>${extra}</em>` : ""}</div>`;
+		const roles = data.positions || [];
+		this.body.html(`${this.views()}
+			<div class="tb-tiles">
+				${tile(__("Critical roles"), summary.roles || 0)}
+				${tile(__("Covered"), summary.Covered || 0, `${summary.covered_share || 0}%`)}
+				${tile(__("At risk"), summary["At Risk"] || 0)}
+				${tile(__("Gaps"), summary.Gap || 0)}
+				${tile(__("One person only"), summary.single_person || 0)}
+				${tile(__("High risk if lost"), summary.high_risk || 0)}
+			</div>
+			${roles.length ? `<div class="tb-roles">${roles.map((role) => this.role(role)).join("")}</div>`
+				: `<div class="tb-start"><p>${esc(__("No critical roles yet."))}</p>
+				<button class="btn btn-primary btn-sm tb-new">${esc(__("New Succession Position"))}</button></div>`}`);
+		this.body.find(".tb-new").on("click", () => frappe.new_doc("Succession Position"));
+		this.bind_views();
+	}
+
+	role(role) {
+		const esc = frappe.utils.escape_html;
+		const box = (number) => {
+			const tint = number ? this.tint(number) : null;
+			return tint ? `<span class="tb-boxno" title="${esc(__("Box {0}", [number]))}" style="background:${tint[0]};color:${tint[1]}">${number}</span>` : "";
+		};
+		const lanes = [["Ready Now", __("Ready now")], ["Ready in 1-2 Years", __("In 1 to 2 years")], ["Emerging", __("Emerging")]];
+		const slate = lanes.map(([readiness, label]) => {
+			const people = (role.slate || []).filter((row) => row.readiness === readiness);
+			return `<div><h6>${esc(label)}</h6>${people.length ? people.map((row) => `<div class="tb-chip">
+				<span class="tb-av">${esc(hrms_addon.talent_card.initials(row.employee_name))}</span>
+				<span class="tb-nm">${esc(row.employee_name || row.employee)}</span>${box(row.box)}</div>`).join("")
+				: `<div class="tb-none">${esc(__("Nobody"))}</div>`}</div>`;
+		}).join("");
+		const sub = [role.branch, role.department].filter(Boolean).map(esc).join(" · ");
+		const holder = role.incumbent
+			? `${esc(__("Held by"))} <b>${esc(role.incumbent_name || role.incumbent)}</b> ${box(role.incumbent_box)}
+				${["High", "Medium"].includes(role.incumbent_risk) ? `<span class="tb-flag tb-risk">${esc(__("Flight risk {0}", [__(role.incumbent_risk)]))}</span>` : ""}
+				${role.retirement_or_exit_due ? `<span class="tb-none">${esc(__("leaving {0}", [frappe.datetime.str_to_user(role.retirement_or_exit_due)]))}</span>` : ""}`
+			: `<span class="tb-none">${esc(__("Nobody holds it"))}</span>`;
+		const opening = role.job_opening
+			? `<div class="tb-none" style="margin-top:8px">${esc(__("Recruiting:"))} <a href="/app/job-opening/${encodeURIComponent(role.job_opening)}">${esc(role.job_opening)}</a></div>` : "";
+		return `<div class="tb-role">
+			<div class="tb-role-head"><a href="/app/succession-position/${encodeURIComponent(role.name)}">${esc(role.designation || role.name)}</a>
+				<span class="tb-pill ${TB_COVERAGE[role.coverage] || ""}">${esc(__(role.coverage || "Gap"))}</span>
+				${role.risk_level ? `<span class="tb-pill ${TB_RISK[role.risk_level] || ""}">${esc(__("{0} risk if lost", [__(role.risk_level)]))}</span>` : ""}
+				${role.single_person_role ? `<span class="tb-pill">${esc(__("One person only"))}</span>` : ""}</div>
+			<div class="tb-role-sub">${sub}</div>
+			<div class="tb-role-holder">${holder}</div>
+			<div class="tb-slate">${slate}</div>${opening}</div>`;
+	}
+
+	tint(box) {
+		const colours = { 1: "Red", 2: "Orange", 3: "Yellow", 4: "Orange", 5: "Yellow", 6: "Blue", 7: "Yellow", 8: "Blue", 9: "Green" };
+		return hrms_addon.talent_card.tints[colours[box]];
+	}
+
+	// ── Graduate trainees: the cohort by stage ─────────────────────────
+	render_trainees(data) {
+		const esc = frappe.utils.escape_html;
+		const summary = data.summary || {};
+		const tile = (label, value) => `<div class="tb-tile"><small>${esc(label)}</small><b>${value}</b></div>`;
+		const stages = data.stages || [];
+		const any = stages.some((stage) => (stage.trainees || []).length);
+		this.body.html(`${this.views()}
+			<div class="tb-tiles">
+				${tile(__("In the programme"), summary.in_programme || 0)}
+				${tile(__("Confirmed"), summary.confirmed || 0)}
+				${tile(__("Left the programme"), summary.exited || 0)}
+				${tile(__("Milestones overdue"), summary.overdue || 0)}
+			</div>
+			${any ? `<div class="tb-lanes">${stages.map((stage) => `<div class="tb-lane">
+				<h6><span>${esc(__(stage.stage))}</span><span>${(stage.trainees || []).length}</span></h6>
+				${(stage.trainees || []).map((row) => this.trainee(row)).join("")}</div>`).join("")}</div>`
+				: `<div class="tb-start"><p>${esc(__("No graduate trainees yet. A trainee is made from the job applicant hired."))}</p></div>`}`);
+		this.bind_views();
+	}
+
+	trainee(row) {
+		const esc = frappe.utils.escape_html;
+		const next = row.next_milestone
+			? `<div class="${row.overdue ? "tb-late" : ""}">${esc(__("{0} due {1}", [row.next_milestone,
+				frappe.datetime.str_to_user(row.next_due)]))}</div>` : "";
+		const score = row.average_score ? ` · ${esc(__("average {0}", [format_number(row.average_score, null, 0)]))}` : "";
+		return `<div class="tb-trainee"><a href="/app/graduate-trainee-program/${encodeURIComponent(row.name)}">${esc(row.trainee_name || row.name)}</a>
+			<div>${esc(row.cohort || "")}${row.mentor_name ? ` · ${esc(__("mentor {0}", [row.mentor_name]))}` : ""}</div>
+			<div>${esc(row.milestones_passed === 1 ? __("1 milestone passed")
+				: __("{0} milestones passed", [row.milestones_passed || 0]))}${score}</div>${next}</div>`;
 	}
 
 	advance(action) {

@@ -183,6 +183,7 @@ CARDS = {
         # Talent management reads the appraisal and never re-enters it, so
         # it belongs on the page the appraisal is run from (talent.py).
         ("Talent Management", [
+            ("Talent Board", "talent-board", PAGE),
             ("Talent Review", "Talent Review", DOCTYPE),
             ("Talent Placement", "Talent Placement", DOCTYPE),
             ("Talent Program", "Talent Program", DOCTYPE),
@@ -190,6 +191,16 @@ CARDS = {
             ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE),
             ("Succession Coverage", "Succession Coverage", REPORT),
             ("Performance Analytics", "Performance Analytics", REPORT),
+        ]),
+        # what talent comes to, month by month and person by person (5 Oct 2026)
+        ("Talent Reports", [
+            ("Monthly Talent Report", "Monthly Talent Report", REPORT),
+            ("Nine-Box Distribution", "Nine-Box Distribution", REPORT),
+            ("Top Talent and Flight Risk", "Top Talent and Flight Risk", REPORT),
+            ("Calibration Movers", "Calibration Movers", REPORT),
+            ("Development Plan Tracker", "Development Plan Tracker", REPORT),
+            ("Programme Effectiveness", "Programme Effectiveness", REPORT),
+            ("Graduate Trainee Progress", "Graduate Trainee Progress", REPORT),
         ]),
         # The role's balanced scorecard is carried on Frappe HR's own
         # Appraisal Template (bsc.py), so there is one template document,
@@ -355,7 +366,9 @@ QUERY_REPORT_TYPES = ("Query Report", "Script Report", "Custom Report")
 def report_facts(name):
     """(report_type, ref_doctype) of a report this app ships, from its file;
     (None, None) for one it does not."""
-    folder = name.lower().replace(" ", "_")
+    # the folder Frappe makes of the name (frappe.scrub): a hyphen is an
+    # underscore too, as in Nine-Box Distribution
+    folder = name.replace(" ", "_").replace("-", "_").lower()
     path = os.path.join(REPORTS_DIR, folder, folder + ".json")
     if not os.path.exists(path):
         return None, None
@@ -397,6 +410,15 @@ SIDEBAR = {
          "Succession Position"),
         ("Succession Coverage", "Succession Coverage", REPORT, "Reports", None),
         ("Performance Analytics", "Performance Analytics", REPORT, "Reports", None),
+        # talent, linked with the appraisal (5 Oct 2026): the month first,
+        # since it is what HR and the council are sent each month
+        ("Monthly Talent Report", "Monthly Talent Report", REPORT, "Reports", None),
+        ("Nine-Box Distribution", "Nine-Box Distribution", REPORT, "Reports", None),
+        ("Top Talent and Flight Risk", "Top Talent and Flight Risk", REPORT, "Reports", None),
+        ("Calibration Movers", "Calibration Movers", REPORT, "Reports", None),
+        ("Development Plan Tracker", "Development Plan Tracker", REPORT, "Reports", None),
+        ("Programme Effectiveness", "Programme Effectiveness", REPORT, "Reports", None),
+        ("Graduate Trainee Progress", "Graduate Trainee Progress", REPORT, "Reports", None),
         # Appraisal Template is Frappe HR's own entry, already under Setup,
         # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),

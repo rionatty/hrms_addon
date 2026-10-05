@@ -300,8 +300,8 @@ def _record_calibration(doc, before):
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Calibration"))
     cycle = frappe.get_doc(REVIEW, doc.talent_review)
     cycle.append("calibration", {
-        "placement": doc.name, "employee": doc.employee, "from_box": was, "to_box": doc.box,
-        "moved_by": frappe.session.user, "moved_on": today(),
+        "placement": doc.name, "employee": doc.employee, "employee_name": doc.get("employee_name"),
+        "from_box": was, "to_box": doc.box, "moved_by": frappe.session.user, "moved_on": today(),
         "reason": doc.calibration_reason})
     cycle.flags.ignore_permissions = True
     cycle.save()
@@ -1120,6 +1120,40 @@ def seed_masters():
 
 
 # ── 7. What the clock does ────────────────────────────────────────────
+def monthly():
+    """Scheduler, on the first of each month (hooks.py): the month just
+    ended in talent, told to the HR Managers and the Talent Council with
+    the Monthly Talent Report for it — the testing sheet's recommendation,
+    "Provide end-of-month reports in the system"."""
+    from hrms_addon.hrms_addon import talent_reports
+
+    month = talent_reports.month(add_days(today(), -1))
+    users = list(dict.fromkeys(row["user"] for role in ("HR Manager", "Talent Council")
+                               for row in people.holders(role)))
+    if not users:
+        return
+    label = getdate(month["start"]).strftime("%B %Y")
+    figures = month["summary"]
+    lines = [
+        _("{0} placements finalised, {1} of them top talent, {2} of those at risk of leaving").format(
+            figures["finalised"], figures["top_talent"], figures["at_risk"]),
+        _("{0} moved in calibration").format(figures["moves"]),
+        _("{0} critical roles confirmed, {1} gaps being recruited for").format(
+            figures["roles_confirmed"], figures["gaps"]),
+        _("{0} development actions done, {1} past their date").format(
+            figures["actions_done"], figures["actions_late"]),
+        _("{0} programmes closed").format(figures["programmes_closed"]),
+        _("{0} graduate trainees confirmed, {1} left the programme").format(
+            figures["trainees_confirmed"], figures["trainees_left"]),
+    ]
+    link = "/app/query-report/Monthly Talent Report?month=%s" % month["end"]
+    people.notify(users, "Report", "Monthly Talent Report",
+                  _("The talent report for {0} is ready.").format(label),
+                  "<p>%s</p><ul>%s</ul><p><a href=\"%s\">%s</a></p>" % (
+                      _("Talent in {0}:").format(label), "".join("<li>%s</li>" % line for line in lines),
+                      frappe.utils.get_url(link), _("Open the Monthly Talent Report")))
+
+
 def daily():
     _open_review_cycles()
     _chase_milestones()

@@ -695,7 +695,7 @@ if page.get("name") != "talent-board" or page_roles != level_one:
                 % (sorted(level_one), sorted(page_roles)))
 page_js = read("hrms_addon", "hrms_addon", "page", "talent_board", "talent_board.js")
 for needle, why in (
-    ("talent_board.get_board", "the page draws the board from the server"),
+    ('grid: ["Nine-box", "get_board"', "the page draws the board from the server"),
     ("talent_board.move", "a drag in calibration is a move"),
     ("TB_COLUMN[box] === TB_COLUMN[this.dragging.box]", "and only up or down its column"),
     ("talent_board.advance", "the steps taken together"),
@@ -721,6 +721,103 @@ if "hrms_addon.patches.v1_0.talent_with_appraisal" not in read("hrms_addon", "pa
     fail.append("patches.txt: talent_with_appraisal links the reviews to their plans and reads the year again")
 print("Oct 2026: the year from the appraisal plan, the evidence from both forms, the plan and the decision across; "
       "milestones on real appraisals; the board, its moves and its steps")
+
+# ── 9. The bench, the cohort, the plans' progress and the reports ─────
+progress = T.plan_progress([{"completed_on": "2027-03-01"}, {"by_when": "2027-01-01"}, {"by_when": "2099-01-01"},
+                            {"by_when": "2027-05-31", "completed_on": "2027-06-02"}, {}], "2027-06-01")
+if progress != {"actions": 5, "done": 2, "late": 1, "share": 40}:
+    fail.append("a plan's progress: done when completed, late when past its date and not done: %s" % progress)
+if T.plan_progress([], "2027-06-01") != {"actions": 0, "done": 0, "late": 0, "share": 0}:
+    fail.append("a plan with no actions has none done")
+for day, bounds in (("2026-02-14", ("2026-02-01", "2026-02-28")), ("2028-02-03", ("2028-02-01", "2028-02-29")),
+                    ("2026-12-31 18:00:00", ("2026-12-01", "2026-12-31"))):
+    if T.month_bounds(day) != bounds:
+        fail.append("the month %s falls in is %s, not %s" % (day, bounds, T.month_bounds(day)))
+board = read("hrms_addon", "hrms_addon", "talent_board.py")
+for name in ("get_succession", "get_trainees"):
+    body = board.split("def %s(" % name)[1].split("\ndef ")[0] if "def %s(" % name in board else ""
+    if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % name, board):
+        fail.append("talent_board.%s reads: a whitelisted method" % name)
+    if "_check_access()" not in body:
+        fail.append("talent_board.%s is for those who read the boxes (case 10)" % name)
+for needle, why in (
+    ("COVERAGE_ORDER = {rules.POSITION_GAP: 0", "the roles nobody can fill come first (case 13)"),
+    ('position["slate"] = rules.readiness_order(', "each bench readiest first (case 15)"),
+    ("_latest_boxes(", "each successor with where they sit on the grid"),
+    ("for stage in rules.TRAINEE_STATES]", "the trainees by the workflow's own stages (cases 16 to 20)"),
+):
+    if needle not in board:
+        fail.append("talent_board.py: %s (%r not found)" % (why, needle))
+page_js = read("hrms_addon", "hrms_addon", "page", "talent_board", "talent_board.js")
+views = dict(re.findall(r'(\w+): \["[^"]+", "(get_\w+)"', page_js.split("const TB_VIEWS = {")[1].split("};")[0]))
+if views != {"grid": "get_board", "succession": "get_succession", "trainees": "get_trainees"}:
+    fail.append("the page's three views and the methods each reads: %s" % views)
+for method in views.values():
+    if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % method, board):
+        fail.append("the page calls talent_board.%s, which is not a whitelisted method" % method)
+for needle in ("render_succession(", "render_trainees(", "hrms_addon.hrms_addon.talent_board.${TB_VIEWS[view][1]}"):
+    if needle not in page_js:
+        fail.append("talent_board.js draws each view (%r not found)" % needle)
+program_js = read("hrms_addon", "hrms_addon", "doctype", "talent_program", "talent_program.js")
+for needle, why in (('frappe.meta.get_docfield("Development Action", "completed_on", frm.doc.name)',
+                     "the plan shows when each action was done, on its own form only"),
+                    ("ha_plan_progress(frm)", "and how far the plan has got")):
+    if needle not in program_js:
+        fail.append("talent_program.js: %s (%r not found)" % (why, needle))
+trainee_js = read("hrms_addon", "hrms_addon", "doctype", "graduate_trainee_program", "graduate_trainee_program.js")
+if "row.due_on >= frm.doc.end_date" not in trainee_js or "ha_trainee_journey(frm)" not in trainee_js:
+    fail.append("graduate_trainee_program.js: a typed score reads the final milestone as the server does, and the "
+                "journey is drawn")
+
+REPORTS_ON_BOXES = {"Nine-Box Distribution", "Top Talent and Flight Risk", "Calibration Movers",
+                    "Monthly Talent Report"}
+for name in ("Nine-Box Distribution", "Top Talent and Flight Risk", "Calibration Movers", "Development Plan Tracker",
+             "Programme Effectiveness", "Graduate Trainee Progress", "Monthly Talent Report"):
+    folder = name.replace(" ", "_").replace("-", "_").lower()
+    base = os.path.join(APP, "report", folder)
+    if not all(os.path.exists(os.path.join(base, folder + ext)) for ext in (".json", ".py", ".js")):
+        fail.append("the %s report ships its JSON, its Python and its filters" % name)
+        continue
+    spec = json.load(open(os.path.join(base, folder + ".json"), encoding="utf-8"))
+    if (spec.get("name"), spec.get("report_type"), spec.get("is_standard")) != (name, "Script Report", "Yes"):
+        fail.append("%s is a standard Script Report of that name" % name)
+    if not doctype(spec.get("ref_doctype") or ""):
+        fail.append("%s reads %s, which is not a DocType of this app" % (name, spec.get("ref_doctype")))
+    if {row["role"] for row in spec.get("roles") or []} != level_one:
+        fail.append("%s is for HR and the Talent Council, as the board is" % name)
+    code = read("hrms_addon", "hrms_addon", "report", folder, folder + ".py")
+    if "def execute(filters=None):" not in code:
+        fail.append("%s has an execute" % name)
+    if (name in REPORTS_ON_BOXES) != ("talent_reports.check_boxes()" in code):
+        fail.append("%s %s where people sit on the grid, so it %s HR and the Talent Council (case 10)"
+                    % (name, "names" if name in REPORTS_ON_BOXES else "does not name",
+                       "asks for" if name in REPORTS_ON_BOXES else "need not ask for"))
+    if 'frappe.query_reports["%s"]' % name not in read("hrms_addon", "hrms_addon", "report", folder, folder + ".js"):
+        fail.append("%s registers its filters under its own name" % name)
+reports = read("hrms_addon", "hrms_addon", "talent_reports.py")
+for doctype_name, fieldname in (("Talent Placement", "finalised_on"), ("Succession Position", "confirmed_on"),
+                                ("Talent Program", "reviewed_on"), ("Graduate Trainee Program", "confirmed_on"),
+                                ("Talent Calibration Entry", "moved_on"), ("Development Action", "completed_on"),
+                                ("Development Action", "by_when")):
+    if fieldname not in all_fields(doctype_name):
+        fail.append("the month reads %s.%s, which is not a field" % (doctype_name, fieldname))
+    if '"%s"' % fieldname not in reports:
+        fail.append("the month reads %s.%s for when it happened" % (doctype_name, fieldname))
+for needle, why in (("rules.month_bounds(", "the month a day falls in"),
+                    ('"completed_on": ["is", "not set"]', "the actions still not done at the month's end"),
+                    ("rules.plan_progress(", "each plan's progress as the rules count it")):
+    if needle not in reports:
+        fail.append("talent_reports.py: %s (%r not found)" % (why, needle))
+if "hrms_addon.hrms_addon.talent.monthly" not in ((hooks.get("scheduler_events") or {}).get("monthly") or []):
+    fail.append("hooks.py: the month just ended is told to HR and the council (scheduler, monthly)")
+monthly = glue.split("def monthly(")[1].split("\ndef ")[0] if "def monthly(" in glue else ""
+for needle, why in (("talent_reports.month(add_days(today(), -1))", "the month just ended, on the first"),
+                    ('("HR Manager", "Talent Council")', "told to the HR Managers and the council"),
+                    ("people.notify(", "as an HR Alert, which is emailed"),
+                    ("/app/query-report/Monthly Talent Report?month=", "with the report for that month")):
+    if needle not in monthly:
+        fail.append("talent.monthly: %s (%r not found)" % (why, needle))
+print("the bench and the cohort on the board, each plan's progress, the seven reports and the month told to HR")
 
 if fail:
     print("\nFAILURES:")

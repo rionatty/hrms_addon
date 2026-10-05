@@ -36,6 +36,8 @@ The three boxes on the right-hand column with potential to match — 6, 8 and
 are the ones flight risk is watched on.
 """
 
+import calendar
+
 # ── The bands ─────────────────────────────────────────────────────────
 LOW, MEETING, EXCEEDING = "Low", "Meeting", "Exceeding"
 POTENTIAL_LOW, POTENTIAL_MODERATE, POTENTIAL_HIGH = "Low", "Moderate", "High"
@@ -589,6 +591,26 @@ def board(placements):
 def share(part, whole):
     """A part of the whole, as a whole percentage."""
     return int(round(100.0 * part / whole)) if whole else 0
+
+
+def plan_progress(actions, today):
+    """How far a development plan has got: its actions, those done (each
+    records the day it was completed), those past their date and not done,
+    and the share done."""
+    rows = actions or []
+    done = len([row for row in rows if row.get("completed_on")])
+    late = len([row for row in rows if not row.get("completed_on") and row.get("by_when")
+                and str(row["by_when"])[:10] < str(today)[:10]])
+    return {"actions": len(rows), "done": done, "late": late, "share": share(done, len(rows))}
+
+
+def month_bounds(day):
+    """The first and the last day of the month a day falls in, as
+    YYYY-MM-DD: what the Monthly Talent Report reads."""
+    text = str(day)[:10]
+    year, month = int(text[:4]), int(text[5:7])
+    return ("%04d-%02d-01" % (year, month),
+            "%04d-%02d-%02d" % (year, month, calendar.monthrange(year, month)[1]))
 
 
 # ── Small helpers ─────────────────────────────────────────────────────
