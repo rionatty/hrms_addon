@@ -381,7 +381,8 @@ known |= {"doctype", "name", "docstatus", "employee", "company", "flags", "miles
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
     if fieldname in ("get", "set", "append", "db_set", "get_doc_before_save", "check_permission",
-                     "insert", "submit", "cancel", "save", "as_dict", "update", "workflow_state"):
+                     "insert", "submit", "cancel", "save", "as_dict", "update", "workflow_state",
+                     "db_update", "update_child_table"):
         continue
     if fieldname not in known:
         fail.append("talent.py reads or writes %s, which is on none of its documents" % fieldname)
@@ -527,6 +528,199 @@ for name in ("talent_placement", "talent_review", "succession_position",
     if not os.path.exists(path):
         fail.append("%s has no form script" % name)
 print("wiring: the workflows on migrate, the daily job, the report, the way in")
+
+# ── 8. Luuka, 5 Oct 2026: one module with the appraisal, and the board ──
+# "build a coherent module properly linked with appraisal": the year read
+# from the appraisal plan's quarters, the evidence from both forms, the
+# improvement plan and management's decision carried across, the trainee's
+# milestones on real appraisals, and the review on one grid.
+YEAR = [{"name": "A1", "quarter": "Q1", "total": 70, "band": "Good", "year_score": 70, "year_band": "Good",
+         "end_date": "2027-03-31"},
+        {"name": "A2", "quarter": "Q2", "total": 86, "band": "Very Good", "year_score": 78, "year_band": "Good",
+         "end_date": "2027-06-30"}]
+year = T.year_performance(list(reversed(YEAR)))
+if (year or {}).get("appraisal") != "A2" or year.get("score") != 78.0 or year.get("band") != "Good":
+    fail.append("case 4: the year to date of the latest quarter, whatever order the appraisals come in: %s" % year)
+if [row["quarter"] for row in (year or {}).get("quarters", [])] != ["Q1", "Q2"]:
+    fail.append("case 4: each quarter beside it, in order: %s" % year)
+if T.year_performance([{"name": "X", "quarter": "Q3", "total": 0, "band": None, "year_score": 0,
+                        "year_band": None}]) is not None:
+    fail.append("case 4: a completed appraisal never scored (0, no rating) is no performance to read")
+if T.year_performance([]) is not None:
+    fail.append("case 4: no appraisal, no performance")
+averaged = T.year_performance([dict(YEAR[0], year_band=None), dict(YEAR[1], year_band=None)])
+if (averaged or {}).get("score") != 78.0 or averaged.get("band") is not None:
+    fail.append("case 4: without a year to date the rated quarters are averaged, under no one quarter's "
+                "rating: %s" % averaged)
+single = T.year_performance([dict(YEAR[0], year_band=None)])
+if (single or {}).get("band") != "Good":
+    fail.append("case 4: one rated quarter keeps its own rating: %s" % single)
+evidence = T.competency_evidence(
+    [{"competency": "Teamwork", "score": 6, "appraisal": "A1"}, {"competency": "Teamwork", "score": 8, "appraisal": "A2"},
+     {"competency": "Safety", "score": 0, "appraisal": "A2"}],
+    [{"factor": "Attendance", "rating": "4", "appraisal": "S1"}, {"factor": "Initiative", "rating": "N/A",
+                                                                  "appraisal": "S1"},
+     {"factor": "Quality  of   work", "rating": "5", "appraisal": "S1"}])
+if evidence != [{"competency": "Teamwork", "level": 7.0, "times": 2, "appraisal": "A2"},
+                {"competency": "Attendance", "level": 8.0, "times": 1, "appraisal": "S1"},
+                {"competency": "Quality of work", "level": 10.0, "times": 1, "appraisal": "S1"}]:
+    fail.append("case 5: scorecard scores as given, LPL/HR/18 ratings doubled, 0 and N/A left out, averaged "
+                "over the quarters: %s" % evidence)
+if T.effective_potential("High", None) != "High" or T.effective_potential("High", "Moderate") != "Moderate":
+    fail.append("case 7: the box is drawn from the calibrated potential where there is one")
+for box, axes in ((1, ("Low", "Low")), (5, ("Meeting", "Moderate")), (9, ("Exceeding", "High"))):
+    if T.box_axes(box) != axes or T.box_for(*axes)["box"] != box:
+        fail.append("box %d is %s, both ways round" % (box, axes))
+calibrating = {"state": P.CALIBRATION, "calibrating": P.CALIBRATION}
+expect("a move up the column, with its reason", T.move_errors(dict(calibrating, from_box=4, to_box=5, reason="x")))
+expect("a move across the columns",
+       T.move_errors(dict(calibrating, from_box=4, to_box=1, reason="x")), "Performance comes from the appraisal")
+expect("a silent move", T.move_errors(dict(calibrating, from_box=4, to_box=5, reason=" ")), "why the placement moves")
+expect("a move to the same box", T.move_errors(dict(calibrating, from_box=5, to_box=5, reason="x")),
+       "already in that box")
+expect("a move outside calibration",
+       T.move_errors(dict(calibrating, state=P.COUNCIL_REVIEW, from_box=4, to_box=5, reason="x")),
+       "only while the placement is in calibration")
+expect("a move to no box", T.move_errors(dict(calibrating, from_box=4, to_box=None, reason="x")),
+       "which box")
+drawn = T.board([{"name": "P1", "box": 9, "performance_score": 80, "employee_name": "B"},
+                 {"name": "P2", "box": 9, "performance_score": 90, "employee_name": "A"},
+                 {"name": "P3", "box": None}, {"name": "P4", "box": "2"}])
+if [cell["box"] for cell in drawn["cells"]] != list(range(1, 10)) \
+        or [row["name"] for row in drawn["cells"][8]["people"]] != ["P2", "P1"] \
+        or drawn["strips"] != {"top": 2, "core": 0, "attention": 1} or drawn["total"] != 3 \
+        or [row["name"] for row in drawn["unplaced"]] != ["P3"]:
+    fail.append("the board: nine cells in order, best first, the strips, the unplaced apart: %s" % drawn)
+if set(T.TOP_TALENT) | set(T.CORE) | set(T.ATTENTION) != set(range(1, 10)) \
+        or set(T.TOP_TALENT) & set(T.CORE) or set(T.CORE) & set(T.ATTENTION):
+    fail.append("the board's three strips share the nine boxes out between them")
+if (T.share(1, 3), T.share(0, 0)) != (33, 0):
+    fail.append("a share is a whole percentage, and of nothing is nothing")
+if (T.final_milestone("2029-02-05", False, "2029-02-01"), T.final_milestone("2028-08-05", True, "2029-02-01"),
+        T.final_milestone("2028-08-05", True, None)) != (True, False, True):
+    fail.append("case 19: the final milestone is the one due as the programme ends, else the last")
+expect("confirmed on an employment type", T.confirmation_errors({"employment_type": "Permanent"}))
+expect("confirmed on none", T.confirmation_errors({}), "employment type")
+expect("confirmed as a trainee still", T.confirmation_errors({"employment_type": T.TRAINEE_EMPLOYMENT}),
+       "no longer a graduate trainee")
+
+placement_fields = all_fields("Talent Placement")
+for fieldname, fieldtype, options in (("quarter_results", "Table", "Appraisal Quarter Result"),
+                                      ("on_pip", "Check", None),
+                                      ("improvement_plan", "Link", "Performance Improvement Plan"),
+                                      ("management_decision", "Data", None),
+                                      ("performance_review", "Link", "Performance Review"),
+                                      ("calibrated_potential", "Select", None)):
+    field = placement_fields.get(fieldname) or {}
+    if field.get("fieldtype") != fieldtype or (options and field.get("options") != options):
+        fail.append("Talent Placement.%s: a %s%s" % (fieldname, fieldtype, " of " + options if options else ""))
+    elif not field.get("read_only"):
+        fail.append("Talent Placement.%s comes from the appraisal or the calibration: read only" % fieldname)
+if (placement_fields.get("calibrated_potential") or {}).get("permlevel") != 1:
+    fail.append("case 10: the calibrated potential is at permission level 1, as the box is")
+if set((placement_fields.get("calibrated_potential") or {}).get("options", "").split("\n")) - {""} \
+        != {T.POTENTIAL_LOW, T.POTENTIAL_MODERATE, T.POTENTIAL_HIGH}:
+    fail.append("the calibrated potential is one of the three potential bands")
+if (all_fields("Talent Review").get("appraisal_plan") or {}).get("options") != "Appraisal Plan":
+    fail.append("a review reads the year's Appraisal Plan")
+if (all_fields("Talent Competency Level").get("competency") or {}).get("fieldtype") != "Data":
+    fail.append("an LPL/HR/18 factor is evidence too, so the competency is text, not a link to the scorecard's")
+trainee_fields = all_fields("Graduate Trainee Program")
+for fieldname, options in (("confirmed_employment_type", "Employment Type"), ("separation", "Employee Separation")):
+    if (trainee_fields.get(fieldname) or {}).get("options") != options:
+        fail.append("Graduate Trainee Program.%s links to %s" % (fieldname, options))
+if (all_fields("Development Action").get("completed_on") or {}).get("fieldtype") != "Date":
+    fail.append("a development action records when it was completed, for the plan's progress")
+for name in ("Appraisal Quarter Result", "Appraisal Plan", "Performance Improvement Plan", "Performance Review"):
+    if not doctype(name):
+        fail.append("%s, which talent reads, is not a DocType of this app" % name)
+
+glue = read("hrms_addon", "hrms_addon", "talent.py")
+for needle, why in (
+    ('{"custom_plan": row.get("appraisal_plan")}', "a review reads the year's appraisal plan (case 4)"),
+    ("rules.year_performance(", "and the year to date, not one quarter"),
+    ('"custom_annual_score"', "read off the appraisal, never typed"),
+    ('"Appraisal Factor Rating"', "LPL/HR/18 factors are competency evidence too (case 5)"),
+    ("rules.competency_evidence(", "averaged as the rules say"),
+    ("pips.open_plan(", "the improvement plan comes across"),
+    ('"custom_outcome"', "and management's decision on the appraisal"),
+    ("rules.effective_potential(", "the box is drawn from the calibrated potential (case 7)"),
+    ("doc.calibrated_potential = None", "a placement back with the line manager starts calibration again"),
+    ("have.add(row.employee)", "one placement a person, though the year has an appraisal each quarter"),
+    ("_agreed_actions(doc)", "the plan carries on from the year's development actions (case 9)"),
+    ('row.get("completed_on")', "leaving out those already completed"),
+    ("def appraisal_on_submit(", "a completed appraisal reaches talent at once"),
+    ("_refresh_open_placements(", "the placements still open read the year again"),
+    ("milestone.score = flt(", "a milestone takes its appraisal's score (case 19)"),
+    ("milestone.competency_check = _competency_level(", "and its competency check"),
+    ("_employ_trainee(doc)", "a trainee is employed from induction (cases 19 and 20)"),
+    ("rules.confirmation_errors(", "and confirmed on the employment type HR names (case 20)"),
+    ('"custom_exit_type": "Involuntary"', "a trainee who leaves goes through the exit process"),
+):
+    if needle not in glue:
+        fail.append("talent.py: %s (%r not found)" % (why, needle))
+if "custom_form_type" in glue.split("def _raise_milestone_appraisal(")[1].split("\ndef ")[0]:
+    fail.append("a milestone appraisal is on the form the trainee's Job Title's template gives, not one fixed here")
+board = read("hrms_addon", "hrms_addon", "talent_board.py")
+for needle, why in (
+    ('get_permlevel_access("read", user=user)', "the board is for those who read the boxes (case 10)"),
+    ("_check_access()", "and every method asks"),
+    ("rules.move_errors(", "a move is judged by the rules (case 7)"),
+    ("doc.flags.ignore_permissions = True", "the calibrated potential is written once the access is checked"),
+    ("approval.next_states(state, frappe.get_roles())", "the board steps only as the workflow lets the user (case 8)"),
+    ("frappe.db.savepoint(savepoint)", "each placement stands alone in a step taken together"),
+    ("frappe.db.rollback(save_point=savepoint)", "and one refused takes back only what it wrote"),
+    ('return {"allowed": 0}', "the forms ask for the card quietly"),
+):
+    if needle not in board:
+        fail.append("talent_board.py: %s (%r not found)" % (why, needle))
+for name in ("get_board", "get_card"):
+    if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % name, board):
+        fail.append("talent_board.%s reads: a whitelisted method" % name)
+for name in ("move", "advance"):
+    if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, board):
+        fail.append("talent_board.%s writes: a whitelisted POST method" % name)
+bulk = {action: state for action, state in (("Send to Council", P.CALIBRATION), ("Return", P.CALIBRATION),
+                                             ("Finalise", P.COUNCIL_REVIEW),
+                                             ("Return to Calibration", P.COUNCIL_REVIEW))}
+for action, state in bulk.items():
+    if not any(row["state"] == state and row["action"] == action for row in P.TRANSITIONS):
+        fail.append("the board's step %s from %s is not one of the workflow's own" % (action, state))
+page = json.load(open(os.path.join(APP, "page", "talent_board", "talent_board.json"), encoding="utf-8"))
+page_roles = {row["role"] for row in page.get("roles") or []}
+level_one = {row["role"] for row in doctype("Talent Placement").get("permissions", [])
+             if row.get("permlevel") == 1 and row.get("read")}
+if page.get("name") != "talent-board" or page_roles != level_one:
+    fail.append("the board page opens for exactly those who read the boxes: %s, not %s"
+                % (sorted(level_one), sorted(page_roles)))
+page_js = read("hrms_addon", "hrms_addon", "page", "talent_board", "talent_board.js")
+for needle, why in (
+    ("talent_board.get_board", "the page draws the board from the server"),
+    ("talent_board.move", "a drag in calibration is a move"),
+    ("TB_COLUMN[box] === TB_COLUMN[this.dragging.box]", "and only up or down its column"),
+    ("talent_board.advance", "the steps taken together"),
+    ("hrms_addon.talent_card.render(", "the talent card beside the grid"),
+):
+    if needle not in page_js:
+        fail.append("talent_board.js: %s (%r not found)" % (why, needle))
+card_js = read("hrms_addon", "public", "js", "talent_card.js")
+if "/assets/hrms_addon/js/talent_card.js" not in (hooks.get("app_include_js") or []):
+    fail.append("the talent card is loaded on every desk page, for the board and both forms")
+for path, needle in ((("hrms_addon", "public", "js", "employee.js"), "talent_card.attach(frm, frm.doc.name)"),
+                     (("hrms_addon", "public", "js", "appraisal.js"), "talent_card.attach(frm, frm.doc.employee)")):
+    if needle not in read(*path):
+        fail.append("%s draws the talent card (%r not found)" % (path[-1], needle))
+if '"custom ha-talent"' not in card_js:
+    fail.append("the card's form section carries Frappe's custom class, so a refresh clears it")
+appraisal_events = (hooks.get("doc_events") or {}).get("Appraisal") or {}
+if appraisal_events.get("on_submit") != "hrms_addon.hrms_addon.talent.appraisal_on_submit":
+    fail.append("hooks.py: a completed appraisal reaches talent (Appraisal on_submit)")
+if "hrms_addon.hrms_addon.talent.seed_masters" not in (hooks.get("after_install") or []):
+    fail.append("hooks.py: a fresh install has the graduate trainee employment type")
+if "hrms_addon.patches.v1_0.talent_with_appraisal" not in read("hrms_addon", "patches.txt"):
+    fail.append("patches.txt: talent_with_appraisal links the reviews to their plans and reads the year again")
+print("Oct 2026: the year from the appraisal plan, the evidence from both forms, the plan and the decision across; "
+      "milestones on real appraisals; the board, its moves and its steps")
 
 if fail:
     print("\nFAILURES:")

@@ -33,10 +33,12 @@
   "last_result",
   "outcome_section",
   "employee",
+  "confirmed_employment_type",
   "placement",
   "column_break_4",
   "succession_position",
   "exit_reason",
+  "separation",
   "signoff_section",
   "inducted_by",
   "inducted_on",
@@ -229,6 +231,12 @@
    "description": "Created on confirmation."
   },
   {
+   "fieldname": "confirmed_employment_type",
+   "fieldtype": "Link",
+   "label": "Employment Type on Confirmation",
+   "options": "Employment Type"
+  },
+  {
    "fieldname": "placement",
    "fieldtype": "Link",
    "label": "Nine-Box Placement",
@@ -253,6 +261,14 @@
    "fieldtype": "Small Text",
    "label": "Reason for Exit",
    "depends_on": "eval:doc.status=='Exited'"
+  },
+  {
+   "depends_on": "eval:doc.separation",
+   "fieldname": "separation",
+   "fieldtype": "Link",
+   "label": "Exit Process",
+   "options": "Employee Separation",
+   "read_only": 1
   },
   {
    "fieldname": "signoff_section",
@@ -311,7 +327,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 23:30:00.000000",
+ "modified": "2026-10-05 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Graduate Trainee Program",

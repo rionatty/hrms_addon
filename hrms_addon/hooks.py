@@ -98,6 +98,9 @@ app_include_js = [
     # employees on an improvement plan in red, wherever a form lists them
     # (the appraisal cycle, the plan, the review; pips.open_plans)
     "/assets/hrms_addon/js/hrms_addon_pip.js",
+    # the talent card, drawn on the Talent Board and on the Employee and
+    # Appraisal forms for HR and the Talent Council (talent_board.get_card)
+    "/assets/hrms_addon/js/talent_card.js",
     # the HR calendar's roster, drawn on its page, the Annual Leave Plan and
     # the Monthly Training Schedule (calendar_board.py)
     "/assets/hrms_addon/js/hr_calendar_view.js",
@@ -281,6 +284,8 @@ after_install = [
     "hrms_addon.hrms_addon.benefits.seed_standard_claims",
     # the disciplinary ladder and the misconduct the HR manual lists
     "hrms_addon.hrms_addon.discipline.seed_discipline_masters",
+    # the employment type a graduate trainee is on (talent.py)
+    "hrms_addon.hrms_addon.talent.seed_masters",
 ]
 
 # Uninstallation
@@ -1523,6 +1528,9 @@ doc_events = {
         "onload": "hrms_addon.hrms_addon.appraisals.appraisal_onload",
         # a quarter changed: the employee's later quarters still open follow
         "on_change": "hrms_addon.hrms_addon.appraisals.appraisal_on_change",
+        # completed: a trainee's milestone takes its score, and the
+        # employee's talent placements still open read the year again (talent.py)
+        "on_submit": "hrms_addon.hrms_addon.talent.appraisal_on_submit",
     },
     # the appraisals the supervisor does not have yet follow the
     # self-appraisal setting as soon as it is saved (appraisals.py)

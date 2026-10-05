@@ -387,6 +387,8 @@ SIDEBAR = {
         ("Performance Review", "Performance Review", DOCTYPE, None, "Appraisal"),
         ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Performance Review"),
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
+        # the review on one grid (page/talent_board), first of the talent entries
+        ("Talent Board", "talent-board", PAGE, None, None),
         ("Talent Review", "Talent Review", DOCTYPE, None, "Employee Position Change"),
         ("Talent Placement", "Talent Placement", DOCTYPE, None, "Talent Review"),
         ("Talent Program", "Talent Program", DOCTYPE, None, "Talent Placement"),
@@ -506,8 +508,8 @@ GROUPS = {
                                 "Performance Improvement Plan"]),
         ("Goals and Feedback", "target", ["Goal", "Employee Performance Feedback"]),
         ("Promotions", "trending-up", ["Employee Promotion", "Employee Position Change"]),
-        ("Talent", "award", ["Talent Review", "Talent Placement", "Talent Program", "Succession Position",
-                             "Graduate Trainee Program"]),
+        ("Talent", "award", ["talent-board", "Talent Review", "Talent Placement", "Talent Program",
+                             "Succession Position", "Graduate Trainee Program"]),
     ],
     "Loans": [
         ("Loans", "hand-coins", ["Employee Loan"]),

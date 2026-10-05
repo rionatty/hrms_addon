@@ -22,6 +22,13 @@
   "column_break_2",
   "appraisal_band",
   "performance_band",
+  "pip_column",
+  "on_pip",
+  "improvement_plan",
+  "management_decision",
+  "performance_review",
+  "quarters_section",
+  "quarter_results",
   "potential_section",
   "ability",
   "aspiration",
@@ -29,6 +36,7 @@
   "column_break_3",
   "potential_score",
   "potential_band",
+  "calibrated_potential",
   "competency_average",
   "competencies",
   "box_section",
@@ -163,7 +171,7 @@
   {
    "fieldname": "appraisal",
    "fieldtype": "Link",
-   "label": "Appraisal",
+   "label": "Latest Appraisal",
    "options": "Appraisal",
    "read_only": 1,
    "no_copy": 1
@@ -171,7 +179,7 @@
   {
    "fieldname": "performance_score",
    "fieldtype": "Float",
-   "label": "Score out of 100",
+   "label": "Year to Date Score",
    "read_only": 1,
    "precision": "2"
   },
@@ -182,7 +190,7 @@
   {
    "fieldname": "appraisal_band",
    "fieldtype": "Data",
-   "label": "Appraisal Band",
+   "label": "Year to Date Rating",
    "read_only": 1
   },
   {
@@ -192,6 +200,50 @@
    "options": "\nLow\nMeeting\nExceeding",
    "read_only": 1,
    "permlevel": 1
+  },
+  {
+   "fieldname": "pip_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "on_pip",
+   "fieldtype": "Check",
+   "label": "On an Improvement Plan",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.on_pip",
+   "fieldname": "improvement_plan",
+   "fieldtype": "Link",
+   "label": "Improvement Plan",
+   "options": "Performance Improvement Plan",
+   "read_only": 1
+  },
+  {
+   "fieldname": "management_decision",
+   "fieldtype": "Data",
+   "label": "Management's Decision",
+   "read_only": 1
+  },
+  {
+   "fieldname": "performance_review",
+   "fieldtype": "Link",
+   "label": "Performance Review",
+   "options": "Performance Review",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "quarters_section",
+   "fieldtype": "Section Break",
+   "label": "This Year's Appraisals"
+  },
+  {
+   "fieldname": "quarter_results",
+   "fieldtype": "Table",
+   "label": "Quarters",
+   "options": "Appraisal Quarter Result",
+   "read_only": 1
   },
   {
    "fieldname": "potential_section",
@@ -238,6 +290,14 @@
    "options": "\nLow\nModerate\nHigh",
    "read_only": 1,
    "permlevel": 1
+  },
+  {
+   "fieldname": "calibrated_potential",
+   "fieldtype": "Select",
+   "label": "Potential after Calibration",
+   "options": "\nLow\nModerate\nHigh",
+   "permlevel": 1,
+   "read_only": 1
   },
   {
    "fieldname": "competency_average",
@@ -458,7 +518,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 23:30:00.000000",
+ "modified": "2026-10-05 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Talent Placement",

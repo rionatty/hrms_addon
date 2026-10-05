@@ -94,6 +94,12 @@ BOXES = {
 }
 BOX_NAMES = tuple(BOXES[key]["name"] for key in sorted(BOXES, key=lambda k: BOXES[k]["box"]))
 TOP_TALENT = (6, 8, 9)
+# the board's three strips: the boxes worth keeping and growing, the middle
+# of the grid, and the ones somebody has to act on
+CORE = (3, 5, 7)
+ATTENTION = (1, 2, 4)
+# box -> (performance band, potential band)
+BOX_AXES = {spec["box"]: key for key, spec in BOXES.items()}
 DECISIONS = ("Succession Pipeline", "Promotion", "Replacement", "Retain in Role", "Improve")
 
 # ── The programme ─────────────────────────────────────────────────────
@@ -116,6 +122,16 @@ CONFIRMED, EXITED = "Confirmed", "Exited"
 TRAINEE_STATES = (RECRUITED, IN_INDUCTION, IN_ROTATION, UNDER_ASSESSMENT, CONFIRMED, EXITED)
 MILESTONE_RESULTS = ("Pass", "Final Pass", "Fail")
 PASS_MARK = 60.0
+# a trainee is employed from induction, on this employment type, so the
+# milestone appraisals have somebody to appraise; confirmation changes it
+TRAINEE_EMPLOYMENT = "Graduate Trainee"
+
+# ── Linked with the appraisal (Luuka, 5 Oct 2026) ─────────────────────
+# Luuka appraise each quarter (the Appraisal Plan of the year, Q1 to Q4),
+# and each appraisal carries the year to date. LPL/HR/18 rates each factor
+# 1 to 5; the scorecard scores each competency out of ten.
+QUARTER_ORDER = ("Q1", "Q2", "Q3", "Q4")
+FACTOR_OUT_OF = 5.0
 
 
 # ── Reading the two axes ──────────────────────────────────────────────
@@ -391,6 +407,28 @@ def milestone_errors(facts):
     return errors
 
 
+def confirmation_errors(facts):
+    """Test case 20: a confirmed trainee stays an employee, on the
+    employment type HR names for them; the graduate trainee one ends."""
+    errors = []
+    if not facts.get("employment_type"):
+        errors.append("Say which employment type the trainee is confirmed on.")
+    elif facts["employment_type"] == TRAINEE_EMPLOYMENT:
+        errors.append("A confirmed trainee is no longer a graduate trainee. Choose the employment type "
+                      "they are confirmed on.")
+    return errors
+
+
+def final_milestone(due_on, is_last, programme_ends=None):
+    """Whether a milestone is the one that decides confirmation: the one
+    due when the programme ends, or, where no end is set, the last one.
+    Its pass is a Final Pass; an earlier milestone's pass sends the trainee
+    back out on rotation."""
+    if programme_ends and due_on:
+        return str(due_on) >= str(programme_ends)
+    return bool(is_last)
+
+
 def milestone_outcome(score, final=False):
     """What a milestone score comes to."""
     if score in (None, ""):
@@ -416,6 +454,141 @@ def trainee_placement(box_name=None):
     seen, performance not yet earned over a full year."""
     return {"readiness": EMERGING, "potential": POTENTIAL_HIGH, "performance": None,
             "box_name": box_name or BOXES[(LOW, POTENTIAL_HIGH)]["name"]}
+
+
+# ── The year, as the appraisal module holds it ────────────────────────
+def year_performance(appraisals):
+    """The employee's performance for the review, read off the appraisals
+    and never typed: {"appraisal", "score", "band", "quarters"}, or None
+    when there is no appraisal to read.
+
+    appraisals: the year's completed appraisals, each with "name",
+    "quarter", "total" (the quarter's score), "band" (its rating),
+    "year_score" and "year_band" (the year to date it carries) and
+    "end_date". The latest quarter carries the year to date over every
+    quarter appraised, which is the figure the review is about. A blank
+    figure is kept as 0, so a figure counts only where its rating says it
+    was worked out: the year to date where it has its rating, else the
+    quarters rated, averaged (one rated quarter keeps its own rating), and
+    nothing rated at all is no performance to read."""
+    rows = [row for row in appraisals or [] if row.get("name")]
+    if not rows:
+        return None
+
+    def when(row):
+        quarter = row.get("quarter")
+        return (QUARTER_ORDER.index(quarter) if quarter in QUARTER_ORDER else -1, str(row.get("end_date") or ""))
+
+    rows = sorted(rows, key=when)
+    latest = rows[-1]
+    quarters = [{"quarter": row.get("quarter"), "appraisal": row["name"], "total": row.get("total"),
+                 "band": row.get("band")} for row in rows if row.get("quarter") in QUARTER_ORDER]
+    if latest.get("year_band"):
+        score, band = _number(latest.get("year_score")), latest["year_band"]
+    else:
+        rated = [row for row in rows if row.get("band")]
+        if not rated:
+            return None
+        score = sum(_number(row.get("total")) for row in rated) / len(rated)
+        band = rated[0]["band"] if len(rated) == 1 else None
+    return {"appraisal": latest["name"], "score": round(score, 2), "band": band, "quarters": quarters}
+
+
+def competency_evidence(scorecard_rows, factor_rows):
+    """The year's competency levels out of ten, as the appraiser gave them:
+    a scorecard competency as scored, an LPL/HR/18 factor as rated (1 to 5,
+    doubled), averaged over the quarters it was given in. Evidence beside
+    the potential rating, never a score in it.
+
+    scorecard_rows: [{"competency", "score", "appraisal"}]
+    factor_rows: [{"factor", "rating", "appraisal"}], the rating "1" to "5"
+    or "N/A". A blank is kept as 0, so a 0 is a figure never given, and
+    N/A is no figure at all."""
+    found = {}
+    for name, value, appraisal in [(row.get("competency"), _number(row.get("score")), row.get("appraisal"))
+                                   for row in scorecard_rows or []] + \
+            [(row.get("factor"), _rating(row.get("rating")), row.get("appraisal")) for row in factor_rows or []]:
+        name = " ".join(_text(name).split())[:140]
+        if not name or value is None or value <= 0:
+            continue
+        entry = found.setdefault(name, {"competency": name, "levels": [], "appraisal": appraisal})
+        entry["levels"].append(value)
+        entry["appraisal"] = appraisal
+    return [{"competency": entry["competency"], "level": round(sum(entry["levels"]) / len(entry["levels"]), 2),
+             "times": len(entry["levels"]), "appraisal": entry["appraisal"]} for entry in found.values()]
+
+
+def _rating(value):
+    """An LPL/HR/18 rating (1 to 5) out of ten; N/A and blank are none."""
+    text = _text(value)
+    if not text or not text.replace(".", "", 1).isdigit():
+        return None
+    return round(_number(text) * DIMENSION_OUT_OF / FACTOR_OUT_OF, 2)
+
+
+def effective_potential(rated, calibrated=None):
+    """The potential band the box is drawn from: the one calibration gave,
+    else the line manager's."""
+    return calibrated or rated
+
+
+def box_axes(box):
+    """(performance band, potential band) of a box, or None."""
+    return BOX_AXES.get(int(_number(box))) if box not in (None, "") else None
+
+
+def move_errors(facts):
+    """A box moved on the board during calibration (test case 7). The peer
+    group moves a person up or down their column: potential is theirs to
+    weigh across the plants, performance is the appraisal's, and changing
+    it is done on the appraisal, not here.
+
+    facts: "state" (the placement's), "calibrating" (the state that means
+    calibration), "from_box", "to_box", "reason"."""
+    errors = []
+    if facts.get("state") != facts.get("calibrating"):
+        errors.append("A box is moved only while the placement is in calibration.")
+    to_axes = box_axes(facts.get("to_box"))
+    if not to_axes:
+        errors.append("Say which box the placement moves to.")
+        return errors
+    from_axes = box_axes(facts.get("from_box"))
+    if from_axes and from_axes == to_axes:
+        errors.append("The placement is already in that box.")
+    elif from_axes and from_axes[0] != to_axes[0]:
+        errors.append("Performance comes from the appraisal, so a placement moves up or down its "
+                      "column only. Correct the appraisal to change it.")
+    if not _text(facts.get("reason")):
+        errors.append("Say why the placement moves. Calibration is recorded, not silent.")
+    return errors
+
+
+def board(placements):
+    """The grid as the board draws it.
+
+    placements: [{"name", "employee", "employee_name", "box", ...}]. Returns
+    {"cells": [{"box", "name", "colour", "action", "people"}] in box order,
+    "unplaced": the placements with no box yet (no appraisal, or not
+    rated), "strips": the top, core and attention counts, "total"}."""
+    cells = {spec["box"]: {"box": spec["box"], "name": spec["name"], "colour": spec["colour"],
+                           "action": spec["action"], "people": []} for spec in BOXES.values()}
+    unplaced = []
+    for row in placements or []:
+        box = int(_number(row.get("box"))) if row.get("box") not in (None, "") else None
+        (cells[box]["people"] if box in cells else unplaced).append(row)
+    for cell in cells.values():
+        cell["people"].sort(key=lambda row: (-_number(row.get("performance_score")),
+                                             str(row.get("employee_name") or "")))
+    placed = sum(len(cell["people"]) for cell in cells.values())
+    strips = {name: sum(len(cells[box]["people"]) for box in boxes)
+              for name, boxes in (("top", TOP_TALENT), ("core", CORE), ("attention", ATTENTION))}
+    return {"cells": [cells[box] for box in sorted(cells)], "unplaced": unplaced, "strips": strips,
+            "total": placed}
+
+
+def share(part, whole):
+    """A part of the whole, as a whole percentage."""
+    return int(round(100.0 * part / whole)) if whole else 0
 
 
 # ── Small helpers ─────────────────────────────────────────────────────

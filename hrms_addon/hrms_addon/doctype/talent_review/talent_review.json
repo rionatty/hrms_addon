@@ -8,6 +8,7 @@
  "field_order": [
   "title",
   "review_year",
+  "appraisal_plan",
   "appraisal_cycle",
   "column_break_1",
   "opens_on",
@@ -44,9 +45,16 @@
    "in_standard_filter": 1
   },
   {
+   "fieldname": "appraisal_plan",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Appraisal Plan",
+   "options": "Appraisal Plan"
+  },
+  {
    "fieldname": "appraisal_cycle",
    "fieldtype": "Link",
-   "label": "Appraisal Cycle",
+   "label": "Appraisal Cycle (one quarter only)",
    "options": "Appraisal Cycle",
    "reqd": 1,
    "description": "Performance scores are taken from this cycle."
@@ -143,7 +151,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-21 23:30:00.000000",
+ "modified": "2026-10-05 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Talent Review",

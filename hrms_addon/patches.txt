@@ -61,3 +61,4 @@ hrms_addon.patches.v1_0.scorecard_by_kpi
 hrms_addon.patches.v1_0.careers_without_login
 hrms_addon.patches.v1_0.number_applications
 hrms_addon.patches.v1_0.navy_sidebar
+hrms_addon.patches.v1_0.talent_with_appraisal

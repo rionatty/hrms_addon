@@ -39,6 +39,9 @@ frappe.ui.form.on("Appraisal", {
 		ha_quarter_columns(frm);
 		ha_remarks(frm);
 		ha_improvement_plan(frm);
+		// where the year so far leaves the employee on the nine-box, for HR
+		// and the Talent Council (talent_card.js)
+		if (hrms_addon.talent_card) hrms_addon.talent_card.attach(frm, frm.doc.employee);
 		if (frm.doc.docstatus === 0 && !frm.is_new()) {
 			frm.add_custom_button(
 				__("Download Sheet"),

@@ -33,7 +33,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import people, talent_rules as rules
+from hrms_addon.hrms_addon import people, pips, talent_rules as rules
 
 REVIEW = "Talent Review"
 PLACEMENT = "Talent Placement"
@@ -68,11 +68,14 @@ def draft_placements(review):
 
 
 def _draft_placements(cycle):
-    filters = {"docstatus": 1, "appraisal_cycle": cycle.appraisal_cycle}
+    source = _review_source(cycle)
+    if not source:
+        frappe.throw(_("Name the appraisal plan the review reads, so there are appraisals to place "
+                       "people from."), title=_(REVIEW))
     scope = {"company": cycle.get("company"), "branch": cycle.get("branch"),
              "department": cycle.get("department")}
     appraisals = frappe.get_all(
-        "Appraisal", filters=filters,
+        "Appraisal", filters=dict(source, docstatus=1),
         fields=["name", "employee", "employee_name", "custom_total_score", "final_score"],
         limit=5000)
     have = set(frappe.get_all(PLACEMENT, filters={"talent_review": cycle.name,
@@ -80,8 +83,11 @@ def _draft_placements(cycle):
                               pluck="employee"))
     made = 0
     for row in appraisals:
+        # one placement a person: the year has a completed appraisal for
+        # each quarter, and each of them is the same person
         if row.employee in have:
             continue
+        have.add(row.employee)
         employee = frappe.db.get_value(
             "Employee", row.employee,
             ["status", "company", "branch", "department", "designation"], as_dict=True)
@@ -118,43 +124,95 @@ def placement_validate(doc, method=None):
     doc.status = doc.get("workflow_state") or doc.get("status") or approval.DRAFT
 
 
+# what a placement reads off each of the year's appraisals
+APPRAISAL_FIELDS = ["name", "custom_quarter", "custom_total_score", "final_score", "custom_band",
+                    "custom_annual_score", "custom_year_band", "end_date", "custom_outcome",
+                    "custom_performance_review"]
+
+
+def _review_source(review):
+    """Where a review's appraisals come from: the appraisal plan of the year
+    (Luuka appraise every quarter, and each appraisal carries the year to
+    date), or the one cycle a review was set up on before the plans."""
+    row = frappe.db.get_value(REVIEW, review, ["appraisal_plan", "appraisal_cycle"], as_dict=True) \
+        if isinstance(review, str) else review
+    if not row:
+        return None
+    if row.get("appraisal_plan"):
+        return {"custom_plan": row.get("appraisal_plan")}
+    if row.get("appraisal_cycle"):
+        return {"appraisal_cycle": row.get("appraisal_cycle")}
+    return None
+
+
+def _year_appraisals(employee, review):
+    """The employee's completed appraisals of the review's year, first to last."""
+    source = _review_source(review)
+    if not (employee and source):
+        return []
+    return frappe.get_all("Appraisal", filters=dict(source, employee=employee, docstatus=1),
+                          fields=APPRAISAL_FIELDS, order_by="end_date asc", limit=20)
+
+
 def _fill_performance(doc):
-    """Test case 4: the appraisal's own final score, and the band it falls
-    in. Nothing is re-entered, so a placement whose employee has no
-    appraisal in the cycle carries no performance at all."""
-    if not (doc.get("employee") and doc.get("talent_review")):
+    """Test case 4: the year's performance as the appraisal module holds it
+    — the year to date over the quarters appraised, each quarter beside it —
+    and the band it falls in. Nothing is re-entered, so a placement whose
+    employee has no completed appraisal in the year carries no performance.
+    Read again at every save until the council finalises, so a quarter
+    completed meanwhile is counted. The improvement plan the employee is on,
+    and what management decided on their appraisal, come across with it."""
+    if not (doc.get("employee") and doc.get("talent_review")) or doc.docstatus != 0:
         return
-    cycle = frappe.db.get_value(REVIEW, doc.talent_review, "appraisal_cycle")
-    found = frappe.get_all(
-        "Appraisal",
-        filters={"employee": doc.employee, "appraisal_cycle": cycle, "docstatus": 1},
-        fields=["name", "custom_total_score", "final_score", "custom_band"],
-        order_by="modified desc", limit=1)
-    if not found:
-        doc.appraisal = None
-        doc.performance_score = None
-        doc.appraisal_band = None
-        doc.performance_band = None
+    appraisals = _year_appraisals(doc.employee, doc.talent_review)
+    year = rules.year_performance([{
+        "name": row.name, "quarter": row.custom_quarter, "total": row.custom_total_score or row.final_score,
+        "band": row.custom_band, "year_score": row.custom_annual_score, "year_band": row.custom_year_band,
+        "end_date": row.end_date} for row in appraisals])
+    doc.improvement_plan = pips.open_plan(doc.employee)
+    doc.on_pip = 1 if doc.improvement_plan else 0
+    decided = [row for row in appraisals if row.get("custom_outcome")]
+    doc.management_decision = decided[-1].custom_outcome if decided else None
+    doc.performance_review = decided[-1].custom_performance_review if decided else None
+    if not year:
+        for field in ("appraisal", "performance_score", "appraisal_band", "performance_band"):
+            doc.set(field, None)
+        doc.set("quarter_results", [])
+        doc.set("competencies", [])
         return
-    row = found[0]
-    doc.appraisal = row.name
-    doc.performance_score = flt(row.custom_total_score or row.final_score or 0)
-    doc.appraisal_band = row.custom_band
-    doc.performance_band = rules.performance_band(doc.performance_score)
-    _carry_competencies(doc)
+    doc.appraisal = year["appraisal"]
+    doc.performance_score = year["score"]
+    doc.appraisal_band = year["band"]
+    doc.performance_band = rules.performance_band(year["score"])
+    doc.set("quarter_results", [{"quarter": row["quarter"], "appraisal": row["appraisal"],
+                                 "total": row["total"], "band": row["band"]} for row in year["quarters"]])
+    _carry_competencies(doc, [row.name for row in appraisals])
 
 
-def _carry_competencies(doc):
-    """Test case 5: the competency levels come across from the scorecard,
-    as evidence. They are not typed in and they are not a score here."""
-    if doc.get("competencies") or not doc.get("appraisal"):
-        return
-    rows = frappe.get_all("BSC Appraisal Competency",
-                          filters={"parent": doc.appraisal, "parenttype": "Appraisal"},
-                          fields=["competency", "score"], order_by="idx asc", limit=50)
-    for row in rows:
-        doc.append("competencies", {"competency": row.competency, "level": flt(row.score),
-                                    "appraisal": doc.appraisal})
+def _carry_competencies(doc, appraisals):
+    """Test case 5: the competency levels as the appraisals gave them,
+    whichever form the employee is on — a scorecard competency as scored, an
+    LPL/HR/18 factor as rated — averaged over the year, as evidence for the
+    potential rating. Not typed in, and not a score here; a remark the line
+    manager wrote against one stays."""
+    remarks = {row.competency: row.remarks for row in doc.get("competencies") or [] if row.get("remarks")}
+    order = {name: number for number, name in enumerate(appraisals)}
+    scorecard = frappe.get_all("BSC Appraisal Competency",
+                               filters={"parent": ["in", appraisals], "parenttype": "Appraisal"},
+                               fields=["competency", "score", "parent"], order_by="idx asc", limit=500)
+    factors = frappe.get_all("Appraisal Factor Rating",
+                             filters={"parent": ["in", appraisals], "parenttype": "Appraisal",
+                                      "parentfield": "custom_factors"},
+                             fields=["item", "supervisor_rating", "parent"], order_by="idx asc", limit=500)
+    by_quarter = lambda row: order.get(row.parent, 0)  # noqa: E731
+    evidence = rules.competency_evidence(
+        [{"competency": row.competency, "score": row.score, "appraisal": row.parent}
+         for row in sorted(scorecard, key=by_quarter)],
+        [{"factor": row.item, "rating": row.supervisor_rating, "appraisal": row.parent}
+         for row in sorted(factors, key=by_quarter)])
+    doc.set("competencies", [{"competency": row["competency"], "level": row["level"], "times": row["times"],
+                              "appraisal": row["appraisal"], "remarks": remarks.get(row["competency"])}
+                             for row in evidence])
 
 
 def _fill_potential(doc):
@@ -168,8 +226,10 @@ def _fill_potential(doc):
 
 def _fill_box(doc):
     """Test case 6: the two bands resolve to one cell, with its name, its
-    colour and what it says to do."""
-    box = rules.box_for(doc.get("performance_band"), doc.get("potential_band"))
+    colour and what it says to do. The potential is the line manager's
+    until calibration moves it (talent_board.move)."""
+    box = rules.box_for(doc.get("performance_band"),
+                        rules.effective_potential(doc.get("potential_band"), doc.get("calibrated_potential")))
     if not box:
         for field in ("box", "box_name", "box_colour", "default_action", "suggested_decision"):
             doc.set(field, None)
@@ -205,7 +265,11 @@ def _check_placement_step(doc):
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(PLACEMENT))
         if new_state == approval.DRAFT:
+            # back with the line manager: they place the employee afresh,
+            # and calibration starts again from what they submit
             doc.submitted_box = None
+            doc.calibrated_potential = None
+            _fill_box(doc)
         elif old_state in (None, approval.DRAFT) and new_state == approval.CALIBRATION:
             doc.submitted_box = doc.get("box")
         else:
@@ -271,10 +335,13 @@ def placement_on_cancel(doc, method=None):
 
 def _draw_up_development_plan(doc):
     """The box's default action becomes a programme the employee is
-    actually on, with the themes as its actions."""
+    actually on: the themes as its first actions, then the development
+    actions the year's appraisals agreed and nobody has completed, so the
+    plan carries on from the appraisal rather than beside it."""
     if doc.get("development_plan"):
         return doc.development_plan
     program_type = _program_type_for(doc.get("box"))
+    agreed = _agreed_actions(doc)
     try:
         program = frappe.get_doc({
             "doctype": PROGRAM, "employee": doc.employee, "company": doc.get("company"),
@@ -284,7 +351,10 @@ def _draw_up_development_plan(doc):
             "objectives": doc.get("default_action"),
             "actions": [{"action": row.theme, "by_when": add_days(today(), 180),
                          "by_whom": doc.get("employee_name") or doc.employee}
-                        for row in doc.get("themes") or []],
+                        for row in doc.get("themes") or []]
+            + [{"action": row.action, "duration": row.duration, "by_when": row.by_when,
+                "by_whom": row.by_whom, "estimated_cost": row.estimated_cost}
+               for row in agreed if (row.action or "").strip()],
         })
         program.flags.ignore_permissions = True
         program.flags.ignore_mandatory = True
@@ -295,6 +365,30 @@ def _draw_up_development_plan(doc):
     doc.db_set("development_plan", program.name, update_modified=False)
     _push_to_ld(program, [row.theme for row in doc.get("themes") or []])
     return program.name
+
+
+def _agreed_actions(doc):
+    """The development actions the year's appraisals agreed, in the order
+    they were agreed, each once, leaving out those already completed."""
+    names = [row.name for row in _year_appraisals(doc.get("employee"), doc.get("talent_review"))]
+    if not names and doc.get("appraisal"):
+        names = [doc.appraisal]
+    if not names:
+        return []
+    rows = frappe.get_all("Development Action",
+                          filters={"parent": ["in", names], "parenttype": "Appraisal",
+                                   "parentfield": "custom_development_actions"},
+                          fields=["parent", "action", "duration", "by_when", "by_whom", "estimated_cost",
+                                  "completed_on"], order_by="idx asc", limit=200)
+    order = {name: number for number, name in enumerate(names)}
+    seen, kept = set(), []
+    for row in sorted(rows, key=lambda row: order.get(row.parent, 0)):
+        text = " ".join((row.action or "").split()).lower()
+        if not text or text in seen or row.get("completed_on"):
+            continue
+        seen.add(text)
+        kept.append(row)
+    return kept
 
 
 def _program_type_for(box):
@@ -721,7 +815,11 @@ def _fill_trainee(doc):
     doc.last_result = milestones[-1].get("result") if milestones else None
     for row in doc.get("milestones") or []:
         if row.score not in (None, "") and not row.result:
-            row.result = rules.milestone_outcome(row.score, final=row is doc.milestones[-1])
+            row.result = rules.milestone_outcome(row.score, final=_is_final(doc, row))
+
+
+def _is_final(doc, row):
+    return rules.final_milestone(row.get("due_on"), row is doc.milestones[-1], doc.get("end_date"))
 
 
 def _check_trainee_step(doc):
@@ -745,10 +843,18 @@ def _check_trainee_step(doc):
             errors += rules.rotation_errors([row.as_dict() for row in doc.get("rotations") or []])
         if old_state == approval.IN_ROTATION and new_state == approval.UNDER_ASSESSMENT:
             errors += _milestone_errors(doc)
+        if new_state == approval.CONFIRMED:
+            errors += rules.confirmation_errors({"employment_type": doc.get("confirmed_employment_type")})
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(TRAINEE))
         if new_state != approval.RECRUITED:
             doc.return_remarks = None
+        # employed from induction; a trainee inducted before trainees were
+        # employed is taken on at the next step, so their milestones can
+        # still be appraised
+        if new_state in (approval.IN_INDUCTION, approval.IN_ROTATION, approval.UNDER_ASSESSMENT) \
+                and not doc.get("employee"):
+            _employ_trainee(doc)
     current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
     for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, today(),
                                                 current).items():
@@ -771,7 +877,10 @@ def _milestone_errors(doc):
 
 def _raise_milestone_appraisal(doc):
     """Test case 19: the milestone is assessed on a real Appraisal in the
-    performance module, with the competency check beside it."""
+    performance module, on the form the trainee's Job Title's template
+    gives, and goes round the appraisal's own signatures. When it is
+    completed, its score and its competency check come back onto the
+    milestone (appraisal_on_submit): nobody types them twice."""
     pending = [row for row in doc.get("milestones") or [] if not row.appraisal]
     if not pending or not doc.get("employee"):
         return None
@@ -779,9 +888,7 @@ def _raise_milestone_appraisal(doc):
     try:
         appraisal = frappe.get_doc({
             "doctype": "Appraisal", "employee": doc.employee, "company": doc.company,
-            "custom_form_type": "Supervisory Skills (LPL/HR/18)",
             "start_date": doc.get("start_date"), "end_date": row.due_on,
-            "custom_roles": _("Graduate trainee milestone: {0}").format(row.milestone),
         })
         appraisal.flags.ignore_permissions = True
         appraisal.flags.ignore_mandatory = True
@@ -789,7 +896,9 @@ def _raise_milestone_appraisal(doc):
     except Exception:
         frappe.log_error(title="HRMS Addon: milestone appraisal for a trainee")
         return None
-    row.db_set("appraisal", appraisal.name, update_modified=False)
+    row.appraisal = appraisal.name
+    if not row.is_new():
+        row.db_set("appraisal", appraisal.name, update_modified=False)
     return appraisal.name
 
 
@@ -815,10 +924,13 @@ def trainee_on_submit(doc, method=None):
     from hrms_addon.hrms_addon import trainee_approval as approval
 
     if doc.get("workflow_state") == approval.EXITED or doc.get("status") == approval.EXITED:
+        _raise_trainee_exit(doc)
         return
     employee = _create_employee(doc)
     if not employee:
         return
+    if doc.get("confirmed_employment_type"):
+        frappe.db.set_value("Employee", employee, "employment_type", doc.confirmed_employment_type)
     _enter_the_grid(doc, employee)
 
 
@@ -826,28 +938,89 @@ def trainee_on_cancel(doc, method=None):
     doc.status = "Cancelled"
 
 
-def _create_employee(doc):
+def _employ_trainee(doc):
+    """A trainee is employed from induction, as a graduate trainee: the
+    milestone appraisals (test case 19) are an employee's to have, and so is
+    the pay and attendance of the programme. Confirmation (test case 20)
+    puts them on the employment type HR names. A trainee who cannot be
+    employed does not go on to induction: HR is told why."""
     if doc.get("employee"):
         return doc.employee
-    names = (doc.trainee_name or "").split()
+    kind = rules.TRAINEE_EMPLOYMENT if frappe.db.exists("Employment Type", rules.TRAINEE_EMPLOYMENT) else None
     try:
-        employee = frappe.get_doc({
-            "doctype": "Employee", "employee_name": doc.trainee_name,
-            "first_name": names[0] if names else doc.trainee_name,
-            "last_name": " ".join(names[1:]) or None,
-            "company": doc.company, "status": "Active",
-            "date_of_joining": doc.get("start_date") or today(),
-            "department": doc.get("home_department"), "branch": doc.get("home_branch"),
-            "designation": doc.get("designation"),
-        })
-        employee.flags.ignore_permissions = True
-        employee.flags.ignore_mandatory = True
-        employee.insert()
+        doc.employee = _new_employee(doc, kind)
+    except Exception as error:
+        frappe.throw(_("{0} could not be taken on as an employee: {1}").format(doc.trainee_name, error),
+                     title=_(TRAINEE))
+    return doc.employee
+
+
+def _raise_trainee_exit(doc):
+    """A trainee who leaves the programme was employed from induction, so
+    they leave through the exit process like anybody else: an involuntary
+    separation at the end of their contract, with the reason given, which
+    the exit interview, clearance and final dues follow from (exits.py).
+    One already open for them is used."""
+    if not doc.get("employee") or doc.get("separation"):
+        return doc.get("separation")
+    existing = frappe.db.get_value("Employee Separation", {"employee": doc.employee, "docstatus": ["<", 2]},
+                                   "name")
+    if not existing:
+        try:
+            separation = frappe.get_doc({
+                "doctype": "Employee Separation", "employee": doc.employee, "company": doc.company,
+                "department": doc.get("home_department"), "designation": doc.get("designation"),
+                "boarding_status": "Pending", "custom_exit_type": "Involuntary",
+                "custom_reason": "End of Contract", "custom_relieving_date": today(),
+                "custom_termination_date": today(),
+                "custom_termination_reason": _("Graduate trainee programme {0}: {1}").format(
+                    doc.name, doc.get("exit_reason") or ""),
+            })
+            separation.flags.ignore_permissions = True
+            separation.flags.ignore_mandatory = True
+            separation.insert()
+            existing = separation.name
+        except Exception:
+            frappe.log_error(title="HRMS Addon: separation for an exited trainee")
+            return None
+    doc.db_set("separation", existing, update_modified=False)
+    users = people.hr_officers(doc.get("home_branch"), doc.get("home_department"))
+    if users:
+        people.notify(list(users), "Employee Separation", existing,
+                      _("{0} has left the graduate trainee programme. Their exit is open.").format(
+                          doc.trainee_name))
+    return existing
+
+
+def _new_employee(doc, employment_type=None):
+    names = (doc.trainee_name or "").split()
+    employee = frappe.get_doc({
+        "doctype": "Employee", "employee_name": doc.trainee_name,
+        "first_name": names[0] if names else doc.trainee_name,
+        "last_name": " ".join(names[1:]) or None,
+        "company": doc.company, "status": "Active",
+        "date_of_joining": doc.get("start_date") or today(),
+        "department": doc.get("home_department"), "branch": doc.get("home_branch"),
+        "designation": doc.get("designation"), "employment_type": employment_type,
+    })
+    employee.flags.ignore_permissions = True
+    employee.flags.ignore_mandatory = True
+    employee.insert()
+    return employee.name
+
+
+def _create_employee(doc):
+    """The Employee record at confirmation, for a trainee taken on before
+    trainees were employed from induction."""
+    if doc.get("employee"):
+        return doc.employee
+    try:
+        name = _new_employee(doc)
     except Exception:
         frappe.log_error(title="HRMS Addon: employee record for a confirmed trainee")
         return None
-    doc.db_set("employee", employee.name, update_modified=False)
-    return employee.name
+    doc.db_set("employee", name, update_modified=False)
+    return name
 
 
 def _enter_the_grid(doc, employee):
@@ -877,7 +1050,76 @@ def _enter_the_grid(doc, employee):
         doc.db_set("succession_position", position, update_modified=False)
 
 
-# ── 6. What the clock does ────────────────────────────────────────────
+# ── 6. An appraisal completed ─────────────────────────────────────────
+def appraisal_on_submit(doc, method=None):
+    """Appraisal on_submit (hooks.py): a completed appraisal reaches talent
+    at once. The trainee milestone it was raised for takes its score and
+    its competency check (test case 19), and the employee's placements not
+    yet finalised read their year again."""
+    _record_milestone(doc)
+    _refresh_open_placements(doc.get("employee"))
+
+
+def _record_milestone(appraisal):
+    rows = frappe.get_all("Trainee Milestone", filters={"appraisal": appraisal.name, "parenttype": TRAINEE},
+                          fields=["name", "parent"], limit=5)
+    for row in rows:
+        trainee = frappe.get_doc(TRAINEE, row.parent)
+        if trainee.docstatus != 0:
+            continue
+        milestone = next((line for line in trainee.milestones if line.name == row.name), None)
+        if milestone is None:
+            continue
+        milestone.score = flt(appraisal.get("custom_total_score") or appraisal.get("final_score"))
+        milestone.competency_check = _competency_level(appraisal)
+        milestone.result = rules.milestone_outcome(milestone.score, final=_is_final(trainee, milestone))
+        milestone.assessed_by = frappe.session.user
+        trainee.flags.ignore_permissions = True
+        trainee.save()
+        users = people.hr_officers(trainee.get("home_branch"), trainee.get("home_department"))
+        if users:
+            people.notify(list(users), TRAINEE, trainee.name,
+                          _("Milestone {0} for {1} is assessed: {2} out of 100, {3}.").format(
+                              milestone.milestone, trainee.trainee_name, milestone.score, milestone.result))
+
+
+def _competency_level(appraisal):
+    """The appraisal's competency check out of ten: its scorecard
+    competencies as scored, or its LPL/HR/18 factors as rated."""
+    evidence = rules.competency_evidence(
+        [{"competency": row.competency, "score": row.score}
+         for row in appraisal.get("custom_bsc_competencies") or []],
+        [{"factor": row.item, "rating": row.supervisor_rating} for row in appraisal.get("custom_factors") or []])
+    return rules.competency_average([{"level": row["level"]} for row in evidence])
+
+
+def _refresh_open_placements(employee):
+    """The employee's placements not yet finalised, read again from the
+    appraisals: written straight in, so their own checks and signatures
+    are not run again."""
+    if not employee:
+        return
+    for name in frappe.get_all(PLACEMENT, filters={"employee": employee, "docstatus": 0}, pluck="name"):
+        doc = frappe.get_doc(PLACEMENT, name)
+        _fill_performance(doc)
+        _fill_potential(doc)
+        _fill_box(doc)
+        doc.db_update()
+        for table in ("quarter_results", "competencies", "themes"):
+            doc.update_child_table(table)
+
+
+def seed_masters():
+    """The employment type a graduate trainee is on, made once (after_install
+    and the patch seed_talent_masters): HR may rename it or take it away,
+    and it is not put back."""
+    if frappe.db.exists("DocType", "Employment Type") \
+            and not frappe.db.exists("Employment Type", rules.TRAINEE_EMPLOYMENT):
+        frappe.get_doc({"doctype": "Employment Type",
+                        "employee_type_name": rules.TRAINEE_EMPLOYMENT}).insert(ignore_permissions=True)
+
+
+# ── 7. What the clock does ────────────────────────────────────────────
 def daily():
     _open_review_cycles()
     _chase_milestones()
@@ -933,7 +1175,7 @@ def _watch_top_talent():
     frappe.db.commit()
 
 
-# ── 7. Wiring ─────────────────────────────────────────────────────────
+# ── 8. Wiring ─────────────────────────────────────────────────────────
 def setup_workflows_on_migrate():
     from hrms_addon.hrms_addon import (succession_approval, talent_approval,
                                        talent_program_approval, trainee_approval, workflows)

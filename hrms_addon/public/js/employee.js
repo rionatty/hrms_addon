@@ -8,9 +8,13 @@
 //
 // doctype_js, read from disk when the form loads, so a change to it needs
 // no `bench build`.
+//
+// The employee's talent card is drawn here too, for HR and the Talent
+// Council (talent_card.js).
 
 frappe.ui.form.on("Employee", {
 	refresh(frm) {
+		if (hrms_addon.talent_card) hrms_addon.talent_card.attach(frm, frm.doc.name);
 		if (frm.doc.status !== "Left" || !frappe.user.has_role("Executive Director")) return;
 		frm.add_custom_button(__("Reinstate"), () => {
 			frappe.prompt(
