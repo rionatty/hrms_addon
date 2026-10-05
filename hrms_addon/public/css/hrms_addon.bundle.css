@@ -56,13 +56,15 @@
   --hra-danger:         #A62B25;   /* error / overdue              */
   --hra-success:        #256F3A;   /* success status only          */
 
-  /* Shell — sidebar + navbar. Lighter than the chrome navy on purpose:
-     a near-black slab down the left edge reads as heavy. Contrast with
-     --hra-shell-text is 6.6:1, with --hra-shell-muted 4.5:1. */
-  --hra-shell:          #3A5F86;   /* sidebar base — soft steel blue */
-  --hra-shell-dark:     #33547A;   /* navbar — a step down for depth */
+  /* Shell — sidebar + navbar. CyveTech navy since 5 Oct 2026 (Luuka
+     chose it over the steel blue, with the gold highlighter): the menu
+     is grouped under headings now, so the slab no longer reads as one
+     heavy list. Contrast with --hra-shell-text is 10.3:1, with
+     --hra-shell-muted 6.0:1. */
+  --hra-shell:          #14395E;   /* sidebar base — CyveTech navy   */
+  --hra-shell-dark:     #0F2E4C;   /* navbar — a step down for depth */
   --hra-shell-text:     #EAF1FA;   /* labels on the shell            */
-  --hra-shell-muted:    #C5D6EC;   /* section captions on the shell  */
+  --hra-shell-muted:    #9DBCE0;   /* group headings on the shell    */
   --hra-shell-marker:   #F0AB00;   /* selected-item gold highlight   */
   --hra-shell-marker-deep: #B37D00;/* its darker edge                */
 
@@ -554,26 +556,32 @@ html:not([data-theme="dark"]) .body-sidebar-container small {
   letter-spacing: .4px;
 }
 
-/* Hover + selected — the amber marker bar is straight off B1. */
+/* Hover: a light wash, rounded like the highlighter. */
 html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item:hover,
 html:not([data-theme="dark"]) .body-sidebar-container .sidebar-item-container:hover {
   background-color: rgba(255,255,255,.10) !important;
-  border-radius: var(--hra-radius-sm);
+  border-radius: 6px;
 }
-/* Selected item is a solid gold highlighter with navy ink.
+/* The entry open now is a solid gold highlighter with navy ink.
+   v16 marks it .active-sidebar on .standard-sidebar-item; .selected is
+   what v15 used, kept for a site still on it. Before 5 Oct 2026 only
+   .selected was styled, so on v16 the open entry showed nothing at all:
+   the blanket transparent rule above took Frappe's own white pill away.
    Solid, not translucent, on purpose: gold at any alpha over the navy
    shell composites to olive (#F0AB00 @ 22% lands on #627069), which
    reads as dirty green rather than gold. Solid keeps the colour and
-   buys far better contrast too — navy on gold is 7.79:1, where white
-   on the old translucent fill was 5.20:1. */
+   buys far better contrast too — navy on gold is 7.79:1. */
+html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.active-sidebar,
 html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.selected,
 html:not([data-theme="dark"]) .body-sidebar-container .sidebar-item-container.selected {
   background-color: var(--hra-shell-marker) !important;
-  border-left: 3px solid var(--hra-shell-marker-deep) !important;
-  border-radius: 0 var(--hra-radius-sm) var(--hra-radius-sm) 0;
+  border-radius: 6px !important;
+  box-shadow: none !important;
 }
 /* Overrides the shell-wide light-ink rule, which would otherwise leave
    near-white text on gold at 1.9:1. */
+html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.active-sidebar,
+html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.active-sidebar *,
 html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.selected,
 html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.selected *,
 html:not([data-theme="dark"]) .body-sidebar-container .sidebar-item-container.selected,
@@ -583,14 +591,41 @@ html:not([data-theme="dark"]) .body-sidebar-container .sidebar-item-container.se
 }
 /* Icons are <use> elements — `color` never reaches them, so the stroke
    has to be flipped separately or the selected row keeps pale icons. */
+html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.active-sidebar,
 html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.selected,
 html:not([data-theme="dark"]) .body-sidebar-container .sidebar-item-container.selected {
   --icon-stroke: var(--hra-primary-dark);
   --icon-fill: transparent;
 }
+html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.active-sidebar .icon use,
 html:not([data-theme="dark"]) .body-sidebar-container .standard-sidebar-item.selected .icon use,
 html:not([data-theme="dark"]) .body-sidebar-container .sidebar-item-container.selected .icon use {
   stroke: var(--hra-primary-dark) !important;
+}
+
+/* The groups (navigation_rules.GROUPS): each heading a small capital
+   caption with its icon, set apart from the group above; the entries
+   beneath it hang off a hairline guide. A heading is a Section Break
+   drawn with indent 1, which v16 renders as .section-item >
+   .standard-sidebar-item.indent, its entries in the .nested-container
+   that follows. Reports and Setup are drawn the same way, folded. */
+html:not([data-theme="dark"]) .body-sidebar-container .section-item > .standard-sidebar-item.indent {
+  margin-top: 10px;
+}
+html:not([data-theme="dark"]) .body-sidebar-container .section-item > .standard-sidebar-item.indent .sidebar-item-label {
+  color: var(--hra-shell-muted) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+html:not([data-theme="dark"]) .body-sidebar-container .section-item > .standard-sidebar-item.indent .icon use {
+  stroke: var(--hra-shell-muted) !important;
+}
+html:not([data-theme="dark"]) .body-sidebar-container .indent + .nested-container {
+  margin-left: 18px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(255,255,255,.16) !important;
 }
 
 /* Search / inputs inside the shell */

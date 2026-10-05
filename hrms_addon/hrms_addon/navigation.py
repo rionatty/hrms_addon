@@ -199,8 +199,8 @@ def _apply_sidebar(workspace, entries):
         return
     doc = frappe.get_doc("Workspace Sidebar", workspace)
     current = [row.as_dict() for row in doc.items]
-    items = rules.merge_sidebar(_prune(current), entries)
-    if _same(items, current):
+    items = rules.arrange_sidebar(rules.merge_sidebar(_prune(current), entries), rules.GROUPS.get(workspace))
+    if _same(items, current, SIDEBAR_LOOK):
         return
     _write(doc, "items", items)
     doc.flags.ignore_permissions = True
@@ -288,14 +288,20 @@ def _write(doc, table, rows):
         doc.append(table, row)
 
 
-def _same(wanted, current):
+# how a sidebar row is drawn, compared as well: the groups set a heading's
+# icon and keep it open, and clear the icon of an entry beneath it
+SIDEBAR_LOOK = ("icon", "indent", "collapsible", "keep_closed")
+
+
+def _same(wanted, current, look=()):
     """Whether the rows say the same thing, ignoring what the database adds
     (names, timestamps), and are numbered 1, 2, 3... as they must be to come
-    back in this order every time."""
+    back in this order every time. `look` adds fields compared as blank
+    whether the database holds "", 0 or nothing."""
     keys = ("type", "label", "link_type", "link_to", "child", "link_count", "is_query_report", "report_ref_doctype")
 
     def shape(rows):
-        return [tuple(row.get(key) for key in keys) for row in rows]
+        return [tuple(row.get(key) for key in keys) + tuple(row.get(key) or None for key in look) for row in rows]
 
     in_order = [row.get("idx") for row in current] == list(range(1, len(current) + 1))
     return in_order and shape(wanted) == shape(current)

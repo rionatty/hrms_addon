@@ -47,14 +47,22 @@ FIELD_TO_VAR = {
 DEFAULTS = {
     "primary_navy":          "#14395E",
     "section_header_colour": "#2A5A8C",
-    "sidebar_background":    "#3A5F86",
-    "navbar_background":     "#33547A",
+    "sidebar_background":    "#14395E",
+    "navbar_background":     "#0F2E4C",
     "canvas_top":            "#3A6A9A",
     "canvas_bottom":         "#4878A4",
     "accent_colour":         "#0A6ED1",
     "selected_highlight":    "#F0AB00",
     "zebra_tint":            "#EEF3F9",
     "border_colour":         "#C3D0E0",
+}
+# what DEFAULTS said before the navy shell (5 Oct 2026). A site that saved
+# these never chose them: "Reset to Defaults" writes them in. The patch
+# navy_sidebar moves such a site onto the navy, and leaves a colour someone
+# picked alone.
+FORMER_DEFAULTS = {
+    "sidebar_background":    "#3A5F86",
+    "navbar_background":     "#33547A",
 }
 
 

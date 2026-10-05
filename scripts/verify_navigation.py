@@ -216,7 +216,8 @@ for page in R.PAGES:
         if shipped["Workspace"].get("content") != json.dumps(
                 R.merge_content([], R.CARDS[page["label"]])):
             fail.append("PAGES: %s's workspace file has no blocks for its cards" % page["label"])
-        wanted = R.numbered(R.merge_sidebar(start, R.SIDEBAR[page["label"]]))
+        wanted = R.numbered(R.arrange_sidebar(R.merge_sidebar(start, R.SIDEBAR[page["label"]]),
+                                              R.GROUPS.get(page["label"])))
         if shipped["Workspace Sidebar"]["items"] != wanted:
             fail.append("PAGES: %s's sidebar file is out of step with SIDEBAR" % page["label"])
         if not shipped["Workspace Sidebar"].get("standard"):
@@ -422,6 +423,8 @@ for needle, why in (('if not frappe.db.exists("Workspace", workspace):', "a work
                     ('if not frappe.db.exists("Workspace Sidebar", workspace):', "and so is a sidebar"),
                     ("rules.merge_links(", "the cards come from the rules"),
                     ("rules.merge_sidebar(", "and so do the sidebar entries"),
+                    ("rules.arrange_sidebar(", "laid out in their groups"),
+                    ("_same(items, current, SIDEBAR_LOOK)", "a heading's icon or fold is written when it changes"),
                     ("frappe.db.savepoint(savepoint)", "a failure here never fails the deploy"),
                     ("doc.flags.ignore_permissions = True", "it writes as the system")):
     if needle not in glue:
@@ -708,7 +711,8 @@ for newest_first in (False, True):
             items = site.rows("Workspace Sidebar", label)
             if [item["idx"] for item in items] != list(range(1, len(items) + 1)):
                 fail.append("%s: the %s sidebar items are not numbered 1, 2, 3..." % (what, label))
-            wanted = [item["label"] for item in R.merge_sidebar(base_sidebar(label)["items"], entries)]
+            wanted = [item["label"] for item in R.arrange_sidebar(R.merge_sidebar(base_sidebar(label)["items"], entries),
+                                                                  R.GROUPS.get(label))]
             if [item["label"] for item in items] != wanted:
                 fail.append("%s: the %s sidebar reads %s, not %s" % (what, label, [item["label"] for item in items], wanted))
         if dead in site.tables:
@@ -735,6 +739,131 @@ else:
         fail.append("the stand-in site no longer reproduces the duplication it is there to catch: check Site.rows and Doc.append")
     print("as Frappe writes it: fresh and spoilt sites, either read order: every link once in its own card, "
           "theirs untouched, rows numbered, a second migrate writes nothing")
+
+# ── 7. Luuka, 5 Oct 2026: every sidebar in its groups ─────────────────
+# Added one by one, the entries made one long list, every one of ours with
+# Frappe's stand-in "list" icon (sidebar_item.js gives an entry with no icon
+# "list", unless it hangs under a heading drawn with indent 1).
+def icon_names():
+    names = set()
+    for path in ("lucide.svg", os.path.join("lucide", "icons.svg"), os.path.join("timeless", "icons.svg")):
+        full = os.path.join(APPS_ROOT, "frappe", "frappe", "public", "icons", path)
+        if os.path.exists(full):
+            names |= set(re.findall(r'id="icon-([a-z0-9-]+)"', open(full, encoding="utf-8").read()))
+    return names
+
+
+ICONS = icon_names()
+if set(R.GROUPS) != set(R.SIDEBAR):
+    fail.append("GROUPS: every sidebar this app adds to is laid out in groups: %s"
+                % sorted(set(R.GROUPS) ^ set(R.SIDEBAR)))
+grouped_pages = 0
+for label, groups in R.GROUPS.items():
+    base = base_sidebar(label)
+    if not base:
+        continue
+    grouped_pages += 1
+    merged = R.merge_sidebar(base["items"], R.SIDEBAR.get(label, []))
+    laid = R.arrange_sidebar(merged, groups)
+    names = [name for name, _icon, _entries in groups]
+    if len(set(names)) != len(names):
+        fail.append("GROUPS[%r]: a group named twice: %s" % (label, names))
+    named = [link_to for _name, _icon, entries in groups for link_to in entries]
+    if len(set(named)) != len(named):
+        fail.append("GROUPS[%r]: an entry in two groups" % label)
+    there = {item.get("link_to") for item in merged if item.get("type") == "Link"}
+    absent = [link_to for link_to in named if link_to not in there]
+    if absent:
+        fail.append("GROUPS[%r]: %s is on no entry of that sidebar" % (label, absent))
+    if {item.get("link_to") for item in merged} - {item.get("link_to") for item in laid}:
+        fail.append("%s sidebar: laying it out dropped an entry" % label)
+    if R.arrange_sidebar(R.merge_sidebar(laid, R.SIDEBAR.get(label, [])), groups) != laid:
+        fail.append("%s sidebar: a second migrate would lay it out differently" % label)
+    if [item.get("label") for item in R.arrange_sidebar(list(reversed(merged)), groups)
+            if item.get("type") == "Section Break" and item.get("label") in names] != names:
+        fail.append("%s sidebar: the groups come in the order GROUPS gives, whatever order the rows are read in"
+                    % label)
+    section, open_heading = None, None
+    for item in laid:
+        if item.get("type") == "Section Break":
+            section = item
+            if item.get("label") in names:
+                if not (item.get("indent") == 1 and item.get("collapsible") and not item.get("keep_closed")):
+                    fail.append("%s sidebar: the %s heading is drawn open, with indent 1" % (label, item["label"]))
+                if ICONS and item.get("icon") not in ICONS:
+                    fail.append("%s sidebar: the %s heading's icon %r is not one Frappe ships"
+                                % (label, item["label"], item.get("icon")))
+            continue
+        if item.get("child") and section is None:
+            fail.append("%s sidebar: %s hangs under no heading" % (label, item.get("label")))
+        if not item.get("child"):
+            if not item.get("icon"):
+                fail.append("%s sidebar: %s sits at the top with no icon, so it shows Frappe's \"list\""
+                            % (label, item.get("label")))
+            elif ICONS and item.get("icon") not in ICONS and not item["icon"].startswith("es-"):
+                fail.append("%s sidebar: %s's icon %r is not one Frappe ships" % (label, item["label"], item["icon"]))
+        elif section and section.get("label") in names and item.get("icon"):
+            fail.append("%s sidebar: %s under %s carries an icon; Frappe's own entries under a heading have none"
+                        % (label, item.get("label"), section["label"]))
+    folded = {item.get("label"): item.get("keep_closed") for item in laid
+              if item.get("type") == "Section Break" and item.get("label") not in names}
+    for name in ("Reports", "Setup"):
+        if name in folded and not folded[name]:
+            fail.append("%s sidebar: %s stays folded, as Frappe HR ships it" % (label, name))
+    headings = [item.get("label") for item in laid if item.get("type") == "Section Break"]
+    ours = [heading for heading in headings if heading in names]
+    if headings[:len(ours)] != ours:
+        fail.append("%s sidebar: the groups come first, above Reports and Setup: %s" % (label, headings))
+    for item in laid:
+        if item.get("link_to") in R.SHORT_LABELS and item.get("child") and \
+                item.get("label") != R.SHORT_LABELS[item["link_to"]]:
+            fail.append("%s sidebar: %s is named %r under its heading, not %r"
+                        % (label, item["link_to"], item.get("label"), R.SHORT_LABELS[item["link_to"]]))
+everywhere = {link_to for groups in R.GROUPS.values() for _name, _icon, entries in groups for link_to in entries}
+if set(R.SHORT_LABELS) - everywhere:
+    fail.append("SHORT_LABELS names an entry no group holds: %s" % sorted(set(R.SHORT_LABELS) - everywhere))
+for link_to, icon in R.TOP_ICONS.items():
+    if ICONS and icon not in ICONS:
+        fail.append("TOP_ICONS: %s's icon %r is not one Frappe ships" % (link_to, icon))
+hro = json.loads(read("hrms_addon", "hrms_addon", "workspace_sidebar", "hr_overview.json"))
+for item in hro["items"]:
+    if not item.get("icon") or (ICONS and item["icon"] not in ICONS):
+        fail.append("workspace_sidebar/hr_overview.json: %s needs an icon Frappe ships, not %r"
+                    % (item.get("label"), item.get("icon")))
+
+# the rule on its own: a section of theirs taken over keeps what else it
+# holds, an entry is renamed only under its heading, a group with nothing
+# there is left out
+SIDE = [
+    {"type": "Link", "label": "Home", "link_to": "Home", "icon": "home"},
+    {"type": "Link", "label": "Employee Separation", "link_to": "Employee Separation", "icon": "user-round-minus"},
+    {"type": "Link", "label": "HR Calendar", "link_to": "hr-calendar", "link_type": "Page", "icon": ""},
+    {"type": "Section Break", "label": "Exit", "icon": "x", "indent": 1, "keep_closed": 1},
+    {"type": "Link", "label": "Their Own", "link_to": "Their Own", "child": 1},
+    {"type": "Section Break", "label": "Reports", "icon": "notepad-text", "indent": 1, "keep_closed": 1},
+    {"type": "Link", "label": "Employee Exits", "link_to": "Employee Exits", "child": 1},
+    {"type": "Link", "label": "Settings", "link_to": "HR Settings", "icon": "settings"},
+]
+GROUPED = [("Exit", "log-out", ["Employee Separation"]), ("Nothing Here", "x", ["Not On This Page"])]
+laid = R.arrange_sidebar(SIDE, GROUPED)
+if [(item["type"], item["label"]) for item in laid] != [
+        ("Link", "Home"), ("Link", "HR Calendar"), ("Section Break", "Exit"), ("Link", "Separation"),
+        ("Link", "Their Own"), ("Section Break", "Reports"), ("Link", "Employee Exits"), ("Link", "Settings")]:
+    fail.append("arrange_sidebar: the group above Reports, its own entry first and theirs after, a group with "
+                "nothing there left out: %s" % [(item["type"], item["label"]) for item in laid])
+exit_head = next(item for item in laid if item["label"] == "Exit")
+if (exit_head["icon"], exit_head["keep_closed"], exit_head["indent"]) != ("log-out", 0, 1):
+    fail.append("arrange_sidebar: a section of theirs taken over is drawn as the group says: %s" % exit_head)
+if next(item for item in laid if item["label"] == "HR Calendar")["icon"] != "calendar":
+    fail.append("arrange_sidebar: an entry of ours left at the top gets its icon")
+if next(item for item in laid if item["label"] == "Separation")["icon"] != "":
+    fail.append("arrange_sidebar: an entry under a heading is drawn without its icon")
+if R.arrange_sidebar(SIDE, None) != SIDE or R.arrange_sidebar(SIDE, []) != SIDE:
+    fail.append("arrange_sidebar: a sidebar with no groups is left as it is")
+if SIDE[1]["label"] != "Employee Separation":
+    fail.append("arrange_sidebar must not change the rows it is given")
+print("the groups: %d sidebars laid out under headings, every top entry with an icon Frappe ships, Reports "
+      "and Setup folded below, a second migrate the same" % grouped_pages)
 
 print()
 if fail:

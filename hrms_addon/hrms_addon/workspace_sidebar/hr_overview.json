@@ -9,7 +9,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "layout-dashboard",
    "idx": 1,
    "indent": 0,
    "keep_closed": 0,
@@ -22,7 +22,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "layout-grid",
    "idx": 2,
    "indent": 0,
    "keep_closed": 0,
@@ -35,7 +35,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "calendar",
    "idx": 3,
    "indent": 0,
    "keep_closed": 0,
@@ -48,7 +48,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "chart-column",
    "idx": 4,
    "indent": 0,
    "keep_closed": 0,
@@ -59,7 +59,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-10-02 09:00:00.000000",
+ "modified": "2026-10-05 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HR Overview",

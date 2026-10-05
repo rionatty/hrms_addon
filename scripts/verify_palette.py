@@ -182,6 +182,49 @@ if not re.search(r"\.body-sidebar-container \.notifications-list \{\s*\n\s*backg
     fail.append("the notifications panel needs its own opaque background, or the page shows through it")
 print("the navy shell stops at the notifications panel")
 
+# 13. the gold highlighter on v16's own class, and the groups' headings
+#     (Luuka, 5 Oct 2026). v16 marks the entry open now .active-sidebar on
+#     .standard-sidebar-item (sidebar.js set_active_workspace_item); the
+#     theme styled only v15's .selected, so on v16 the open entry showed
+#     nothing: the blanket rule above took Frappe's own pill away.
+#     scratchpad/render_sidebar.py draws the sidebar with this stylesheet.
+css_rules = re.findall(r"([^{}]+)\{([^{}]*)\}", strip_comments(css, ".css"))
+
+
+def styled(selector, *declarations):
+    """Some rule naming `selector` declares every one of `declarations`."""
+    return any(selector in [part.strip() for part in selectors.split(",")]
+               and all(declaration in body for declaration in declarations) for selectors, body in css_rules)
+
+
+SHELL = 'html:not([data-theme="dark"]) .body-sidebar-container '
+for selector, declarations, why in (
+    (SHELL + ".standard-sidebar-item.active-sidebar", ("background-color: var(--hra-shell-marker) !important",),
+     "the entry open now is the gold highlighter, on the class v16 sets"),
+    (SHELL + ".standard-sidebar-item.active-sidebar *", ("color: var(--hra-primary-dark) !important",),
+     "in navy ink, or the shell's pale ink leaves it at 1.9:1 on gold"),
+    (SHELL + ".standard-sidebar-item.active-sidebar .icon use", ("stroke: var(--hra-primary-dark) !important",),
+     "and its icon navy too"),
+    (SHELL + ".section-item > .standard-sidebar-item.indent .sidebar-item-label",
+     ("color: var(--hra-shell-muted) !important", "text-transform: uppercase"),
+     "a group's heading is a small capital caption, set back from the entries"),
+    (SHELL + ".indent + .nested-container", ("border-left: 1px solid",),
+     "and the entries beneath it hang off a hairline guide"),
+):
+    if not styled(selector, *declarations):
+        fail.append("hrms_addon.bundle.css: %s (no rule for %r declaring %s)" % (why, selector, declarations))
+if "hrms_addon.patches.v1_0.navy_sidebar" not in read("hrms_addon/patches.txt"):
+    fail.append("patches.txt: navy_sidebar moves a site that saved the old defaults onto the navy")
+patch = read("hrms_addon/patches/v1_0/navy_sidebar.py")
+for needle in ("theme.FORMER_DEFAULTS", "theme.DEFAULTS[fieldname]", "saved.upper() == former.upper()"):
+    if needle not in patch:
+        fail.append("navy_sidebar.py: only a colour still at the old default is moved (%r not found)" % needle)
+former = dict(re.findall(r'"(\w+)":\s*"(#[0-9A-Fa-f]{6})"', block(py, "FORMER_DEFAULTS = {", "}")))
+if not former or set(former) - set(defaults) \
+        or any(defaults[field].upper() == value.upper() for field, value in former.items() if field in defaults):
+    fail.append("FORMER_DEFAULTS: the colours DEFAULTS no longer give, each a field of DEFAULTS: %s" % former)
+print("the gold highlighter on v16's .active-sidebar, the groups' headings and guides, old defaults moved")
+
 
 print()
 if fail:

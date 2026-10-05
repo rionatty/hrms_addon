@@ -485,6 +485,109 @@ SIDEBAR = {
     ],
 }
 
+# How each sidebar is laid out (Luuka, 5 Oct 2026: "the menu is not
+# appealing"). Added one by one, the entries made one long list, and every
+# one of ours carried Frappe's stand-in "list" icon. Now every entry, ours
+# and Frappe HR's alike, sits under a heading for the part of the process it
+# serves, drawn open with its own icon; the entries at the top keep theirs,
+# and Reports, Setup and Frappe HR's other sections stay below, folded, as
+# they ship. A group named like one of their sections (Planning, Overtime,
+# Travel) takes it over, and whatever else they keep in it follows.
+#   workspace -> [(group, icon, [what each entry opens, in order])]
+GROUPS = {
+    "Recruitment": [
+        ("Planning", "clipboard-list", ["Job Requisition", "Staffing Plan", "Employee Referral"]),
+        ("Hiring", "briefcase", ["Job Opening", "Job Applicant", "Interview Shortlist", "Interview",
+                                 "Interview Report"]),
+        ("Offers", "handshake", ["Job Offer", "Appointment Letter"]),
+    ],
+    "Performance": [
+        ("Appraisals", "star", ["Appraisal Plan", "Appraisal Cycle", "Appraisal", "Performance Review",
+                                "Performance Improvement Plan"]),
+        ("Goals and Feedback", "target", ["Goal", "Employee Performance Feedback"]),
+        ("Promotions", "trending-up", ["Employee Promotion", "Employee Position Change"]),
+        ("Talent", "award", ["Talent Review", "Talent Placement", "Talent Program", "Succession Position",
+                             "Graduate Trainee Program"]),
+    ],
+    "Loans": [
+        ("Loans", "hand-coins", ["Employee Loan"]),
+        ("Advances", "coins", ["Salary Advance Request", "Salary Advance Processing", "Employee Advance"]),
+        ("Penalties", "gavel", ["Employee Penalty"]),
+    ],
+    "Leaves": [
+        ("Requests", "clipboard-pen", ["Leave Application", "Leave Encashment"]),
+        ("Leave Advances", "wallet", ["Leave Advance", "Leave Advance Processing"]),
+        ("Planning", "calendar-days", ["Annual Leave Plan", "Leave Plan Change"]),
+        ("Allocation", "layers", ["Leave Control Panel", "Leave Policy Assignment", "Leave Allocation"]),
+    ],
+    "Shift & Attendance": [
+        ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Attendance Request",
+                                 "Late Arrival Notice", "Gate Pass", "Off Duty Request"]),
+        ("Shifts", "repeat", ["Shift Request", "Shift Rotation", "Shift Allowance"]),
+        ("Overtime", "calendar-clock", ["Overtime Request", "Overtime Slip"]),
+    ],
+    "Payroll": [
+        ("Payroll", "banknote", ["Payroll Entry", "Salary Structure Assignment", "Salary Slip", "Additional Salary",
+                                 "Salary Withholding"]),
+        ("Output Pay", "factory", ["Daily Production Report", "Output Pay Run"]),
+    ],
+    "Tenure": [
+        ("Joining", "user-plus", ["Employee Onboarding", "Onboarding Review", "Probation Evaluation",
+                                  "Intern Placement"]),
+        ("Contracts", "file-text", ["Employee Contract", "Employee Position Change",
+                                    "Employee Data Change Request"]),
+        ("Training", "graduation-cap", ["Training Requisition", "Training Needs Assessment", "Training Calendar",
+                                        "Monthly Training Schedule"]),
+        ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Safety Incident"]),
+        ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement"]),
+    ],
+    "Expenses": [
+        ("Claims", "receipt", ["Expense Claim", "Employee Advance", "Allowance Request"]),
+        ("Travel", "plane", ["Travel Request", "Vehicle Log"]),
+    ],
+}
+
+# the shorter name an entry carries under its group's heading, which says
+# the rest: what it opens -> its name there. It opens the same document.
+SHORT_LABELS = {
+    "Employee Referral": "Referral",
+    "Interview Shortlist": "Shortlist",
+    "Performance Improvement Plan": "Improvement Plan",
+    "Employee Performance Feedback": "Feedback",
+    "Employee Promotion": "Promotion",
+    "Employee Position Change": "Position Change",
+    "Talent Placement": "Placement",
+    "Talent Program": "Program",
+    "Succession Position": "Succession",
+    "Graduate Trainee Program": "Graduate Trainees",
+    "Salary Advance Request": "Advance Request",
+    "Salary Advance Processing": "Advance Processing",
+    "Employee Penalty": "Penalty",
+    "Leave Encashment": "Encashment",
+    "Leave Advance Processing": "Advance Processing",
+    "Annual Leave Plan": "Annual Plan",
+    "Leave Plan Change": "Plan Change",
+    "Leave Control Panel": "Control Panel",
+    "Leave Policy Assignment": "Policy Assignment",
+    "Leave Allocation": "Allocation",
+    "Employee Checkin": "Checkin",
+    "Employee Attendance Tool": "Attendance Tool",
+    "Salary Structure Assignment": "Salary Assignment",
+    "Salary Withholding": "Withholding",
+    "Daily Production Report": "Daily Production",
+    "Employee Onboarding": "Onboarding",
+    "Employee Data Change Request": "Data Change Request",
+    "Training Needs Assessment": "Needs Assessment",
+    "Monthly Training Schedule": "Monthly Schedule",
+    "Employee Grievance": "Grievance",
+    "Employee Separation": "Separation",
+    "Full and Final Statement": "Final Settlement",
+}
+
+# the icon of an entry of ours that stays at the top of a sidebar, above
+# the groups: what it opens -> icon
+TOP_ICONS = {"hr-calendar": "calendar", "attendance-board": "layout-grid"}
+
 CARD_BREAK, LINK, SECTION = "Card Break", "Link", "Section Break"
 
 
@@ -622,6 +725,53 @@ def merge_sidebar(items, entries):
         at = _seat(items, section, after)
         items.insert(at, sidebar_row(label, link_to, kind, child=1 if section else 0))
     return items
+
+
+def arrange_sidebar(items, groups):
+    """The sidebar's items laid out in its groups (GROUPS): each group a
+    heading drawn open, its entries beneath it in the order given and under
+    their SHORT_LABELS names, placed after the entries at the top and before
+    the sections still there, which stay as they were. A group named like a
+    section already there takes it over: what else that section holds
+    follows the group's own entries. An entry of ours left at the top gets
+    its TOP_ICONS icon. Entries no group names, theirs or ours, stay where
+    they are; a group none of whose entries is there is left out. Run on
+    its own result, it changes nothing."""
+    items = [dict(item) for item in items]
+    if not groups:
+        return items
+    names = {name for name, _icon, _entries in groups}
+    placed = {link_to for _name, _icon, entries in groups for link_to in entries}
+    found, heads, leftovers, rest = {}, {}, {name: [] for name in names}, []
+    section = None
+    for item in items:
+        if item.get("type") == SECTION:
+            section = item.get("label")
+            if section in names:
+                heads.setdefault(section, item)
+            else:
+                rest.append(item)
+        elif item.get("type") == LINK and item.get("link_to") in placed:
+            found.setdefault(item["link_to"], item)
+        elif section in names and item.get("child"):
+            leftovers[section].append(item)
+        else:
+            rest.append(item)
+    block = []
+    for name, icon, entries in groups:
+        # an entry is drawn without an icon under its heading, as Frappe
+        # draws the entries of its own sections
+        rows = [dict(found[link_to], child=1, icon="", label=SHORT_LABELS.get(link_to, found[link_to].get("label")))
+                for link_to in entries if link_to in found] + leftovers[name]
+        if rows:
+            block.append(dict(heads.get(name) or {}, type=SECTION, label=name, link_type=None, link_to=None,
+                              icon=icon, child=0, indent=1, collapsible=1, keep_closed=0, show_arrow=0))
+            block += rows
+    at = next((i for i, item in enumerate(rest) if item.get("type") == SECTION), len(rest))
+    for item in rest[:at]:
+        if item.get("type") == LINK and not item.get("icon") and item.get("link_to") in TOP_ICONS:
+            item["icon"] = TOP_ICONS[item["link_to"]]
+    return rest[:at] + block + rest[at:]
 
 
 def _seat(items, section, after):
