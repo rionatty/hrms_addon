@@ -8,6 +8,14 @@
 // is. The links go to whatever the plan came from or went to.
 
 frappe.ui.form.on("Talent Program", {
+	setup(frm) {
+		// the succession plan, the placement and the promotion that point at
+		// a plan are cancelled on their own (talent.program_on_cancel)
+		frm.ignore_doctypes_on_cancel_all = [
+			...new Set([...(frm.ignore_doctypes_on_cancel_all || []),
+				"Succession Position", "Employee Position Change", "Talent Placement"]),
+		];
+	},
 	refresh(frm) {
 		const grid = frm.fields_dict.actions && frm.fields_dict.actions.grid;
 		const done = frappe.meta.get_docfield("Development Action", "completed_on", frm.doc.name);
@@ -21,6 +29,7 @@ frappe.ui.form.on("Talent Program", {
 			if (name) frm.add_custom_button(__(label), () => frappe.set_route("Form", doctype, name), __("Open"));
 		};
 		go("Employee", "Employee", frm.doc.employee);
+		go("Succession Plan", "Succession Position", frm.doc.succession_position);
 		go("Nine-Box Placement", "Talent Placement", frm.doc.placement);
 		go("Training Requisition", "Training Requisition", frm.doc.training_requisition);
 	},

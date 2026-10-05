@@ -62,3 +62,5 @@ hrms_addon.patches.v1_0.careers_without_login
 hrms_addon.patches.v1_0.number_applications
 hrms_addon.patches.v1_0.navy_sidebar
 hrms_addon.patches.v1_0.talent_with_appraisal
+hrms_addon.patches.v1_0.succession_follow_through
+hrms_addon.patches.v1_0.talent_box_out_of_plans

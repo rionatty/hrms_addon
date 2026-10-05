@@ -37,6 +37,8 @@ are the ones flight risk is watched on.
 """
 
 import calendar
+import datetime
+import re
 
 # ── The bands ─────────────────────────────────────────────────────────
 LOW, MEETING, EXCEEDING = "Low", "Meeting", "Exceeding"
@@ -613,6 +615,149 @@ def month_bounds(day):
             "%04d-%02d-%02d" % (year, month, calendar.monthrange(year, month)[1]))
 
 
+# ── What a confirmed plan leads to (Luuka, 6 Oct 2026) ────────────────
+# A plan acts once its holder's last day is EXIT_WINDOW days away: about
+# what a requisition needs to clear Luuka's approvals and an opening to be
+# filled. While nobody is ready to take over, HR and the council are told
+# again at each mark.
+EXIT_WINDOW = 90
+EXIT_MARKS = (90, 60, 30)
+REPLACEMENT, NEW_ADDITION = "Replacement", "New Addition"
+MENTORED, TAUGHT = "Mentoring and Coaching", "Learning and Development"
+# the successors a plan aimed at the role is drawn up for
+TO_DEVELOP = (READY_SOON, EMERGING)
+# the line of the clearance (LPL/HR/22, box A) the handover is written on
+HANDOVER_ITEM = "Handover report"
+# what a programme's closing decision leads to (test case 3)
+DECISION_STEPS = {"Succession Pipeline": "pool", "Promotion": "promote", "Replacement": "replace"}
+
+
+def days_until(day, today):
+    """Whole days from today to a day, negative once it has passed; None
+    without a day."""
+    end, start = _day(day), _day(today)
+    if not end or not start:
+        return None
+    return (end - start).days
+
+
+def ready_successor(candidates, leaver=None, active=None):
+    """Who takes the role over: the first successor the council put down as
+    ready now, in the order they listed them, still employed and not the
+    one leaving. None when nobody is.
+
+    active: the employees still employed, or None to take everyone named."""
+    for row in candidates or []:
+        employee = row.get("employee")
+        if row.get("readiness") != READY_NOW or not employee or employee == leaver:
+            continue
+        if active is not None and employee not in active:
+            continue
+        return row
+    return None
+
+
+def successors_to_develop(candidates):
+    """The successors a plan aimed at the role is drawn up for: those ready
+    in one to two years and those emerging. One ready now needs the role,
+    not a plan."""
+    return [row for row in candidates or [] if row.get("employee") and row.get("readiness") in TO_DEVELOP]
+
+
+def successor_program(has_mentor):
+    """A successor is coached by the holder of the role while there is one,
+    and taught otherwise."""
+    return MENTORED if has_mentor else TAUGHT
+
+
+def successor_plan_end(readiness, start, exit_due=None):
+    """When a successor's plan ends: a year for one ready in one to two
+    years, two for one emerging. A holder leaving sooner brings it forward
+    to their last day, but never to under a quarter, so an appraisal comes
+    after it to read what it did."""
+    begin = _day(start)
+    if not begin:
+        return None
+    end = _years_on(begin, 1 if readiness == READY_SOON else 2)
+    leaving = _day(exit_due)
+    if leaving and leaving < end:
+        end = max(leaving, begin + datetime.timedelta(days=90))
+    return end.isoformat()
+
+
+def plan_actions(needs):
+    """A successor's development needs as the plan's actions: one per line
+    or per semicolon, bullets and numbering dropped, each once."""
+    out, seen = [], set()
+    for part in re.split(r"[\r\n;]+", _text(needs)):
+        text = " ".join(re.sub(r"^\s*(?:[-*•]+|\d+[.)])\s*", "", part).split())
+        if text and text.lower() not in seen:
+            seen.add(text.lower())
+            out.append(text)
+    return out
+
+
+def exit_step(facts, today):
+    """What a succession plan does about its holder leaving, on a day.
+
+    facts: "exit_due" (the holder's last day), "confirmed" (the council has
+    confirmed the plan), "ready" (somebody is to take over: a successor
+    ready now, or a promotion already drafted), "promotion" and
+    "requisition" (what is drafted already), "alerted" (the last mark HR
+    and the council were told at).
+
+    Returns {"days", "promote", "recruit", "alert"}. Nothing happens until
+    the exit is EXIT_WINDOW days away, nor once it has passed. Then a
+    confirmed plan with somebody ready drafts their promotion and needs
+    nobody told; a confirmed plan without drafts the requisition for a
+    replacement; and while nobody is ready, or the plan is not confirmed,
+    HR and the council are told at each mark it reaches."""
+    out = {"days": days_until(facts.get("exit_due"), today), "promote": False, "recruit": False,
+           "alert": None}
+    days = out["days"]
+    if days is None or days < 0 or days > EXIT_WINDOW:
+        return out
+    if facts.get("confirmed") and facts.get("ready"):
+        out["promote"] = not facts.get("promotion")
+        return out
+    if facts.get("confirmed") and not facts.get("requisition"):
+        out["recruit"] = True
+    out["alert"] = exit_mark(days, facts.get("alerted"))
+    return out
+
+
+def exit_mark(days, alerted=None):
+    """The mark (90, 60 or 30 days out) a plan has reached and not been told
+    at yet, or None. A day the scheduler missed is caught up the next, and
+    an exit announced late is told once, at the mark it falls in."""
+    if days is None or days < 0:
+        return None
+    reached = [mark for mark in EXIT_MARKS if days <= mark]
+    if not reached:
+        return None
+    mark = min(reached)
+    if alerted and int(_number(alerted)) <= mark:
+        return None
+    return mark
+
+
+def requisition_reason(exit_due=None, incumbent=None):
+    """Why the requisition is raised: to replace a holder who is leaving, or
+    to fill a role nobody holds; otherwise the holder stays and the empty
+    bench is grown by an addition."""
+    return REPLACEMENT if exit_due or not incumbent else NEW_ADDITION
+
+
+def handover_note(designation, successor=None):
+    """The clearance's handover line for the holder of a critical role: who
+    the work goes to. Under 140 characters, the width of the line."""
+    if successor:
+        text = "To %s, who takes over as %s" % (successor, designation)
+    else:
+        text = "No successor is ready for %s. Hand over to the head of department" % designation
+    return text[:140]
+
+
 # ── Small helpers ─────────────────────────────────────────────────────
 def _number(value):
     try:
@@ -623,6 +768,26 @@ def _number(value):
 
 def _text(value):
     return (value or "").strip() if isinstance(value, str) else ("" if value is None else str(value))
+
+
+def _years_on(day, years):
+    """The same day `years` on; the 29th of February falls back to the 28th."""
+    try:
+        return day.replace(year=day.year + years)
+    except ValueError:
+        return day.replace(year=day.year + years, day=28)
+
+
+def _day(value):
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    text = _text(value)[:10]
+    try:
+        return datetime.date(*(int(part) for part in text.split("-"))) if text else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _and(items):

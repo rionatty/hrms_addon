@@ -2,6 +2,7 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 23:30:00.000000",
+ "default_print_format": "Talent Card",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [

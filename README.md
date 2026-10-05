@@ -835,11 +835,29 @@ nine cells, and the cell is at permission level 1: HR and the Talent
 Council see the grid, while an employee sees only their development
 themes. Finalising a placement draws up the development plan and sends its
 training to L&D as a real Training Requisition; a succession gap the
-council confirms raises a real Job Opening; a confirmed graduate trainee
+council confirms drafts a real Job Requisition, which becomes the Job
+Opening once Luuka's approvals pass it; a confirmed graduate trainee
 gets a real Employee record. The checker walks all four workflows end to
 end and pins what the glue relies on upstream — a Job Applicant carries
 neither company nor department, so both are read from the Job Opening they
 applied against.
+
+A confirmed succession plan acts on its holder's exit. An Employee
+Separation gives the plan the holder's last day. Ninety days out, a
+successor who is ready now has their promotion drafted as an Employee
+Position Change. With nobody ready, a Job Requisition for a replacement is
+drafted. HR and the Talent Council are told at 90, 60 and 30 days while
+nobody is ready, each draft is made once for a given last day, and the
+approved promotion hands the role over on the plan. The checker holds the
+exit watch to a table of cases. It also checks that a confirmed plan only
+changes fields Frappe allows after submit, and that the Cancel All lists
+name every submittable document that points at a plan or a programme. The
+four talent print outs (Talent Card, Individual Development Plan,
+Succession Slate, Graduate Trainee Progress) are compiled by
+`jinja_subset.py`, a reader for the subset of Jinja they use, so no Jinja
+install is needed here. Every field they print must exist, and the box
+prints only behind a check of the reader's permission level, because a
+custom print format is handed every field.
 
 `verify_discipline.py` covers employee relations and welfare: the
 disciplinary ladder (5.3), the non-disciplinary concern (5.4) and the

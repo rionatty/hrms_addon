@@ -13,7 +13,8 @@
   "box_name",
   "nominated_by",
   "development_needs",
-  "training_requisition"
+  "training_requisition",
+  "development_plan"
  ],
  "fields": [
   {
@@ -76,7 +77,7 @@
    "fieldtype": "Small Text",
    "label": "Development Needs",
    "in_list_view": 1,
-   "columns": 3
+   "columns": 2
   },
   {
    "fieldname": "training_requisition",
@@ -85,6 +86,16 @@
    "options": "Training Requisition",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "development_plan",
+   "fieldtype": "Link",
+   "label": "Development Plan",
+   "options": "Talent Program",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "columns": 2
   }
  ],
  "istable": 1,

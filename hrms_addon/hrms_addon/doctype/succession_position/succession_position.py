@@ -15,5 +15,11 @@ class SuccessionPosition(Document):
     def on_submit(self):
         talent.position_on_submit(self)
 
+    def before_update_after_submit(self):
+        talent.position_before_update_after_submit(self)
+
+    def on_update_after_submit(self):
+        talent.position_on_update_after_submit(self)
+
     def on_cancel(self):
         talent.position_on_cancel(self)

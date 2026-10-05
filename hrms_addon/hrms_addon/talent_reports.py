@@ -73,11 +73,20 @@ def month(day=None):
               PLACEMENT, row.placement)
     confirmed = frappe.get_all(POSITION, filters={"docstatus": 1, "confirmed_on": within}, fields=[
         "name", "designation", "incumbent_name", "coverage", "gap_confirmed", "job_opening", "confirmed_on"], limit=0)
+    drafted = talent.drafted_for_many([row.name for row in confirmed])
     for row in confirmed:
         what = _("Bench confirmed for {0}: {1}").format(row.designation, _(row.coverage or ""))
-        if cint(row.gap_confirmed) and row.job_opening:
-            what += _("; the gap is being recruited for ({0})").format(row.job_opening)
+        found = drafted.get(row.name) or {}
+        recruiting = row.job_opening or (found.get("opening") or found.get("requisition") or {}).get("name")
+        if cint(row.gap_confirmed) and recruiting:
+            what += _("; the gap is being recruited for ({0})").format(recruiting)
         event(row.confirmed_on, _("Succession"), row.incumbent_name, what, POSITION, row.name)
+    handed = frappe.get_all(POSITION, filters={"docstatus": 1, "handed_over_on": within}, fields=[
+        "name", "designation", "incumbent_name", "previous_incumbent_name", "handed_over_on"], limit=0)
+    for row in handed:
+        event(row.handed_over_on, _("Succession"), row.incumbent_name,
+              _("Took over as {0} from {1}").format(row.designation, row.previous_incumbent_name or _("the holder")),
+              POSITION, row.name)
     done = frappe.get_all("Development Action", filters={"parenttype": PROGRAM, "completed_on": within},
                           fields=["parent", "action", "completed_on"], limit=0)
     owners = {row.name: row.employee_name for row in frappe.get_all(
@@ -109,6 +118,7 @@ def month(day=None):
         "moves": len(moves),
         "roles_confirmed": len(confirmed),
         "gaps": len([row for row in confirmed if cint(row.gap_confirmed)]),
+        "handovers": len(handed),
         "actions_done": len(done),
         "actions_late": len(late),
         "programmes_closed": len(closed),

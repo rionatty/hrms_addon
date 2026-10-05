@@ -77,6 +77,10 @@ def validate(doc, method=None):
 
     errors = rules.request_errors(old_state, new_state,
                                   {field: doc.get(field) for field in (rules.REASON_FIELD, *rules.MODE_FIELDS)})
+    if doc.flags.get("drafted_by_talent"):
+        # one a succession plan or a talent programme drafts (talent.py)
+        # leaves how to recruit to HR, who are asked for it when they save it
+        errors = []
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Job Requisition"))
 

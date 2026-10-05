@@ -31,6 +31,8 @@
   "new_branch",
   "new_department",
   "job_offer",
+  "succession_position",
+  "talent_program",
   "column_break_3",
   "new_salary",
   "new_salary_in_words",
@@ -277,6 +279,24 @@
    "read_only": 1,
    "no_copy": 1,
    "depends_on": "job_offer"
+  },
+  {
+   "fieldname": "succession_position",
+   "fieldtype": "Link",
+   "label": "Succession Plan",
+   "options": "Succession Position",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "succession_position"
+  },
+  {
+   "fieldname": "talent_program",
+   "fieldtype": "Link",
+   "label": "Talent Programme",
+   "options": "Talent Program",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "talent_program"
   },
   {
    "fieldname": "column_break_3",

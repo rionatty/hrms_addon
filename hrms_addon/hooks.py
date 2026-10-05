@@ -246,6 +246,11 @@ jinja = {
         # the promotion, designation and salary letters print the gross both
         # in figures and in words
         "hrms_addon.hrms_addon.positions.in_words",
+        # the talent print outs: the Talent Card's grid and plan, the
+        # Succession Slate's "Filling the Role"
+        "hrms_addon.hrms_addon.talent.talent_grid",
+        "hrms_addon.hrms_addon.talent.talent_follow_through",
+        "hrms_addon.hrms_addon.talent.talent_plan_progress",
     ],
 }
 
@@ -501,6 +506,8 @@ fixtures = [
                     "Job Requisition-custom_head_hunt",
                     "Job Requisition-custom_reference_to_database",
                     "Job Requisition-custom_reason_cb",
+                    "Job Requisition-custom_succession_position",
+                    "Job Requisition-custom_talent_program",
                     "Job Requisition-custom_reporting_section",
                     "Job Requisition-custom_reporting_line",
                     "Job Requisition-custom_reporting_cb",
@@ -1202,6 +1209,7 @@ fixtures = [
                     "Employee Separation-custom_settlement",
                     "Employee Separation-custom_tools_handed",
                     "Employee Separation-custom_status_updated",
+                    "Employee Separation-custom_succession_position",
                     "Exit Interview-custom_lpl_section",
                     "Exit Interview-custom_exit_status",
                     "Exit Interview-custom_separation",
@@ -1622,8 +1630,21 @@ doc_events = {
     # carries (exits.py)
     "Employee Separation": {
         "validate": "hrms_addon.hrms_addon.exits.separation_validate",
+        # the holder of a critical role leaving: their succession plan
+        # learns the last day and acts on it (talent.py)
+        "on_update": "hrms_addon.hrms_addon.talent.separation_on_update",
         "on_submit": "hrms_addon.hrms_addon.exits.separation_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.exits.separation_on_cancel",
+        "on_cancel": [
+            "hrms_addon.hrms_addon.exits.separation_on_cancel",
+            "hrms_addon.hrms_addon.talent.separation_on_cancel",
+        ],
+        "on_trash": "hrms_addon.hrms_addon.talent.separation_on_cancel",
+    },
+    # A promotion into a role a succession plan covers, approved: the plan
+    # names its new holder; cancelled, the one before (talent.py)
+    "Employee Position Change": {
+        "on_submit": "hrms_addon.hrms_addon.talent.change_on_submit",
+        "on_cancel": "hrms_addon.hrms_addon.talent.change_on_cancel",
     },
     # The exit interview's three signatures (4.5, step 4)
     "Exit Interview": {

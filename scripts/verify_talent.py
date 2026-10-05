@@ -378,11 +378,14 @@ for name in ("Talent Placement", "Talent Review", "Talent Program", "Succession 
              "Graduate Trainee Program", "Trainee Milestone", "Succession Candidate"):
     known |= set(fields_of(doctype(name)))
 known |= {"doctype", "name", "docstatus", "employee", "company", "flags", "milestones"}
+# what the plan leads to: the holder's exit, the promotion, the requisition
+for name in ("Employee Separation", "Employee Position Change", "Job Requisition"):
+    known |= set(all_fields(name))
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
     if fieldname in ("get", "set", "append", "db_set", "get_doc_before_save", "check_permission",
                      "insert", "submit", "cancel", "save", "as_dict", "update", "workflow_state",
-                     "db_update", "update_child_table"):
+                     "db_update", "update_child_table", "ignore_linked_doctypes"):
         continue
     if fieldname not in known:
         fail.append("talent.py reads or writes %s, which is on none of its documents" % fieldname)
@@ -395,7 +398,7 @@ for needle, why in (
     ("custom_total_score", "the appraisal's own score is read, never re-entered (case 4)"),
     ("rules.coverage(", "coverage is worked out from the bench (case 13)"),
     ("rules.development_needs(", "and what the bench still needs (case 14)"),
-    ('"Job Opening"', "a confirmed gap raises a job opening in resourcing (case 14)"),
+    ("_draft_requisition_for(", "a confirmed gap drafts the requisition that becomes the job opening (case 14)"),
     ("REQUISITION", "and the development needs really reach L&D (cases 9 and 14)"),
     ('"Appraisal"', "a milestone is assessed on a real appraisal (case 19)"),
     ('"Employee"', "a confirmed trainee gets an employee record (case 20)"),
@@ -818,6 +821,402 @@ for needle, why in (("talent_reports.month(add_days(today(), -1))", "the month j
     if needle not in monthly:
         fail.append("talent.monthly: %s (%r not found)" % (why, needle))
 print("the bench and the cohort on the board, each plan's progress, the seven reports and the month told to HR")
+
+# ── 10. What a confirmed plan leads to (6 Oct 2026) ───────────────────
+# The rules: when the plan acts on its holder's exit, and on what
+for label, facts, today, wanted in (
+        ("no exit, nothing", {"exit_due": None}, "2027-11-01", (None, False, False, None)),
+        ("past the exit, nothing", {}, "2028-01-02", (-2, False, False, None)),
+        ("five months out, nothing yet", {}, "2027-08-03", (150, False, False, None)),
+        ("91 days out, nothing yet", {}, "2027-10-01", (91, False, False, None)),
+        ("90 days out with somebody ready: their promotion", {"ready": True}, "2027-10-02", (90, True, False, None)),
+        ("a promotion drafted already: nothing", {"ready": True, "promotion": True}, "2027-11-01",
+         (60, False, False, None)),
+        ("nobody ready at 90 days: the requisition, and the first mark", {}, "2027-10-02", (90, False, True, 90)),
+        ("a requisition already: only the mark", {"requisition": True}, "2027-10-02", (90, False, False, 90)),
+        ("the 90 told, at 45 days: the 60", {"requisition": True, "alerted": 90}, "2027-11-16",
+         (45, False, False, 60)),
+        ("the 60 told, at 45 days: nothing", {"requisition": True, "alerted": 60}, "2027-11-16",
+         (45, False, False, None)),
+        ("announced 20 days out: one mark, the 30", {}, "2027-12-11", (20, False, True, 30)),
+        ("the 30 told, on the day: nothing", {"requisition": True, "alerted": 30}, "2027-12-31",
+         (0, False, False, None)),
+        ("a plan not confirmed: told, nothing drafted", {"confirmed": False, "ready": True}, "2027-10-02",
+         (90, False, False, 90)),
+):
+    got = T.exit_step(dict({"exit_due": "2027-12-31", "confirmed": True, "ready": False, "promotion": False,
+                            "requisition": False, "alerted": 0}, **facts), today)
+    if (got["days"], got["promote"], got["recruit"], got["alert"]) != wanted:
+        fail.append("exit_step, %s: got %s, wanted %s" % (label, got, wanted))
+if [T.exit_mark(days, alerted) for days, alerted in ((95, 0), (90, 0), (61, 90), (60, 90), (31, 60), (30, 60),
+                                                      (10, 30), (-1, 0), (None, 0))] \
+        != [None, 90, None, 60, None, 30, None, None, None]:
+    fail.append("exit_mark: 90, 60 and 30 days out, each told once, a missed day caught up")
+candidates = [{"employee": "E1", "readiness": T.EMERGING}, {"employee": "E2", "readiness": T.READY_NOW},
+              {"employee": "E3", "readiness": T.READY_NOW}, {"employee": "E4", "readiness": T.READY_SOON},
+              {"employee": "E5", "readiness": T.GAP}]
+if (T.ready_successor(candidates) or {}).get("employee") != "E2" \
+        or (T.ready_successor(candidates, leaver="E2") or {}).get("employee") != "E3" \
+        or (T.ready_successor(candidates, active={"E1", "E3"}) or {}).get("employee") != "E3" \
+        or T.ready_successor(candidates, active={"E1"}) is not None:
+    fail.append("ready_successor: the first ready now, in the council's order, employed, not the one leaving")
+if [row["employee"] for row in T.successors_to_develop(candidates)] != ["E1", "E4"]:
+    fail.append("successors_to_develop: those ready in one to two years and those emerging only")
+for args, wanted in (((T.READY_SOON, "2027-09-01"), "2028-09-01"), ((T.EMERGING, "2027-09-01"), "2029-09-01"),
+                     ((T.EMERGING, "2028-02-29"), "2030-02-28"),
+                     ((T.READY_SOON, "2027-09-01", "2028-03-01"), "2028-03-01"),
+                     ((T.READY_SOON, "2027-09-01", "2027-10-01"), "2027-11-30"),
+                     ((T.READY_SOON, "2027-09-01", "2030-01-01"), "2028-09-01")):
+    if T.successor_plan_end(*args) != wanted:
+        fail.append("successor_plan_end%s: got %s, wanted %s" % (args, T.successor_plan_end(*args), wanted))
+if T.plan_actions("1. Lab testing\r\n2) ISO 9001 audits; - Shift reports\n• lab testing\n\n * Costing") \
+        != ["Lab testing", "ISO 9001 audits", "Shift reports", "Costing"] or T.plan_actions(None) != []:
+    fail.append("plan_actions: a line or a semicolon each, numbering and bullets dropped, each once")
+if (T.successor_program(True), T.successor_program(False)) != (T.MENTORED, T.TAUGHT) \
+        or not set((T.MENTORED, T.TAUGHT)) <= set(T.PROGRAM_TYPES):
+    fail.append("a successor is coached by the holder while there is one, taught otherwise")
+if (T.requisition_reason("2027-12-31", "E1"), T.requisition_reason(None, None), T.requisition_reason(None, "E1")) \
+        != (T.REPLACEMENT, T.REPLACEMENT, T.NEW_ADDITION):
+    fail.append("requisition_reason: a replacement for a holder leaving or a role nobody holds, else an addition")
+custom_reason = (custom_fields("Job Requisition").get("custom_reason_type") or {}).get("options") or ""
+if not {T.REPLACEMENT, T.NEW_ADDITION} <= set(custom_reason.split("\n")):
+    fail.append("the requisition's reasons are the ones its form offers: %r" % custom_reason)
+if T.handover_note("Quality Lead", "John Okello") != "To John Okello, who takes over as Quality Lead" \
+        or "head of department" not in T.handover_note("Quality Lead") or len(T.handover_note("X" * 300, "Y")) > 140:
+    fail.append("handover_note: who takes over, else the head of department, within the line's 140 characters")
+exit_rules = load("exit_rules")
+if T.HANDOVER_ITEM not in dict((code, items) for code, _name, items in exit_rules.SECTIONS).get("A", ()):
+    fail.append("the handover is written on LPL/HR/22's own line in box A: %r" % T.HANDOVER_ITEM)
+if not set(T.DECISION_STEPS) <= set(T.DECISIONS):
+    fail.append("each decision acted on is one the programme offers")
+
+# The documents: what points where, and what may change on a confirmed plan
+plan_fields = fields_of(doctype("Succession Position"))
+for fieldname in ("incumbent", "incumbent_name", "retirement_or_exit_due", "previous_incumbent",
+                  "previous_incumbent_name", "handed_over_on", "exit_alerted", "promotion_drafted_for",
+                  "requisition_drafted_for", "ready_now", "ready_soon", "emerging", "bench_depth", "coverage", "gap"):
+    if not (plan_fields.get(fieldname) or {}).get("allow_on_submit"):
+        fail.append("Succession Position.%s changes on a confirmed plan, so it is allowed on submit" % fieldname)
+for fieldname in ("exit_alerted", "promotion_drafted_for", "requisition_drafted_for"):
+    if not (plan_fields.get(fieldname) or {}).get("hidden"):
+        fail.append("Succession Position.%s is the watch's own record: hidden" % fieldname)
+for dt, fieldname, options in (("Succession Candidate", "development_plan", "Talent Program"),
+                               ("Talent Program", "succession_position", "Succession Position"),
+                               ("Employee Position Change", "succession_position", "Succession Position"),
+                               ("Employee Position Change", "talent_program", "Talent Program"),
+                               ("Job Requisition", "custom_succession_position", "Succession Position"),
+                               ("Job Requisition", "custom_talent_program", "Talent Program"),
+                               ("Employee Separation", "custom_succession_position", "Succession Position")):
+    spec = all_fields(dt).get(fieldname) or {}
+    if (spec.get("fieldtype"), spec.get("options"), spec.get("read_only")) != ("Link", options, 1):
+        fail.append("%s.%s is a read-only Link to %s" % (dt, fieldname, options))
+order = json.loads(next(row["value"] for row in json.load(open(os.path.join(PACKAGE, "fixtures", "property_setter.json"),
+                                                               encoding="utf-8"))
+                        if row.get("doc_type") == "Job Requisition" and row.get("property") == "field_order"))
+if order[order.index("reason_for_requesting") + 1:order.index("reason_for_requesting") + 3] \
+        != ["custom_succession_position", "custom_talent_program"]:
+    fail.append("the requisition's form shows where it came from under its reason (field_order)")
+for name in ("Job Requisition-custom_succession_position", "Job Requisition-custom_talent_program",
+             "Employee Separation-custom_succession_position"):
+    if name not in json.dumps(hooks.get("fixtures")):
+        fail.append("hooks.py exports the custom field %s with the fixtures" % name)
+
+
+def body_of(source, name):
+    return source.split("def %s(" % name, 1)[1].split("\ndef ", 1)[0] if "def %s(" % name in source else ""
+
+
+# a confirmed plan is changed only where Frappe allows it after submit
+for name, target in (("position_before_update_after_submit", "doc"), ("_count_bench", "doc"),
+                     ("_restart_exit_watch", "doc"), ("change_on_submit", "position"),
+                     ("change_on_cancel", "position")):
+    body = body_of(glue, name)
+    if not body:
+        fail.append("talent.%s is missing" % name)
+        continue
+    for fieldname in set(re.findall(r"\b%s\.(\w+)\s*=(?!=)" % target, body)) \
+            | set(re.findall(r'\b%s\.set\("(\w+)"' % target, body)):
+        if fieldname in ("flags", "ignore_linked_doctypes") or fieldname == "candidates":
+            continue
+        if not (plan_fields.get(fieldname) or {}).get("allow_on_submit"):
+            fail.append("talent.%s sets Succession Position.%s, which a confirmed plan refuses" % (name, fieldname))
+    if name in ("change_on_submit", "change_on_cancel") and "set(field, None)" in body:
+        for fieldname in ("previous_incumbent", "previous_incumbent_name", "handed_over_on"):
+            if not (plan_fields.get(fieldname) or {}).get("allow_on_submit"):
+                fail.append("talent.%s clears %s, which a confirmed plan refuses" % (name, fieldname))
+if "_fill_bench(" in body_of(glue, "position_before_update_after_submit"):
+    fail.append("after submit the bench is counted only: gap_confirmed is not allowed on submit")
+if not (fields_of(doctype("Succession Position")).get("candidates") or {}).get("allow_on_submit"):
+    fail.append("successors are added to and taken off a confirmed plan: its table is allowed on submit")
+
+# The glue: the plan acts, and each module reached does its own signing
+for function, needles in (
+        ("position_on_submit", ("_draft_requisition_for(", "_send_needs_to_ld(", "_plan_successor_development(",
+                                "_act_on_exit(")),
+        ("position_on_update_after_submit", ("_plan_successor_development(", "_act_on_exit(")),
+        ("_act_on_exit", ("rules.exit_step(", "_draft_promotion(", "_draft_requisition_for(", "exit_alerted",
+                          "promotion_drafted_for", "requisition_drafted_for", "_tell_council(")),
+        ("_draft_requisition", ("flags.drafted_by_talent = True", "ignore_permissions", "custom_reason_type",
+                                "CLOSED_REQUISITION")),
+        ("_draft_promotion", ('"change_type": "Promotion"', "succession_position", "reports_to",
+                              "ignore_permissions")),
+        ("separation_on_update", ("custom_relieving_date", "retirement_or_exit_due", "_act_on_exit(")),
+        ("separation_on_cancel", ("retirement_or_exit_due", "None")),
+        ("change_on_submit", ("previous_incumbent", "handed_over_on", '"mentor"')),
+        ("program_on_submit", ("rules.DECISION_STEPS", "_promote_from_program(", "_replace_from_program(")),
+        ("daily", ("_watch_exits()", "_link_openings()")),
+        ("position_on_cancel", ("POSITION_RECORDS",)),
+        ("program_on_cancel", ("PROGRAM_RECORDS",))):
+    body = body_of(glue, function)
+    for needle in needles:
+        if needle not in body:
+            fail.append("talent.%s: %r not found" % (function, needle))
+if "_raise_job_opening" in glue:
+    fail.append("a gap no longer raises its job opening round Luuka's approvals")
+requisition_glue = read("hrms_addon", "hrms_addon", "job_requisition.py")
+validate = body_of(requisition_glue, "validate")
+if 'if doc.flags.get("drafted_by_talent"):\n        # one a succession plan' not in validate \
+        or validate.count("drafted_by_talent") != 1:
+    fail.append("job_requisition.validate leaves the mode to HR only on a requisition talent drafts")
+exits_glue = read("hrms_addon", "hrms_addon", "exits.py")
+if "talent.handover_for(exit_doc.employee)" not in body_of(exits_glue, "draw_up_clearance") \
+        or "talent_rules.HANDOVER_ITEM" not in body_of(exits_glue, "draw_up_clearance"):
+    fail.append("exits.draw_up_clearance writes who takes over on the handover line")
+events = hooks.get("doc_events") or {}
+
+
+def handlers(dt, event):
+    value = (events.get(dt) or {}).get(event) or []
+    return [value] if isinstance(value, str) else list(value)
+
+
+for dt, event, handler in (("Employee Separation", "on_update", "talent.separation_on_update"),
+                           ("Employee Separation", "on_cancel", "talent.separation_on_cancel"),
+                           ("Employee Separation", "on_cancel", "exits.separation_on_cancel"),
+                           ("Employee Separation", "on_trash", "talent.separation_on_cancel"),
+                           ("Employee Position Change", "on_submit", "talent.change_on_submit"),
+                           ("Employee Position Change", "on_cancel", "talent.change_on_cancel")):
+    if "hrms_addon.hrms_addon.%s" % handler not in handlers(dt, event):
+        fail.append("hooks.py: %s %s runs %s" % (dt, event, handler))
+controller = read("hrms_addon", "hrms_addon", "doctype", "succession_position", "succession_position.py")
+for method in ("before_update_after_submit", "on_update_after_submit"):
+    if "    def %s(self):\n        talent.position_%s(self)" % (method, method) not in controller:
+        fail.append("the Succession Position controller hands %s to talent.position_%s" % (method, method))
+if "hrms_addon.patches.v1_0.succession_follow_through" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]", 1)[-1]:
+    fail.append("a site with plans already gets the follow-through by patch")
+if 'sync_fixtures("hrms_addon")' not in read("hrms_addon", "patches", "v1_0", "succession_follow_through.py"):
+    fail.append("the patch syncs the fixtures first: its links are custom fields")
+
+
+# What points at a plan or a programme from a submittable document is left
+# alone when it is cancelled, on the server and in Cancel All
+def pointing_at(target):
+    found = set()
+    for path in glob.glob(os.path.join(APP, "doctype", "*", "*.json")):
+        spec = json.load(open(path, encoding="utf-8"))
+        if spec.get("doctype") != "DocType":
+            continue
+        owner = spec["name"]
+        if spec.get("istable"):
+            parents = [other["name"] for other_path in glob.glob(os.path.join(APP, "doctype", "*", "*.json"))
+                       for other in [json.load(open(other_path, encoding="utf-8"))]
+                       if other.get("doctype") == "DocType"
+                       and any(f.get("options") == owner and f["fieldtype"] == "Table" for f in other.get("fields", []))]
+        else:
+            parents = [owner]
+        if any(f["fieldtype"] == "Link" and f.get("options") == target for f in spec.get("fields", [])):
+            found |= {name for name in parents if doctype(name).get("is_submittable")}
+    for row in CUSTOM:
+        if row.get("fieldtype") == "Link" and row.get("options") == target:
+            upstream = upstream_doctype(row["dt"]) or {}
+            if upstream.get("is_submittable"):
+                found.add(row["dt"])
+    return found - {target}
+
+
+for target, constant, script in (("Succession Position", "POSITION_RECORDS", "succession_position"),
+                                 ("Talent Program", "PROGRAM_RECORDS", "talent_program")):
+    wanted = pointing_at(target)
+    spelled = re.search(r"%s = \(([^)]*)\)" % constant, glue)
+    names = {
+        {"PROGRAM": "Talent Program", "CHANGE": "Employee Position Change", "SEPARATION": "Employee Separation",
+         "TRAINEE": "Graduate Trainee Program", "POSITION": "Succession Position",
+         "PLACEMENT": "Talent Placement"}.get(name.strip(), name.strip())
+        for name in (spelled.group(1).split(",") if spelled else []) if name.strip()}
+    if not wanted <= names:
+        fail.append("talent.%s must leave alone %s, which point at a %s" % (constant, sorted(wanted - names), target))
+    form = read("hrms_addon", "hrms_addon", "doctype", script, script + ".js")
+    # the names in the list itself: the same names appear elsewhere in the
+    # form (links, routes), which says nothing about Cancel All
+    listed = re.search(r"ignore_doctypes_on_cancel_all = \[(.*?)\];", form, flags=re.S)
+    if not listed or not all('"%s"' % name in listed.group(1) for name in names):
+        fail.append("%s.js keeps %s out of Cancel All" % (script, sorted(names)))
+
+# The way it shows: the form, the board, the report, the connections
+plan_js = read("hrms_addon", "hrms_addon", "doctype", "succession_position", "succession_position.js")
+if "hrms_addon.hrms_addon.talent.get_follow_through" not in plan_js or '"custom ha-follow"' not in plan_js:
+    fail.append("succession_position.js shows the follow-through as its own dashboard section")
+if not re.search(r"@frappe\.whitelist\(\)\ndef get_follow_through\(", glue) \
+        or 'doc.check_permission("read")' not in body_of(glue, "get_follow_through"):
+    fail.append("talent.get_follow_through: whitelisted, for those who may read the plan")
+board_glue = read("hrms_addon", "hrms_addon", "talent_board.py")
+for needle in ('position["promotion"]', 'position["requisition"]', 'position["opening"]', 'position["exit_days"]'):
+    if needle not in body_of(board_glue, "get_succession"):
+        fail.append("talent_board.get_succession carries %s" % needle)
+board_js = read("hrms_addon", "hrms_addon", "page", "talent_board", "talent_board.js")
+for needle in ("Taking over:", "Replacement:", "Recruiting:", "leaving(role)"):
+    if needle not in board_js:
+        fail.append("the board's succession view shows %r" % needle)
+coverage = read("hrms_addon", "hrms_addon", "report", "succession_coverage", "succession_coverage.py")
+for needle in ('"fieldname": "taking_over"', '"fieldname": "promotion"', '"fieldname": "requisition"',
+               "talent.drafted_for_many("):
+    if needle not in coverage:
+        fail.append("Succession Coverage: %r not found" % needle)
+spec = importlib.util.spec_from_file_location(
+    "succession_position_dashboard",
+    os.path.join(APP, "doctype", "succession_position", "succession_position_dashboard.py"))
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+data = module.get_data()
+listed = {item for group in data["transactions"] for item in group["items"]}
+for dt in ("Talent Program", "Graduate Trainee Program", "Employee Separation", "Employee Position Change",
+           "Job Requisition", "Job Opening"):
+    if dt not in listed:
+        fail.append("the plan's connections list %s" % dt)
+for dt, fieldname in data.get("non_standard_fieldnames", {}).items():
+    if fieldname not in all_fields(dt):
+        fail.append("the plan's connections read %s.%s, which is not a field" % (dt, fieldname))
+for dt in listed - set(data.get("non_standard_fieldnames", {})) - set(data.get("internal_links", {})):
+    if data["fieldname"] not in all_fields(dt):
+        fail.append("the plan's connections read %s.%s, which is not a field" % (dt, data["fieldname"]))
+print("Oct 6: the plan acts on its holder's exit; successors grown, a promotion or a replacement drafted, the "
+      "role handed over, each in its own module")
+
+# ── 11. The print-outs (6 Oct 2026) ───────────────────────────────────
+# Talent Card, Individual Development Plan, Succession Slate and Graduate
+# Trainee Progress: the testing sheet's "Reports and print outs". A custom
+# print format is handed every field, whatever the reader's permission
+# level, so each prints the box and the potential only behind its own
+# check; and each compiles, read by scripts/jinja_subset.py as Frappe's
+# Jinja would read it.
+_spec = importlib.util.spec_from_file_location("jinja_subset", os.path.join(REPO, "scripts", "jinja_subset.py"))
+jinja_subset = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(jinja_subset)
+
+
+def print_format(name):
+    folder = name.lower().replace(" ", "_")
+    path = os.path.join(APP, "print_format", folder, folder + ".json")
+    return json.load(open(path, encoding="utf-8")) if os.path.exists(path) else None
+
+
+TALENT_PRINTS = {
+    "Talent Card": ("Talent Placement", ("Appraisal Quarter Result", "Talent Competency Level", "Development Theme"), [
+        "Talent Card", "Nine-Box Placement", "Performance, Year to Date", "Potential", "Retention", "Development",
+        "Line Manager", "Talent Council"]),
+    "Individual Development Plan": ("Talent Program", ("Development Action",), [
+        "Individual Development Plan", "Objectives", "Development Actions", "Estimated Cost", "Review",
+        "Agreement", "Mentor or Coach"]),
+    "Succession Slate": ("Succession Position", ("Succession Candidate",), [
+        "Succession Slate", "Successors, Readiest First", "Ready Now", "Bench Depth", "Filling the Role",
+        "Confirmed by the Talent Council"]),
+    "Graduate Trainee Progress": ("Graduate Trainee Program",
+                                  ("Trainee Induction Item", "Trainee Rotation", "Trainee Milestone"), [
+        "Graduate Trainee Progress", "Induction", "Rotations", "Milestones", "Outcome", "Mentor"]),
+}
+GUARDS = ("sees_boxes", "has_permlevel_access_to")
+MACROS = ("v(", "day(", "who(", "num(", "person(", "money(")
+# numbers, ticks and tables (counted) need no escaping
+NUMERIC = {"Int", "Float", "Percent", "Currency", "Check", "Table"}
+jinja_methods = (hooks.get("jinja") or {}).get("methods") or []
+for name, (doc_type, tables, needles) in TALENT_PRINTS.items():
+    spec = print_format(name)
+    if not spec:
+        fail.append("the %s print format is not there" % name)
+        continue
+    if (spec.get("doc_type"), spec.get("print_format_type"), spec.get("standard"), spec.get("custom_format"),
+            spec.get("module")) != (doc_type, "Jinja", "Yes", 1, "HRMS Addon"):
+        fail.append("%s is a standard Jinja print format of this app for %s" % (name, doc_type))
+    if doctype(doc_type).get("default_print_format") != name:
+        fail.append("%s prints as %s unless another is chosen (default_print_format)" % (doc_type, name))
+    html = spec.get("html") or ""
+    try:
+        jinja_subset.compile_template(html)
+    except Exception as error:  # noqa: BLE001
+        fail.append("%s does not compile: %s" % (name, error))
+    for needle in needles:
+        if needle not in html:
+            fail.append("%s does not say %r" % (name, needle))
+    own = fields_of(doctype(doc_type))
+    rows = {}
+    for table in tables:
+        rows.update(fields_of(doctype(table)))
+    standard = {"name", "docstatus", "doctype", "idx", "parent", "workflow_state"}
+    for fieldname in sorted(set(re.findall(r"\bdoc\.(\w+)", html))):
+        if fieldname in standard | {"has_permlevel_access_to", "candidates"} and fieldname not in own:
+            continue
+        if fieldname not in own:
+            fail.append("%s prints doc.%s, which the %s does not have" % (name, fieldname, doc_type))
+    for fieldname in sorted(set(re.findall(r"\brow\.(\w+)", html))):
+        if fieldname not in rows and fieldname not in standard | {"has_permlevel_access_to"}:
+            fail.append("%s prints row.%s, which none of its tables has" % (name, fieldname))
+    # a text field goes out escaped: through one of the macros, or | e
+    for expression in re.findall(r"\{\{-?(.*?)-?\}\}", html, flags=re.S):
+        text = expression.strip()
+        if text.startswith(MACROS) or "| e" in text:
+            continue
+        for owner, fieldname in re.findall(r"\b(doc|row)\.(\w+)", text):
+            field = (own if owner == "doc" else rows).get(fieldname) or {}
+            if field and field.get("fieldtype") not in NUMERIC:
+                fail.append("%s prints %s.%s unescaped: use v()" % (name, owner, fieldname))
+    # the box and the potential bands only behind a check of the reader's level
+    secret = {fieldname for fieldname, field in own.items() if field.get("permlevel")}
+    secret_rows = {fieldname for fieldname, field in rows.items() if field.get("permlevel")}
+    conditions = []
+    for part in jinja_subset._scan(html):
+        if part[0] == "block":
+            word = part[1].split(None, 1)[0]
+            if word in ("if", "for"):
+                conditions.append(part[1])
+            elif word in ("endif", "endfor"):
+                conditions.pop()
+            elif word == "elif":
+                conditions[-1] = part[1]
+            elif word == "set" and any(guard in part[1] for guard in GUARDS):
+                continue
+        if part[0] == "text":
+            continue
+        used = {fieldname for owner, fieldname in re.findall(r"\b(doc|row)\.(\w+)", part[1])
+                if fieldname in (secret if owner == "doc" else secret_rows)}
+        if used and not any(guard in condition for condition in conditions + [part[1]] for guard in GUARDS):
+            fail.append("%s prints %s to anyone who may print it: put it behind the reader's level (case 10)"
+                        % (name, ", ".join(sorted(used))))
+    for method in set(re.findall(r"\b(talent_\w+)\(", html)):
+        if "hrms_addon.hrms_addon.talent.%s" % method not in jinja_methods:
+            fail.append("%s calls %s, which hooks.py does not give Jinja" % (name, method))
+        if not re.search(r"\ndef %s\(" % method, glue):
+            fail.append("%s calls talent.%s, which is not there" % (name, method))
+for method in ("talent_follow_through", "talent_plan_progress"):
+    if "frappe.has_permission(" not in body_of(glue, method):
+        fail.append("talent.%s answers only a reader who may open the document" % method)
+if "def talent_grid(" in glue:
+    names = re.findall(r'rules\.BOXES\[\(performance, potential\)\]\["(\w+)"\]', body_of(glue, "talent_grid"))
+    if set(names) != {"box", "name"}:
+        fail.append("talent.talent_grid prints each cell's number and name from talent_rules.BOXES")
+# the box stays where only HR and the council read it (case 10): nothing of
+# it is copied into the themes the line manager reads, or into the plan the
+# employee and the mentor read
+if '"themes"' in body_of(glue, "_fill_box"):
+    fail.append("talent._fill_box writes into the development themes, which the line manager reads")
+for needle in ('doc.get("default_action")', 'doc.get("suggested_decision")', 'box["action"]'):
+    if needle in body_of(glue, "_draw_up_development_plan"):
+        fail.append("the development plan the employee reads is written from the box (%s)" % needle)
+if "hrms_addon.patches.v1_0.talent_box_out_of_plans" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]", 1)[-1]:
+    fail.append("a site whose box already wrote into themes and plans has it taken out by patch")
+print("print-outs: the Talent Card, the development plan, the succession slate and the trainee's progress; the box "
+      "only for those who may read it")
 
 if fail:
     print("\nFAILURES:")

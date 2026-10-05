@@ -15,23 +15,34 @@ The rules are in talent_rules.py, without a Frappe import
                which draws up the development plan and sends its training
                to L&D
   program_*    the development plan itself — leadership, mentoring and
-               coaching, or L&D — and the review of whether it worked
-  position_*   a critical role and its bench; a confirmed gap raises a job
-               opening in resourcing and sends the development needs on
+               coaching, or L&D — and the review of whether it worked; its
+               closing decision is acted on: the bench, a promotion drafted,
+               or a replacement's requisition
+  position_*   a critical role and its bench; confirmed, the development
+               needs go to L&D, each successor not ready yet gets a plan
+               aimed at the role, and a confirmed gap drafts the requisition
+               that becomes the job opening once Luuka's approvals pass it
+  separation_* the holder's exit (Exits): the plan learns their last day
+  change_*     the promotion into the role approved (Position Change): the
+               plan names its new holder
   trainee_*    a graduate trainee from the applicant they were hired as to
                the Employee record confirmation creates
-  daily        the cycles that open, the milestones that fall due, and the
-               top talent somebody should be worried about losing
+  daily        the cycles that open, the milestones that fall due, the top
+               talent somebody should be worried about losing, and the
+               holders of critical roles who are on their way out
 
 Nothing here re-enters a number another module already holds: the
 performance band comes off the Appraisal, the competency evidence off its
 scorecard rows, and the training goes back out as a Training Requisition
-rather than as a note in a field.
+rather than as a note in a field. Nor does it decide for HR: what it starts
+in another module (a position change, a job requisition, a development
+plan) is a draft for HR to complete and send through that module's own
+signatures.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, flt, getdate, today
+from frappe.utils import add_days, cint, flt, format_date, getdate, today
 
 from hrms_addon.hrms_addon import people, pips, talent_rules as rules
 
@@ -41,6 +52,16 @@ PROGRAM = "Talent Program"
 POSITION = "Succession Position"
 TRAINEE = "Graduate Trainee Program"
 REQUISITION = "Training Requisition"
+CHANGE = "Employee Position Change"
+JOB_REQUISITION = "Job Requisition"
+SEPARATION = "Employee Separation"
+CLEARANCE = "Clearance Form"
+# a requisition in one of these is no longer the way the role is filled
+CLOSED_REQUISITION = ("Cancelled", "Rejected", "Filled")
+# what points at a plan, a programme: each is cancelled on its own, so
+# neither cancel offers to cancel them nor is refused for them
+POSITION_RECORDS = (PROGRAM, CHANGE, SEPARATION, TRAINEE)
+PROGRAM_RECORDS = (POSITION, CHANGE, PLACEMENT)
 
 
 # ── 1. The review cycle ───────────────────────────────────────────────
@@ -241,9 +262,6 @@ def _fill_box(doc):
     doc.default_action = box["action"]
     doc.suggested_decision = box["decision"]
     doc.top_talent = 1 if rules.is_top_talent(box["box"]) else 0
-    if not doc.get("themes"):
-        doc.append("themes", {"theme": box["action"],
-                              "why": _("From the {0} placement.").format(box["name"])})
 
 
 def _check_placement_step(doc):
@@ -334,10 +352,13 @@ def placement_on_cancel(doc, method=None):
 
 
 def _draw_up_development_plan(doc):
-    """The box's default action becomes a programme the employee is
-    actually on: the themes as its first actions, then the development
-    actions the year's appraisals agreed and nobody has completed, so the
-    plan carries on from the appraisal rather than beside it."""
+    """A programme the employee is actually on, of the kind the box asks
+    for: the development themes agreed for them as its objectives and first
+    actions, then the development actions the year's appraisals agreed and
+    nobody has completed, so the plan carries on from the appraisal rather
+    than beside it. The box, and the action the grid suggests for it, are
+    the council's alone (case 10): the employee and their mentor read this
+    plan, so neither is written into it."""
     if doc.get("development_plan"):
         return doc.development_plan
     program_type = _program_type_for(doc.get("box"))
@@ -348,7 +369,8 @@ def _draw_up_development_plan(doc):
             "program_type": program_type, "start_date": today(),
             "end_date": add_days(today(), 365), "placement": doc.name,
             "talent_review": doc.get("talent_review"), "box_name": doc.get("box_name"),
-            "objectives": doc.get("default_action"),
+            "objectives": "\n".join(row.theme for row in doc.get("themes") or []
+                                    if (row.theme or "").strip()) or None,
             "actions": [{"action": row.theme, "by_when": add_days(today(), 180),
                          "by_whom": doc.get("employee_name") or doc.employee}
                         for row in doc.get("themes") or []]
@@ -548,12 +570,24 @@ def _tell_program(doc):
 
 
 def program_on_submit(doc, method=None):
-    """Closed. Test case 3: the decision taken at the end is acted on —
-    a succession pipeline decision puts the employee on the bench for
-    their own role's succession position where one exists."""
-    if doc.get("decision") != "Succession Pipeline":
+    """Closed. Test case 3: the decision taken at the end is acted on. A
+    succession pipeline decision puts the employee on the bench for the
+    role the programme was aimed at, else their own role's, where a
+    succession position exists; a promotion is drafted as a position
+    change, into the role the programme was aimed at when it was; a
+    replacement drafts the requisition for whoever replaces them."""
+    step = rules.DECISION_STEPS.get(doc.get("decision"))
+    if step == "promote":
+        _promote_from_program(doc)
         return
-    position = _add_to_pool(doc.employee, doc.get("designation"), doc.get("company"),
+    if step == "replace":
+        _replace_from_program(doc)
+        return
+    if step != "pool":
+        return
+    plan = frappe.db.get_value(POSITION, doc.succession_position, ["designation", "company"], as_dict=True) \
+        if doc.get("succession_position") else None
+    position = _add_to_pool(doc.employee, (plan or doc).get("designation"), (plan or doc).get("company"),
                             placement=doc.get("placement"))
     if position:
         return
@@ -571,6 +605,54 @@ def program_on_submit(doc, method=None):
 
 def program_on_cancel(doc, method=None):
     doc.status = "Cancelled"
+    doc.ignore_linked_doctypes = tuple(doc.get("ignore_linked_doctypes") or ()) + PROGRAM_RECORDS
+
+
+def _promote_from_program(doc):
+    """A programme closed with a decision to promote: the promotion drafted
+    for HR, into the role the programme was aimed at, from the day its
+    holder leaves when that is known. Without a role, HR names it."""
+    position = frappe.get_doc(POSITION, doc.succession_position) if doc.get("succession_position") else None
+    change = _draft_promotion(doc.employee, position=position, program=doc.name,
+                              effective=position.get("retirement_or_exit_due") if position else None)
+    users = people.hr_officers(doc.get("branch"), doc.get("department"))
+    if not users:
+        return change
+    name = doc.get("employee_name") or doc.employee
+    if not change:
+        message = _("{0}'s programme closed with a decision to promote, and no position change could be "
+                    "drafted. Raise it on Employee Position Change.").format(name)
+    elif position:
+        message = _("{0}'s programme closed with a decision to promote: position change {1} is drafted, "
+                    "into {2}. Complete it and send it for signature.").format(name, change, position.designation)
+    else:
+        message = _("{0}'s programme closed with a decision to promote: position change {1} is drafted. "
+                    "Name the new role, complete it and send it for signature.").format(name, change)
+    people.notify(list(users), doc.doctype, doc.name, message)
+    return change
+
+
+def _replace_from_program(doc):
+    """A programme closed with a decision to replace the employee: the
+    requisition for whoever replaces them, drafted for HR. The employee's
+    own exit, if it comes to that, is HR's to raise."""
+    held = frappe.db.get_value("Employee", doc.employee, ["designation", "department", "branch", "company"],
+                               as_dict=True) or frappe._dict()
+    name = doc.get("employee_name") or doc.employee
+    requisition = _draft_requisition(
+        held.designation or doc.get("designation"), held.company or doc.get("company"),
+        branch=held.branch or doc.get("branch"), department=held.department or doc.get("department"),
+        reason_type=rules.REPLACEMENT, program=doc.name,
+        why=_("{0} is to be replaced as {1}: the decision at the close of talent programme {2}.").format(
+            name, held.designation or doc.get("designation"), doc.name))
+    users = people.hr_officers(doc.get("branch"), doc.get("department"))
+    if users:
+        people.notify(list(users), doc.doctype, doc.name, (
+            _("{0}'s programme closed with a decision to replace them: job requisition {1} is drafted. "
+              "Complete it and send it for approval.").format(name, requisition) if requisition else
+            _("{0}'s programme closed with a decision to replace them, and no job requisition could be "
+              "drafted. Raise one.").format(name)))
+    return requisition
 
 
 def _add_to_pool(employee, designation, company, placement=None,
@@ -625,6 +707,7 @@ def position_validate(doc, method=None):
     from hrms_addon.hrms_addon import succession_approval as approval
 
     _fill_bench(doc)
+    _restart_exit_watch(doc)
     _check_position_step(doc)
     doc.status = doc.get("workflow_state") or doc.get("status") or approval.DRAFT
 
@@ -632,6 +715,14 @@ def position_validate(doc, method=None):
 def _fill_bench(doc):
     """Test case 13: how deep the bench is, and whether the role is
     covered — worked out from the successors, never typed."""
+    _count_bench(doc)
+    if not doc.gap:
+        doc.gap_confirmed = 0
+
+
+def _count_bench(doc):
+    """The bench counted. Every figure here may change after the plan is
+    confirmed, as successors are added to it."""
     candidates = [row.as_dict() for row in doc.get("candidates") or []]
     counts = rules.bench_strength(candidates)
     doc.ready_now = counts[rules.READY_NOW]
@@ -640,8 +731,20 @@ def _fill_bench(doc):
     doc.bench_depth = len([row for row in candidates if row.get("readiness") != rules.GAP])
     doc.coverage = rules.coverage(candidates)
     doc.gap = 1 if rules.is_gap(candidates) else 0
-    if not doc.gap:
-        doc.gap_confirmed = 0
+
+
+def _restart_exit_watch(doc):
+    """A new holder, or a new last day for the holder, is watched from the
+    first mark again. A new holder's last day is their own exit's, if they
+    have one raised, and so is the holder's on a new plan with none typed."""
+    before = doc.get_doc_before_save()
+    if before and before.get("incumbent") != doc.get("incumbent"):
+        doc.retirement_or_exit_due = _exit_of(doc.get("incumbent")).get("custom_relieving_date")
+        doc.exit_alerted = 0
+    elif before and str(before.get("retirement_or_exit_due") or "") != str(doc.get("retirement_or_exit_due") or ""):
+        doc.exit_alerted = 0
+    elif not before and not doc.get("retirement_or_exit_due"):
+        doc.retirement_or_exit_due = _exit_of(doc.get("incumbent")).get("custom_relieving_date")
 
 
 def _check_position_step(doc):
@@ -691,42 +794,488 @@ def _tell_position(doc, state):
 
 
 def position_on_submit(doc, method=None):
-    """Confirmed. Test case 14: a confirmed gap raises the job opening in
-    resourcing, and the development needs of everyone not ready now go to
-    L&D."""
+    """Confirmed. Test case 14: a confirmed gap drafts the requisition that
+    becomes the job opening in resourcing once Luuka's approvals pass it
+    (the opening is not raised round them), and the development needs of
+    everyone not ready now go to L&D. Each of them gets a development plan
+    aimed at the role, and a holder already on their way out is acted on
+    at once."""
     if doc.get("gap") and doc.get("gap_confirmed"):
-        _raise_job_opening(doc)
+        if _draft_requisition_for(doc):
+            doc.db_set("requisition_drafted_for", doc.get("retirement_or_exit_due"), update_modified=False)
     _send_needs_to_ld(doc)
+    _plan_successor_development(doc)
+    _act_on_exit(doc)
+
+
+def position_before_update_after_submit(doc, method=None):
+    """A confirmed plan changed: successors added or a new holder named.
+    The bench is counted again, and the exit watch restarted for a new
+    holder or a new last day."""
+    _count_bench(doc)
+    _restart_exit_watch(doc)
+
+
+def position_on_update_after_submit(doc, method=None):
+    _plan_successor_development(doc)
+    _act_on_exit(doc)
 
 
 def position_on_cancel(doc, method=None):
     doc.status = "Cancelled"
+    doc.ignore_linked_doctypes = tuple(doc.get("ignore_linked_doctypes") or ()) + POSITION_RECORDS
 
 
-def _raise_job_opening(doc):
-    if doc.get("job_opening"):
-        return doc.job_opening
-    existing = frappe.db.get_value("Job Opening", {"designation": doc.designation,
-                                                   "company": doc.company, "status": "Open"},
-                                   "name")
-    if existing:
-        doc.db_set("job_opening", existing, update_modified=False)
-        return existing
-    try:
-        opening = frappe.get_doc({
-            "doctype": "Job Opening", "job_title": doc.designation, "designation": doc.designation,
-            "company": doc.company, "department": doc.get("department"),
-            "status": "Open", "posted_on": today(),
-            "description": _("Raised from succession position {0}: no successor is ready.").format(doc.name),
-        })
-        opening.flags.ignore_permissions = True
-        opening.flags.ignore_mandatory = True
-        opening.insert()
-    except Exception:
-        frappe.log_error(title="HRMS Addon: job opening from a succession gap")
+# ── 4a. Each successor grown for the role ─────────────────────────────
+def _plan_successor_development(doc):
+    """Every successor not ready yet gets a development plan aimed at the
+    role: coached by its holder while there is one, its actions the
+    development needs the council named, its training the requisition
+    already sent to L&D for them. HR enrols them."""
+    if doc.docstatus != 1:
+        return []
+    mentor = doc.get("incumbent") if doc.get("incumbent") and _active({doc.incumbent}) else None
+    rows = rules.successors_to_develop(doc.get("candidates") or [])
+    employed = _active({row.employee for row in rows})
+    made = []
+    for row in rows:
+        if row.get("development_plan") or row.employee == doc.get("incumbent") or row.employee not in employed:
+            continue
+        existing = frappe.db.get_value(PROGRAM, {"employee": row.employee, "succession_position": doc.name,
+                                                 "docstatus": ["<", 2]}, "name")
+        if existing:
+            row.db_set("development_plan", existing, update_modified=False)
+            continue
+        start = today()
+        end = rules.successor_plan_end(row.readiness, start, doc.get("retirement_or_exit_due"))
+        name = row.get("employee_name") or frappe.db.get_value("Employee", row.employee, "employee_name") \
+            or row.employee
+        try:
+            program = frappe.get_doc({
+                "doctype": PROGRAM, "employee": row.employee, "company": doc.company,
+                "program_type": rules.successor_program(bool(mentor)), "mentor": mentor,
+                "start_date": start, "end_date": end, "succession_position": doc.name,
+                "placement": row.get("placement"), "box_name": row.get("box_name"),
+                "talent_review": frappe.db.get_value(PLACEMENT, row.placement, "talent_review")
+                if row.get("placement") else None,
+                "objectives": _("To be ready to take over as {0} by {1}.").format(doc.designation, format_date(end)),
+                "training_requisition": row.get("training_requisition"),
+                "actions": [{"action": text, "by_when": end, "by_whom": name}
+                            for text in rules.plan_actions(row.get("development_needs"))],
+            })
+            program.flags.ignore_permissions = True
+            program.flags.ignore_mandatory = True
+            program.insert()
+        except Exception:
+            frappe.log_error(title="HRMS Addon: a successor's development plan")
+            continue
+        row.db_set("development_plan", program.name, update_modified=False)
+        made.append(program)
+    users = people.hr_officers(doc.get("branch"), doc.get("department")) if made else []
+    if users:
+        people.notify(list(users), doc.doctype, doc.name,
+                      _("Development plans are drafted for the successors to {0}: {1}. Enrol each to start "
+                        "it.").format(doc.designation, ", ".join(
+                          "%s (%s)" % (program.get("employee_name") or program.employee, program.name)
+                          for program in made)))
+    return made
+
+
+# ── 4b. The holder leaving ────────────────────────────────────────────
+def separation_on_update(doc, method=None):
+    """An exit raised for the holder of a critical role (Exits, 4.5 and
+    4.6): each plan they hold learns their last day and acts on it."""
+    if not doc.get("employee") or not doc.get("custom_relieving_date"):
+        return
+    for name in frappe.get_all(POSITION, filters={"incumbent": doc.employee, "docstatus": ["<", 2]},
+                               pluck="name", limit=20):
+        position = frappe.get_doc(POSITION, name)
+        if str(position.get("retirement_or_exit_due") or "") != str(doc.custom_relieving_date):
+            position.db_set({"retirement_or_exit_due": doc.custom_relieving_date, "exit_alerted": 0},
+                            update_modified=False)
+        if doc.get("custom_succession_position") != name:
+            doc.db_set("custom_succession_position", name, update_modified=False)
+        _act_on_exit(position)
+
+
+def separation_on_cancel(doc, method=None):
+    """The exit is off, cancelled or deleted: a plan that took its date from
+    it no longer expects the holder to go. What it drafted stays, for HR to
+    keep or close."""
+    if not doc.get("employee") or not doc.get("custom_relieving_date"):
+        return
+    for name in frappe.get_all(POSITION, filters={"incumbent": doc.employee, "docstatus": ["<", 2],
+                                                  "retirement_or_exit_due": doc.custom_relieving_date},
+                               pluck="name", limit=20):
+        frappe.db.set_value(POSITION, name, {"retirement_or_exit_due": None, "exit_alerted": 0},
+                            update_modified=False)
+        drafted = drafted_for(name)
+        names = [entry.name for entry in (drafted.get("promotion"), drafted.get("requisition")) if entry]
+        position = frappe.db.get_value(POSITION, name, ["designation", "branch", "department"], as_dict=True)
+        users = people.hr_officers(position.branch, position.department) if names else []
+        if users:
+            people.notify(list(users), POSITION, name,
+                          _("{0} is no longer leaving {1}. Close what was drafted for the exit if it is not "
+                            "needed: {2}.").format(doc.get("employee_name") or doc.employee,
+                                                   position.designation, ", ".join(names)))
+
+
+def _exit_of(employee):
+    """The employee's exit still on foot, if there is one."""
+    if not employee:
+        return frappe._dict()
+    found = frappe.get_all(SEPARATION, filters={"employee": employee, "docstatus": ["<", 2],
+                                                "custom_relieving_date": ["is", "set"]},
+                           fields=["name", "custom_relieving_date", "custom_reason", "docstatus"],
+                           order_by="creation desc", limit=1)
+    return found[0] if found else frappe._dict()
+
+
+def _act_on_exit(doc):
+    """What the plan does about its holder leaving (rules.exit_step): a
+    promotion drafted for the successor ready now, or the requisition for a
+    replacement; and HR and the council told at each mark while nobody is
+    ready."""
+    if doc.docstatus == 2 or not doc.get("retirement_or_exit_due"):
         return None
-    doc.db_set("job_opening", opening.name, update_modified=False)
-    return opening.name
+    due = str(doc.retirement_or_exit_due)[:10]
+    drafted = drafted_for(doc.name)
+    promotion, requisition = drafted.get("promotion"), drafted.get("requisition")
+    live = requisition and requisition.status not in CLOSED_REQUISITION
+    successor = _successor_for(doc)
+    step = rules.exit_step({
+        "exit_due": due, "confirmed": doc.docstatus == 1, "ready": bool(successor or promotion),
+        "promotion": bool(promotion) or str(doc.get("promotion_drafted_for") or "")[:10] == due,
+        "requisition": bool(live) or str(doc.get("requisition_drafted_for") or "")[:10] == due,
+        "alerted": doc.get("exit_alerted")}, today())
+    news = None
+    # each is tried once for a given last day: a draft HR delete is not
+    # made again the next morning, and a draft that failed is told once
+    if step["promote"] and successor:
+        name = _draft_promotion(successor.get("employee"), position=doc, effective=due)
+        doc.db_set("promotion_drafted_for", due, update_modified=False)
+        holder = doc.get("incumbent_name") or doc.get("incumbent")
+        named = successor.get("employee_name") or successor.get("employee")
+        if name:
+            _write_handover(doc)
+            news = _("{0} leaves on {1}, and {2} is ready now: their promotion into the role is drafted as "
+                     "position change {3}, from that day. Complete it and send it for signature.").format(
+                holder, format_date(due), named, name)
+        else:
+            news = _("{0} leaves on {1}, and {2} is ready now, but their promotion could not be drafted. "
+                     "Raise it on Employee Position Change.").format(holder, format_date(due), named)
+    if step["recruit"]:
+        _draft_requisition_for(doc)
+        doc.db_set("requisition_drafted_for", due, update_modified=False)
+        drafted = drafted_for(doc.name)
+    if step["alert"]:
+        doc.db_set("exit_alerted", step["alert"], update_modified=False)
+    if step["alert"] or step["recruit"]:
+        news = _exit_alert(doc, step["days"], drafted)
+    if news:
+        _tell_council(doc, news)
+    return step
+
+
+def _successor_for(doc):
+    rows = [row.as_dict() for row in doc.get("candidates") or []]
+    row = rules.ready_successor(rows, leaver=doc.get("incumbent"),
+                                active=_active({row.get("employee") for row in rows}))
+    if row and not row.get("employee_name"):
+        row["employee_name"] = frappe.db.get_value("Employee", row.get("employee"), "employee_name")
+    return row
+
+
+def _active(employees):
+    employees = sorted(name for name in employees if name)
+    return set(frappe.get_all("Employee", filters={"name": ["in", employees], "status": "Active"},
+                              pluck="name")) if employees else set()
+
+
+def _exit_alert(doc, days, drafted):
+    """What HR and the council are told as the holder's last day nears."""
+    holder = doc.get("incumbent_name") or doc.get("incumbent") or _("The holder")
+    when = format_date(doc.retirement_or_exit_due)
+    if doc.docstatus != 1:
+        head = _("{0} leaves {1} on {2}, in {3} days, and its succession plan is not confirmed.").format(
+            holder, doc.designation, when, days)
+    else:
+        head = _("{0} leaves {1} on {2}, in {3} days, and nobody is ready to take over.").format(
+            holder, doc.designation, when, days)
+    requisition, opening = drafted.get("requisition"), drafted.get("opening")
+    if opening:
+        tail = _("The replacement is being recruited on job opening {0}.").format(opening.name)
+    elif requisition and requisition.status in CLOSED_REQUISITION:
+        tail = _("Job requisition {0} for a replacement is {1}.").format(requisition.name,
+                                                                        _(requisition.status).lower())
+    elif requisition:
+        tail = _("Job requisition {0} for a replacement is at {1}.").format(
+            requisition.name, _(requisition.get("workflow_state") or requisition.status))
+    elif doc.docstatus == 1:
+        tail = _("There is no job requisition for a replacement. Raise one.")
+    else:
+        tail = _("Confirm it, so a promotion or a replacement can be drafted.")
+    return "%s %s" % (head, tail)
+
+
+def _tell_council(doc, message):
+    users = list(people.hr_officers(doc.get("branch"), doc.get("department")))
+    users += list(people.people_for("Talent Council", doc.get("branch"), doc.get("department")))
+    users = list(dict.fromkeys(users))
+    if users:
+        people.notify(users, POSITION, doc.name, message)
+
+
+def drafted_for(position):
+    return drafted_for_many([position]).get(position, {})
+
+
+def drafted_for_many(positions):
+    """What each plan has led to: {plan: {"promotion", "requisition",
+    "opening", "exit"}}, the latest of each. The promotion is the position
+    change drafted for its successor (cancelled ones left out); the
+    requisition is for a replacement, whatever became of it; the opening is
+    the one that requisition became; the exit is its holder's."""
+    names = sorted({name for name in positions if name})
+    if not names:
+        return {}
+    out = {name: {} for name in names}
+    for row in frappe.get_all(CHANGE, filters={"succession_position": ["in", names], "docstatus": ["<", 2]},
+                              fields=["name", "succession_position", "employee", "employee_name", "status",
+                                      "docstatus", "effective_date"], order_by="creation asc", limit=0):
+        out[row.succession_position]["promotion"] = row
+    requisitions = frappe.get_all(JOB_REQUISITION, filters={"custom_succession_position": ["in", names]},
+                                  fields=["name", "custom_succession_position", "status", "workflow_state",
+                                          "expected_by"], order_by="creation asc", limit=0)
+    for row in requisitions:
+        if row.status != "Cancelled" or "requisition" not in out[row.custom_succession_position]:
+            out[row.custom_succession_position]["requisition"] = row
+    by_requisition = {entry["requisition"].name: name for name, entry in out.items() if entry.get("requisition")}
+    if by_requisition:
+        for row in frappe.get_all("Job Opening", filters={"job_requisition": ["in", sorted(by_requisition)]},
+                                  fields=["name", "job_requisition", "status"], order_by="creation asc", limit=0):
+            out[by_requisition[row.job_requisition]]["opening"] = row
+    for row in frappe.get_all(SEPARATION, filters={"custom_succession_position": ["in", names],
+                                                   "docstatus": ["<", 2]},
+                              fields=["name", "custom_succession_position", "employee", "custom_reason",
+                                      "custom_relieving_date", "docstatus"], order_by="creation asc", limit=0):
+        out[row.custom_succession_position]["exit"] = row
+    return out
+
+
+def _draft_promotion(employee, position=None, program=None, effective=None):
+    """A promotion drafted as an Employee Position Change for HR to send
+    through its signatures: into the plan's role when there is a plan,
+    from the day its holder leaves, reporting where the holder reported.
+    One already drafted for the plan, or for the programme, is returned
+    instead."""
+    if not employee:
+        return None
+    filters = {"docstatus": ["<", 2]}
+    if position:
+        filters["succession_position"] = position.name
+    elif program:
+        filters["talent_program"] = program
+    existing = frappe.db.get_value(CHANGE, filters, "name") if (position or program) else None
+    if existing:
+        return existing
+    values = {"doctype": CHANGE, "change_type": "Promotion", "employee": employee,
+              "succession_position": position.name if position else None, "talent_program": program,
+              "effective_date": effective, "appraisal_score": _score_of(employee) or None}
+    if position:
+        held = frappe.db.get_value("Employee", employee, ["branch", "department"], as_dict=True) or frappe._dict()
+        above = frappe.db.get_value("Employee", position.incumbent, "reports_to") if position.get("incumbent") else None
+        values.update({
+            "new_designation": position.designation, "desired_position": position.designation,
+            "new_branch": position.branch if position.get("branch") and position.branch != held.branch else None,
+            "new_department": position.department
+            if position.get("department") and position.department != held.department else None,
+            "new_supervisor": above if above and above != employee else None})
+    try:
+        change = frappe.get_doc(values)
+        change.flags.ignore_permissions = True
+        change.flags.ignore_mandatory = True
+        change.insert()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: a promotion drafted from talent")
+        return None
+    return change.name
+
+
+def _score_of(employee):
+    """The year to date the promotion's preamble quotes: the employee's
+    latest finalised placement's, else their latest completed appraisal's."""
+    found = frappe.get_all(PLACEMENT, filters={"employee": employee, "docstatus": 1},
+                           fields=["performance_score"], order_by="creation desc", limit=1)
+    if found and flt(found[0].performance_score):
+        return flt(found[0].performance_score)
+    found = frappe.get_all("Appraisal", filters={"employee": employee, "docstatus": 1},
+                           fields=["custom_annual_score", "custom_total_score", "final_score"],
+                           order_by="end_date desc", limit=1)
+    if not found:
+        return None
+    return flt(found[0].custom_annual_score or found[0].custom_total_score or found[0].final_score) or None
+
+
+def _draft_requisition_for(doc):
+    """The requisition for whoever fills the plan's role when nobody on its
+    bench can: a replacement for a holder leaving or a role nobody holds,
+    else an addition who grows into it."""
+    holder = doc.get("incumbent_name") or doc.get("incumbent")
+    due = doc.get("retirement_or_exit_due")
+    if due and holder:
+        why = _("{0} leaves on {1} and nobody on the succession plan ({2}) is ready to take over.").format(
+            holder, format_date(due), doc.name)
+    elif not holder:
+        why = _("Nobody holds the role and nobody on the succession plan ({0}) is ready for it.").format(doc.name)
+    else:
+        why = _("Nobody on the succession plan ({0}) is ready to take over from {1}.").format(doc.name, holder)
+    branch = doc.get("branch") or (frappe.db.get_value("Employee", doc.incumbent, "branch")
+                                   if doc.get("incumbent") else None)
+    return _draft_requisition(doc.designation, doc.company, branch=branch, department=doc.get("department"),
+                              reason_type=rules.requisition_reason(due, doc.get("incumbent")),
+                              expected_by=due, why=why, position=doc.name)
+
+
+def _draft_requisition(designation, company, branch=None, department=None, reason_type=None,
+                       expected_by=None, why=None, position=None, program=None):
+    """A Job Requisition drafted for HR to complete (how to recruit, the
+    salary) and send through Luuka's approvals, after which it becomes the
+    job opening. One already open for the plan or the programme is
+    returned, and one already open for the same role at the same plant is
+    taken over rather than doubled."""
+    if not designation or not company:
+        return None
+    open_ = ["not in", CLOSED_REQUISITION]
+    for field, value in (("custom_succession_position", position), ("custom_talent_program", program)):
+        if value:
+            found = frappe.db.get_value(JOB_REQUISITION, {field: value, "status": open_}, "name")
+            if found:
+                return found
+    same = frappe.db.get_value(JOB_REQUISITION, {
+        "designation": designation, "company": company, "custom_branch": branch, "status": open_,
+        "custom_succession_position": ["is", "not set"], "custom_talent_program": ["is", "not set"]}, "name")
+    if same:
+        frappe.db.set_value(JOB_REQUISITION, same, {"custom_succession_position": position,
+                                                    "custom_talent_program": program}, update_modified=False)
+        return same
+    try:
+        requisition = frappe.get_doc({
+            "doctype": JOB_REQUISITION, "designation": designation, "company": company,
+            "department": department, "custom_branch": branch, "no_of_positions": 1, "posting_date": today(),
+            "expected_by": expected_by, "custom_reason_type": reason_type or rules.REPLACEMENT,
+            "reason_for_requesting": why, "custom_succession_position": position,
+            "custom_talent_program": program})
+        requisition.flags.ignore_permissions = True
+        requisition.flags.ignore_mandatory = True
+        # how to recruit is HR's to choose: the requisition asks for it when
+        # they send it on (job_requisition.validate)
+        requisition.flags.drafted_by_talent = True
+        requisition.insert()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: a job requisition drafted from talent")
+        return None
+    return requisition.name
+
+
+def _write_handover(doc):
+    """A clearance already drawn up for the holder gets the handover line,
+    where nobody has written one (exits.draw_up_clearance writes it on a
+    clearance drawn up later)."""
+    if not doc.get("incumbent"):
+        return
+    clearance = frappe.db.get_value(CLEARANCE, {"employee": doc.incumbent, "docstatus": 0}, "name")
+    if not clearance:
+        return
+    row = frappe.db.get_value("Clearance Item", {"parent": clearance, "parenttype": CLEARANCE, "section": "A",
+                                                 "item": rules.HANDOVER_ITEM}, ["name", "remarks"], as_dict=True)
+    note = handover_for(doc.incumbent)
+    if row and note and not (row.remarks or "").strip():
+        frappe.db.set_value("Clearance Item", row.name, "remarks", note, update_modified=False)
+
+
+def handover_for(employee):
+    """The clearance's handover line for a holder of critical roles (box A,
+    "Handover report"): who takes each over. None for anybody else."""
+    notes = []
+    for position in frappe.get_all(POSITION, filters={"incumbent": employee, "docstatus": ["<", 2]},
+                                   fields=["name", "designation"], limit=5):
+        promotion = drafted_for(position.name).get("promotion")
+        if promotion:
+            successor = promotion.employee_name or promotion.employee
+        else:
+            row = _successor_for(frappe.get_doc(POSITION, position.name))
+            successor = (row.get("employee_name") or row.get("employee")) if row else None
+        notes.append(rules.handover_note(position.designation, successor))
+    return "; ".join(notes)[:140] or None
+
+
+# ── 4c. The promotion into the role approved ──────────────────────────
+def change_on_submit(doc, method=None):
+    """Employee Position Change approved. A promotion into a planned role
+    hands the role over: the plan names its new holder and the one before,
+    and takes them off its own bench."""
+    if doc.get("change_type") != "Promotion" or not doc.get("succession_position"):
+        return
+    position = frappe.get_doc(POSITION, doc.succession_position)
+    if position.docstatus != 1 or position.get("incumbent") == doc.employee \
+            or (doc.get("new_designation") and doc.new_designation != position.designation):
+        return
+    before = position.get("incumbent")
+    position.previous_incumbent = before
+    position.previous_incumbent_name = position.get("incumbent_name")
+    position.handed_over_on = doc.get("effective_date") or today()
+    position.incumbent = doc.employee
+    position.set("candidates", [row for row in position.candidates if row.employee != doc.employee])
+    for number, row in enumerate(position.candidates, 1):
+        row.idx = number
+    position.flags.ignore_permissions = True
+    position.save()
+    # the rest of the bench is coached by the role's holder: now the new one
+    if before:
+        for name in frappe.get_all(PROGRAM, filters={"succession_position": position.name, "docstatus": 0,
+                                                     "mentor": before}, pluck="name"):
+            frappe.db.set_value(PROGRAM, name, "mentor", doc.employee, update_modified=False)
+
+
+def change_on_cancel(doc, method=None):
+    """The promotion undone: the plan names its previous holder again, and
+    the successor is back on its bench, ready now."""
+    if doc.get("change_type") != "Promotion" or not doc.get("succession_position"):
+        return
+    position = frappe.get_doc(POSITION, doc.succession_position)
+    if position.docstatus != 1 or position.get("incumbent") != doc.employee \
+            or not position.get("previous_incumbent"):
+        return
+    position.incumbent = position.previous_incumbent
+    for field in ("previous_incumbent", "previous_incumbent_name", "handed_over_on"):
+        position.set(field, None)
+    position.append("candidates", {"employee": doc.employee, "readiness": rules.READY_NOW,
+                                   "nominated_by": frappe.session.user, "idx": len(position.candidates) + 1})
+    position.flags.ignore_permissions = True
+    position.save()
+
+
+@frappe.whitelist()
+def get_follow_through(position):
+    """The plan's form: what its holder's exit and its bench have led to."""
+    doc = frappe.get_doc(POSITION, position)
+    doc.check_permission("read")
+    drafted = drafted_for(doc.name)
+    plans = [row.development_plan for row in doc.get("candidates") or [] if row.get("development_plan")]
+    from hrms_addon.hrms_addon import talent_reports
+
+    progress = talent_reports.plan_progress(plans) if plans else {}
+    successor = _successor_for(doc)
+    return {
+        "exit": drafted.get("exit"), "promotion": drafted.get("promotion"),
+        "requisition": drafted.get("requisition"), "opening": drafted.get("opening"),
+        "days": rules.days_until(doc.get("retirement_or_exit_due"), today()),
+        "window": rules.EXIT_WINDOW,
+        "successor": {"employee": successor.get("employee"), "employee_name": successor.get("employee_name")}
+        if successor else None,
+        "plans": {name: progress.get(name) for name in plans},
+    }
 
 
 def _send_needs_to_ld(doc):
@@ -1138,8 +1687,8 @@ def monthly():
         _("{0} placements finalised, {1} of them top talent, {2} of those at risk of leaving").format(
             figures["finalised"], figures["top_talent"], figures["at_risk"]),
         _("{0} moved in calibration").format(figures["moves"]),
-        _("{0} critical roles confirmed, {1} gaps being recruited for").format(
-            figures["roles_confirmed"], figures["gaps"]),
+        _("{0} critical roles confirmed, {1} gaps being recruited for, {2} handed over to a successor").format(
+            figures["roles_confirmed"], figures["gaps"], figures["handovers"]),
         _("{0} development actions done, {1} past their date").format(
             figures["actions_done"], figures["actions_late"]),
         _("{0} programmes closed").format(figures["programmes_closed"]),
@@ -1158,6 +1707,8 @@ def daily():
     _open_review_cycles()
     _chase_milestones()
     _watch_top_talent()
+    _watch_exits()
+    _link_openings()
 
 
 def _open_review_cycles():
@@ -1209,7 +1760,69 @@ def _watch_top_talent():
     frappe.db.commit()
 
 
-# ── 8. Wiring ─────────────────────────────────────────────────────────
+def _watch_exits():
+    """Every plan whose holder leaves within the window, acted on each day
+    (rules.exit_step): the marks it reaches told, a promotion or a
+    replacement's requisition drafted once."""
+    window = [today(), add_days(today(), rules.EXIT_WINDOW)]
+    for name in frappe.get_all(POSITION, filters={"docstatus": ["<", 2],
+                                                  "retirement_or_exit_due": ["between", window]},
+                               pluck="name", limit=500):
+        try:
+            _act_on_exit(frappe.get_doc(POSITION, name))
+        except Exception:
+            frappe.log_error(title="HRMS Addon: a succession plan's exit watch")
+    frappe.db.commit()
+
+
+def _link_openings():
+    """A plan's requisition that has become a job opening: the plan shows
+    the opening, as one raised directly used to."""
+    plans = frappe.get_all(POSITION, filters={"docstatus": 1, "job_opening": ["is", "not set"]},
+                           pluck="name", limit=500)
+    for name, drafted in drafted_for_many(plans).items():
+        if drafted.get("opening"):
+            frappe.db.set_value(POSITION, name, "job_opening", drafted["opening"].name, update_modified=False)
+    frappe.db.commit()
+
+
+# ── 8. The print outs ─────────────────────────────────────────────────
+# Jinja methods (hooks.py): what the talent print formats print beyond the
+# document itself. Any template may call them, so each answers only a
+# reader who may open the document it is asked about.
+def talent_grid():
+    """The Talent Card's nine boxes, a row per potential band (high to
+    low), performance low to high across: each cell's number and name."""
+    return [[{"box": rules.BOXES[(performance, potential)]["box"],
+              "name": rules.BOXES[(performance, potential)]["name"]}
+             for performance in (rules.LOW, rules.MEETING, rules.EXCEEDING)]
+            for potential in (rules.POTENTIAL_HIGH, rules.POTENTIAL_MODERATE, rules.POTENTIAL_LOW)]
+
+
+def talent_follow_through(position):
+    """The Succession Slate's "Filling the Role": the holder's exit, the
+    promotion or the replacement's requisition and its opening, and how far
+    each successor's development plan has got."""
+    if not position or not frappe.has_permission(POSITION, "read", doc=position):
+        return {}
+    from hrms_addon.hrms_addon import talent_reports
+
+    plans = frappe.get_all("Succession Candidate", filters={"parent": position, "parenttype": POSITION,
+                                                             "development_plan": ["is", "set"]},
+                           pluck="development_plan")
+    return dict(drafted_for(position), plans=talent_reports.plan_progress(plans) if plans else {})
+
+
+def talent_plan_progress(plan):
+    """The Talent Card's development plan: its actions, done and late."""
+    if not plan or not frappe.has_permission(PROGRAM, "read", doc=plan):
+        return None
+    from hrms_addon.hrms_addon import talent_reports
+
+    return talent_reports.plan_progress([plan]).get(plan)
+
+
+# ── 9. Wiring ─────────────────────────────────────────────────────────
 def setup_workflows_on_migrate():
     from hrms_addon.hrms_addon import (succession_approval, talent_approval,
                                        talent_program_approval, trainee_approval, workflows)

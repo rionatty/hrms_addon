@@ -2,6 +2,7 @@
  "actions": [],
  "autoname": "naming_series:",
  "creation": "2026-09-21 23:30:00.000000",
+ "default_print_format": "Succession Slate",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -32,10 +33,18 @@
   "gap",
   "gap_section",
   "gap_confirmed",
-  "job_opening",
   "column_break_4",
   "needs_sent_on",
   "gap_notes",
+  "handover_section",
+  "job_opening",
+  "previous_incumbent",
+  "previous_incumbent_name",
+  "column_break_6",
+  "handed_over_on",
+  "exit_alerted",
+  "promotion_drafted_for",
+  "requisition_drafted_for",
   "signoff_section",
   "nominated_by",
   "nominated_on",
@@ -117,14 +126,16 @@
    "fieldname": "incumbent",
    "fieldtype": "Link",
    "label": "Incumbent",
-   "options": "Employee"
+   "options": "Employee",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "incumbent_name",
    "fieldtype": "Data",
    "label": "Name",
    "fetch_from": "incumbent.employee_name",
-   "read_only": 1
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "single_person_role",
@@ -151,7 +162,9 @@
   {
    "fieldname": "retirement_or_exit_due",
    "fieldtype": "Date",
-   "label": "Known Exit Due"
+   "label": "Known Exit Due",
+   "allow_on_submit": 1,
+   "description": "Filled in from the holder's exit"
   },
   {
    "fieldname": "bench_section",
@@ -227,14 +240,6 @@
    "description": "On confirmation, a job opening is raised and the development needs go to L&D."
   },
   {
-   "fieldname": "job_opening",
-   "fieldtype": "Link",
-   "label": "Job Opening",
-   "options": "Job Opening",
-   "read_only": 1,
-   "no_copy": 1
-  },
-  {
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
   },
@@ -249,6 +254,80 @@
    "fieldname": "gap_notes",
    "fieldtype": "Small Text",
    "label": "Council's Note"
+  },
+  {
+   "fieldname": "handover_section",
+   "fieldtype": "Section Break",
+   "label": "Filling the Role",
+   "depends_on": "eval:doc.job_opening || doc.previous_incumbent"
+  },
+  {
+   "fieldname": "job_opening",
+   "fieldtype": "Link",
+   "label": "Job Opening",
+   "options": "Job Opening",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "previous_incumbent",
+   "fieldtype": "Link",
+   "label": "Previous Holder",
+   "options": "Employee",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "previous_incumbent_name",
+   "fieldtype": "Data",
+   "label": "Previous Holder's Name",
+   "fetch_from": "previous_incumbent.employee_name",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "handed_over_on",
+   "fieldtype": "Date",
+   "label": "Handed Over On",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "exit_alerted",
+   "fieldtype": "Int",
+   "label": "Exit Alert Sent At",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "promotion_drafted_for",
+   "fieldtype": "Date",
+   "label": "Promotion Drafted For Exit On",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "requisition_drafted_for",
+   "fieldtype": "Date",
+   "label": "Requisition Drafted For Exit On",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "print_hide": 1
   },
   {
    "fieldname": "signoff_section",

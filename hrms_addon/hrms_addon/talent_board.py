@@ -255,7 +255,9 @@ def get_succession(branch=None, department=None):
     """Test cases 11 to 15 on the board: every critical role, who holds it
     and what losing them would cost, the successors named for it by
     readiness with where each sits on the grid, and how covered the roles
-    are, the gaps first."""
+    are, the gaps first. A holder on their way out shows what is filling
+    the role: the promotion drafted for a successor, or the requisition for
+    a replacement and the opening it became."""
     _check_access()
     filters = {"docstatus": ["<", 2]}
     for field, value in (("branch", branch), ("department", department)):
@@ -275,11 +277,18 @@ def get_succession(branch=None, department=None):
         found = boxes.get(row.employee) or {}
         slates.setdefault(row.parent, []).append(dict(row, box=found.get("box"), box_name=found.get("box_name"),
                                                       colour=found.get("box_colour")))
+    drafted = talent.drafted_for_many(names)
     for position in positions:
         position["slate"] = rules.readiness_order(slates.get(position.name, []))
         held = boxes.get(position.incumbent) or {}
         position["incumbent_box"] = held.get("box")
         position["incumbent_risk"] = held.get("flight_risk")
+        found = drafted.get(position.name) or {}
+        position["exit_days"] = rules.days_until(position.retirement_or_exit_due, today())
+        position["exit_reason"] = (found.get("exit") or {}).get("custom_reason")
+        position["promotion"] = found.get("promotion")
+        position["requisition"] = found.get("requisition")
+        position["opening"] = found.get("opening")
     positions.sort(key=lambda row: (COVERAGE_ORDER.get(row.coverage, 3), RISK_ORDER.get(row.risk_level, 3),
                                     str(row.designation or "")))
     summary = {"roles": len(positions)}

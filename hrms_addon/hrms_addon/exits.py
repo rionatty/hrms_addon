@@ -251,7 +251,10 @@ def clearance_on_cancel(doc, method=None):
 @frappe.whitelist(methods=["POST"])
 def draw_up_clearance(separation):
     """The ten boxes LPL/HR/22 prints, with the employee's own tools of
-    work already on them (step 6: the handover)."""
+    work already on them (step 6: the handover), and, for the holder of a
+    critical role, who the work is handed over to (their succession plan)."""
+    from hrms_addon.hrms_addon import talent, talent_rules
+
     exit_doc = frappe.get_doc(SEPARATION, separation)
     exit_doc.check_permission("read")
     if exit_doc.get("custom_clearance"):
@@ -265,7 +268,10 @@ def draw_up_clearance(separation):
         "leave_balance": _leave_balance(exit_doc.employee),
         "salary": pay.monthly_gross(exit_doc.employee),
     })
+    handover = talent.handover_for(exit_doc.employee)
     for row in rules.default_rows(form.exit_type):
+        if handover and row["section"] == "A" and row["item"] == talent_rules.HANDOVER_ITEM:
+            row = dict(row, remarks=handover)
         form.append("items", row)
     for tool in _tools(exit_doc.employee):
         # what identifies the one issued: its brand, serial number and plate

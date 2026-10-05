@@ -6,13 +6,15 @@ it would cost to lose them, and who is named to step in, readiest first.
 
 The gaps come first, because a report the council reads at the top is a
 report about the roles nobody can fill. It reads through Frappe's
-permissions, so a branch's HR Officer sees that branch's roles.
+permissions, so a branch's HR Officer sees that branch's roles. A holder
+on their way out shows what is filling the role: the successor whose
+promotion is drafted, or the requisition for a replacement.
 """
 
 import frappe
 from frappe import _
 
-from hrms_addon.hrms_addon import talent_rules as rules
+from hrms_addon.hrms_addon import talent, talent_rules as rules
 
 ORDER = {rules.POSITION_GAP: 0, rules.AT_RISK: 1, rules.COVERED: 2}
 RISK_ORDER = {"High": 0, "Medium": 1, "Low": 2}
@@ -35,7 +37,10 @@ def execute(filters=None):
                 "retirement_or_exit_due"],
         limit_page_length=0)
     rows = []
+    drafted = talent.drafted_for_many([position.name for position in positions])
     for position in positions:
+        found = drafted.get(position.name) or {}
+        promotion = found.get("promotion") or {}
         candidates = frappe.get_all(
             "Succession Candidate",
             filters={"parent": position.name, "parenttype": "Succession Position"},
@@ -61,7 +66,10 @@ def execute(filters=None):
                 for row in ordered) or None,
             "development_needs": "; ".join(
                 need["needs"] for need in rules.development_needs(candidates)) or None,
-            "job_opening": position.job_opening,
+            "taking_over": promotion.get("employee_name") or promotion.get("employee"),
+            "promotion": promotion.get("name"),
+            "requisition": (found.get("requisition") or {}).get("name"),
+            "job_opening": (found.get("opening") or {}).get("name") or position.job_opening,
             "exit_due": position.retirement_or_exit_due,
             "status": position.status,
         })
@@ -93,6 +101,11 @@ def columns():
         {"label": _("Successors"), "fieldname": "successors", "fieldtype": "Data", "width": 300},
         {"label": _("Development Needs"), "fieldname": "development_needs", "fieldtype": "Data",
          "width": 260},
+        {"label": _("Taking Over"), "fieldname": "taking_over", "fieldtype": "Data", "width": 160},
+        {"label": _("Promotion"), "fieldname": "promotion", "fieldtype": "Link",
+         "options": "Employee Position Change", "width": 140},
+        {"label": _("Requisition"), "fieldname": "requisition", "fieldtype": "Link",
+         "options": "Job Requisition", "width": 140},
         {"label": _("Job Opening"), "fieldname": "job_opening", "fieldtype": "Link",
          "options": "Job Opening", "width": 130},
         {"label": _("Exit Due"), "fieldname": "exit_due", "fieldtype": "Date", "width": 100},

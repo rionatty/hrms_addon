@@ -436,10 +436,22 @@ hrms_addon.TalentBoard = class TalentBoard {
 		const holder = role.incumbent
 			? `${esc(__("Held by"))} <b>${esc(role.incumbent_name || role.incumbent)}</b> ${box(role.incumbent_box)}
 				${["High", "Medium"].includes(role.incumbent_risk) ? `<span class="tb-flag tb-risk">${esc(__("Flight risk {0}", [__(role.incumbent_risk)]))}</span>` : ""}
-				${role.retirement_or_exit_due ? `<span class="tb-none">${esc(__("leaving {0}", [frappe.datetime.str_to_user(role.retirement_or_exit_due)]))}</span>` : ""}`
+				${role.retirement_or_exit_due ? this.leaving(role) : ""}`
 			: `<span class="tb-none">${esc(__("Nobody holds it"))}</span>`;
-		const opening = role.job_opening
-			? `<div class="tb-none" style="margin-top:8px">${esc(__("Recruiting:"))} <a href="/app/job-opening/${encodeURIComponent(role.job_opening)}">${esc(role.job_opening)}</a></div>` : "";
+		const go = (doctype, name) => `<a href="/app/${frappe.router.slug(doctype)}/${encodeURIComponent(name)}">${esc(name)}</a>`;
+		const filling = [];
+		if (role.promotion) {
+			filling.push(`${esc(__("Taking over:"))} <b>${esc(role.promotion.employee_name || role.promotion.employee)}</b>,
+				${esc(__("promotion"))} ${go("Employee Position Change", role.promotion.name)} (${esc(__(role.promotion.status || "Draft"))})`);
+		}
+		if (role.requisition) {
+			filling.push(`${esc(__("Replacement:"))} ${go("Job Requisition", role.requisition.name)}
+				(${esc(__(role.requisition.workflow_state || role.requisition.status || "Draft"))})`);
+		}
+		const opening = (role.opening && role.opening.name) || role.job_opening;
+		if (opening) filling.push(`${esc(__("Recruiting:"))} ${go("Job Opening", opening)}`);
+		const follow = filling.length
+			? `<div class="tb-none" style="margin-top:8px">${filling.join(" &middot; ")}</div>` : "";
 		return `<div class="tb-role">
 			<div class="tb-role-head"><a href="/app/succession-position/${encodeURIComponent(role.name)}">${esc(role.designation || role.name)}</a>
 				<span class="tb-pill ${TB_COVERAGE[role.coverage] || ""}">${esc(__(role.coverage || "Gap"))}</span>
@@ -447,7 +459,17 @@ hrms_addon.TalentBoard = class TalentBoard {
 				${role.single_person_role ? `<span class="tb-pill">${esc(__("One person only"))}</span>` : ""}</div>
 			<div class="tb-role-sub">${sub}</div>
 			<div class="tb-role-holder">${holder}</div>
-			<div class="tb-slate">${slate}</div>${opening}</div>`;
+			<div class="tb-slate">${slate}</div>${follow}</div>`;
+	}
+
+	// The holder's last day, flagged once it is within the plan's window.
+	leaving(role) {
+		const esc = frappe.utils.escape_html;
+		const days = role.exit_days;
+		const text = __("leaves {0}", [frappe.datetime.str_to_user(role.retirement_or_exit_due)]) +
+			(role.exit_reason ? ` (${__(role.exit_reason).toLowerCase()})` : "");
+		if (days === null || days === undefined || days < 0 || days > 90) return `<span class="tb-none">${esc(text)}</span>`;
+		return `<span class="tb-flag tb-risk">${esc(text)}, ${esc(days ? __("in {0} days", [days]) : __("today"))}</span>`;
 	}
 
 	tint(box) {
