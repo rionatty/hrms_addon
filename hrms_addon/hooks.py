@@ -289,6 +289,8 @@ after_install = [
     "hrms_addon.hrms_addon.benefits.seed_standard_claims",
     # the disciplinary ladder and the misconduct the HR manual lists
     "hrms_addon.hrms_addon.discipline.seed_discipline_masters",
+    # the leave types a suspension's days are marked as (suspensions.py)
+    "hrms_addon.hrms_addon.suspensions.seed_leave_types",
     # the employment type a graduate trainee is on (talent.py)
     "hrms_addon.hrms_addon.talent.seed_masters",
 ]
@@ -416,6 +418,7 @@ after_migrate = [
     # The disciplinary case: investigated by one person, decided by another
     # (5.3). See discipline_approval.py.
     "hrms_addon.hrms_addon.discipline.setup_workflows_on_migrate",
+    "hrms_addon.hrms_addon.suspensions.setup_workflows_on_migrate",
     # The nine-box placement, the development programme, the succession
     # position and the graduate trainee. See talent_approval.py,
     # talent_program_approval.py, succession_approval.py, trainee_approval.py.
@@ -1808,6 +1811,8 @@ scheduler_events = {
         # Employee relations: an appeal window that lapses, a concern past
         # its timeline, a suspension that ends today (discipline.py)
         "hrms_addon.hrms_addon.discipline.daily",
+        # a suspension starts and ends on its days (suspensions.py)
+        "hrms_addon.hrms_addon.suspensions.daily",
         # Talent: a review cycle that opens and drafts its placements, a
         # trainee milestone that has fallen due, top talent flagged a
         # flight risk (talent.py)

@@ -60,6 +60,9 @@ from hrms_addon.hrms_addon import (
 )
 
 HOD_ROLE = "Head of Department"
+# who is appraised: everyone on the staff, a suspended employee too
+# (suspensions.py)
+STAFF = ["Active", "Suspended"]
 SETTINGS = "Appraisal Settings"
 TEMPLATE = "Appraisal Template"
 # who writes which comment block, on either form
@@ -243,9 +246,9 @@ def _employees_for(plan):
         named = [row.employee for row in plan.get("employees") or []]
         if not named:
             return []
-        filters = {"name": ["in", named], "status": "Active"}
+        filters = {"name": ["in", named], "status": ["in", STAFF]}
     else:
-        filters = {"status": "Active"}
+        filters = {"status": ["in", STAFF]}
         if plan.get("branch"):
             filters["branch"] = plan.branch
         if plan.get("department"):

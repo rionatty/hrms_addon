@@ -523,8 +523,11 @@ def _retotal(plan):
 
 # ── 2. LPL/HR/15 ──────────────────────────────────────────────────────
 def application_validate(doc, method=None):
-    from hrms_addon.hrms_addon import leave_accrual, leave_approval as approval
+    from hrms_addon.hrms_addon import leave_accrual, leave_approval as approval, suspension_rules
 
+    if doc.get("leave_type") in suspension_rules.LEAVE_TYPES:
+        frappe.throw(_("Suspension days are marked by an Employee Suspension, not applied for."),
+                     title=_("Leave Application"))
     earned = leave_accrual.check_application(doc)
     _fill_balances(doc, earned)
     _check_application_step(doc)

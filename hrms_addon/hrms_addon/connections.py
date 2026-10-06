@@ -33,6 +33,8 @@ SERVICE_DOCS = ["Employee Position Change", "Employee Data Change Request"]
 PERFORMANCE_DOCS = ["Appraisal", "Performance Improvement Plan"]
 # the day to day: why someone was away, and the overtime they worked
 ATTENDANCE_DOCS = ["Off Duty Request", "Gate Pass"]
+# the disciplinary record, and any suspension it came to
+DISCIPLINE_DOCS = ["Disciplinary Case", "Employee Suspension"]
 
 
 def employee_dashboard(data=None):
@@ -43,6 +45,7 @@ def employee_dashboard(data=None):
     transactions.append({"label": _("Position and Pay"), "items": list(SERVICE_DOCS)})
     transactions.append({"label": _("Performance"), "items": list(PERFORMANCE_DOCS)})
     transactions.append({"label": _("Attendance"), "items": list(ATTENDANCE_DOCS)})
+    transactions.append({"label": _("Discipline"), "items": list(DISCIPLINE_DOCS)})
     return data
 
 

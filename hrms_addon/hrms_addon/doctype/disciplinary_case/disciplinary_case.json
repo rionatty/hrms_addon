@@ -62,6 +62,7 @@
   "suspension_from",
   "suspension_to",
   "report_back_on",
+  "employee_suspension",
   "decided_by",
   "decided_on",
   "letter_section",
@@ -450,6 +451,15 @@
    "no_copy": 1
   },
   {
+   "fieldname": "employee_suspension",
+   "fieldtype": "Link",
+   "label": "Employee Suspension",
+   "options": "Employee Suspension",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.rung==\"Suspension\""
+  },
+  {
    "fieldname": "decided_by",
    "fieldtype": "Link",
    "label": "Decided By",
@@ -590,7 +600,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 22:00:00.000000",
+ "modified": "2026-10-06 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Disciplinary Case",

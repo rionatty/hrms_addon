@@ -116,6 +116,8 @@ def register_code(facts):
     if facts.get("off_duty"):
         return OFF_DUTY
     if status == "On Leave":
+        if facts.get("leave_type") == UNPAID_SUSPENSION:
+            return ABSENT
         return SICK if _is_sick(facts.get("leave_type")) else LEAVE
     if status == "Absent":
         return ABSENT
@@ -124,6 +126,12 @@ def register_code(facts):
     if facts.get("holiday"):
         return WEEKLY_OFF
     return ""
+
+
+# a suspension's unpaid days, marked as leave of this type
+# (suspension_rules.UNPAID_LEAVE): the register prints them as the absence
+# they are paid as
+UNPAID_SUSPENSION = "Suspension Without Pay"
 
 
 def _is_sick(leave_type):

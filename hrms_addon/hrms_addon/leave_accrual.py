@@ -186,8 +186,9 @@ def _policy_days(employee, leave_type, on, allocation, s):
 
 
 def _off_days(employee, start, end, s):
-    """{date: part of the day not worked}: leave without pay, and days marked
-    Absent unless the settings say those earn too."""
+    """{date: part of the day not worked}: leave without pay, applied for or
+    marked on the attendance (an unpaid suspension's days are), and days
+    marked Absent unless the settings say those earn too."""
     key = (employee, str(start), str(end), cint(s.get("absent_days_earn")))
     memo = frappe.flags.setdefault("hrms_addon_accrual_off", {})
     if key in memo:
@@ -207,6 +208,11 @@ def _off_days(employee, start, end, s):
         from hrms_addon.hrms_addon import leave
 
         off = rules.unpaid_days(spans, leave.holidays_between(employee, start, end))
+    if unpaid:
+        off = rules.merge_off(off, {getdate(day): 1.0 for day in frappe.get_all(
+            "Attendance", filters={"employee": employee, "docstatus": 1, "status": "On Leave",
+                                   "leave_type": ["in", list(unpaid)], "attendance_date": ["between", [start, end]]},
+            pluck="attendance_date", limit_page_length=0)})
     if not cint(s.get("absent_days_earn")):
         off = rules.merge_off(off, {getdate(day): 1.0 for day in frappe.get_all(
             "Attendance", filters={"employee": employee, "docstatus": 1, "status": rules.ABSENT,
@@ -420,7 +426,8 @@ def allocate(company=None, on=None, notify_user=None):
     counts = {"assigned": 0, "already": 0, "no_policy": 0, "failed": 0}
     for name in ([company] if company else frappe.get_all("Company", pluck="name")):
         period = _leave_period(name, on)
-        people_here = frappe.get_all("Employee", filters={"company": name, "status": "Active"},
+        # a suspended employee is still on the staff (suspensions.py)
+        people_here = frappe.get_all("Employee", filters={"company": name, "status": ["in", ["Active", "Suspended"]]},
                                      fields=["name", "date_of_joining"], limit_page_length=0)
         if not people_here:
             continue

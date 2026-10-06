@@ -182,10 +182,15 @@ def _tell_case(doc, state):
 
 
 def case_on_submit(doc, method=None):
-    """Decided. A dismissal opens the termination process; a sanction is
-    told to the supervisor; everything is told to the employee."""
+    """Decided. A dismissal opens the termination process; a suspension is
+    raised as an Employee Suspension for HR to send on (suspensions.py); a
+    sanction is told to the supervisor; everything is told to the employee."""
     if rules.ends_in_termination(doc.get("outcome"), doc.get("rung")):
         _raise_separation(doc)
+    elif doc.get("outcome") == rules.SANCTIONED and doc.get("rung") == rules.SUSPENSION:
+        from hrms_addon.hrms_addon import suspensions
+
+        suspensions.from_case(doc)
     _tell_decided(doc)
 
 
@@ -442,8 +447,10 @@ def _chase_concerns():
 
 def _end_suspensions():
     """An employee whose suspension ends today is expected back, and the
-    HR Officer is told."""
-    rows = frappe.get_all(CASE, filters={"docstatus": 1, "report_back_on": today()},
+    HR Officer is told. A suspension raised as its own record tells them
+    itself (suspensions.daily)."""
+    rows = frappe.get_all(CASE, filters={"docstatus": 1, "report_back_on": today(),
+                                         "employee_suspension": ["is", "not set"]},
                           fields=["name", "employee", "employee_name", "branch", "department"],
                           limit=100)
     for row in rows:

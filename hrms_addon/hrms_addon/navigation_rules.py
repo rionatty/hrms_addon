@@ -123,6 +123,8 @@ CARDS = {
         # already on their Grievance card (discipline.py)
         ("Discipline and Safety", [
             ("Disciplinary Case", "Disciplinary Case", DOCTYPE),
+            # the suspension the ladder comes to, and its letter (6 Oct 2026)
+            ("Employee Suspension", "Employee Suspension", DOCTYPE),
             ("Safety Incident", "Safety Incident", DOCTYPE),
             ("Misconduct Type", "Misconduct Type", DOCTYPE),
             ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE),
@@ -499,7 +501,8 @@ SIDEBAR = {
         ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
         ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),
         ("Disciplinary Case", "Disciplinary Case", DOCTYPE, None, "Employee Grievance"),
-        ("Safety Incident", "Safety Incident", DOCTYPE, None, "Disciplinary Case"),
+        ("Employee Suspension", "Employee Suspension", DOCTYPE, None, "Disciplinary Case"),
+        ("Safety Incident", "Safety Incident", DOCTYPE, None, "Employee Suspension"),
         ("Misconduct Type", "Misconduct Type", DOCTYPE, "Setup", None),
         ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE, "Setup", None),
         ("Onboarding Settings", "Onboarding Settings", DOCTYPE, "Setup", None),
@@ -566,7 +569,8 @@ GROUPS = {
                                     "Employee Data Change Request"]),
         ("Training", "graduation-cap", ["Training Requisition", "Training Needs Assessment", "Training Calendar",
                                         "Monthly Training Schedule"]),
-        ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Safety Incident"]),
+        ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
+                                         "Safety Incident"]),
         ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement"]),
     ],
     "Expenses": [
