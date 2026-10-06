@@ -1042,7 +1042,7 @@ for target, constant, script in (("Succession Position", "POSITION_RECORDS", "su
     names = {
         {"PROGRAM": "Talent Program", "CHANGE": "Employee Position Change", "SEPARATION": "Employee Separation",
          "TRAINEE": "Graduate Trainee Program", "POSITION": "Succession Position",
-         "PLACEMENT": "Talent Placement"}.get(name.strip(), name.strip())
+         "PLACEMENT": "Talent Placement", "REQUISITION": "Training Requisition"}.get(name.strip(), name.strip())
         for name in (spelled.group(1).split(",") if spelled else []) if name.strip()}
     if not wanted <= names:
         fail.append("talent.%s must leave alone %s, which point at a %s" % (constant, sorted(wanted - names), target))
@@ -1115,9 +1115,9 @@ TALENT_PRINTS = {
     "Talent Card": ("Talent Placement", ("Appraisal Quarter Result", "Talent Competency Level", "Development Theme"), [
         "Talent Card", "Nine-Box Placement", "Performance, Year to Date", "Potential", "Retention", "Development",
         "Line Manager", "Talent Council"]),
-    "Individual Development Plan": ("Talent Program", ("Development Action",), [
+    "Individual Development Plan": ("Talent Program", ("Development Action", "Development Training"), [
         "Individual Development Plan", "Objectives", "Development Actions", "Estimated Cost", "Review",
-        "Agreement", "Mentor or Coach"]),
+        "Agreement", "Mentor or Coach", "<h4>Training</h4>", "Attendance"]),
     "Succession Slate": ("Succession Position", ("Succession Candidate",), [
         "Succession Slate", "Successors, Readiest First", "Ready Now", "Bench Depth", "Filling the Role",
         "Confirmed by the Talent Council"]),
@@ -1217,6 +1217,103 @@ if "hrms_addon.patches.v1_0.talent_box_out_of_plans" not in read("hrms_addon", "
     fail.append("a site whose box already wrote into themes and plans has it taken out by patch")
 print("print-outs: the Talent Card, the development plan, the succession slate and the trainee's progress; the box "
       "only for those who may read it")
+
+# ── 12. Training, back from L&D (6 Oct 2026) ──────────────────────────
+# A plan's training goes to L&D as a requisition linked to the plan, the
+# branch HR Officer told to submit it; what L&D makes of it comes back: the
+# plan's Training rows, the actions of a session's topic done for an
+# attendee, the marks and whether it worked.
+rows = T.topic_rows(["Lab testing", "  lab   testing ", "", "ISO 9001 audits " + "x" * 200], "Internal")
+if [row["topic"] for row in rows] != ["Lab testing", ("ISO 9001 audits " + "x" * 200)[:140].strip()] \
+        or rows[1]["required_skills"] != "ISO 9001 audits " + "x" * 200 or rows[0]["method"] != "Internal":
+    fail.append("topic_rows: each text once, cut to a topic's 140 characters, its whole wording as the skills")
+if not T.same_topic("Lead  the night shift", "lead the night shift") or T.same_topic("", "") \
+        or T.same_topic("Lab testing", "Lab test") \
+        or not T.same_topic("a  b " + "y" * 300, ("a  b " + "y" * 300)[:140].strip()):
+    fail.append("same_topic: the same words as far as a topic holds them, spacing and case aside, never blank")
+if [row["action"] for row in T.actions_for_topic([{"action": "Lab testing"}, {"action": "Shift reports"},
+                                                  {"action": "lab testing"}], "Lab Testing")] \
+        != ["Lab testing", "lab testing"]:
+    fail.append("actions_for_topic: every action of the session's topic")
+if T.training_counts([{"attendance": "Present", "effectiveness": "Effective"}, {"attendance": "Absent"},
+                      {"attendance": None}]) != {"trainings": 3, "attended": 1, "effective": 1}:
+    fail.append("training_counts: booked, attended, effective")
+training_rows = fields_of(doctype("Development Training"))
+for fieldname in ("topic", "training_event", "training_date", "attendance", "marks", "effectiveness"):
+    spec = training_rows.get(fieldname) or {}
+    if not spec.get("read_only") or not spec.get("in_list_view"):
+        fail.append("Development Training.%s is shown and only ever filled from L&D" % fieldname)
+if (training_rows.get("training_event") or {}).get("options") != "Training Event":
+    fail.append("a plan's training row opens its session")
+if not os.path.exists(os.path.join(APP, "doctype", "development_training", "development_training.py")):
+    fail.append("Development Training needs its controller, child table or not, or migrate stops at it")
+plan_spec = fields_of(doctype("Talent Program"))
+trainings = plan_spec.get("trainings") or {}
+if (trainings.get("fieldtype"), trainings.get("options"), trainings.get("read_only"), trainings.get("allow_on_submit")) \
+        != ("Table", "Development Training", 1, 1):
+    fail.append("Talent Program.trainings: a read-only Development Training table, kept after the plan closes")
+action_spec = fields_of(doctype("Development Action")).get("training_event") or {}
+if (action_spec.get("fieldtype"), action_spec.get("hidden")) != ("Data", 1):
+    fail.append("Development Action.training_event: the session that marked it, hidden, and no link a cancel "
+                "could trip on")
+requisition_link = fields_of(doctype("Training Requisition")).get("talent_program") or {}
+if (requisition_link.get("fieldtype"), requisition_link.get("options"), requisition_link.get("read_only")) \
+        != ("Link", "Talent Program", 1):
+    fail.append("Training Requisition.talent_program: a read-only Link to the plan it came from")
+for function, needles in (
+        ("_push_to_ld", ('"talent_program": program.name', "rules.topic_rows(", "_ask_hr_to_submit(")),
+        ("_send_needs_to_ld", ("rules.topic_rows(rules.plan_actions(", "_ask_hr_to_submit(")),
+        ("_plan_successor_development", ('frappe.db.set_value(REQUISITION, row.training_requisition, "talent_program"',)),
+        ("_ask_hr_to_submit", ("people.hr_officers(", "people.notify(", "people.assign(")),
+        ("sync_training", ("_training_behind(", "_plans_for(", "event.docstatus == 2", "rules.ATTENDED",
+                           "_mark_actions(", "_unmark_actions(", "_training_results(")),
+        ("_mark_actions", ('if not row.get("completed_on"):', "rules.actions_for_topic(")),
+        ("_unmark_actions", ('"training_event": training_event}',)),
+        ("_add_training_row", (".db_insert()",)),
+        ("forget_training", ("_drop_training_row(", "_unmark_actions(")),
+        ("_draw_up_development_plan", ("if themes:\n        _push_to_ld(program, themes)",))):
+    body = body_of(glue, function)
+    for needle in needles:
+        if needle not in body:
+            fail.append("talent.%s: %r not found" % (function, needle))
+training_glue = read("hrms_addon", "hrms_addon", "training.py")
+for function, needle in (("_book_event", "_to_talent(event.name)"), ("event_on_submit", "_to_talent(doc.name)"),
+                         ("event_on_cancel", "_to_talent(doc.name)"),
+                         ("result_on_submit", "_to_talent(doc.training_event)"),
+                         ("result_on_cancel", "_to_talent(doc.training_event)"),
+                         ("_release", "talent.forget_training(training_event)"),
+                         ("_to_talent", "talent.sync_training(training_event)")):
+    if needle not in body_of(training_glue, function):
+        fail.append("training.%s reports to the plans: %r not found" % (function, needle))
+cancel = body_of(training_glue, "event_on_cancel")
+if "_to_talent(" not in cancel or cancel.index("_to_talent(") > cancel.index('"training_event": None'):
+    fail.append("training.event_on_cancel lets the plans go before its requisitions forget the session")
+if '("Talent Program",)' not in cancel:
+    fail.append("training.event_on_cancel: a closed plan's Training row does not stop the session's cancel")
+event_js = read("hrms_addon", "public", "js", "training_event.js")
+listed = re.search(r"ignore_doctypes_on_cancel_all = \[(.*?)\];", event_js, flags=re.S)
+if not listed or '"Talent Program"' not in listed.group(1):
+    fail.append("training_event.js keeps the plans out of Cancel All")
+tracker = read("hrms_addon", "hrms_addon", "report", "development_plan_tracker", "development_plan_tracker.py")
+for needle in ("talent_reports.training_progress(", '"fieldname": "trainings"', '"fieldname": "attended"',
+               '"fieldname": "effective"'):
+    if needle not in tracker:
+        fail.append("Development Plan Tracker: %r not found" % needle)
+if "rules.training_counts(" not in body_of(read("hrms_addon", "hrms_addon", "talent_reports.py"), "training_progress"):
+    fail.append("talent_reports.training_progress counts as the rules count")
+training_report = read("hrms_addon", "hrms_addon", "report", "training_report", "training_report.py")
+if '"parenttype": "Talent Program"' not in body_of(training_report, "_talent_only") \
+        or 'fieldname: "talent_only"' not in read("hrms_addon", "hrms_addon", "report", "training_report",
+                                                  "training_report.js"):
+    fail.append("Training Report: Talent Programmes Only reads the plans' Training rows")
+if "hrms_addon.patches.v1_0.talent_training_from_ld" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]", 1)[-1]:
+    fail.append("a site with talent training already booked gets it back on the plans by patch")
+plan_js = read("hrms_addon", "hrms_addon", "doctype", "talent_program", "talent_program.js")
+if "trainings attended" not in plan_js:
+    fail.append("the plan's headline counts the trainings attended")
+print("Oct 6: training back from L&D; the requisition names its plan and HR is told, sessions booked, attended "
+      "and marked on the plan, its actions done")
 
 if fail:
     print("\nFAILURES:")

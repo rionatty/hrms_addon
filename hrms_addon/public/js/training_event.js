@@ -11,6 +11,11 @@ frappe.ui.form.on("Training Event", {
 			const listed = (frm.doc.employees || []).map((row) => row.employee).filter(Boolean);
 			return { filters: Object.assign({ status: "Active" }, listed.length ? { name: ["not in", listed] } : {}) };
 		});
+		// a development plan keeps the session on its Training table, and lets
+		// go of it itself when the session is cancelled (training.event_on_cancel)
+		frm.ignore_doctypes_on_cancel_all = [
+			...new Set([...(frm.ignore_doctypes_on_cancel_all || []), "Talent Program"]),
+		];
 	},
 	refresh(frm) {
 		const grid = frm.fields_dict.employees.grid;

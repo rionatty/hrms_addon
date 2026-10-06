@@ -8,6 +8,8 @@ sheet's recommendation, "Provide end-of-month reports in the system".
   latest_review   the review a report reads when none is named
   check_boxes     a report that names boxes is for HR and the Talent Council
   plan_progress   each development plan's actions done, and past their date
+  training_progress
+                  each plan's trainings from L&D: booked, attended, effective
   month           what happened in talent in a month, and where it stands
 """
 
@@ -42,6 +44,18 @@ def plan_progress(plans, day=None):
     for row in rows:
         by_plan.setdefault(row.parent, []).append(row)
     return {name: rules.plan_progress(by_plan.get(name, []), day or today()) for name in names}
+
+
+def training_progress(plans):
+    """{plan: {"trainings", "attended", "effective"}}: the sessions L&D
+    booked for each plan, those attended and those found effective."""
+    names = list(plans or [])
+    rows = frappe.get_all(talent.TRAINING, filters={"parent": ["in", names], "parenttype": PROGRAM},
+                          fields=["parent", "attendance", "effectiveness"], limit=0) if names else []
+    by_plan = {}
+    for row in rows:
+        by_plan.setdefault(row.parent, []).append(row)
+    return {name: rules.training_counts(by_plan.get(name, [])) for name in names}
 
 
 def month(day=None):

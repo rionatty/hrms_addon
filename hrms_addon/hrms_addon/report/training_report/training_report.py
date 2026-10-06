@@ -9,7 +9,9 @@ report's section), tested by scripts/verify_training_report.py.
 The trainings are read with get_list, so an HR Officer kept to a plant sees
 that plant's; what hangs off them (the people booked, the evaluations, the
 results) is read for those trainings only. A training picked by name is shown
-whatever the dates say.
+whatever the dates say. Talent Programmes Only keeps the sessions a
+development plan's training was booked on, each with the people whose plan
+it is (talent.sync_training keeps them on the plan).
 """
 
 import frappe
@@ -28,8 +30,11 @@ def execute(filters=None):
     view = filters.get("view") if filters.get("view") in rules.VIEWS else rules.TRAININGS
     events = _events(filters)
     names = [event["name"] for event in events]
+    participants, evaluations, results = _participants(names), _evaluations(names), _results(names)
+    if filters.get("talent_only"):
+        events, participants, evaluations, results = _talent_only(events, participants, evaluations, results)
     events, participants, evaluations, results = rules.narrow(
-        events, _participants(names), _evaluations(names), _results(names), filters.get("department"))
+        events, participants, evaluations, results, filters.get("department"))
     trainings = rules.training_rows(events, participants, evaluations, results)
     if view == rules.PARTICIPANTS:
         rows = rules.participant_rows(events, participants, evaluations, results)
@@ -127,6 +132,23 @@ def _results(names):
                 "training_event": result.training_event, "employee": row.employee,
                 "marks": row.custom_marks, "effective": row.custom_effective}
     return list(latest.values())
+
+
+def _talent_only(events, participants, evaluations, results):
+    """The sessions a development plan's training was booked on, and on each
+    only the people whose plan it is."""
+    names = [event["name"] for event in events]
+    booked = {}
+    for row in frappe.get_all("Development Training", filters={"training_event": ["in", names],
+                                                               "parenttype": "Talent Program"},
+                              fields=["training_event", "employee"], limit_page_length=0) if names else []:
+        booked.setdefault(row.training_event, set()).add(row.employee)
+
+    def theirs(row):
+        return row.get("employee") in booked.get(row.get("training_event"), set())
+
+    return ([event for event in events if event["name"] in booked], [row for row in participants if theirs(row)],
+            [row for row in evaluations if theirs(row)], [row for row in results if theirs(row)])
 
 
 def _items():

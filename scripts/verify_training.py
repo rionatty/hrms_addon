@@ -404,8 +404,10 @@ def upstream_fields(name):
     return ({f["fieldname"] for f in spec["fields"]} | {f["fieldname"] for f in custom if f["dt"] == name}) if spec else None
 
 
+# what a document carries beside its fields: its methods, and what Frappe's
+# cancel reads (ignore_linked_doctypes, the records a cancel may leave)
 METHODS = {"get", "set", "name", "docstatus", "append", "is_new", "get_doc_before_save", "db_set", "flags", "save", "insert",
-           "submit", "check_permission", "employees", "doctype", "update", "as_dict"}
+           "submit", "check_permission", "employees", "doctype", "update", "as_dict", "ignore_linked_doctypes"}
 READS = {
     "Training Needs Form": (("needs_form_",), set(fields_of(specs["Training Needs Form"]))),
     "Training Requisition": (("requisition_", "_mark_needs_forms"), set(fields_of(specs["Training Requisition"]))),

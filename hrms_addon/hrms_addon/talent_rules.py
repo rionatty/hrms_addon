@@ -758,6 +758,51 @@ def handover_note(designation, successor=None):
     return text[:140]
 
 
+# ── Training, back from L&D (Luuka, 6 Oct 2026) ───────────────────────
+# A plan's training goes to L&D as a Training Requisition whose topics are
+# the plan's own actions, cut to the 140 characters a topic holds. What L&D
+# makes of it (the session, who attended, the marks) comes back to the plan.
+TOPIC_LENGTH = 140
+ATTENDED = "Present"
+EFFECTIVE = "Effective"
+
+
+def topic_rows(texts, method):
+    """The topics a requisition asks for, one row each: the text cut to the
+    length a topic holds, its whole wording as the skills it gives, each
+    once, the blank ones left out."""
+    out, seen = [], set()
+    for text in texts or []:
+        topic = _text(text)[:TOPIC_LENGTH].strip()
+        if topic and _topic_key(topic) not in seen:
+            seen.add(_topic_key(topic))
+            out.append({"topic": topic, "required_skills": _text(text), "method": method})
+    return out
+
+
+def same_topic(text, topic):
+    """Whether a plan's action is the topic its training was requested as:
+    the same words, as far as a topic holds them."""
+    return bool(_topic_key(text)) and _topic_key(text) == _topic_key(topic)
+
+
+def actions_for_topic(actions, topic):
+    """The plan's actions a training on this topic covers."""
+    return [row for row in actions or [] if same_topic(row.get("action"), topic)]
+
+
+def training_counts(rows):
+    """A plan's trainings: booked, attended, and found effective."""
+    rows = rows or []
+    return {"trainings": len(rows),
+            "attended": len([row for row in rows if row.get("attendance") == ATTENDED]),
+            "effective": len([row for row in rows if row.get("effectiveness") == EFFECTIVE])}
+
+
+def _topic_key(value):
+    return " ".join(_text(value)[:TOPIC_LENGTH].split()).lower()
+
+
 # ── Small helpers ─────────────────────────────────────────────────────
 def _number(value):
     try:

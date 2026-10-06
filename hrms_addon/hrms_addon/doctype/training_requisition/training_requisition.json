@@ -19,6 +19,7 @@
   "training_topic",
   "topics",
   "justification",
+  "talent_program",
   "employees_section",
   "target_employees",
   "hr_section",
@@ -129,6 +130,15 @@
    "fieldtype": "Text",
    "label": "Gaps Identified / Justification",
    "description": "e.g. targets missed, audit findings, new equipment"
+  },
+  {
+   "fieldname": "talent_program",
+   "fieldtype": "Link",
+   "label": "Talent Programme",
+   "options": "Talent Program",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "talent_program"
   },
   {
    "fieldname": "employees_section",

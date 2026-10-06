@@ -13,7 +13,7 @@ frappe.ui.form.on("Talent Program", {
 		// a plan are cancelled on their own (talent.program_on_cancel)
 		frm.ignore_doctypes_on_cancel_all = [
 			...new Set([...(frm.ignore_doctypes_on_cancel_all || []),
-				"Succession Position", "Employee Position Change", "Talent Placement"]),
+				"Succession Position", "Employee Position Change", "Talent Placement", "Training Requisition"]),
 		];
 	},
 	refresh(frm) {
@@ -44,7 +44,8 @@ frappe.ui.form.on("Development Action", {
 	},
 });
 
-// The plan's progress, in the form's headline.
+// The plan's progress, in the form's headline: its actions, and the
+// trainings L&D booked for it (the Training table, filled from L&D).
 function ha_plan_progress(frm) {
 	frm.dashboard.clear_headline();
 	const rows = frm.doc.actions || [];
@@ -53,11 +54,16 @@ function ha_plan_progress(frm) {
 	const today = frappe.datetime.get_today();
 	const late = rows.filter((row) => !row.completed_on && row.by_when && row.by_when < today).length;
 	const share = Math.round((100 * done) / rows.length);
+	const trainings = frm.doc.trainings || [];
+	const attended = trainings.filter((row) => row.attendance === "Present").length;
 	frm.dashboard.set_headline(
 		`<span>${__("{0} of {1} actions done", [done, rows.length])}</span>
 		<span style="display:inline-block;width:120px;height:6px;border-radius:3px;background:var(--border-color);
 			margin:0 10px;vertical-align:middle;overflow:hidden"><span style="display:block;height:100%;width:${share}%;
 			background:#E8A317"></span></span>` +
-			(late ? `<span class="indicator-pill red">${__("{0} past their date", [late])}</span>` : "")
+			(late ? `<span class="indicator-pill red">${__("{0} past their date", [late])}</span>` : "") +
+			(trainings.length
+				? `<span style="margin-left:12px">${__("{0} of {1} trainings attended", [attended, trainings.length])}</span>`
+				: "")
 	);
 }

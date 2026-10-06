@@ -65,6 +65,7 @@ frappe.query_reports["Training Report"] = {
 			options: "Training Event",
 			get_query: () => ({ filters: { docstatus: ["<", 2] } }),
 		},
+		{ fieldname: "talent_only", label: __("Talent Programmes Only"), fieldtype: "Check" },
 	],
 	formatter(value, row, column, data, default_formatter) {
 		if (data && HA_TRAINING_TEXT.includes(column.fieldname)) {

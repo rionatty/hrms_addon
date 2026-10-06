@@ -10,7 +10,8 @@
   "by_when",
   "by_whom",
   "estimated_cost",
-  "completed_on"
+  "completed_on",
+  "training_event"
  ],
  "fields": [
   {
@@ -53,6 +54,14 @@
    "fieldname": "completed_on",
    "fieldtype": "Date",
    "label": "Completed On"
+  },
+  {
+   "fieldname": "training_event",
+   "fieldtype": "Data",
+   "label": "Done at Session",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
   }
  ],
  "istable": 1,

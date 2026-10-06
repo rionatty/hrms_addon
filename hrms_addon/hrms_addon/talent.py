@@ -61,7 +61,7 @@ CLOSED_REQUISITION = ("Cancelled", "Rejected", "Filled")
 # what points at a plan, a programme: each is cancelled on its own, so
 # neither cancel offers to cancel them nor is refused for them
 POSITION_RECORDS = (PROGRAM, CHANGE, SEPARATION, TRAINEE)
-PROGRAM_RECORDS = (POSITION, CHANGE, PLACEMENT)
+PROGRAM_RECORDS = (POSITION, CHANGE, PLACEMENT, REQUISITION)
 
 
 # ── 1. The review cycle ───────────────────────────────────────────────
@@ -391,7 +391,11 @@ def _draw_up_development_plan(doc):
         frappe.log_error(title="HRMS Addon: development plan from a placement")
         return None
     doc.db_set("development_plan", program.name, update_modified=False)
-    _push_to_ld(program, [row.theme for row in doc.get("themes") or []])
+    # the themes go to L&D now; a plan with none sends its actions when HR
+    # enrols it, rather than the programme's name as a topic
+    themes = [row.theme for row in doc.get("themes") or [] if (row.theme or "").strip()]
+    if themes:
+        _push_to_ld(program, themes)
     return program.name
 
 
@@ -443,18 +447,19 @@ def _push_to_ld(program, topics=None):
         return program.training_requisition
     if topics is None:
         topics = [row.action for row in program.get("actions") or []]
-    topics = [text for text in topics if text] or [program.get("objectives") or program.program_type]
     method = "Coaching" if program.program_type == "Mentoring and Coaching" else "Internal"
+    rows = rules.topic_rows(topics, method) \
+        or rules.topic_rows([program.get("objectives") or program.program_type], method)
     try:
         requisition = frappe.get_doc({
             "doctype": REQUISITION, "requested_by": frappe.session.user,
             "department": program.get("department"), "branch": program.get("branch"),
             "request_date": today(), "priority": "Medium", "status": "Draft",
-            "topics": [{"topic": text[:140], "required_skills": text, "method": method} for text in topics],
+            "topics": rows, "talent_program": program.name,
             "justification": _("From talent programme {0} ({1}).").format(
                 program.name, program.program_type),
             "target_employees": [{"employee": program.employee,
-                                  "skill_areas": ", ".join(topics)[:500]}],
+                                  "skill_areas": ", ".join(row["topic"] for row in rows)[:500]}],
         })
         requisition.flags.ignore_permissions = True
         requisition.flags.ignore_mandatory = True
@@ -463,7 +468,23 @@ def _push_to_ld(program, topics=None):
         frappe.log_error(title="HRMS Addon: sending a development plan to L&D")
         return None
     program.db_set("training_requisition", requisition.name, update_modified=False)
+    _ask_hr_to_submit(requisition.name, program.get("branch"), program.get("department"),
+                      program.get("employee_name") or program.employee,
+                      _("development plan {0}").format(program.name))
     return requisition.name
+
+
+def _ask_hr_to_submit(requisition, branch, department, who, why):
+    """A requisition talent drafts is the branch HR Officer's to submit, so
+    it goes into the Training Needs Assessment: they are told, and it is put
+    on their list."""
+    users = people.hr_officers(branch, department)
+    if not users:
+        return
+    message = _("Training is requested for {0} ({1}). Submit requisition {2} so it goes into the Training "
+                "Needs Assessment.").format(who, why, requisition)
+    people.notify(list(users), REQUISITION, requisition, message)
+    people.assign(REQUISITION, requisition, users, message)
 
 
 def _flag_flight_risk(doc):
@@ -876,6 +897,11 @@ def _plan_successor_development(doc):
             frappe.log_error(title="HRMS Addon: a successor's development plan")
             continue
         row.db_set("development_plan", program.name, update_modified=False)
+        if row.get("training_requisition"):
+            # the needs went to L&D before the plan was drawn up: the
+            # requisition names the plan its training comes back to
+            frappe.db.set_value(REQUISITION, row.training_requisition, "talent_program", program.name,
+                                update_modified=False)
         made.append(program)
     users = people.hr_officers(doc.get("branch"), doc.get("department")) if made else []
     if users:
@@ -1303,7 +1329,8 @@ def _send_needs_to_ld(doc):
                 "department": doc.get("department"), "branch": doc.get("branch"),
                 "request_date": today(), "priority": "High" if doc.get("gap") else "Medium",
                 "status": "Draft",
-                "topics": [{"topic": gaps[:140], "required_skills": gaps, "method": "On the Job"}],
+                # one topic a need, as the successor's plan has one action a need
+                "topics": rules.topic_rows(rules.plan_actions(gaps), "On the Job"),
                 "justification": _("Succession for {0}: {1} is {2}.").format(
                     doc.designation, row.get("employee_name") or row.employee, row.readiness),
                 "target_employees": [{"employee": row.employee, "skill_areas": gaps[:500]}],
@@ -1315,6 +1342,9 @@ def _send_needs_to_ld(doc):
             frappe.log_error(title="HRMS Addon: succession development needs to L&D")
             continue
         row.db_set("training_requisition", requisition.name, update_modified=False)
+        _ask_hr_to_submit(requisition.name, doc.get("branch"), doc.get("department"),
+                          row.get("employee_name") or row.employee,
+                          _("successor for {0}").format(doc.designation))
         sent += 1
     if sent:
         doc.db_set("needs_sent_on", today(), update_modified=False)
@@ -1826,6 +1856,150 @@ def talent_plan_progress(plan):
     from hrms_addon.hrms_addon import talent_reports
 
     return talent_reports.plan_progress([plan]).get(plan)
+
+
+# ── 8a. Training, back from L&D ───────────────────────────────────────
+# L&D (training.py) calls these as a session booked from a plan's
+# requisition is booked, held, cancelled, given its results, or taken away.
+# The plan keeps its own record of each session (Development Training), as
+# an onboarding does of its trainings, and an action of the session's topic
+# is done the day an attendee was there.
+TRAINING = "Development Training"
+
+
+def sync_training(training_event):
+    """The plans a session's training is for, brought up to date with it: a
+    row of the plan's Training for its employee while booked on it; once
+    held, whether they attended, and the plan's actions of the session's
+    topic done that day for one who did; once marked, their marks and
+    whether it worked. A session cancelled, or one the employee is no
+    longer booked on, leaves the plan as if it had never been."""
+    event = frappe.db.get_value("Training Event", training_event,
+                                ["name", "docstatus", "start_time", "end_time", "course", "custom_calendar_entry"],
+                                as_dict=True)
+    if not event:
+        return 0
+    topic, requisitions = _training_behind(event)
+    plans = _plans_for(requisitions)
+    if not plans:
+        return 0
+    booked = {row.employee: row.attendance for row in frappe.get_all(
+        "Training Event Employee", filters={"parent": event.name, "parenttype": "Training Event"},
+        fields=["employee", "attendance"], limit=0)}
+    held = event.docstatus == 1
+    results = _training_results(event.name) if held else {}
+    when = event.get("end_time") or event.get("start_time")
+    day = getdate(when) if when else None
+    for plan in plans:
+        row = frappe.db.get_value(TRAINING, {"parent": plan.name, "parenttype": PROGRAM,
+                                             "training_event": event.name}, "name")
+        if event.docstatus == 2 or plan.employee not in booked:
+            if row:
+                _drop_training_row(plan.name, row)
+            _unmark_actions(plan.name, event.name)
+            continue
+        marks, effective = results.get(plan.employee, (None, None))
+        values = {"topic": topic, "training_date": day, "training_requisition": plan.requisition,
+                  "employee": plan.employee, "attendance": booked.get(plan.employee) if held else None,
+                  "marks": flt(marks), "effectiveness": effective}
+        if row:
+            frappe.db.set_value(TRAINING, row, values, update_modified=False)
+        else:
+            _add_training_row(plan.name, dict(values, training_event=event.name))
+        if held and booked.get(plan.employee) == rules.ATTENDED:
+            _mark_actions(plan.name, topic, day, event.name)
+        else:
+            _unmark_actions(plan.name, event.name)
+    return len(plans)
+
+
+def forget_training(training_event):
+    """A session taken away before it was held: the plans let go of it."""
+    for row in frappe.get_all(TRAINING, filters={"training_event": training_event, "parenttype": PROGRAM},
+                              fields=["name", "parent"], limit=0):
+        _drop_training_row(row.parent, row.name)
+        _unmark_actions(row.parent, training_event)
+
+
+def _training_behind(event):
+    """The topic a session teaches and the requisitions it was booked for:
+    through the calendar row it was scheduled from, and the requisitions
+    that name it."""
+    need = None
+    if event.get("custom_calendar_entry"):
+        need_row = frappe.db.get_value("Training Calendar Entry", event.custom_calendar_entry, "need_row")
+        need = frappe.db.get_value("Training Need", need_row, ["topic", "requisition"], as_dict=True) \
+            if need_row else None
+    requisitions = set(frappe.get_all(REQUISITION, filters={"training_event": event.name}, pluck="name"))
+    if need and need.get("requisition"):
+        requisitions.add(need.requisition)
+    return (need.get("topic") if need else None) or event.get("course"), sorted(requisitions)
+
+
+def _plans_for(requisitions):
+    """The development plans those requisitions were raised for: each with
+    its employee, and the requisition it came from."""
+    if not requisitions:
+        return []
+    found = {}
+    for row in frappe.get_all(REQUISITION, filters={"name": ["in", requisitions], "talent_program": ["is", "set"]},
+                              fields=["name", "talent_program"], limit=0):
+        found[row.talent_program] = row.name
+    for row in frappe.get_all(PROGRAM, filters={"training_requisition": ["in", requisitions]},
+                              fields=["name", "training_requisition"], limit=0):
+        found.setdefault(row.name, row.training_requisition)
+    if not found:
+        return []
+    return [frappe._dict(plan, requisition=found[plan.name])
+            for plan in frappe.get_all(PROGRAM, filters={"name": ["in", sorted(found)], "docstatus": ["<", 2]},
+                                       fields=["name", "employee"], limit=0)]
+
+
+def _training_results(training_event):
+    """Each person's marks from the session's submitted results, the latest
+    where it has more than one."""
+    out = {}
+    for result in frappe.get_all("Training Result", filters={"training_event": training_event, "docstatus": 1},
+                                 pluck="name", order_by="creation asc", limit=0):
+        for row in frappe.get_all("Training Result Employee", filters={"parent": result, "parenttype": "Training Result"},
+                                  fields=["employee", "custom_marks", "custom_effective"], limit=0):
+            out[row.employee] = (row.custom_marks, row.custom_effective)
+    return out
+
+
+def _add_training_row(plan, values):
+    """A row of the plan's Training, written straight in: the plan's form
+    may be open with somebody, and its own fields are left alone."""
+    number = frappe.db.count(TRAINING, {"parent": plan, "parenttype": PROGRAM}) + 1
+    frappe.get_doc(dict(values, doctype=TRAINING, parent=plan, parenttype=PROGRAM, parentfield="trainings",
+                        idx=number)).db_insert()
+
+
+def _drop_training_row(plan, row):
+    frappe.db.delete(TRAINING, {"name": row})
+    for number, name in enumerate(frappe.get_all(TRAINING, filters={"parent": plan, "parenttype": PROGRAM},
+                                                 order_by="idx asc", pluck="name", limit=0), 1):
+        frappe.db.set_value(TRAINING, name, "idx", number, update_modified=False)
+
+
+def _mark_actions(plan, topic, day, training_event):
+    """The plan's actions of the session's topic, done the day it was held,
+    unless someone has already said when they were."""
+    actions = frappe.get_all("Development Action", filters={"parent": plan, "parenttype": PROGRAM},
+                             fields=["name", "action", "completed_on"], limit=0)
+    for row in rules.actions_for_topic(actions, topic):
+        if not row.get("completed_on"):
+            frappe.db.set_value("Development Action", row.name, {"completed_on": day, "training_event": training_event},
+                                update_modified=False)
+
+
+def _unmark_actions(plan, training_event):
+    """Only what this session marked: a date someone typed stays."""
+    for name in frappe.get_all("Development Action", filters={"parent": plan, "parenttype": PROGRAM,
+                                                              "training_event": training_event},
+                               pluck="name", limit=0):
+        frappe.db.set_value("Development Action", name, {"completed_on": None, "training_event": None},
+                            update_modified=False)
 
 
 # ── 9. Wiring ─────────────────────────────────────────────────────────

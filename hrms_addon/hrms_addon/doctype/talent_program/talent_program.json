@@ -30,6 +30,8 @@
   "actions_section",
   "actions",
   "training_requisition",
+  "training_section",
+  "trainings",
   "review_section",
   "score_before",
   "score_after",
@@ -220,6 +222,20 @@
    "label": "Sent to L&D",
    "options": "Training Requisition",
    "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "training_section",
+   "fieldtype": "Section Break",
+   "label": "Training"
+  },
+  {
+   "fieldname": "trainings",
+   "fieldtype": "Table",
+   "label": "Training",
+   "options": "Development Training",
+   "read_only": 1,
+   "allow_on_submit": 1,
    "no_copy": 1
   },
   {

@@ -32,6 +32,11 @@ their attendance (Training Event Employee.attendance is not allow_on_submit),
 and a Training Feedback needs the event submitted. So the session is booked
 as a draft, attendance is marked on the draft, and submitting it is what
 says the training was held — after which the evaluations are keyed in.
+
+A session booked from a requisition a development plan raised (talent.py)
+is reported back to the plan as it is booked, held, cancelled, given its
+results or taken away (talent.sync_training), as a new employee's
+onboarding is told of its trainings.
 """
 
 import frappe
@@ -381,6 +386,7 @@ def _book_event(doc, line, employees=None):
     for requisition in requisitions:
         frappe.db.set_value("Training Requisition", requisition, {"status": "Scheduled", "training_event": event.name},
                             update_modified=False)
+    _to_talent(event.name)
     return event
 
 
@@ -419,7 +425,11 @@ def drop_event(name):
 def _release(training_event):
     """What points at a session about to go: the requisitions it was booked
     for are open to be scheduled again, and a line of a schedule still drawn
-    up forgets it (Frappe keeps a linked event from being deleted)."""
+    up forgets it (Frappe keeps a linked event from being deleted). The
+    development plans it was booked for let go of it."""
+    from hrms_addon.hrms_addon import talent
+
+    talent.forget_training(training_event)
     for requisition in frappe.get_all("Training Requisition", filters={"training_event": training_event},
                                       fields=["name", "assessment"]):
         frappe.db.set_value("Training Requisition", requisition.name,
@@ -520,17 +530,30 @@ def event_on_trash(doc, method=None):
 
 def event_on_submit(doc, method=None):
     """Conducted: the requisitions behind it are closed, and a new employee's
-    onboarding learns whether they attended."""
+    onboarding and the development plans it was booked for learn who
+    attended."""
     for requisition in frappe.get_all("Training Requisition", filters={"training_event": doc.name, "docstatus": 1}, pluck="name"):
         frappe.db.set_value("Training Requisition", requisition, "status", "Closed", update_modified=False)
     _to_onboardings(doc.name, {row.employee: {"attendance": row.attendance} for row in doc.employees})
+    _to_talent(doc.name)
 
 
 def event_on_cancel(doc, method=None):
+    # the plans let go of the session while its requisitions still name it;
+    # a closed plan's Training row still pointing at it does not stop it
+    doc.ignore_linked_doctypes = tuple(doc.get("ignore_linked_doctypes") or ()) + ("Talent Program",)
+    _to_talent(doc.name)
     for requisition in frappe.get_all("Training Requisition", filters={"training_event": doc.name, "docstatus": 1}, pluck="name"):
         frappe.db.set_value("Training Requisition", requisition, {"status": "Scheduled", "training_event": None},
                             update_modified=False)
     _to_onboardings(doc.name, {row.employee: {"attendance": None} for row in doc.employees})
+
+
+def _to_talent(training_event):
+    """The development plans whose training this session is (talent.py)."""
+    from hrms_addon.hrms_addon import talent
+
+    talent.sync_training(training_event)
 
 
 def _to_onboardings(training_event, values):
@@ -573,13 +596,16 @@ def result_marks(doc, method=None):
 
 
 def result_on_submit(doc, method=None):
-    """The marks, and whether the training worked, on a new employee's onboarding."""
+    """The marks, and whether the training worked, on a new employee's
+    onboarding and on the development plans the session was booked for."""
     _to_onboardings(doc.training_event, {row.employee: {"marks": row.get("custom_marks"), "effectiveness": row.get("custom_effective")}
                                          for row in doc.employees})
+    _to_talent(doc.training_event)
 
 
 def result_on_cancel(doc, method=None):
     _to_onboardings(doc.training_event, {row.employee: {"marks": None, "effectiveness": None} for row in doc.employees})
+    _to_talent(doc.training_event)
 
 
 def _pass_mark(training_event):

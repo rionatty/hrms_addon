@@ -3,7 +3,8 @@
 
 """Development Plan Tracker (test cases 1 and 9): every development
 plan, how many of its actions are done and how many are past their date,
-the training it sent to L&D — the plans most behind first."""
+the training it sent to L&D and what came of it (the sessions booked,
+attended and found effective) — the plans most behind first."""
 
 import frappe
 from frappe import _
@@ -21,7 +22,8 @@ def execute(filters=None):
         "name", "employee", "employee_name", "program_type", "workflow_state", "start_date", "end_date", "mentor",
         "training_requisition"], limit_page_length=0)
     progress = talent_reports.plan_progress([row.name for row in plans])
-    rows = [dict(row, **progress.get(row.name, {})) for row in plans]
+    trained = talent_reports.training_progress([row.name for row in plans])
+    rows = [dict(row, **progress.get(row.name, {}), **trained.get(row.name, {})) for row in plans]
     rows.sort(key=lambda row: (-(row.get("late") or 0), row.get("share") or 0, str(row.get("employee_name") or "")))
     actions = sum(row.get("actions") or 0 for row in rows)
     done = sum(row.get("done") or 0 for row in rows)
@@ -31,6 +33,8 @@ def execute(filters=None):
          "datatype": "Percent", "indicator": "Green"},
         {"value": sum(row.get("late") or 0 for row in rows), "label": _("Actions past their date"),
          "datatype": "Int", "indicator": "Red"},
+        {"value": sum(row.get("attended") or 0 for row in rows), "label": _("Trainings attended"),
+         "datatype": "Int", "indicator": "Green"},
     ]
     return columns(), rows, None, None, summary
 
@@ -52,4 +56,7 @@ def columns():
          "width": 130},
         {"label": _("Sent to L&D"), "fieldname": "training_requisition", "fieldtype": "Link",
          "options": "Training Requisition", "width": 140},
+        {"label": _("Trainings"), "fieldname": "trainings", "fieldtype": "Int", "width": 85},
+        {"label": _("Attended"), "fieldname": "attended", "fieldtype": "Int", "width": 85},
+        {"label": _("Effective"), "fieldname": "effective", "fieldtype": "Int", "width": 85},
     ]
