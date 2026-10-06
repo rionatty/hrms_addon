@@ -33,7 +33,7 @@ const TB_COLUMN = { 1: "Low", 2: "Low", 3: "Low", 4: "Meeting", 5: "Meeting", 6:
 const TB_SHOWN = 6;
 // the page's three views: name -> (label, method, the filters it reads)
 const TB_VIEWS = {
-	grid: ["Nine-box", "get_board", ["review", "branch", "department", "grade"]],
+	grid: ["Nine-box", "get_board", ["plan", "review", "branch", "department", "grade"]],
 	succession: ["Succession", "get_succession", ["branch", "department"]],
 	trainees: ["Graduate trainees", "get_trainees", ["branch"]],
 };
@@ -143,15 +143,26 @@ hrms_addon.TalentBoard = class TalentBoard {
 			$('<style id="tb-style"></style>').text(TB_STYLE).appendTo("head");
 		}
 		hrms_addon.talent_card.style();
-		const field = (fieldname, options, label) =>
-			page.add_field({
+		const field = (fieldname, options, label, more) =>
+			page.add_field(Object.assign({
 				fieldname, fieldtype: "Link", options, label: __(label),
 				change: () => {
 					if (!this.quiet) this.refresh();
 				},
-			});
+			}, more || {}));
 		this.fields = {
-			review: field("review", "Talent Review", "Talent Review"),
+			// the appraisal the board reads: picking one shows its review
+			plan: field("plan", "Appraisal Plan", "Appraisal Plan", {
+				change: () => {
+					if (!this.quiet) this.pick_plan();
+				},
+			}),
+			review: field("review", "Talent Review", "Talent Review", {
+				get_query: () => {
+					const plan = this.fields.plan.get_value();
+					return plan ? { filters: { appraisal_plan: plan } } : {};
+				},
+			}),
 			branch: field("branch", "Branch", "Plant"),
 			department: field("department", "Department", "Department"),
 			grade: field("grade", "Employee Grade", "Grade"),
@@ -168,6 +179,16 @@ hrms_addon.TalentBoard = class TalentBoard {
 		this.picked = null;
 		this.open = {};
 		this.view = "grid";
+	}
+
+	// a plan picked: the board shows its latest review, so whichever review
+	// was picked before is let go
+	pick_plan() {
+		this.quiet = true;
+		this.fields.review.set_value("").then(() => {
+			this.quiet = false;
+			this.refresh();
+		});
 	}
 
 	args() {
@@ -213,15 +234,32 @@ hrms_addon.TalentBoard = class TalentBoard {
 		this.data = data;
 		const esc = frappe.utils.escape_html;
 		if (!data.review) {
-			this.body.html(`${this.views()}<div class="tb-start"><p>${esc(__("No talent review yet."))}</p>
-				<button class="btn btn-primary btn-sm tb-new">${esc(__("New Talent Review"))}</button></div>`);
+			const plan = data.plan;
+			const button = plan
+				? (data.can_start ? `<button class="btn btn-primary btn-sm tb-begin">${esc(__("Start Talent Review"))}</button>` : "")
+				: `<button class="btn btn-primary btn-sm tb-new">${esc(__("New Talent Review"))}</button>`;
+			this.body.html(`${this.views()}<div class="tb-start"><p>${esc(plan
+				? __("No talent review reads {0} yet.", [plan.title || plan.name])
+				: __("No talent review yet."))}</p>${button}</div>`);
 			this.body.find(".tb-new").on("click", () => frappe.new_doc("Talent Review"));
+			this.body.find(".tb-begin").on("click", () =>
+				frappe.xcall("hrms_addon.hrms_addon.talent_board.start_review", { appraisal_plan: plan.name })
+					.then((name) => {
+						this.quiet = true;
+						this.fields.review.set_value(name).then(() => {
+							this.quiet = false;
+							this.refresh();
+						});
+					}));
 			this.bind_views();
 			return;
 		}
-		if (this.fields.review.get_value() !== data.review.name) {
+		// the pickers say what is on the board: its review, and the plan it reads
+		const shown = { review: data.review.name, plan: data.review.appraisal_plan || "" };
+		const stale = Object.keys(shown).filter((name) => (this.fields[name].get_value() || "") !== shown[name]);
+		if (stale.length) {
 			this.quiet = true;
-			this.fields.review.set_value(data.review.name).then(() => (this.quiet = false));
+			Promise.all(stale.map((name) => this.fields[name].set_value(shown[name]))).then(() => (this.quiet = false));
 		}
 		const board = data.board || { cells: [], unplaced: [], total: 0 };
 		const strips = data.strips || {};

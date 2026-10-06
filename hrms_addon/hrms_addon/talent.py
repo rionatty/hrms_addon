@@ -118,7 +118,8 @@ def _draft_placements(cycle):
         employee = frappe.db.get_value(
             "Employee", row.employee,
             ["status", "company", "branch", "department", "designation"], as_dict=True)
-        if not employee or employee.status != "Active":
+        # a suspended employee is still on the staff (suspensions.py)
+        if not employee or employee.status not in ("Active", "Suspended"):
             continue
         if any(value and employee.get(field) != value for field, value in scope.items()):
             continue

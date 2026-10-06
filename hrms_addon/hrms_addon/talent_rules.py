@@ -595,6 +595,16 @@ def share(part, whole):
     return int(round(100.0 * part / whole)) if whole else 0
 
 
+def review_title(year, branch=None, department=None, plan=None, taken=()):
+    """The title of a review started from an appraisal plan, which is also
+    its name: the year, then the plant and department the plan covers; the
+    plan's own name added where that title is taken."""
+    title = " ".join(str(part) for part in ("Talent Review", year, branch, department) if part)
+    if title in set(taken or ()) and plan:
+        title = "%s (%s)" % (title, plan)
+    return title
+
+
 def plan_progress(actions, today):
     """How far a development plan has got: its actions, those done (each
     records the day it was completed), those past their date and not done,

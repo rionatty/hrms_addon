@@ -1315,6 +1315,59 @@ if "trainings attended" not in plan_js:
 print("Oct 6: training back from L&D; the requisition names its plan and HR is told, sessions booked, attended "
       "and marked on the plan, its actions done")
 
+# ── 14. The appraisal picked on the board (7 Oct 2026) ────────────────
+# Luuka: "make appraisal selectable". The nine-box view is chosen by the
+# appraisal plan; the review picker shows that plan's reviews; a plan no
+# review reads yet can have one started from the board.
+for args, wanted in (((2026,), "Talent Review 2026"), ((2026, "Kawempe"), "Talent Review 2026 Kawempe"),
+                     ((2026, "Kawempe", "Extrusion - LPL"), "Talent Review 2026 Kawempe Extrusion - LPL"),
+                     ((2026, None, None, "HR-APL-2026-00009", ["Talent Review 2026"]),
+                      "Talent Review 2026 (HR-APL-2026-00009)"),
+                     ((2026, None, None, None, ["Talent Review 2026"]), "Talent Review 2026")):
+    if T.review_title(*args) != wanted:
+        fail.append("review_title%r: want %r, got %r" % (args, wanted, T.review_title(*args)))
+board_glue = read("hrms_addon", "hrms_addon", "talent_board.py")
+for needle, why in (
+        ("def get_board(review=None, branch=None, department=None, grade=None, plan=None):",
+         "the board takes the plan picked"),
+        ('filters={"appraisal_plan": plan} if plan else {}', "and lists only that plan's reviews"),
+        ('if review and plan and frappe.db.get_value(REVIEW, review, "appraisal_plan") != plan:',
+         "a review of another plan gives way to the plan picked"),
+        ('"can_start": 1 if plan and frappe.has_permission(REVIEW, "create") else 0',
+         "a plan with no review offers to start one to whoever may"),
+        ('frappe.has_permission(REVIEW, "create", throw=True)', "starting a review needs the right to make one"),
+        ('{"appraisal_plan": appraisal_plan, "status": ["!=", "Cancelled"]}', "one review a plan: the one there given back"),
+        ("if plan.docstatus != 1:", "only a submitted plan has quarters to read"),
+        ('"appraisal_cycle": ["is", "set"]}', "read from a quarter the plan has opened"),
+        ('order_by="to_date desc", limit=1)', "the latest of them"),
+        ("rules.review_title(plan.year, plan.get(\"branch\"), plan.get(\"department\"), plan.name,",
+         "titled by the tested rule")):
+    if needle not in board_glue:
+        fail.append("talent_board.py: %s (%r not found)" % (why, needle))
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef start_review\(', board_glue) \
+        or "_check_access()" not in body_of(board_glue, "start_review"):
+    fail.append("talent_board.start_review: a whitelisted POST, for HR and the Talent Council only")
+board_js = read("hrms_addon", "hrms_addon", "page", "talent_board", "talent_board.js")
+for needle, why in (
+        ('grid: ["Nine-box", "get_board", ["plan", "review", "branch", "department", "grade"]]',
+         "the nine-box view reads the plan picked"),
+        ('plan: field("plan", "Appraisal Plan", "Appraisal Plan", {', "the plan is the first picker"),
+        ("if (!this.quiet) this.pick_plan();", "picking a plan lets the review picked before go"),
+        ('this.fields.review.set_value("").then(() => {', "and shows the plan's latest review"),
+        ("return plan ? { filters: { appraisal_plan: plan } } : {};", "the review picker offers the plan's reviews"),
+        ('const shown = { review: data.review.name, plan: data.review.appraisal_plan || "" };',
+         "the pickers say which review and plan are on the board"),
+        ('frappe.xcall("hrms_addon.hrms_addon.talent_board.start_review", { appraisal_plan: plan.name })',
+         "Start Talent Review starts the plan's review"),
+        ("data.can_start ?", "for whoever may")):
+    if needle not in board_js:
+        fail.append("talent_board.js: %s (%r not found)" % (why, needle))
+if board_js.index("plan: field(") > board_js.index("review: field("):
+    fail.append("the Appraisal Plan picker comes before the Talent Review picker")
+if 'employee.status not in ("Active", "Suspended")' not in body_of(glue, "_draft_placements"):
+    fail.append("drafting places a suspended employee too: they are still on the staff")
+print("Oct 7: the appraisal plan picked on the board, its review shown or started from it; the suspended placed")
+
 if fail:
     print("\nFAILURES:")
     for message in fail:

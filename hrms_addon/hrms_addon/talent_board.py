@@ -5,9 +5,12 @@
 talent card of each person on it (Luuka, 5 Oct 2026: the module had every
 form and no way to manage talent with them).
 
-  get_board  the review's placements in their boxes, filtered by plant,
+  get_board  the review's placements in their boxes (the review picked, or
+             the latest of the appraisal plan picked), filtered by plant,
              department and grade, with the three strips, the steps they
              are at and the movers (test cases 6 to 8 and 21)
+  start_review  the review of an appraisal plan none reads yet, started
+             from the board
   get_card   one employee's talent card: the year as their appraisals hold
              it, the potential, the competency evidence, the box over the
              years, the benches they are on, their development plan, flight
@@ -60,14 +63,24 @@ def _check_access():
 
 
 @frappe.whitelist()
-def get_board(review=None, branch=None, department=None, grade=None):
+def get_board(review=None, branch=None, department=None, grade=None, plan=None):
+    """The review on the board: the one picked, else the latest of the
+    appraisal plan picked, else the latest of all. A plan no review reads
+    yet comes back with the means to start one (start_review)."""
     _check_access()
-    reviews = frappe.get_all(REVIEW, fields=["name", "title", "review_year", "status", "appraisal_plan",
-                                             "opens_on", "closes_on"],
+    reviews = frappe.get_all(REVIEW, filters={"appraisal_plan": plan} if plan else {},
+                             fields=["name", "title", "review_year", "status", "appraisal_plan",
+                                     "opens_on", "closes_on"],
                              order_by="review_year desc, opens_on desc", limit=50)
+    if review and plan and frappe.db.get_value(REVIEW, review, "appraisal_plan") != plan:
+        review = None  # a review of another plan: the plan picked decides
     review = review or (reviews[0].name if reviews else None)
     if not review:
-        return {"reviews": [], "review": None}
+        return {"reviews": [], "review": None,
+                "plan": frappe.db.get_value("Appraisal Plan", plan, ["name", "title", "year", "branch",
+                                                                    "department", "docstatus"], as_dict=True)
+                if plan else None,
+                "can_start": 1 if plan and frappe.has_permission(REVIEW, "create") else 0}
     everyone = frappe.get_all(PLACEMENT, filters={"talent_review": review, "docstatus": ["<", 2]},
                               fields=BOARD_FIELDS, limit=5000)
     scope = {"branch": branch, "department": department, "grade": grade}
@@ -108,6 +121,41 @@ def get_board(review=None, branch=None, department=None, grade=None):
         # a review nobody is in yet offers Draft Placements to whoever may write it
         "can_draft": 1 if frappe.has_permission(REVIEW, "write", doc=review) else 0,
     }
+
+
+@frappe.whitelist(methods=["POST"])
+def start_review(appraisal_plan):
+    """The talent review of an appraisal plan, started from the board: the
+    plan's year, plant and department, read from the latest quarter it has
+    opened. One already reading the plan is given back instead."""
+    _check_access()
+    frappe.has_permission(REVIEW, "create", throw=True)
+    existing = frappe.db.get_value(REVIEW, {"appraisal_plan": appraisal_plan, "status": ["!=", "Cancelled"]},
+                                   "name")
+    if existing:
+        return existing
+    plan = frappe.get_doc("Appraisal Plan", appraisal_plan)
+    plan.check_permission("read")
+    if plan.docstatus != 1:
+        frappe.throw(_("Submit appraisal plan {0} first: its quarters open once it is.").format(plan.name),
+                     title=_(REVIEW))
+    opened = frappe.get_all("Appraisal Plan Quarter",
+                            filters={"parent": plan.name, "parenttype": "Appraisal Plan",
+                                     "appraisal_cycle": ["is", "set"]},
+                            fields=["appraisal_cycle"], order_by="to_date desc", limit=1)
+    if not opened:
+        frappe.throw(_("No quarter of {0} has been opened yet, so nobody has been appraised to place.").format(
+            plan.name), title=_(REVIEW))
+    doc = frappe.new_doc(REVIEW)
+    doc.update({
+        "title": rules.review_title(plan.year, plan.get("branch"), plan.get("department"), plan.name,
+                                    frappe.get_all(REVIEW, pluck="name")),
+        "review_year": plan.year, "appraisal_plan": plan.name, "appraisal_cycle": opened[0].appraisal_cycle,
+        "opens_on": today(), "company": plan.company, "branch": plan.get("branch"),
+        "department": plan.get("department"),
+    })
+    doc.insert()
+    return doc.name
 
 
 @frappe.whitelist(methods=["POST"])
