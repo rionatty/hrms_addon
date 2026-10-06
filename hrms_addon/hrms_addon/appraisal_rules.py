@@ -152,13 +152,74 @@ def band(total):
     return next(name for floor, name in BANDS if total >= floor)
 
 
-def recommended(total):
+def recommended(total, rates=None):
     """What the score alone suggests before management meets: below 60 a
-    Performance Improvement Plan, otherwise nothing is suggested — a
-    promotion or an increase is management's to decide, not the score's."""
+    Performance Improvement Plan; a salary increase where Appraisal
+    Settings give the score a rate (Luuka's increments go by band, at rates
+    the HR Manager and the Executive Director set); otherwise nothing. A
+    promotion is never the score's to suggest: that is management's."""
     if total is None:
         return None
-    return PIP if total < PIP_BELOW else CLOSE
+    if total < PIP_BELOW:
+        return PIP
+    return INCREASE if increase_for(total, rates) else CLOSE
+
+
+def increase_for(total, rates):
+    """The salary increase a score earns, in per cent: the rate of the
+    highest band it reaches. rates: [{"score_from", "increase"}]. None
+    below them all, and below the pass mark."""
+    if total is None or float(total) < PIP_BELOW:
+        return None
+    reached = [row for row in rates or () if _number(row.get("score_from")) is not None
+               and float(total) >= _number(row["score_from"]) and (_number(row.get("increase")) or 0) > 0]
+    if not reached:
+        return None
+    return _number(max(reached, key=lambda row: _number(row["score_from"]))["increase"])
+
+
+def increased(salary, percent):
+    """A gross salary after an increase of `percent`, in whole shillings."""
+    return int(round(float(salary or 0) * (100 + float(percent or 0)) / 100))
+
+
+def decision_counts(rows):
+    """How many of each decision a review holds: {decision: count}, every
+    decision named, an undecided row in none."""
+    counts = dict.fromkeys(DECISIONS, 0)
+    for row in rows:
+        decision = row.get("decision")
+        if decision in counts:
+            counts[decision] += 1
+    return counts
+
+
+def rate_errors(rates):
+    """What is wrong with the salary increase rates on Appraisal Settings:
+    each starts at a score from the pass mark to 100, once, and gives more
+    than nothing."""
+    errors, seen = [], set()
+    for number, row in enumerate(rates or (), 1):
+        score_from, increase = _number(row.get("score_from")), _number(row.get("increase"))
+        if score_from is None or not PIP_BELOW <= score_from <= 100:
+            errors.append("Row %d: the score a rate starts at is between the pass mark of %d%% and 100%%."
+                          % (number, PIP_BELOW))
+        elif score_from in seen:
+            errors.append("Row %d: another rate already starts at %g%%." % (number, score_from))
+        else:
+            seen.add(score_from)
+        if increase is None or not 0 < increase <= 100:
+            errors.append("Row %d: the increase is more than 0%% and at most 100%%." % number)
+    return errors
+
+
+def _number(value):
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def quarter_window(year, quarter):
@@ -421,6 +482,78 @@ def objectives_from_kras(kras, limit=MAX_OBJECTIVES):
             out.append(text)
         if len(out) >= limit:
             break
+    return out
+
+
+# ── The results, and management's approval (Oct 2026) ─────────────────
+# The Appraisal Results report (test cases 5, 6 and 10): every appraisal of
+# a period with what is to become of the employee, and how far that has
+# got: what the score alone recommends, the decision HR proposed on a
+# Performance Review, that review with management, and what management
+# approved (the appraisal keeps it, custom_outcome).
+RECOMMENDED, PROPOSED, WITH_MANAGEMENT, APPROVED = "Recommended", "Proposed by HR", "With Management", "Approved"
+NOT_RATED = "Not Rated Yet"
+STAGES = (NOT_RATED, RECOMMENDED, PROPOSED, WITH_MANAGEMENT, APPROVED)
+OUTCOME_ORDER = {PROMOTION: 0, INCREASE: 1, PIP: 2, CLOSE: 3}
+# the state of a Performance Review HR is still preparing
+# (performance_review_approval.DRAFT)
+REVIEW_DRAFT = "Draft"
+
+
+def result_outcome(score=None, rated=False, review_state=None, decision=None, decided=None, rates=None):
+    """(outcome, stage) of an appraised employee.
+
+    decided: what management approved, which the appraisal keeps;
+    review_state, decision: the open review the appraisal is on, if any,
+    and the decision on it (blank until HR makes one: the suggestion
+    stands in for it); score, rated: the appraisal's own total, and whether
+    it has been rated at all (a blank score reads 0); rates: the salary
+    increase rates."""
+    if decided:
+        return decided, APPROVED
+    suggested = recommended(score, rates) if rated else None
+    if review_state:
+        return decision or suggested, PROPOSED if review_state == REVIEW_DRAFT else WITH_MANAGEMENT
+    if not rated:
+        return None, NOT_RATED
+    return suggested, RECOMMENDED
+
+
+def result_matches(row, filters):
+    """Whether a row of the results passes the report's filters: the
+    outcome, how far it has got, the rating, a score between two marks
+    (both included), on an improvement plan."""
+    for field in ("outcome", "stage", "band"):
+        if filters.get(field) and row.get(field) != filters[field]:
+            return False
+    score = row.get("score")
+    for field, below in (("score_from", True), ("score_to", False)):
+        mark = filters.get(field)
+        if mark in (None, ""):
+            continue
+        if score is None or (float(score) < float(mark) if below else float(score) > float(mark)):
+            return False
+    if filters.get("on_pip") and not row.get("on_pip"):
+        return False
+    return True
+
+
+def result_order(row):
+    """Promotions first, then increases, PIPs and the rest; within each the
+    highest score first."""
+    return (OUTCOME_ORDER.get(row.get("outcome"), len(OUTCOME_ORDER)), -float(row.get("score") or 0),
+            str(row.get("employee_name") or ""))
+
+
+def results_summary(rows):
+    """The figures on top of the report."""
+    rated = [float(row["score"]) for row in rows if row.get("score") is not None]
+    out = {"appraised": len(rows), "average": round(sum(rated) / len(rated), 1) if rated else 0,
+           "below_pass": len([score for score in rated if score < PIP_BELOW])}
+    for outcome in DECISIONS:
+        out[outcome] = len([row for row in rows if row.get("outcome") == outcome])
+    for stage in (WITH_MANAGEMENT, APPROVED):
+        out[stage] = len([row for row in rows if row.get("stage") == stage])
     return out
 
 

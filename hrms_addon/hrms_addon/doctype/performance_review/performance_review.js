@@ -4,6 +4,7 @@
 // below the pass mark the recommendation is an improvement plan
 // (appraisal_rules.PIP_BELOW)
 const HA_REVIEW_PASS_MARK = 60;
+const HA_REVIEW = "hrms_addon.hrms_addon.appraisals.";
 
 // employees on an improvement plan, and scores below the pass mark, red
 // (hrms_addon_pip.js)
@@ -20,58 +21,60 @@ function ha_review_marks(frm) {
 	hrms_addon.pip.mark_rows(frm, "employees");
 }
 
+// the quarter's completed appraisals on no review yet, of the review's
+// plant, each decided as its score suggests (appraisals.get_appraisals)
+function ha_review_get(frm) {
+	const args = { appraisal_cycle: frm.doc.appraisal_cycle };
+	if (frm.doc.branch) args.branch = frm.doc.branch;
+	frappe.xcall(HA_REVIEW + "get_appraisals", args).then((rows) => {
+		const have = new Set((frm.doc.employees || []).map((r) => r.appraisal));
+		const fresh = rows.filter((row) => !have.has(row.appraisal));
+		if (!fresh.length) {
+			frappe.show_alert({ message: __("No completed appraisals left to add."), indicator: "blue" });
+			return;
+		}
+		for (const row of fresh) frm.add_child("employees", row);
+		frm.refresh_field("employees");
+		ha_review_marks(frm);
+	});
+}
+
+// a copy for anyone else in management to read
+function ha_review_share(frm) {
+	frappe.prompt(
+		{
+			fieldname: "shared_with",
+			fieldtype: "Small Text",
+			label: __("Users"),
+			reqd: 1,
+			description: __("User names or email addresses, separated by commas."),
+		},
+		(values) =>
+			frappe
+				.xcall(HA_REVIEW + "share_with_management", { name: frm.doc.name, shared_with: values.shared_with })
+				.then(() => frm.reload_doc()),
+		__("Share a Copy"),
+		__("Share")
+	);
+}
+
 frappe.ui.form.on("Performance Review", {
 	refresh(frm) {
 		ha_review_marks(frm);
-		if (frm.doc.docstatus === 0 && frm.doc.appraisal_cycle) {
-			frm.add_custom_button(__("Get Appraisals"), () =>
-				frappe
-					.xcall("hrms_addon.hrms_addon.appraisals.get_appraisals", {
-						appraisal_cycle: frm.doc.appraisal_cycle,
-					})
-					.then((rows) => {
-						if (!rows.length) {
-							frappe.show_alert({
-								message: __("No appraisals on that cycle yet."),
-								indicator: "blue",
-							});
-							return;
-						}
-						const have = new Set((frm.doc.employees || []).map((r) => r.appraisal));
-						for (const row of rows) {
-							if (have.has(row.appraisal)) continue;
-							frm.add_child("employees", row);
-						}
-						frm.refresh_field("employees");
-						ha_review_marks(frm);
-					})
-			);
-			frm.add_custom_button(__("Share with Management"), () =>
-				frappe.prompt(
-					{
-						fieldname: "shared_with",
-						fieldtype: "Small Text",
-						label: __("Top management team"),
-						reqd: 1,
-						default: frm.doc.shared_with,
-						description: __("Their user names or email addresses, separated by commas."),
-					},
-					(values) =>
-						frappe
-							.xcall("hrms_addon.hrms_addon.appraisals.share_with_management", {
-								name: frm.doc.name,
-								shared_with: values.shared_with,
-							})
-							.then(() => frm.reload_doc()),
-					__("Share the appraisal report"),
-					__("Share")
-				)
-			);
+		const preparing = frm.doc.docstatus === 0 && (frm.doc.workflow_state || "Draft") === "Draft";
+		if (preparing && frm.doc.appraisal_cycle && frappe.user.has_role(["HR User", "HR Manager"])) {
+			frm.add_custom_button(__("Get Appraisals"), () => ha_review_get(frm));
 		}
-		if (frm.doc.status === "Decided") {
-			frm.set_intro(__("Decided. Promotions and salary increases are raised as Position Changes; anyone below the pass mark has an Improvement Plan."), "green");
-		} else if (frm.doc.status === "Shared") {
-			frm.set_intro(__("Shared with management. Record a decision against every employee, then submit."), "blue");
+		if (!frm.is_new() && frm.doc.docstatus < 2 && frm.perm[0] && frm.perm[0].share) {
+			frm.add_custom_button(__("Share a Copy"), () => ha_review_share(frm));
+		}
+		if (preparing && frm.doc.return_remarks) {
+			frm.set_intro(__("Returned: {0}", [frappe.utils.escape_html(frm.doc.return_remarks)]), "orange");
+		} else if (frm.doc.docstatus === 1) {
+			frm.set_intro(
+				__("Approved. Promotions and salary increases are raised as Position Changes; anyone on a PIP has an Improvement Plan."),
+				"green"
+			);
 		}
 	},
 	onload(frm) {

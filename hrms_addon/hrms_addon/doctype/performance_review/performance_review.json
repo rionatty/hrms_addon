@@ -20,16 +20,31 @@
   "column_break_2",
   "below_pass",
   "completion",
+  "column_break_counts",
+  "promotions",
+  "increases",
+  "column_break_counts_2",
+  "improvement_plans",
+  "closed",
   "employees_section",
   "employees",
   "management_section",
-  "shared_with",
-  "management_remarks",
-  "column_break_3",
+  "sent_by",
   "shared_on",
+  "column_break_3",
+  "gm_remarks",
+  "gm_by",
+  "gm_on",
+  "column_break_approval",
+  "management_remarks",
   "decided_by",
   "decided_on",
-  "amended_from"
+  "return_section",
+  "return_remarks",
+  "column_break_return",
+  "shared_with",
+  "amended_from",
+  "workflow_state"
  ],
  "fields": [
   {
@@ -94,7 +109,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nShared\nDecided\nCancelled",
+   "options": "Draft\nPending General Manager\nPending Executive Director\nApproved\nCancelled",
    "read_only": 1,
    "default": "Draft",
    "in_standard_filter": 1,
@@ -131,7 +146,39 @@
   {
    "fieldname": "completion",
    "fieldtype": "Percent",
-   "label": "Completion",
+   "label": "Appraisals Completed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "promotions",
+   "fieldtype": "Int",
+   "label": "Promotions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "increases",
+   "fieldtype": "Int",
+   "label": "Salary Increases",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_counts_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "improvement_plans",
+   "fieldtype": "Int",
+   "label": "Improvement Plans",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closed",
+   "fieldtype": "Int",
+   "label": "Closed",
    "read_only": 1
   },
   {
@@ -148,33 +195,60 @@
   {
    "fieldname": "management_section",
    "fieldtype": "Section Break",
-   "label": "Management"
+   "label": "Approval"
   },
   {
-   "fieldname": "shared_with",
-   "fieldtype": "Small Text",
-   "label": "Shared With"
+   "fieldname": "sent_by",
+   "fieldtype": "Link",
+   "label": "Sent By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
-   "fieldname": "management_remarks",
-   "fieldtype": "Text",
-   "label": "Management's Remarks"
+   "fieldname": "shared_on",
+   "fieldtype": "Date",
+   "label": "Sent On",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_3",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "shared_on",
-   "fieldtype": "Date",
-   "label": "Shared On",
+   "fieldname": "gm_remarks",
+   "fieldtype": "Small Text",
+   "label": "General Manager's Remarks"
+  },
+  {
+   "fieldname": "gm_by",
+   "fieldtype": "Link",
+   "label": "General Manager",
+   "options": "User",
    "read_only": 1,
    "no_copy": 1
   },
   {
+   "fieldname": "gm_on",
+   "fieldtype": "Date",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_approval",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "management_remarks",
+   "fieldtype": "Text",
+   "label": "Executive Director's Remarks"
+  },
+  {
    "fieldname": "decided_by",
    "fieldtype": "Link",
-   "label": "Decided By",
+   "label": "Executive Director",
    "options": "User",
    "read_only": 1,
    "no_copy": 1
@@ -182,7 +256,28 @@
   {
    "fieldname": "decided_on",
    "fieldtype": "Date",
-   "label": "Decided On",
+   "label": "On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_section",
+   "fieldtype": "Section Break",
+   "label": "Returned"
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks"
+  },
+  {
+   "fieldname": "column_break_return",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "shared_with",
+   "fieldtype": "Small Text",
+   "label": "Copies Sent To",
    "read_only": 1,
    "no_copy": 1
   },
@@ -194,11 +289,21 @@
    "read_only": 1,
    "print_hide": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-23 09:00:00.000000",
+ "modified": "2026-10-06 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Performance Review",
@@ -266,7 +371,8 @@
    "email": 1,
    "share": 1,
    "role": "Executive Director",
-   "write": 1
+   "write": 1,
+   "submit": 1
   },
   {
    "read": 1,
@@ -282,5 +388,6 @@
  "sort_order": "DESC",
  "states": [],
  "title_field": "title",
- "track_changes": 1
+ "track_changes": 1,
+ "default_print_format": "Performance Appraisal Report"
 }

@@ -1543,6 +1543,8 @@ doc_events = {
     # the appraisals the supervisor does not have yet follow the
     # self-appraisal setting as soon as it is saved (appraisals.py)
     "Appraisal Settings": {
+        # the salary increase rates: each from the pass mark up, once
+        "validate": "hrms_addon.hrms_addon.appraisals.settings_validate",
         "on_update": "hrms_addon.hrms_addon.appraisals.settings_on_update",
     },
     "Appraisal Template": {

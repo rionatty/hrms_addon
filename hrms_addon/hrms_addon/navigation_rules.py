@@ -174,6 +174,9 @@ CARDS = {
         ("The Appraisal Round", [
             ("Appraisal Plan", "Appraisal Plan", DOCTYPE),
             ("Performance Review", "Performance Review", DOCTYPE),
+            # the results with what is to become of each employee, and the
+            # review they go to management on (6 Oct 2026)
+            ("Appraisal Results", "Appraisal Results", REPORT),
             ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE),
         ]),
         ("After the Appraisal", [
@@ -398,7 +401,8 @@ SIDEBAR = {
     "Performance": [
         ("Appraisal Plan", "Appraisal Plan", DOCTYPE, None, "Goal"),
         ("Performance Review", "Performance Review", DOCTYPE, None, "Appraisal"),
-        ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Performance Review"),
+        ("Appraisal Results", "Appraisal Results", REPORT, None, "Performance Review"),
+        ("Performance Improvement Plan", "Performance Improvement Plan", DOCTYPE, None, "Appraisal Results"),
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Promotion"),
         # the review on one grid (page/talent_board), first of the talent entries
         ("Talent Board", "talent-board", PAGE, None, None),
@@ -527,7 +531,7 @@ GROUPS = {
     ],
     "Performance": [
         ("Appraisals", "star", ["Appraisal Plan", "Appraisal Cycle", "Appraisal", "Performance Review",
-                                "Performance Improvement Plan"]),
+                                "Appraisal Results", "Performance Improvement Plan"]),
         ("Goals and Feedback", "target", ["Goal", "Employee Performance Feedback"]),
         ("Promotions", "trending-up", ["Employee Promotion", "Employee Position Change"]),
         ("Talent", "award", ["talent-board", "Talent Review", "Talent Placement", "Talent Program",

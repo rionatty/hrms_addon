@@ -619,8 +619,13 @@ PRINTS = {
         "Objectives/KPIs /40", "Total Score", "General comments by the Employee",
         "Human Resources Manager&rsquo;s remarks".replace("&rsquo;", "'"), "Production Manager's remarks",
         "General Manager's remarks", "Rating Scale:"]),
+    # grouped by what management decided, signed by HR, the General Manager
+    # and the Executive Director (6 Oct 2026)
     "Performance Appraisal Report": ("Performance Review", [
-        "Performance Appraisal Report", "Average Score", "Below the pass mark", "Decision", "Management's Remarks"]),
+        "Performance Appraisal Report", "Average Score", "Below the Pass Mark", "Appraisals Completed",
+        '("Promotion", "Promotion", doc.promotions)', '("Salary Increase", "Salary Increase", doc.increases)',
+        '"Performance Improvement Plan", doc.improvement_plans)', '"Appraisal Closed, No Change", doc.closed)',
+        "Not Decided Yet", "HR proposed", "Prepared by (HR)", "General Manager", "Executive Director"]),
     "Performance Improvement Plan Document": ("Performance Improvement Plan", [
         "Performance Improvement Plan", "Area to improve", "Expected standard", "Support from the company",
         "How it is measured", "Review meetings", "Outcome", "Agreement"]),
@@ -1398,8 +1403,8 @@ if not settings_spec.get("issingle") or (settings_fields.get("self_appraisal") o
         or (settings_fields.get("kra_evaluation_method") or {}).get("default") != R.KRA_AUTOMATED \
         or tuple((settings_fields.get("kra_evaluation_method") or {}).get("options", "").split("\n")) != R.KRA_METHODS:
     fail.append("Appraisal Settings: a single, self-appraisal on and KRAs automated unless changed")
-if set(settings_fields) - {"self_section", "cycle_section"} != set(R.SETTINGS_DEFAULTS):
-    fail.append("Appraisal Settings holds what settings_values reads, and nothing else")
+if set(settings_fields) - {"self_section", "cycle_section", "increase_section", "increase_rates"}         != set(R.SETTINGS_DEFAULTS):
+    fail.append("Appraisal Settings holds what settings_values reads and the salary increase rates, and nothing else")
 if "frappe.db.get_singles_dict(SETTINGS)" not in body_of(glue_appraisals, "settings"):
     fail.append("the settings are read as stored: a Check never saved would read 0, turning the self-appraisal off")
 if "Appraisal Settings" not in carded or "Appraisal Settings" not in sidebarred:
@@ -2100,6 +2105,322 @@ for needle, why in (
         fail.append("appraisal.js: %s (%r not found)" % (why, needle))
 print("Oct 2026: a percentage achieved from 0 to 100 and a competency from 0 to 10, refused at every save and taken "
       "off as typed; an upload leaves only the appraisal that holds one")
+
+# ── 14. The results, and management's approval (Luuka, 6 Oct 2026) ────
+# "a report for appraisal so that we are able to filter the ones for PIP,
+# promotion, salary increase and the rest ... shared to the management for
+# approval": the Appraisal Results report, the Performance Review it fills,
+# approved by the General Manager and then the Executive Director, and the
+# salary increase each score suggests where Appraisal Settings set rates.
+RV = load("performance_review_approval")
+
+
+def js_strings(source, name):
+    """The strings of a JS const array."""
+    found = re.search(r"const %s = \[(.*?)\];" % name, source, re.S)
+    return re.findall(r'"([^"]*)"', found.group(1)) if found else []
+
+
+RATES = [{"score_from": 80, "increase": 10}, {"score_from": 70, "increase": 5}]
+for score, wanted in ((95, 10.0), (80, 10.0), (79.9, 5.0), (70, 5.0), (69.9, None), (59, None), (None, None)):
+    if R.increase_for(score, RATES) != wanted:
+        fail.append("increase_for(%r): the rate of the highest band it reaches is %r, got %r"
+                    % (score, wanted, R.increase_for(score, RATES)))
+if R.increase_for(90, []) is not None or R.increase_for(90, [{"score_from": 50, "increase": 0}]) is not None:
+    fail.append("increase_for: with no rates, or a rate of nothing, a score earns no increase")
+for score, rates, wanted in ((59.9, None, R.PIP), (60, None, R.CLOSE), (95, None, R.CLOSE), (None, None, None),
+                             (59.9, RATES, R.PIP), (65, RATES, R.CLOSE), (70, RATES, R.INCREASE),
+                             (92, RATES, R.INCREASE)):
+    if R.recommended(score, rates) != wanted:
+        fail.append("recommended(%r, %s): want %r, got %r" % (score, "rates" if rates else "no rates", wanted,
+                                                            R.recommended(score, rates)))
+if R.PROMOTION in {R.recommended(score, RATES) for score in range(0, 101)}:
+    fail.append("a promotion is never the score's to suggest: that is management's")
+expect("rates as Luuka might set them", R.rate_errors(RATES))
+expect("a rate below the pass mark", R.rate_errors([{"score_from": 50, "increase": 5}]), "pass mark of 60%")
+expect("two rates from one mark", R.rate_errors([{"score_from": 80, "increase": 10}, {"score_from": 80, "increase": 12}]),
+       "already starts at 80%")
+expect("a rate of nothing", R.rate_errors([{"score_from": 80, "increase": 0}]), "more than 0%")
+expect("a row left blank, which Frappe keeps as 0", R.rate_errors([{"score_from": 0, "increase": 0}]),
+       "pass mark", "more than 0%")
+if R.increased(1000000, 10) != 1100000 or R.increased(850000, 7.5) != 913750 or R.increased(None, 10) != 0:
+    fail.append("increased: the gross after the increase, in whole shillings")
+if R.decision_counts([{"decision": R.PROMOTION}, {"decision": R.PIP}, {"decision": R.PIP}, {"decision": ""}]) \
+        != {R.PROMOTION: 1, R.INCREASE: 0, R.PIP: 2, R.CLOSE: 0}:
+    fail.append("decision_counts: each decision counted, an undecided row in none")
+for kwargs, wanted in (
+        (dict(score=None, rated=False), (None, R.NOT_RATED)),
+        (dict(score=40.0, rated=True), (R.PIP, R.RECOMMENDED)),
+        (dict(score=85.0, rated=True), (R.CLOSE, R.RECOMMENDED)),
+        (dict(score=85.0, rated=True, rates=RATES), (R.INCREASE, R.RECOMMENDED)),
+        (dict(score=85.0, rated=True, review_state=RV.DRAFT, decision=R.PROMOTION), (R.PROMOTION, R.PROPOSED)),
+        (dict(score=85.0, rated=True, review_state=RV.DRAFT, decision=""), (R.CLOSE, R.PROPOSED)),
+        (dict(score=85.0, rated=True, review_state=RV.PENDING_GM, decision=R.PROMOTION),
+         (R.PROMOTION, R.WITH_MANAGEMENT)),
+        (dict(score=85.0, rated=True, review_state=RV.PENDING_ED, decision=R.INCREASE),
+         (R.INCREASE, R.WITH_MANAGEMENT)),
+        (dict(score=85.0, rated=True, review_state=RV.PENDING_ED, decision=R.INCREASE, decided=R.PROMOTION),
+         (R.PROMOTION, R.APPROVED)),
+        (dict(score=40.0, rated=True, decided=R.PIP), (R.PIP, R.APPROVED))):
+    if R.result_outcome(**kwargs) != wanted:
+        fail.append("result_outcome(%r): want %r, got %r" % (kwargs, wanted, R.result_outcome(**kwargs)))
+if R.REVIEW_DRAFT != RV.DRAFT:
+    fail.append("the results know a review HR are still preparing by the workflow's own Draft")
+ROW = {"outcome": R.PIP, "stage": R.RECOMMENDED, "band": "Average", "score": 55.0, "on_pip": 1}
+for filters, wanted in (({}, True), ({"outcome": R.PIP}, True), ({"outcome": R.CLOSE}, False),
+                        ({"stage": R.APPROVED}, False), ({"stage": R.RECOMMENDED}, True), ({"score_from": 55}, True),
+                        ({"score_from": 55.1}, False), ({"score_to": 55}, True), ({"score_to": 54.9}, False),
+                        ({"score_from": ""}, True), ({"on_pip": 1}, True), ({"band": "Good"}, False)):
+    if R.result_matches(ROW, filters) != wanted:
+        fail.append("result_matches(%r): want %r" % (filters, wanted))
+if R.result_matches(dict(ROW, score=None), {"score_from": 10}) or R.result_matches(dict(ROW, on_pip=0), {"on_pip": 1}):
+    fail.append("result_matches: a score band leaves out who has no score, On an Improvement Plan who is on none")
+ORDERED = [{"employee_name": "b", "outcome": R.CLOSE, "score": 99}, {"employee_name": "a", "outcome": R.PIP, "score": 40},
+           {"employee_name": "c", "outcome": R.PROMOTION, "score": 80},
+           {"employee_name": "d", "outcome": R.INCREASE, "score": 85},
+           {"employee_name": "e", "outcome": R.INCREASE, "score": 90},
+           {"employee_name": "f", "outcome": None, "score": None}]
+if [row["employee_name"] for row in sorted(ORDERED, key=R.result_order)] != ["c", "e", "d", "a", "b", "f"]:
+    fail.append("result_order: promotions, increases, plans, the rest, then who is not rated; the best score first")
+summary = R.results_summary([dict(row, stage=R.APPROVED if row["employee_name"] in "ab" else R.WITH_MANAGEMENT)
+                             for row in ORDERED])
+if (summary["appraised"], summary["average"], summary["below_pass"], summary[R.INCREASE], summary[R.PIP],
+        summary[R.APPROVED], summary[R.WITH_MANAGEMENT]) != (6, 78.8, 1, 2, 1, 2, 4):
+    fail.append("results_summary: who is on it, the average of the rated, below the mark, each outcome, each stage: %s"
+                % summary)
+
+# the review's workflow
+states = [row["state"] for row in RV.STATES]
+if set(states) != set(RV.STATUSES):
+    fail.append("every state of the review's workflow is a status, and each status a state")
+review_spec = doctype("Performance Review")
+review_fields = fields_of(review_spec)
+if (review_fields.get("status") or {}).get("options", "").split("\n") != list(RV.STATUSES):
+    fail.append("the workflow writes each state into the review's Status: every one must be an option")
+for row in RV.STATES:
+    wanted = {RV.APPROVED: "1", RV.CANCELLED: "2"}.get(row["state"], None)
+    if row.get("doc_status") != wanted:
+        fail.append("%s: the review is %s there" % (row["state"], {"1": "filed", "2": "cancelled", None: "a draft"}[wanted]))
+editors = {}
+for row in RV.STATES:
+    editors.setdefault(row["state"], set()).add(row["allow_edit"])
+if editors.get(RV.DRAFT) != {"HR User", "HR Manager"} or editors.get(RV.PENDING_GM) != {"General Manager"} \
+        or editors.get(RV.PENDING_ED) != {"Executive Director"}:
+    fail.append("HR prepare the review, the General Manager then the Executive Director hold it: %s" % editors)
+for state, roles, wanted in (
+        (RV.DRAFT, ["HR User"], [(RV.SEND, RV.PENDING_GM)]),
+        (RV.DRAFT, ["General Manager", "Executive Director"], []),
+        (RV.PENDING_GM, ["General Manager"], [(RV.APPROVE, RV.PENDING_ED), (RV.RETURN, RV.DRAFT)]),
+        (RV.PENDING_GM, ["HR User", "Executive Director"], []),
+        (RV.PENDING_ED, ["Executive Director"], [(RV.APPROVE, RV.APPROVED), (RV.RETURN, RV.DRAFT)]),
+        (RV.PENDING_ED, ["General Manager"], []),
+        (RV.APPROVED, ["HR Manager"], [(RV.CANCEL, RV.CANCELLED)]),
+        (RV.APPROVED, ["HR User"], [])):
+    if RV.next_states(state, roles) != wanted:
+        fail.append("from %s, %s may %s, got %s" % (state, roles, wanted, RV.next_states(state, roles)))
+if RV.ROLE_WAITING != {RV.PENDING_GM: "General Manager", RV.PENDING_ED: "Executive Director"}:
+    fail.append("the review waits on the General Manager, then the Executive Director")
+if "submit" not in RV.PERMISSIONS.get(RV.DOCTYPE, {}).get("Executive Director", ()):
+    fail.append("the Executive Director's approval files the review: they need submit")
+DAY = "2026-04-30"
+sent = RV.compute_stamps(RV.DRAFT, RV.PENDING_GM, "hro@luuka", DAY, {})
+passed = RV.compute_stamps(RV.PENDING_GM, RV.PENDING_ED, "gm@luuka", DAY, sent)
+approved = RV.compute_stamps(RV.PENDING_ED, RV.APPROVED, "ed@luuka", DAY, passed)
+if (sent["sent_by"], sent["shared_on"], sent["gm_by"]) != ("hro@luuka", DAY, None) \
+        or (passed["sent_by"], passed["gm_by"], passed["gm_on"]) != ("hro@luuka", "gm@luuka", DAY) \
+        or (approved["gm_by"], approved["decided_by"], approved["decided_on"]) != ("gm@luuka", "ed@luuka", DAY):
+    fail.append("each step stamps who left it and when, keeping the steps before: %s" % approved)
+if any(RV.compute_stamps(RV.PENDING_ED, RV.DRAFT, "ed@luuka", DAY, passed).values()) \
+        or any(RV.compute_stamps(None, RV.DRAFT, "hro@luuka", DAY, passed).values()) \
+        or RV.compute_stamps(RV.PENDING_GM, RV.PENDING_GM, "x", DAY, sent) != sent:
+    fail.append("a return clears every signature, a new review has none, a save that is no step changes none")
+expect("sent with nobody on it", RV.step_errors(RV.DRAFT, RV.PENDING_GM, {"rows": []}), "no appraisal results")
+expect("sent with someone undecided", RV.step_errors(RV.DRAFT, RV.PENDING_GM, {
+    "rows": [{"employee_name": "Ann", "decision": ""}, {"employee_name": "Bob", "decision": R.CLOSE}]}),
+       "needs a decision before the review goes on: Ann.")
+expect("sent with an appraisal still being signed", RV.step_errors(RV.DRAFT, RV.PENDING_GM, {
+    "rows": [{"employee_name": "Ann", "decision": R.CLOSE}], "unfinished": ["Ann"]}), "not completed yet: Ann")
+expect("approved with someone undecided", RV.step_errors(RV.PENDING_ED, RV.APPROVED, {
+    "rows": [{"employee": "E1", "decision": None}]}), "needs a decision")
+expect("returned without a reason", RV.step_errors(RV.PENDING_GM, RV.DRAFT, {}), "Return Remarks")
+expect("returned with one", RV.step_errors(RV.PENDING_ED, RV.DRAFT, {"return_remarks": "Re-check the PIPs."}))
+expect("approved as decided", RV.step_errors(RV.PENDING_ED, RV.APPROVED, {"rows": [{"decision": R.CLOSE}]}))
+for fieldname in RV.ALL_STAMP_FIELDS + tuple(RV.REMARK_FIELDS.values()) + ("return_remarks", RV.STATE_FIELD):
+    if fieldname not in review_fields:
+        fail.append("the review's workflow writes Performance Review.%s, which it does not have" % fieldname)
+for fieldname in RV.ALL_STAMP_FIELDS:
+    field = review_fields.get(fieldname) or {}
+    if not (field.get("read_only") and field.get("no_copy")):
+        fail.append("Performance Review.%s is a signature: read-only, and never copied to an amendment" % fieldname)
+for fieldname in ("promotions", "increases", "improvement_plans", "closed"):
+    if (review_fields.get(fieldname) or {}).get("fieldtype") != "Int" or not review_fields[fieldname].get("read_only"):
+        fail.append("Performance Review.%s counts the decisions, worked out" % fieldname)
+if review_spec.get("default_print_format") != "Performance Appraisal Report":
+    fail.append("a review prints as the Performance Appraisal Report")
+ed_perm = next((perm for perm in review_spec.get("permissions", []) if perm["role"] == "Executive Director"), {})
+if not ed_perm.get("submit"):
+    fail.append("the Executive Director files the review: submit on a fresh site too")
+row_spec = doctype("Performance Review Employee")
+row_fields = fields_of(row_spec)
+if (row_fields.get("proposed_decision") or {}).get("options") != (row_fields.get("decision") or {}).get("options") \
+        or not row_fields["proposed_decision"].get("read_only") or not row_fields["proposed_decision"].get("no_copy"):
+    fail.append("HR Proposed: the decision's own choices, written by the review, never typed or copied")
+increase_field = row_fields.get("increase_percent") or {}
+if increase_field.get("fieldtype") != "Percent" or R.INCREASE not in (increase_field.get("depends_on") or ""):
+    fail.append("Increase % is a percentage, shown for a salary increase only")
+if (row_fields.get("designation") or {}).get("fetch_from") != "employee.designation":
+    fail.append("each row carries the employee's job title, for management to read")
+if sum(f.get("columns") or 0 for f in row_spec["fields"] if f.get("in_list_view")) > 10:
+    fail.append("the review's grid asks for more than the ten columns Frappe shows")
+rate_spec = doctype("Appraisal Increase Rate")
+if not rate_spec.get("istable") or {f["fieldname"]: f["fieldtype"] for f in rate_spec.get("fields", [])} \
+        != {"score_from": "Percent", "increase": "Percent"}:
+    fail.append("Appraisal Increase Rate: a table of a score and the increase it earns")
+if (settings_fields.get("increase_rates") or {}).get("options") != "Appraisal Increase Rate":
+    fail.append("Appraisal Settings holds the salary increase rates")
+
+# the glue
+review_glue = read("hrms_addon", "hrms_addon", "appraisals.py")
+for needle, why in (
+        ('frappe.get_list("Appraisal", filters=conditions, fields=RESULT_FIELDS, limit_page_length=0)',
+         "the results read every appraisal the user may read, and only those"),
+        ("rules.result_outcome(", "each outcome and stage by the tested rule"),
+        ("rules.result_matches(row, filters)", "filtered by the tested rule"),
+        ("out.sort(key=rules.result_order)", "in the tested order"),
+        ('row["stage"] == rules.RECOMMENDED and row["docstatus"] == 1',
+         "only completed appraisals on no review yet go before management"),
+        ('frappe.has_permission(REVIEW, "create", throw=True)', "only someone who may make a review prepares one"),
+        ("each plant's General Manager approves its own results", "two plants are never mixed on one review"),
+        ("_review_in_preparation(filters.appraisal_cycle, branch)",
+         "added to the plant's review HR are still preparing, never a second one"),
+        ('"docstatus": 0, "status": review_approval.DRAFT}', "only a review still in HR's hands is added to"),
+        ("review_approval.step_errors(", "what a step needs, by the tested rule"),
+        ("review_approval.compute_stamps(", "the signatures, by the tested rule"),
+        ('"unfinished": _unfinished(doc)', "a decision is made on a completed appraisal only"),
+        ("row.proposed_decision = row.decision", "what HR proposed is kept as the review goes to management"),
+        ("_check_on_one_review(doc)", "an appraisal goes before management once"),
+        ("people.people_for(role, branch)", "the plant's own General Manager is the one told"),
+        ("people.assign(doc.doctype, doc.name, users, message)", "and given the review to do"),
+        ("people.withdraw(doc.doctype, doc.name", "and it is off the list of whoever had it before"),
+        ("rules.increased(change.current_salary, row.increase_percent)",
+         "an approved increase works out the new pay on the position change"),
+        ("rules.rate_errors(", "the rates are checked as they are saved"),
+        ('done = frappe.db.count("Appraisal", dict(filters, docstatus=1))',
+         "the appraisals completed are counted, not every one raised"),
+        ("rules.recommended(flt(row.total_score), rates) if row.get(\"band\") else None",
+         "a row not rated suggests nothing, whatever 0 Frappe keeps for its score"),
+        ('workflows.setup_on_migrate(review_approval, "Performance Review workflow")',
+         "the review's workflow is built on every migrate")):
+    if needle not in review_glue:
+        fail.append("appraisals.py: %s (%r not found)" % (why, needle))
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef review_from_results\(', review_glue):
+    fail.append("appraisals.review_from_results makes a review: a whitelisted POST method")
+if "appraisals.settings_validate" not in str((events.get("Appraisal Settings") or {}).get("validate")):
+    fail.append("doc_events Appraisal Settings validate must check the rates (appraisals.settings_validate)")
+result_keys = set(re.findall(r'"(\w+)": ', body_of(review_glue, "_result")))
+
+# the report
+report_dir = os.path.join(APP, "report", "appraisal_results")
+report_spec = json.load(open(os.path.join(report_dir, "appraisal_results.json"), encoding="utf-8")) \
+    if os.path.exists(os.path.join(report_dir, "appraisal_results.json")) else {}
+if (report_spec.get("report_type"), report_spec.get("ref_doctype"), report_spec.get("is_standard")) \
+        != ("Script Report", "Performance Review", "Yes"):
+    fail.append("Appraisal Results is a standard Script Report on the Performance Review")
+report_roles = {row["role"] for row in report_spec.get("roles", [])}
+if not {"HR User", "HR Manager", "General Manager", "Executive Director"} <= report_roles:
+    fail.append("HR and management both open the Appraisal Results: %s" % sorted(report_roles))
+for role in report_roles:
+    perm = next((perm for perm in review_spec.get("permissions", []) if perm["role"] == role), {})
+    if not perm.get("report"):
+        fail.append("%s may open Appraisal Results only with report rights on the Performance Review" % role)
+report_py = read("hrms_addon", "hrms_addon", "report", "appraisal_results", "appraisal_results.py")
+if "appraisals.results(" not in report_py:
+    fail.append("the report reads its rows from appraisals.results, the rule-tested reader")
+for fieldname in sorted(set(re.findall(r'"fieldname": "(\w+)"', report_py)) - result_keys):
+    fail.append("the report shows %s, which no row of the results carries" % fieldname)
+report_js = read("hrms_addon", "hrms_addon", "report", "appraisal_results", "appraisal_results.js")
+read_filters = {key for key, _field in re.findall(r'\("(\w+)", "(\w+)"\)', body_of(review_glue, "results")
+                                                   + review_glue.split("RESULT_FILTERS = ")[1].split("\n\n")[0])}
+read_filters |= {"year", "outcome", "stage", "score_from", "score_to", "on_pip", "include_unrated"}
+js_filters = set(re.findall(r'fieldname: "(\w+)"', report_js.split("formatter(")[0]))
+if js_filters - read_filters:
+    fail.append("the report offers filters nothing reads: %s" % sorted(js_filters - read_filters))
+if js_strings(report_js, "HA_AR_OUTCOMES") != list(R.DECISIONS)         or set(js_strings(report_js, "HA_AR_STAGES")) != set(R.STAGES):
+    fail.append("the report's Outcome and Stage filters offer exactly the outcomes and stages there are")
+for needle, why in (
+        ('frappe.model.can_create("Performance Review")', "Prepare Report for Management only for who may make a review"),
+        ('HA_AR_METHODS + "review_from_results"', "the button prepares the review on the server"),
+        ("get_checked_items()", "the rows ticked, where any are"),
+        ('frappe.set_route("Form", "Performance Review", result.name)', "and opens the review"),
+        ("const HA_AR_PASS_MARK = %d;" % R.PIP_BELOW, "a score below the pass mark is red"),
+        ("hrms_addon.pip.mark_html(value, data.on_pip)", "someone on an improvement plan is marked")):
+    if needle not in report_js:
+        fail.append("appraisal_results.js: %s (%r not found)" % (why, needle))
+review_js = read("hrms_addon", "hrms_addon", "doctype", "performance_review", "performance_review.js")
+for needle, why in (
+        ('HA_REVIEW + "get_appraisals"', "Get Appraisals reads the same results"),
+        ("if (frm.doc.branch) args.branch = frm.doc.branch;", "of the review's own plant, and no empty filter sent"),
+        ('HA_REVIEW + "share_with_management"', "a copy for anyone else in management"),
+        ("const HA_REVIEW_PASS_MARK = %d;" % R.PIP_BELOW, "a score below the pass mark is red")):
+    if needle not in review_js:
+        fail.append("performance_review.js: %s (%r not found)" % (why, needle))
+if "Share with Management" in review_js:
+    fail.append("performance_review.js: the review goes to management by its workflow, not a button beside it")
+
+# the print, compiled as Frappe's Jinja reads it, and laid out by decision
+_jinja_spec = importlib.util.spec_from_file_location("jinja_subset", os.path.join(REPO, "scripts", "jinja_subset.py"))
+jinja_subset = importlib.util.module_from_spec(_jinja_spec)
+_jinja_spec.loader.exec_module(jinja_subset)
+report_html = (print_format("Performance Appraisal Report") or {}).get("html") or ""
+try:
+    render = jinja_subset.compile_template(report_html)
+    sample = {"appraisal_cycle": "Q1 2026", "branch": "Kawempe", "status": RV.APPROVED, "appraised": 3,
+              "average_score": 67.3, "below_pass": 1, "completion": 100.0, "promotions": 0, "increases": 1,
+              "improvement_plans": 1, "closed": 0, "sent_by": "hro@luuka", "gm_by": "gm@luuka",
+              "decided_by": "ed@luuka", "gm_remarks": "", "management_remarks": "As listed.", "employees": [
+                  {"employee_name": "Ann <A>", "decision": R.INCREASE, "proposed_decision": R.INCREASE,
+                   "increase_percent": 10.0, "total_score": 92.0, "band": "Excellent"},
+                  {"employee_name": "Bob", "decision": R.PIP, "proposed_decision": R.CLOSE, "total_score": 40.0,
+                   "band": "Below Average", "increase_percent": 0},
+                  {"employee_name": "Cy", "decision": "", "total_score": 70.0, "band": "Good"}]}
+    utils = type("utils", (), {"format_date": staticmethod(lambda value: str(value))})
+    db = type("db", (), {"get_value": staticmethod(lambda doctype, name, field: "Full " + name)})
+    page = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", render({
+        "doc": jinja_subset.wrap(sample), "frappe": type("f", (), {"utils": utils, "db": db}),
+        "namespace": jinja_subset.Namespace}), flags=re.S)))
+    order = [page.find(text) for text in ("Salary Increase (1)", "Performance Improvement Plan (1)",
+                                          "Not Decided Yet (1)", "Prepared by (HR)")]
+    if -1 in order or order != sorted(order) or "Promotion (" in page or "Appraisal Closed, No Change (" in page:
+        fail.append("the print lists each decision under its own heading, none empty, then who is undecided: %s" % page)
+    if "Ann &lt;A&gt;" not in page or "10.0%" not in page or "HR proposed: Close" not in page \
+            or "HR proposed: Salary" in page or "Full ed@luuka" not in page:
+        fail.append("the print escapes names, shows the increase, says where management changed HR's proposal, "
+                    "and names who signed: %s" % page)
+except Exception as error:  # noqa: BLE001
+    fail.append("the Performance Appraisal Report does not compile or render: %s" % error)
+
+# the reviews already there, and the menus
+review_patch = read("hrms_addon", "patches", "v1_0", "performance_review_approval.py")
+if "hrms_addon.patches.v1_0.performance_review_approval" not in patches:
+    fail.append("the reviews already on a site get their states by patch, after the doctypes migrate")
+for needle, why in (("STATES = {0: approval.DRAFT, 1: approval.APPROVED, 2: approval.CANCELLED}",
+                     "a draft is Draft, a decided review Approved, a cancelled one Cancelled"),
+                    ('{approval.STATE_FIELD: ["is", "not set"]}', "only a review with no state yet: safe twice"),
+                    ('{approval.STATE_FIELD: state, "status": state}', "its status matches its state")):
+    if needle not in review_patch:
+        fail.append("performance_review_approval patch: %s (%r not found)" % (why, needle))
+round_card = next((links for card, links in navigation.CARDS["Performance"] if card == "The Appraisal Round"), [])
+labels = [link[0] for link in round_card]
+if "Appraisal Results" not in labels or labels.index("Appraisal Results") != labels.index("Performance Review") + 1:
+    fail.append("Appraisal Results follows Performance Review on The Appraisal Round card")
+if ("Appraisal Results", "Appraisal Results", navigation.REPORT, None, "Performance Review") \
+        not in navigation.SIDEBAR["Performance"]:
+    fail.append("Appraisal Results follows Performance Review in the sidebar")
+appraisal_group = next((entries for name, _icon, entries in navigation.GROUPS["Performance"] if name == "Appraisals"), [])
+if appraisal_group[appraisal_group.index("Performance Review") + 1:][:1] != ["Appraisal Results"]:
+    fail.append("Appraisal Results follows Performance Review in the Appraisals group")
+print("Oct 2026: the appraisal results, filtered by outcome and stage, prepared for management, approved by the "
+      "General Manager and the Executive Director, printed by decision; increase rates by score")
 
 print()
 if fail:

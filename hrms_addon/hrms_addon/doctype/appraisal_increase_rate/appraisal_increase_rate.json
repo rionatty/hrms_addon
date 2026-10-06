@@ -1,0 +1,38 @@
+{
+ "actions": [],
+ "creation": "2026-10-06 18:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "score_from",
+  "increase"
+ ],
+ "fields": [
+  {
+   "fieldname": "score_from",
+   "fieldtype": "Percent",
+   "label": "Score From",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "increase",
+   "fieldtype": "Percent",
+   "label": "Increase %",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-06 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Appraisal Increase Rate",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

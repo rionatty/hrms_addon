@@ -65,3 +65,4 @@ hrms_addon.patches.v1_0.talent_with_appraisal
 hrms_addon.patches.v1_0.succession_follow_through
 hrms_addon.patches.v1_0.talent_box_out_of_plans
 hrms_addon.patches.v1_0.talent_training_from_ld
+hrms_addon.patches.v1_0.performance_review_approval

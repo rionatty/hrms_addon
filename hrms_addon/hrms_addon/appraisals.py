@@ -31,15 +31,19 @@ round keeps all of it and the chart fills up as appraisals are scored.
   sheet        the flowchart's other branch: Luuka's own form downloaded
                (appraisal_sheet.py), filled in away from the system, and
                uploaded again
-  review_*     the report to top management and the decision (cases 5, 6,
-               10); a promotion or an increase raises an Employee Position
-               Change (cases 8, 9), a PIP a Performance Improvement Plan
-               (case 7)
+  results      the Appraisal Results report: every appraisal with what is
+               to become of the employee and how far that has got; what it
+               shows goes on a Performance Review for management
+  review_*     the report to top management, approved by the General
+               Manager and then the Executive Director, and the decisions
+               (cases 5, 6, 10); a promotion or an increase raises an
+               Employee Position Change (cases 8, 9), a PIP a Performance
+               Improvement Plan (case 7)
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, today
+from frappe.utils import cint, flt, getdate, today
 
 from hrms_addon.hrms_addon import (
     appraisal_approval as approval,
@@ -48,6 +52,7 @@ from hrms_addon.hrms_addon import (
     bsc,
     bsc_rules,
     people,
+    performance_review_approval as review_approval,
     pip_rules,
     pips,
     position_rules,
@@ -1165,57 +1170,351 @@ def get_appraisal_cycle_summary(cycle_name):
     return summary
 
 
-# ── 5, 6, 10. The report and the decision ─────────────────────────────
+# ── 5, 6, 10. The results, the report to management and the decision ──
+# The Appraisal Results report reads the round as it stands. HR put what it
+# shows on a Performance Review, which the General Manager and then the
+# Executive Director approve (performance_review_approval.py); the approval
+# carries each decision out.
+REVIEW = "Performance Review"
+REVIEW_ROW = "Performance Review Employee"
+RATES = "Appraisal Increase Rate"
+# what the results read of each appraisal
+RESULT_FIELDS = ["name", "employee", "employee_name", "designation", "department", "custom_branch", "company",
+                 "appraisal_cycle", "custom_quarter", "custom_form_type", "custom_total_score", "custom_band",
+                 "custom_annual_score", "custom_year_band", "custom_outcome", "custom_performance_review",
+                 "custom_on_pip", "custom_improvement_plan", "custom_appraisal_status", "docstatus"]
+# the report's filters that are the appraisal's own fields
+RESULT_FILTERS = (("company", "company"), ("appraisal_cycle", "appraisal_cycle"), ("branch", "custom_branch"),
+                  ("department", "department"), ("employee", "employee"), ("form_type", "custom_form_type"))
+FORM_NAMES = {approval.FORM_SUPERVISORY: "LPL/HR/18", approval.FORM_BSC: "BSC"}
+
+
+def increase_rates():
+    """The salary increase rates on Appraisal Settings: [{"score_from", "increase"}]."""
+    return frappe.get_all(RATES, filters={"parent": SETTINGS, "parenttype": SETTINGS},
+                          fields=["score_from", "increase"], order_by="score_from desc")
+
+
+def settings_validate(doc, method=None):
+    errors = rules.rate_errors([row.as_dict() for row in doc.get("increase_rates") or []])
+    if errors:
+        frappe.throw("<br>".join(_(error) for error in errors), title=_("Salary Increase by Score"))
+
+
+def results(filters):
+    """The Appraisal Results report's rows: each appraisal the user may
+    read, with what is to become of the employee and how far that has got
+    (appraisal_rules.result_outcome), the best outcome and score first."""
+    filters = frappe._dict(filters or {})
+    conditions = {"docstatus": ["!=", 2]}
+    for key, field in RESULT_FILTERS:
+        if filters.get(key):
+            conditions[field] = filters.get(key)
+    year = cint(filters.get("year"))
+    if year:
+        conditions["start_date"] = ["between", ["%d-01-01" % year, "%d-12-31" % year]]
+    appraisals = frappe.get_list("Appraisal", filters=conditions, fields=RESULT_FIELDS, limit_page_length=0)
+    reviews = _reviews_of([appraisal.name for appraisal in appraisals])
+    rates = increase_rates()
+    unrated = filters.get("include_unrated") or filters.get("stage") == rules.NOT_RATED
+    out = []
+    for appraisal in appraisals:
+        row = _result(appraisal, reviews.get(appraisal.name) or {}, rates)
+        if row["stage"] == rules.NOT_RATED and not unrated:
+            continue
+        if rules.result_matches(row, filters):
+            out.append(row)
+    out.sort(key=rules.result_order)
+    return out
+
+
+def _result(appraisal, review, rates):
+    """A row of the results: the appraisal, the review it is on, if any, and
+    what that comes to."""
+    rated = bool(appraisal.custom_band)
+    score = flt(appraisal.custom_total_score) if rated else None
+    open_review = review if review.get("docstatus") == 0 else {}
+    outcome, stage = rules.result_outcome(
+        score=score, rated=rated, review_state=open_review.get("state"), decision=open_review.get("decision"),
+        decided=appraisal.custom_outcome, rates=rates)
+    increase = None
+    if outcome == rules.INCREASE:
+        increase = flt(review.get("increase_percent")) or rules.increase_for(score, rates)
+    return {
+        "appraisal": appraisal.name, "employee": appraisal.employee, "employee_name": appraisal.employee_name,
+        "designation": appraisal.designation, "department": appraisal.department,
+        "branch": appraisal.custom_branch, "company": appraisal.company,
+        "appraisal_cycle": appraisal.appraisal_cycle, "quarter": appraisal.custom_quarter,
+        "form": FORM_NAMES.get(appraisal.custom_form_type, appraisal.custom_form_type),
+        "score": score, "band": appraisal.custom_band,
+        "year_score": flt(appraisal.custom_annual_score) if appraisal.custom_year_band else None,
+        "year_band": appraisal.custom_year_band,
+        "outcome": outcome, "increase": increase, "stage": stage,
+        "review": review.get("review") or appraisal.custom_performance_review,
+        "position_change": review.get("position_change"),
+        "improvement_plan": review.get("improvement_plan") or appraisal.custom_improvement_plan,
+        "on_pip": cint(appraisal.custom_on_pip),
+        "appraisal_status": appraisal.custom_appraisal_status, "docstatus": appraisal.docstatus,
+        "remarks": review.get("remarks"),
+    }
+
+
+def _reviews_of(appraisals):
+    """{appraisal: the review it is on}, never a cancelled one, a filed one
+    before one still open: the review's name, state and docstatus, with the
+    row's decision, increase, remarks and what it raised."""
+    if not appraisals:
+        return {}
+    rows = frappe.get_all(REVIEW_ROW, filters={"parenttype": REVIEW, "appraisal": ["in", appraisals]},
+                          fields=["parent", "appraisal", "decision", "increase_percent", "remarks",
+                                  "position_change", "improvement_plan"])
+    if not rows:
+        return {}
+    reviews = {review.name: review for review in frappe.get_all(
+        REVIEW, filters={"name": ["in", sorted({row.parent for row in rows})], "docstatus": ["!=", 2]},
+        fields=["name", "docstatus", "status", review_approval.STATE_FIELD])}
+    out = {}
+    for row in rows:
+        review = reviews.get(row.parent)
+        if review is None or (row.appraisal in out and out[row.appraisal]["docstatus"] >= review.docstatus):
+            continue
+        out[row.appraisal] = dict(row, review=review.name, docstatus=review.docstatus,
+                                  state=review.get(review_approval.STATE_FIELD) or review.status)
+    return out
+
+
+@frappe.whitelist(methods=["POST"])
+def review_from_results(filters, appraisals=None):
+    """Prepare Report for Management, on the Appraisal Results: the
+    completed appraisals shown, or those ticked, that are on no review yet,
+    put on the plant's review of the quarter that HR are still preparing,
+    or on a new one, each with the outcome suggested as its decision. HR
+    check it and send it on."""
+    filters = frappe._dict(frappe.parse_json(filters) or {})
+    picked = set(frappe.parse_json(appraisals) or []) if appraisals else set()
+    frappe.has_permission(REVIEW, "create", throw=True)
+    if not filters.get("appraisal_cycle"):
+        frappe.throw(_("Choose the Appraisal Cycle first: a report covers one quarter."), title=_(REVIEW))
+    rows = [row for row in results(dict(filters, include_unrated=1)) if not picked or row["appraisal"] in picked]
+    ready = [row for row in rows if row["stage"] == rules.RECOMMENDED and row["docstatus"] == 1]
+    unfinished = [row for row in rows if row["docstatus"] != 1 and row["stage"] in (rules.NOT_RATED,
+                                                                                    rules.RECOMMENDED)]
+    if not ready:
+        frappe.throw(_("Nothing to add: the appraisals shown are on a review already, or not completed yet."),
+                     title=_(REVIEW))
+    plants = {row["branch"] for row in ready}
+    if not filters.get("branch") and len(plants) > 1:
+        frappe.throw(_("Choose the Plant: each plant's General Manager approves its own results."),
+                     title=_(REVIEW))
+    branch = filters.get("branch") or next(iter(plants))
+    review = _review_in_preparation(filters.appraisal_cycle, branch) or frappe.new_doc(REVIEW)
+    if review.is_new():
+        review.update({"appraisal_cycle": filters.appraisal_cycle, "branch": branch, "review_date": today(),
+                       "company": filters.get("company") or ready[0].get("company")})
+    for row in ready:
+        review.append("employees", _review_row(row))
+    review.save()
+    return {"name": review.name, "added": len(ready), "unfinished": len(unfinished)}
+
+
+def _review_in_preparation(cycle, branch):
+    """The plant's review of the quarter that HR are still preparing."""
+    name = frappe.db.get_value(REVIEW, {"appraisal_cycle": cycle, "branch": branch or ["is", "not set"],
+                                        "docstatus": 0, "status": review_approval.DRAFT}, "name")
+    return frappe.get_doc(REVIEW, name) if name else None
+
+
+def _review_row(row):
+    """A row of the review from a row of the results, decided as suggested."""
+    return {"employee": row["employee"], "employee_name": row["employee_name"], "designation": row["designation"],
+            "appraisal": row["appraisal"], "department": row["department"], "total_score": row["score"],
+            "band": row["band"], "decision": row["outcome"], "increase_percent": row["increase"] or 0}
+
+
+@frappe.whitelist()
+def get_appraisals(appraisal_cycle, branch=None):
+    """The form's Get Appraisals: the cycle's completed appraisals on no
+    review yet, of the review's plant where it names one, each with the
+    outcome the score suggests as its decision."""
+    return [dict(_review_row(row), recommended=row["outcome"])
+            for row in results({"appraisal_cycle": appraisal_cycle, "branch": branch})
+            if row["stage"] == rules.RECOMMENDED and row["docstatus"] == 1]
+
+
 def review_validate(doc, method=None):
     doc.title = " ".join(str(part) for part in (doc.get("appraisal_cycle"), doc.get("branch")) if part)
     if not doc.get("review_date"):
         doc.review_date = today()
-    totals = [flt(row.total_score) for row in doc.get("employees") or [] if row.total_score is not None]
-    doc.appraised = len(doc.get("employees") or [])
-    doc.average_score = round(sum(totals) / len(totals), 1) if totals else 0
-    doc.below_pass = len([total for total in totals if total < rules.PIP_BELOW])
-    doc.completion = round(100.0 * len(totals) / doc.appraised, 1) if doc.appraised else 0
+    rates = increase_rates()
     for row in doc.get("employees") or []:
-        row.recommended = rules.recommended(row.total_score)
-    if doc.docstatus == 0:
-        doc.status = "Shared" if doc.get("shared_on") else "Draft"
+        row.recommended = rules.recommended(flt(row.total_score), rates) if row.get("band") else None
+        if row.get("decision") != rules.INCREASE:
+            row.increase_percent = 0
+        elif not flt(row.get("increase_percent")):
+            row.increase_percent = rules.increase_for(flt(row.total_score), rates) or 0
+    _sum_up(doc)
+    _check_on_one_review(doc)
+    _check_review_step(doc)
+    doc.status = doc.get(review_approval.STATE_FIELD) or (
+        review_approval.APPROVED if doc.docstatus == 1 else review_approval.DRAFT)
     if doc.docstatus == 1:
         undecided = [row.employee_name or row.employee for row in doc.get("employees") or [] if not row.decision]
         if undecided:
             frappe.throw(_("Management must decide on every employee before the review is filed: {0}").format(
-                ", ".join(undecided[:5])), title=_("Performance Review"))
+                ", ".join(undecided[:5])), title=_(REVIEW))
 
 
-@frappe.whitelist()
-def get_appraisals(appraisal_cycle):
-    """The cycle's completed appraisals, for the report's Get Appraisals."""
-    rows = frappe.get_all(
-        "Appraisal", filters={"appraisal_cycle": appraisal_cycle, "docstatus": ["!=", 2]},
-        fields=["name", "employee", "employee_name", "department", "custom_total_score", "custom_band"],
-        order_by="custom_total_score desc")
-    return [{"employee": row.employee, "employee_name": row.employee_name, "appraisal": row.name,
-             "department": row.department, "total_score": row.custom_total_score, "band": row.custom_band,
-             "recommended": rules.recommended(row.custom_total_score)} for row in rows]
+def _sum_up(doc):
+    """The figures on top of the review, and of its print."""
+    rows = doc.get("employees") or []
+    totals = [flt(row.total_score) for row in rows if row.get("band")]
+    doc.appraised = len(rows)
+    doc.average_score = round(sum(totals) / len(totals), 1) if totals else 0
+    doc.below_pass = len([total for total in totals if total < rules.PIP_BELOW])
+    doc.completion = _completion(doc)
+    counts = rules.decision_counts(rows)
+    doc.promotions, doc.increases = counts[rules.PROMOTION], counts[rules.INCREASE]
+    doc.improvement_plans, doc.closed = counts[rules.PIP], counts[rules.CLOSE]
+
+
+def _completion(doc):
+    """How much of the quarter's appraising is done at the plant: the
+    appraisals completed, of all those raised."""
+    if not doc.get("appraisal_cycle"):
+        return 0
+    filters = {"appraisal_cycle": doc.appraisal_cycle, "docstatus": ["!=", 2]}
+    if doc.get("branch"):
+        filters["custom_branch"] = doc.branch
+    raised = frappe.db.count("Appraisal", filters)
+    done = frappe.db.count("Appraisal", dict(filters, docstatus=1))
+    return round(100.0 * done / raised, 1) if raised else 0
+
+
+def _check_on_one_review(doc):
+    """An appraisal goes before management once: on one review that
+    stands, and once on it."""
+    names, twice = set(), []
+    for row in doc.get("employees") or []:
+        if not row.get("appraisal"):
+            continue
+        if row.appraisal in names:
+            twice.append(row.employee_name or row.employee)
+        names.add(row.appraisal)
+    if twice:
+        frappe.throw(_("Listed twice: {0}").format(", ".join(twice[:5])), title=_(REVIEW))
+    if not names:
+        return
+    others = [row for row in frappe.get_all(REVIEW_ROW, filters={"parenttype": REVIEW, "appraisal": ["in", sorted(names)]},
+                                            fields=["parent", "employee", "employee_name"])
+              if row.parent != doc.name]
+    standing = set(frappe.get_all(REVIEW, filters={"name": ["in", sorted({row.parent for row in others})],
+                                                   "docstatus": ["!=", 2]}, pluck="name")) if others else set()
+    clashes = ["%s (%s)" % (row.employee_name or row.employee, row.parent) for row in others if row.parent in standing]
+    if clashes:
+        frappe.throw(_("Already on another Performance Review: {0}").format(", ".join(clashes[:5])), title=_(REVIEW))
+
+
+def _check_review_step(doc):
+    """A step of the review's workflow: what it needs, the signature it
+    leaves, what HR proposed kept as it goes to management, and who is
+    told."""
+    before = doc.get_doc_before_save()
+    old_state = before.get(review_approval.STATE_FIELD) if before else None
+    new_state = doc.get(review_approval.STATE_FIELD)
+    if old_state != new_state:
+        errors = review_approval.step_errors(old_state, new_state, {
+            "rows": [row.as_dict() for row in doc.get("employees") or []],
+            "return_remarks": doc.get("return_remarks"), "unfinished": _unfinished(doc)})
+        if errors:
+            frappe.throw("<br>".join(_(error) for error in errors), title=_(REVIEW))
+        if new_state != review_approval.DRAFT:
+            doc.return_remarks = None
+        if old_state == review_approval.DRAFT and new_state in review_approval.PENDING_STATES:
+            for row in doc.get("employees") or []:
+                row.proposed_decision = row.decision
+    current = {field: before.get(field) for field in review_approval.ALL_STAMP_FIELDS} if before else {}
+    for field, value in review_approval.compute_stamps(old_state, new_state, frappe.session.user, today(),
+                                                      current).items():
+        doc.set(field, value)
+    if old_state != new_state:
+        _tell_review_step(doc, old_state, new_state, before)
+
+
+def _unfinished(doc):
+    """Who on the review has an appraisal not completed yet."""
+    names = sorted({row.appraisal for row in doc.get("employees") or [] if row.get("appraisal")})
+    done = set(frappe.get_all("Appraisal", filters={"name": ["in", names], "docstatus": 1}, pluck="name")) \
+        if names else set()
+    return [row.employee_name or row.employee for row in doc.get("employees") or []
+            if row.get("appraisal") and row.appraisal not in done]
+
+
+def _tell_review_step(doc, old_state, new_state, before):
+    """Whoever the review now waits on is told and given it to do, and it
+    is off the list of whoever had it; HR are told of a return."""
+    branch = doc.get("branch")
+    if old_state in review_approval.ROLE_WAITING:
+        people.withdraw(doc.doctype, doc.name, people.people_for(review_approval.ROLE_WAITING[old_state], branch))
+    what = _("The appraisal results for {0}").format(doc.title or doc.appraisal_cycle)
+    if new_state in review_approval.ROLE_WAITING:
+        role = review_approval.ROLE_WAITING[new_state]
+        users = people.people_for(role, branch)
+        if not users:
+            frappe.msgprint(_("Nobody holds the {0} role for {1}, so nobody has been told. Give the role to the "
+                              "right person.").format(_(role), branch or _("every plant")), title=_(REVIEW),
+                            indicator="orange")
+        message = _("{0} wait for your approval: {1}.").format(what, _decisions_line(doc))
+        people.notify(users, doc.doctype, doc.name, message)
+        people.assign(doc.doctype, doc.name, users, message)
+    elif new_state == review_approval.DRAFT and old_state in review_approval.PENDING_STATES:
+        hr = {before.get("sent_by")} | set(people.hr_officers(branch))
+        people.notify(sorted(user for user in hr if user), doc.doctype, doc.name,
+                      _("{0} came back from management: {1}").format(what, doc.get("return_remarks") or ""))
+
+
+def _decisions_line(doc):
+    counts = rules.decision_counts(doc.get("employees") or [])
+    return "; ".join("%s %d" % (_(decision), counts[decision]) for decision in rules.DECISIONS if counts[decision])
 
 
 @frappe.whitelist(methods=["POST"])
 def share_with_management(name, shared_with):
-    """Case 5: the report goes to the top management team."""
-    doc = frappe.get_doc("Performance Review", name)
-    doc.check_permission("write")
-    doc.db_set({"shared_with": shared_with, "shared_on": today(), "status": "Shared"}, update_modified=False)
-    users = [part.strip() for part in (shared_with or "").replace(";", ",").split(",") if part.strip()]
-    people.notify(users, doc.doctype, doc.name,
-                  _("The appraisal report for {0} is ready for review.").format(doc.appraisal_cycle))
-    return doc.status
+    """Share a Copy: the review for anyone else in management to read (the
+    General Manager and the Executive Director have it by its own steps).
+    Each user named is told and may open it."""
+    doc = frappe.get_doc(REVIEW, name)
+    doc.check_permission("share")
+    named = [part.strip() for part in (shared_with or "").replace(";", ",").replace("\n", ",").split(",")
+             if part.strip()]
+    users, unknown = [], []
+    for entry in named:
+        user = entry if frappe.db.exists("User", entry) else frappe.db.get_value("User", {"email": entry}, "name")
+        if user:
+            users.append(user)
+        else:
+            unknown.append(entry)
+    if unknown:
+        frappe.throw(_("Not users of the system: {0}").format(", ".join(unknown)), title=_("Share a Copy"))
+    from frappe.share import add_docshare
+
+    for user in users:
+        add_docshare(REVIEW, name, user, read=1, flags={"ignore_share_permission": True})
+    copies = [part.strip() for part in (doc.get("shared_with") or "").split(",") if part.strip()]
+    doc.db_set("shared_with", ", ".join(dict.fromkeys(copies + users)), update_modified=False)
+    people.notify(users, REVIEW, name, _("A copy of the appraisal results for {0}.").format(
+        doc.title or doc.appraisal_cycle))
+    return doc.shared_with
 
 
 def review_on_submit(doc, method=None):
-    """Case 6: each decision is carried out — a promotion or an increase as
-    an Employee Position Change, a PIP as its own plan, anything else
-    closed."""
-    doc.db_set({"status": "Decided", "decided_by": frappe.session.user, "decided_on": today()},
-               update_modified=False)
+    """Cases 6 to 10, once management approve: each decision carried out (a
+    promotion or an increase as an Employee Position Change, a PIP as its
+    own plan, anything else closed), the appraisal told what was decided,
+    and HR told."""
+    if not doc.get("decided_by"):
+        # filed without the workflow's last step: whoever filed it decided
+        doc.db_set({"decided_by": frappe.session.user, "decided_on": today()}, update_modified=False)
+    doc.db_set("status", review_approval.APPROVED, update_modified=False)
     for row in doc.get("employees") or []:
         if row.decision in position_rules.CHANGE_TYPES or row.decision in rules.POSITION_CHANGE_FOR:
             _raise_position_change(doc, row)
@@ -1225,6 +1524,10 @@ def review_on_submit(doc, method=None):
             frappe.db.set_value("Appraisal", row.appraisal,
                                 {"custom_outcome": row.decision, "custom_performance_review": doc.name},
                                 update_modified=False)
+    hr = {doc.get("sent_by")} | set(people.hr_officers(doc.get("branch")))
+    people.notify(sorted(user for user in hr if user), doc.doctype, doc.name,
+                  _("The appraisal results for {0} are approved: {1}.").format(doc.title or doc.appraisal_cycle,
+                                                                               _decisions_line(doc)))
 
 
 def _raise_position_change(review, row):
@@ -1241,9 +1544,17 @@ def _raise_position_change(review, row):
     change.flags.ignore_mandatory = True
     change.insert()
     row.db_set("position_change", change.name, update_modified=False)
-    people.notify(people.hr_officers(review.get("branch")), "Employee Position Change", change.name,
-                  _("{0} for {1}: fill in the new designation and pay, then send it for approval.").format(
-                      change.change_type, row.employee_name or row.employee))
+    message = _("{0} for {1}: fill in the new designation and pay, then send it for approval.").format(
+        change.change_type, row.employee_name or row.employee)
+    if row.decision == rules.INCREASE and flt(row.get("increase_percent")) and flt(change.get("current_salary")):
+        # the increase management approved, worked out on the pay the change starts from
+        pay = rules.increased(change.current_salary, row.increase_percent)
+        change.db_set({"new_salary": pay, "new_salary_in_words": position_rules.in_words(pay)},
+                      update_modified=False)
+        message = _("{0} for {1}: {2}% approved, from {3} to {4}. Check it, then send it for approval.").format(
+            change.change_type, row.employee_name or row.employee, "%g" % flt(row.increase_percent),
+            "{:,.0f}".format(flt(change.current_salary)), "{:,}".format(pay))
+    people.notify(people.hr_officers(review.get("branch")), "Employee Position Change", change.name, message)
 
 
 def _raise_pip(review, row):
@@ -1334,3 +1645,5 @@ def setup_workflows_on_migrate():
     """after_migrate: the appraisal's workflow and the rights its signatories
     need on Frappe HR's Appraisal (workflows.py)."""
     workflows.setup_on_migrate(approval, "Performance Appraisal workflow")
+    # and the review that takes the results to management (cases 5, 6, 10)
+    workflows.setup_on_migrate(review_approval, "Performance Review workflow")

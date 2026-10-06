@@ -7,7 +7,9 @@
   "self_section",
   "self_appraisal",
   "cycle_section",
-  "kra_evaluation_method"
+  "kra_evaluation_method",
+  "increase_section",
+  "increase_rates"
  ],
  "fields": [
   {
@@ -34,10 +36,22 @@
    "options": "Automated Based on Goal Progress\nManual Rating",
    "default": "Automated Based on Goal Progress",
    "description": "For the cycles an appraisal plan opens."
+  },
+  {
+   "fieldname": "increase_section",
+   "fieldtype": "Section Break",
+   "label": "Salary Increases"
+  },
+  {
+   "fieldname": "increase_rates",
+   "fieldtype": "Table",
+   "label": "Salary Increase by Score",
+   "options": "Appraisal Increase Rate",
+   "description": "Suggested on the Appraisal Results for a score from each mark up."
   }
  ],
  "links": [],
- "modified": "2026-09-29 21:00:00.000000",
+ "modified": "2026-10-06 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Appraisal Settings",
