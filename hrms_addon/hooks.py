@@ -107,6 +107,10 @@ app_include_js = [
     # employees picked from a list, by company and department: a training's
     # participants and a requisition's target employees
     "/assets/hrms_addon/js/employee_picker.js",
+    # Next Steps on every form whose process goes on into other documents:
+    # each document it raised or that followed it, opened from a button
+    # (next_steps.py)
+    "/assets/hrms_addon/js/hrms_addon_next_steps.js",
 ]
 
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout
