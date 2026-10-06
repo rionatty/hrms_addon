@@ -83,8 +83,14 @@ def draft_placements(review):
     cycle = frappe.get_doc(REVIEW, review)
     cycle.check_permission("write")
     made = _draft_placements(cycle)
-    frappe.msgprint(_("{0} placements drafted.").format(made) if made
-                    else _("Everyone eligible already has a placement in this round."))
+    if made:
+        frappe.msgprint(_("{0} placements drafted.").format(made))
+    elif not frappe.db.exists("Appraisal", dict(_review_source(cycle), docstatus=1)):
+        # nobody to place is not everybody placed: say what is missing
+        frappe.msgprint(_("Nobody can be placed yet. No appraisal in {0} has been completed.").format(
+            cycle.get("appraisal_plan") or cycle.get("appraisal_cycle")))
+    else:
+        frappe.msgprint(_("Everyone with a completed appraisal already has a placement in this review."))
     return made
 
 

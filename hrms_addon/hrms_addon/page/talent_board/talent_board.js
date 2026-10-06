@@ -86,6 +86,7 @@ const TB_STYLE = `
 .tb-list td { padding: 5px 4px; border-top: 1px solid var(--border-color); vertical-align: top; }
 .tb-list td:first-child { padding-left: 0; }
 .tb-empty { color: var(--text-muted); font-size: 12px; }
+.page-form .tb-cap { font-size: 11px; color: var(--text-muted); margin: 0 0 2px 2px; line-height: 1.2; }
 .tb-start { text-align: center; padding: 60px 10px; color: var(--text-muted); }
 .tb-views { display: inline-flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
   margin-bottom: 12px; }
@@ -155,6 +156,13 @@ hrms_addon.TalentBoard = class TalentBoard {
 			department: field("department", "Department", "Department"),
 			grade: field("grade", "Employee Grade", "Grade"),
 		};
+		// a filter's name stays above it once it holds a value: the review
+		// picker otherwise reads as the board's title
+		Object.values(this.fields).forEach((control) => {
+			if (control.$wrapper && control.df && !control.$wrapper.find(".tb-cap").length) {
+				control.$wrapper.prepend(`<div class="tb-cap">${frappe.utils.escape_html(control.df.label)}</div>`);
+			}
+		});
 		this.body = $('<div class="tb"></div>').appendTo(page.main);
 		page.set_secondary_action(__("Refresh"), () => this.refresh(), "refresh");
 		this.picked = null;
@@ -245,10 +253,14 @@ hrms_addon.TalentBoard = class TalentBoard {
 				<div class="tb-panel"><div class="tb-panel-empty">${esc(__("Click a person to see their talent card."))}</div></div>
 			</div>
 			<div class="tb-lower">
-				<div class="tb-box"><h6>${esc(__("Waiting to be placed"))}</h6>${this.waiting(board.unplaced || [])}</div>
+				<div class="tb-box"><h6>${esc(__("Waiting to be placed"))}</h6>${board.total || (board.unplaced || []).length
+					? this.waiting(board.unplaced || []) : this.nobody(data)}</div>
 				<div class="tb-box"><h6>${esc(__("Moved in calibration"))}</h6>${this.movers(data.movers || [])}</div>
 			</div>`);
 		this.bind();
+		this.body.find(".tb-draft").on("click", () =>
+			frappe.xcall("hrms_addon.hrms_addon.talent.draft_placements", { review: data.review.name })
+				.then(() => this.refresh()));
 		this.actions(data);
 		if (this.picked) this.show_card(this.picked);
 	}
@@ -297,6 +309,14 @@ hrms_addon.TalentBoard = class TalentBoard {
 			<span class="tb-av">${esc(hrms_addon.talent_card.initials(person.employee_name))}</span>
 			<span class="tb-nm">${esc(person.employee_name || person.employee)}</span>${flags.join("")}
 			<span class="tb-sc">${score}</span></div>`;
+	}
+
+	// A review nobody is in yet: its placements are drafted from the
+	// appraisals completed in its plan, by whoever may write the review.
+	nobody(data) {
+		const esc = frappe.utils.escape_html;
+		return `<div class="tb-empty">${esc(__("Nobody is placed in this review yet."))}</div>` +
+			(data.can_draft ? `<button class="btn btn-primary btn-xs tb-draft" style="margin-top:8px">${esc(__("Draft Placements"))}</button>` : "");
 	}
 
 	waiting(rows) {

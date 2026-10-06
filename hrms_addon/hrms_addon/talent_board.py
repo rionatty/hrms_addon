@@ -105,6 +105,8 @@ def get_board(review=None, branch=None, department=None, grade=None):
                                                  for transition in approval.next_states(state, roles))],
         "can_move": 1 if any(action for action, _next in approval.next_states(approval.CALIBRATION, roles))
         else 0,
+        # a review nobody is in yet offers Draft Placements to whoever may write it
+        "can_draft": 1 if frappe.has_permission(REVIEW, "write", doc=review) else 0,
     }
 
 
