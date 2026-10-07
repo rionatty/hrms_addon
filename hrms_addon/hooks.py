@@ -193,7 +193,8 @@ doctype_js = {
     "Employee Separation": "public/js/employee_separation.js",
     # LPL/HR/20 on their Full and Final Statement (settlements.py)
     "Full and Final Statement": "public/js/full_and_final_statement.js",
-    # The non-disciplinary concern's timeline on their Employee Grievance
+    # The non-disciplinary grievance on their Employee Grievance: where it
+    # stands and what the next step needs (grievances.py)
     "Employee Grievance": "public/js/employee_grievance.js",
 }
 # the Appraisal list: an employee on an improvement plan, and a score below
@@ -442,6 +443,10 @@ after_migrate = [
     # permission level one on Employee's salary and bank fields for HR and
     # Payroll alone. See security_rules.py.
     "hrms_addon.hrms_addon.security.setup_on_migrate",
+    # The non-disciplinary grievance: raised, routed, resolved, accepted or
+    # appealed, and its decision fields at level one. After security, whose
+    # Auditor reads them too. See grievance_approval.py.
+    "hrms_addon.hrms_addon.grievances.setup_on_migrate",
     # The documents an employee has to hold: the national ID, a work
     # permit, a driving permit. See document_rules.py.
     "hrms_addon.hrms_addon.documents.setup_on_migrate",
@@ -1273,22 +1278,28 @@ fixtures = [
                     "Full and Final Statement-custom_salary_component",
                     "Full and Final Statement-custom_payroll_cb",
                     "Full and Final Statement-custom_additional_salary",
+                    "Employee Grievance-custom_informal_notes",
                     "Employee Grievance-custom_lpl_section",
                     "Employee Grievance-custom_reported_to",
                     "Employee Grievance-custom_assigned_hod",
                     "Employee Grievance-custom_booked_on",
                     "Employee Grievance-custom_branch",
+                    "Employee Grievance-custom_department",
                     "Employee Grievance-custom_lpl_cb",
                     "Employee Grievance-custom_due_on",
                     "Employee Grievance-custom_overdue",
-                    "Employee Grievance-custom_informal_notes",
+                    "Employee Grievance-custom_escalation",
+                    "Employee Grievance-custom_return_remarks",
                     "Employee Grievance-custom_outcome_section",
                     "Employee Grievance-custom_meeting_notes",
-                    "Employee Grievance-custom_remedy",
                     "Employee Grievance-custom_outcome_cb",
+                    "Employee Grievance-custom_remedy",
+                    "Employee Grievance-custom_answer_section",
                     "Employee Grievance-custom_outcome_accepted",
                     "Employee Grievance-custom_appeal_filed",
                     "Employee Grievance-custom_appealed_on",
+                    "Employee Grievance-custom_appeal_grounds",
+                    "Employee Grievance-custom_answer_cb",
                     "Employee Grievance-custom_appeals_authority",
                     "Employee Grievance-custom_appeal_outcome",
                     "Grievance Type-custom_lpl_section",
@@ -1396,6 +1407,18 @@ fixtures = [
                     "Salary Structure-total_deduction-allow_on_submit",
                     "Salary Structure-net_pay-allow_on_submit",
                     "Appraisal Template-goals-description",
+                    "Employee Grievance-main-autoname",
+                    "Employee Grievance-status-read_only",
+                    "Employee Grievance-grievance_against_party-reqd",
+                    "Employee Grievance-grievance_against-reqd",
+                    "Employee Grievance-cause_of_grievance-mandatory_depends_on",
+                    "Employee Grievance-cause_of_grievance-permlevel",
+                    "Employee Grievance-resolution_detail-permlevel",
+                    "Employee Grievance-resolved_by-permlevel",
+                    "Employee Grievance-resolved_by-read_only",
+                    "Employee Grievance-resolution_date-permlevel",
+                    "Employee Grievance-resolution_date-read_only",
+                    "Employee Grievance-employee_responsible-permlevel",
                 ],
             ]
         ],
@@ -1691,11 +1714,12 @@ doc_events = {
     "*": {
         "on_submit": "hrms_addon.hrms_addon.signatures.log_submission",
     },
-    # watches (discipline.py)
+    # The non-disciplinary grievance on their Employee Grievance: each
+    # step's checks, who is told and given it to do (grievances.py)
     "Employee Grievance": {
-        "validate": "hrms_addon.hrms_addon.discipline.concern_validate",
-        "on_submit": "hrms_addon.hrms_addon.discipline.concern_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.discipline.concern_on_cancel",
+        "validate": "hrms_addon.hrms_addon.grievances.grievance_validate",
+        "on_discard": "hrms_addon.hrms_addon.grievances.grievance_on_discard",
+        "on_trash": "hrms_addon.hrms_addon.grievances.grievance_on_trash",
     },
     # LPL/HR/20 on their Full and Final Statement: what is due, what comes
     # off, the employee's own signature and the payroll run it is paid in
@@ -1812,9 +1836,12 @@ scheduler_events = {
         # Exits: a notice period that has run out, and an exit with no
         # clearance form drawn up (exits.py)
         "hrms_addon.hrms_addon.exits.daily",
-        # Employee relations: an appeal window that lapses, a concern past
-        # its timeline, a suspension that ends today (discipline.py)
+        # Employee relations: an appeal window that lapses, a suspension
+        # that ends today (discipline.py)
         "hrms_addon.hrms_addon.discipline.daily",
+        # a grievance at risk goes to the head of the department, one past
+        # its date to HR (grievances.py)
+        "hrms_addon.hrms_addon.grievances.daily",
         # a suspension starts and ends on its days (suspensions.py)
         "hrms_addon.hrms_addon.suspensions.daily",
         # Talent: a review cycle that opens and drafts its placements, a

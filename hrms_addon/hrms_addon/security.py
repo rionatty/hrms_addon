@@ -95,6 +95,12 @@ def _grant_level_one():
     _grant(rules.privileged_grants("Employee"), permlevel=rules.PROTECTED_LEVEL)
 
 
+def grant(grants, permlevel=0):
+    """{doctype: {role: ptypes}} at `permlevel`, granted and never revoked:
+    another module's fields moved up a level (grievances.py)."""
+    _grant(grants, permlevel=permlevel)
+
+
 def _grant(grants, permlevel=0):
     from frappe.core.doctype.doctype.doctype import validate_permissions_for_doctype
     from frappe.permissions import add_permission, setup_custom_perms, update_permission_property

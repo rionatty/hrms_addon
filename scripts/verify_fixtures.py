@@ -63,7 +63,10 @@ DOCFIELD_PROPERTIES = {
     # Structure's components; customize_form.py docfield_properties)
     "allow_on_submit": "Check",
 }
-DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data"}
+# autoname: a document of Frappe HR's numbered Luuka's way (Employee
+# Grievance, LPL-GRV-YYYY-); customize_form.py doctype_properties has it
+DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data",
+                      "autoname": "Data"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
 # by these fixtures, but legitimately named in a field_order.
 RUNTIME_FIELDS = {"Job Requisition": {"workflow_state"}, "Employee Onboarding": {"workflow_state"}}
@@ -806,6 +809,38 @@ if by_dt.get(JOF):
     if "custom_branch" in order and order[order.index("custom_branch") - 1] != "company":
         fail.append("Job Offer.custom_branch must follow Company")
     print("Job Offer layout: Branch follows Company")
+
+# ── 6f. Employee Grievance — the non-disciplinary grievance ──────────
+EG = "Employee Grievance"
+if by_dt.get(EG):
+    # the employee's account, then how it was handled and found, Frappe HR's
+    # resolution, and the employee's answer last
+    EG_SECTIONS = ["Grievance Details", None, "Investigation Details", "Handling", "Findings",
+                   "Resolution Details", "Employee's Answer"]
+    EG_AFTER = {"custom_informal_notes": "description", "custom_lpl_section": "cause_of_grievance",
+                "custom_answer_section": "amended_from"}
+    EG_COLUMNS = {"custom_assigned_hod": 0, "custom_department": 0, "custom_due_on": 1, "custom_escalation": 1,
+                  "custom_return_remarks": 1, "custom_meeting_notes": 0, "custom_remedy": 1,
+                  "custom_outcome_accepted": 0, "custom_appeal_grounds": 0, "custom_appeals_authority": 1,
+                  "custom_appeal_outcome": 1}
+    for hrms_first in (True, False):
+        order, fields = simulate_layout(EG, hrms_first=hrms_first)
+        positions = positions_of(order, fields)
+        sections = [fields[fn].get("label") for fn in order if fields[fn]["fieldtype"] == "Section Break"]
+        if sections != EG_SECTIONS:
+            fail.append("Employee Grievance sections %s, expected %s" % (sections, EG_SECTIONS))
+        for fn, after in EG_AFTER.items():
+            if order[order.index(fn) - 1] != after:
+                fail.append("Employee Grievance.%s must follow %s, follows %s" % (fn, after, order[order.index(fn) - 1]))
+        for fn, column in EG_COLUMNS.items():
+            if positions[fn][2] != column:
+                fail.append("Employee Grievance.%s belongs in column %d of %s, is in %s"
+                            % (fn, column + 1, positions[fn][1], positions[fn]))
+    order, fields = simulate_layout(EG)
+    print_layout(EG, order, fields)
+    print()
+    print("Employee Grievance layout: the employee's account, then Handling, Findings, Frappe HR's "
+          "resolution, and the employee's answer last")
 
 # ── 7. Removed fields are deleted by a patch ─────────────────────────
 # Dropping a record from a fixture file never deletes it from a site that

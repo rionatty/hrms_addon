@@ -860,16 +860,25 @@ prints only behind a check of the reader's permission level, because a
 custom print format is handed every field.
 
 `verify_discipline.py` covers employee relations and welfare: the
-disciplinary ladder (5.3), the non-disciplinary concern (5.4) and the
-safety incident. It checks the ladder climbs one rung per live sanction
-and starts again once a sanction is spent, that gross misconduct may go
-straight to dismissal, that the investigating officer never sits on the
-panel that decides, that a hearing is called at least 48 hours ahead, that
-nobody is judged without their own response on the record, that an appeal
-goes to someone who has not already acted, and that a dismissal really
-opens the involuntary exit. It pins what the glue relies on upstream —
-Employee Grievance and Grievance Type are Frappe HR's own forms, so the
-concern is custom fields on them rather than a form of its own.
+disciplinary ladder (5.3) and the safety incident. It checks the ladder
+climbs one rung per live sanction and starts again once a sanction is
+spent, that gross misconduct may go straight to dismissal, that the
+investigating officer never sits on the panel that decides, that a hearing
+is called at least 48 hours ahead, that nobody is judged without their own
+response on the record, that an appeal goes to someone who has not already
+acted, and that a dismissal really opens the involuntary exit.
+
+`verify_grievances.py` covers the non-disciplinary grievance (5.4), which
+runs on Frappe HR's own Employee Grievance with a workflow of its own: the
+employee raises it, HR route it to the Grievance Type's usual handler, the
+handler resolves it, and the employee accepts the outcome or appeals to
+someone not involved. It checks that each stage writes a status Frappe HR
+accepts and files the grievance only where Frappe HR allows it, that
+whoever files it may submit, that the clock runs only while someone has it
+and climbs from the handler to the head of the employee's department to
+HR, that no stage sends Frappe's own workflow email (it would go to every
+head of department), that the decision fields sit at level one, and that
+grievances already on a site take the stage they stand at.
 
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch

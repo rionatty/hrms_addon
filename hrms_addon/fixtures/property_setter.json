@@ -687,5 +687,136 @@
   "property_type": "Check",
   "value": "1",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-main-autoname",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocType",
+  "property": "autoname",
+  "property_type": "Data",
+  "value": "LPL-GRV-.YYYY.-.####",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-status-read_only",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "status"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-grievance_against_party-reqd",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon",
+  "field_name": "grievance_against_party"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-grievance_against-reqd",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "reqd",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon",
+  "field_name": "grievance_against"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-cause_of_grievance-mandatory_depends_on",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "mandatory_depends_on",
+  "property_type": "Data",
+  "value": "eval: doc.status == \"Resolved\"",
+  "module": "HRMS Addon",
+  "field_name": "cause_of_grievance"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-cause_of_grievance-permlevel",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "cause_of_grievance"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-resolution_detail-permlevel",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "resolution_detail"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-resolved_by-permlevel",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "resolved_by"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-resolved_by-read_only",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "resolved_by"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-resolution_date-permlevel",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "resolution_date"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-resolution_date-read_only",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "resolution_date"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Employee Grievance-employee_responsible-permlevel",
+  "doc_type": "Employee Grievance",
+  "doctype_or_field": "DocField",
+  "property": "permlevel",
+  "property_type": "Int",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "employee_responsible"
  }
 ]

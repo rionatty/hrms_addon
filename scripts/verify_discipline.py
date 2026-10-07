@@ -2,14 +2,15 @@
 
     python scripts/verify_discipline.py
 
-Luuka's revised flow charts 5.3 (Disciplinary Grievances), 5.4
-(Non-Disciplinary Grievances) and Safety, and the paper they run on:
-LPL/HR/30 the warning letter and LPL/HR/03 the hearing registration form.
+Luuka's revised flow charts 5.3 (Disciplinary Grievances) and Safety, and
+the paper they run on: LPL/HR/30 the warning letter and LPL/HR/03 the
+hearing registration form. 5.4, the non-disciplinary grievance, is checked
+by verify_grievances.py.
 
   1  the ladder: the rungs, what escalates, what is spent
   2  the case: who may be investigated, heard and sanctioned, and by whom
-  3  the concern and the incident
-  4  the DocTypes carry the paper; the concern is on their own Grievance
+  3  the incident
+  4  the DocTypes carry the paper
   5  the glue reads and writes fields that exist
   6  the signatures: the chain walked end to end, every desk stamped
   7  wiring: the doc events, the workflow on migrate, the job, the seed,
@@ -208,33 +209,7 @@ if D.ends_in_termination(D.PARDONED, D.VERBAL):
     fail.append("a pardon is not a termination")
 print("the case: opened, investigated, heard before a fresh panel, decided, appealed")
 
-# ── 3. The concern and the incident ───────────────────────────────────
-if G.DEFAULT_TIMELINE_DAYS != 14:
-    fail.append("a concern has a fortnight unless its type says otherwise")
-if G.due_on("2026-06-01", 14) != datetime.date(2026, 6, 15):
-    fail.append("the timeline runs from the day it was raised")
-if not G.overdue("2026-06-01", "2026-06-02"):
-    fail.append("a concern past its date is overdue")
-if G.overdue("2026-06-01", "2026-06-02", G.RESOLVED):
-    fail.append("a resolved concern is not overdue")
-if G.escalate_to("2026-06-10", "2026-06-01") != "Handler":
-    fail.append("while there is time it stays with the handler")
-if G.escalate_to("2026-06-10", "2026-06-10") != "Department Head":
-    fail.append("on the day it goes up to the department head")
-if G.escalate_to("2026-06-10", "2026-06-20") != "HR":
-    fail.append("past it, to HR")
-
-concern = {"employee": "E1", "grievance_type": "Welfare", "description": "The locker room floods.",
-           "assigned_hod": "hod@luuka"}
-expect("a concern that stands", G.concern_errors(concern))
-expect("no HOD assigned", G.concern_errors(dict(concern, assigned_hod=None)),
-       "assign a suitable Head of Department")
-expect("closed with nothing written",
-       G.concern_errors(dict(concern, status=G.RESOLVED)), "how the concern was resolved")
-expect("an appeal heard by the handler",
-       G.concern_errors(dict(concern, appeal_filed=1, appeals_authority="hod@luuka",
-                             handler="hod@luuka")), "has not already handled")
-
+# ── 3. The incident ───────────────────────────────────────────────────
 incident = {"employee": "E1", "incident_on": "2026-06-01 14:00:00", "nature": "Cut on the extruder.",
             "manageable": 1}
 expect("an incident that stands", G.incident_errors(incident))
@@ -252,7 +227,7 @@ if not [row for row in G.MISCONDUCT if row[1] == "Gross"]:
     fail.append("the seeded misconduct must include the gross kinds")
 if not [row for row in G.ACTION_TYPES if row[1] == D.DISMISSAL]:
     fail.append("and the ladder must reach dismissal")
-print("the concern's timeline and the incident's course")
+print("the incident's course")
 
 # ── 4. The paper ──────────────────────────────────────────────────────
 for name, wanted in (
@@ -295,25 +270,11 @@ if not doctype("Disciplinary Case").get("is_submittable"):
 if "LPL-DISC-" not in (case.get("naming_series") or {}).get("options", ""):
     fail.append("the test script asks for LPL-DISC-YYYY-#### as the case's name")
 
-# the concern is theirs, extended
-if not upstream_doctype("Employee Grievance"):
-    fail.append("Frappe HR's Employee Grievance is not where it was: 5.4 is built on it")
-if doctype("Employee Grievance"):
-    fail.append("the concern must stay Frappe HR's own, extended, not copied here")
-concern_fields = custom_fields("Employee Grievance")
-for fieldname in ("custom_reported_to", "custom_assigned_hod", "custom_booked_on", "custom_due_on",
-                  "custom_overdue", "custom_informal_notes", "custom_meeting_notes", "custom_remedy",
-                  "custom_outcome_accepted", "custom_appeal_filed", "custom_appeals_authority"):
-    if fieldname not in concern_fields:
-        fail.append("Employee Grievance has no %s, which 5.4 asks for" % fieldname)
-if "custom_timeline_days" not in custom_fields("Grievance Type"):
-    fail.append("a kind of concern carries its own timeline")
-print("the paper: the case and LPL/HR/03, the masters, the incident, the concern on their own form")
+print("the paper: the case and LPL/HR/03, the masters, the incident")
 
 # ── 5. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "discipline.py")
 known = set(fields_of(doctype("Disciplinary Case"))) | set(fields_of(doctype("Safety Incident")))
-known |= set(all_fields("Employee Grievance"))
 known |= {"doctype", "name", "docstatus", "employee", "company", "flags"}
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
@@ -335,7 +296,6 @@ for needle, why in (
     ('"custom_exit_type": "Involuntary"', "a dismissal raises the involuntary exit (exits.py)"),
     ('"custom_reason": "Medical Grounds"', "and a persisting sickness a separation on medical grounds"),
     ("grievance_rules.incident_errors(", "the incident is judged by its own rules"),
-    ("grievance_rules.concern_errors(", "and so is the concern"),
     ("Leave Application", "a day off becomes a real sick leave"),
 ):
     if needle not in glue:
@@ -384,22 +344,16 @@ for role in ("Investigating Officer", "Disciplinary Panel", "EHS Officer"):
 print("signatures: the chain walked end to end, the investigator kept off the panel")
 
 # ── 7. Wiring ─────────────────────────────────────────────────────────
-events = hooks.get("doc_events", {})
-for method in ("validate", "on_submit", "on_cancel"):
-    if not (events.get("Employee Grievance") or {}).get(method):
-        fail.append("Employee Grievance has no %s hook" % method)
 if "hrms_addon.hrms_addon.discipline.setup_workflows_on_migrate" not in (hooks.get("after_migrate") or []):
     fail.append("the disciplinary workflow must be built after every migrate")
 if "hrms_addon.hrms_addon.discipline.daily" not in ((hooks.get("scheduler_events") or {}).get("daily") or []):
-    fail.append("the appeal window and the concern's timeline are watched daily")
+    fail.append("the appeal window is watched daily")
 if "hrms_addon.hrms_addon.discipline.seed_discipline_masters" not in (hooks.get("after_install") or []):
     fail.append("a fresh install seeds the ladder and the misconduct")
 if "seed_discipline_masters()" not in read("hrms_addon", "patches", "v1_0", "seed_discipline.py"):
     fail.append("and so does the patch, on a site that has the app already")
 if "hrms_addon.patches.v1_0.seed_discipline" not in read("hrms_addon", "patches.txt"):
     fail.append("the seed patch must be listed in patches.txt")
-if "Employee Grievance" not in (hooks.get("doctype_js") or {}):
-    fail.append("the concern's timeline needs its form script")
 navigation = load("navigation_rules")
 carded = {link[1]: page for page, cards in navigation.CARDS.items()
           for _card, links in cards for link in links}
@@ -410,8 +364,6 @@ for name in ("Disciplinary Case", "Safety Incident", "Misconduct Type", "Discipl
                     % (name, carded.get(name)))
     if sidebarred.get(name) != "Tenure":
         fail.append("%s's sidebar entry belongs on Tenure; it is on %r" % (name, sidebarred.get(name)))
-if "Employee Grievance" in carded or "Employee Grievance" in sidebarred:
-    fail.append("the concern is Frappe HR's own and already on their Grievance card: leave it alone")
 print("wiring: the doc events, the workflow on migrate, the daily job, the seed, the way in")
 
 print()

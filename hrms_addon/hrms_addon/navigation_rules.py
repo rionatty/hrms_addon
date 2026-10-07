@@ -119,8 +119,8 @@ CARDS = {
         ]),
         # Employee relations and welfare: the disciplinary case (5.3), the
         # safety incident, and the two lists they are judged by. The
-        # non-disciplinary concern is Frappe HR's own Employee Grievance,
-        # already on their Grievance card (discipline.py)
+        # non-disciplinary grievance is Frappe HR's own Employee Grievance,
+        # already on their Grievance card (grievances.py)
         ("Discipline and Safety", [
             ("Disciplinary Case", "Disciplinary Case", DOCTYPE),
             # the suspension the ladder comes to, and its letter (6 Oct 2026)

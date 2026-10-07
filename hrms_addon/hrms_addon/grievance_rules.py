@@ -1,23 +1,18 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Non-disciplinary concerns (5.4) and safety incidents.
+"""Non-disciplinary grievances (5.4) and safety incidents.
 
 No Frappe import, like the other *_rules.py modules, so
-scripts/verify_discipline.py exercises them without a bench.
+scripts/verify_grievances.py and scripts/verify_discipline.py exercise them
+without a bench.
 
-The non-disciplinary chart is short and the whole of it is the timeline:
-
-  1-2  the employee identifies a concern and reports it to the HR Officer
-  3    the HR Officer raises it and assigns a suitable HOD, who is told
-  4    the HOD books it and reviews it
-  5    the system watches the timeline and tells the HOD when it is due
-       Resolved?  No  -> back to the HOD to review again
-                  Yes -> 6. the HR Officer updates and closes it
-
-The test script adds the appeal: the employee accepts the outcome or
-appeals it, and an appeal is heard by someone not already involved, the
-same rule the disciplinary process follows.
+The grievance's stages and who takes each are in grievance_approval.py.
+This is its timeline (the test sheet's Non Disciplinary cases 3 and 10):
+once routed, a grievance is due back within its Grievance Type's days; as
+the date nears it is at risk and goes one level up the chain, from the
+handler to the head of the employee's department, and once it is past HR
+are told as well. An appeal goes from who hears it straight to HR.
 
 The safety chart ends in two places this module has to name: a sick leave
 for the day off, and a separation on medical grounds where the sickness
@@ -28,12 +23,20 @@ import datetime
 
 SICK_LEAVE = "Sick Leave"
 
-# how long a concern has before the HOD is chased, unless its Grievance
-# Type says otherwise
+# how long a grievance has once routed, unless its Grievance Type says
+# otherwise, and how near its date it is at risk
 DEFAULT_TIMELINE_DAYS = 14
+AT_RISK_DAYS = 2
 
-OPEN, UNDER_REVIEW, RESOLVED, CLOSED, APPEALED, INVALID = (
-    "Open", "Investigated", "Resolved", "Closed", "Appealed", "Invalid")
+# the workflow states a grievance is in someone's hands against its date
+# (grievance_approval.TIMED)
+UNDER_REVIEW, APPEALED = "Under Review", "Appealed"
+TIMED = (UNDER_REVIEW, APPEALED)
+
+# how far up the chain it has gone; each level is told once
+NOT_ESCALATED, AT_RISK, BREACHED = "", "At Risk", "Breached"
+ESCALATIONS = (NOT_ESCALATED, AT_RISK, BREACHED)
+HANDLER, DEPARTMENT_HEAD, HR = "handler", "department_head", "hr"
 
 # the ladder and the misconduct the HR manual lists, seeded so HR can
 # amend them rather than wait for a developer
@@ -64,19 +67,12 @@ DRAFT, RECORDED, ON_SICK_LEAVE, BACK, SEPARATED, CANCELLED = (
     "Draft", "Recorded", "On Sick Leave", "Back at Work", "Separated", "Cancelled")
 
 
-# ── the concern ───────────────────────────────────────────────────────
-def due_on(raised, days=DEFAULT_TIMELINE_DAYS):
-    raised = _date(raised)
-    if not raised:
+# ── the grievance ─────────────────────────────────────────────────────
+def due_on(start, days=DEFAULT_TIMELINE_DAYS):
+    start = _date(start)
+    if not start:
         return None
-    return raised + datetime.timedelta(days=int(days or DEFAULT_TIMELINE_DAYS))
-
-
-def overdue(due, today, status=None):
-    if status in (RESOLVED, CLOSED, INVALID):
-        return False
-    due, today = _date(due), _date(today)
-    return bool(due and today and today > due)
+    return start + datetime.timedelta(days=int(days or DEFAULT_TIMELINE_DAYS))
 
 
 def days_left(due, today):
@@ -86,41 +82,61 @@ def days_left(due, today):
     return (due - today).days
 
 
-def concern_errors(facts):
-    """Problems with a non-disciplinary concern, as user-facing messages."""
-    errors = []
-    if not facts.get("employee"):
-        errors.append("Say whose concern it is.")
-    if not facts.get("grievance_type"):
-        errors.append("Say what kind of concern it is (Grievance Type).")
-    if not _text(facts.get("description")):
-        errors.append("Write the concern in the employee's own words.")
-    if not facts.get("assigned_hod"):
-        errors.append("Step 3: assign a suitable Head of Department, who is told and books it.")
-    status = facts.get("status")
-    if status in (RESOLVED, CLOSED) and not _text(facts.get("resolution")):
-        errors.append("Say how the concern was resolved before closing it.")
-    if facts.get("appeal_filed"):
-        authority = facts.get("appeals_authority")
-        if not authority:
-            errors.append("Name who hears the appeal.")
-        elif authority == facts.get("handler"):
-            errors.append("An appeal is heard by someone who has not already handled the concern.")
-    return errors
-
-
-def escalate_to(due, today, chain=("Handler", "Department Head", "HR")):
-    """One level up the chain as the timeline runs out: the handler while
-    it is in hand, the department head once it is due, HR once it is
-    past."""
+def overdue(due, today, state):
+    """Past its date while it is still in someone's hands."""
     left = days_left(due, today)
-    if left is None:
-        return chain[0]
-    if left > 0:
-        return chain[0]
-    if left == 0:
-        return chain[1]
-    return chain[2]
+    return state in TIMED and left is not None and left < 0
+
+
+def escalation(due, today, state):
+    """How far up the chain the timeline takes it: at risk within
+    AT_RISK_DAYS of its date, breached once past it."""
+    left = days_left(due, today)
+    if state not in TIMED or left is None or left > AT_RISK_DAYS:
+        return NOT_ESCALATED
+    return AT_RISK if left >= 0 else BREACHED
+
+
+def escalates(current, level):
+    """Is `level` further up the chain than where it has been taken?"""
+    def rank(value):
+        return ESCALATIONS.index(value) if value in ESCALATIONS else 0
+    return rank(level) > rank(current)
+
+
+def told_at(level, appeal=False):
+    """Who hears of it at each level: the handler, and one level up, the
+    head of the employee's department while it is at risk, and HR once it
+    is breached. An appeal goes from who hears it straight to HR."""
+    if level == AT_RISK:
+        return (HANDLER,) if appeal else (HANDLER, DEPARTMENT_HEAD)
+    if level == BREACHED:
+        return (HANDLER, HR) if appeal else (HANDLER, DEPARTMENT_HEAD, HR)
+    return ()
+
+
+def department_heads(holders, branch, department):
+    """The heads of this department: the Head of Department role's holders
+    whose User Permissions hold them to it, in this branch or in every
+    branch. A head held to no department heads none in particular, so a
+    grievance is never spread to every head on the site.
+
+    holders: [{"user", "branches", "departments"}] (people.holders)."""
+    if not department:
+        return []
+    return sorted(h["user"] for h in holders or ()
+                  if department in h["departments"] and (not h["branches"] or branch in h["branches"]))
+
+
+def appeal_authority(candidates, involved):
+    """Who hears an appeal: the first of the candidates (the plant's General
+    Manager, the HR Manager, the Executive Director) who has not already
+    acted in the grievance (case 9)."""
+    involved = {user for user in involved or () if user}
+    for user in candidates or ():
+        if user and user not in involved:
+            return user
+    return None
 
 
 # ── the safety incident ───────────────────────────────────────────────

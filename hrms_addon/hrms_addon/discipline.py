@@ -1,8 +1,8 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Employee Relations and Welfare on the site: disciplinary cases (5.3),
-non-disciplinary concerns (5.4) and safety incidents.
+"""Employee Relations and Welfare on the site: disciplinary cases (5.3) and
+safety incidents. The non-disciplinary grievance (5.4) is in grievances.py.
 
 The rules are in discipline_rules.py and grievance_rules.py, without a
 Frappe import (scripts/verify_discipline.py). This reads and writes the
@@ -15,12 +15,8 @@ site.
               really follows.
   incident_*  a safety incident: the EHS report, the sick leave it becomes
               and the separation on medical grounds where it persists.
-  concern_*   the non-disciplinary concern, on Frappe HR's own Employee
-              Grievance: the HOD it is assigned to, the timeline the
-              system watches, and the escalation when it is overdue.
-  daily       the timelines both processes are watched by: an appeal
-              window that lapses, a sanction that is spent, a concern
-              past its date.
+  daily       the case's timeline: an appeal window that lapses, a
+              sanction that is spent, a suspension that ends.
 """
 
 import frappe
@@ -31,7 +27,6 @@ from hrms_addon.hrms_addon import discipline_rules as rules, grievance_rules, pe
 
 CASE = "Disciplinary Case"
 INCIDENT = "Safety Incident"
-CONCERN = "Employee Grievance"
 
 
 # ── 1. The disciplinary case ──────────────────────────────────────────
@@ -356,55 +351,9 @@ def _separate_on_medical_grounds(doc):
     return exit_doc.name
 
 
-# ── 3. The non-disciplinary concern (5.4) ─────────────────────────────
-def concern_validate(doc, method=None):
-    """Frappe HR's Employee Grievance, carrying Luuka's concern: the HOD
-    it is assigned to and the date it is due back."""
-    if doc.get("custom_assigned_hod") and not doc.get("custom_due_on"):
-        doc.custom_due_on = grievance_rules.due_on(
-            doc.get("date") or today(), _timeline_days(doc.get("grievance_type")))
-    doc.custom_overdue = 1 if grievance_rules.overdue(doc.get("custom_due_on"), today(),
-                                                      doc.get("status")) else 0
-    errors = grievance_rules.concern_errors({
-        "employee": doc.get("raised_by"), "grievance_type": doc.get("grievance_type"),
-        "description": doc.get("description"), "assigned_hod": doc.get("custom_assigned_hod"),
-        "status": doc.get("status"), "resolution": doc.get("resolution_detail"),
-        "outcome_accepted": doc.get("custom_outcome_accepted"),
-        "appeal_filed": doc.get("custom_appeal_filed"),
-        "appeals_authority": doc.get("custom_appeals_authority"),
-        "handler": doc.get("custom_assigned_hod")})
-    if errors and doc.docstatus == 1:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Employee Grievance"))
-    if doc.get("custom_appeal_filed") and not doc.get("custom_appealed_on"):
-        doc.custom_appealed_on = today()
-
-
-def _timeline_days(grievance_type):
-    days = frappe.db.get_value("Grievance Type", grievance_type, "custom_timeline_days") \
-        if grievance_type else None
-    return cint(days) or grievance_rules.DEFAULT_TIMELINE_DAYS
-
-
-def concern_on_submit(doc, method=None):
-    """Step 3: the HOD it is assigned to is told, and it goes on their
-    list of things to do."""
-    if not doc.get("custom_assigned_hod"):
-        return
-    message = _("Concern from {0}: {1}").format(
-        doc.get("employee_name") or doc.get("raised_by"), doc.get("subject") or doc.get("grievance_type"))
-    people.notify([doc.custom_assigned_hod], doc.doctype, doc.name, message)
-    people.assign(doc.doctype, doc.name, [doc.custom_assigned_hod], message,
-                  date=doc.get("custom_due_on"))
-
-
-def concern_on_cancel(doc, method=None):
-    pass
-
-
-# ── 4. The timelines both processes are watched by ────────────────────
+# ── 3. The case's timeline ────────────────────────────────────────────
 def daily():
     _close_appeal_windows()
-    _chase_concerns()
     _end_suspensions()
 
 
@@ -419,29 +368,6 @@ def _close_appeal_windows():
             continue
         frappe.db.set_value(CASE, row.name, {"status": "Closed", "appeal_closed_on": today()},
                             update_modified=False)
-    frappe.db.commit()
-
-
-def _chase_concerns():
-    """Step 5: the system watches the timeline and tells the HOD when the
-    concern is due, then escalates it when it is overdue."""
-    rows = frappe.get_all(CONCERN,
-                          filters={"docstatus": 1, "status": ["not in", ("Resolved", "Closed",
-                                                                        "Invalid")],
-                                   "custom_due_on": ["<=", add_days(today(), 2)]},
-                          fields=["name", "subject", "raised_by", "employee_name", "custom_due_on",
-                                  "custom_assigned_hod"], limit=200)
-    for row in rows:
-        users = [row.custom_assigned_hod] if row.custom_assigned_hod else []
-        if grievance_rules.overdue(row.custom_due_on, today(), None):
-            users += people.people_for("HR Manager", None, None)
-        users = [user for user in users if user]
-        if not users:
-            continue
-        message = _("Concern {0} for {1} is due on {2}.").format(
-            row.name, row.employee_name or row.raised_by,
-            frappe.utils.format_date(row.custom_due_on))
-        people.notify(list(dict.fromkeys(users)), CONCERN, row.name, message)
     frappe.db.commit()
 
 
@@ -463,7 +389,7 @@ def _end_suspensions():
     frappe.db.commit()
 
 
-# ── 5. Wiring ─────────────────────────────────────────────────────────
+# ── 4. Wiring ─────────────────────────────────────────────────────────
 def setup_workflows_on_migrate():
     """after_migrate: the disciplinary case's four desks."""
     from hrms_addon.hrms_addon import discipline_approval, workflows
