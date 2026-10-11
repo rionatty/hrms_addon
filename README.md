@@ -880,6 +880,21 @@ HR, that no stage sends Frappe's own workflow email (it would go to every
 head of department), that the decision fields sit at level one, and that
 grievances already on a site take the stage they stand at.
 
+`verify_payslip.py` covers the **Pay Slip**, the print a Salary Slip opens
+with, laid out as Luuka's payroll has always printed it: who it is for,
+PAYMENTS down to GROSS PAY, DEDUCTIONS down to TOTAL, NET PAY and the net
+rounded off, how it is paid and the days. `payslip.pay_slip` hands the
+print its figures, so the lines are the money paid and taken and nothing
+else: a statistical component (Taxable Pay) and one left out of the totals
+(the employer's NSSF share) are the payroll's working and stay off, a line
+of nought is not printed (Local Service Tax outside July to October), and
+overtime carries the hours its Overtime Slip paid. The same file checks the
+payroll period. A monthly Payroll Entry or Salary Slip runs for the 26th to
+the 25th, the cycle the attendance register, the advances, the loans and
+the penalties already run on; any other dates are refused with the dates to
+use, because a recovery is dated the 25th and a run for the 25th to the
+24th would leave the month's recoveries off every slip.
+
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch
 sources). It looks in `../ERPNext/{frappe,erpnext,hrms}`; set

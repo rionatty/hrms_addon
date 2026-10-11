@@ -828,5 +828,15 @@
   "property_type": "Data",
   "value": "Leave Application Form",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Slip-main-default_print_format",
+  "doc_type": "Salary Slip",
+  "doctype_or_field": "DocType",
+  "property": "default_print_format",
+  "property_type": "Data",
+  "value": "Pay Slip",
+  "module": "HRMS Addon"
  }
 ]

@@ -256,6 +256,9 @@ jinja = {
         "hrms_addon.hrms_addon.talent.talent_grid",
         "hrms_addon.hrms_addon.talent.talent_follow_through",
         "hrms_addon.hrms_addon.talent.talent_plan_progress",
+        # the Pay Slip print: the Salary Slip's lines that are money, its
+        # totals and its days, laid out as Luuka's own slip (payslip.py)
+        "hrms_addon.hrms_addon.payslip.pay_slip",
     ],
 }
 
@@ -1398,6 +1401,8 @@ fixtures = [
                     "Interview Feedback-main-default_print_format",
                     "Employee Onboarding-main-default_print_format",
                     "Leave Application-main-default_print_format",
+                    # the Salary Slip opens with Luuka's Pay Slip (payslip.py)
+                    "Salary Slip-main-default_print_format",
                     "Interview Type-expected_skill_set-reqd",
                     "Training Feedback-feedback-label",
                     "Training Feedback-feedback-reqd",
@@ -1669,8 +1674,15 @@ doc_events = {
     # deduction marks that month recovered, and a cancelled slip gives it
     # back (recoveries.py)
     "Salary Slip": {
+        # a monthly slip is for the 26th to the 25th, the period the
+        # month's recoveries are dated in (payslip.py)
+        "validate": "hrms_addon.hrms_addon.payslip.period_validate",
         "on_submit": "hrms_addon.hrms_addon.recoveries.slip_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.recoveries.slip_on_cancel",
+    },
+    # and so is the monthly payroll run that makes the slips
+    "Payroll Entry": {
+        "validate": "hrms_addon.hrms_addon.payslip.period_validate",
     },
     # LPL/HR/27, the Employees Claim Form, on their own Expense Claim: the
     # supervisor's "genuine" line and the chain above it (benefits.py)
