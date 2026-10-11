@@ -142,6 +142,7 @@ same("twelve months", [row["month"] for row in months], list(range(1, 13)))
 same("a leave across two months is shared by its days", (months[2]["days"], months[3]["days"]),
      ({"Annual Leave": 2.0}, {"Annual Leave": 2.0, "Sick Leave": 1.0}))
 same("only the days inside the year", months[0]["total"], 2.0)
+same("the days of the year before are not put into its December", months[11]["total"], 0.0)
 same("somebody not told why sees one kind", R.by_month(YEAR, 2026, by_type=False)[3]["days"], {R.ALL_LEAVE: 3.0})
 SPELLS = [{"employee": "A", "employee_name": "Ann", "from_date": day, "to_date": day, "days": 1}
           for day in ("2026-02-02", "2026-03-06", "2026-05-13")]  # a Monday, a Friday, a Wednesday
