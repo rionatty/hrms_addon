@@ -252,9 +252,12 @@ def cost_check_errors(facts):
 
 def payroll_errors(facts):
     """And before it is passed on to be paid. rows carry "attendance" (the
-    day's, if any), "absent" (it reads absent) and "clocked_in" (it has a
-    clock-in all the same). Overtime does not sit on a day the attendance
-    says was not worked: the day would be docked and its overtime paid."""
+    day's, if any), "status" (what it reads), "absent" (it reads absent)
+    and "clocked_in" (it has a clock-in all the same). Overtime does not
+    sit on a day the attendance says was not worked: the day would be
+    docked and its overtime paid. Nor on any day not marked Present, which
+    Frappe HR's Overtime Slip does not read: the hours would be written
+    down and never paid."""
     errors = []
     if facts.get("status") != "Costed":
         errors.append("Overtime reaches payroll after HR have checked what it costs.")
@@ -272,9 +275,17 @@ def payroll_errors(facts):
     if half:
         errors.append("%s clocked in on that day with no clock-out, so the attendance reads absent. "
                       "Correct the attendance first." % _and(half))
+    other = ["%s (%s)" % (row.get("employee_name") or row.get("employee"), row.get("status"))
+             for row in facts.get("rows") or []
+             if row.get("attendance") and not row.get("absent") and row.get("status") not in (None, "", PAID_ON)]
+    if other:
+        errors.append("Overtime is paid on a day the attendance reads %s, which it does not for %s. Correct the "
+                      "attendance first." % (PAID_ON, _and(other)))
     return errors
 
 
+# the one attendance status Frappe HR's Overtime Slip reads hours from
+PAID_ON = "Present"
 # overtime the clock shows within this of what was authorised is paid in
 # full: a quarter of an hour, the grace a shift gives a late arrival
 CLOCK_TOLERANCE_HOURS = 0.25

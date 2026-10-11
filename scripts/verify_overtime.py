@@ -260,6 +260,16 @@ expect("paying hours with no attendance to sit on",
 expect("paying overtime on a day nobody clocked in",
        R.payroll_errors(dict(paid, rows=[dict(rows[0], attendance="HR-ATT-1", absent=True)])),
        "A did not clock in")
+expect("or on a day marked half a day, which the Overtime Slip does not read",
+       R.payroll_errors(dict(paid, rows=[dict(rows[0], attendance="HR-ATT-1", status="Half Day"),
+                                         dict(rows[1], attendance="HR-ATT-2", status="Present")])),
+       "which it does not for A (Half Day)")
+slip = open(os.path.join(APPS_ROOT, "hrms", "hrms", "hr", "doctype", "overtime_slip", "overtime_slip.py"),
+            encoding="utf-8").read() if os.path.isdir(os.path.join(APPS_ROOT, "hrms")) else None
+if slip is not None and '"status": "%s",' % R.PAID_ON not in slip.split("def get_attendance_records(")[1].split(
+        "\n\tdef ")[0]:
+    fail.append("Frappe HR's Overtime Slip no longer reads only an attendance marked %s: see what it reads now"
+                % R.PAID_ON)
 expect("or clocked in and never out",
        R.payroll_errors(dict(paid, rows=[dict(rows[1], attendance="HR-ATT-2", absent=True, clocked_in=True)])),
        "B clocked in on that day with no clock-out")
@@ -456,6 +466,7 @@ for needle, why in (
     ("hours=paid)", "and that, not what was authorised, goes onto the attendance"),
     ('line.db_set({"day_kind": theirs, "worked_hours": worked, "payable_hours": paid}', "the line says what was paid"),
     ('absent=bool(found) and found.status == "Absent",', "a day that reads absent is told to the rules"),
+    ("status=found.status if found else None,", "and what any other day reads"),
     ("if found and row.attendance != found.name:", "the line points at the attendance that stands"),
     ("standards.get(row[\"employee\"]) or attendance_rules.STANDARD_HOURS",
      "and the attendance carries that standard day for the Overtime Slip"),

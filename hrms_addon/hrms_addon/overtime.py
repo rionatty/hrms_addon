@@ -214,6 +214,7 @@ def send_to_payroll(name):
         if found and row.attendance != found.name:
             row.db_set("attendance", found.name, update_modified=False)
         rows.append(dict(row.as_dict(), attendance=found.name if found else None, marked=found,
+                         status=found.status if found else None,
                          absent=bool(found) and found.status == "Absent",
                          clocked_in=bool(found) and bool(found.in_time)))
     errors = rules.payroll_errors({"status": doc.get("status"), "rows": rows})
