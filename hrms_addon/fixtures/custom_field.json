@@ -11522,5 +11522,25 @@
   "read_only": 1,
   "no_copy": 1,
   "hidden": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Structure Assignment-custom_allowances_section",
+  "dt": "Salary Structure Assignment",
+  "fieldname": "custom_allowances_section",
+  "fieldtype": "Section Break",
+  "insert_after": "payroll_payable_account",
+  "label": "Allowances",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Structure Assignment-custom_allowances_html",
+  "dt": "Salary Structure Assignment",
+  "fieldname": "custom_allowances_html",
+  "fieldtype": "HTML",
+  "insert_after": "custom_allowances_section",
+  "label": "Allowances",
+  "module": "HRMS Addon"
  }
 ]

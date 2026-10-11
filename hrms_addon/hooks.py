@@ -1154,6 +1154,10 @@ fixtures = [
                     "Employee Advance-custom_bank_reference",
                     "Journal Entry-custom_employee_loan",
                     "Journal Entry-custom_loan_purpose",
+                    # the employee's monthly allowances, managed on their
+                    # assignment (standing_allowances.py)
+                    "Salary Structure Assignment-custom_allowances_section",
+                    "Salary Structure Assignment-custom_allowances_html",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",
@@ -1403,6 +1407,9 @@ fixtures = [
                     "Leave Application-main-default_print_format",
                     # the Salary Slip opens with Luuka's Pay Slip (payslip.py)
                     "Salary Slip-main-default_print_format",
+                    # an allowance's last day is set on the submitted record
+                    # (standing_allowances.end)
+                    "Additional Salary-to_date-allow_on_submit",
                     "Interview Type-expected_skill_set-reqd",
                     "Training Feedback-feedback-label",
                     "Training Feedback-feedback-reqd",

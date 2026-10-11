@@ -838,5 +838,16 @@
   "property_type": "Data",
   "value": "Pay Slip",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Additional Salary-to_date-allow_on_submit",
+  "doc_type": "Additional Salary",
+  "doctype_or_field": "DocField",
+  "field_name": "to_date",
+  "property": "allow_on_submit",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
  }
 ]

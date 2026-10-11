@@ -908,6 +908,26 @@ disabled or draft one and a component a slip leaves out of its gross are
 not counted, and an allowance that overwrites a structure component takes
 its place instead of adding to it.
 
+`verify_standing_allowances.py` covers the **Allowances** section on the
+Salary Structure Assignment: what the employee is paid every month besides
+the structure (House Rent, Transport, Meals, whatever HR adds next), listed
+with what it adds up to and the monthly gross, and changed there without
+cancelling or amending the assignment. Add takes any earning component, so
+a new benefit needs only a Salary Component. Change Amount starts the new
+amount from a day and ends the allowance as it was the day before, so what
+a slip has paid keeps the amount it was paid at; while nothing has been
+paid, a wrong amount is put right from its own first day. End sets a last
+day, or lifts it. Each allowance is one of Frappe HR's recurring Additional
+Salaries, made and ended under the user's own permissions, which is why
+payroll pays it, the tax formulas see it in `gross_pay` and
+`pay.monthly_gross` counts it. Frappe HR's rules shape the rest: one
+component runs once at a time, none starts before the employee's first
+assignment, a record must carry a last day (one left to run is given
+2099-12-31 and shown without one), and HR may disable but not cancel, so a
+removal disables. The checker runs the rules and the wiring: the panel's
+two fields, the property setter that lets To Date change after submit, and
+the form script's calls.
+
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch
 sources). It looks in `../ERPNext/{frappe,erpnext,hrms}`; set
