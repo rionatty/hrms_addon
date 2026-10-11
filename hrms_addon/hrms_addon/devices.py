@@ -37,14 +37,18 @@ from a real machine asks for it.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, get_datetime, now_datetime
+from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime
 
-from hrms_addon.hrms_addon import zkteco_rules as rules
+from hrms_addon.hrms_addon import attendance_rules, zkteco_rules as rules
 
 CHECKIN = "Employee Checkin"
 LOG = "Attendance Device Log"
 DEVICE = "Attendance Device"
+SHIFT = "Shift Type"
 BADGE_FIELD = "attendance_device_id"
+# a machine that will not answer holds the attendance back this long, and
+# no longer: after it the days are marked from what the others sent
+HOLD_HOURS = 6
 
 
 # ── the machine and its log, as documents ─────────────────────────────
@@ -182,21 +186,92 @@ def _pull(doc, read, clear_after=0):
                              _standing([row["device_user_id"] for row in clean]))
     found = {"read": len(punches), "new": len(fresh), "collapsed": collapsed, "pushed": 0, "unknown": 0,
              "duplicate": 0, "failed": 0}
-    newest = doc.get("last_sync")
+    newest, landed = doc.get("last_sync"), []
     for row in resolved:
         log = _write_log(doc, row)
         outcome = _push(doc, log)
         found[outcome] = found.get(outcome, 0) + 1
+        if outcome == "pushed":
+            landed.append({"employee": log.employee, "time": row["time"]})
         moment = get_datetime(row["time"])
         if not newest or moment > get_datetime(newest):
             newest = moment
     doc.db_set({"last_sync": newest or doc.get("last_sync"), "last_status":
                 _("Read {0}, pushed {1}").format(found["read"], found["pushed"]), "last_error": None},
                update_modified=False)
+    found["redone"] = len(redo_absences(landed, started))
     if clear_after and found["failed"] == 0:
         _clear(doc)
     frappe.db.commit()
     return found
+
+
+# ── what a read means for the attendance ──────────────────────────────
+def advance_shift_sync(read_at):
+    """Frappe HR marks a shift's attendance, the absences included, only up
+    to its Last Sync of Checkin, and nothing moves that mark but whoever
+    reads the machines. So it follows the reads: every shift marked from
+    the clock may be read up to just before the read that has just come in
+    (attendance_rules.sync_mark). While the machines cannot be read, the
+    mark stands still and nobody is marked absent for punches that have
+    not arrived. Returns the shifts it moved."""
+    moved = []
+    for row in frappe.get_all(SHIFT, filters={"enable_auto_attendance": 1},
+                              fields=["name", "last_sync_of_checkin", "process_attendance_after"],
+                              limit_page_length=0):
+        mark = attendance_rules.sync_mark(row.last_sync_of_checkin, read_at)
+        values = {}
+        if not row.last_sync_of_checkin or get_datetime(row.last_sync_of_checkin) < mark:
+            values["last_sync_of_checkin"] = mark
+        if not row.process_attendance_after:
+            # with no day to start from Frappe HR marks nothing at all
+            values["process_attendance_after"] = getdate(mark)
+        if values:
+            frappe.db.set_value(SHIFT, row.name, values, update_modified=False)
+            moved.append(row.name)
+    return moved
+
+
+def redo_absences(landed, read_at):
+    """A terminal that was off the network sends its punches late, after
+    the day was marked absent without them. The absences the clock marked
+    that those punches contradict are cancelled, which frees the day's
+    punches, and Frappe HR marks the day again from all of them on its
+    next run. An absence a person marked is left for them
+    (attendance_rules.absences_to_redo). Returns the attendances cancelled.
+
+    landed: [{"employee", "time"}] punches just pushed."""
+    late = [row for row in landed or [] if row.get("employee")
+            and attendance_rules.came_late(row.get("time"), read_at)]
+    if not late:
+        return []
+    days = sorted({getdate(row["time"]) for row in late})
+    absences = frappe.get_all(
+        "Attendance", limit_page_length=0,
+        filters={"employee": ["in", sorted({row["employee"] for row in late})], "docstatus": 1, "status": "Absent",
+                 "attendance_date": ["between", [add_days(days[0], -1), days[-1]]]},
+        fields=["name", "employee", "attendance_date", "owner", "leave_application", "attendance_request", "shift"])
+    spans = {}
+    for row in absences:
+        if row.shift not in spans:
+            times = frappe.db.get_value(SHIFT, row.shift, ["start_time", "end_time"], as_dict=True) if row.shift else None
+            spans[row.shift] = bool(times) and attendance_rules.overnight(times.start_time, times.end_time)
+        row["overnight"] = spans[row.shift]
+    redone = []
+    for name in attendance_rules.absences_to_redo(late, absences, read_at):
+        try:
+            attendance = frappe.get_doc("Attendance", name)
+            attendance.flags.ignore_permissions = True
+            # a notice or a request may point at the day: they stay, and
+            # point at the day marked again in its place
+            attendance.flags.ignore_links = True
+            attendance.cancel()
+            attendance.add_comment("Info", _("Cancelled to be marked again: punches for this day came in late."))
+        except Exception:  # noqa: BLE001 - one day that will not cancel must not stop the read
+            frappe.log_error(title="HRMS Addon: an absence could not be redone (%s)" % name)
+            continue
+        redone.append(name)
+    return redone
 
 
 def _standing(badges):
@@ -345,6 +420,7 @@ def pull_all():
     does not stop the rest."""
     # a machine whose punches come from BioTime is read by biotime.py, not
     # dialled here; one with no source set yet is dialled as it always was
+    started, answered, silent = now_datetime(), 0, 0
     for name in frappe.get_all(DEVICE, filters={"enabled": 1,
                                                 "source": ["!=", "BioTime"]}, pluck="name"):
         try:
@@ -352,17 +428,71 @@ def pull_all():
         except Exception:  # noqa: BLE001
             frappe.db.rollback()
             frappe.log_error(title="HRMS Addon: attendance pull failed for %s" % name)
+            silent += 1
         else:
             frappe.db.commit()
+            answered += 1
+    # the attendance follows the reads: marked up to now when every machine
+    # answered, and held for one that did not, though not for ever
+    if answered and (not silent or _held_long_enough(started)):
+        advance_shift_sync(started)
+        frappe.db.commit()
+
+
+def _held_long_enough(now):
+    """Whether the attendance has waited HOLD_HOURS for a machine that
+    will not answer."""
+    marks = [get_datetime(row.last_sync_of_checkin) for row in frappe.get_all(
+        SHIFT, filters={"enable_auto_attendance": 1}, fields=["last_sync_of_checkin"], limit_page_length=0)
+        if row.last_sync_of_checkin]
+    if not marks:
+        return True
+    return (get_datetime(now) - min(marks)).total_seconds() >= HOLD_HOURS * 3600
 
 
 def daily():
-    """Once a day, the punches that never landed are tried again."""
+    """Once a day, the punches that never landed are tried again, and a
+    machine that has gone silent is told to its plant's HR."""
     try:
         retry_failed()
     except Exception:  # noqa: BLE001
         frappe.db.rollback()
         frappe.log_error(title="HRMS Addon: retrying attendance logs failed")
+    try:
+        tell_silent_machines()
+    except Exception:  # noqa: BLE001
+        frappe.db.rollback()
+        frappe.log_error(title="HRMS Addon: telling HR of a silent machine failed")
+
+
+def tell_silent_machines():
+    """A machine that has sent punches before and none for a day and a
+    half (board_rules.SILENT_ALERT_HOURS): its plant's HR Officers are told
+    each day it stays silent, so it is found before the payroll and not
+    at it. Returns the machines told about."""
+    from hrms_addon.hrms_addon import board_rules, people
+
+    machines = frappe.get_all(DEVICE, filters={"enabled": 1}, fields=["name", "device_name", "branch"],
+                              limit_page_length=0)
+    if not machines:
+        return []
+    last = {row.device: row.last_seen for row in frappe.get_all(
+        LOG, filters={"device": ["in", [row.name for row in machines]]},
+        fields=["device", "MAX(punch_time) as last_seen"], group_by="device")}
+    now, told = now_datetime(), []
+    for machine in machines:
+        seen = last.get(machine.name)
+        if not board_rules.silent_since(seen, now):
+            continue
+        users = people.hr_officers(machine.branch)
+        if not users:
+            continue
+        people.notify(users, DEVICE, machine.name, _("{0} has sent no punches since {1}. Check the machine and "
+                                                      "its network.").format(machine.device_name or machine.name,
+                                                                             frappe.utils.format_datetime(seen)))
+        told.append(machine.name)
+    frappe.db.commit()
+    return told
 
 
 @frappe.whitelist()

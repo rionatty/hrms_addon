@@ -181,7 +181,7 @@ if "lines[:limit]" not in board:
 for called, why in (
     ("_machines(now, branch)", "one plant's HR Officer cannot act on another plant's "
                                "machine, and a red dot they cannot act on is noise"),
-    ("_exceptions(start, end, marked, machines, branch)",
+    ("_exceptions(start, end, marked, machines, branch, list(people))",
      "nor fix another plant's failed punches"),
 ):
     if called not in board:
@@ -195,6 +195,29 @@ if "employees" not in opening:
     fail.append("and an open day belongs to the plant whose people left it open")
 print("the glue: one call fills the board, and every one of its reads is a read")
 
+if "    attendance.only_hr()\n    if not frappe.has_permission(ATTENDANCE, \"read\"):" not in glue \
+        or glue.count("attendance.only_hr()") != 2:
+    fail.append("the board and its filters ask who is asking: every employee can read Attendance, their own")
+if "punch_without_shift" not in B.EXCEPTION_KINDS:
+    fail.append("somebody clocking with no shift is never marked, and the board must say so")
+if not B.silent_since("2026-10-10 08:00:00", "2026-10-12 09:00:00") or B.silent_since("2026-10-11 08:00:00", "2026-10-12 09:00:00") \
+        or B.silent_since(None, "2026-10-12 09:00:00"):
+    fail.append("a machine silent a day and a half is told about; a rest day's silence, or one never heard from, is not")
+for needle, why in (
+    ('"punch_without_shift": _clocking_with_no_shift(now_datetime(), everybody),', "the people clocking on no shift are counted"),
+    ('"shift": ["is", "not set"]},\n        fields=["employee"])', "from the punches Frappe HR could place in no shift"),
+    ('"punch_without_shift": {"doctype": CHECKIN, "filters": {"shift": ["is", "not set"]}},', "and the line leads to them"),
+):
+    if needle not in glue:
+        fail.append("attendance_board.py: %s (%r not found)" % (why, needle))
+drivers = read("hrms_addon", "hrms_addon", "devices.py")
+for needle, why in (
+    ("board_rules.silent_since(seen, now)", "a silent machine is judged by the board's own rule"),
+    ("people.hr_officers(machine.branch)", "and told to its own plant's HR"),
+    ("        tell_silent_machines()\n", "every day"),
+):
+    if needle not in drivers:
+        fail.append("devices.py: %s (%r not found)" % (why, needle))
 for needle, why in (
     ("shift_hours = attendance.all_shift_hours()", "the board reads each shift's hours once"),
     ('attendance.shift_hours_of(shift, shift_hours or {})["overtime"]', "a day carries its own shift's overtime"),

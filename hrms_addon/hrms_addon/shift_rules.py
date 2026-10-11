@@ -51,6 +51,47 @@ SHIFT_HOURS = {GENERAL: (8.0, "08:00:00", "17:00:00"),
 # the Shift Type, where HR change them (attendance_rules.shift_hours).
 SHIFT_OVERTIME = {GENERAL: 0.0, DAY: 2.0, NIGHT: 2.0}
 
+# What the clock needs of a shift, on Frappe HR's own Shift Type settings.
+# A clock-out counts for this long after the shift ends: Frappe HR's hour
+# loses the clock-out of anybody who worked on, and a day with a clock-in
+# and no clock-out is read as absent.
+CHECK_OUT_AFTER_MINUTES = {GENERAL: 180, DAY: 240, NIGHT: 240}
+# late arrivals and early departures are marked, past this grace
+GRACE_MINUTES = 15
+# Frappe HR's own defaults: a setting still at its default was never chosen
+FRAPPE_DEFAULTS = {"allow_check_out_after_shift_end_time": 60, "enable_late_entry_marking": 0,
+                   "late_entry_grace_period": 0, "enable_early_exit_marking": 0, "early_exit_grace_period": 0,
+                   "mark_auto_attendance_on_holidays": 0}
+
+
+def clock_settings(name):
+    """What a seeded shift is set to so the clock reads it rightly: a
+    late clock-out counted, late and early marked past the grace, and work
+    on a day off marked (the special overtime needs its attendance)."""
+    return {"allow_check_out_after_shift_end_time": CHECK_OUT_AFTER_MINUTES.get(name, 240),
+            "enable_late_entry_marking": 1, "late_entry_grace_period": GRACE_MINUTES,
+            "enable_early_exit_marking": 1, "early_exit_grace_period": GRACE_MINUTES,
+            "mark_auto_attendance_on_holidays": 1}
+
+
+def clock_settings_to_fill(name, current):
+    """The clock settings to give a shift already on a site: only those
+    still at Frappe HR's default, so one HR have chosen stays theirs. The
+    grace goes in only with the marking it belongs to."""
+    wanted, out = clock_settings(name), {}
+    for field, value in wanted.items():
+        try:
+            now = int(float((current or {}).get(field) or 0))
+        except (TypeError, ValueError):
+            now = 0
+        if now == FRAPPE_DEFAULTS[field] and now != value:
+            out[field] = value
+    for marking, grace in (("enable_late_entry_marking", "late_entry_grace_period"),
+                           ("enable_early_exit_marking", "early_exit_grace_period")):
+        if marking not in out:
+            out.pop(grace, None)
+    return out
+
 
 def cycle_length(shifts):
     return len(shifts or ())

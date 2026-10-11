@@ -307,6 +307,22 @@ def fill_shift_hours():
     return filled
 
 
+def fill_clock_settings():
+    """The shifts already on a site, marked from the clock, are given what
+    the clock needs of them (shift_rules.clock_settings): a late clock-out
+    counted, late and early marked past a grace, and work on a day off
+    marked. Only a setting still at Frappe HR's default is touched: one HR
+    have chosen is theirs. Returns {shift: the settings changed}."""
+    changed = {}
+    for name in frappe.get_all(SHIFT_TYPE, filters={"enable_auto_attendance": 1}, pluck="name"):
+        current = frappe.db.get_value(SHIFT_TYPE, name, list(rules.FRAPPE_DEFAULTS), as_dict=True)
+        values = rules.clock_settings_to_fill(name, current)
+        if values:
+            frappe.db.set_value(SHIFT_TYPE, name, values, update_modified=False)
+            changed[name] = sorted(values)
+    return changed
+
+
 def seed_shift_types():
     """Luuka's own three, made once: the office day, and the twelve-hour
     day and night the register's M and N stand for."""
@@ -318,6 +334,7 @@ def seed_shift_types():
                 "doctype": SHIFT_TYPE, "__newname": name, "start_time": start, "end_time": end,
                 "enable_auto_attendance": 1,
                 "custom_shift_hours": hours, "custom_overtime_hours": rules.SHIFT_OVERTIME.get(name, 0.0),
+                **rules.clock_settings(name),
                 "working_hours_threshold_for_half_day": hours / 2.0,
                 "working_hours_threshold_for_absent": 1.0,
                 "determine_check_in_and_check_out":

@@ -26,6 +26,10 @@ The rules are in attendance_rules.py, without a Frappe import
                their supervisor, is given a full day and is not counted
                late. attendance_validate applies it to the day's
                Attendance however it is marked.
+  attendance_validate  what Frappe HR's reading of a day does not say:
+               the minutes late and early, a clock-in with no clock-out
+               (told to the employee and their supervisor that day), and
+               that a day off somebody clocked in on is never an absence.
   daily        the two things the minutes ask for: top management marked
                present without punching, and a gate pass nobody closed.
 """
@@ -38,6 +42,19 @@ from hrms_addon.hrms_addon import attendance_rules as rules, people
 
 CASUAL = "casual"
 SHIFT = "Shift Type"
+# who reads everybody's attendance: the register and the board are HR's
+HR_ROLES = ("HR User", "HR Manager", "System Manager")
+# the automatic attendance is caught up over this many days, for a day
+# the scheduler did not run
+AUTOMATIC_DAYS = 3
+
+
+def only_hr():
+    """The register and the board show everybody's attendance. Frappe HR
+    lets every employee read Attendance (their own), so being allowed to
+    read it does not make somebody HR."""
+    if not set(frappe.get_roles()) & set(HR_ROLES):
+        frappe.throw(_("Only HR read the attendance register."), frappe.PermissionError)
 
 
 # ── A shift's own hours ───────────────────────────────────────────────
@@ -296,6 +313,7 @@ def record_return(name, came_back=None):
 def register(year, month, branch=None, department=None, section=None):
     """The Employee Attendance Form over a cycle: the days it rules, a row
     per employee with a code in each cell, and the tallies underneath."""
+    only_hr()
     year, month = cint(year), cint(month)
     start, end = rules.cycle_window(year, month)
     days = rules.cycle_days(year, month)
@@ -440,6 +458,8 @@ def _give_full_day(doc):
         values = {"status": status, "late_entry": late_entry}
         if status != "Half Day" and frappe.get_meta("Attendance").has_field("half_day_status"):
             values["half_day_status"] = None
+        if not late_entry and frappe.get_meta("Attendance").has_field("custom_late_minutes"):
+            values["custom_late_minutes"] = 0
         attendance.db_set(values, update_modified=False)
         attendance.add_comment("Info", _("A full day: the late arrival was notified in advance ({0}).").format(
             doc.name))
@@ -452,32 +472,105 @@ def late_notice_on_cancel(doc, method=None):
 
 def attendance_validate(doc, method=None):
     """However the day is marked — from the punches, by hand, or by an
-    attendance request — a late arrival acknowledged in advance makes it a
-    full day and not a late one."""
+    attendance request — it is read once more for what Frappe HR's own
+    reading does not say:
+
+      a day off somebody clocked in on is a day they came in, never an
+        absence (work on a rest day or a holiday is the special overtime)
+      a late arrival acknowledged in advance is a full day, not a late one
+      the minutes late and early, once past the shift's grace
+      a clock-in with no clock-out is said to be that, and the employee
+        and their supervisor are told the day it is marked
+    """
     if doc.docstatus == 2 or not (doc.get("employee") and doc.get("attendance_date")):
         return
+    shift = _shift_row(doc.get("shift"))
+    punched = bool(doc.get("in_time") or flt(doc.get("working_hours")))
+    if punched and doc.status in ("Absent", "Half Day") and _is_holiday(doc.employee, doc.attendance_date, shift):
+        doc.status = rules.on_a_holiday(doc.status, True, punched)
+        if doc.get("half_day_status"):
+            doc.half_day_status = None
     notice = frappe.db.get_value("Late Arrival Notice", {"employee": doc.employee, "docstatus": 1,
                                                          "arrival_date": doc.attendance_date, "in_advance": 1},
                                  "name")
-    if not notice:
+    if notice:
+        status, late_entry = rules.full_day(doc.status, doc.get("late_entry"), True,
+                                            on_leave=bool(doc.get("leave_application")))
+        doc.status, doc.late_entry = status, late_entry
+        if status != "Half Day" and doc.get("half_day_status"):
+            doc.half_day_status = None
+        # the name is set before validate on insert, and a failed insert rolls
+        # this back with it
+        if doc.name:
+            frappe.db.set_value("Late Arrival Notice", notice, "attendance", doc.name, update_modified=False)
+    doc.custom_late_minutes, doc.custom_early_minutes = _minutes_off(doc, shift)
+    missing = rules.clock_out_missing(doc.status, doc.get("in_time"), doc.get("out_time"))
+    doc.custom_clock_out_missing = 1 if missing else 0
+    before = doc.get_doc_before_save()
+    if missing and doc.docstatus == 1 and (before is None or before.docstatus == 0):
+        _tell_clock_out_missing(doc)
+
+
+def _shift_row(shift):
+    if not shift:
+        return None
+    return frappe.db.get_value(SHIFT, shift, ["start_time", "end_time", "late_entry_grace_period",
+                                              "early_exit_grace_period", "holiday_list"], as_dict=True)
+
+
+def holiday_list_of(employee, shift=None):
+    """The holiday list an employee's days off are read from, as Frappe
+    HR's attendance reads it: the shift's own where it has one, else the
+    employee's, else the company's."""
+    if shift and shift.get("holiday_list"):
+        return shift.get("holiday_list")
+    found = frappe.db.get_value("Employee", employee, ["holiday_list", "company"], as_dict=True) or {}
+    if found.get("holiday_list"):
+        return found.get("holiday_list")
+    return frappe.db.get_value("Company", found.get("company"), "default_holiday_list") if found.get("company") else None
+
+
+def _is_holiday(employee, day, shift=None):
+    name = holiday_list_of(employee, shift)
+    return bool(name and frappe.db.exists("Holiday", {"parent": name, "holiday_date": getdate(day)}))
+
+
+def _minutes_off(doc, shift):
+    """(late, early): the minutes past the shift's grace, on a day worked
+    that Frappe HR marked late or left early."""
+    if not shift or doc.status not in rules.WORKED:
+        return 0, 0
+    start, end = rules.shift_span(doc.attendance_date, shift.get("start_time"), shift.get("end_time"))
+    late = rules.minutes_late(doc.get("in_time"), start, shift.get("late_entry_grace_period")) \
+        if cint(doc.get("late_entry")) else 0
+    early = rules.minutes_early(doc.get("out_time"), end, shift.get("early_exit_grace_period")) \
+        if cint(doc.get("early_exit")) else 0
+    return late, early
+
+
+def _tell_clock_out_missing(doc):
+    """The employee and their supervisor, the day it is marked: a day
+    with no clock-out reads absent or half a day until somebody says what
+    was worked, and that is easier the same week than at the payroll."""
+    employee = frappe.db.get_value("Employee", doc.employee, ["user_id", "reports_to"], as_dict=True) or {}
+    users = [employee.get("user_id")]
+    if employee.get("reports_to"):
+        users.append(frappe.db.get_value("Employee", employee.get("reports_to"), "user_id"))
+    users = list(dict.fromkeys(user for user in users if user))
+    if not users:
         return
-    status, late_entry = rules.full_day(doc.status, doc.get("late_entry"), True,
-                                        on_leave=bool(doc.get("leave_application")))
-    doc.status, doc.late_entry = status, late_entry
-    if status != "Half Day" and doc.get("half_day_status"):
-        doc.half_day_status = None
-    # the name is set before validate on insert, and a failed insert rolls
-    # this back with it
-    if doc.name:
-        frappe.db.set_value("Late Arrival Notice", notice, "attendance", doc.name, update_modified=False)
+    people.notify(users, doc.doctype, doc.name, _(
+        "{0} clocked in at {1} on {2} and did not clock out, so the day reads {3}. An Attendance Request "
+        "puts it right.").format(doc.get("employee_name") or doc.employee, str(doc.get("in_time"))[11:16],
+                                 frappe.utils.format_date(doc.attendance_date), doc.status))
 
 
 # ── what the minutes ask the system to watch ──────────────────────────
 def daily():
     """Top management marked present without punching, and a gate pass
     nobody closed."""
-    day = add_days(today(), -1)
-    _mark_automatic(day)
+    for back in range(AUTOMATIC_DAYS, 0, -1):
+        _mark_automatic(add_days(today(), -back))
     _chase_open_passes()
     frappe.db.commit()
 
@@ -485,15 +578,26 @@ def daily():
 def _mark_automatic(day):
     """"Top management officials should be given automatic attendance" —
     both minutes ask for it."""
-    holidays = set()
+    kept, company_lists = {}, {}
     for employee in frappe.get_all("Employee", filters={"status": "Active", "custom_automatic_attendance": 1},
-                                   fields=["name", "company", "holiday_list", "default_shift"]):
+                                   fields=["name", "company", "holiday_list", "default_shift", "date_of_joining"]):
+        if employee.date_of_joining and getdate(employee.date_of_joining) > getdate(day):
+            continue
         if frappe.db.exists("Attendance", {"employee": employee.name, "attendance_date": day,
                                            "docstatus": ["!=", 2]}):
             continue
-        if employee.holiday_list and (employee.holiday_list, day) not in holidays:
-            if frappe.db.exists("Holiday", {"parent": employee.holiday_list, "holiday_date": day}):
-                holidays.add((employee.holiday_list, day))
+        # their own holiday list, else the company's: nobody is marked
+        # present on a day off, whoever on the list was looked at first
+        holidays = employee.holiday_list
+        if not holidays and employee.company:
+            if employee.company not in company_lists:
+                company_lists[employee.company] = frappe.db.get_value("Company", employee.company,
+                                                                      "default_holiday_list")
+            holidays = company_lists[employee.company]
+        if holidays:
+            if (holidays, day) not in kept:
+                kept[(holidays, day)] = bool(frappe.db.exists("Holiday", {"parent": holidays, "holiday_date": day}))
+            if kept[(holidays, day)]:
                 continue
         attendance = frappe.get_doc({
             "doctype": "Attendance", "employee": employee.name, "attendance_date": day, "status": "Present",

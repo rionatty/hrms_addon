@@ -13,6 +13,9 @@
   "reading_section",
   "page_size",
   "first_pull_days",
+  "reread_hours",
+  "catch_up_days",
+  "merge_across_terminals",
   "column_break_2",
   "auth_path",
   "token_prefix",
@@ -23,8 +26,10 @@
   "last_pulled",
   "column_break_3",
   "last_run",
+  "last_success",
   "terminals_seen",
-  "last_error"
+  "last_error",
+  "alerted_on"
  ],
  "fields": [
   {
@@ -80,6 +85,25 @@
    "label": "First Pull Reaches Back (Days)",
    "default": "7",
    "description": "Used for the first pull only."
+  },
+  {
+   "fieldname": "reread_hours",
+   "fieldtype": "Int",
+   "label": "Every Pull Re-reads (Hours)",
+   "description": "Blank: 6. Picks up punches a terminal sent late."
+  },
+  {
+   "fieldname": "catch_up_days",
+   "fieldtype": "Int",
+   "label": "Daily Catch-up Re-reads (Days)",
+   "description": "Blank: 3."
+  },
+  {
+   "fieldname": "merge_across_terminals",
+   "fieldtype": "Check",
+   "label": "Terminals Stand Side by Side",
+   "default": "0",
+   "description": "One face read by two terminals is one arrival."
   },
   {
    "fieldname": "column_break_2",
@@ -143,6 +167,12 @@
    "no_copy": 1
   },
   {
+   "fieldname": "last_success",
+   "fieldtype": "Datetime",
+   "label": "Last Read That Came In",
+   "read_only": 1
+  },
+  {
    "fieldname": "terminals_seen",
    "fieldtype": "Small Text",
    "label": "Terminals Seen",
@@ -155,11 +185,18 @@
    "label": "Last Error",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "alerted_on",
+   "fieldtype": "Date",
+   "label": "Failure Told On",
+   "read_only": 1,
+   "hidden": 1
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-22 08:00:00.000000",
+ "modified": "2026-10-11 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "BioTime Server",

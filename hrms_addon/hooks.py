@@ -1335,6 +1335,9 @@ fixtures = [
                     "Employee-custom_union_member",
                     "Employee-custom_ppe_size",
                     "Employee-custom_plant_cost_centre",
+                    "Attendance-custom_late_minutes",
+                    "Attendance-custom_early_minutes",
+                    "Attendance-custom_clock_out_missing",
                 ],
             ]
         ],
@@ -1814,6 +1817,9 @@ scheduler_events = {
         "hrms_addon.hrms_addon.attendance.daily",
         # The punches that never landed, pushed again (devices.py)
         "hrms_addon.hrms_addon.devices.daily",
+        # and the last days re-read from BioTime, for a terminal that was
+        # off the network and has sent its punches since (biotime.py)
+        "hrms_addon.hrms_addon.biotime.catch_up",
         # Leave: a planned leave falling due told to the employee and their
         # supervisor, and a leave nobody has reported back from (leave.py)
         "hrms_addon.hrms_addon.leave.daily",

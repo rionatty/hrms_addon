@@ -12,7 +12,13 @@ writes to the site.
   pull()             every punch since the last read, written down as
                      Attendance Device Logs and pushed into Frappe HR's
                      Employee Checkin
-  pull_all()         hourly, when the server record is enabled
+  pull_all()         hourly, when the server record is enabled. Each pull
+                     re-reads the last hours, for a terminal that was off
+                     the network and has sent its punches since
+  catch_up()         daily, the last days re-read for the same reason
+
+A pull that came in moves the mark Frappe HR reads punches up to
+(devices.advance_shift_sync), and one that keeps failing is said to HR.
 
 ONLY THE TRANSPORT CHANGES
 
@@ -42,22 +48,29 @@ migrates.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, get_datetime, now_datetime
+from frappe.utils import cint, get_datetime, getdate, now_datetime
 
-from hrms_addon.hrms_addon import biotime_rules as rules, devices, zkteco_rules as punch_rules
+from hrms_addon.hrms_addon import biotime_rules as rules, devices, people, zkteco_rules as punch_rules
 
 SETTINGS = "BioTime Server"
 DEVICE = "Attendance Device"
 SOURCE = "BioTime"
+# a pull that has been failing this long is said to somebody, once a day
+ALERT_AFTER_HOURS = 3
 
 
 def settings_validate(doc, method=None):
     errors = rules.settings_errors({
         "enabled": doc.get("enabled"), "base_url": doc.get("base_url"),
         "username": doc.get("username"), "has_password": _has_password(doc),
-        "verify_tls": doc.get("verify_tls"), "page_size": doc.get("page_size")})
+        "verify_tls": doc.get("verify_tls"), "page_size": doc.get("page_size"),
+        "reread_hours": doc.get("reread_hours"), "catch_up_days": doc.get("catch_up_days")})
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_(SETTINGS))
+    if doc.get("enabled") and rules.plain_http(doc.get("base_url")):
+        frappe.msgprint(_("This address is plain http, so the BioTime password travels unprotected every time "
+                          "the punches are read. Put BioTime behind https or a private link when you can."),
+                        indicator="orange", title=_(SETTINGS))
 
 
 def _has_password(doc):
@@ -405,12 +418,14 @@ def _read(doc, span):
     return _transactions(doc, session, span["start"], span["end"])
 
 
-def _pull(doc, read):
+def _pull(doc, read, span=None):
     """The pull itself, with the reading handed in so it can be walked
-    without a server."""
+    without a server. `span` is given by the daily catch-up; an hourly
+    pull works its own out, re-reading the last hours."""
     started = now_datetime()
-    span = rules.window(doc.get("last_sync"), started,
-                        cint(doc.get("first_pull_days")) or rules.FIRST_PULL_DAYS)
+    span = span or rules.window(doc.get("last_sync"), started,
+                                cint(doc.get("first_pull_days")) or rules.FIRST_PULL_DAYS,
+                                reread_hours=cint(doc.get("reread_hours")) or rules.REREAD_HOURS)
     try:
         rows = read(doc, span)
     except Exception as error:  # noqa: BLE001
@@ -445,7 +460,7 @@ def _pull(doc, read):
     # within a minute and a half are two doors, not one double read. How
     # long "twice" is belongs to the machine — a gate that reads slowly is
     # set on its own record, and the direct poll has always honoured it.
-    clean = _collapse(fresh, machines.values())
+    clean = _collapse(fresh, machines.values(), across=cint(doc.get("merge_across_terminals")))
     resolved = punch_rules.resolve(
         clean, directions, devices._standing([row["device_user_id"] for row in clean]))
 
@@ -454,7 +469,7 @@ def _pull(doc, read):
              "collapsed": len(fresh) - len(clean), "pushed": 0, "unknown": 0, "duplicate": 0,
              "failed": 0, "no_terminal": len(found["readings"]) - len(punches)}
     by_name = {device.name: device for device in machines.values()}
-    newest = doc.get("last_sync")
+    newest, landed = doc.get("last_sync"), []
     for row in resolved:
         device = by_name.get(row["device"])
         if not device:
@@ -462,13 +477,20 @@ def _pull(doc, read):
         log = devices._write_log(device, row)
         outcome = devices._push(device, log)
         tally[outcome] = tally.get(outcome, 0) + 1
+        if outcome == "pushed":
+            landed.append({"employee": log.employee, "time": row["time"]})
         moment = get_datetime(row["time"])
         if not newest or moment > get_datetime(newest):
             newest = moment
+    # the day a late punch belongs to may have been marked absent without it
+    tally["redone"] = len(devices.redo_absences(landed, started))
+    # and Frappe HR may now mark attendance up to this read
+    devices.advance_shift_sync(started)
     doc.db_set({
         "last_sync": rules.high_water(newest, held, doc.get("last_sync"))
                      or doc.get("last_sync"),
         "last_run": started, "last_pulled": tally["pushed"],
+        "last_success": started, "alerted_on": None,
         "last_status": _status(tally),
         "last_error": None,
         "terminals_seen": ", ".join("%s (%s)" % (name or _("unnamed"), serial)
@@ -478,14 +500,23 @@ def _pull(doc, read):
     return tally
 
 
-def _collapse(punches, machines):
+def _collapse(punches, machines, across=False):
     """A face read twice at one machine is one reading.
 
     Machine by machine, because the seconds that count as twice are a
     setting on each one. dedupe() takes a single window, so the punches
     are grouped first — which is the same thing per_device already meant.
+
+    Where the terminals stand side by side one face reaches two of them,
+    and the BioTime Server record says so (`across`): then a second
+    reading at ANY terminal inside the longest of their windows is the
+    same arrival.
     """
     by_name = {device.name: device for device in machines}
+    if across:
+        longest = max([cint(device.get("double_read_seconds")) for device in by_name.values()]
+                      + [punch_rules.DOUBLE_READ_SECONDS])
+        return punch_rules.dedupe(punches, within=longest, per_device=False)
     kept = []
     for name, device in by_name.items():
         kept.extend(punch_rules.dedupe(
@@ -506,6 +537,8 @@ def _status(tally):
             tally["no_terminal"])
     if tally.get("failed"):
         said += _(", {0} failed").format(tally["failed"])
+    if tally.get("redone"):
+        said += _(", {0} absence(s) to be marked again").format(tally["redone"])
     return said
 
 
@@ -520,3 +553,40 @@ def pull_all():
         _pull(doc, _read)
     except Exception:
         frappe.log_error(title="HRMS Addon: the hourly BioTime pull")
+        _say_it_is_failing(doc)
+
+
+def catch_up():
+    """Daily: the last days re-read, for the punches of a terminal that
+    was off the network longer than the hourly pull looks back. What is
+    already written down is skipped."""
+    doc = _settings()
+    if not doc:
+        return
+    try:
+        _pull(doc, _read, span=rules.catch_up_window(
+            now_datetime(), cint(doc.get("catch_up_days")) or rules.CATCH_UP_DAYS))
+    except Exception:
+        frappe.log_error(title="HRMS Addon: the daily BioTime catch-up")
+
+
+def _say_it_is_failing(doc):
+    """A pull that has failed for ALERT_AFTER_HOURS is told to the HR
+    Managers and the system's managers, once a day: while it fails no
+    attendance is marked, and that should not be found at the payroll."""
+    now = now_datetime()
+    doc.reload()
+    since = doc.get("last_success") or doc.get("last_sync")
+    if since and (now - get_datetime(since)).total_seconds() < ALERT_AFTER_HOURS * 3600:
+        return
+    if doc.get("alerted_on") and getdate(doc.get("alerted_on")) == getdate(now):
+        return
+    users = [row["user"] for role in ("HR Manager", "System Manager") for row in people.holders(role)]
+    if not users:
+        return
+    people.notify(list(dict.fromkeys(users)), SETTINGS, SETTINGS,
+                  _("The punches have not been read from BioTime since {0}: {1}").format(
+                      frappe.utils.format_datetime(since) if since else _("it was set up"),
+                      (doc.get("last_error") or _("see the Error Log"))[:140]))
+    doc.db_set("alerted_on", getdate(now), update_modified=False)
+    frappe.db.commit()

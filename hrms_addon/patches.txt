@@ -69,3 +69,4 @@ hrms_addon.patches.v1_0.performance_review_approval
 hrms_addon.patches.v1_0.employee_suspension
 hrms_addon.patches.v1_0.grievances_on_workflow
 hrms_addon.patches.v1_0.shift_overtime_hours
+hrms_addon.patches.v1_0.attendance_from_the_clock

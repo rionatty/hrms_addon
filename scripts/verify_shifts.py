@@ -303,6 +303,43 @@ if S.SHIFT_HOURS[S.DAY][0] != A.FULL_SHIFT_HOURS:
                 % (S.SHIFT_HOURS[S.DAY][0], A.FULL_SHIFT_HOURS))
 if S.SHIFT_HOURS[S.NIGHT][0] != A.FULL_SHIFT_HOURS:
     fail.append("and so is the night one")
+# what the clock needs of a shift (the attendance review, 11 Oct 2026)
+theirs = fields_of(upstream_doctype("Shift Type"))
+for fieldname, default in S.FRAPPE_DEFAULTS.items():
+    if fieldname not in theirs:
+        fail.append("Frappe HR's Shift Type has no %s any more" % fieldname)
+    elif int(theirs[fieldname].get("default") or 0) != default:
+        fail.append("Frappe HR's default for %s is %s, not the %s a never-chosen setting is told by"
+                    % (fieldname, theirs[fieldname].get("default"), default))
+for name in S.SHIFT_HOURS:
+    wanted = S.clock_settings(name)
+    if set(wanted) != set(S.FRAPPE_DEFAULTS):
+        fail.append("every clock setting has the default it is compared with")
+    if wanted["allow_check_out_after_shift_end_time"] <= 60 or not wanted["mark_auto_attendance_on_holidays"] \
+            or not (wanted["enable_late_entry_marking"] and wanted["enable_early_exit_marking"]):
+        fail.append("%s: a late clock-out counted, late and early marked, a day off worked marked" % name)
+never = {field: default for field, default in S.FRAPPE_DEFAULTS.items()}
+if S.clock_settings_to_fill(S.DAY, never) != S.clock_settings(S.DAY):
+    fail.append("a shift nobody has set up is given every clock setting")
+chosen = dict(never, allow_check_out_after_shift_end_time=90, enable_late_entry_marking=1, late_entry_grace_period=5)
+filled = S.clock_settings_to_fill(S.DAY, chosen)
+if set(filled) != {"enable_early_exit_marking", "early_exit_grace_period", "mark_auto_attendance_on_holidays"}:
+    fail.append("a setting HR chose is left alone, and a grace is not put beside a marking HR set: %s" % sorted(filled))
+if S.clock_settings_to_fill(S.DAY, S.clock_settings(S.DAY)) != {}:
+    fail.append("a shift already set up is not touched")
+for needle, why in (
+    ("**rules.clock_settings(name),", "a seeded shift is set up for the clock"),
+    ('frappe.get_all(SHIFT_TYPE, filters={"enable_auto_attendance": 1}, pluck="name")', "every shift marked from the clock is looked at"),
+    ("rules.clock_settings_to_fill(name, current)", "and only what is still at the default is filled"),
+):
+    if needle not in glue:
+        fail.append("shifts.py: %s (%r not found)" % (why, needle))
+clock_patch = read("hrms_addon", "patches", "v1_0", "attendance_from_the_clock.py")
+if 'sync_fixtures("hrms_addon")' not in clock_patch or "shifts.fill_clock_settings()" not in clock_patch:
+    fail.append("the patch syncs the Attendance fields and fills the shifts' clock settings")
+if "hrms_addon.patches.v1_0.attendance_from_the_clock" not in read("hrms_addon", "patches.txt"):
+    fail.append("the clock patch is listed")
+
 # each seeded shift's hours go onto its Shift Type, where HR change them
 if set(S.SHIFT_OVERTIME) != set(S.SHIFT_HOURS):
     fail.append("every seeded shift says how many of its hours are overtime")

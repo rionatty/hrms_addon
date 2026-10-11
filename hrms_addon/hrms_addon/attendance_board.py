@@ -46,6 +46,9 @@ OPEN_DAYS = 7
 @frappe.whitelist()
 def board(cycle=None, branch=None, department=None, limit=None):
     """Everything on the board, in one answer."""
+    # everybody's attendance: Frappe HR lets every employee read Attendance
+    # (their own), so the board asks who is asking, not only that
+    attendance.only_hr()
     if not frappe.has_permission(ATTENDANCE, "read"):
         frappe.throw(_("You may not read attendance."), frappe.PermissionError)
 
@@ -93,7 +96,7 @@ def board(cycle=None, branch=None, department=None, limit=None):
             "shown": min(len(lines), limit), "of": len(lines),
             "nights_short": [str(day) for day in rules.nights_covered(tallies, days)],
         },
-        "exceptions": _exceptions(start, end, marked, machines, branch),
+        "exceptions": _exceptions(start, end, marked, machines, branch, list(people)),
         "machines": machines,
         "codes": [{"code": code, "meaning": meaning}
                   for code, meaning in register.CODE_MEANING.items()],
@@ -294,7 +297,7 @@ def _floor(people, now, shift_hours=None):
 
 
 # ── What needs a person ───────────────────────────────────────────────
-def _exceptions(start, end, marked, machines, branch=None):
+def _exceptions(start, end, marked, machines, branch=None, everybody=None):
     """Each thing somebody has to act on, counted, with where to go.
 
     Every count is scoped to the plant being looked at. Luuka's plants
@@ -322,6 +325,7 @@ def _exceptions(start, end, marked, machines, branch=None):
         "on_leave_but_punched": on_leave,
         "absent_with_punch": absent,
         "in_without_out": _open_days(now_datetime(), list(marked) if branch else None),
+        "punch_without_shift": _clocking_with_no_shift(now_datetime(), everybody),
         "unknown_badge": _log_count("Unknown Employee", on_theirs),
         "failed_push": _log_count("Failed", on_theirs),
         "undirected_terminal": 0 if branch else len(unplaced),
@@ -340,9 +344,25 @@ def _exceptions(start, end, marked, machines, branch=None):
         "absent_with_punch": {"doctype": ATTENDANCE, "filters": dict(at_plant,
                                                                      status="Absent")},
         "in_without_out": {"doctype": CHECKIN, "filters": {"log_type": "IN"}},
+        "punch_without_shift": {"doctype": CHECKIN, "filters": {"shift": ["is", "not set"]}},
     }
     return [dict(row, count=counted.get(row["kind"], 0), route=routes.get(row["kind"]))
             for row in rules.EXCEPTIONS]
+
+
+def _clocking_with_no_shift(now, employees=None):
+    """How many people clocked in the last week on no shift. Frappe HR
+    marks a day only for a punch that falls in a shift the person is on, so
+    somebody with no shift assignment and no default shift is never marked
+    at all: not present, and not absent either."""
+    if not employees:
+        return 0
+    rows = frappe.get_all(
+        CHECKIN, limit_page_length=0,
+        filters={"employee": ["in", employees], "time": [">=", add_days(getdate(now), -OPEN_DAYS)],
+                 "shift": ["is", "not set"]},
+        fields=["employee"])
+    return len({row.employee for row in rows})
 
 
 def _log_count(status, on_theirs):
@@ -444,6 +464,7 @@ def _machines(now, branch=None):
 @frappe.whitelist()
 def branches():
     """The plants and departments the board can be narrowed to."""
+    attendance.only_hr()
     return {
         "branches": frappe.get_all("Branch", pluck="name", order_by="name asc",
                                    limit_page_length=0),

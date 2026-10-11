@@ -74,6 +74,9 @@ EXCEPTIONS = (
     {"kind": "in_without_out", "severity": MEDIUM,
      "label": "Clocked in, no clock out",
      "why": "Working hours cannot be calculated."},
+    {"kind": "punch_without_shift", "severity": MEDIUM,
+     "label": "Clocking with no shift",
+     "why": "Give them a shift. Until then their days are not marked."},
     {"kind": "unknown_badge", "severity": MEDIUM,
      "label": "Unknown badges",
      "why": "The badge is not linked to any employee."},
@@ -82,6 +85,19 @@ EXCEPTIONS = (
      "why": "Set the plant on the terminal. Its punches are kept until then."},
 )
 EXCEPTION_KINDS = tuple(row["kind"] for row in EXCEPTIONS)
+
+# a terminal that has sent nothing for this long is told to HR, once a day:
+# longer than a rest day, so a gate that is shut on Sunday is not news
+SILENT_ALERT_HOURS = 36
+
+
+def silent_since(last_seen, now, after_hours=SILENT_ALERT_HOURS):
+    """Whether a machine that has sent punches before has now sent none
+    for long enough to be told about."""
+    if not last_seen:
+        return False
+    return (_moment(now) - _moment(last_seen)).total_seconds() >= float(after_hours) * 3600
+
 
 # ── How full a day was ────────────────────────────────────────────────
 FULL, THIN, SHORT = "full", "thin", "short"

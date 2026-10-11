@@ -86,6 +86,15 @@ FIRST_PULL_DAYS = 7
 # the previous pull is re-read by this much, so a punch recorded a moment
 # after one run is picked up by the next rather than falling between them
 OVERLAP_SECONDS = 60
+# A terminal that was off the network sends its punches when it is back,
+# each with the time it was made. A window that only reached a minute
+# behind the newest punch would never see them, so every pull re-reads the
+# last hours, and once a day the last days. What is already written down
+# is skipped (unseen), so reading twice costs a request and nothing else.
+REREAD_HOURS = 6
+CATCH_UP_DAYS = 3
+LONGEST_REREAD_HOURS = 72
+LONGEST_CATCH_UP_DAYS = 31
 
 # what a transaction calls things (BioTime 8.5)
 FIELDS = {
@@ -117,8 +126,10 @@ def endpoint(url, path):
     return root + ("/" + path.strip("/") + "/" if path else "/")
 
 
-def window(last_sync, now, first_pull_days=FIRST_PULL_DAYS, overlap=OVERLAP_SECONDS):
-    """The span to ask BioTime for: from just before the last pull to now.
+def window(last_sync, now, first_pull_days=FIRST_PULL_DAYS, overlap=OVERLAP_SECONDS, reread_hours=0):
+    """The span to ask BioTime for: from just before the last pull to now,
+    and at least the last `reread_hours`, for the punches a terminal that
+    was off the network has sent since.
 
     Never read as having been pulled: a site with no last sync reaches
     back `first_pull_days`, so a first run does not try to read years.
@@ -126,11 +137,31 @@ def window(last_sync, now, first_pull_days=FIRST_PULL_DAYS, overlap=OVERLAP_SECO
     now = _moment(now)
     if last_sync:
         start = _moment(last_sync) - datetime.timedelta(seconds=int(overlap or 0))
+        if float(reread_hours or 0) > 0:
+            start = min(start, now - datetime.timedelta(hours=float(reread_hours)))
     else:
         start = now - datetime.timedelta(days=int(first_pull_days or FIRST_PULL_DAYS))
     if start > now:
         start = now
     return {"start": start.strftime(TIME_FORMAT), "end": now.strftime(TIME_FORMAT)}
+
+
+def catch_up_window(now, days=CATCH_UP_DAYS):
+    """The span the daily catch-up asks for: the last days, whatever has
+    been read of them."""
+    now = _moment(now)
+    start = now - datetime.timedelta(days=int(days or CATCH_UP_DAYS))
+    return {"start": start.strftime(TIME_FORMAT), "end": now.strftime(TIME_FORMAT)}
+
+
+def plain_http(url):
+    """Whether the sign-in travels unprotected: an http:// address that is
+    not this machine's own."""
+    root = (base_url(url) or "").lower()
+    if not root.startswith("http://"):
+        return False
+    host = root[len("http://"):].split("/")[0].split(":")[0]
+    return host not in ("localhost", "127.0.0.1", "[::1]")
 
 
 def query(start, end, page=1, page_size=PAGE_SIZE):
@@ -303,7 +334,18 @@ def settings_errors(facts):
                       "use https:// or untick the check.")
     if int(facts.get("page_size") or 0) < 1:
         errors.append("A page of no transactions is not a page.")
+    if not 0 <= _number(facts.get("reread_hours")) <= LONGEST_REREAD_HOURS:
+        errors.append("Every pull re-reads between 0 and %d hours." % LONGEST_REREAD_HOURS)
+    if not 0 <= _number(facts.get("catch_up_days")) <= LONGEST_CATCH_UP_DAYS:
+        errors.append("The daily catch-up re-reads between 0 and %d days." % LONGEST_CATCH_UP_DAYS)
     return errors
+
+
+def _number(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return -1.0
 
 
 def token_of(payload):

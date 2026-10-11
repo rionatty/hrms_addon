@@ -263,13 +263,40 @@ if Z.dialled("BioTime"):
     fail.append("and one fed by BioTime is not")
 print("the paper: one server record, and the machine that still owns the door")
 
+# a terminal that was off the network sends its punches late (11 Oct 2026)
+span = B.window("2026-10-12 08:59:00", "2026-10-12 09:00:00", reread_hours=6)
+if span != {"start": "2026-10-12 03:00:00", "end": "2026-10-12 09:00:00"}:
+    fail.append("every pull re-reads the last hours, however fresh the last punch: %s" % span)
+span = B.window("2026-10-11 20:00:00", "2026-10-12 09:00:00", reread_hours=6)
+if span["start"] != "2026-10-11 19:59:00":
+    fail.append("and never starts later than just before the last punch read: %s" % span)
+if B.window("2026-10-12 08:59:00", "2026-10-12 09:00:00")["start"] != "2026-10-12 08:58:00":
+    fail.append("with no re-read asked for, the window is the minute's overlap it always was")
+if B.window(None, "2026-10-12 09:00:00", first_pull_days=7, reread_hours=6)["start"] != "2026-10-05 09:00:00":
+    fail.append("a first pull still reaches back its days")
+if B.catch_up_window("2026-10-12 09:00:00", 3) != {"start": "2026-10-09 09:00:00", "end": "2026-10-12 09:00:00"} \
+        or B.catch_up_window("2026-10-12 09:00:00", 0)["start"] != "2026-10-09 09:00:00":
+    fail.append("the daily catch-up re-reads the last days, three where none is given")
+if (B.REREAD_HOURS, B.CATCH_UP_DAYS) != (6, 3):
+    fail.append("six hours every pull and three days once a day, until the record says otherwise")
+if not B.plain_http("http://102.215.111.92:8080") or B.plain_http("https://biotime.luuka") \
+        or B.plain_http("http://localhost:8080") or B.plain_http("http://127.0.0.1"):
+    fail.append("a password sent over plain http to another machine is said; https and this machine are not")
+good = {"enabled": 1, "base_url": "https://x", "username": "u", "has_password": 1, "page_size": 200}
+expect("the re-read left blank", B.settings_errors(good))
+expect("a re-read of four days", B.settings_errors(dict(good, reread_hours=100)), "between 0 and 72 hours")
+expect("a catch-up of two months", B.settings_errors(dict(good, catch_up_days=60)), "between 0 and 31 days")
+for fieldname in ("reread_hours", "catch_up_days", "merge_across_terminals", "last_success", "alerted_on"):
+    if fieldname not in server:
+        fail.append("BioTime Server has no %s" % fieldname)
+
 # ── 7. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "biotime.py")
 known = set(server) | set(device) | {"doctype", "name", "flags", "base_url", "username"}
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
     if fieldname in ("get", "set", "append", "db_set", "get_doc_before_save", "check_permission",
-                     "insert", "submit", "cancel", "save", "as_dict", "update", "get_password"):
+                     "insert", "submit", "cancel", "save", "as_dict", "update", "get_password", "reload"):
         continue
     if fieldname not in known:
         fail.append("biotime.py reads or writes %s, which is on neither record" % fieldname)
@@ -306,6 +333,26 @@ if "    def validate(self):\n        biotime.settings_validate(self)" not in con
 # nothing about a punch's meaning is decided twice
 if "PUNCH_MEANING" in glue:
     fail.append("what a punch means belongs to zkteco_rules; do not keep a second copy")
+for needle, why in (
+    ("reread_hours=cint(doc.get(\"reread_hours\")) or rules.REREAD_HOURS)", "an hourly pull re-reads the last hours, six where the record gives none"),
+    ("span=rules.catch_up_window(", "the daily catch-up reads its own span"),
+    ("cint(doc.get(\"catch_up_days\")) or rules.CATCH_UP_DAYS", "three days where the record gives none"),
+    ("devices.redo_absences(landed, started)", "an absence a late punch contradicts is redone"),
+    ("devices.advance_shift_sync(started)", "a pull that came in moves the mark Frappe HR reads punches up to"),
+    ("\"last_success\": started, \"alerted_on\": None,", "and is written down as having come in"),
+    ("across=cint(doc.get(\"merge_across_terminals\"))", "terminals side by side read one face as one arrival"),
+    ("return punch_rules.dedupe(punches, within=longest, per_device=False)", "across every terminal, inside the longest window"),
+    ("_say_it_is_failing(doc)", "a pull that keeps failing is said to somebody"),
+    ("if doc.get(\"alerted_on\") and getdate(doc.get(\"alerted_on\")) == getdate(now):\n        return", "once a day"),
+    ("rules.plain_http(doc.get(\"base_url\"))", "a password over plain http is said as the record is saved"),
+):
+    if needle not in glue:
+        fail.append("biotime.py: %s (%r not found)" % (why, needle))
+pulling = glue.split("def _pull(doc, read")[1].split(chr(10) + "def ")[0]
+if pulling.index("devices.redo_absences(") > pulling.index("devices.advance_shift_sync("):
+    fail.append("the absences are redone before Frappe HR is let read further")
+if "hrms_addon.hrms_addon.biotime.catch_up" not in (hooks.get("scheduler_events", {}).get("daily") or []):
+    fail.append("the catch-up runs daily")
 print("glue: BioTime read, the same log written, nothing about a punch decided twice")
 
 # ── 8. Wiring ─────────────────────────────────────────────────────────
@@ -510,7 +557,7 @@ if not B.row_errors({"emp_code": "101", "punch_time": "0000-00-00 00:00:00"}):
 if B.row_errors({"emp_code": "101", "punch_time": "2026-09-22 07:14:03"}):
     fail.append("and a time that can be read must not be")
 
-pull = glue.split("def _pull(doc, read)")[1].split(chr(10) + "def ")[0]
+pull = glue.split("def _pull(doc, read")[1].split(chr(10) + "def ")[0]
 if "rules.unseen(" not in pull:
     fail.append("the pull must ask what has already been written down before it gives any "
                 "punch a direction")

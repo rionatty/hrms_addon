@@ -439,6 +439,88 @@ if "frappe.has_permission" not in body_of(drivers, "retry_failed"):
     fail.append("devices.retry_failed pushes check-ins: it must check the caller first")
 print("the glue: the rules followed, the driver optional, every button checked and whitelisted")
 
+# what the clock says of a day (the attendance review, 11 Oct 2026)
+moment = datetime.datetime
+if A.shift_span("2026-10-12", "07:00:00", "19:00:00") != (moment(2026, 10, 12, 7), moment(2026, 10, 12, 19)) \
+        or A.shift_span("2026-10-12", "19:00:00", "07:00:00") != (moment(2026, 10, 12, 19), moment(2026, 10, 13, 7)):
+    fail.append("a shift that ends before it starts runs into the next day")
+if A.shift_span("2026-10-12", None, "07:00:00") != (None, None):
+    fail.append("a shift with no hours has no span, never a crash")
+if not A.overnight("19:00:00", "07:00:00") or A.overnight("07:00:00", "19:00:00"):
+    fail.append("the night shift runs past midnight, the day shift does not")
+if A.minutes_late("2026-10-12 07:10:00", "2026-10-12 07:00:00", 15) != 0 \
+        or A.minutes_late("2026-10-12 07:20:00", "2026-10-12 07:00:00", 15) != 20 \
+        or A.minutes_late(None, "2026-10-12 07:00:00", 15) != 0:
+    fail.append("inside the grace nobody is late; past it, the minutes are counted from the start of the shift")
+if A.minutes_early("2026-10-12 18:50:00", "2026-10-12 19:00:00", 15) != 0 \
+        or A.minutes_early("2026-10-12 18:30:00", "2026-10-12 19:00:00", 15) != 30:
+    fail.append("and the same for leaving early, counted to the end of the shift")
+for status, in_time, out_time, wanted in (("Absent", "07:02", None, True), ("Half Day", "07:02", None, True),
+                                          ("Absent", None, None, False), ("Absent", "07:02", "19:00", False),
+                                          ("Present", "07:02", None, False)):
+    if A.clock_out_missing(status, in_time, out_time) != wanted:
+        fail.append("clock_out_missing(%s, %s, %s) should be %s: a clock-in with no clock-out, read as "
+                    "absent or half a day" % (status, in_time, out_time, wanted))
+if A.on_a_holiday("Absent", True, True) != "Present" or A.on_a_holiday("Half Day", True, True) != "Present":
+    fail.append("a day off somebody clocked in on is a day they came in, never an absence")
+if A.on_a_holiday("Absent", False, True) != "Absent" or A.on_a_holiday("Absent", True, False) != "Absent" \
+        or A.on_a_holiday("On Leave", True, True) != "On Leave":
+    fail.append("a working day, a day nobody clocked in on, and a leave are left as they are")
+READ = moment(2026, 10, 12, 9, 0)
+if A.sync_mark(None, READ) != moment(2026, 10, 12, 8, 50) or A.sync_mark("2026-10-12 08:00:00", READ) != moment(2026, 10, 12, 8, 50):
+    fail.append("Frappe HR may read punches up to just before the read that came in")
+if A.sync_mark("2026-10-12 08:55:00", READ) != moment(2026, 10, 12, 8, 55) or A.sync_mark("2026-10-13 00:00:00", READ) != moment(2026, 10, 13):
+    fail.append("and the mark never goes back")
+if not A.came_late("2026-10-12 06:59:00", READ) or A.came_late("2026-10-12 08:30:00", READ) or A.came_late(None, READ):
+    fail.append("a punch read two hours after it was made came late; one read within the hour did not")
+late = [{"employee": "E1", "time": "2026-10-11 07:01:00"}, {"employee": "E2", "time": "2026-10-12 06:58:00"},
+        {"employee": "E3", "time": "2026-10-12 08:40:00"}, {"employee": None, "time": "2026-10-11 07:01:00"}]
+marked = [
+    {"name": "A1", "employee": "E1", "attendance_date": "2026-10-11", "owner": "Administrator"},
+    {"name": "A2", "employee": "E1", "attendance_date": "2026-10-10", "owner": "Administrator"},
+    {"name": "A3", "employee": "E2", "attendance_date": "2026-10-11", "owner": "Administrator", "overnight": True},
+    {"name": "A4", "employee": "E2", "attendance_date": "2026-10-11", "owner": "hro@luuka", "overnight": True},
+    {"name": "A5", "employee": "E1", "attendance_date": "2026-10-11", "owner": "Administrator", "leave_application": "L1"},
+    {"name": "A6", "employee": "E1", "attendance_date": "2026-10-11", "owner": "Administrator", "attendance_request": "R1"},
+    {"name": "A7", "employee": "E3", "attendance_date": "2026-10-12", "owner": "Administrator"},
+    {"name": "A8", "employee": "E2", "attendance_date": "2026-10-10", "owner": "Administrator", "overnight": True},
+]
+redo = A.absences_to_redo(late, marked, READ)
+if redo != ["A1", "A3"]:
+    fail.append("the absences late punches contradict: the punch's own day, or the night shift's morning after, "
+                "marked by the scheduler with no leave or request behind them: %s" % redo)
+if A.absences_to_redo([], marked, READ) or A.absences_to_redo(late, [], READ):
+    fail.append("no late punch, or no absence, redoes nothing")
+attendance_fields = custom_fields("Attendance")
+for fieldname, kind in (("custom_late_minutes", "Int"), ("custom_early_minutes", "Int"), ("custom_clock_out_missing", "Check")):
+    if (attendance_fields.get(fieldname) or {}).get("fieldtype") != kind or not attendance_fields[fieldname].get("read_only"):
+        fail.append("Attendance carries %s, written by the clock alone" % fieldname)
+for needle, why in (
+    ("rules.on_a_holiday(doc.status, True, punched)", "a day off clocked in on is never an absence"),
+    ("doc.custom_late_minutes, doc.custom_early_minutes = _minutes_off(doc, shift)", "the minutes late and early are kept"),
+    ("rules.clock_out_missing(doc.status, doc.get(\"in_time\"), doc.get(\"out_time\"))", "a missing clock-out is said"),
+    ("if missing and doc.docstatus == 1 and (before is None or before.docstatus == 0):", "and told once, as the day is marked"),
+    ("kept[(holidays, day)] = bool(frappe.db.exists(\"Holiday\"", "automatic attendance asks each holiday list once and remembers the answer"),
+    ("if kept[(holidays, day)]:\n                continue", "and skips everybody on a holiday, not only the first"),
+    ("for back in range(AUTOMATIC_DAYS, 0, -1):", "a day the scheduler missed is caught up"),
+    ("def only_hr():", "the register is HR's"),
+):
+    if needle not in glue:
+        fail.append("attendance.py: %s (%r not found)" % (why, needle))
+if glue.count("only_hr()") < 2 or "    only_hr()\n    year, month = cint(year), cint(month)" not in glue:
+    fail.append("attendance.register asks who is asking before it reads everybody's attendance")
+for needle, why in (
+    ("def advance_shift_sync(read_at):", "a read that came in moves the mark Frappe HR reads punches up to"),
+    ("attendance_rules.sync_mark(row.last_sync_of_checkin, read_at)", "by the rule, never backwards"),
+    ('values["process_attendance_after"] = getdate(mark)', "and a shift with no day to start from is given one"),
+    ("attendance_rules.absences_to_redo(late, absences, read_at)", "late punches redo the absences they contradict"),
+    ("attendance.cancel()", "by cancelling them, which frees the day's punches for Frappe HR to mark again"),
+    ("if answered and (not silent or _held_long_enough(started)):", "the direct poll holds the mark for a machine that is off, but not for ever"),
+    ('found["redone"] = len(redo_absences(landed, started))', "the direct poll redoes absences too"),
+):
+    if needle not in drivers:
+        fail.append("devices.py: %s (%r not found)" % (why, needle))
+
 shift_fields = custom_fields("Shift Type")
 for fieldname in ("custom_shift_hours", "custom_overtime_hours"):
     if (shift_fields.get(fieldname) or {}).get("fieldtype") != "Float":

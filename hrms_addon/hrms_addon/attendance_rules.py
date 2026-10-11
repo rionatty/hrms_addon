@@ -239,6 +239,121 @@ def early_minutes(left, ends, grace=0):
     return minutes if minutes > 0 else 0
 
 
+# ── What the clock says of a day ──────────────────────────────────────
+# Frappe HR reads a day from its punches (Shift Type auto-attendance). What
+# it does not say is added to the Attendance as it is marked
+# (attendance.attendance_validate).
+WORKED = ("Present", "Half Day", "Work From Home")
+# who the scheduler marks attendance as: an absence it marked is the
+# clock's own reading, one a person marked is theirs
+SYSTEM_USERS = ("Administrator",)
+# a punch written down this long after it was made did not come with its
+# own hour's read: its day may have been marked without it
+LATE_PUNCH_HOURS = 2
+# the mark Frappe HR reads punches up to is kept this far behind a read,
+# for the punch a terminal was still sending as the read began
+SYNC_MARGIN_MINUTES = 10
+
+
+def shift_span(day, start_time, end_time):
+    """(start, end) of a shift worked on a day, as moments. A shift that
+    ends at or before the hour it starts runs into the next day."""
+    if not (day and start_time and end_time):
+        return None, None
+    start = datetime.datetime.combine(_date(day), _time_on(start_time).time())
+    end = datetime.datetime.combine(_date(day), _time_on(end_time).time())
+    if end <= start:
+        end += datetime.timedelta(days=1)
+    return start, end
+
+
+def overnight(start_time, end_time):
+    """Whether a shift runs past midnight, so its clock-out is dated the
+    day after the attendance."""
+    start, end = shift_span(datetime.date(2000, 1, 1), start_time, end_time)
+    return bool(start and end and end.date() > start.date())
+
+
+def minutes_late(arrived, starts, grace=0):
+    """The minutes an arrival is late, counted from the start of the shift
+    once it is past the grace. Inside the grace, none."""
+    return late_minutes(arrived, starts) if late_minutes(arrived, starts, grace) else 0
+
+
+def minutes_early(left, ends, grace=0):
+    """The minutes a departure is early, counted to the end of the shift
+    once it is past the grace. Inside the grace, none."""
+    return early_minutes(left, ends) if early_minutes(left, ends, grace) else 0
+
+
+def clock_out_missing(status, in_time, out_time):
+    """A day with a clock-in and no clock-out. Its hours cannot be counted,
+    so Frappe HR reads it as absent or half a day; it is said to be what
+    it is, for somebody to put right before the payroll."""
+    return bool(in_time) and not out_time and status in ("Absent", "Half Day")
+
+
+def on_a_holiday(status, holiday, punched):
+    """A day off somebody clocked in on is a day they came in: Present,
+    whatever the hours. An absence or half a day on a holiday would take
+    pay off a day nobody was due to work."""
+    if holiday and punched and status in ("Absent", "Half Day"):
+        return "Present"
+    return status
+
+
+def sync_mark(current, read_at, margin_minutes=SYNC_MARGIN_MINUTES):
+    """How far Frappe HR may read the punches: up to just before the read
+    that has just come in, and never back from where it stood.
+
+    Frappe HR marks a shift's attendance, the absences included, only up
+    to this mark, so it follows the reads: while BioTime cannot be read,
+    nobody is marked absent for punches that have not arrived.
+    """
+    reached = _moment(read_at) - datetime.timedelta(minutes=int(margin_minutes or 0))
+    if current and _moment(current) >= reached:
+        return _moment(current)
+    return reached
+
+
+def came_late(punch_time, read_at, after_hours=LATE_PUNCH_HOURS):
+    """A punch read long after it was made: a terminal that was off the
+    network sends its punches when it is back."""
+    if not (punch_time and read_at):
+        return False
+    return (_moment(read_at) - _moment(punch_time)).total_seconds() >= float(after_hours) * 3600
+
+
+def absences_to_redo(punches, absences, read_at, after_hours=LATE_PUNCH_HOURS):
+    """The absences the clock marked that late punches now contradict.
+
+    punches: [{"employee", "time"}] just written down.
+    absences: [{"name", "employee", "attendance_date", "owner",
+    "leave_application", "attendance_request", "overnight"}], the Absent
+    days of those employees.
+
+    An absence is redone when a late punch falls on its day, or on the
+    morning after where its shift runs past midnight; and only one the
+    scheduler marked, with no leave and no attendance request behind it.
+    One a person marked is theirs to change.
+    """
+    days = {}
+    for punch in punches or []:
+        if not punch.get("employee") or not came_late(punch.get("time"), read_at, after_hours):
+            continue
+        days.setdefault(punch["employee"], set()).add(_date(punch["time"]))
+    names = []
+    for row in absences or []:
+        seen = days.get(row.get("employee"))
+        if not seen or row.get("leave_application") or row.get("attendance_request") \
+                or row.get("owner") not in SYSTEM_USERS:
+            continue
+        day = _date(row.get("attendance_date"))
+        if day in seen or (row.get("overnight") and day + datetime.timedelta(days=1) in seen):
+            names.append(row.get("name"))
+    return names
+
+
 # ── The three forms ───────────────────────────────────────────────────
 def off_duty_errors(facts):
     """Problems with an Off-Duty Request (LPL/HR/25) as it goes for approval.
@@ -377,6 +492,14 @@ def _hours(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _moment(value):
+    if isinstance(value, datetime.datetime):
+        return value
+    if isinstance(value, datetime.date):
+        return datetime.datetime.combine(value, datetime.time())
+    return datetime.datetime.fromisoformat(str(value).replace("T", " ")[:19])
 
 
 def _time_on(value):
