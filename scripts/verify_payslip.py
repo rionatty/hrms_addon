@@ -168,24 +168,25 @@ read_keys = set(re.findall(r"\bp\.(\w+)", html))
 check(read_keys and read_keys <= handed, "the print reads only what pay_slip hands it: %s" % sorted(read_keys - handed))
 check(handed <= read_keys, "and prints all of it: %s" % sorted(handed - read_keys))
 check(not handed & set(dir(dict)), "no key that a dict's own method would hide: %s" % sorted(handed & set(dir(dict))))
-for said in ("NAME", "DEPT", "PAYROLL NO.", "PAY SLIP FOR", "DESIGNATION", "CATEGORY", "P A Y M E N T S", "AMOUNT",
+for said in ("NAME", "DEPT", "PAYROLL NO.", "PAY SLIP FOR", "DESIGNATION", "CATEGORY", "SECTION", "P A Y M E N T S",
+             "AMOUNT",
              "HOURS", "GROSS PAY", "DEDUCTIONS", "TOTAL", "N E T &nbsp; P A Y", "NET PAY R/o", "PAYMENT BY :",
              "Paid Days", "Working Days", "Holidays", "Absent Amount", "Leave Taken", "Absent Days"):
     check(said in html, "the slip says %s, as Luuka's does" % said)
 check("doc.earnings" not in html and "doc.deductions" not in html,
       "the lines come from pay_slip, never straight off the slip (the working would print)")
-for typed in re.findall(r"\{\{\s*(p\.(?:employee_name|department|payroll_no|designation|category|plant|payment_by)"
+for typed in re.findall(r"\{\{\s*(p\.(?:employee_name|department|payroll_no|designation|category|section|payment_by)"
                         r"|line\.name)\s*\}\}", html):
     check(False, "%s is printed without v(), unescaped" % typed)
 
 # ── 5. Luuka's August slip for LPL1834 ──────────────────────────────────
-def figures(slip, employee, attendance=(), holidays=0, hours=None):
+def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None):
     """What payslip.pay_slip hands the print, from the same rules."""
     leave, absent = R.day_counts(attendance)
     return {"employee_name": slip["employee_name"], "department": slip["department"], "payroll_no": slip["employee"],
             "slip_for": R.slip_for(slip["end_date"]), "designation": slip["designation"],
             "category": employee.get("custom_pay_category") or employee.get("employment_type"),
-            "plant": slip.get("branch"), "payments": R.lines(slip["earnings"], hours),
+            "section": section, "payments": R.lines(slip["earnings"], hours),
             "gross": slip["gross_pay"], "deductions": R.lines(slip["deductions"]),
             "total_deductions": slip["total_deduction"], "net": slip["net_pay"],
             "rounded": slip.get("rounded_total") or round(slip["net_pay"]),
@@ -216,11 +217,11 @@ def text_of(page):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S))).strip()
 
 
-page = page_of(AUGUST, {"custom_pay_category": "Monthly"})
+page = page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource")
 text = text_of(page)
 check(not re.findall(r"\{\{ [\w.]+ \}\}", page), "nothing left undefined: %s" % re.findall(r"\{\{ [\w.]+ \}\}", page))
 for said in ("NAME : SARAH AMUGE", "DEPT : PP DEPARTMENT", "PAYROLL NO. : LPL1834", "PAY SLIP FOR : AUGUST 2026",
-             "DESIGNATION : ASSISTANT SUPERVISOR", "CATEGORY : Monthly", "PLANT : LPL Kawempe",
+             "DESIGNATION : ASSISTANT SUPERVISOR", "CATEGORY : Monthly", "SECTION : Human Resource",
              "P A Y M E N T S AMOUNT HOURS Basic 736,058.00 House Rent Allowance 72,342.00 "
              "Transport Allowance 70,000.00 GROSS PAY 878,400.00",
              "DEDUCTIONS AMOUNT HOURS NSSF Employee 43,920.00 PAYE 145,770.00 Local Service Tax 20,000.00 "
@@ -238,7 +239,7 @@ OCTOBER = dict(AUGUST, employee_name="John <Okello>", start_date="2026-09-26", e
                gross_pay=758827, total_deduction=34941.35, net_pay=723885.65, rounded_total=0, payment_days=28,
                mode_of_payment=None, bank_name=None, bank_account_no=None, absent_days=0)
 text = text_of(page_of(OCTOBER, {"employment_type": "Permanent"}, attendance=days, holidays=1, hours={"ADS-1": 12.5}))
-for said in ("NAME : John &lt;Okello&gt;", "PAY SLIP FOR : OCTOBER 2026", "CATEGORY : Permanent",
+for said in ("NAME : John &lt;Okello&gt;", "PAY SLIP FOR : OCTOBER 2026", "CATEGORY : Permanent SECTION : P A Y",
              "Overtime 54,000.00 12.5", "NSSF Employee 34,941.35 TOTAL 34,941.35",
              "N E T &nbsp; P A Y 723,885.65 NET PAY R/o 723,886.00", "PAYMENT BY : Paid Days = 28",
              "Holidays = 1 Absent Amount = 71,231.00 Leave Taken = 1.5 Absent Days = 2.5"):

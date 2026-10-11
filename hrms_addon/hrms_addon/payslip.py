@@ -38,7 +38,7 @@ def pay_slip(doc):
         "slip_for": rules.slip_for(doc.get("end_date")),
         "designation": doc.get("designation"),
         "category": employee.get("custom_pay_category") or employee.get("employment_type"),
-        "plant": doc.get("branch"),
+        "section": _section(doc.get("designation")),
         "payments": rules.lines(earnings, _overtime_hours(earnings)),
         "gross": flt(doc.get("gross_pay")),
         "deductions": rules.lines(deductions),
@@ -65,6 +65,14 @@ def _employee_fields():
 def _department(name):
     """The department as it is called, without the company's abbreviation."""
     return (frappe.db.get_value("Department", name, "department_name") or name) if name else None
+
+
+def _section(designation):
+    """The Section / Unit of the employee's Job Title, from its Job
+    Description; left blank where the Job Title has none."""
+    if not designation or not frappe.get_meta("Designation").has_field("custom_jd_section_unit"):
+        return None
+    return frappe.db.get_value("Designation", designation, "custom_jd_section_unit") or None
 
 
 def _payment_by(doc, employee):
