@@ -895,6 +895,19 @@ the penalties already run on; any other dates are refused with the dates to
 use, because a recovery is dated the 25th and a run for the 25th to the
 24th would leave the month's recoveries off every slip.
 
+`verify_pay.py` covers what an employee's monthly gross is made of. Every
+module that needs a gross (the advances, the loans, overtime's hourly pay,
+leave encashment, the benefits, the exit settlement) asks `pay.monthly_gross`
+for it. The structure's part is still Frappe HR's own figure
+(`calculate_ctc_and_gross`), and an allowance paid every pay period outside
+the structure, as a recurring Additional Salary in force on the day asked,
+is now part of it: House Rent and Transport are paid that way at Luuka,
+their own slip counts both in GROSS PAY, and the salary advance is 40% of
+that figure. A payment made once (overtime, a bonus), a deduction, a
+disabled or draft one and a component a slip leaves out of its gross are
+not counted, and an allowance that overwrites a structure component takes
+its place instead of adding to it.
+
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch
 sources). It looks in `../ERPNext/{frappe,erpnext,hrms}`; set
