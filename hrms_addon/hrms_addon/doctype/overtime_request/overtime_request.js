@@ -18,6 +18,13 @@ frappe.ui.form.on("Overtime Request", {
 					__("Authorise")
 				)
 			);
+		}
+		// refused while it is still being decided, never once it is with payroll
+		if (
+			frm.doc.docstatus === 1 &&
+			["Requested", "Authorised", "Costed"].includes(frm.doc.status) &&
+			frm.has_perm("submit")
+		) {
 			frm.add_custom_button(__("Reject"), () =>
 				frappe.prompt(
 					{ fieldname: "reason", fieldtype: "Small Text", label: __("Reason"), reqd: 1 },

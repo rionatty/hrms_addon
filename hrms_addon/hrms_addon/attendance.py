@@ -148,35 +148,99 @@ def _tell_off_duty(doc, state):
 
 
 def off_duty_on_submit(doc, method=None):
-    """Approved: the day is marked off on the attendance, so it is no longer
-    read as an absence."""
-    doc.db_set("status", "Approved", update_modified=False)
-    _mark_off_duty(doc)
+    """The form filed. Approved, the day is what LPL/HR/25 classified it as
+    (attendance_rules.off_duty_day): a paid day off marked on the
+    attendance, a day of the employee's own leave approved and taken off
+    the balance, or nothing where it was not granted. Refused, it is
+    refused, and the employee is told why."""
+    from hrms_addon.hrms_addon import off_duty_approval as approval
+
     user = frappe.db.get_value("Employee", doc.employee, "user_id")
+    if doc.get("workflow_state") == approval.REJECTED:
+        doc.db_set("status", approval.REJECTED, update_modified=False)
+        # whoever refused wrote last
+        said = next((doc.get(field) for field, _who in reversed(list(approval.REMARK_FIELDS.values()))
+                     if doc.get(field)), None)
+        people.notify([user], doc.doctype, doc.name, _("Your off-duty request for {0} was refused{1}").format(
+            frappe.utils.format_date(doc.off_date), ": %s" % said if said else "."))
+        return
+    doc.db_set("status", "Approved", update_modified=False)
+    day = rules.off_duty_day(doc.kind)
+    if day["apply"]:
+        from hrms_addon.hrms_addon import leave
+
+        doc.db_set("leave_application", leave.approve_for_off_duty(doc, day["apply"]), update_modified=False)
+    elif day["mark"]:
+        _mark_off_duty(doc, day["mark"])
     people.notify([user], doc.doctype, doc.name,
                   _("Your off-duty request for {0} was approved ({1}).").format(
                       frappe.utils.format_date(doc.off_date), doc.kind))
 
 
-def _mark_off_duty(doc):
-    """The day's Attendance says the employee was off duty, not absent."""
-    name = frappe.db.get_value("Attendance", {"employee": doc.employee, "attendance_date": doc.off_date,
-                                              "docstatus": ["!=", 2]}, "name")
-    if not name:
-        return
-    attendance = frappe.get_doc("Attendance", name)
-    if attendance.docstatus == 1 and attendance.status == "Absent":
-        # a submitted attendance only moves by amendment, so say so rather
-        # than pretending it changed
-        frappe.msgprint(_("{0} is already submitted as Absent. Amend it to record the off duty.").format(name),
-                        indicator="orange", alert=True)
-    elif attendance.docstatus == 0:
-        attendance.db_set("status", "On Leave" if doc.kind == "Annual Leave" else "Absent", update_modified=False)
+def _mark_off_duty(doc, leave_type):
+    """A paid day off on the attendance: On Leave, as the Off Duty leave
+    type, so the day is paid and is not an absence. A day already marked
+    absent is changed, as Frappe HR's own Attendance Request changes a
+    marked day; one the employee worked, or is on leave for, is left."""
+    found = frappe.db.get_value("Attendance", {"employee": doc.employee, "attendance_date": doc.off_date,
+                                               "docstatus": ["!=", 2]},
+                                ["name", "status", "leave_application"], as_dict=True)
+    action = rules.off_duty_marking(found)
+    if action == "create":
+        attendance = frappe.get_doc({
+            "doctype": "Attendance", "employee": doc.employee, "attendance_date": doc.off_date,
+            "status": "On Leave", "leave_type": leave_type,
+            "company": frappe.db.get_value("Employee", doc.employee, "company")})
+        attendance.flags.ignore_permissions = True
+        muted = frappe.flags.mute_messages
+        # Frappe HR says "no leave record found" of a day given this way
+        frappe.flags.mute_messages = True
+        try:
+            attendance.insert()
+            attendance.submit()
+        finally:
+            frappe.flags.mute_messages = muted
+        name = attendance.name
+    else:
+        name = found.name
+        if action == "change":
+            attendance = frappe.get_doc("Attendance", name)
+            attendance.db_set({"status": "On Leave", "leave_type": leave_type}, update_modified=False)
+            attendance.add_comment("Info", _("A paid day off, not an absence: {0}.").format(doc.name))
     doc.db_set("attendance", name, update_modified=False)
 
 
 def off_duty_on_cancel(doc, method=None):
+    """Cancelled: what the form gave is taken back. The leave it raised is
+    cancelled, which returns the day to the balance, and the day it marked
+    off comes off the attendance for the clock to read again."""
     doc.db_set("status", "Cancelled", update_modified=False)
+    application = doc.get("leave_application")
+    if application and frappe.db.get_value("Leave Application", application, "docstatus") == 1:
+        leave = frappe.get_doc("Leave Application", application)
+        leave.flags.ignore_permissions = True
+        leave.cancel()
+    marked = doc.get("attendance")
+    if marked:
+        found = frappe.db.get_value("Attendance", marked, ["docstatus", "status", "leave_type"], as_dict=True)
+        if found and found.docstatus == 1 and found.status == "On Leave" \
+                and found.leave_type == rules.OFF_DUTY_LEAVE_TYPE:
+            attendance = frappe.get_doc("Attendance", marked)
+            attendance.flags.ignore_permissions = True
+            attendance.flags.ignore_links = True
+            attendance.cancel()
+
+
+def seed_off_duty_leave_type():
+    """The Leave Type a paid day off is marked as. Paid, and asked of no
+    allocation: nobody applies for it (leave.application_validate). One
+    already there is left as Luuka have set it."""
+    name = rules.OFF_DUTY_LEAVE_TYPE
+    if frappe.db.exists("Leave Type", {"leave_type_name": name}):
+        return None
+    doc = frappe.get_doc({"doctype": "Leave Type", "leave_type_name": name, "is_lwp": 0})
+    doc.insert(ignore_permissions=True)
+    return doc.name
 
 
 # ── LPL/HR/14: the overtime ───────────────────────────────────────────
@@ -252,11 +316,18 @@ def authorise_overtime(name, remarks=None):
 
 
 @frappe.whitelist(methods=["POST"])
-def reject_overtime(name, reason):
+def reject_overtime(name, reason=None):
+    from hrms_addon.hrms_addon import overtime_rules
+
     doc = frappe.get_doc("Overtime Request", name)
     doc.check_permission("submit")
+    errors = overtime_rules.reject_errors(doc.get("status") if doc.docstatus == 1 else None, reason)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Overtime Request"))
     doc.db_set({"status": "Rejected", "authority_remarks": reason, "authorised_by": frappe.session.user,
                 "authorised_on": today()}, update_modified=False)
+    # the signature above is now whoever refused: who authorised it before stays on the record
+    doc.add_comment("Info", _("Refused: {0}").format(reason))
     return doc.status
 
 
@@ -375,7 +446,7 @@ def _off_duty_between(employees, start, end):
     return {(row.employee, getdate(row.off_date)) for row in frappe.get_all(
         "Off Duty Request",
         filters={"employee": ["in", employees], "off_date": ["between", (start, end)], "docstatus": 1,
-                 "status": "Approved"},
+                 "status": "Approved", "kind": ["in", list(rules.OFF_DUTY_GIVEN)]},
         fields=["employee", "off_date"])}
 
 
@@ -628,4 +699,8 @@ def setup_workflows_on_migrate():
     from hrms_addon.hrms_addon import late_notice_approval, off_duty_approval, workflows
 
     workflows.setup_on_migrate(off_duty_approval, "Off Duty Request workflow")
+    try:
+        seed_off_duty_leave_type()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: seeding the Off Duty leave type")
     workflows.setup_on_migrate(late_notice_approval, "Late Arrival Notice workflow")

@@ -83,6 +83,16 @@ WORKING_DAYS_A_WEEK = 6
 
 # ── LPL/HR/25 ─────────────────────────────────────────────────────────
 OFF_DUTY_KINDS = ("Paid", "Ungranted", "Compensation", "Annual Leave", "Compassionate")
+PAID, UNGRANTED, COMPENSATION, ANNUAL_OFF, COMPASSIONATE_OFF = OFF_DUTY_KINDS
+# a paid day off that is nobody's leave is marked on the attendance as
+# leave of this type, which no allocation is asked for
+OFF_DUTY_LEAVE_TYPE = "Off Duty"
+# the kinds that are a day of the employee's own leave, and the Leave Type
+# each is taken as (leave_rules.ANNUAL, leave_rules.COMPASSIONATE)
+OFF_DUTY_LEAVE = {ANNUAL_OFF: "Annual Leave", COMPASSIONATE_OFF: "Compassionate Leave"}
+# the kinds that give the day. Ungranted gives nothing: the day is not an
+# off-duty day on the register, and counts as the absence it is
+OFF_DUTY_GIVEN = tuple(kind for kind in OFF_DUTY_KINDS if kind != UNGRANTED)
 # ── LPL/HR/14 ─────────────────────────────────────────────────────────
 EMPLOYMENT_KINDS = ("Permanent", "Casual")
 # HR issues a food coupon to whoever worked the overtime
@@ -118,10 +128,11 @@ def register_code(facts):
     """What LPL/HR/07 prints in a day's cell for one employee.
 
     facts: "status" (the Attendance status), "shift" (its name), "leave_type",
-    "off_duty" (an approved off-duty request covers the day), "holiday".
+    "off_duty" (an approved off-duty request gives the day), "holiday".
     """
     status = (facts.get("status") or "").strip()
-    if facts.get("off_duty"):
+    if facts.get("off_duty") and status not in WORKED:
+        # a day off the employee came in on is the day they worked
         return OFF_DUTY
     if status == "On Leave":
         if facts.get("leave_type") == UNPAID_SUSPENSION:
@@ -372,6 +383,42 @@ def off_duty_errors(facts):
     if facts.get("kind") not in OFF_DUTY_KINDS:
         errors.append("Say how the day is treated: %s." % ", ".join(OFF_DUTY_KINDS))
     return errors
+
+
+def off_duty_day(kind):
+    """What an approved off-duty day is, by how LPL/HR/25 classifies it:
+
+      Paid, Compensation       a paid day off: On Leave on the attendance,
+                               as the Off Duty leave type, off no balance
+      Annual Leave,            a day of the employee's own leave: applied
+      Compassionate            for and approved with the form, so it comes
+                               off the balance as any leave does
+      Ungranted                nothing is given. The clock reads the day,
+                               and a day not worked is the absence it is
+
+    Returns {"apply": the Leave Type applied for, "mark": the Leave Type
+    the attendance is marked with}, either None.
+    """
+    if kind in OFF_DUTY_LEAVE:
+        return {"apply": OFF_DUTY_LEAVE[kind], "mark": None}
+    if kind in (PAID, COMPENSATION):
+        return {"apply": None, "mark": OFF_DUTY_LEAVE_TYPE}
+    return {"apply": None, "mark": None}
+
+
+def off_duty_marking(attendance):
+    """What a paid day off does to the day's Attendance.
+
+    attendance: None, or {"status", "leave_application"} of the day's.
+    "create" where the day is not marked yet; "change" where it stands as
+    an absence, which the day off replaces; "leave" where the employee
+    worked it or is on leave already, which is left as it is.
+    """
+    if not attendance:
+        return "create"
+    if attendance.get("status") == "Absent" and not attendance.get("leave_application"):
+        return "change"
+    return "leave"
 
 
 def overtime_errors(facts):

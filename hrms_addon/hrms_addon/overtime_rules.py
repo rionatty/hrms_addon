@@ -192,11 +192,14 @@ def amount(hours, rate, multiplier):
     return round(float(hours) * float(rate) * float(multiplier), 2)
 
 
-def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None):
+def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None, kinds=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
     gross}, which decides their type; standards: {employee: the standard
-    hours of their shift}, the day that hour is divided out of.
+    hours of their shift}, the day that hour is divided out of; kinds:
+    {employee: what sort of day it is for them}, since one person's rest
+    day is another's working day. `kind` is the sheet's, for anybody not
+    in `kinds`.
 
     types: {Overtime Type name: its row}. Each person is priced under the
     type their own gross puts them in (minutes §4.12); `overtime_type`
@@ -211,13 +214,14 @@ def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, stan
     out, total, unpriced = [], 0.0, []
     for row in rows or []:
         base = rates.get(row.get("employee"))
-        theirs = (types or {}).get(type_name_for(kind, (grosses or {}).get(row.get("employee")), lines))
-        own = multiplier_for(kind, theirs) if theirs else multiplier
+        day = (kinds or {}).get(row.get("employee")) or kind
+        theirs = (types or {}).get(type_name_for(day, (grosses or {}).get(row.get("employee")), lines))
+        own = multiplier_for(day, theirs) if theirs else multiplier_for(day, overtime_type if day == kind else None)
         rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee"))))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))
-        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost))
+        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost, day_kind=day))
         total += cost
     return {"rows": out, "total": round(total, 2), "multiplier": multiplier,
             "unpriced": unpriced}
@@ -247,7 +251,10 @@ def cost_check_errors(facts):
 
 
 def payroll_errors(facts):
-    """And before it is passed on to be paid."""
+    """And before it is passed on to be paid. rows carry "attendance" (the
+    day's, if any), "absent" (it reads absent) and "clocked_in" (it has a
+    clock-in all the same). Overtime does not sit on a day the attendance
+    says was not worked: the day would be docked and its overtime paid."""
     errors = []
     if facts.get("status") != "Costed":
         errors.append("Overtime reaches payroll after HR have checked what it costs.")
@@ -256,15 +263,69 @@ def payroll_errors(facts):
     if missing:
         errors.append("There is no attendance for %s on that day, so the hours have nothing to "
                       "sit on. Mark their attendance first." % _and(missing))
+    absent = [row for row in facts.get("rows") or [] if row.get("attendance") and row.get("absent")]
+    never = [row.get("employee_name") or row.get("employee") for row in absent if not row.get("clocked_in")]
+    half = [row.get("employee_name") or row.get("employee") for row in absent if row.get("clocked_in")]
+    if never:
+        errors.append("%s did not clock in on that day and the attendance reads absent. Correct the "
+                      "attendance, or amend the sheet without them." % _and(never))
+    if half:
+        errors.append("%s clocked in on that day with no clock-out, so the attendance reads absent. "
+                      "Correct the attendance first." % _and(half))
     return errors
 
 
-def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None, lines=None):
+# overtime the clock shows within this of what was authorised is paid in
+# full: a quarter of an hour, the grace a shift gives a late arrival
+CLOCK_TOLERANCE_HOURS = 0.25
+
+
+def worked_overtime(kind, working_hours, standard_hours=STANDARD_HOURS_PER_DAY):
+    """The overtime the clock shows for a day it measured: the hours past
+    the shift's standard ones on a working day, and every hour on a rest
+    day, a public holiday or a day of leave."""
+    hours = max(float(working_hours or 0), 0.0)
+    if kind == WEEKDAY:
+        return round(max(hours - float(standard_hours or STANDARD_HOURS_PER_DAY), 0.0), 2)
+    return round(hours, 2)
+
+
+def payable_hours(authorised, worked=None):
+    """What is paid: the hours authorised, up to the hours the clock shows.
+    Nobody is paid for overtime the clock says they did not work, and
+    nobody for more than was authorised. `worked` is None for a day the
+    clock did not measure (marked by hand, or no clock-out): then what was
+    authorised stands, and the row says the clock was not asked."""
+    authorised = max(float(authorised or 0), 0.0)
+    if worked is None:
+        return round(authorised, 2)
+    worked = max(float(worked), 0.0)
+    if worked >= authorised - CLOCK_TOLERANCE_HOURS:
+        # a clock-out a few minutes before the hour is not docked
+        return round(authorised, 2)
+    return round(worked, 2)
+
+
+def reject_errors(status, reason):
+    """An overtime sheet is refused while it is still being decided, and
+    with the reason. One already with the payroll is on the attendance and
+    on a slip: it is cancelled, not refused."""
+    errors = []
+    if status not in ("Requested", "Authorised", "Costed"):
+        errors.append("Overtime is refused before it reaches the payroll, not %s." % (
+            "once it is there" if status == "Sent to Payroll" else "while it is %s" % (status or "a draft")))
+    if not str(reason or "").strip():
+        errors.append("Say why the overtime is refused.")
+    return errors
+
+
+def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None, lines=None, hours=None):
     """What goes onto the employee's Attendance row so Frappe HR's own
     Overtime Slip picks the hours up: the type their gross puts them in,
-    the duration, and the standard day it is measured against."""
+    the duration paid (`hours`, else what was authorised), and the
+    standard day it is measured against."""
     return {"overtime_type": type_name_for(kind, gross, lines),
-            "actual_overtime_duration": float(row.get("hours") or 0),
+            "actual_overtime_duration": float(row.get("hours") or 0) if hours is None else float(hours),
             "standard_working_hours": float(standard_hours)}
 
 

@@ -122,6 +122,11 @@ for facts, code, why in (
     ({"status": "On Leave", "leave_type": "Annual Leave"}, A.LEAVE, "other leave is L"),
     ({"status": "Half Day", "shift": "Night"}, A.NIGHT_SHIFT, "a half day is still a day at work"),
     ({"off_duty": 1, "status": "Absent"}, A.OFF_DUTY, "an approved off duty is O, not an absence"),
+    ({"off_duty": 1, "status": "On Leave", "leave_type": "Off Duty"}, A.OFF_DUTY,
+     "a paid day off, marked as leave of the Off Duty type, is O"),
+    ({"off_duty": 1}, A.OFF_DUTY, "a day off not marked yet is O"),
+    ({"off_duty": 1, "status": "Present", "shift": "Night Shift"}, A.NIGHT_SHIFT,
+     "a day off the employee came in on is the day they worked"),
     ({"holiday": 1}, A.WEEKLY_OFF, "a holiday with no attendance is WO"),
     ({}, "", "nothing known prints nothing"),
 ):
@@ -196,6 +201,35 @@ expect("no date", A.off_duty_errors(dict(OFF, off_date=None)), "date the employe
 expect("no reason", A.off_duty_errors(dict(OFF, reason=" ")), "reason for the day off")
 expect("no classification", A.off_duty_errors(dict(OFF, kind=None)), "how the day is treated")
 expect("a day before joining", A.off_duty_errors(dict(OFF, off_date="2023-01-01")), "before the employee joined")
+# what an approved day off is, by how LPL/HR/25 classifies it
+for kind, want in (
+    ("Paid", {"apply": None, "mark": A.OFF_DUTY_LEAVE_TYPE}),
+    ("Compensation", {"apply": None, "mark": A.OFF_DUTY_LEAVE_TYPE}),
+    ("Annual Leave", {"apply": "Annual Leave", "mark": None}),
+    ("Compassionate", {"apply": "Compassionate Leave", "mark": None}),
+    ("Ungranted", {"apply": None, "mark": None}),
+):
+    if A.off_duty_day(kind) != want:
+        fail.append("a day off classified %s: expected %s, got %s" % (kind, want, A.off_duty_day(kind)))
+if set(A.OFF_DUTY_GIVEN) != set(A.OFF_DUTY_KINDS) - {"Ungranted"}:
+    fail.append("an ungranted day gives nothing, so it is not an off-duty day on the register: %s"
+                % (A.OFF_DUTY_GIVEN,))
+LEAVE = load("leave_rules")
+if (A.OFF_DUTY_LEAVE["Annual Leave"], A.OFF_DUTY_LEAVE["Compassionate"]) != (LEAVE.ANNUAL, LEAVE.COMPASSIONATE):
+    fail.append("a day given as leave is applied for under the Leave Types the leave module seeds: %s"
+                % A.OFF_DUTY_LEAVE)
+if A.OFF_DUTY_LEAVE_TYPE in LEAVE.LEAVE_TYPES:
+    fail.append("the Off Duty leave type is nobody's to apply for, and no leave the policy gives")
+for found, want, why in (
+    (None, "create", "a day not marked yet is marked off"),
+    ({"status": "Absent"}, "change", "an absence is replaced by the day off"),
+    ({"status": "Present"}, "leave", "a day the employee worked stays worked"),
+    ({"status": "Half Day"}, "leave", "and half a day worked"),
+    ({"status": "On Leave", "leave_application": "HR-LAP-1"}, "leave", "a day of leave stays leave"),
+    ({"status": "Absent", "leave_application": "HR-LAP-1"}, "leave", "what a leave marked is the leave's"),
+):
+    if A.off_duty_marking(found) != want:
+        fail.append("%s: expected %s, got %s" % (why, want, A.off_duty_marking(found)))
 
 OT = {"overtime_date": "2026-03-04", "requested_by": "HR-EMP-2", "section": "Extrusion",
       "employees": [{"employee": "HR-EMP-1", "hours": 3, "employment": "Casual"},
@@ -341,7 +375,18 @@ if (log.get("status") or {}).get("options", "").split("\n") != ["Pending", "Push
 for fieldname in ("employee", "log_type", "punch_meaning", "status", "employee_checkin", "error"):
     if not (log.get(fieldname) or {}).get("read_only"):
         fail.append("Attendance Device Log.%s is written by the pull, not typed" % fieldname)
+refused_patch = read("hrms_addon", "patches", "v1_0", "off_duty_refused_is_refused.py")
+listed = "hrms_addon.patches.v1_0.off_duty_refused_is_refused" in read("hrms_addon", "patches.txt")
+if not listed or '{"workflow_state": "Rejected", "status": ["!=", "Rejected"],' not in refused_patch:
+    fail.append("a refused request saved as approved before the fix is put right by a listed patch")
 off = fields_of(doctype("Off Duty Request"))
+given = off.get("leave_application") or {}
+if (given.get("fieldtype"), given.get("options"), given.get("read_only")) != ("Link", "Leave Application", 1):
+    fail.append("the Off Duty Request points at the leave it raised, and nobody types it")
+raised_from = next((row for row in CUSTOM if row["name"] == "Leave Application-custom_off_duty_request"), {})
+if (raised_from.get("fieldtype"), raised_from.get("options"), raised_from.get("read_only"), raised_from.get("no_copy")) \
+        != ("Link", "Off Duty Request", 1, 1):
+    fail.append("the Leave Application says which Off Duty Request gave the day, read only and never copied")
 if (off.get("kind") or {}).get("options", "").split("\n") != list(A.OFF_DUTY_KINDS):
     fail.append("Off Duty Request.kind must offer exactly LPL/HR/25's five")
 employment = fields_of(doctype("Overtime Request Employee")).get("employment") or {}
@@ -409,6 +454,18 @@ if "from zk import" in drivers.split("def _driver(")[0]:
     fail.append("the driver must not be imported at the top of devices.py: a site without it would not install")
 for needle, why in (
     ("rules.off_duty_errors(", "the off-duty request is judged by the rules"),
+    ('if doc.get("workflow_state") == approval.REJECTED:\n        doc.db_set("status", approval.REJECTED, '
+     'update_modified=False)', "a refused request is refused, never recorded as approved"),
+    ("day = rules.off_duty_day(doc.kind)", "what the day is comes from how the form classifies it"),
+    ('leave.approve_for_off_duty(doc, day["apply"])', "a day of the employee's own leave is approved with the form"),
+    ('_mark_off_duty(doc, day["mark"])', "a paid day off is marked on the attendance"),
+    ("action = rules.off_duty_marking(found)", "what that does to a day already marked is the rules' answer"),
+    ('"kind": ["in", list(rules.OFF_DUTY_GIVEN)]', "an ungranted day is not read as an off-duty day"),
+    ("        leave.cancel()\n", "cancelling the form cancels the leave it raised"),
+    ("and found.leave_type == rules.OFF_DUTY_LEAVE_TYPE:", "and takes back only the day it marked off"),
+    ("        seed_off_duty_leave_type()\n", "the Off Duty leave type is seeded on migrate"),
+    ('overtime_rules.reject_errors(doc.get("status") if doc.docstatus == 1 else None, reason)',
+     "overtime is refused while it is being decided, and with the reason"),
     ("rules.overtime_errors(", "and the overtime request"),
     ("rules.gate_pass_errors(", "and the gate pass"),
     ("rules.coupons(", "the food coupons are counted by the rules"),

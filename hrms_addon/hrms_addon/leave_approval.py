@@ -42,7 +42,15 @@ APPROVE = "Approve"
 RETURN = "Return"
 REJECT = "Reject"
 CANCEL = "Cancel"
-ACTIONS = (SUBMIT, APPROVE, RETURN, REJECT, CANCEL)
+# LPL/HR/25 gives a day off as the employee's own leave. The form already
+# carries its Supervisor, Section Manager and HR Manager, so the Leave
+# Application raised for the day is approved with it, by whoever approved
+# the form, and never waits on the three desks again (leave.
+# approve_for_off_duty). Only an application raised from an Off Duty
+# Request has the button.
+APPROVE_OFF_DUTY = "Approve Off Duty"
+OFF_DUTY_CONDITION = "doc.custom_off_duty_request"
+ACTIONS = (SUBMIT, APPROVE, RETURN, REJECT, CANCEL, APPROVE_OFF_DUTY)
 
 PREPARERS = ("HR User", "HR Manager", "Employee")
 SUPERVISORS = ("Supervisor", "Head of Department")
@@ -90,6 +98,8 @@ TRANSITIONS = (
     *({"state": PENDING_HR, "action": REJECT, "next_state": REJECTED, "allowed": role}
       for role in (HR_OFFICER, HRM)),
     {"state": APPROVED, "action": CANCEL, "next_state": CANCELLED, "allowed": HRM},
+    *({"state": DRAFT, "action": APPROVE_OFF_DUTY, "next_state": APPROVED, "allowed": role,
+       "condition": OFF_DUTY_CONDITION} for role in (HR_OFFICER, HRM)),
 )
 
 # Who signs as each step is passed: state left -> (by, on).
@@ -149,10 +159,26 @@ def step_errors(old_state, new_state, facts):
         field, who = REMARK_FIELDS[old_state]
         if not _text(facts.get(field)):
             errors.append("Write the %s's remarks saying why the leave is refused." % who)
+    if new_state == APPROVED and old_state == DRAFT:
+        # the one way past the three desks: a day LPL/HR/25 gave as leave
+        if not facts.get("off_duty_request"):
+            errors.append("A leave is approved by its three signatures.")
+        return errors
     if new_state == APPROVED and not _text(facts.get("custom_balance_before")):
         # Part 2 is the HR Officer's own: the balances before and after
         errors.append("Fill in Part 2, the leave balances, before approving the application.")
     return errors
+
+
+def off_duty_stamps(request):
+    """Part 3 of the leave form, signed as LPL/HR/25 was: its Supervisor as
+    the Manager in line, its Section Manager as the Head of Department, its
+    HR Manager as who approved. request: the Off Duty Request's fields."""
+    return {
+        "custom_supervisor_by": request.get("supervisor_by"), "custom_supervisor_on": request.get("supervisor_on"),
+        "custom_hod_by": request.get("manager_by"), "custom_hod_on": request.get("manager_on"),
+        "custom_hr_by": request.get("hr_by"), "custom_hr_on": request.get("hr_on"),
+    }
 
 
 def next_states(state, roles):

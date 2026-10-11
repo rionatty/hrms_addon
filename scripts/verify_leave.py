@@ -490,6 +490,20 @@ print("the paper: the plan and its rows, LPL/HR/15 on their leave form, LPL/HR/2
 
 # ── 4. The glue reads fields that exist ───────────────────────────────
 glue_leave = read("hrms_addon", "hrms_addon", "leave.py")
+for needle, why in (
+    ('if doc.get("leave_type") == attendance_rules.OFF_DUTY_LEAVE_TYPE:\n        frappe.throw(',
+     "nobody applies for the Off Duty leave type"),
+    ('"off_duty_request": doc.get("custom_off_duty_request"),', "the step is told what raised the application"),
+    ("approval.off_duty_stamps(request).items()", "and signs it as the form was signed"),
+    ('{"custom_off_duty_request": request.name, "docstatus": ["!=", 2]}', "one leave for one form"),
+    ("return apply_workflow(doc, approval.APPROVE_OFF_DUTY).name", "approved through the workflow, as the user"),
+    ('"leave_approver": frappe.session.user, "follow_via_email": 0,',
+     "with no mail to an approver: it is approved already"),
+    ("if existing and existing.docstatus == 1:\n        return existing.name", "a leave already approved is not raised twice"),
+    ("doc = frappe.get_doc(APPLICATION, existing.name)", "and one raised and never approved is approved, not raised again"),
+):
+    if needle not in glue_leave:
+        fail.append("leave.py: %s (%r not found)" % (why, needle))
 leave_fields = all_fields("Leave Application")
 plan_fields = fields_of(doctype("Annual Leave Plan"))
 for fieldname in sorted(set(re.findall(r'doc\.get\("(custom_\w+)"\)', glue_leave))
@@ -602,6 +616,24 @@ expect("refused without saying why", LA.step_errors(LA.PENDING_HR, LA.REJECTED, 
 expect("approved before Part 2 is filled in", LA.step_errors(LA.PENDING_HR, LA.APPROVED, {}), "Part 2")
 expect("approved with Part 2 filled in",
        LA.step_errors(LA.PENDING_HR, LA.APPROVED, {"custom_balance_before": 21}))
+# LPL/HR/25 gives a day as leave: the one way past the three desks
+expect("approved straight from a draft", LA.step_errors(LA.DRAFT, LA.APPROVED, {"custom_balance_before": 21}),
+       "three signatures")
+expect("a day an Off Duty Request gave", LA.step_errors(LA.DRAFT, LA.APPROVED, {"off_duty_request": "OD-1"}))
+straight = [t for t in LA.TRANSITIONS if t["state"] == LA.DRAFT and t["next_state"] == LA.APPROVED]
+if sorted(t["allowed"] for t in straight) != sorted((LA.HR_OFFICER, LA.HRM)) or any(
+        t["action"] != LA.APPROVE_OFF_DUTY or t.get("condition") != "doc.custom_off_duty_request" for t in straight):
+    fail.append("only HR pass a leave from Draft to Approved, by its own action, and only on an application an "
+                "Off Duty Request raised: %s" % straight)
+if LA.APPROVE_OFF_DUTY not in LA.ACTIONS:
+    fail.append("the off-duty approval is an action the workflow builder makes")
+if [t for t in LA.TRANSITIONS if t.get("condition") and t["action"] != LA.APPROVE_OFF_DUTY]:
+    fail.append("no other step of the leave form is conditional")
+signed = LA.off_duty_stamps({"supervisor_by": "s", "supervisor_on": "d1", "manager_by": "m", "manager_on": "d2",
+                             "hr_by": "h", "hr_on": "d3"})
+if signed != {"custom_supervisor_by": "s", "custom_supervisor_on": "d1", "custom_hod_by": "m", "custom_hod_on": "d2",
+              "custom_hr_by": "h", "custom_hr_on": "d3"} or set(signed) != set(LA.ALL_STAMP_FIELDS):
+    fail.append("Part 3 is signed as LPL/HR/25 was: Supervisor, Section Manager, HR Manager: %s" % signed)
 if any(LA.compute_stamps(LA.PENDING_HR, LA.DRAFT, "x", "2026-03-04",
                          {"custom_supervisor_by": "a"}).values()):
     fail.append("a return clears every signature on the leave form")

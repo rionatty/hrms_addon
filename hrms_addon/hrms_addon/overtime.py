@@ -91,6 +91,9 @@ def fill_day_and_rate(doc):
     doc.day_kind = kind
     doc.overtime_type = type_for(kind, doc.get("company"))
     doc.multiplier = rules.multiplier_for(kind, _type_row(doc.overtime_type))
+    # one person's rest day is another's working day: each line carries its own
+    for row in doc.employees:
+        row.day_kind = day_kind(row.employee, doc.overtime_date) if row.employee else None
 
 
 def _type_row(name):
@@ -103,13 +106,21 @@ def _type_row(name):
          "maximum_overtime_hours_allowed", "overtime_salary_component", "custom_gross_above"], as_dict=True)
 
 
-def _types_for(kind):
+def _types_for(kind, kinds=()):
     """The Overtime Types a day of this kind can price under: its own and,
-    on a weekday, each type with a gross line (minutes §4.12)."""
-    names = {rules.type_name_for(kind)}
-    if kind == rules.WEEKDAY:
+    on a weekday, each type with a gross line (minutes §4.12). `kinds`
+    adds the days the people on the sheet have of their own."""
+    wanted = {kind} | {found for found in kinds or () if found}
+    names = {rules.type_name_for(found) for found in wanted}
+    if rules.WEEKDAY in wanted:
         names |= set(frappe.get_all(TYPE, filters={"custom_gross_above": [">", 0]}, pluck="name"))
     return {name: _type_row(name) for name in names if frappe.db.exists(TYPE, name)}
+
+
+def _day_kinds(doc):
+    """{employee: what sort of day the overtime date is for them}."""
+    return {row.employee: row.get("day_kind") or day_kind(row.employee, doc.overtime_date)
+            for row in doc.get("employees") or [] if row.employee}
 
 
 def _monthly_gross(employees, day):
@@ -151,9 +162,10 @@ def cost_check(name, cost_centre=None, remarks=None):
     rows = [row.as_dict() for row in doc.get("employees") or []]
     people_on_it = [row.get("employee") for row in rows if row.get("employee")]
     bases = _monthly_bases(people_on_it)
-    costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind),
+    kinds = _day_kinds(doc)
+    costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind, kinds.values()),
                           _monthly_gross(people_on_it, doc.overtime_date),
-                          _standard_hours(people_on_it, doc.overtime_date))
+                          _standard_hours(people_on_it, doc.overtime_date), kinds)
     errors = rules.cost_check_errors({
         "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
         "cost_centre": cost_centre or doc.get("cost_centre")})
@@ -161,7 +173,7 @@ def cost_check(name, cost_centre=None, remarks=None):
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Cost Check"))
     for row, priced_row in zip(doc.employees, costed["rows"]):
         row.db_set({"hourly_rate": priced_row["hourly_rate"], "multiplier": priced_row["multiplier"],
-                    "amount": priced_row["amount"]}, update_modified=False)
+                    "amount": priced_row["amount"], "day_kind": priced_row["day_kind"]}, update_modified=False)
     doc.db_set({
         "day_kind": kind, "overtime_type": doc.get("overtime_type") or type_for(kind),
         "multiplier": costed["multiplier"], "total_cost": costed["total"],
@@ -181,39 +193,61 @@ def cost_check(name, cost_centre=None, remarks=None):
 # ── 3. How it is paid ─────────────────────────────────────────────────
 @frappe.whitelist(methods=["POST"])
 def send_to_payroll(name):
-    """Test cases 2, 4 and 5: the authorised hours are written onto the
-    employees' own Attendance rows under the Overtime Type the day falls
-    under, and Frappe HR's Overtime Slip is drawn for the cycle. The slip
-    prices them and writes the Additional Salary payroll reads — none of
-    that is done here."""
+    """Test cases 2, 4 and 5: the hours are written onto the employees' own
+    Attendance rows under the Overtime Type the day falls under, and Frappe
+    HR's Overtime Slip is drawn for the cycle. The slip prices them and
+    writes the Additional Salary payroll reads — none of that is done here.
+
+    The hours paid are those authorised, up to what the clock shows
+    (overtime_rules.payable_hours): on a day the clock measured, nobody is
+    paid for overtime it says they did not work. A day it did not measure,
+    marked by hand, is paid as authorised. Somebody the attendance reads
+    absent stops the sheet."""
     doc = frappe.get_doc(REQUEST, name)
     doc.check_permission("submit")
+    kinds = _day_kinds(doc)
     rows = []
     for row in doc.get("employees") or []:
-        attendance = frappe.db.get_value("Attendance", {
-            "employee": row.employee, "attendance_date": getdate(doc.overtime_date),
-            "docstatus": 1}, "name")
-        if attendance and not row.attendance:
-            row.db_set("attendance", attendance, update_modified=False)
-        rows.append(dict(row.as_dict(), attendance=attendance))
+        found = frappe.db.get_value("Attendance", {
+            "employee": row.employee, "attendance_date": getdate(doc.overtime_date), "docstatus": 1},
+            ["name", "status", "in_time", "out_time", "working_hours"], as_dict=True)
+        if found and row.attendance != found.name:
+            row.db_set("attendance", found.name, update_modified=False)
+        rows.append(dict(row.as_dict(), attendance=found.name if found else None, marked=found,
+                         absent=bool(found) and found.status == "Absent",
+                         clocked_in=bool(found) and bool(found.in_time)))
     errors = rules.payroll_errors({"status": doc.get("status"), "rows": rows})
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Payroll"))
     kind = doc.get("day_kind") or rules.WEEKDAY
     grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
     standards = _standard_hours([row["employee"] for row in rows], doc.overtime_date)
-    lines = rules.gross_lines(_types_for(kind))
-    marked = 0
-    for row in rows:
-        values = rules.attendance_update(row, kind, standards.get(row["employee"]) or attendance_rules.STANDARD_HOURS,
-                                         gross=grosses.get(row["employee"]), lines=lines)
+    lines = rules.gross_lines(_types_for(kind, kinds.values()))
+    marked, short = 0, []
+    for row, line in zip(rows, doc.get("employees") or []):
+        theirs = kinds.get(row["employee"]) or kind
+        standard = standards.get(row["employee"]) or attendance_rules.STANDARD_HOURS
+        found = row["marked"]
+        # the clock measured the day when it has both ends of it
+        worked = rules.worked_overtime(theirs, found.working_hours, standard) \
+            if (found.in_time and found.out_time) else None
+        paid = rules.payable_hours(row.get("hours"), worked)
+        values = rules.attendance_update(row, theirs, standard, gross=grosses.get(row["employee"]), lines=lines,
+                                         hours=paid)
         if not frappe.db.exists(TYPE, values["overtime_type"]):
             values.pop("overtime_type")
         frappe.db.set_value("Attendance", row["attendance"], values, update_modified=False)
+        line.db_set({"day_kind": theirs, "worked_hours": worked, "payable_hours": paid}, update_modified=False)
+        if paid < flt(row.get("hours")):
+            short.append(_("{0}: {1} of {2} hours").format(row.get("employee_name") or row["employee"], paid,
+                                                           flt(row.get("hours"))))
         marked += 1
     slips = _draw_slips(doc)
     doc.db_set({"status": "Sent to Payroll", "sent_to_payroll_on": today()},
                update_modified=False)
+    if short:
+        frappe.msgprint(_("Paid by the clock, which shows less than was authorised:<br>{0}").format(
+            "<br>".join(short)), indicator="orange", title=_("Overtime"))
     officers = people.people_for("Payroll Officer", doc.get("branch"), doc.get("department")) \
         or people.hr_officers(doc.get("branch"), doc.get("department"))
     if officers:
@@ -221,7 +255,7 @@ def send_to_payroll(name):
                       _("Overtime of {0} for {1} is checked and ready for payroll.").format(
                           frappe.utils.fmt_money(doc.get("total_cost") or 0),
                           frappe.utils.format_date(doc.overtime_date)))
-    return {"attendance_marked": marked, "slips": slips}
+    return {"attendance_marked": marked, "slips": slips, "paid_less": short}
 
 
 def _draw_slips(doc):

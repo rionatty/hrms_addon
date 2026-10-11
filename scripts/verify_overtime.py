@@ -257,6 +257,49 @@ expect("paying before HR costed it", R.payroll_errors(dict(paid, status="Authori
 expect("paying hours with no attendance to sit on",
        R.payroll_errors(dict(paid, rows=[dict(rows[0], attendance=None)])),
        "no attendance for A")
+expect("paying overtime on a day nobody clocked in",
+       R.payroll_errors(dict(paid, rows=[dict(rows[0], attendance="HR-ATT-1", absent=True)])),
+       "A did not clock in")
+expect("or clocked in and never out",
+       R.payroll_errors(dict(paid, rows=[dict(rows[1], attendance="HR-ATT-2", absent=True, clocked_in=True)])),
+       "B clocked in on that day with no clock-out")
+
+# what is paid: the hours authorised, up to what the clock shows
+for why, got, want in (
+    ("a working day's overtime is what is worked past the standard hours", R.worked_overtime(R.WEEKDAY, 12, 10), 2.0),
+    ("on the shift's own standard hours", R.worked_overtime(R.WEEKDAY, 9.5, 8), 1.5),
+    ("none where they were not reached", R.worked_overtime(R.WEEKDAY, 9, 10), 0.0),
+    ("every hour of a rest day", R.worked_overtime(R.REST_DAY, 6, 10), 6.0),
+    ("of a public holiday", R.worked_overtime(R.PUBLIC_HOLIDAY, 5.5, 10), 5.5),
+    ("and of a day of leave", R.worked_overtime(R.LEAVE_DAY, 4, 10), 4.0),
+    ("no more than was authorised", R.payable_hours(2, 3.5), 2.0),
+    ("what the clock shows where it shows less", R.payable_hours(3, 1.5), 1.5),
+    ("in full within a quarter of an hour", R.payable_hours(2, 1.75), 2.0),
+    ("not beyond it", R.payable_hours(2, 1.74), 1.74),
+    ("nothing where the clock shows none", R.payable_hours(2, 0), 0.0),
+    ("as authorised where the clock did not measure the day", R.payable_hours(2, None), 2.0),
+):
+    if got != want:
+        fail.append("%s: expected %s, got %s" % (why, want, got))
+if R.attendance_update({"hours": 3}, R.WEEKDAY, hours=1.5)["actual_overtime_duration"] != 1.5 \
+        or R.attendance_update({"hours": 3}, R.WEEKDAY)["actual_overtime_duration"] != 3.0:
+    fail.append("the attendance carries the hours paid, or those authorised where nothing else is said")
+own_day = R.priced([{"employee": "E1", "hours": 2}, {"employee": "E2", "hours": 2}],
+                   {"E1": 1040000, "E2": 1040000}, R.WEEKDAY, kinds={"E2": R.REST_DAY})
+if [(row["day_kind"], row["multiplier"]) for row in own_day["rows"]] != [
+        (R.WEEKDAY, R.ACT_MULTIPLIERS[R.WEEKDAY]), (R.REST_DAY, R.ACT_MULTIPLIERS[R.REST_DAY])]:
+    fail.append("one person's rest day is another's working day, and each is priced as their own: %s"
+                % [(row["day_kind"], row["multiplier"]) for row in own_day["rows"]])
+for status in ("Requested", "Authorised", "Costed"):
+    expect("refusing overtime that is %s" % status, R.reject_errors(status, "No budget."))
+expect("refusing overtime already with the payroll", R.reject_errors("Sent to Payroll", "No budget."),
+       "before it reaches the payroll")
+expect("refusing a draft", R.reject_errors(None, "No budget."), "before it reaches the payroll")
+expect("refusing without saying why", R.reject_errors("Requested", " "), "Say why")
+request_line = fields_of(doctype("Overtime Request Employee"))
+for fieldname in ("day_kind", "worked_hours", "payable_hours"):
+    if not (request_line.get(fieldname) or {}).get("read_only"):
+        fail.append("Overtime Request Employee.%s is the system's to fill, and read only" % fieldname)
 
 if not R.over_the_cap(20, 16) or R.over_the_cap(12, 16) or R.over_the_cap(99, 0):
     fail.append("the type's ceiling is compared, and no ceiling is no complaint")
@@ -403,7 +446,17 @@ print("glue: the day read, the cost checked, the hours landed, the slip drawn")
 for needle, why in (
     ("attendance.shift_hours_of(attendance.shift_on(employee, day), hours)[\"standard\"]",
      "the standard day is the one of the shift worked that day"),
-    ("_standard_hours(people_on_it, doc.overtime_date))", "HR's cost check prices each person on their own shift"),
+    ("_standard_hours(people_on_it, doc.overtime_date), kinds)",
+     "HR's cost check prices each person on their own shift, and their own kind of day"),
+    ("row.day_kind = day_kind(row.employee, doc.overtime_date) if row.employee else None",
+     "each line reads the day for its own employee"),
+    ("rules.worked_overtime(theirs, found.working_hours, standard)", "the overtime the clock shows is worked out"),
+    ("if (found.in_time and found.out_time) else None", "only for a day the clock measured at both ends"),
+    ("paid = rules.payable_hours(row.get(\"hours\"), worked)", "what is paid is the rules' answer"),
+    ("hours=paid)", "and that, not what was authorised, goes onto the attendance"),
+    ('line.db_set({"day_kind": theirs, "worked_hours": worked, "payable_hours": paid}', "the line says what was paid"),
+    ('absent=bool(found) and found.status == "Absent",', "a day that reads absent is told to the rules"),
+    ("if found and row.attendance != found.name:", "the line points at the attendance that stands"),
     ("standards.get(row[\"employee\"]) or attendance_rules.STANDARD_HOURS",
      "and the attendance carries that standard day for the Overtime Slip"),
 ):
@@ -416,6 +469,8 @@ if "hrms_addon.hrms_addon.overtime.setup_on_migrate" not in hooks.get("after_mig
 if "warn_below_the_act" not in glue:
     fail.append("a rate edited under the Act is said out loud on the deploy")
 form = read("hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.js")
+if '["Requested", "Authorised", "Costed"].includes(frm.doc.status)' not in form:
+    fail.append("the form offers Reject while the overtime is being decided, and not after")
 for needle in ("overtime.cost_check", "overtime.send_to_payroll"):
     if needle not in form:
         fail.append("the form has no way to call %s" % needle)

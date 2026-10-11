@@ -37,7 +37,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import leave_rules as rules, people
+from hrms_addon.hrms_addon import attendance_rules, leave_rules as rules, people
 
 PLAN = "Annual Leave Plan"
 ROW = "Annual Leave Plan Employee"
@@ -528,6 +528,9 @@ def application_validate(doc, method=None):
     if doc.get("leave_type") in suspension_rules.LEAVE_TYPES:
         frappe.throw(_("Suspension days are marked by an Employee Suspension, not applied for."),
                      title=_("Leave Application"))
+    if doc.get("leave_type") == attendance_rules.OFF_DUTY_LEAVE_TYPE:
+        frappe.throw(_("A paid day off is given by an Off Duty Request, not applied for."),
+                     title=_("Leave Application"))
     earned = leave_accrual.check_application(doc)
     _fill_balances(doc, earned)
     _check_application_step(doc)
@@ -582,6 +585,7 @@ def _check_application_step(doc):
         errors = approval.step_errors(old_state, new_state, {
             "return_remarks": doc.get("custom_return_remarks"),
             "custom_balance_before": doc.get("custom_balance_before"),
+            "off_duty_request": doc.get("custom_off_duty_request"),
             **{field: doc.get(field) for field, _who in approval.REMARK_FIELDS.values()},
         })
         if new_state == approval.PENDING_SUPERVISOR and old_state in (None, approval.DRAFT):
@@ -597,6 +601,16 @@ def _check_application_step(doc):
     if old_state != new_state and new_state == approval.PENDING_HR:
         doc.custom_hro_by = doc.custom_hro_by or frappe.session.user
         doc.custom_hro_on = doc.custom_hro_on or today()
+    if old_state == approval.DRAFT and new_state == approval.APPROVED and doc.get("custom_off_duty_request"):
+        # signed as LPL/HR/25 was signed
+        request = frappe.db.get_value("Off Duty Request", doc.custom_off_duty_request,
+                                      ["supervisor_by", "supervisor_on", "manager_by", "manager_on", "hr_by",
+                                       "hr_on"], as_dict=True) or {}
+        for field, value in approval.off_duty_stamps(request).items():
+            doc.set(field, value)
+        doc.custom_hr_by = doc.custom_hr_by or frappe.session.user
+        doc.custom_hr_on = doc.custom_hr_on or today()
+        doc.custom_hro_by, doc.custom_hro_on = doc.custom_hro_by or frappe.session.user, doc.custom_hro_on or today()
     if old_state != new_state and new_state in approval.PENDING_STATES:
         _tell_application(doc, new_state)
 
@@ -682,6 +696,42 @@ def _planned_row_for(employee, from_date, to_date, plan=None, application=None):
         if overlap > most:
             best, most = row.name, overlap
     return best
+
+
+def approve_for_off_duty(request, leave_type):
+    """LPL/HR/25 gives a day off as the employee's own leave (Annual Leave,
+    Compassionate): the Leave Application for the day is raised and approved
+    with the form, which already carries its three signatures, so the day
+    comes off the balance as any leave does and Frappe HR marks it on the
+    attendance. A leave the employee has not the balance for is refused
+    here, and so the form is: HR give the day another way. Returns the
+    Leave Application."""
+    from frappe.model.workflow import apply_workflow
+
+    from hrms_addon.hrms_addon import leave_approval as approval
+
+    existing = frappe.db.get_value(APPLICATION, {"custom_off_duty_request": request.name, "docstatus": ["!=", 2]},
+                                   ["name", "docstatus"], as_dict=True)
+    if existing and existing.docstatus == 1:
+        return existing.name
+    if not frappe.db.exists("Leave Type", leave_type):
+        frappe.throw(_("There is no Leave Type {0} to give the day as.").format(leave_type),
+                     title=_("Off Duty Request"))
+    if existing:
+        # raised and never approved: it is approved now, not raised again
+        doc = frappe.get_doc(APPLICATION, existing.name)
+    else:
+        doc = frappe.get_doc({
+            "doctype": APPLICATION, "employee": request.employee, "leave_type": leave_type,
+            "from_date": request.off_date, "to_date": request.off_date, "total_leave_days": 1,
+            "posting_date": today(), "description": request.get("reason"),
+            "leave_approver": frappe.session.user, "follow_via_email": 0,
+            "company": frappe.db.get_value("Employee", request.employee, "company"),
+            "custom_off_duty_request": request.name,
+        })
+        doc.flags.ignore_permissions = True
+        doc.insert()
+    return apply_workflow(doc, approval.APPROVE_OFF_DUTY).name
 
 
 @frappe.whitelist(methods=["POST"])

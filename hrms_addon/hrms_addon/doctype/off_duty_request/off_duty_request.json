@@ -38,6 +38,7 @@
   "return_section",
   "return_remarks",
   "attendance",
+  "leave_application",
   "amended_from",
   "workflow_state"
  ],
@@ -258,6 +259,14 @@
    "no_copy": 1
   },
   {
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Leave Application",
+   "options": "Leave Application",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -279,7 +288,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-25 09:00:00.000000",
+ "modified": "2026-10-11 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Off Duty Request",

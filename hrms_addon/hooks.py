@@ -1338,6 +1338,7 @@ fixtures = [
                     "Attendance-custom_late_minutes",
                     "Attendance-custom_early_minutes",
                     "Attendance-custom_clock_out_missing",
+                    "Leave Application-custom_off_duty_request",
                 ],
             ]
         ],

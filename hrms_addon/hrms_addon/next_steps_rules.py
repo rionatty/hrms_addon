@@ -259,6 +259,7 @@ STEPS = {
     ),
     "Off Duty Request": (
         ("Attendance", "field:attendance"),
+        ("Leave Application", "field:leave_application"),
     ),
     "Late Arrival Notice": (
         ("Attendance", "field:attendance"),
