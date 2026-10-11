@@ -106,6 +106,18 @@ if B.progress([], "2026-09-12")["of"] != 0:
     fail.append("and a cycle with no days does not divide by nothing")
 if B.worked_and_overtime(["M", "M", "N", "A", "WO"]) != {"worked": 3, "overtime": 6.0}:
     fail.append("three shifts worked carry their two hours of overtime each")
+# each day's own shift says what overtime it carries
+if B.worked_and_overtime(["M", "M", "N", "A", "WO"], overtime_by_day=[0, 2, 4, 2, 2]) != {"worked": 3, "overtime": 6.0} \
+        or B.worked_and_overtime(["M", "A"], overtime_by_day=[0.0, 2.0]) != {"worked": 1, "overtime": 0.0} \
+        or B.worked_and_overtime(["M", "M"], overtime_by_day=[None]) != {"worked": 2, "overtime": 0.0}:
+    fail.append("only the days worked carry overtime, each what its own shift says")
+if B.standing_of(8.5, 8, 9) != B.INTO_OVERTIME or B.standing_of(9, 8, 9) != B.OVER_A_SHIFT \
+        or B.standing_of(7.9, 8, 9) != B.ON_SHIFT:
+    fail.append("somebody is into overtime past their own shift's standard hours")
+judged = B.floor_tally([{"night": False, "hours": 9, "standing": B.OVER_A_SHIFT},
+                        {"night": False, "hours": 11, "standing": B.ON_SHIFT}])
+if (judged["into_overtime"], judged["over_a_shift"]) != (1, 1):
+    fail.append("the band counts each person as their own shift judged them: %s" % judged)
 # ── 1b. One line per plant ────────────────────────────────────────────
 # Luuka's plants are run by their own people — each has its own HODs,
 # supervisors and HR Officer — so attendance is a question with one
@@ -182,6 +194,14 @@ opening = glue.split("def _open_days(")[1].split(chr(10) + "def ")[0]
 if "employees" not in opening:
     fail.append("and an open day belongs to the plant whose people left it open")
 print("the glue: one call fills the board, and every one of its reads is a read")
+
+for needle, why in (
+    ("shift_hours = attendance.all_shift_hours()", "the board reads each shift's hours once"),
+    ('attendance.shift_hours_of(shift, shift_hours or {})["overtime"]', "a day carries its own shift's overtime"),
+    ('rules.standing_of(hours, theirs["standard"], theirs["full"])', "and overtime on the floor is by the person's shift"),
+):
+    if needle not in read("hrms_addon", "hrms_addon", "attendance_board.py"):
+        fail.append("attendance_board.py: %s (%r not found)" % (why, needle))
 
 # ── 3. Built on what is already there ─────────────────────────────────
 if "register.register_code(" not in glue:

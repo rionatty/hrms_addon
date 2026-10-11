@@ -152,6 +152,32 @@ if A.overtime_hours(12) != 2.0 or A.overtime_hours(10) != 0.0 or A.overtime_hour
     fail.append("overtime starts past the tenth hour: %s" % A.overtime_hours(12))
 if A.overtime_hours(None) != 0.0:
     fail.append("nothing worked is no overtime, never a crash")
+# a shift's own hours (Luuka, 11 Oct 2026: "add parameter set for overtime hours")
+TWELVE = {"full": 12.0, "overtime": 2.0, "standard": 10.0}
+if A.shift_hours(None) != TWELVE or A.shift_hours({}) != TWELVE \
+        or A.shift_hours({"shift_hours": 0, "overtime_hours": 3}) != TWELVE:
+    fail.append("a shift that gives no hours is the twelve with two of overtime: %s" % A.shift_hours(None))
+if A.shift_hours({"shift_hours": 8, "overtime_hours": 0}) != {"full": 8.0, "overtime": 0.0, "standard": 8.0}:
+    fail.append("the office day is eight hours with no overtime in it, once its Shift Type says so")
+if A.shift_hours({"shift_hours": 12, "overtime_hours": 4}) != {"full": 12.0, "overtime": 4.0, "standard": 8.0}:
+    fail.append("the overtime in a shift is a figure on the shift: four of twelve leaves eight standard")
+if A.shift_hours({"shift_hours": "12", "overtime_hours": None})["standard"] != 12.0:
+    fail.append("a shift with hours and no overtime given has none")
+if A.shift_hours({"shift_hours": 8, "overtime_hours": 8})["standard"] != 8.0:
+    fail.append("a shift that would be all overtime keeps a standard hour to price one from")
+if A.overtime_hours(9, A.shift_hours({"shift_hours": 8, "overtime_hours": 0})["standard"]) != 1.0:
+    fail.append("overtime starts past the shift's own standard hours")
+expect("a shift's hours as given", A.shift_hours_errors({"shift_hours": 12, "overtime_hours": 2}))
+expect("no hours given at all", A.shift_hours_errors({}))
+expect("overtime with no shift hours", A.shift_hours_errors({"overtime_hours": 2}), "hours in the shift")
+expect("all overtime", A.shift_hours_errors({"shift_hours": 8, "overtime_hours": 8}), "less than the shift")
+expect("less than nothing", A.shift_hours_errors({"shift_hours": 8, "overtime_hours": -1}), "less than nothing")
+expect("a shift longer than a day", A.shift_hours_errors({"shift_hours": 30}), "between 1 and 24")
+if A.longest_shift([]) != 12.0 or A.longest_shift([{"full": 8.0}]) != 12.0 or A.longest_shift([{"full": 16.0}]) != 16.0:
+    fail.append("an overtime sheet is held to the longest shift there is, never less than twelve")
+sheet = {"overtime_date": "2026-10-12", "requested_by": "x", "employees": [{"employee": "E1", "hours": 14}]}
+expect("fourteen hours on a twelve-hour site", A.overtime_errors(sheet), "longer than a full shift")
+expect("fourteen hours where a shift is sixteen", A.overtime_errors(dict(sheet, full_shift=16)))
 if A.late_minutes("07:20", "07:00") != 20 or A.late_minutes("07:20", "07:00", grace=30) != 0:
     fail.append("lateness is counted past the grace: %s" % A.late_minutes("07:20", "07:00", grace=30))
 if A.late_minutes("06:50", "07:00") != 0:
@@ -412,6 +438,19 @@ if 'doc.check_permission("write")' not in body_of(drivers, "pull"):
 if "frappe.has_permission" not in body_of(drivers, "retry_failed"):
     fail.append("devices.retry_failed pushes check-ins: it must check the caller first")
 print("the glue: the rules followed, the driver optional, every button checked and whitelisted")
+
+shift_fields = custom_fields("Shift Type")
+for fieldname in ("custom_shift_hours", "custom_overtime_hours"):
+    if (shift_fields.get(fieldname) or {}).get("fieldtype") != "Float":
+        fail.append("Shift Type carries %s, a number of hours" % fieldname)
+for needle, why in (
+    ('fields=["name", "custom_shift_hours", "custom_overtime_hours"]', "each shift's hours are read off its Shift Type"),
+    ("rules.shift_hours(", "and made into full, overtime and standard by the rule"),
+    ('shift_hours_of(row.shift, hours)["standard"]', "the register counts overtime past the day's own shift"),
+    ('"full_shift": rules.longest_shift(', "an overtime sheet is held to the longest shift"),
+):
+    if needle not in glue:
+        fail.append("attendance.py: %s (%r not found)" % (why, needle))
 
 # ── 6. Wiring ─────────────────────────────────────────────────────────
 hooks = {}

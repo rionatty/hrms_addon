@@ -37,6 +37,40 @@ from frappe.utils import add_days, cint, flt, get_datetime, getdate, time_diff_i
 from hrms_addon.hrms_addon import attendance_rules as rules, people
 
 CASUAL = "casual"
+SHIFT = "Shift Type"
+
+
+# ── A shift's own hours ───────────────────────────────────────────────
+def all_shift_hours():
+    """{Shift Type: its hours} (attendance_rules.shift_hours): how long
+    each shift is and how many of its hours are overtime."""
+    return {row.name: rules.shift_hours({"shift_hours": row.get("custom_shift_hours"),
+                                         "overtime_hours": row.get("custom_overtime_hours")})
+            for row in frappe.get_all(SHIFT, fields=["name", "custom_shift_hours", "custom_overtime_hours"],
+                                      limit_page_length=0)}
+
+
+def shift_hours_of(shift, known=None):
+    """One shift's hours. A day with no shift, or a shift that gives none,
+    is the twelve with two of overtime."""
+    known = all_shift_hours() if known is None else known
+    return known.get(shift) or rules.shift_hours(None)
+
+
+def shift_on(employee, day):
+    """The shift an employee works on a day: the one their attendance
+    carries, else their shift assignment for the day, else their default."""
+    marked = frappe.db.get_value("Attendance", {"employee": employee, "attendance_date": getdate(day),
+                                                "docstatus": ["!=", 2]}, "shift")
+    if marked:
+        return marked
+    rows = frappe.get_all("Shift Assignment",
+                          filters={"employee": employee, "docstatus": 1, "status": "Active",
+                                   "start_date": ["<=", getdate(day)]},
+                          fields=["shift_type", "end_date"], order_by="start_date desc")
+    assigned = next((row.shift_type for row in rows
+                     if not row.end_date or getdate(row.end_date) >= getdate(day)), None)
+    return assigned or frappe.db.get_value("Employee", employee, "default_shift")
 
 
 # ── LPL/HR/25: the day off ────────────────────────────────────────────
@@ -152,6 +186,7 @@ def overtime_validate(doc, method=None):
         "overtime_date": doc.get("overtime_date"), "requested_by": doc.get("requested_by"),
         "section": doc.get("section"),
         "employees": [row.as_dict() for row in doc.get("employees") or []],
+        "full_shift": rules.longest_shift(all_shift_hours().values()),
     })
     if errors and doc.docstatus == 1:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Overtime Request"))
@@ -305,6 +340,7 @@ def register(year, month, branch=None, department=None, section=None):
 
 def _attendance_between(employees, start, end):
     found = {}
+    hours = all_shift_hours()
     for row in frappe.get_all(
             "Attendance",
             filters={"employee": ["in", employees], "attendance_date": ["between", (start, end)],
@@ -312,7 +348,7 @@ def _attendance_between(employees, start, end):
             fields=["employee", "attendance_date", "status", "shift", "leave_type", "working_hours"]):
         found[(row.employee, getdate(row.attendance_date))] = {
             "status": row.status, "shift": row.shift, "leave_type": row.leave_type,
-            "overtime": rules.overtime_hours(row.working_hours),
+            "overtime": rules.overtime_hours(row.working_hours, shift_hours_of(row.shift, hours)["standard"]),
         }
     return found
 

@@ -30,6 +30,12 @@ Working hours "are normally 12 hours, inclusive of 2 hours of overtime"
 (Reward & Compensation, 4.2). So a full shift is twelve hours, ten of them
 standard and two overtime, and anything past twelve is overtime on top.
 
+Those two figures are a shift's own (Luuka, 11 Oct 2026: "add parameter
+set for overtime hours, currently it is two hours"): each Shift Type says
+how long it is and how many of its hours are overtime, so the office day
+can be eight with none. A shift that says nothing is the twelve with two
+(shift_hours).
+
 THE FORMS
 
   LPL/HR/25  the Off-Duty Request: badge, department, section, the day off
@@ -67,9 +73,11 @@ CODES = tuple(CODE_MEANING)
 TALLIES = ("Permanents Day", "Casuals Day", "Permanents Night", "Casuals Night")
 
 # ── The day ───────────────────────────────────────────────────────────
+# what a shift is until its Shift Type says otherwise (shift_hours)
 FULL_SHIFT_HOURS = 12.0  # "normally 12 hours, inclusive of 2 hours of overtime"
 OVERTIME_IN_SHIFT = 2.0
 STANDARD_HOURS = FULL_SHIFT_HOURS - OVERTIME_IN_SHIFT
+LONGEST_SHIFT_HOURS = 24.0
 # a casual works six days and takes one off each week, scattered
 WORKING_DAYS_A_WEEK = 6
 
@@ -163,9 +171,52 @@ def tallies(rows, days):
     return counted
 
 
+def shift_hours(shift=None):
+    """What a shift's day is made of, as {"full", "overtime", "standard"}.
+
+    A Shift Type that gives its hours says how long it is and how many of
+    them are overtime; the standard hours are the rest. One that gives no
+    hours is the twelve with two of overtime.
+
+    shift: {"shift_hours", "overtime_hours"} off the Shift Type, or None.
+    """
+    full = _hours((shift or {}).get("shift_hours"))
+    if full <= 0:
+        return {"full": FULL_SHIFT_HOURS, "overtime": OVERTIME_IN_SHIFT, "standard": STANDARD_HOURS}
+    overtime = min(max(_hours(shift.get("overtime_hours")), 0.0), full)
+    # a shift that is all overtime has no standard hour to price one from
+    if overtime >= full:
+        overtime = 0.0
+    return {"full": full, "overtime": overtime, "standard": round(full - overtime, 2)}
+
+
+def shift_hours_errors(facts):
+    """Problems with the hours a Shift Type gives.
+
+    facts: "shift_hours", "overtime_hours".
+    """
+    full, overtime = _hours(facts.get("shift_hours")), _hours(facts.get("overtime_hours"))
+    errors = []
+    if full < 0 or 0 < full < 1 or full > LONGEST_SHIFT_HOURS:
+        errors.append("A shift is between 1 and %g hours." % LONGEST_SHIFT_HOURS)
+    if overtime < 0:
+        errors.append("The overtime in a shift cannot be less than nothing.")
+    elif overtime and not full:
+        errors.append("Give the hours in the shift as well as the overtime in it.")
+    elif full > 0 and overtime >= full:
+        errors.append("The overtime in a shift (%g) must be less than the shift itself (%g)." % (overtime, full))
+    return errors
+
+
+def longest_shift(shifts):
+    """The longest day any shift is, which an overtime sheet's hours are
+    held to. shifts: what shift_hours returned for each Shift Type."""
+    return max([row["full"] for row in shifts or ()] + [FULL_SHIFT_HOURS])
+
+
 def overtime_hours(worked, standard=STANDARD_HOURS):
-    """The overtime in a day's work. A full shift is twelve hours with two
-    of them overtime, so ten standard hours is the line."""
+    """The overtime in a day's work: the hours past the shift's standard
+    ones. On the twelve-hour shift with two of overtime, ten is the line."""
     if worked in (None, ""):
         return 0.0
     extra = float(worked) - float(standard or STANDARD_HOURS)
@@ -212,9 +263,10 @@ def overtime_errors(facts):
     """Problems with an Overtime Request (LPL/HR/14) as it is submitted.
 
     facts: "overtime_date", "employees" ([{"employee", "hours", "employment"}]),
-    "requested_by", "section".
+    "requested_by", "section", "full_shift" (the longest shift's hours).
     """
     errors = []
+    full_shift = _hours(facts.get("full_shift")) or FULL_SHIFT_HOURS
     if not facts.get("overtime_date"):
         errors.append("Give the date the overtime is worked.")
     if not facts.get("requested_by"):
@@ -237,9 +289,9 @@ def overtime_errors(facts):
             errors.append("Give the duration in hours for every employee (%s)."
                           % (row.get("employee") or "?"))
             break
-        if float(hours) > FULL_SHIFT_HOURS:
+        if float(hours) > full_shift:
             errors.append("%s hours is longer than a full shift (%g): check the duration."
-                          % (hours, FULL_SHIFT_HOURS))
+                          % (hours, full_shift))
             break
     return errors
 
@@ -318,6 +370,13 @@ def coupons(rows):
         if kind in counted:
             counted[kind] += 1
     return counted
+
+
+def _hours(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _time_on(value):

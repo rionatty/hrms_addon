@@ -283,6 +283,30 @@ def monthly():
 
 
 # ── 4. The three shifts, as masters ───────────────────────────────────
+def shift_type_validate(doc, method=None):
+    """A Shift Type's own hours: how long it is, and how many of those
+    hours are overtime (attendance_rules.shift_hours)."""
+    errors = attendance_rules.shift_hours_errors({
+        "shift_hours": doc.get("custom_shift_hours"), "overtime_hours": doc.get("custom_overtime_hours")})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(SHIFT_TYPE))
+
+
+def fill_shift_hours():
+    """The twelve-hour shifts made before a Shift Type carried its hours
+    are given them: twelve, with two of overtime, which is what they have
+    always been read as. One HR have already set is theirs."""
+    filled = []
+    for name in rules.THREE_SHIFT:
+        if not frappe.db.exists(SHIFT_TYPE, name) or flt(frappe.db.get_value(SHIFT_TYPE, name, "custom_shift_hours")):
+            continue
+        frappe.db.set_value(SHIFT_TYPE, name, {"custom_shift_hours": rules.SHIFT_HOURS[name][0],
+                                               "custom_overtime_hours": rules.SHIFT_OVERTIME[name]},
+                            update_modified=False)
+        filled.append(name)
+    return filled
+
+
 def seed_shift_types():
     """Luuka's own three, made once: the office day, and the twelve-hour
     day and night the register's M and N stand for."""
@@ -293,6 +317,7 @@ def seed_shift_types():
             doc = frappe.get_doc({
                 "doctype": SHIFT_TYPE, "__newname": name, "start_time": start, "end_time": end,
                 "enable_auto_attendance": 1,
+                "custom_shift_hours": hours, "custom_overtime_hours": rules.SHIFT_OVERTIME.get(name, 0.0),
                 "working_hours_threshold_for_half_day": hours / 2.0,
                 "working_hours_threshold_for_absent": 1.0,
                 "determine_check_in_and_check_out":

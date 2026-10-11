@@ -46,6 +46,10 @@ THREE_SHIFT = (DAY, NIGHT)
 SHIFT_HOURS = {GENERAL: (8.0, "08:00:00", "17:00:00"),
                DAY: (12.0, "07:00:00", "19:00:00"),
                NIGHT: (12.0, "19:00:00", "07:00:00")}
+# how many of each shift's hours are overtime: the twelve-hour shifts are
+# "inclusive of 2 hours of overtime", the office day has none. Seeded onto
+# the Shift Type, where HR change them (attendance_rules.shift_hours).
+SHIFT_OVERTIME = {GENERAL: 0.0, DAY: 2.0, NIGHT: 2.0}
 
 
 def cycle_length(shifts):

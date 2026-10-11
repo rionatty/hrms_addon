@@ -253,6 +253,8 @@ print("the paper: the cycle, the members, the lines, and the rate on the shift i
 glue = read("hrms_addon", "hrms_addon", "shifts.py")
 known = set(rotation) | set(allowance) | {"doctype", "name", "docstatus", "employee", "company",
                                           "flags", "members", "lines", "shifts"}
+# the Shift Type's own hours, which its validate reads
+known |= {"custom_shift_hours", "custom_overtime_hours"} & set(shift_type)
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
     if fieldname in ("get", "set", "append", "db_set", "get_doc_before_save", "check_permission",
@@ -301,6 +303,31 @@ if S.SHIFT_HOURS[S.DAY][0] != A.FULL_SHIFT_HOURS:
                 % (S.SHIFT_HOURS[S.DAY][0], A.FULL_SHIFT_HOURS))
 if S.SHIFT_HOURS[S.NIGHT][0] != A.FULL_SHIFT_HOURS:
     fail.append("and so is the night one")
+# each seeded shift's hours go onto its Shift Type, where HR change them
+if set(S.SHIFT_OVERTIME) != set(S.SHIFT_HOURS):
+    fail.append("every seeded shift says how many of its hours are overtime")
+if (S.SHIFT_OVERTIME[S.DAY], S.SHIFT_OVERTIME[S.NIGHT], S.SHIFT_OVERTIME[S.GENERAL]) != (A.OVERTIME_IN_SHIFT,) * 2 + (0.0,):
+    fail.append("the twelve-hour shifts carry two hours of overtime, the office day none: %s" % S.SHIFT_OVERTIME)
+for name, (hours, _start, _end) in S.SHIFT_HOURS.items():
+    if A.shift_hours_errors({"shift_hours": hours, "overtime_hours": S.SHIFT_OVERTIME[name]}):
+        fail.append("the seeded %s would be refused by its own validate" % name)
+for needle, why in (
+    ('"custom_shift_hours": hours, "custom_overtime_hours": rules.SHIFT_OVERTIME.get(name, 0.0)',
+     "a seeded shift is given its hours"),
+    ("attendance_rules.shift_hours_errors(", "a Shift Type's hours are checked as it is saved"),
+    ("for name in rules.THREE_SHIFT:", "only the twelve-hour shifts are filled on a site that has them"),
+    ('flt(frappe.db.get_value(SHIFT_TYPE, name, "custom_shift_hours"))', "and one HR have set is left alone"),
+):
+    if needle not in glue:
+        fail.append("shifts.py: %s (%r not found)" % (why, needle))
+if (hooks.get("doc_events", {}).get("Shift Type") or {}).get("validate") != "hrms_addon.hrms_addon.shifts.shift_type_validate":
+    fail.append("Shift Type's validate checks its hours")
+patch = read("hrms_addon", "patches", "v1_0", "shift_overtime_hours.py")
+if 'sync_fixtures("hrms_addon")' not in patch or "shifts.fill_shift_hours()" not in patch \
+        or patch.index("sync_fixtures(") > patch.index("shifts.fill_shift_hours()"):
+    fail.append("the patch syncs the fields, then fills the shifts already on the site")
+if "hrms_addon.patches.v1_0.shift_overtime_hours" not in read("hrms_addon", "patches.txt"):
+    fail.append("the patch is listed")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 for name in ("Shift Rotation", "Shift Allowance"):
     if name not in nav:

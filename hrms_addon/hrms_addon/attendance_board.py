@@ -62,14 +62,16 @@ def board(cycle=None, branch=None, department=None, limit=None):
     off_duty = (attendance._off_duty_between(list(people), start, end)
                 if people else set())
     holidays = _holidays(people, start, end)
+    # how long each shift is and how many of its hours are overtime
+    shift_hours = attendance.all_shift_hours()
     # every row is worked out, and only the SHOWING of them is capped:
     # a footer that tallied the first three hundred people would be a
     # footer that quietly disagreed with the register it sits under
-    rows = _register_rows(people, marked, off_duty, holidays, days)
+    rows = _register_rows(people, marked, off_duty, holidays, days, shift_hours)
     tallies = register.tallies(rows, days)
     lines = [_line(row, days) for row in rows]
 
-    floor = _floor(people, now)
+    floor = _floor(people, now, shift_hours)
     machines = _machines(now, branch)
     return {
         "cycle": {
@@ -170,29 +172,32 @@ def _holidays(people, start, end):
 
 
 # ── The register ──────────────────────────────────────────────────────
-def _register_rows(people, marked, off_duty, holidays, days):
-    """One line per person, each day a letter of LPL/HR/07."""
+def _register_rows(people, marked, off_duty, holidays, days, shift_hours=None):
+    """One line per person, each day a letter of LPL/HR/07, and the
+    overtime the day's own shift carries."""
     rows = []
     for name, person in people.items():
         theirs = marked.get(name) or {}
         kept = (holidays["lists"].get(person.holiday_list or holidays["default"])
                 or set())
-        cells = {}
+        cells, overtime = {}, {}
         for day in days:
             day = getdate(day)
             marked_day = theirs.get(day)
+            shift = (marked_day.shift if marked_day else None) or person.default_shift
             cells[day] = register.register_code({
                 "status": marked_day.status if marked_day else None,
-                "shift": (marked_day.shift if marked_day else None) or person.default_shift,
+                "shift": shift,
                 "leave_type": marked_day.leave_type if marked_day else None,
                 "off_duty": (name, day) in off_duty,
                 "holiday": day in kept,
             })
+            overtime[day] = attendance.shift_hours_of(shift, shift_hours or {})["overtime"]
         rows.append({
             "employee": name, "employee_name": person.employee_name,
             "branch": person.branch, "department": person.department,
             "designation": person.designation,
-            "employment": person.employment_type, "days": cells,
+            "employment": person.employment_type, "days": cells, "overtime": overtime,
         })
     return rows
 
@@ -201,7 +206,9 @@ def _line(row, days):
     """A register row as the page draws it: the letters in column order,
     and what they add up to."""
     codes = [row["days"].get(getdate(day)) or "" for day in days]
-    return dict(rules.worked_and_overtime(codes),
+    carried = row.get("overtime")
+    return dict(rules.worked_and_overtime(
+                    codes, overtime_by_day=[carried.get(getdate(day)) for day in days] if carried else None),
                 employee=row["employee"], employee_name=row["employee_name"],
                 branch=row["branch"], department=row["department"],
                 employment=row["employment"], codes=codes)
@@ -249,8 +256,9 @@ def _per_day(rows, days):
 
 
 # ── The floor, this minute ────────────────────────────────────────────
-def _floor(people, now):
-    """Who is inside now, how long they have been, and where.
+def _floor(people, now, shift_hours=None):
+    """Who is inside now, how long they have been, and where. Whether
+    somebody is into overtime is judged by their own shift's hours.
 
     Yesterday's punches are read as well as today's, because a night
     shift starts on one day and ends on the next.
@@ -272,12 +280,13 @@ def _floor(people, now):
             continue
         shift = row.get("shift") or person.default_shift or ""
         hours = rules.hours_so_far(row.get("time"), now)
+        theirs = attendance.shift_hours_of(shift, shift_hours or {})
         inside.append({
             "employee": name, "employee_name": person.employee_name,
             "branch": person.branch, "department": person.department,
             "since": str(row.get("time")), "hours": hours,
             "night": "night" in str(shift).lower(),
-            "standing": rules.standing_of(hours),
+            "standing": rules.standing_of(hours, theirs["standard"], theirs["full"]),
         })
     inside.sort(key=lambda row: -row["hours"])
     return {"tally": rules.floor_tally(inside), "branches": rules.by_branch(inside),

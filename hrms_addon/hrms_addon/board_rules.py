@@ -31,7 +31,9 @@ import datetime
 
 # ── The shift, as Luuka works it ──────────────────────────────────────
 # "normally 12 hours, inclusive of 2 hours of overtime", so the tenth
-# hour is where a day's work turns into overtime
+# hour is where a day's work turns into overtime. A Shift Type that gives
+# its own hours is read by those instead (attendance_rules.shift_hours);
+# these are what a shift is until it does.
 FULL_SHIFT_HOURS = 12.0
 OVERTIME_AFTER_HOURS = 10.0
 
@@ -126,7 +128,9 @@ def hours_so_far(since, now):
 
 
 def standing_of(hours, overtime_after=OVERTIME_AFTER_HOURS, full_shift=FULL_SHIFT_HOURS):
-    """What those hours mean on Luuka's twelve-hour shift."""
+    """What those hours mean on the person's shift: inside its standard
+    hours, into its overtime, or past the whole of it. Luuka's twelve-hour
+    shift, with two of overtime, unless the shift's own hours are given."""
     hours = float(hours or 0)
     if hours >= full_shift:
         return OVER_A_SHIFT
@@ -138,14 +142,16 @@ def standing_of(hours, overtime_after=OVERTIME_AFTER_HOURS, full_shift=FULL_SHIF
 def floor_tally(people):
     """The band across the top: how many are inside, and in what state.
 
-    people: [{"employee", "night", "hours"}]
+    people: [{"employee", "night", "hours", "standing"}]. A row that
+    carries its standing was judged by its own shift's hours; one that
+    does not is judged by the twelve with two.
     """
     tally = {"inside": 0, "day": 0, "night": 0,
              "into_overtime": 0, "over_a_shift": 0}
     for row in people or []:
         tally["inside"] += 1
         tally["night" if row.get("night") else "day"] += 1
-        standing = standing_of(row.get("hours"))
+        standing = row.get("standing") or standing_of(row.get("hours"))
         if standing == OVER_A_SHIFT:
             tally["over_a_shift"] += 1
             tally["into_overtime"] += 1
@@ -254,17 +260,21 @@ def progress(days, today):
 
 
 def worked_and_overtime(codes, day_codes=("M", "N"), full_shift=FULL_SHIFT_HOURS,
-                        overtime_after=OVERTIME_AFTER_HOURS):
+                        overtime_after=OVERTIME_AFTER_HOURS, overtime_by_day=None):
     """A person's line at the right of the register: days worked, and the
     overtime those days carry.
 
-    Every full shift carries its two hours, which is how Luuka's shift is
-    built. Hours actually worked past the twelfth are the pull's business,
-    not the register's.
+    Every shift worked carries the overtime built into it: two hours on
+    Luuka's twelve-hour shift, or what each day's own shift says
+    (`overtime_by_day`, one figure per code). Hours actually worked past
+    the end of the shift are the pull's business, not the register's.
     """
-    worked = len([code for code in codes or [] if code in day_codes])
-    return {"worked": worked,
-            "overtime": round(worked * (full_shift - overtime_after), 2)}
+    worked = [index for index, code in enumerate(codes or []) if code in day_codes]
+    if overtime_by_day is None:
+        overtime = len(worked) * (full_shift - overtime_after)
+    else:
+        overtime = sum(float(overtime_by_day[index] or 0) for index in worked if index < len(overtime_by_day))
+    return {"worked": len(worked), "overtime": round(overtime, 2)}
 
 
 def nights_covered(tallies, days, wanted=None):

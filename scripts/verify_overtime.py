@@ -147,6 +147,16 @@ if R.STANDARD_HOURS_PER_DAY != A.STANDARD_HOURS:
                 % (R.STANDARD_HOURS_PER_DAY, A.STANDARD_HOURS))
 if R.DAYS_PER_MONTH != 26:
     fail.append("the attendance cycle is twenty-six days")
+# an hour is divided out of the shift's own standard day
+if R.hours_per_month() != R.HOURS_PER_MONTH or R.hours_per_month(0) != 260.0 or R.hours_per_month("x") != 260.0:
+    fail.append("a shift that gives no hours is priced on ten standard hours a day")
+if R.hours_per_month(8) != 208.0:
+    fail.append("an eight-hour day is 208 hours a month")
+both = R.priced([{"employee": "E1", "hours": 2}, {"employee": "E2", "hours": 2}], {"E1": 1040000, "E2": 1040000},
+                R.WEEKDAY, standards={"E1": 8})
+if [row["hourly_rate"] for row in both["rows"]] != [5000.0, 4000.0]:
+    fail.append("each person's hour comes out of their own shift's standard day: %s"
+                % [row["hourly_rate"] for row in both["rows"]])
 if R.hourly_rate(1040000) != 4000.0:
     fail.append("a million and forty thousand over 260 hours is four thousand an hour: %s"
                 % R.hourly_rate(1040000))
@@ -389,6 +399,16 @@ line_field = custom.get("Overtime Type-custom_gross_above") or {}
 if line_field.get("fieldtype") != "Currency" or '"Overtime Type-custom_gross_above"' not in read("hrms_addon", "hooks.py"):
     fail.append("the line is a field on the Overtime Type, synced with the fixtures")
 print("glue: the day read, the cost checked, the hours landed, the slip drawn")
+
+for needle, why in (
+    ("attendance.shift_hours_of(attendance.shift_on(employee, day), hours)[\"standard\"]",
+     "the standard day is the one of the shift worked that day"),
+    ("_standard_hours(people_on_it, doc.overtime_date))", "HR's cost check prices each person on their own shift"),
+    ("standards.get(row[\"employee\"]) or attendance_rules.STANDARD_HOURS",
+     "and the attendance carries that standard day for the Overtime Slip"),
+):
+    if needle not in glue:
+        fail.append("overtime.py: %s (%r not found)" % (why, needle))
 
 # ── 6. Wiring ─────────────────────────────────────────────────────────
 if "hrms_addon.hrms_addon.overtime.setup_on_migrate" not in hooks.get("after_migrate", []):

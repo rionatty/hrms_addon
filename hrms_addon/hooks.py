@@ -1306,6 +1306,8 @@ fixtures = [
                     "Grievance Type-custom_timeline_days",
                     "Grievance Type-custom_lpl_cb",
                     "Grievance Type-custom_default_handler",
+                    "Shift Type-custom_shift_hours",
+                    "Shift Type-custom_overtime_hours",
                     "Shift Type-custom_allowance_section",
                     "Shift Type-custom_shift_allowance",
                     "Shift Type-custom_allowance_cb",
@@ -1713,6 +1715,10 @@ doc_events = {
     # entry covers all of them and none of the blocks above is disturbed.
     "*": {
         "on_submit": "hrms_addon.hrms_addon.signatures.log_submission",
+    },
+    # A shift's own hours, and how many of them are overtime (shifts.py)
+    "Shift Type": {
+        "validate": "hrms_addon.hrms_addon.shifts.shift_type_validate",
     },
     # The non-disciplinary grievance on their Employee Grievance: each
     # step's checks, who is told and given it to do (grievances.py)

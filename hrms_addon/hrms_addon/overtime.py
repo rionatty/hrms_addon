@@ -28,7 +28,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import attendance_rules, overtime_rules as rules, pay, people
+from hrms_addon.hrms_addon import attendance, attendance_rules, overtime_rules as rules, pay, people
 
 REQUEST = "Overtime Request"
 TYPE = "Overtime Type"
@@ -118,6 +118,14 @@ def _monthly_gross(employees, day):
     return {employee: pay.monthly_gross(employee, day) for employee in employees}
 
 
+def _standard_hours(employees, day):
+    """Each employee's standard hours on the day: those of the shift they
+    work it on (attendance.shift_on), which their hour is divided out of."""
+    hours = attendance.all_shift_hours()
+    return {employee: attendance.shift_hours_of(attendance.shift_on(employee, day), hours)["standard"]
+            for employee in employees}
+
+
 def _monthly_bases(employees):
     """Each employee's monthly base, from their Salary Structure
     Assignment. The one in force, not the newest ever written."""
@@ -144,7 +152,8 @@ def cost_check(name, cost_centre=None, remarks=None):
     people_on_it = [row.get("employee") for row in rows if row.get("employee")]
     bases = _monthly_bases(people_on_it)
     costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind),
-                          _monthly_gross(people_on_it, doc.overtime_date))
+                          _monthly_gross(people_on_it, doc.overtime_date),
+                          _standard_hours(people_on_it, doc.overtime_date))
     errors = rules.cost_check_errors({
         "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
         "cost_centre": cost_centre or doc.get("cost_centre")})
@@ -192,10 +201,11 @@ def send_to_payroll(name):
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Payroll"))
     kind = doc.get("day_kind") or rules.WEEKDAY
     grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
+    standards = _standard_hours([row["employee"] for row in rows], doc.overtime_date)
     lines = rules.gross_lines(_types_for(kind))
     marked = 0
     for row in rows:
-        values = rules.attendance_update(row, kind, attendance_rules.STANDARD_HOURS,
+        values = rules.attendance_update(row, kind, standards.get(row["employee"]) or attendance_rules.STANDARD_HOURS,
                                          gross=grosses.get(row["employee"]), lines=lines)
         if not frappe.db.exists(TYPE, values["overtime_type"]):
             values.pop("overtime_type")

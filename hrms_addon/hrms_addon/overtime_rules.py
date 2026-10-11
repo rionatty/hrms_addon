@@ -72,7 +72,8 @@ HIGHER_EARNER_MULTIPLIER = 1.0
 
 # Luuka's month: the attendance cycle runs 26 to 25 and is worked as 26
 # days of ten standard hours (attendance_rules.STANDARD_HOURS), which is
-# what an hour of pay is divided out of.
+# what an hour of pay is divided out of. A Shift Type that gives its own
+# hours is priced by its own standard day instead (hours_per_month).
 DAYS_PER_MONTH = 26
 STANDARD_HOURS_PER_DAY = 10.0
 HOURS_PER_MONTH = DAYS_PER_MONTH * STANDARD_HOURS_PER_DAY
@@ -167,6 +168,16 @@ def below_the_act(kind, multiplier):
     return float(multiplier) < ACT_MULTIPLIERS[kind]
 
 
+def hours_per_month(standard_hours=None):
+    """The hours a month's pay is for: the cycle's days of the shift's
+    standard hours, ten where the shift gives none."""
+    try:
+        standard = float(standard_hours or 0)
+    except (TypeError, ValueError):
+        standard = 0.0
+    return DAYS_PER_MONTH * (standard if standard > 0 else STANDARD_HOURS_PER_DAY)
+
+
 def hourly_rate(monthly_base, hours_per_month=HOURS_PER_MONTH):
     """An hour of ordinary pay, out of the monthly base."""
     if not monthly_base or not hours_per_month:
@@ -181,10 +192,11 @@ def amount(hours, rate, multiplier):
     return round(float(hours) * float(rate) * float(multiplier), 2)
 
 
-def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None):
+def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
-    gross}, which decides their type.
+    gross}, which decides their type; standards: {employee: the standard
+    hours of their shift}, the day that hour is divided out of.
 
     types: {Overtime Type name: its row}. Each person is priced under the
     type their own gross puts them in (minutes §4.12); `overtime_type`
@@ -201,7 +213,7 @@ def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None):
         base = rates.get(row.get("employee"))
         theirs = (types or {}).get(type_name_for(kind, (grosses or {}).get(row.get("employee")), lines))
         own = multiplier_for(kind, theirs) if theirs else multiplier
-        rate = hourly_rate(base)
+        rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee"))))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))
