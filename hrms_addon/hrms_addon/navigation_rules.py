@@ -250,6 +250,11 @@ CARDS = {
     # Frappe HR's own leave page gains the plan the year is drawn up on:
     # the application itself is theirs, carrying LPL/HR/15 (leave.py)
     "Leaves": [
+        # who is away, what is stuck, what the year end will cost
+        # (leave_overview.py)
+        ("The Year", [
+            ("Leave Overview", "leave-overview", PAGE),
+        ]),
         ("Application", [
             ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE),
             ("Leave Plan Change", "Leave Plan Change", DOCTYPE),
@@ -445,6 +450,8 @@ SIDEBAR = {
         ("Salary Component", "Salary Component", DOCTYPE, "Setup", None),
     ],
     "Leaves": [
+        # after Home, so it keeps its place whichever way the rest is laid out
+        ("Leave Overview", "leave-overview", PAGE, None, "Home"),
         ("Annual Leave Plan", "Annual Leave Plan", DOCTYPE, None, "Leave Application"),
         ("Leave Plan Change", "Leave Plan Change", DOCTYPE, None, "Annual Leave Plan"),
         ("HR Calendar", "hr-calendar", PAGE, None, "Leave Plan Change"),
@@ -618,7 +625,7 @@ SHORT_LABELS = {
 
 # the icon of an entry of ours that stays at the top of a sidebar, above
 # the groups: what it opens -> icon
-TOP_ICONS = {"hr-calendar": "calendar", "attendance-board": "layout-grid"}
+TOP_ICONS = {"hr-calendar": "calendar", "attendance-board": "layout-grid", "leave-overview": "chart-column"}
 
 CARD_BREAK, LINK, SECTION = "Card Break", "Link", "Section Break"
 
