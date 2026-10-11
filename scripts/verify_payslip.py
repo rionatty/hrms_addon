@@ -77,11 +77,42 @@ DEDUCTIONS = [
     {"salary_component": "Penalty Recovery", "amount": 0},
 ]
 paid, taken = R.lines(EARNINGS), R.lines(DEDUCTIONS)
-check([line["name"] for line in paid] == ["Basic", "House Rent Allowance", "Transport Allowance"],
-      "a statistical earning (Taxable Salary) is not a payment: %s" % [line["name"] for line in paid])
-check([line["name"] for line in taken] == ["NSSF Employee", "PAYE", "Local Service Tax", "Advance Recovery"],
+check([line["component"] for line in paid] == ["Basic", "House Rent Allowance", "Transport Allowance"],
+      "a statistical earning (Taxable Salary) is not a payment: %s" % [line["component"] for line in paid])
+check([line["component"] for line in taken] == ["NSSF Employee", "PAYE", "Local Service Tax", "Advance Recovery"],
       "deductions: the working, the employer's share and a line of nought are left off: %s"
-      % [line["name"] for line in taken])
+      % [line["component"] for line in taken])
+check([line["name"] for line in paid] == ["BASIC", "HOUSE RENT ALLOWANCE", "TRANSPORT ALLOWANCE"],
+      "a line nobody has named reads as its component, in capitals: %s" % [line["name"] for line in paid])
+# how a site's components read on Luuka's slip, once the seed has named and placed them
+SITE = ("Basic", "House Rent Allowance", "Transport Allowance", "Local Service Tax", "Payee", "PAYE", "NSSF Employee",
+        "Advance Recovery", "Penalty Recovery")
+SHOWN = {name: R.seed_for(name) for name in SITE if R.seed_for(name)}
+check(SHOWN == {"House Rent Allowance": {"name": "HRA"}, "Local Service Tax": {"order": 3},
+                "Payee": {"name": "PAYE", "order": 2}, "PAYE": {"order": 2},
+                "NSSF Employee": {"name": "NSSF", "order": 1},
+                "Advance Recovery": {"name": "Advance Salary", "order": 4}},
+      "the seed names HRA, NSSF, PAYE and Advance Salary, and places the deductions as Luuka's slip does: %s" % SHOWN)
+check(R.seed_for("house rent allowance ") == {"name": "HRA"} and R.seed_for("Basic") == {} and R.seed_for(None) == {},
+      "whatever the case; a component their slip names the same is left alone")
+check(R.seed_for("NSSF Employee", {"name": "Social Security", "order": 0}) == {"order": 1}
+      and R.seed_for("NSSF Employee", {"name": "", "order": 7}) == {"name": "NSSF"}
+      and R.seed_for("NSSF Employee", {"name": "NSSF", "order": 1}) == {},
+      "what somebody has typed is theirs: only a blank is filled")
+check([line["name"] for line in R.lines(EARNINGS, None, SHOWN)] == ["BASIC", "HRA", "TRANSPORT ALLOWANCE"],
+      "the payments read as theirs: %s" % [line["name"] for line in R.lines(EARNINGS, None, SHOWN)])
+# on the site the structure works out the Local Service Tax before PAYE; the slip prints it after
+site_order = [DEDUCTIONS[index] for index in (0, 1, 4, 3, 2, 5, 6, 7)]
+check([line["name"] for line in R.lines(site_order, None, SHOWN)] == ["NSSF", "PAYE", "LOCAL SERVICE TAX", "Advance Salary"],
+      "the deductions read and are placed as theirs, whatever order the structure has them in: %s"
+      % [line["name"] for line in R.lines(site_order, None, SHOWN)])
+mixed = R.lines([{"salary_component": "Loan Repayment", "amount": 5}, {"salary_component": "PAYE", "amount": 9},
+                 {"salary_component": "Penalty Recovery", "amount": 7}, {"salary_component": "NSSF Employee", "amount": 3}],
+                None, SHOWN)
+check([line["name"] for line in mixed] == ["NSSF", "PAYE", "LOAN REPAYMENT", "PENALTY RECOVERY"],
+      "a line with a place comes first; the rest follow in the slip's own order: %s" % [line["name"] for line in mixed])
+check(R.slip_name("Basic", "  ") == "BASIC" and R.slip_name("Advance Recovery", " Advance Salary ") == "Advance Salary",
+      "a name typed is printed as typed; a blank one is no name")
 check(R.total(paid) == 878400 and R.total(taken) == 561050, "the lines shown add up to the gross and the total")
 check(R.lines([{"salary_component": "Local Service Tax", "amount": 0}]) == [],
       "Local Service Tax outside July to October is not printed")
@@ -168,11 +199,43 @@ read_keys = set(re.findall(r"\bp\.(\w+)", html))
 check(read_keys and read_keys <= handed, "the print reads only what pay_slip hands it: %s" % sorted(read_keys - handed))
 check(handed <= read_keys, "and prints all of it: %s" % sorted(handed - read_keys))
 check(not handed & set(dir(dict)), "no key that a dict's own method would hide: %s" % sorted(handed & set(dir(dict))))
-for said in ("NAME", "DEPT", "PAYROLL NO.", "PAY SLIP FOR", "DESIGNATION", "CATEGORY", "SECTION", "P A Y M E N T S",
-             "AMOUNT",
-             "HOURS", "GROSS PAY", "DEDUCTIONS", "TOTAL", "N E T &nbsp; P A Y", "NET PAY R/o", "PAYMENT BY :",
+for said in ("NAME", "DEPT", "PAYROLL NO.", "PAY SLIP FOR", "DESIGNATION", "CATEGORY", "SECTION",
+             '<span class="spaced">PAYMENTS</span>', "AMOUNT", "HOURS", "GROSS PAY", "DEDUCTIONS", "TOTAL",
+             '<span class="spaced">NETPAY</span>', "NET PAY R/o", "PAYMENT BY :",
              "Paid Days", "Working Days", "Holidays", "Absent Amount", "Leave Taken", "Absent Days"):
     check(said in html, "the slip says %s, as Luuka's does" % said)
+# Laid out to Luuka's own slip, measured from their PDF: a 270pt by 600pt box,
+# Arial 8pt on a 10pt line, the deductions in a serif, rules of 5pt dashes.
+# And with no table: Frappe's print styles pad every cell (6px in
+# standard.css, 10px in the Redesign style) and grey every heading with
+# !important, whatever the format says, which is how the first Pay Slip came
+# out three times as tall as theirs on the site.
+check(not re.search(r"<(table|tr|td|th)\b", html), "no table, so no print style can pad or grey its cells")
+check(not re.search(r"<(p|label|h\d)\b", html), "nor a paragraph, a label or a heading, which they space too")
+check(html.count("<svg ") == 6 and html.count('viewBox="0 0 235 1"') == 3 and html.count('viewBox="0 0 188 1"') == 1
+      and html.count('viewBox="0 0 195 1"') == 2,
+      "six rules, as theirs: three across the slip, one under the gross, two round the total")
+style = html.split("<style>")[1].split("</style>")[0]
+selectors = [rule.split("{")[0].strip() for rule in re.sub(r"/\*.*?\*/", "", style, flags=re.S).split("}")
+             if "{" in rule and not rule.strip().startswith("@supports")]
+check(selectors and all(part.strip().startswith(".print-format .lpl-slip") for selector in selectors
+                        for part in selector.split(",")),
+      "every rule is written under .print-format .lpl-slip, so it outranks the site's own: %s"
+      % [selector for selector in selectors if not selector.startswith(".print-format .lpl-slip")])
+for needle, why in (
+    ("width: 270pt; min-height: 600pt; border: 1pt solid #000;", "the box is theirs, 270pt by 600pt, framed"),
+    ("font-family: Arial, Helvetica, sans-serif !important; font-size: 8pt !important; line-height: 10pt !important;",
+     "Arial 8pt on a 10pt line, whatever the print style sets on a div or a span"),
+    ('font-family: "DejaVu Serif"', "the deductions in their serif"),
+    ("line-height: 11pt !important;", "on an 11pt line"),
+    ('stroke="#000" stroke-width="1" stroke-dasharray="5 3"',
+     "rules of 5pt dashes 3pt apart, drawn as lines so a PDF keeps them sharp"),
+    (".print-format .lpl-slip .n { float: left; width: 93pt; text-align: right;",
+     "the amounts end 209pt in, as theirs do"),
+    ('"{:,.4f}".format', "payments, the gross and the net to four places, as their slip prints them"),
+    ('"{:,.2f}".format', "the deductions to two"),
+):
+    check(needle in html, "the print: %s (%r not found)" % (why, needle))
 check("doc.earnings" not in html and "doc.deductions" not in html,
       "the lines come from pay_slip, never straight off the slip (the working would print)")
 for typed in re.findall(r"\{\{\s*(p\.(?:employee_name|department|payroll_no|designation|category|section|payment_by)"
@@ -180,14 +243,14 @@ for typed in re.findall(r"\{\{\s*(p\.(?:employee_name|department|payroll_no|desi
     check(False, "%s is printed without v(), unescaped" % typed)
 
 # ── 5. Luuka's August slip for LPL1834 ──────────────────────────────────
-def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None):
+def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None, shown=None):
     """What payslip.pay_slip hands the print, from the same rules."""
     leave, absent = R.day_counts(attendance)
     return {"employee_name": slip["employee_name"], "department": slip["department"], "payroll_no": slip["employee"],
             "slip_for": R.slip_for(slip["end_date"]), "designation": slip["designation"],
             "category": employee.get("custom_pay_category") or employee.get("employment_type"),
-            "section": section, "payments": R.lines(slip["earnings"], hours),
-            "gross": slip["gross_pay"], "deductions": R.lines(slip["deductions"]),
+            "section": section, "payments": R.lines(slip["earnings"], hours, shown),
+            "gross": slip["gross_pay"], "deductions": R.lines(slip["deductions"], None, shown),
             "total_deductions": slip["total_deduction"], "net": slip["net_pay"],
             "rounded": slip.get("rounded_total") or round(slip["net_pay"]),
             "payment_by": " ".join(part for part in (slip.get("mode_of_payment"), slip.get("bank_name"),
@@ -217,17 +280,18 @@ def text_of(page):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S))).strip()
 
 
-page = page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource")
+page = page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource", shown=SHOWN)
 text = text_of(page)
 check(not re.findall(r"\{\{ [\w.]+ \}\}", page), "nothing left undefined: %s" % re.findall(r"\{\{ [\w.]+ \}\}", page))
 for said in ("NAME : SARAH AMUGE", "DEPT : PP DEPARTMENT", "PAYROLL NO. : LPL1834", "PAY SLIP FOR : AUGUST 2026",
              "DESIGNATION : ASSISTANT SUPERVISOR", "CATEGORY : Monthly", "SECTION : Human Resource",
-             "P A Y M E N T S AMOUNT HOURS Basic 736,058.00 House Rent Allowance 72,342.00 "
-             "Transport Allowance 70,000.00 GROSS PAY 878,400.00",
-             "DEDUCTIONS AMOUNT HOURS NSSF Employee 43,920.00 PAYE 145,770.00 Local Service Tax 20,000.00 "
-             "Advance Recovery 351,360.00 TOTAL 561,050.00",
-             "N E T &nbsp; P A Y 317,350.00 NET PAY R/o 317,350.00", "PAYMENT BY : Bank Stanbic 9030001",
-             "Paid Days = 31 Working Days = 31 Holidays = 0 Absent Amount = 0.00 Leave Taken = 0 Absent Days = 0"):
+             "PAYMENTS AMOUNT HOURS BASIC 736,058.0000 HRA 72,342.0000 "
+             "TRANSPORT ALLOWANCE 70,000.0000 GROSS PAY 878,400.0000",
+             "DEDUCTIONS AMOUNT HOURS NSSF 43,920.00 PAYE 145,770.00 LOCAL SERVICE TAX 20,000.00 "
+             "Advance Salary 351,360.00 TOTAL 561,050.00",
+             "NETPAY 317,350.0000 NET PAY R/o 317,350.0000", "PAYMENT BY : Bank Stanbic 9030001",
+             "= Paid Days 31 = Working Days 31 = Holidays 0 = Absent Amount 0.0000 = Leave Taken 0.0000 "
+             "= Absent Days 0.0000"):
     check(said in text, "the August slip reads: %s" % said)
 for hidden in ("Taxable", "Cash Gross Pay", "NSSF Employer", "Penalty Recovery"):
     check(hidden not in text, "%s is not on the slip" % hidden)
@@ -239,10 +303,10 @@ OCTOBER = dict(AUGUST, employee_name="John <Okello>", start_date="2026-09-26", e
                gross_pay=758827, total_deduction=34941.35, net_pay=723885.65, rounded_total=0, payment_days=28,
                mode_of_payment=None, bank_name=None, bank_account_no=None, absent_days=0)
 text = text_of(page_of(OCTOBER, {"employment_type": "Permanent"}, attendance=days, holidays=1, hours={"ADS-1": 12.5}))
-for said in ("NAME : John &lt;Okello&gt;", "PAY SLIP FOR : OCTOBER 2026", "CATEGORY : Permanent SECTION : P A Y",
-             "Overtime 54,000.00 12.5", "NSSF Employee 34,941.35 TOTAL 34,941.35",
-             "N E T &nbsp; P A Y 723,885.65 NET PAY R/o 723,886.00", "PAYMENT BY : Paid Days = 28",
-             "Holidays = 1 Absent Amount = 71,231.00 Leave Taken = 1.5 Absent Days = 2.5"):
+for said in ("NAME : John &lt;Okello&gt;", "PAY SLIP FOR : OCTOBER 2026", "CATEGORY : Permanent SECTION : PAYMENTS",
+             "OVERTIME 54,000.0000 12.5", "NSSF EMPLOYEE 34,941.35 TOTAL 34,941.35",
+             "NETPAY 723,885.6500 NET PAY R/o 723,886.0000", "PAYMENT BY : = Paid Days 28",
+             "= Holidays 1 = Absent Amount 71,231.0000 = Leave Taken 1.5000 = Absent Days 2.5000"):
     check(said in text, "another slip reads: %s" % said)
 check("PAYE" not in text, "a deduction of nought is not printed")
 
@@ -264,6 +328,29 @@ check(re.search(r"^def period_validate\(doc, method=None\):", glue_source, re.M)
 check(hooks["doc_events"]["Salary Slip"].get("on_submit") == "hrms_addon.hrms_addon.recoveries.slip_on_submit",
       "the slip still marks its recoveries on submit")
 check("salary_slip_based_on_timesheet" in glue_source, "a timesheet slip keeps its own dates")
+custom = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
+named, placed = custom.get("Salary Component-custom_slip_name") or {}, custom.get("Salary Component-custom_slip_order") or {}
+check((named.get("fieldtype"), named.get("insert_after"), named.get("label")) == ("Data", "description", "Name on Pay Slip")
+      and (placed.get("fieldtype"), placed.get("insert_after"), placed.get("label"))
+      == ("Int", "custom_slip_name", "Order on Pay Slip"),
+      "a Salary Component says what it is called on the slip, and where it stands")
+for name in ("Salary Component-custom_slip_name", "Salary Component-custom_slip_order"):
+    check('"%s"' % name in hooks_source, "the hooks fixtures list %s" % name)
+for needle, why in (
+    ("shown = _shown({row.get(\"salary_component\") for row in earnings + deductions if row.get(\"salary_component\")})",
+     "the slip's components are asked how they read"),
+    ("rules.lines(earnings, _overtime_hours(earnings), shown)", "the payments are named and placed by it"),
+    ("rules.lines(deductions, None, shown)", "and the deductions"),
+    ("if not components or not all(meta.has_field(field) for field in SHOWN):\n        return {}",
+     "a site without the two fields prints as before"),
+    ("values = rules.seed_for(row.name, {\"name\": row.custom_slip_name, \"order\": row.custom_slip_order})",
+     "the seed fills only what is blank"),
+):
+    check(needle in glue_source, "payslip.py: %s (%r not found)" % (why, needle))
+patch = read("hrms_addon", "patches", "v1_0", "pay_slip_names.py")
+check("hrms_addon.patches.v1_0.pay_slip_names" in read("hrms_addon", "patches.txt")
+      and patch.index('sync_fixtures("hrms_addon")') < patch.index("payslip.seed_slip_names()"),
+      "a listed patch seeds Luuka's names, after the fields are there")
 
 print()
 print("FAILED: %d" % len(fail) if fail else "ALL PAY SLIP CHECKS PASSED")

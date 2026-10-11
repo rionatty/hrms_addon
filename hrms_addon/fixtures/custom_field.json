@@ -11542,5 +11542,28 @@
   "insert_after": "custom_allowances_section",
   "label": "Allowances",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Component-custom_slip_name",
+  "dt": "Salary Component",
+  "fieldname": "custom_slip_name",
+  "fieldtype": "Data",
+  "insert_after": "description",
+  "label": "Name on Pay Slip",
+  "description": "Blank: the component's own name.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Component-custom_slip_order",
+  "dt": "Salary Component",
+  "fieldname": "custom_slip_order",
+  "fieldtype": "Int",
+  "insert_after": "custom_slip_name",
+  "label": "Order on Pay Slip",
+  "description": "Blank: as on the salary structure.",
+  "non_negative": 1,
+  "module": "HRMS Addon"
  }
 ]

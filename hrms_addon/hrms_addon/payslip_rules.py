@@ -68,21 +68,68 @@ def _day(value):
 
 
 # ── 1. The lines of the slip ──────────────────────────────────────────
-def lines(rows, hours=None):
-    """[{"name", "amount", "hours"}] for a slip's earnings or deductions,
-    in the slip's own order. `hours` maps a row's Additional Salary to the
-    hours it pays (overtime)."""
-    hours = hours or {}
+# How Luuka's own slip names and orders its lines, by the Salary Component's
+# name in lower case: what a site's components are given where nobody has
+# said otherwise (payslip.seed_slip_names). Their slip prints the deductions
+# NSSF, PAYE, Local Service Tax, then the advance; the salary structure has
+# to work out the Local Service Tax first, because PAYE is charged after it.
+SLIP_SEED = {
+    "house rent allowance": {"name": "HRA"},
+    "nssf employee": {"name": "NSSF", "order": 1},
+    "nssf": {"order": 1},
+    "payee": {"name": "PAYE", "order": 2},
+    "paye": {"order": 2},
+    "local service tax": {"order": 3},
+    "advance recovery": {"name": "Advance Salary", "order": 4},
+}
+UNPLACED = 10 ** 6
+
+
+def slip_name(component, given=None):
+    """What a line is called on the slip: the component's Name on Pay Slip
+    as it was typed, else the component's own name in capitals, as Luuka's
+    slip prints BASIC and TRANSPORT ALLOWANCE."""
+    given = str(given or "").strip()
+    return given or str(component or "").upper()
+
+
+def seed_for(component, current=None):
+    """What to put on a component for Luuka's slip, where it is still
+    blank: {"name", "order"} with only what is to be set. What somebody has
+    typed is theirs."""
+    wanted = SLIP_SEED.get(str(component or "").strip().lower())
+    if not wanted:
+        return {}
+    current = current or {}
+    out = {}
+    if wanted.get("name") and not str(current.get("name") or "").strip():
+        out["name"] = wanted["name"]
+    if wanted.get("order") and not int(_num(current.get("order"))):
+        out["order"] = wanted["order"]
+    return out
+
+
+def lines(rows, hours=None, shown=None):
+    """[{"component", "name", "amount", "hours"}] for a slip's earnings or
+    deductions. `hours` maps a row's Additional Salary to the hours it pays
+    (overtime). `shown` maps a component to how it reads on the slip:
+    {"name": its Name on Pay Slip, "order": its place}. Lines with a place
+    come first, in it; the rest follow in the slip's own order."""
+    hours, shown = hours or {}, shown or {}
     out = []
-    for row in rows or []:
+    for index, row in enumerate(rows or []):
         if int(_num(row.get("statistical_component"))) or int(_num(row.get("do_not_include_in_total"))):
             continue
         amount = _num(row.get("amount"))
         if not amount:
             continue
-        out.append({"name": row.get("salary_component") or "", "amount": amount,
-                    "hours": _num(hours.get(row.get("additional_salary"))) or None})
-    return out
+        component = row.get("salary_component") or ""
+        how = shown.get(component) or {}
+        place = int(_num(how.get("order")))
+        out.append(((place if place > 0 else UNPLACED, index),
+                    {"component": component, "name": slip_name(component, how.get("name")), "amount": amount,
+                     "hours": _num(hours.get(row.get("additional_salary"))) or None}))
+    return [line for _at, line in sorted(out, key=lambda pair: pair[0])]
 
 
 def total(shown):

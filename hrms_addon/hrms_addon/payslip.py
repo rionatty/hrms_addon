@@ -17,6 +17,9 @@ from hrms_addon.hrms_addon import payslip_rules as rules
 
 SLIP = "Salary Slip"
 OVERTIME_SLIP = "Overtime Slip"
+COMPONENT = "Salary Component"
+# a component's Name on Pay Slip, and its place among the lines
+SHOWN = ("custom_slip_name", "custom_slip_order")
 
 
 def pay_slip(doc):
@@ -30,6 +33,7 @@ def pay_slip(doc):
     earnings = [row.as_dict() for row in doc.get("earnings") or []]
     deductions = [row.as_dict() for row in doc.get("deductions") or []]
     leave, absent = rules.day_counts(_attendance(doc))
+    shown = _shown({row.get("salary_component") for row in earnings + deductions if row.get("salary_component")})
     net = flt(doc.get("net_pay"))
     return frappe._dict({
         "employee_name": doc.get("employee_name"),
@@ -39,9 +43,9 @@ def pay_slip(doc):
         "designation": doc.get("designation"),
         "category": employee.get("custom_pay_category") or employee.get("employment_type"),
         "section": _section(doc.get("designation")),
-        "payments": rules.lines(earnings, _overtime_hours(earnings)),
+        "payments": rules.lines(earnings, _overtime_hours(earnings), shown),
         "gross": flt(doc.get("gross_pay")),
-        "deductions": rules.lines(deductions),
+        "deductions": rules.lines(deductions, None, shown),
         "total_deductions": flt(doc.get("total_deduction")),
         "net": net,
         "rounded": flt(doc.get("rounded_total")) or flt(round(net)),
@@ -53,6 +57,36 @@ def pay_slip(doc):
         "leave_taken": leave,
         "absent_days": flt(doc.get("absent_days")) or absent,
     })
+
+
+def _shown(components):
+    """{component: {"name", "order"}}: how each reads on the slip, where the
+    site has the two fields (they come with the fixtures)."""
+    meta = frappe.get_meta(COMPONENT)
+    if not components or not all(meta.has_field(field) for field in SHOWN):
+        return {}
+    return {row.name: {"name": row.custom_slip_name, "order": row.custom_slip_order}
+            for row in frappe.get_all(COMPONENT, filters={"name": ["in", sorted(components)]},
+                                      fields=["name", *SHOWN], limit_page_length=0)}
+
+
+def seed_slip_names():
+    """The lines Luuka's slip names differently (HRA, NSSF, PAYE, Advance
+    Salary) and the order it prints the deductions in, put on the site's
+    Salary Components where nobody has set them (payslip_rules.SLIP_SEED).
+    Returns {component: what was set}."""
+    meta = frappe.get_meta(COMPONENT)
+    if not all(meta.has_field(field) for field in SHOWN):
+        return {}
+    changed = {}
+    for row in frappe.get_all(COMPONENT, fields=["name", *SHOWN], limit_page_length=0):
+        values = rules.seed_for(row.name, {"name": row.custom_slip_name, "order": row.custom_slip_order})
+        if not values:
+            continue
+        frappe.db.set_value(COMPONENT, row.name, {"custom_slip_%s" % key: value for key, value in values.items()},
+                            update_modified=False)
+        changed[row.name] = values
+    return changed
 
 
 def _employee_fields():

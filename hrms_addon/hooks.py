@@ -1158,6 +1158,9 @@ fixtures = [
                     # assignment (standing_allowances.py)
                     "Salary Structure Assignment-custom_allowances_section",
                     "Salary Structure Assignment-custom_allowances_html",
+                    # how a component reads on the Pay Slip (payslip.py)
+                    "Salary Component-custom_slip_name",
+                    "Salary Component-custom_slip_order",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",

@@ -234,6 +234,19 @@ for name, (doc_type, tables, needles, sample, reads) in PRINTS.items():
     for needle in needles:
         if needle not in html:
             fail.append("%s does not say %r, which the paper does" % (name, needle))
+    # A site's print styles pad every table cell (6px in Frappe's standard.css,
+    # 10px in the Redesign style) and grey and lighten every heading cell, with
+    # !important: the forms say theirs again under .print-format, or they print
+    # twice as tall as drawn, with headings nobody can read on a photocopy.
+    for needle, why in (
+        (".print-format .lpl-paper td, .print-format .lpl-paper th { padding: 4px 7px !important;",
+         "its cells keep their own padding under any print style"),
+        (".print-format .lpl-paper th { font-weight: bold !important; }", "its heading cells stay bold"),
+        ("color: #000 !important; }", "and black"),
+        ("font-family: Arial, Helvetica, sans-serif !important;", "in the form's own type"),
+    ):
+        if needle not in html:
+            fail.append("%s: %s (%r not found)" % (name, why, needle))
     own = fields_of(doc_type)
     rows = {}
     for table in tables:
