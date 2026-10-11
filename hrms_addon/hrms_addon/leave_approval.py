@@ -50,7 +50,14 @@ CANCEL = "Cancel"
 # Request has the button.
 APPROVE_OFF_DUTY = "Approve Off Duty"
 OFF_DUTY_CONDITION = "doc.custom_off_duty_request"
-ACTIONS = (SUBMIT, APPROVE, RETURN, REJECT, CANCEL, APPROVE_OFF_DUTY)
+# A leave ended early (the employee came back, or was recalled) is cancelled
+# and one for the days taken stands in its place (leave_follow.end_early).
+# Those days were approved already, so it is not signed again: HR approve
+# it as it is raised, and only an amendment that says how it ended.
+APPROVE_CHANGE = "Approve Change"
+ENDED_EARLY = ("Recalled", "Returned Early")
+CHANGE_CONDITION = "doc.amended_from and doc.custom_change_kind in ('Recalled', 'Returned Early')"
+ACTIONS = (SUBMIT, APPROVE, RETURN, REJECT, CANCEL, APPROVE_OFF_DUTY, APPROVE_CHANGE)
 
 PREPARERS = ("HR User", "HR Manager", "Employee")
 SUPERVISORS = ("Supervisor", "Head of Department")
@@ -100,6 +107,8 @@ TRANSITIONS = (
     {"state": APPROVED, "action": CANCEL, "next_state": CANCELLED, "allowed": HRM},
     *({"state": DRAFT, "action": APPROVE_OFF_DUTY, "next_state": APPROVED, "allowed": role,
        "condition": OFF_DUTY_CONDITION} for role in (HR_OFFICER, HRM)),
+    *({"state": DRAFT, "action": APPROVE_CHANGE, "next_state": APPROVED, "allowed": role,
+       "condition": CHANGE_CONDITION} for role in (HR_OFFICER, HRM)),
 )
 
 # Who signs as each step is passed: state left -> (by, on).
@@ -160,8 +169,10 @@ def step_errors(old_state, new_state, facts):
         if not _text(facts.get(field)):
             errors.append("Write the %s's remarks saying why the leave is refused." % who)
     if new_state == APPROVED and old_state == DRAFT:
-        # the one way past the three desks: a day LPL/HR/25 gave as leave
-        if not facts.get("off_duty_request"):
+        # the two ways past the three desks: a day LPL/HR/25 gave as leave,
+        # and a leave ended early, whose days were signed for already
+        if not facts.get("off_duty_request") and not (facts.get("amended_from")
+                                                      and facts.get("change_kind") in ENDED_EARLY):
             errors.append("A leave is approved by its three signatures.")
         return errors
     if new_state == APPROVED and not _text(facts.get("custom_balance_before")):

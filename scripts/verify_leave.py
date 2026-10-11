@@ -620,15 +620,27 @@ expect("approved with Part 2 filled in",
 expect("approved straight from a draft", LA.step_errors(LA.DRAFT, LA.APPROVED, {"custom_balance_before": 21}),
        "three signatures")
 expect("a day an Off Duty Request gave", LA.step_errors(LA.DRAFT, LA.APPROVED, {"off_duty_request": "OD-1"}))
+expect("a leave ended early, whose days were signed for already",
+       LA.step_errors(LA.DRAFT, LA.APPROVED, {"amended_from": "HR-LAP-1", "change_kind": "Recalled"}))
+expect("an amendment that is not one", LA.step_errors(LA.DRAFT, LA.APPROVED, {"amended_from": "HR-LAP-1"}),
+       "three signatures")
+expect("an extension, which is new leave", LA.step_errors(LA.DRAFT, LA.APPROVED, {
+    "amended_from": "HR-LAP-1", "change_kind": "Extension"}), "three signatures")
 straight = [t for t in LA.TRANSITIONS if t["state"] == LA.DRAFT and t["next_state"] == LA.APPROVED]
-if sorted(t["allowed"] for t in straight) != sorted((LA.HR_OFFICER, LA.HRM)) or any(
-        t["action"] != LA.APPROVE_OFF_DUTY or t.get("condition") != "doc.custom_off_duty_request" for t in straight):
-    fail.append("only HR pass a leave from Draft to Approved, by its own action, and only on an application an "
-                "Off Duty Request raised: %s" % straight)
-if LA.APPROVE_OFF_DUTY not in LA.ACTIONS:
-    fail.append("the off-duty approval is an action the workflow builder makes")
-if [t for t in LA.TRANSITIONS if t.get("condition") and t["action"] != LA.APPROVE_OFF_DUTY]:
+WAYS = {LA.APPROVE_OFF_DUTY: "doc.custom_off_duty_request",
+        LA.APPROVE_CHANGE: "doc.amended_from and doc.custom_change_kind in ('Recalled', 'Returned Early')"}
+if sorted((t["action"], t["allowed"]) for t in straight) != sorted(
+        (action, role) for action in WAYS for role in (LA.HR_OFFICER, LA.HRM)) or any(
+        t.get("condition") != WAYS.get(t["action"]) for t in straight):
+    fail.append("only HR pass a leave from Draft to Approved, and only one an Off Duty Request raised or one "
+                "ended early: %s" % straight)
+for action in WAYS:
+    if action not in LA.ACTIONS:
+        fail.append("%s is an action the workflow builder makes" % action)
+if [t for t in LA.TRANSITIONS if t.get("condition") and t["action"] not in WAYS]:
     fail.append("no other step of the leave form is conditional")
+if LA.ENDED_EARLY != ("Recalled", "Returned Early"):
+    fail.append("a leave ends early by a recall or an early return, and the workflow's condition names both")
 signed = LA.off_duty_stamps({"supervisor_by": "s", "supervisor_on": "d1", "manager_by": "m", "manager_on": "d2",
                              "hr_by": "h", "hr_on": "d3"})
 if signed != {"custom_supervisor_by": "s", "custom_supervisor_on": "d1", "custom_hod_by": "m", "custom_hod_on": "d2",

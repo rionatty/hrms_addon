@@ -16,6 +16,14 @@
   "allocate_now",
   "last_allocated_on",
   "last_allocation",
+  "follow_section",
+  "remind_after_days",
+  "escalate_after_days",
+  "overdue_after_days",
+  "follow_cb",
+  "most_off",
+  "cover_blocks",
+  "reliever_from_days",
   "advance_section",
   "advance_percent",
   "per_meter_months",
@@ -101,6 +109,60 @@
    "fieldtype": "Small Text",
    "label": "Last Allocation",
    "read_only": 1
+  },
+  {
+   "fieldname": "follow_section",
+   "fieldtype": "Section Break",
+   "label": "Approvals and Cover"
+  },
+  {
+   "fieldname": "remind_after_days",
+   "fieldtype": "Int",
+   "label": "Remind the Approver After (Days)",
+   "default": "2",
+   "non_negative": 1,
+   "description": "0: never."
+  },
+  {
+   "fieldname": "escalate_after_days",
+   "fieldtype": "Int",
+   "label": "Tell the Level Above After (Days)",
+   "default": "4",
+   "non_negative": 1,
+   "description": "0: never."
+  },
+  {
+   "fieldname": "overdue_after_days",
+   "fieldtype": "Int",
+   "label": "Overdue From Leave After (Days)",
+   "default": "1",
+   "non_negative": 1,
+   "description": "0: not counted."
+  },
+  {
+   "fieldname": "follow_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "most_off",
+   "fieldtype": "Int",
+   "label": "Most Off at Once in a Department",
+   "non_negative": 1,
+   "description": "Blank: the Annual Leave Plan's own."
+  },
+  {
+   "fieldname": "cover_blocks",
+   "fieldtype": "Check",
+   "label": "Refuse Planned Leave Over That",
+   "default": "0",
+   "description": "Annual leave and leave without pay."
+  },
+  {
+   "fieldname": "reliever_from_days",
+   "fieldtype": "Int",
+   "label": "Reliever Needed From (Days)",
+   "non_negative": 1,
+   "description": "Blank: never."
   },
   {
    "fieldname": "advance_section",
@@ -189,7 +251,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-29 12:00:00.000000",
+ "modified": "2026-10-11 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Leave Management Settings",

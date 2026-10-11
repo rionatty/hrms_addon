@@ -73,6 +73,9 @@ def settings_validate(doc, method=None):
     values = {key: doc.get(key) for key in leave_advance_rules.DEFAULTS}
     values["not_regular_types"] = [row.employment_type for row in doc.get("not_regular_types") or []]
     errors = leave_advance_rules.settings_errors(leave_advance_rules.settings_from(values))
+    from hrms_addon.hrms_addon import leave_follow
+
+    errors = list(errors) + leave_follow.settings_errors(doc)
     account = doc.get("leave_advance_account")
     if account:
         found = frappe.db.get_value("Account", account, ["account_type", "root_type", "is_group"], as_dict=True)

@@ -37,7 +37,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import attendance_rules, leave_rules as rules, people
+from hrms_addon.hrms_addon import attendance_rules, leave_follow, leave_rules as rules, people
 
 PLAN = "Annual Leave Plan"
 ROW = "Annual Leave Plan Employee"
@@ -533,6 +533,9 @@ def application_validate(doc, method=None):
                      title=_("Leave Application"))
     earned = leave_accrual.check_application(doc)
     _fill_balances(doc, earned)
+    if doc.docstatus == 0:
+        # who else of the department is off the same days, for each desk to see
+        leave_follow.check_cover(doc)
     _check_application_step(doc)
     state = doc.get("workflow_state")
     doc.custom_leave_status = state or doc.get("custom_leave_status") or approval.DRAFT
@@ -586,10 +589,11 @@ def _check_application_step(doc):
             "return_remarks": doc.get("custom_return_remarks"),
             "custom_balance_before": doc.get("custom_balance_before"),
             "off_duty_request": doc.get("custom_off_duty_request"),
+            "amended_from": doc.get("amended_from"), "change_kind": doc.get("custom_change_kind"),
             **{field: doc.get(field) for field, _who in approval.REMARK_FIELDS.values()},
         })
         if new_state == approval.PENDING_SUPERVISOR and old_state in (None, approval.DRAFT):
-            errors = rules.application_errors(_application_facts(doc)) + errors
+            errors = rules.application_errors(_application_facts(doc)) + leave_follow.sending_errors(doc) + errors
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_("Leave Application"))
         if new_state != approval.DRAFT:
@@ -611,8 +615,16 @@ def _check_application_step(doc):
         doc.custom_hr_by = doc.custom_hr_by or frappe.session.user
         doc.custom_hr_on = doc.custom_hr_on or today()
         doc.custom_hro_by, doc.custom_hro_on = doc.custom_hro_by or frappe.session.user, doc.custom_hro_on or today()
-    if old_state != new_state and new_state in approval.PENDING_STATES:
-        _tell_application(doc, new_state)
+    if old_state == approval.DRAFT and new_state == approval.APPROVED and doc.get("amended_from") \
+            and doc.get("custom_change_kind") in approval.ENDED_EARLY:
+        # signed as the leave first approved was
+        leave_follow.signed_as(doc)
+    if old_state != new_state:
+        # the desk it reaches is told, and the day kept for how long it waits there
+        if new_state in approval.PENDING_STATES:
+            leave_follow.arrived(doc, new_state)
+        else:
+            leave_follow.left_the_desk(doc)
 
 
 def _application_facts(doc):
@@ -625,17 +637,6 @@ def _application_facts(doc):
     }
 
 
-def _tell_application(doc, state):
-    from hrms_addon.hrms_addon import leave_approval as approval
-
-    users = people.people_for(approval.ROLE_WAITING[state], doc.get("custom_branch"), doc.get("department"))
-    message = _("Leave application from {0}: {1} to {2}.").format(
-        doc.get("employee_name") or doc.employee, frappe.utils.format_date(doc.get("from_date")),
-        frappe.utils.format_date(doc.get("to_date")))
-    people.notify(users, doc.doctype, doc.name, message)
-    people.assign(doc.doctype, doc.name, users, message, date=doc.get("from_date"))
-
-
 def application_on_submit(doc, method=None):
     """Approved. Step 7: an advance was asked for, so the Leave Advance is
     raised and goes to the Accounts Manager (leave_advances.py)."""
@@ -645,6 +646,10 @@ def application_on_submit(doc, method=None):
         _unmark_plan_row(doc)
         return
     _mark_plan_row(doc)
+    if doc.get("amended_from") and doc.get("custom_change_kind") in leave_follow.rules.ENDED_EARLY:
+        # a leave ended early keeps the advance and the reliever of the one first approved
+        return
+    leave_follow.tell_reliever(doc)
     if not rules.advance_wanted({"salary_requested_in_advance": doc.get("custom_salary_requested_in_advance")}):
         return
     leave_advances.on_leave_approved(doc)
@@ -745,11 +750,18 @@ def raise_advance(leave_application):
 # ── 3. Step 4: the system watching ────────────────────────────────────
 def daily():
     """A planned leave coming due or started with nothing applied for, each
-    planned leave's status, and a leave nobody has reported back from."""
+    planned leave's status, a leave waiting too long on a desk, and one
+    nobody has come back from (leave_follow.py)."""
     _tell_due()
     _tell_not_applied()
     _refresh_plan_statuses()
-    _ask_report_back()
+    # a leave on a desk too long, and one nobody has come back from
+    for watch in (leave_follow.chase_approvals, leave_follow.watch_returns):
+        try:
+            watch()
+        except Exception:  # noqa: BLE001 - one watch failing must not stop the other
+            frappe.db.rollback()
+            frappe.log_error(title="HRMS Addon: %s failed" % watch.__name__)
 
 
 def _tell_due():
@@ -841,24 +853,6 @@ def _refresh_plan_statuses():
         status = rules.plan_row_status(row.planned_from, now, applications.get(row.leave_application))
         if status != row.leave_status:
             frappe.db.set_value(ROW, row.name, "leave_status", status, update_modified=False)
-    frappe.db.commit()
-
-
-def _ask_report_back():
-    """Step 8: a leave whose last day has passed and nobody has said the
-    employee is back."""
-    rows = frappe.get_all(APPLICATION,
-                          filters={"docstatus": 1, "status": "Approved", "custom_reported_back": 0,
-                                   "to_date": ["<", today()]},
-                          fields=["name", "employee", "employee_name", "to_date", "custom_branch", "department"],
-                          limit=200)
-    for row in rows:
-        users = people.hr_officers(row.custom_branch, row.department)
-        if not users:
-            continue
-        message = _("{0}'s leave ended on {1}. Mark them as reported back.").format(
-            row.employee_name or row.employee, frappe.utils.format_date(row.to_date))
-        people.assign(APPLICATION, row.name, users, message)
     frappe.db.commit()
 
 

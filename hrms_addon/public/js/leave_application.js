@@ -36,8 +36,78 @@ frappe.ui.form.on("Leave Application", {
 					frm.set_value("custom_reported_back", 1).then(() => frm.save("Update"))
 				);
 			}
+			frm.trigger("after_approval");
 		}
 		frm.trigger("show_balances");
+		frm.trigger("say_where_it_stands");
+	},
+	// what changes after approval: back early or recalled (HR), or more days
+	after_approval(frm) {
+		if (frappe.user.has_role(["HR User", "HR Manager"])) {
+			frm.add_custom_button(__("End Early"), () =>
+				frappe.prompt(
+					[
+						{
+							fieldname: "kind",
+							fieldtype: "Select",
+							label: __("Why"),
+							options: ["Returned Early", "Recalled"],
+							default: "Returned Early",
+							reqd: 1,
+						},
+						{ fieldname: "last_day", fieldtype: "Date", label: __("Last Day of Leave Taken"), reqd: 1 },
+						{ fieldname: "reason", fieldtype: "Small Text", label: __("Reason"), reqd: 1 },
+					],
+					(values) =>
+						frappe
+							.xcall("hrms_addon.hrms_addon.leave_follow.end_early", {
+								name: frm.doc.name,
+								last_day: values.last_day,
+								kind: values.kind,
+								reason: values.reason,
+							})
+							.then((standing) => frappe.set_route("Form", "Leave Application", standing)),
+					__("End the leave early"),
+					__("End Early")
+				)
+			);
+		}
+		frm.add_custom_button(__("Extend"), () =>
+			frappe.prompt(
+				[
+					{ fieldname: "new_to", fieldtype: "Date", label: __("New Last Day"), reqd: 1 },
+					{ fieldname: "reason", fieldtype: "Small Text", label: __("Reason"), reqd: 1 },
+				],
+				(values) =>
+					frappe
+						.xcall("hrms_addon.hrms_addon.leave_follow.extend", {
+							name: frm.doc.name,
+							new_to: values.new_to,
+							reason: values.reason,
+						})
+						.then((extension) => frappe.set_route("Form", "Leave Application", extension)),
+				__("Extend the leave"),
+				__("Extend")
+			)
+		);
+	},
+	// who else is off, how long it has waited, and whether anybody is overdue
+	say_where_it_stands(frm) {
+		if (frm.doc.docstatus === 0 && frm.doc.custom_cover) {
+			frm.set_intro(
+				__("Others off the same days: {0}", [frappe.utils.escape_html(frm.doc.custom_cover)]),
+				"orange"
+			);
+		}
+		if (frm.doc.docstatus === 0 && frm.doc.custom_at_desk_since) {
+			const waited = frappe.datetime.get_diff(frappe.datetime.get_today(), frm.doc.custom_at_desk_since);
+			if (waited > 0) {
+				frm.set_intro(__("{0}: {1} day(s).", [__(frm.doc.custom_leave_status), waited]), "blue");
+			}
+		}
+		if (frm.doc.docstatus === 1 && frm.doc.custom_overstay_days && !frm.doc.custom_reported_back) {
+			frm.set_intro(__("{0} day(s) overdue from this leave.", [frm.doc.custom_overstay_days]), "red");
+		}
 	},
 	// Part 2 of the form, said once at the top: what has been earned, what
 	// can be taken, and what is left after this leave.
