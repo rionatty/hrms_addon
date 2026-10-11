@@ -20,3 +20,6 @@ class SalaryAdvanceProcessing(Document):
 
     def on_cancel(self):
         salary_advances.run_on_cancel(self)
+
+    def on_trash(self):
+        salary_advances.run_on_trash(self)

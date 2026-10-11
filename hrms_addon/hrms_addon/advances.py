@@ -400,7 +400,8 @@ def advance_on_cancel(doc, method=None):
             if deduction.docstatus == 1:
                 deduction.flags.ignore_permissions = True
                 deduction.cancel()
-    doc.custom_advance_status = "Cancelled"
+    # on_cancel runs after the document is written, so this is written here
+    doc.db_set("custom_advance_status", "Cancelled", update_modified=False)
 
 
 def schedule_recovery(doc):
@@ -463,12 +464,14 @@ def unschedule_beyond_paid(doc):
     for row in sorted(rows, key=lambda row: str(row.payroll_date), reverse=True):
         if scheduled <= covered + 0.005:
             break
-        if frappe.db.exists("Additional Salary", row.additional_salary):
-            deduction = frappe.get_doc("Additional Salary", row.additional_salary)
+        name = row.additional_salary
+        # the row lets go first: a deduction a submitted advance names cannot be cancelled
+        row.db_set("additional_salary", None, update_modified=False)
+        if frappe.db.exists("Additional Salary", name):
+            deduction = frappe.get_doc("Additional Salary", name)
             if deduction.docstatus == 1:
                 deduction.flags.ignore_permissions = True
                 deduction.cancel()
-        row.db_set("additional_salary", None, update_modified=False)
         scheduled -= flt(row.amount)
         removed += 1
     return removed

@@ -46,6 +46,18 @@ def _deductions(slip):
     return [row.get("additional_salary") for row in slip.get("deductions") or [] if row.get("additional_salary")]
 
 
+def addition_on_cancel(doc, method=None):
+    """An Additional Salary cancelled after a draft salary slip took it up.
+    Frappe HR leaves its line on the slip, which would still pay or deduct
+    it, so the slips to make again are named."""
+    slips = frappe.get_all("Salary Detail", filters={"parenttype": "Salary Slip", "docstatus": 0,
+                                                     "additional_salary": doc.name},
+                           pluck="parent", distinct=True, limit_page_length=0)
+    if slips:
+        frappe.msgprint(_("{0} is still on draft Salary Slip {1}. Delete the slip and create it again.").format(
+            doc.get("salary_component"), ", ".join(slips)), title=_("Salary Slip"), indicator="orange")
+
+
 def mark(additional_salaries, recovered, parent=None):
     """Mark the schedule rows these deductions pay as recovered (1) or not
     (0), and bring each document they belong to up to date."""

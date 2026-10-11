@@ -9,6 +9,15 @@ frappe.ui.form.on("Salary Advance Processing", {
 		frm.set_query("bank_account", () => ({
 			filters: { company: frm.doc.company, account_type: ["in", ["Bank", "Cash"]], is_group: 0 },
 		}));
+		// the run's own cancel takes these back (salary_advances.run_on_cancel)
+		frm.ignore_doctypes_on_cancel_all = [
+			...new Set([
+				...(frm.ignore_doctypes_on_cancel_all || []),
+				"Employee Advance",
+				"Journal Entry",
+				"Additional Salary",
+			]),
+		];
 	},
 	onload(frm) {
 		if (!frm.is_new()) return;

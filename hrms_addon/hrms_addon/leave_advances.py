@@ -459,10 +459,13 @@ def run_on_submit(doc, method=None):
 
 
 def run_on_cancel(doc, method=None):
-    if doc.get("journal_entry") and frappe.db.exists("Journal Entry", doc.journal_entry):
-        if frappe.db.get_value("Journal Entry", doc.journal_entry, "docstatus") == 1:
-            frappe.throw(_("Cancel the bank entry {0} first.").format(doc.journal_entry), title=_(RUN))
-        frappe.delete_doc("Journal Entry", doc.journal_entry, ignore_permissions=True)
+    """The run takes back what it made: the deductions its payment put on
+    the payroll, then the bank entry; its advances wait to be paid again.
+    Once the payroll has taken a deduction the run stays."""
+    from hrms_addon.hrms_addon import advance_runs
+
+    _take_back_payment(doc.name)
+    advance_runs.take_back_bank_entry(doc, RUN)
     for row in doc.get("employees") or []:
         if frappe.db.get_value(ADVANCE, row.leave_advance, "processing") == doc.name:
             frappe.db.set_value(ADVANCE, row.leave_advance, {"processing": None, "status": rules.APPROVED},
@@ -505,25 +508,33 @@ def payment_on_cancel(doc, method=None):
     """The bank entry cancelled before the payroll took anything: the
     deductions come off and the advances wait to be paid again."""
     for run in frappe.get_all(RUN, filters={"journal_entry": doc.name, "docstatus": 1}, pluck="name"):
-        names = frappe.get_all(LINE, filters={"parent": run, "parenttype": RUN, "include": 1}, pluck="leave_advance")
-        taken = frappe.get_all("Leave Advance Recovery", filters={"parent": ["in", names or [""]],
-                                                                  "parenttype": ADVANCE, "recovered": 1},
-                               pluck="parent", limit=1)
-        if taken:
-            frappe.throw(_("The payroll has already taken back part of {0}. The payment stays.").format(taken[0]),
-                         title=_(RUN))
-        for name in names:
-            advance = frappe.get_doc(ADVANCE, name)
-            for row in advance.get("recoveries") or []:
-                if row.additional_salary and frappe.db.exists("Additional Salary", row.additional_salary):
-                    deduction = frappe.get_doc("Additional Salary", row.additional_salary)
-                    if deduction.docstatus == 1:
-                        deduction.flags.ignore_permissions = True
-                        deduction.cancel()
-                row.db_set("additional_salary", None, update_modified=False)
-            advance.db_set({"paid_on": None, "journal_entry": None, "status": rules.PROCESSING}, update_modified=False)
-            refresh_recovered(name)
+        _take_back_payment(run)
         frappe.db.set_value(RUN, run, "status", rules.RUN_SENT, update_modified=False)
+
+
+def _take_back_payment(run):
+    """A run's advances as they were before they were paid: the deductions
+    off the payroll, and each advance waiting for its payment."""
+    names = frappe.get_all(LINE, filters={"parent": run, "parenttype": RUN, "include": 1}, pluck="leave_advance")
+    taken = frappe.get_all("Leave Advance Recovery", filters={"parent": ["in", names or [""]],
+                                                              "parenttype": ADVANCE, "recovered": 1},
+                           pluck="parent", limit=1)
+    if taken:
+        frappe.throw(_("The payroll has already taken back part of {0}. The payment stays.").format(taken[0]),
+                     title=_(RUN))
+    for name in names:
+        advance = frappe.get_doc(ADVANCE, name)
+        for row in advance.get("recoveries") or []:
+            name_ = row.additional_salary
+            # the row lets go first: a deduction a submitted advance names cannot be cancelled
+            row.db_set("additional_salary", None, update_modified=False)
+            if name_ and frappe.db.exists("Additional Salary", name_):
+                deduction = frappe.get_doc("Additional Salary", name_)
+                if deduction.docstatus == 1:
+                    deduction.flags.ignore_permissions = True
+                    deduction.cancel()
+        advance.db_set({"paid_on": None, "journal_entry": None, "status": rules.PROCESSING}, update_modified=False)
+        refresh_recovered(name)
 
 
 def schedule_recovery(advance):

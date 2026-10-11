@@ -382,17 +382,33 @@ def _bank_entry(doc, made):
 
 
 def run_on_cancel(doc, method=None):
-    if doc.get("journal_entry") and frappe.db.exists("Journal Entry", doc.journal_entry):
-        if frappe.db.get_value("Journal Entry", doc.journal_entry, "docstatus") == 1:
-            frappe.throw(_("Cancel the bank entry {0} first.").format(doc.journal_entry), title=_(RUN))
-        frappe.delete_doc("Journal Entry", doc.journal_entry, ignore_permissions=True)
-    for row in doc.get("employees") or []:
-        if row.get("employee_advance") and frappe.db.exists(ADVANCE, row.employee_advance):
-            advance = frappe.get_doc(ADVANCE, row.employee_advance)
-            if advance.docstatus == 1:
-                advance.flags.ignore_permissions = True
-                advance.cancel()
+    """The run takes back what it made, in the order the records hold one
+    another: the bank entry (and with it the recoveries its payment put on
+    the payroll), then each advance. Once a salary slip has taken a
+    recovery the run stays."""
+    from hrms_addon.hrms_addon import advance_runs
+
+    made = [row.employee_advance for row in doc.get("employees") or []
+            if row.get("employee_advance") and frappe.db.exists(ADVANCE, row.employee_advance)]
+    taken = advance_runs.recovered_on(ADVANCE, made)
+    if taken:
+        frappe.throw(_("{0} is already recovered on Salary Slip {1}. Cancel the salary slip first.").format(*taken),
+                     title=_(RUN))
+    advance_runs.take_back_bank_entry(doc, RUN)
+    for name in made:
+        advance = frappe.get_doc(ADVANCE, name)
+        if advance.docstatus == 1:
+            advance.flags.ignore_permissions = True
+            advance.cancel()
     doc.db_set("status", "Cancelled", update_modified=False)
+
+
+def run_on_trash(doc, method=None):
+    """A cancelled run deleted: its cancelled advances stay as records, and
+    let go of the run so that it can go."""
+    for name in frappe.get_all(ADVANCE, filters={"custom_salary_advance_run": doc.name, "docstatus": ["!=", 1]},
+                               pluck="name", limit_page_length=0):
+        frappe.db.set_value(ADVANCE, name, "custom_salary_advance_run", None, update_modified=False)
 
 
 # ── 3. What the system watches ────────────────────────────────────────

@@ -186,6 +186,8 @@ doctype_js = {
     "Employee": "public/js/employee.js",
     # Luuka's three advances on their Employee Advance (advances.py)
     "Employee Advance": "public/js/employee_advance.js",
+    # an advance run's bank entry, cancelled without its run (advance_runs.py)
+    "Journal Entry": "public/js/journal_entry.js",
     # LPL/HR/27 on their Expense Claim (benefits.py)
     "Expense Claim": "public/js/expense_claim.js",
     # Both exits on their Employee Separation, with the two buttons the
@@ -1678,7 +1680,14 @@ doc_events = {
                       "hrms_addon.hrms_addon.leave_advances.payment_on_submit"],
         "on_cancel": ["hrms_addon.hrms_addon.advances.payment_on_cancel",
                       "hrms_addon.hrms_addon.loans.journal_on_cancel",
-                      "hrms_addon.hrms_addon.leave_advances.payment_on_cancel"],
+                      "hrms_addon.hrms_addon.leave_advances.payment_on_cancel",
+                      # the run that names a bank entry stays when Finance cancel it
+                      "hrms_addon.hrms_addon.advance_runs.journal_on_cancel"],
+    },
+    # one cancelled after a draft salary slip took it up: the slip keeps
+    # the line, so it is named (recoveries.py)
+    "Additional Salary": {
+        "on_cancel": "hrms_addon.hrms_addon.recoveries.addition_on_cancel",
     },
     # The slip that takes a loan's, a penalty's or an advance's monthly
     # deduction marks that month recovered, and a cancelled slip gives it

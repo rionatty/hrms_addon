@@ -488,12 +488,13 @@ def _cancel_untaken(doc):
         name = row.get("additional_salary")
         if row.get("recovered") or not name or _taken(name):
             continue
+        # the row lets go first: a deduction a submitted loan names cannot be cancelled
+        frappe.db.set_value(ROW, row.name, "additional_salary", None, update_modified=False)
         if frappe.db.get_value("Additional Salary", name, "docstatus") == 1:
             deduction = frappe.get_doc("Additional Salary", name)
             deduction.flags.ignore_permissions = True
             deduction.cancel()
             cancelled += 1
-        frappe.db.set_value(ROW, row.name, "additional_salary", None, update_modified=False)
     return cancelled
 
 

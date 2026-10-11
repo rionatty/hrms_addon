@@ -928,6 +928,31 @@ removal disables. The checker runs the rules and the wiring: the panel's
 two fields, the property setter that lets To Date change after submit, and
 the form script's calls.
 
+`verify_advance_runs.py` covers cancelling an advance run (Salary Advance
+Processing, Leave Advance Processing). A run, its advances, its bank entry
+and the deductions on the payroll name one another while they are
+submitted, and Frappe refuses to cancel a document a submitted document
+names and to delete one anything names. So one Cancel on the run takes
+everything back in the order that allows: a recovery a salary slip has
+already taken stops it (the slip is named); the bank entry goes next, a
+draft deleted once the run has let go of it, a posted one cancelled only
+for somebody who may cancel bank entries (anybody else is sent to
+Finance), and there and then, where ERPNext would queue an entry of more
+than 100 lines; then the advances, cancelled for a salary advance run and back
+to waiting for a leave advance run. The run's form leaves those documents
+out of Frappe's "Cancel All Documents", which would cancel them before the
+run and be refused by it. Finance may also cancel the bank entry on its
+own: the run stays, and what the payment put on the payroll comes off. A
+deduction is let go of by the row that names it before it is cancelled
+(advances, leave advances and staff loans alike), and a cancelled run can
+be deleted, its cancelled advances staying as records. Frappe HR leaves a
+cancelled Additional Salary's line on a draft salary slip that had taken it
+up, so such a slip is named for HR to delete and create again. The checker runs
+the rules, works out from the doctypes which submitted documents name a
+run or its bank entry and holds the forms to them, and checks the order on
+the server. A fake that cancels whatever it is told to cannot see any of
+this, so the walks for it put Frappe's link rules on the fake first.
+
 `verify_fixtures.py` also needs the upstream apps checked out (it reads
 their doctype JSON to resolve `insert_after`, Link targets and fetch
 sources). It looks in `../ERPNext/{frappe,erpnext,hrms}`; set

@@ -12,6 +12,15 @@ frappe.ui.form.on("Leave Advance Processing", {
 				frm.doc.branch ? { branch: frm.doc.branch } : {}
 			),
 		}));
+		// the run's own cancel takes these back (leave_advances.run_on_cancel)
+		frm.ignore_doctypes_on_cancel_all = [
+			...new Set([
+				...(frm.ignore_doctypes_on_cancel_all || []),
+				"Leave Advance",
+				"Journal Entry",
+				"Additional Salary",
+			]),
+		];
 	},
 	onload(frm) {
 		if (frm.is_new() && !frm.doc.company) {
