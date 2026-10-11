@@ -1382,6 +1382,7 @@ fixtures = [
                     "Interview Feedback-feedback-label",
                     "Interview Feedback-main-default_print_format",
                     "Employee Onboarding-main-default_print_format",
+                    "Leave Application-main-default_print_format",
                     "Interview Type-expected_skill_set-reqd",
                     "Training Feedback-feedback-label",
                     "Training Feedback-feedback-reqd",

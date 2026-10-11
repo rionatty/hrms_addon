@@ -343,12 +343,38 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	make_menu() {
 		this.page.add_menu_item(__("Stop refreshing"), () => this.set_ticking(false));
 		this.page.add_menu_item(__("Refresh every minute"), () => this.set_ticking(true));
+		this.page.add_menu_item(__("Print Register"), () => this.print_register());
 		this.page.add_menu_item(__("Punches"), () =>
 			frappe.set_route("List", "Attendance Device Log")
 		);
 		this.page.add_menu_item(__("Clocking machines"), () =>
 			frappe.set_route("List", "Attendance Device")
 		);
+	}
+
+	// LPL/HR/07 on paper: what the board is showing, for the supervisor,
+	// the production officer and HR to sign
+	print_register() {
+		if (!this.board || !(this.board.register.rows || []).length) {
+			frappe.msgprint(__("There is nobody on the register to print."));
+			return;
+		}
+		const sheet = window.open("", "_blank");
+		if (!sheet) {
+			frappe.msgprint(__("Allow pop-ups for this site to print the register."));
+			return;
+		}
+		sheet.document.write(
+			hrms_addon.register_sheet(this.board, {
+				section:
+					(this.department && this.department.get_value()) ||
+					(this.branch && this.branch.get_value()) ||
+					"",
+			})
+		);
+		sheet.document.close();
+		sheet.focus();
+		sheet.print();
 	}
 
 	set_ticking(on) {
@@ -778,4 +804,72 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 			</table>
 		`);
 	}
+};
+
+// LPL/HR/07 itself, laid out as Luuka's sheet is: landscape, a column for
+// every day from the 26th to the 25th, the footer's five counts, and the
+// lines that are signed. It is built from what the board already holds,
+// so the paper and the screen cannot disagree.
+hrms_addon.register_sheet = function (board, filters) {
+	const esc = frappe.utils.escape_html;
+	const months = [
+		"January", "February", "March", "April", "May", "June",
+		"July", "August", "September", "October", "November", "December",
+	];
+	const days = board.cycle.days || [];
+	const dots = (count) => ".".repeat(count);
+	const section = (filters && filters.section) || "";
+	const head = days.map((day) => `<th>${parseInt(day.slice(8), 10)}</th>`).join("");
+	const body = (board.register.rows || [])
+		.map(
+			(row, index) =>
+				`<tr><td class="n">${index + 1}</td><td class="who">${esc(row.employee_name || row.employee)}</td>${row.codes
+					.map((code) => `<td>${esc(code || "")}</td>`)
+					.join("")}<td>${row.overtime || ""}</td></tr>`
+		)
+		.join("");
+	// the sheet prints the night shift's total above the four counts
+	const total_first = (line) => (String(line.label).indexOf("Total") === 0 ? 0 : 1);
+	const feet = (board.register.tallies || [])
+		.slice()
+		.sort((one, other) => total_first(one) - total_first(other))
+		.map(
+			(line) =>
+				`<tr class="tally"><td class="n"></td><td class="who">${esc(__(line.label))}</td>${line.counts
+					.map((count) => `<td>${count || ""}</td>`)
+					.join("")}<td></td></tr>`
+		)
+		.join("");
+	const legend = (board.codes || [])
+		.map((one) => `${esc(__(one.meaning)).toUpperCase()} = ${esc(one.code)}`)
+		.join(", ");
+	return `<!doctype html><html><head><meta charset="utf-8"><title>LPL/HR/07</title><style>
+@page { size: A4 landscape; margin: 9mm; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color: #000; margin: 0; }
+.top { width: 100%; border-collapse: collapse; margin: 0 0 6px; font-weight: bold; }
+.top td { padding: 3px 0; border: none; vertical-align: bottom; white-space: nowrap; }
+.ref { border: 1.5px solid #000; padding: 3px 8px; display: inline-block; }
+.sheet { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.sheet th, .sheet td { border: 1px solid #000; padding: 2px 1px; text-align: center; height: 16px; overflow: hidden; }
+.sheet .n { width: 30px; }
+.sheet .who { width: 160px; text-align: left; padding-left: 4px; white-space: nowrap; }
+.sheet .ot { width: 56px; }
+.sheet .tally td { font-weight: bold; }
+.sheet thead { display: table-header-group; }
+.sheet tr { page-break-inside: avoid; }
+.foot { margin: 7px 0 0; font-weight: bold; }
+</style></head><body>
+<table class="top">
+<tr><td style="width:30%">SECTION: ${section ? esc(section) : dots(44)}</td>
+<td>SHIFT SUPERVISOR'S NAME${dots(46)}SIGN${dots(22)}</td>
+<td style="width:15%;text-align:right"><span class="ref">REV.001 &nbsp; LPL/HR/07</span></td></tr>
+<tr><td>SHIFT (DAY / NIGHT)${dots(30)}</td><td></td><td></td></tr>
+<tr><td>MONTH: ${esc(__(months[(board.cycle.month || 1) - 1]))} &nbsp; YEAR: ${esc(String(board.cycle.year || ""))}</td>
+<td colspan="2">PRODUCTION OFFICER / MANAGER'S NAME${dots(40)}SIGN${dots(22)}COMMENT${dots(44)}</td></tr>
+</table>
+<table class="sheet"><thead><tr><th class="n">S/NO.</th><th class="who">NAME</th>${head}<th class="ot">Total OT (HRS)</th></tr></thead>
+<tbody>${body}${feet}</tbody></table>
+<p class="foot">${legend}</p>
+<p class="foot">CHECKED BY; SUPERVISOR${dots(40)}, PRODUCTION OFFICER${dots(50)} HR OFFICER${dots(50)}</p>
+</body></html>`;
 };

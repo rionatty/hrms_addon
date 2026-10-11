@@ -366,7 +366,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-28 12:00:00.000000",
+ "modified": "2026-10-11 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Leave Advance",
@@ -461,5 +461,6 @@
  "is_submittable": 1,
  "title_field": "employee_name",
  "track_changes": 1,
- "search_fields": "employee_name,leave_application"
+ "search_fields": "employee_name,leave_application",
+ "default_print_format": "Leave Advance Form"
 }
