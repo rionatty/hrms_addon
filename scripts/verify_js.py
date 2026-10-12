@@ -22,6 +22,8 @@ to a Frappe HR form):
      throws in set_query or add_child, which blanks the form just the same.
 
 Frappe HR's own fields are read from FRAPPE_APPS_ROOT (default ../ERPNext);
+so are the parts of a form (its dashboard, page, layout and toolbar) that
+a script reaches into, each of which must exist in this Frappe;
 without it, check 4 covers this app's DocTypes only.
 """
 import ast
@@ -497,6 +499,52 @@ fail.extend(empty)
 print("calls: %d to this app's whitelisted methods, %s" % (
     calls, "%d sending an empty value where Frappe checks the type" % len(empty) if empty
     else "none sending an empty value where Frappe checks the type"))
+
+# ── 6. The parts of a form a script reaches into exist in this Frappe ──
+# frm.dashboard.wrapper was Frappe v13's; v16's dashboard has .parent. The
+# script that used it is loaded with the desk, so it threw before each
+# signable form's own script ran, and that form's buttons were never drawn.
+PARTS = {"dashboard": ("frappe", "frappe", "public", "js", "frappe", "form", "dashboard.js"),
+         "page": ("frappe", "frappe", "public", "js", "frappe", "ui", "page.js"),
+         "layout": ("frappe", "frappe", "public", "js", "frappe", "form", "layout.js"),
+         "toolbar": ("frappe", "frappe", "public", "js", "frappe", "form", "toolbar.js")}
+reached, unknown, unread = 0, [], []
+for part, where in sorted(PARTS.items()):
+    path = os.path.join(APPS_ROOT, *where)
+    uses = {}
+    for rel in sorted(sources):
+        for found in re.finditer(r"\bfrm\.%s\.([A-Za-z_$][\w$]*)" % part, sources[rel]):
+            uses.setdefault(found.group(1), []).append("%s:%d" % (rel, sources[rel].count("\n", 0, found.start()) + 1))
+    if not uses:
+        continue
+    if not os.path.exists(path):
+        unread.append(part)
+        continue
+    theirs = open(path, encoding="utf-8").read()
+    has = set(re.findall(r"^\t(?:async\s+|static\s+|get\s+|set\s+)?([A-Za-z_$][\w$]*)\s*\(", theirs, re.M)) \
+        | set(re.findall(r"\bthis\.([A-Za-z_$][\w$]*)\s*=[^=]", theirs))
+    if len(has) < 10:
+        fail.append("Frappe's form %s has only %d members in %s: the scan is reading it wrongly" % (part, len(has), path))
+    for member, places in sorted(uses.items()):
+        reached += len(places)
+        if member not in has:
+            unknown.append("%s uses frm.%s.%s, which Frappe's form %s does not have here: it throws, and a script "
+                           "loaded with the desk then stops the form's own" % (", ".join(places), part, member, part))
+if "dashboard" in unread:
+    fail.append("Frappe's form dashboard was not found under %s, so what the scripts reach into is unchecked" % APPS_ROOT)
+fail.extend(unknown)
+# and a script loaded with the desk never throws past its own refresh handler
+hooks_text = open(os.path.join(PACKAGE, "hooks.py"), encoding="utf-8").read()
+included = re.findall(r'"/assets/hrms_addon/js/([\w.-]+\.js)"', hooks_text.split("app_include_js = [")[1].split("]")[0])
+if "e_signature.js" not in included:
+    fail.append("the Sign button's script is no longer loaded with the desk: see what the check below should read")
+signing = sources.get("hrms_addon/public/js/e_signature.js", "")
+if not re.search(r"try \{\s*frm\.add_custom_button\(__\(\"Sign\"\)[^}]*hrms_addon\.signatures\.show\(frm\);\s*\} catch \(error\) \{",
+                 signing):
+    fail.append("e_signature.js runs before every signable form's own script: its refresh handler must catch what it "
+                "throws, or that form's buttons are never drawn")
+print("form parts: %d reaches into the dashboard, the page, the layout and the toolbar, each to something this Frappe has"
+      % reached)
 
 print()
 if fail:

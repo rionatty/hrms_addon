@@ -9,6 +9,12 @@
 // and nothing else.
 //
 // A plain asset path in app_include_js, so no `bench build` is needed.
+//
+// Loaded with the desk, its refresh handler runs before a form's own, and
+// Frappe runs the handlers of one event as a chain: a throw here stops the
+// form's own script, and its buttons are never drawn. So the list is drawn
+// through the dashboard's own add_section, and nothing here throws past
+// the handler.
 
 frappe.provide("hrms_addon.signatures");
 
@@ -42,14 +48,15 @@ hrms_addon.signatures.STEPS = [
 ];
 
 hrms_addon.signatures.show = function (frm) {
-	frm.dashboard.wrapper.find(".hra-signatures").remove();
-	if (frm.is_new()) return;
+	if (frm.is_new() || !frm.dashboard) return;
 	frappe
 		.xcall("hrms_addon.hrms_addon.signatures.signatures_on", {
 			doctype: frm.doc.doctype,
 			name: frm.doc.name,
 		})
 		.then((rows) => {
+			// one list: the form may have been drawn again while this was asked
+			frm.$wrapper.find(".form-dashboard-section.ha-signatures").remove();
 			if (!rows || !rows.length) return;
 			const lines = rows
 				.map((row) => {
@@ -68,13 +75,10 @@ hrms_addon.signatures.show = function (frm) {
 					);
 				})
 				.join("");
-			frm.dashboard.wrapper.prepend(
-				`<div class="hra-signatures" style="margin:8px 0 12px">` +
-					`<div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.5px">${__(
-						"Signatures"
-					)}</div>${lines}</div>`
-			);
-		});
+			frm.dashboard.add_section(`<div class="hra-signatures">${lines}</div>`, __("Signatures"), "custom ha-signatures");
+			frm.dashboard.show();
+		})
+		.catch(() => {});
 };
 
 hrms_addon.signatures.ask = function (frm) {
@@ -123,8 +127,13 @@ hrms_addon.signatures.DOCTYPES.forEach((doctype) => {
 	frappe.ui.form.on(doctype, {
 		refresh(frm) {
 			if (frm.is_new()) return;
-			frm.add_custom_button(__("Sign"), () => hrms_addon.signatures.ask(frm));
-			hrms_addon.signatures.show(frm);
+			// the form's own script runs after this one: nothing here may stop it
+			try {
+				frm.add_custom_button(__("Sign"), () => hrms_addon.signatures.ask(frm));
+				hrms_addon.signatures.show(frm);
+			} catch (error) {
+				console.error(error);
+			}
 		},
 	});
 });
