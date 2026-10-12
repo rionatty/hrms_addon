@@ -546,6 +546,33 @@ if not re.search(r"try \{\s*frm\.add_custom_button\(__\(\"Sign\"\)[^}]*hrms_addo
 print("form parts: %d reaches into the dashboard, the page, the layout and the toolbar, each to something this Frappe has"
       % reached)
 
+# ── 7. A corrected desk script reaches every browser ───────────────────
+# nginx tells browsers to keep /assets for a year, and a plain path never
+# changes: each desk script's address carries a mark of what is in it
+import hashlib  # noqa: E402
+import importlib.util  # noqa: E402
+
+spec = importlib.util.spec_from_file_location("hrms_addon_hooks_checked", os.path.join(PACKAGE, "hooks.py"))
+loaded = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(loaded)
+served = list(getattr(loaded, "app_include_js", []))
+if len(served) != len(included) or len(served) < 10:
+    fail.append("hooks.py serves %d desk scripts and lists %d: every one listed is served once" % (len(served), len(included)))
+for name, address in zip(included, served):
+    body = open(os.path.join(PACKAGE, "public", "js", name), "rb").read()
+    want = "/assets/hrms_addon/js/%s?v=%s" % (name, hashlib.sha256(body).hexdigest()[:10])
+    if address != want:
+        fail.append("the desk script %s is served as %s, not by a mark of what is in it (%s): a browser that has an "
+                    "old copy would keep it for a year" % (name, address, want))
+again = loaded._fresh(["/assets/hrms_addon/js/no_such_file.js", "elsewhere.js"])
+if again != ["/assets/hrms_addon/js/no_such_file.js", "elsewhere.js"]:
+    fail.append("a script that is not there is still named, unmarked, and the desk loads: %s" % again)
+public = sorted(name for name in vars(loaded) if not name.startswith("_") and callable(getattr(loaded, name))
+                or type(getattr(loaded, name)).__name__ == "module" and not name.startswith("_"))
+if public:
+    fail.append("hooks.py has %s at its top level: every public name there is read as a hook" % ", ".join(public))
+print("desk scripts: %d, each served by its path and a mark of what is in it" % len(served))
+
 print()
 if fail:
     print("FAILURES:")

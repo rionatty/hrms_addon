@@ -113,6 +113,37 @@ app_include_js = [
     "/assets/hrms_addon/js/hrms_addon_next_steps.js",
 ]
 
+
+def _fresh(paths):
+    """Each desk script by its path and a mark of what is in it.
+
+    A bench's nginx tells browsers to keep /assets for a year, and Frappe
+    adds nothing to a plain path, so a corrected script reached nobody who
+    had the old copy until they pressed Ctrl+Shift+R (the Sign button's,
+    12 Oct 2026). The mark changes when the file does, and with it the
+    address the browser asks for.
+
+    Named with an underscore, and importing inside itself: every public
+    name in this file is read as a hook."""
+    import hashlib
+    import os
+
+    try:
+        public = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
+    except NameError:  # read without a file of its own, as a checker reads it
+        return list(paths)
+    marked = []
+    for path in paths:
+        try:
+            with open(os.path.join(public, *path.split("/assets/hrms_addon/", 1)[1].split("/")), "rb") as handle:
+                marked.append("%s?v=%s" % (path, hashlib.sha256(handle.read()).hexdigest()[:10]))
+        except (OSError, IndexError):
+            marked.append(path)
+    return marked
+
+
+app_include_js[:] = _fresh(app_include_js)
+
 # Ship the desk colour overrides ("HRMS Addon Theme Settings"), the layout
 # density and the branding payload with the session boot, so they are
 # applied before first paint. See hrms_addon/hrms_addon/theme.py.
