@@ -13,6 +13,10 @@ ended and disabled here under the user's own permissions on that DocType:
   change      a new amount from a day
   end         a last day, or none again
   remove      one entered by mistake and never paid
+
+  assignment_validate   the allowances listed on a draft assignment, judged
+  assignment_on_submit  and added, now that there is an assignment to pay
+                        them under
 """
 
 import frappe
@@ -139,6 +143,59 @@ def remove(name):
         frappe.throw("<br>".join(_(message) for message in errors), title=_(TITLE))
     _disable(doc)
     return doc.name
+
+
+# ── an employee's first assignment ──────────────────────────────────────
+PLANNED = "custom_planned_allowances"
+
+
+def _planned(doc):
+    """The rows still to add. Amend copies every row, with what it became:
+    those are allowances on record already."""
+    return [row for row in doc.get(PLANNED) or [] if not row.get("additional_salary")]
+
+
+def assignment_validate(doc, method=None):
+    """Salary Structure Assignment validate. Frappe HR takes no Additional
+    Salary from before an employee's first submitted assignment, so the
+    allowances of a new employee are listed on the draft. They are judged
+    here as they will be added, so a mistake is said while it can still be
+    put right and never stops the submit half way. One with no day of its
+    own is left without, and goes on starting with the assignment."""
+    planned = _planned(doc)
+    if not planned:
+        return
+    person = frappe.db.get_value("Employee", doc.employee, ["date_of_joining", "relieving_date"], as_dict=True) \
+        or frappe._dict()
+    errors = rules.plan_errors(
+        [{"salary_component": row.salary_component,
+          "component": frappe.db.get_value("Salary Component", row.salary_component, ["type", "disabled"], as_dict=True)
+          if row.get("salary_component") else None,
+          "amount": row.get("amount"), "from_date": row.get("from_date"), "to_date": row.get("to_date")}
+         for row in planned],
+        {"assignment_from": doc.get("from_date"), "assigned_from": _assigned_from(doc.employee),
+         "joined": person.get("date_of_joining"), "relieving": person.get("relieving_date"),
+         "others": _records(doc.employee)})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(TITLE))
+
+
+def assignment_on_submit(doc, method=None):
+    """Salary Structure Assignment on_submit: each allowance listed on the
+    draft becomes a recurring Additional Salary, under the user's own
+    permissions as every other is, and the row keeps the name of what it
+    became. Returns the Additional Salaries made."""
+    planned = _planned(doc)
+    if not planned:
+        return []
+    _may("create", doc.employee)
+    made = []
+    for row in planned:
+        record = _new(doc.employee, row.salary_component, row.amount,
+                      rules.planned_start(row.get("from_date"), doc.get("from_date")), row.get("to_date"))
+        row.db_set("additional_salary", record.name, update_modified=False)
+        made.append(record.name)
+    return made
 
 
 def _record(name):

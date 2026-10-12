@@ -14,6 +14,9 @@ without a bench.
   5  wiring: the panel's two fields on the assignment, the To Date setter on
      Additional Salary, the form script's calls, and the server working
      under the user's own permissions
+  6  an employee's first assignment: Frappe HR takes no Additional Salary
+     from before it, so the allowances are listed on the draft, judged on
+     every save and added when it is submitted
 
 The rules are loaded without Frappe.
 """
@@ -200,6 +203,114 @@ check(not typed, "no typed argument on a call the form makes (an empty value wou
 check("fields_dict.custom_allowances_html" in script and "frappe.utils.escape_html" in script,
       "the panel draws in its own field and escapes what it prints")
 check('values[key] !== ""' in script, "an empty value is left out of what the form sends")
+
+# ── 6. an employee's first assignment ───────────────────────────────────
+EARNS = {"type": "Earning", "disabled": 0}
+
+
+def listed(component="House Rent Allowance", amount=72342, start=None, end=None, kind=EARNS):
+    return {"salary_component": component, "component": kind, "amount": amount, "from_date": start, "to_date": end}
+
+
+def planning(rows, **more):
+    facts = {"assignment_from": "2026-10-26", "assigned_from": None, "joined": "2026-10-20", "relieving": None,
+             "others": []}
+    facts.update(more)
+    return R.plan_errors(rows, facts)
+
+
+check(planning([listed(), listed("Transport Allowance", 70000)]) == [],
+      "two allowances on a first assignment, each starting with it")
+check(planning([]) == [] and planning(None) == [], "none listed")
+check(R.planned_start(None, "2026-10-26") == D(2026, 10, 26) and R.planned_start("2026-11-26", "2026-10-26") == D(2026, 11, 26)
+      and R.planned_start(None, None) is None, "one with no day of its own starts with the assignment")
+check(planning([listed(start="2026-11-26", end="2027-04-25")]) == [], "one starting later, for a time")
+early = planning([listed(), listed("Transport Allowance", 70000, start="2026-10-25")])
+check(early == ["Allowance 2: It cannot start before the employee's first salary structure assignment on 26-10-2026."],
+      "one from before the assignment starts is refused, and the row is named: %s" % early)
+check(planning([listed()], assignment_from=None) == ["Allowance 1: Enter the day it starts."],
+      "an assignment with no From Date yet")
+same = planning([listed(), listed(amount=80000)])
+check(len(same) == 1 and same[0].startswith("Allowance 2: House Rent Allowance of 72,342 already runs from 26-10-2026"),
+      "the same allowance listed twice: %s" % same)
+check(planning([listed(end="2026-12-25"), listed(amount=80000, start="2026-12-26")]) == [],
+      "but one after the other is two allowances")
+check(len(planning([listed(), listed(amount=80000, start="2026-12-26")])) == 1
+      and len(planning([listed(end="2026-12-26"), listed(amount=80000, start="2026-12-26")])) == 1,
+      "and never while the one listed before it still runs")
+kept = planning([listed()], others=[rec("A9", "House Rent Allowance", 60000, "2026-01-01", "2099-12-31")])
+check(len(kept) == 1 and "House Rent Allowance of 60,000 already runs from 01-01-2026" in kept[0],
+      "one the employee already has on record: %s" % kept)
+both = planning([listed("Sacco Contribution 5%", 0, kind={"type": "Deduction", "disabled": 0})])
+check(len(both) == 2 and all(e.startswith("Allowance 1: ") for e in both) and "is a deduction" in both[0]
+      and "more than nothing" in both[1], "every fault of a row is said at once: %s" % both)
+check(any("joined on 01-11-2026" in e for e in planning([listed()], joined="2026-11-01")), "before the employee joined")
+check(any("leaves on 31-12-2026" in e for e in planning([listed(end="2027-01-31")], relieving="2026-12-31")),
+      "past the day the employee leaves")
+# an employee already assigned may be given an allowance from before the draft, as the panel's Add does
+check(planning([listed(start="2026-06-01")], assigned_from="2026-01-01", joined="2025-06-01") == []
+      and planning([listed(start="2025-12-01")], assigned_from="2026-01-01", joined="2025-06-01") != [],
+      "with an earlier assignment on record, that one is the first there is")
+
+child = json.loads(read("hrms_addon", "hrms_addon", "doctype", "salary_assignment_allowance", "salary_assignment_allowance.json"))
+kinds = {f["fieldname"]: f for f in child["fields"]}
+check(child.get("istable") == 1 and child.get("module") == "HRMS Addon" and child["field_order"] == list(kinds)
+      and list(kinds) == ["salary_component", "amount", "from_date", "to_date", "additional_salary"],
+      "the row a draft lists an allowance on: %s" % list(kinds))
+check((kinds["salary_component"]["fieldtype"], kinds["salary_component"]["options"], kinds["salary_component"].get("reqd")) ==
+      ("Link", "Salary Component", 1) and (kinds["amount"]["fieldtype"], kinds["amount"].get("reqd")) == ("Currency", 1)
+      and kinds["from_date"]["fieldtype"] == kinds["to_date"]["fieldtype"] == "Date"
+      and not kinds["from_date"].get("reqd") and not kinds["to_date"].get("reqd"),
+      "an allowance and an amount are asked for; the days may be left empty")
+became = kinds["additional_salary"]
+check((became["fieldtype"], became.get("options"), became.get("read_only"), became.get("no_copy")) == ("Data", None, 1, 1),
+      "and the row keeps the name of what it became, as text: a Link would stop HR cancelling that Additional Salary "
+      "and refuse an amended assignment once it had been")
+table = ours.get("custom_planned_allowances", {})
+check((table.get("fieldtype"), table.get("options"), table.get("insert_after"), table.get("hidden"), table.get("no_copy")) ==
+      ("Table", "Salary Assignment Allowance", "custom_allowances_html", 1, 1),
+      "the table sits hidden under the panel, which draws it; an amended or copied assignment starts with none")
+check(not table.get("allow_on_submit") and not table.get("reqd"), "it closes with the assignment, and may be empty")
+check('"Salary Structure Assignment-custom_planned_allowances"' in hooks_source, "hooks fixtures list the table")
+events = hooks_source.split('"Salary Structure Assignment": {')[1].split("},")[0]
+check(re.search(r'"validate": \["hrms_addon\.hrms_addon\.grades\.assignment_validate",\s*(#[^\n]*\n\s*)?'
+                r'"hrms_addon\.hrms_addon\.standing_allowances\.assignment_validate"\]', events),
+      "the listed allowances are judged on every save, after the grade's own check")
+check(re.search(r'"on_submit": \["hrms_addon\.hrms_addon\.salary_structures\.follow_replacement",\s*(#[^\n]*\n\s*)?'
+                r'"hrms_addon\.hrms_addon\.standing_allowances\.assignment_on_submit"\]', events),
+      "and added on submit, when Frappe HR finds the assignment to pay them under")
+check('"on_cancel": "hrms_addon.hrms_addon.salary_structures.keep_records"' in events, "a cancel still keeps its records")
+judged = glue.split("def assignment_validate(")[1].split("\ndef ")[0]
+added = glue.split("def assignment_on_submit(")[1].split("\ndef ")[0]
+check("rules.plan_errors(" in judged and "_new(" not in judged and "frappe.throw(" in judged
+      and '"assigned_from": _assigned_from(doc.employee)' in judged and '"others": _records(doc.employee)' in judged,
+      "a save judges and makes nothing: an Additional Salary before the submit would be refused")
+check("row.from_date =" not in judged and ".from_date =" not in added,
+      "a row with no day of its own is left without, so it follows the assignment's From Date")
+check('_may("create", doc.employee)' in added and "_new(doc.employee, row.salary_component, row.amount," in added
+      and "rules.planned_start(row.get(\"from_date\"), doc.get(\"from_date\"))" in added
+      and 'row.db_set("additional_salary", record.name' in added,
+      "the submit makes each one as every allowance is made, and the row keeps its name")
+check('if not row.get("additional_salary")' in glue.split("def _planned(")[1].split("\ndef ")[0],
+      "a row that has become an allowance is never added again")
+check("(frm.doc.custom_planned_allowances || []).filter((row) => !row.additional_salary)" in script,
+      "nor listed again on the form: Amend copies every row with what it became")
+check('`<p>${__("To be added")}: <b>${ha_standing_money(to_add, data.currency)}</b></p>`' in script,
+      "a first assignment shows what is to be added, and no gross it has no assignment to work out")
+check('const planning = frm.doc.docstatus === 0 && !data.assigned;' in script,
+      "the form lists them only on a draft for an employee with no assignment yet")
+check('data.can_change && (data.assigned || planning)' in script, "where Add Allowance now shows as well")
+plan = script.split("function ha_standing_plan(")[1].split("\nfunction ")[0]
+check('frm.add_child("custom_planned_allowances")' in plan and "frm.dirty();" in plan and "frappe.call" not in plan
+      and "ha_standing_send" not in plan, "listing one writes a row on the draft and calls nothing")
+unplan = script.split("function ha_standing_unplan(")[1].split("\nfunction ")[0]
+check("frappe.model.clear_doc(row.doctype, row.name)" in unplan and "frm.dirty();" in unplan and "frappe.call" not in unplan,
+      "and taking one off the list takes its row off")
+check('if (planning) ha_standing_plan(frm);' in script and 'else ha_standing_add(frm, data);' in script,
+      "an employee who has an assignment is still given theirs at once")
+check('__("Added when this assignment is submitted.")' in script, "and the form says when they are added")
+check(re.search(r"\n\tfrom_date\(frm\) \{\n\t\tha_standing_allowances\(frm\);", script),
+      "the panel follows the assignment's From Date")
 
 print()
 print("FAILED: %d" % len(fail) if fail else "ALL STANDING ALLOWANCE CHECKS PASSED")

@@ -11565,5 +11565,18 @@
   "description": "Blank: as on the salary structure.",
   "non_negative": 1,
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Structure Assignment-custom_planned_allowances",
+  "dt": "Salary Structure Assignment",
+  "fieldname": "custom_planned_allowances",
+  "fieldtype": "Table",
+  "insert_after": "custom_allowances_html",
+  "label": "Allowances to Add",
+  "options": "Salary Assignment Allowance",
+  "hidden": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
  }
 ]

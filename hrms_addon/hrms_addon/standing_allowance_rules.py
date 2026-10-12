@@ -15,6 +15,8 @@ Structure Assignment, without cancelling anything:
             paid keeps the amount it was paid at
   end       a last day, or none again to let it run on
   remove    one entered by mistake and never paid
+  plan      on an employee's first assignment, before it is submitted: the
+            allowances are listed on the draft and added when it is
 
 Frappe HR's own rules shape these. A recurring Additional Salary must have
 a last day, so one left to run is given OPEN_END and shown without a last
@@ -169,6 +171,43 @@ def add_errors(facts):
     if found:
         errors.append(found)
     return errors
+
+
+def plan_errors(planned, facts):
+    """Why the allowances listed on a draft assignment cannot be added when
+    it is submitted, as messages naming the row.
+
+    Frappe HR takes no Additional Salary from before the employee's first
+    submitted assignment, so on a first assignment they are listed and are
+    added on submit. Each is judged as add_errors judges one, with the
+    assignment itself as the first there is, and against the rows before it
+    as well as the allowances already on record.
+
+    planned: [{"salary_component", "component", "amount", "from_date" (blank:
+    the assignment's), "to_date"}]. facts: "assignment_from", "assigned_from"
+    (an earlier submitted assignment's first day, if any), "joined",
+    "relieving", "others"."""
+    opens = _date(facts.get("assignment_from"))
+    firsts = [day for day in (_date(facts.get("assigned_from")), opens) if day]
+    others = list(facts.get("others") or [])
+    errors = []
+    for index, row in enumerate(planned or [], 1):
+        start = planned_start(row.get("from_date"), opens)
+        found = add_errors({
+            "salary_component": row.get("salary_component"), "component": row.get("component"),
+            "amount": row.get("amount"), "from_date": start, "to_date": row.get("to_date"),
+            "joined": facts.get("joined"), "relieving": facts.get("relieving"),
+            "assigned_from": min(firsts) if firsts else None, "others": others})
+        errors += ["Allowance %d: %s" % (index, message) for message in found]
+        others.append({"name": "allowance %d" % index, "salary_component": row.get("salary_component"),
+                       "amount": row.get("amount"), "from_date": start, "to_date": row.get("to_date")})
+    return errors
+
+
+def planned_start(from_date, assignment_from):
+    """The day an allowance listed on a draft starts: its own, else the
+    assignment's first day."""
+    return _date(from_date) or _date(assignment_from)
 
 
 def change_plan(record, amount, from_date, paid=False):

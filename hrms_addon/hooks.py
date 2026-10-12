@@ -1160,6 +1160,8 @@ fixtures = [
                     # assignment (standing_allowances.py)
                     "Salary Structure Assignment-custom_allowances_section",
                     "Salary Structure Assignment-custom_allowances_html",
+                    # entered on a draft, added when it is submitted
+                    "Salary Structure Assignment-custom_planned_allowances",
                     # how a component reads on the Pay Slip (payslip.py)
                     "Salary Component-custom_slip_name",
                     "Salary Component-custom_slip_order",
@@ -1746,12 +1748,16 @@ doc_events = {
         "validate": "hrms_addon.hrms_addon.grades.grade_validate",
     },
     "Salary Structure Assignment": {
-        "validate": "hrms_addon.hrms_addon.grades.assignment_validate",
+        "validate": ["hrms_addon.hrms_addon.grades.assignment_validate",
+                     # the allowances entered on a draft are judged as they will be added
+                     "hrms_addon.hrms_addon.standing_allowances.assignment_validate"],
         # the onboarding and the position change that made it keep it as a
         # record: cancelling it to correct it cancels neither, and the one
         # that replaces it takes its place on them (salary_structures.py)
         "on_cancel": "hrms_addon.hrms_addon.salary_structures.keep_records",
-        "on_submit": "hrms_addon.hrms_addon.salary_structures.follow_replacement",
+        "on_submit": ["hrms_addon.hrms_addon.salary_structures.follow_replacement",
+                      # and added, now that the employee has an assignment to pay them under
+                      "hrms_addon.hrms_addon.standing_allowances.assignment_on_submit"],
     },
     # a submitted structure takes new components (never loses one), and its
     # cancel leaves the records that name it (salary_structures.py)

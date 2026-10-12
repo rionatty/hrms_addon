@@ -341,8 +341,8 @@ events = hooks.get("doc_events", {})
 if events.get("Employee Grade", {}).get("validate") \
         != "hrms_addon.hrms_addon.grades.grade_validate":
     fail.append("the band is checked on Frappe HR's own Employee Grade")
-if events.get("Salary Structure Assignment", {}).get("validate") \
-        != "hrms_addon.hrms_addon.grades.assignment_validate":
+wired = events.get("Salary Structure Assignment", {}).get("validate")
+if "hrms_addon.hrms_addon.grades.assignment_validate" not in (wired if isinstance(wired, list) else [wired]):
     fail.append("a salary set outside its band is said where it is set")
 if hooks.get("doctype_js", {}).get("Employee Grade") != "public/js/employee_grade.js":
     fail.append("the grade form needs its script")
