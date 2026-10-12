@@ -239,16 +239,13 @@ holiday = R.priced(rows, {"HR-EMP-1": 1040000, "HR-EMP-2": 520000}, R.PUBLIC_HOL
 if holiday["total"] <= costed["total"]:
     fail.append("a public holiday costs more than a weekday")
 
-good = {"status": "Authorised", "rows": costed["rows"], "unpriced": [],
-        "cost_centre": "Kawempe - LPL"}
+good = {"status": "Authorised", "rows": costed["rows"], "unpriced": []}
 expect("a proper cost check", R.cost_check_errors(good))
 expect("costing before the officer signed", R.cost_check_errors(dict(good, status="Requested")),
        "once the authorising officer has signed")
 expect("costing with nobody on it", R.cost_check_errors(dict(good, rows=[])), "nobody on the request")
 expect("costing somebody with no salary", R.cost_check_errors(dict(good, unpriced=["B"])),
        "no salary on record for B")
-expect("costing with no cost centre", R.cost_check_errors(dict(good, cost_centre=None)),
-       "which cost centre")
 
 paid = {"status": "Costed", "rows": [dict(row, attendance="HR-ATT-1") for row in rows]}
 expect("a proper hand-off", R.payroll_errors(paid))
@@ -371,7 +368,7 @@ print("capture and payment: Frappe HR's own Attendance, Overtime Type and Overti
 
 # ── 4. The paper ──────────────────────────────────────────────────────
 request = fields_of(doctype("Overtime Request"))
-for fieldname in ("day_kind", "overtime_type", "multiplier", "cost_centre", "total_cost",
+for fieldname in ("day_kind", "overtime_type", "multiplier", "total_cost",
                   "costed_by", "costed_on", "cost_remarks", "over_the_cap",
                   "sent_to_payroll_on"):
     if fieldname not in request:
@@ -381,8 +378,12 @@ for fieldname in ("day_kind", "overtime_type", "multiplier", "total_cost", "over
         fail.append("%s is worked out, not typed: it must be read-only" % fieldname)
 if request.get("overtime_type", {}).get("options") != "Overtime Type":
     fail.append("the request points at Frappe HR's own Overtime Type")
-if request.get("cost_centre", {}).get("options") != "Cost Center":
-    fail.append("the cost centre is a real Cost Center (Organisation & Setup, case 9)")
+# no cost centre is asked for (12 Oct 2026): nothing read it, and payroll posts
+# overtime to the employee's own payroll cost centre
+if "cost_centre" in request or "cost_centre" in read("hrms_addon", "hrms_addon", "overtime.py") \
+        or "cost_centre" in read("hrms_addon", "hrms_addon", "overtime_rules.py") \
+        or "cost_centre" in read("hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.js"):
+    fail.append("the cost check asks for no cost centre: the field, the question and the rule are gone")
 statuses = (request.get("status", {}).get("options") or "").split("\n")
 for status in R.STATUSES:
     if status not in statuses:
@@ -395,7 +396,7 @@ for fieldname in ("hourly_rate", "amount", "attendance"):
         fail.append("a name on the request has no %s" % fieldname)
 if row.get("attendance", {}).get("options") != "Attendance":
     fail.append("each row remembers the attendance its hours were written onto")
-print("the paper: the day, the rate, the cost centre, the cost and where it went")
+print("the paper: the day, the rate, the cost and where it went")
 
 # ── 5. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "overtime.py")

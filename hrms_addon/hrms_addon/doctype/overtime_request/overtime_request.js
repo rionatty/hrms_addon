@@ -61,31 +61,16 @@ frappe.ui.form.on("Overtime Request", {
 		if (frm.doc.status === "Authorised" && frm.has_perm("write")) {
 			frm.add_custom_button(__("Check the Cost"), () =>
 				frappe.prompt(
-					[
-						{
-							fieldname: "cost_centre",
-							fieldtype: "Link",
-							options: "Cost Center",
-							label: __("Cost Centre"),
-							reqd: 1,
-							default: frm.doc.cost_centre,
-						},
-						{ fieldname: "remarks", fieldtype: "Small Text", label: __("HR Remarks") },
-					],
+					[{ fieldname: "remarks", fieldtype: "Small Text", label: __("HR Remarks") }],
 					(values) =>
 						frappe
 							.xcall("hrms_addon.hrms_addon.overtime.cost_check", {
 								name: frm.doc.name,
-								cost_centre: values.cost_centre,
 								remarks: values.remarks,
 							})
 							.then((found) => {
 								frappe.show_alert({
-									message: __("{0} at {1}x on a {2}.", [
-										format_currency(found.total),
-										found.multiplier,
-										found.kind,
-									]),
+									message: __("{0} on a {1}.", [format_currency(found.total), found.kind]),
 									indicator: "green",
 								});
 								frm.reload_doc();

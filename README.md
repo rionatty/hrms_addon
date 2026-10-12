@@ -815,7 +815,7 @@ it falls on (a public holiday off the employee's own holiday list, their
 weekly off, a day they are on leave, or a weekday), shows the rate before
 anybody signs, and after the authorising officer signs it goes to HR for
 the cost check — each person's own hourly pay out of their salary
-structure, times the day's rate, against a named cost centre. Sending it on
+structure, times the day's rate. Sending it on
 writes the hours onto the Attendance rows with the right Overtime Type and
 draws the slips for the cycle. The checker asserts the multipliers seeded
 are the Employment Act's floor (one and a half on a normal day, twice on a

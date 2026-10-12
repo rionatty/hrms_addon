@@ -158,7 +158,7 @@ def _monthly_bases(employees):
 
 
 @frappe.whitelist(methods=["POST"])
-def cost_check(name, cost_centre=None, remarks=None):
+def cost_check(name, remarks=None):
     """Test case 3's third step: HR see what the overtime costs before it
     goes anywhere near the payroll."""
     doc = frappe.get_doc(REQUEST, name)
@@ -173,8 +173,7 @@ def cost_check(name, cost_centre=None, remarks=None):
                           _monthly_gross(people_on_it, doc.overtime_date),
                           _standard_hours(people_on_it, doc.overtime_date), kinds)
     errors = rules.cost_check_errors({
-        "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
-        "cost_centre": cost_centre or doc.get("cost_centre")})
+        "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"]})
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Cost Check"))
     for row, priced_row in zip(doc.employees, costed["rows"]):
@@ -183,7 +182,6 @@ def cost_check(name, cost_centre=None, remarks=None):
     doc.db_set({
         "day_kind": kind, "overtime_type": doc.get("overtime_type") or type_for(kind),
         "multiplier": costed["multiplier"], "total_cost": costed["total"],
-        "cost_centre": cost_centre or doc.get("cost_centre"),
         "cost_remarks": remarks or doc.get("cost_remarks"),
         "over_the_cap": 1 if rules.over_the_cap(
             doc.get("total_hours"), (overtime_type or {}).get("maximum_overtime_hours_allowed"))

@@ -245,8 +245,6 @@ def cost_check_errors(facts):
     if facts.get("unpriced"):
         errors.append("There is no salary on record for %s, so this overtime cannot be costed. "
                       "Assign their salary structure first." % _and(facts["unpriced"]))
-    if not facts.get("cost_centre"):
-        errors.append("Say which cost centre carries this overtime.")
     return errors
 
 
