@@ -175,6 +175,9 @@ doctype_js = {
     # position change off the Cancel All list; a submitted structure takes
     # new rows but keeps its own (salary_structures.py)
     "Salary Structure Assignment": "public/js/salary_structure_assignment.js",
+    # a slip that finds nothing names the overtime requests still on their
+    # way to payroll (overtime.waiting)
+    "Overtime Slip": "public/js/overtime_slip.js",
     "Salary Structure": "public/js/salary_structure.js",
     # LPL/HR/15 on their Leave Application: the balances headline, the
     # advance the form asks for, and the report back (leave.py)

@@ -289,6 +289,20 @@ def overtime_on_submit(doc, method=None):
         len(doc.get("employees") or []), doc.total_hours)
     people.notify(approvers, doc.doctype, doc.name, message)
     people.assign(doc.doctype, doc.name, approvers, message, date=doc.overtime_date)
+    _let_authorise(doc, approvers)
+
+
+def _let_authorise(doc, users):
+    """Whoever is asked to authorise the overtime can. The Authorise button
+    and the method behind it ask for the right to submit, which the role of
+    the one asked may not carry on a site, and Frappe shares an assigned
+    document read-only."""
+    from frappe.share import add_docshare
+
+    for user in sorted({user for user in users or [] if user}):
+        if not frappe.has_permission(doc.doctype, "submit", doc.name, user=user):
+            add_docshare(doc.doctype, doc.name, user, read=1, write=1, submit=1,
+                         flags={"ignore_share_permission": True})
 
 
 def overtime_on_cancel(doc, method=None):

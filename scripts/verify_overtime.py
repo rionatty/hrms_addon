@@ -274,6 +274,29 @@ expect("or clocked in and never out",
        R.payroll_errors(dict(paid, rows=[dict(rows[1], attendance="HR-ATT-2", absent=True, clocked_in=True)])),
        "B clocked in on that day with no clock-out")
 
+# a type the site does not have, and what an employee's requests still wait for
+said = R.missing_type_error({"Weekday Overtime", "Rest Day Overtime"})
+if said != ("There is no Overtime Type named Rest Day Overtime and Weekday Overtime, so the Overtime Slip could not "
+            "pay these hours. Add it under Overtime Type first."):
+    fail.append("hours that would go under a type the site does not have are refused, the type named: %s" % said)
+waits = R.waiting([
+    {"name": "OT-3", "overtime_date": "2026-09-10", "hours": 2, "status": "Costed"},
+    {"name": "OT-1", "overtime_date": "2026-09-03", "hours": 3, "status": "Requested"},
+    {"name": "OT-2", "overtime_date": "2026-09-05", "hours": 1.5, "status": "Authorised"},
+    {"name": "OT-4", "overtime_date": "2026-09-12", "hours": 2, "status": "Sent to Payroll"},
+    {"name": "OT-5", "overtime_date": "2026-09-13", "hours": 2, "status": "Rejected"},
+    {"name": "OT-6", "overtime_date": "2026-09-14", "hours": 2, "status": "Cancelled"},
+    {"name": "OT-0", "overtime_date": "2026-09-01", "hours": 4, "status": None}])
+if [(row["name"], row["status"], row["next"]) for row in waits] != [
+        ("OT-0", "Draft", "Submit"), ("OT-1", "Requested", "Authorise"), ("OT-2", "Authorised", "Check the Cost"),
+        ("OT-3", "Costed", "Send to Payroll")]:
+    fail.append("a request not yet with payroll is named with the step it waits for, oldest first; one sent, rejected "
+                "or cancelled waits for nothing: %s" % [(row["name"], row["status"], row["next"]) for row in waits])
+if waits[2]["hours"] != 1.5 or R.waiting(None) != [] or R.waiting([]) != []:
+    fail.append("with its hours; and nothing waits where there is no request")
+if set(R.NEXT_STEP) | {"Sent to Payroll", "Rejected", "Cancelled"} != set(R.STATUSES):
+    fail.append("every status either waits for a step or is finished: %s" % sorted(R.NEXT_STEP))
+
 # what is paid: the hours authorised, up to what the clock shows
 for why, got, want in (
     ("a working day's overtime is what is worked past the standard hours", R.worked_overtime(R.WEEKDAY, 12, 10), 2.0),
@@ -485,6 +508,65 @@ if '["Requested", "Authorised", "Costed"].includes(frm.doc.status)' not in form:
 for needle in ("overtime.cost_check", "overtime.send_to_payroll"):
     if needle not in form:
         fail.append("the form has no way to call %s" % needle)
+# the hours reach Frappe HR's slip, or it is said why not
+for status, step in R.NEXT_STEP.items():
+    if status != "Draft" and 'frm.add_custom_button(__("%s")' % step not in form:
+        fail.append("the step a request at %s waits for is a button on its form: %s" % (status, step))
+if 'frm.doc.docstatus === 1 && frm.doc.status === "Requested") {\n\t\t\tfrm.set_intro(' not in form \
+        or "Waiting to be authorised." not in form:
+    fail.append("a requested overtime says on its form that it waits to be authorised")
+if 'values.pop("overtime_type")' in glue:
+    fail.append("hours are never written onto an attendance without their Overtime Type: the slip does not read them")
+if "    if _missing_types(plans):\n        seed_overtime_types()\n        plans = planned()" not in landed \
+        or "frappe.throw(_(rules.missing_type_error(missing))" not in landed:
+    fail.append("a type the site does not have is made as the migrate makes it, and the hand-off refused where it cannot be")
+elif landed.index("frappe.throw(_(rules.missing_type_error(missing))") > landed.index('frappe.db.set_value("Attendance"'):
+    fail.append("the hand-off is refused before anything is written")
+note = glue.split("def waiting(")[1].split(chr(10) + "def ")[0]
+if not re.search(r"@frappe\.whitelist\(\)\ndef waiting\(employee=None, start_date=None, end_date=None\):", glue):
+    fail.append("overtime.waiting is whitelisted, changes nothing, and has no typed argument")
+for needle, why in (('frappe.has_permission(REQUEST, "read")', "only for somebody who may read overtime requests"),
+                    ("frappe.get_list(REQUEST", "and only the requests they may read"),
+                    ('"docstatus": ["<", 2]', "never a cancelled one"),
+                    ('"overtime_date": ["between", [getdate(start_date), getdate(end_date)]]', "in the slip's own dates"),
+                    ("rules.waiting(", "judged by the rules")):
+    if needle not in note:
+        fail.append("overtime.waiting: %s (%r)" % (why, needle))
+stamp = glue.split("def stamp_untyped(")[1].split(chr(10) + "def ")[0]
+for needle, why in (('"overtime_type": ["is", "not set"]', "only an attendance with no type"),
+                    ('"actual_overtime_duration": [">", 0]', "that carries overtime"),
+                    ('"docstatus": 1, "status": rules.PAID_ON', "submitted and on a day the slip reads"),
+                    ('request.status != "Sent to Payroll"', "written by a request that was sent to payroll"),
+                    ("if frappe.db.exists(TYPE, name):", "and only under a type the site has")):
+    if needle not in stamp:
+        fail.append("overtime.stamp_untyped: %s (%r)" % (why, needle))
+if "stamp_untyped()" not in glue.split("def setup_on_migrate(")[1]:
+    fail.append("hours sent while their type was missing are put under it on migrate")
+if hooks.get("doctype_js", {}).get("Overtime Slip") != "public/js/overtime_slip.js":
+    fail.append("the Overtime Slip's form says what overtime has not reached payroll")
+slip_form = read("hrms_addon", "public", "js", "overtime_slip.js")
+for needle, why in (('method: "hrms_addon.hrms_addon.overtime.waiting"', "asks overtime.waiting"),
+                    ("doc.docstatus !== 0 || !doc.employee || !doc.start_date || !doc.end_date", "once it has all three, on a draft"),
+                    ('frappe.ui.form.on("Overtime Slip", {', "on Frappe HR's own form"),
+                    ("frappe.utils.escape_html", "escaping what it prints"),
+                    ("/app/overtime-request/${encodeURIComponent(row.name)}", "with a way to the request"),
+                    ('__("Next: {0}", [cell(__(row.next))])', "and the step it waits for")):
+    if needle not in slip_form:
+        fail.append("overtime_slip.js: %s (%r)" % (why, needle))
+request_spec = json.loads(read("hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.json"))
+asked = {"Production Manager", "Head of Department"}
+may = {row["role"] for row in request_spec["permissions"] if row.get("submit")}
+if not asked <= may:
+    fail.append("those asked to authorise overtime may: the Authorise button asks for the right to submit (%s lack it)"
+                % sorted(asked - may))
+raised = read("hrms_addon", "hrms_addon", "attendance.py")
+submitted = raised.split("def overtime_on_submit(")[1].split(chr(10) + "def ")[0]
+for role in asked:
+    if 'people.people_for("%s"' % role not in submitted:
+        fail.append("overtime is no longer sent to the %s to authorise: see who is, and that they may" % role)
+if "_let_authorise(doc, approvers)" not in submitted or "submit=1" not in raised.split("def _let_authorise(")[1].split(
+        chr(10) + "def ")[0]:
+    fail.append("and whoever is asked on a site whose roles differ is given the right on that request")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 if "Overtime Request" not in nav:
     fail.append("the request has no way in")

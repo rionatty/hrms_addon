@@ -22,6 +22,12 @@ salary component.
 
   seed_overtime_types   the three kinds of day, at the Employment Act's
                         floor, made once and then Luuka's to amend
+
+  waiting         for the Overtime Slip's form: the employee's requests in
+                  the slip's dates that have not reached payroll, and the
+                  step each waits for
+  stamp_untyped   hours sent while their Overtime Type was not on the
+                  site, put under it once it is
 """
 
 import frappe
@@ -202,7 +208,12 @@ def send_to_payroll(name):
     (overtime_rules.payable_hours): on a day the clock measured, nobody is
     paid for overtime it says they did not work. A day it did not measure,
     marked by hand, is paid as authorised. Somebody the attendance reads
-    absent stops the sheet."""
+    absent stops the sheet.
+
+    The slip reads only an attendance that carries an Overtime Type. One
+    that is not on the site is made here as the migrate would have made
+    it, and where it cannot be the sheet is stopped: hours written without
+    a type would read Sent to Payroll and never be paid."""
     doc = frappe.get_doc(REQUEST, name)
     doc.check_permission("submit")
     kinds = _day_kinds(doc)
@@ -223,20 +234,33 @@ def send_to_payroll(name):
     kind = doc.get("day_kind") or rules.WEEKDAY
     grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
     standards = _standard_hours([row["employee"] for row in rows], doc.overtime_date)
-    lines = rules.gross_lines(_types_for(kind, kinds.values()))
+
+    def planned():
+        """What goes onto each attendance. Read again once a missing type
+        has been made: the types set who falls under which."""
+        lines = rules.gross_lines(_types_for(kind, kinds.values()))
+        out = []
+        for row in rows:
+            theirs = kinds.get(row["employee"]) or kind
+            standard = standards.get(row["employee"]) or attendance_rules.STANDARD_HOURS
+            found = row["marked"]
+            # the clock measured the day when it has both ends of it
+            worked = rules.worked_overtime(theirs, found.working_hours, standard) \
+                if (found.in_time and found.out_time) else None
+            paid = rules.payable_hours(row.get("hours"), worked)
+            out.append((theirs, worked, paid, rules.attendance_update(
+                row, theirs, standard, gross=grosses.get(row["employee"]), lines=lines, hours=paid)))
+        return out
+
+    plans = planned()
+    if _missing_types(plans):
+        seed_overtime_types()
+        plans = planned()
+    missing = _missing_types(plans)
+    if missing:
+        frappe.throw(_(rules.missing_type_error(missing)), title=_("Payroll"))
     marked, short = 0, []
-    for row, line in zip(rows, doc.get("employees") or []):
-        theirs = kinds.get(row["employee"]) or kind
-        standard = standards.get(row["employee"]) or attendance_rules.STANDARD_HOURS
-        found = row["marked"]
-        # the clock measured the day when it has both ends of it
-        worked = rules.worked_overtime(theirs, found.working_hours, standard) \
-            if (found.in_time and found.out_time) else None
-        paid = rules.payable_hours(row.get("hours"), worked)
-        values = rules.attendance_update(row, theirs, standard, gross=grosses.get(row["employee"]), lines=lines,
-                                         hours=paid)
-        if not frappe.db.exists(TYPE, values["overtime_type"]):
-            values.pop("overtime_type")
+    for row, line, (theirs, worked, paid, values) in zip(rows, doc.get("employees") or [], plans):
         frappe.db.set_value("Attendance", row["attendance"], values, update_modified=False)
         line.db_set({"day_kind": theirs, "worked_hours": worked, "payable_hours": paid}, update_modified=False)
         if paid < flt(row.get("hours")):
@@ -257,6 +281,63 @@ def send_to_payroll(name):
                           frappe.utils.fmt_money(doc.get("total_cost") or 0),
                           frappe.utils.format_date(doc.overtime_date)))
     return {"attendance_marked": marked, "slips": slips, "paid_less": short}
+
+
+def _missing_types(plans):
+    """The Overtime Types the hours would go under that are not on the site."""
+    return sorted({values["overtime_type"] for _theirs, _worked, _paid, values in plans
+                   if not frappe.db.exists(TYPE, values["overtime_type"])})
+
+
+@frappe.whitelist()
+def waiting(employee=None, start_date=None, end_date=None):
+    """For the Overtime Slip's form. Frappe HR's slip reads the attendance,
+    and overtime is written there only when its request is sent to payroll,
+    so a slip made while a request is still on its way finds nothing. Those
+    requests are named here with the step each waits for. Only what the
+    user may read."""
+    if not (employee and start_date and end_date) or not frappe.has_permission(REQUEST, "read"):
+        return []
+    hours = {row.parent: row.hours for row in frappe.get_all(
+        "Overtime Request Employee", filters={"employee": employee, "parenttype": REQUEST},
+        fields=["parent", "hours"], limit_page_length=0)}
+    if not hours:
+        return []
+    found = frappe.get_list(REQUEST, filters={
+        "name": ["in", sorted(hours)], "docstatus": ["<", 2],
+        "overtime_date": ["between", [getdate(start_date), getdate(end_date)]]},
+        fields=["name", "overtime_date", "status"], limit_page_length=0)
+    return rules.waiting([{"name": row.name, "overtime_date": row.overtime_date, "status": row.status,
+                           "hours": hours.get(row.name)} for row in found])
+
+
+def stamp_untyped():
+    """after_migrate. Hours sent to payroll while their Overtime Type was
+    not on the site were written onto the attendance without one, where
+    Frappe HR's Overtime Slip never finds them. Once the type is there they
+    are put under it. Only an attendance a request sent to payroll wrote
+    on, and never one that has a type. Returns the attendance stamped."""
+    untyped = frappe.get_all("Attendance", filters={
+        "docstatus": 1, "status": rules.PAID_ON, "actual_overtime_duration": [">", 0],
+        "overtime_type": ["is", "not set"]}, fields=["name", "employee", "attendance_date"], limit_page_length=0)
+    lines, stamped = None, []
+    for found in untyped:
+        sheet = frappe.get_all("Overtime Request Employee", filters={"attendance": found.name, "parenttype": REQUEST},
+                               fields=["parent", "day_kind"], limit=1)
+        request = frappe.db.get_value(REQUEST, sheet[0].parent, ["status", "day_kind"], as_dict=True) if sheet else None
+        if not request or request.status != "Sent to Payroll":
+            continue
+        if lines is None:
+            lines = rules.gross_lines(_types_for(rules.WEEKDAY))
+        name = rules.type_name_for(sheet[0].day_kind or request.day_kind or rules.WEEKDAY,
+                                   pay.monthly_gross(found.employee, found.attendance_date), lines)
+        if frappe.db.exists(TYPE, name):
+            frappe.db.set_value("Attendance", found.name, "overtime_type", name, update_modified=False)
+            stamped.append(found.name)
+    if stamped:
+        print("HRMS Addon: %d attendance record(s) with overtime sent to payroll now carry their Overtime Type."
+              % len(stamped))
+    return stamped
 
 
 def _draw_slips(doc):
@@ -407,4 +488,5 @@ def fill_gross_line():
 def setup_on_migrate():
     seed_overtime_types()
     fill_gross_line()
+    stamp_untyped()
     warn_below_the_act()

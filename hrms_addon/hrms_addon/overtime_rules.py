@@ -284,6 +284,36 @@ def payroll_errors(facts):
     return errors
 
 
+def missing_type_error(names):
+    """Said when the hours would go onto the attendance under an Overtime
+    Type that is not on the site: Frappe HR's Overtime Slip reads only an
+    attendance that carries one, so they would be written down and never
+    paid."""
+    return ("There is no Overtime Type named %s, so the Overtime Slip could not pay these hours. "
+            "Add it under Overtime Type first." % _and(sorted(names)))
+
+
+# what each request not yet with payroll waits for
+NEXT_STEP = {"Draft": "Submit", "Requested": "Authorise", "Authorised": "Check the Cost", "Costed": "Send to Payroll"}
+
+
+def waiting(requests):
+    """Of an employee's overtime requests, those whose hours are not on the
+    attendance yet, oldest first, each with the step it waits for:
+    [{"name", "overtime_date", "hours", "status", "next"}]. One sent to
+    payroll, rejected or cancelled is not waiting for anything.
+
+    requests: [{"name", "overtime_date", "hours", "status"}]."""
+    out = []
+    for request in requests or []:
+        status = request.get("status") or "Draft"
+        if status not in NEXT_STEP:
+            continue
+        out.append({"name": request.get("name"), "overtime_date": request.get("overtime_date"),
+                    "hours": float(request.get("hours") or 0), "status": status, "next": NEXT_STEP[status]})
+    return sorted(out, key=lambda row: (str(row["overtime_date"]), str(row["name"])))
+
+
 # the one attendance status Frappe HR's Overtime Slip reads hours from
 PAID_ON = "Present"
 # overtime the clock shows within this of what was authorised is paid in

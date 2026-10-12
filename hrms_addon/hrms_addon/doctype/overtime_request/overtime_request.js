@@ -111,7 +111,9 @@ frappe.ui.form.on("Overtime Request", {
 					})
 			);
 		}
-		if (frm.doc.status === "Authorised") {
+		if (frm.doc.docstatus === 1 && frm.doc.status === "Requested") {
+			frm.set_intro(__("Waiting to be authorised. It is paid after the cost check and Send to Payroll."), "orange");
+		} else if (frm.doc.status === "Authorised") {
 			frm.set_intro(__("Authorised. HR issue the coupons and check the cost."), "green");
 		} else if (frm.doc.status === "Costed") {
 			frm.set_intro(
