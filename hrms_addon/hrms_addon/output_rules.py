@@ -245,6 +245,53 @@ def overtime_by_employee(rows):
     return totals
 
 
+def earnings(lines, overtime, components, default, overtime_component=None):
+    """What each person is paid under each salary component, so that the
+    payslip shows the sizes apart as Luuka's own does (PER METER 1 to 6):
+    [{"employee", "salary_component", "amount"}], people in the order they
+    first appear, each person's components in the order of their lines and
+    their Looms OT last. Sizes that share a component are paid as one, and
+    a component that comes to nothing is left out.
+
+    lines: [{"employee", "size", "amount"}]; overtime: {employee: Looms OT};
+    components: {size: the salary component it is paid under}; default: the
+    section's own, for a size that names none; overtime_component: the
+    Looms OT's own, else it is paid with the section's."""
+    paid, order = {}, []
+
+    def add(who, component, amount):
+        if not who or not component:
+            return
+        key = (who, component)
+        if key not in paid:
+            paid[key] = 0.0
+            order.append(key)
+        paid[key] = round(paid[key] + _num(amount), 2)
+
+    for row in lines or []:
+        add(row.get("employee"), (components or {}).get(row.get("size")) or default, row.get("amount"))
+    for who, amount in (overtime or {}).items():
+        add(who, overtime_component or default, amount)
+    people = []
+    for who, _component in order:
+        if who not in people:
+            people.append(who)
+    return [{"employee": who, "salary_component": component, "amount": paid[(who, component)]}
+            for person in people for who, component in order if who == person and paid[(who, component)] > 0]
+
+
+def component_errors(name, component):
+    """Why a size cannot be paid under a salary component. component:
+    {"type", "disabled"}, None when the site has none of that name."""
+    if not component:
+        return ["%s is not a salary component." % name]
+    if (component.get("type") or "Earning") != "Earning":
+        return ["%s is a deduction. Output is paid under an earning." % name]
+    if int(_num(component.get("disabled"))):
+        return ["%s is disabled." % name]
+    return []
+
+
 def per_employee(lines, overtime=None):
     """What each person is paid for the month, in the order they first
     appear: their work (every day's BASIC) and their Looms OT, together the

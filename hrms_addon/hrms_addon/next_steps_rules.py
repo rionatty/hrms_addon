@@ -225,7 +225,7 @@ STEPS = {
         ("Output Pay Run", "field:output_pay_run"),
     ),
     "Output Pay Run": (
-        ("Additional Salary", "rows:employees.additional_salary"),
+        ("Additional Salary", "rows:earnings.additional_salary"),
     ),
     # ── exits ─────────────────────────────────────────────────────────
     "Employee Separation": (

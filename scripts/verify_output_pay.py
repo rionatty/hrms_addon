@@ -21,7 +21,9 @@ priced by the overtime module.
   6  the sheet built with its formulas and read back: the same pay both ways
   7  the hourly casuals: the standard hours paid, the overtime not twice
   8  the paper: the DocTypes carry what the sheet carries, and no machines
-  9  the glue: priced on the day, paid as Additional Salary, never twice
+  9  the glue: priced on the day, paid as Additional Salary, never twice,
+     one for each person and salary component: a size's own, from its
+     Output Rate, so the payslip shows the sizes apart as Luuka's does
  10  the wiring: events, the patches, the field, and the way in
 """
 import datetime
@@ -184,6 +186,43 @@ if (people.get("E2", {}).get("amount"), people.get("E2", {}).get("looms_ot")) !=
 if A.cycle_window(2026, 9) != (D(2026, 8, 26), D(2026, 9, 25)):
     fail.append("the payroll month is the 26th to the 25th")
 print("the month: days folded per person per size, then each person's metres and Looms OT")
+
+# each size on its own line of the payslip. Luuka's September slip for one
+# operator: PER METER 4 473,658 (45CM-60CM) and PER METER 6 95,016 (ABOVE 39CM)
+SLIP = {"45CM-60CM": "Per Meter 4", "ABOVE 39CM": "Per Meter 6", "74CM": "Per Meter 2", "60CM": "Per Meter 2"}
+WORK = [{"employee": "E1", "size": "45CM-60CM", "amount": 473657.6},
+        {"employee": "E1", "size": "ABOVE 39CM", "amount": 95016},
+        {"employee": "E2", "size": "74CM", "amount": 650}, {"employee": "E2", "size": "60CM", "amount": 345.5},
+        {"employee": "E2", "size": "61CM-79CM", "amount": 780},
+        {"employee": "E1", "size": "45CM-60CM", "amount": 0.4},
+        {"employee": "E3", "size": "74CM", "amount": 0}, {"employee": None, "size": "74CM", "amount": 9}]
+split = [(row["employee"], row["salary_component"], row["amount"]) for row in O.earnings(
+    WORK, {"E1": 2000, "E4": 500, "E3": 0}, SLIP, "Per Meter Earnings", "Per Meter Overtime")]
+if split != [("E1", "Per Meter 4", 473658.0), ("E1", "Per Meter 6", 95016.0), ("E1", "Per Meter Overtime", 2000.0),
+             ("E2", "Per Meter 2", 995.5), ("E2", "Per Meter Earnings", 780.0), ("E4", "Per Meter Overtime", 500.0)]:
+    fail.append("each person is paid under each size's own component, sizes that share one together, a size that "
+                "names none under the section's, the Looms OT under its own and last, nothing at nothing: %s" % split)
+together = [(row["employee"], row["salary_component"], row["amount"]) for row in O.earnings(
+    [{"employee": "E2", "size": "61CM-79CM", "amount": 780}], {"E2": 220}, SLIP, "Per Meter Earnings")]
+if together != [("E2", "Per Meter Earnings", 1000.0)]:
+    fail.append("with no component of its own, the Looms OT is paid with the section's: %s" % together)
+plain = O.earnings(merged, extra, {}, "Per Meter Earnings")
+if {row["employee"]: row["amount"] for row in plain} != {name: seat["amount"] for name, seat in people.items()} \
+        or {row["salary_component"] for row in plain} != {"Per Meter Earnings"} or len(plain) != len(people):
+    fail.append("where no size names a component, each person is paid once, their whole month: %s" % plain)
+hourly_split = O.earnings([{"employee": "H1", "amount": 70000}, {"employee": "H2", "amount": 0}], None, None,
+                          "Hourly Earnings")
+if hourly_split != [{"employee": "H1", "salary_component": "Hourly Earnings", "amount": 70000.0}]:
+    fail.append("an hourly person is paid under the hourly earning: %s" % hourly_split)
+if O.earnings([{"employee": "E1", "size": "X", "amount": 5}], None, None, None) != [] or O.earnings(None, None, None, "X") != []:
+    fail.append("nothing is paid under no component, and nobody from nothing")
+for label, found, needle in (
+        ("a component the site does not have", O.component_errors("Per Meter 9", None), "is not a salary component"),
+        ("a deduction", O.component_errors("Sacco", {"type": "Deduction", "disabled": 0}), "is a deduction"),
+        ("a disabled one", O.component_errors("Per Meter 1", {"type": "Earning", "disabled": 1}), "is disabled")):
+    expect("a size paid under %s" % label, found, needle)
+expect("a size paid under an earning", O.component_errors("Per Meter 4", {"type": "Earning", "disabled": 0}))
+print("the payslip: each size under its own salary component, the Looms OT under its own")
 
 # ── 5. The sheet checked line by line ─────────────────────────────────
 if O.employee_key(" lpl12261. ") != "LPL12261":
@@ -510,6 +549,25 @@ if pay_line.get("size", {}).get("reqd"):
     fail.append("a line from a report made before the sizes has none, and is paid as it was recorded")
 if not pay_line.get("from_reports", {}).get("hidden"):
     fail.append("a line knows whether it came from the reports or was typed in")
+paid_under = fields("Output Rate").get("salary_component", {})
+if (paid_under.get("fieldtype"), paid_under.get("options"), paid_under.get("reqd")) != ("Link", "Salary Component", None):
+    fail.append("a size names the Salary Component it is paid under, or none: %s" % paid_under)
+looms = fields("Output Pay Settings").get("looms_ot_component", {})
+if (looms.get("fieldtype"), looms.get("options")) != ("Link", "Salary Component"):
+    fail.append("Output Pay Settings can give the Looms OT a component of its own")
+by_component = fields("Output Pay Run").get("earnings", {})
+if (by_component.get("fieldtype"), by_component.get("options"), by_component.get("read_only")) != (
+        "Table", "Output Pay Earning", 1):
+    fail.append("a run shows what it pays each person under each component, worked out and not typed")
+earning_fields = fields("Output Pay Earning")
+if list(earning_fields) != ["employee", "employee_name", "salary_component", "amount", "additional_salary"] \
+        or not spec("Output Pay Earning").get("istable") or not all(row.get("read_only") for row in earning_fields.values()):
+    fail.append("each line of it: who, the component, the amount and the Additional Salary that pays it")
+elif (earning_fields["salary_component"].get("options"), earning_fields["additional_salary"].get("options")) != (
+        "Salary Component", "Additional Salary"):
+    fail.append("its component and its Additional Salary are links to the real ones")
+elif earning_fields["employee_name"].get("fetch_from") != "employee.employee_name":
+    fail.append("and the name is the employee's own, fetched as on the run's other tables")
 employee_fields = fields("Output Pay Employee")
 for fieldname in ("output_amount", "looms_ot", "amount", "additional_salary"):
     if fieldname not in employee_fields:
@@ -566,7 +624,10 @@ paying = body("run_on_submit")
 for needle, why in (
     ('"Additional Salary"', "the pay is an Additional Salary, which the payroll run already reads"),
     ('"payroll_date": doc.to_date', "on the last day of the payroll month"),
-    ('"overwrite_salary_structure_amount": 0', "on top of the basic salary, not in place of it"),
+    ('for row in doc.get("earnings") or []:', "one for each person and salary component"),
+    ('"salary_component": row.salary_component', "under that component"),
+    ('"overwrite_salary_structure_amount": _in_structure(row.employee, row.salary_component, doc.to_date,',
+     "beside what the structure pays, or in the place of its own line for that component"),
     ('"ref_doctype": RUN', "and traceable to the run that wrote it"),
     ("earning.submit()", "and submitted, or the payroll never sees it"),
     ('row.get("additional_salary")', "and never written twice for the same person"),
@@ -575,6 +636,34 @@ for needle, why in (
         fail.append("run_on_submit: %s" % why)
 if "earning.cancel()" not in body("run_on_cancel"):
     fail.append("cancelling a run takes its pay back")
+cancelling = body("run_on_cancel")
+if 'for table in ("earnings", "employees"):' not in cancelling:
+    fail.append("a run paid before the pay was split is cancelled with its one Additional Salary too")
+elif cancelling.index('row.db_set("additional_salary", None') > cancelling.index("earning.cancel()"):
+    fail.append("each row lets go of its Additional Salary before that is cancelled")
+starting = body("run_before_insert")
+if "row.additional_salary = None" not in starting or 'for table in ("earnings", "employees"):' not in starting:
+    fail.append("a run that is new, copied or amended names no Additional Salary: Frappe refuses one that names a "
+                "cancelled record, and Amend copies every row")
+split_body = body("_earnings")
+for needle, why in (
+    ("rules.earnings(", "who is paid under which component is the rules' to say"),
+    ('_size_components({row.get("size") for row in lines})', "each size's own component, from its Output Rate"),
+    ("_overtime_component()", "the Looms OT's own, from Output Pay Settings"),
+    ("default = _component_name(section)", "and the section's for the rest"),
+    ('written.get((row["employee"], row["salary_component"]))', "an Additional Salary already written stays linked"),
+):
+    if needle not in split_body:
+        fail.append("_earnings: %s" % why)
+if "    _earnings(doc)\n" not in body("run_validate"):
+    fail.append("a run says under which components it pays as soon as it is saved")
+if ".insert()" in body("_component_name") or "frappe.get_doc(" in body("_component_name"):
+    fail.append("saving a draft makes no salary component: ours is made when a run is paid")
+if "rules.component_errors(" not in body("size_validate"):
+    fail.append("a size is paid under an earning that is in use")
+listed = body("_in_structure")
+if "pay.assignment_on(employee, day)" not in listed or '"parenttype": "Salary Structure", "parent": structure' not in listed:
+    fail.append("the structure's own line for a component is found on the employee's assignment for the month")
 component = body("_component")
 if '"depends_on_payment_days": 0' not in component:
     fail.append("the earnings are not pro-rated by payment days: the output is already what was "
@@ -638,6 +727,18 @@ for doctype, events in (("Output Rate", ("validate",)),
             fail.append("%s has no %s event" % (doctype, event))
 if "Production Machine" in hooks:
     fail.append("hooks.py still has the machines")
+if '"before_insert": "hrms_addon.hrms_addon.output_pay.run_before_insert"' not in hooks.split(
+        '"Output Pay Run": {')[1].split("},")[0]:
+    fail.append("a new, copied or amended run is cleared of another run's Additional Salary before it is saved")
+run_form = read("hrms_addon", "hrms_addon", "doctype", "output_pay_run", "output_pay_run.js")
+if 'frm.ignore_doctypes_on_cancel_all' not in run_form or '"Additional Salary"' not in run_form:
+    fail.append("cancelling a run does not offer to cancel its Additional Salary first: each would be refused as "
+                "named on a submitted run, and the run cancels its own")
+rate_form = read("hrms_addon", "hrms_addon", "doctype", "output_rate", "output_rate.js")
+if 'frm.set_query("salary_component", () => ({ filters: { type: "Earning", disabled: 0 } }))' not in rate_form:
+    fail.append("a size's component is picked from the earnings in use")
+if '("Additional Salary", "rows:earnings.additional_salary")' not in read("hrms_addon", "hrms_addon", "next_steps_rules.py"):
+    fail.append("a run's Next Steps open the Additional Salary of each of its earnings")
 after_sync = read("hrms_addon", "patches.txt").split("[post_model_sync]")[-1]
 for patch in ("seed_output_pay", "output_rates_by_size"):
     if "hrms_addon.patches.v1_0.%s" % patch not in after_sync:

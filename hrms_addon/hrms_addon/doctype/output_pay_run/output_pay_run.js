@@ -4,8 +4,9 @@
 // The month's output pay (minutes 4.6): Get Output fills it from the
 // submitted daily reports, or an hourly run from attendance; a Per Meter
 // run can also take Luuka's own sheet, downloaded for the month and
-// uploaded filled in. Submitting it writes each person's pay as an
-// Additional Salary on top of their basic.
+// uploaded filled in. Submitting it writes each person's pay as
+// Additional Salary, one for each salary component they are paid under
+// (a size's own, from its Output Rate).
 
 const HRA_PAY_MONTHS = [
 	"January", "February", "March", "April", "May", "June",
@@ -31,6 +32,11 @@ frappe.ui.form.on("Output Pay Run", {
 	},
 
 	setup(frm) {
+		// the run cancels its own Additional Salary: cancelled before it, each
+		// would be refused as still named on a submitted run
+		frm.ignore_doctypes_on_cancel_all = [
+			...new Set([...(frm.ignore_doctypes_on_cancel_all || []), "Additional Salary"]),
+		];
 		const people = () => {
 			const filters = { custom_pay_category: frm.doc.section };
 			if (frm.doc.branch) filters.branch = frm.doc.branch;

@@ -16,7 +16,8 @@ the site.
   report_on_submit   refused once that month's run is paid, because the
                      report would then never be counted
   run_validate       the payroll month (26th to 25th), the lines priced,
-                     and what each person is paid: their work and Looms OT
+                     what each person is paid (their work and Looms OT),
+                     and under which salary components
   get_output         the run filled from the submitted daily reports, the
                      sheet's among them (Per Meter, Per Piece), or from
                      attendance (Hourly)
@@ -24,10 +25,19 @@ the site.
                      has, to fill in
   upload_sheet       the sheet read back and checked: one report a day,
                      replacing the last upload's, and the run filled again
-  run_on_submit      one Additional Salary per person, on top of the basic
-                     salary, which the payroll run reads as it reads every
-                     other Additional Salary
+  run_on_submit      one Additional Salary for each person and salary
+                     component, which the payroll run reads as it reads
+                     every other Additional Salary
   run_on_cancel      those Additional Salaries cancelled with it
+
+EACH SIZE ITS OWN LINE ON THE PAYSLIP
+
+Luuka's payslip prints PER METER 1 to 6, one line a size. Which size is
+which line is theirs to say (on their September slips 45CM-60CM is PER
+METER 4), so each Output Rate names the Salary Component it is paid under
+and the run writes one Additional Salary for each person and component. A
+size that names none is paid under the section's own, from Output Pay
+Settings, where the Looms OT can be given a component of its own too.
 
 WHY ADDITIONAL SALARY
 
@@ -45,7 +55,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import attendance_rules, output_rules as rules, output_sheet as sheet
+from hrms_addon.hrms_addon import attendance_rules, output_rules as rules, output_sheet as sheet, pay
 
 SIZE = "Output Rate"
 SIZE_RATE = "Output Rate Change"
@@ -71,6 +81,10 @@ HAND_OT_FIELDS = ("employee", "amount")
 def size_validate(doc, method=None):
     rows = [_row(row) for row in doc.get("rates") or []]
     errors = rules.size_errors(doc.get("section"), doc.get("size"), rows)
+    chosen = doc.get("salary_component")
+    if chosen:
+        errors += rules.component_errors(chosen, frappe.db.get_value(
+            "Salary Component", chosen, ["type", "disabled"], as_dict=True))
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_(SIZE))
     doc.work_unit = rules.work_unit_on(rows, today()) or 0
@@ -185,6 +199,7 @@ def run_validate(doc, method=None):
     else:
         doc.set("overtime", [])
         _price_hours(doc)
+    _earnings(doc)
     # a draft is somewhere to gather the month; only paying it has to be right
     if doc.docstatus == 1:
         errors = rules.run_errors(doc.get("section"), [_row(row) for row in doc.get("employees") or []],
@@ -273,6 +288,43 @@ def _employees_from_lines(doc):
     doc.set("employees", [])
     for seat in rules.per_employee([_row(row) for row in doc.get("lines") or []], overtime):
         doc.append("employees", dict(seat, additional_salary=written.get(seat["employee"])))
+
+
+def _earnings(doc):
+    """What each person is paid under each salary component: a size's own
+    where it names one, else the section's, and the Looms OT under its own
+    where Output Pay Settings give it one. An Additional Salary already
+    written stays linked, so a re-save never forgets it."""
+    written = {(row.employee, row.salary_component): row.get("additional_salary")
+               for row in doc.get("earnings") or []}
+    section = doc.get("section")
+    default = _component_name(section)
+    if section in rules.OUTPUT_SECTIONS:
+        lines = [_row(row) for row in doc.get("lines") or []]
+        found = rules.earnings(lines, rules.overtime_by_employee([_row(row) for row in doc.get("overtime") or []]),
+                               _size_components({row.get("size") for row in lines}), default, _overtime_component())
+    else:
+        found = rules.earnings([{"employee": row.employee, "amount": row.get("amount")}
+                                for row in doc.get("employees") or []], None, None, default)
+    doc.set("earnings", [])
+    for row in found:
+        doc.append("earnings", dict(row, additional_salary=written.get((row["employee"], row["salary_component"]))))
+
+
+def _size_components(sizes):
+    """{size: the salary component it is paid under}, for those that name one."""
+    names = sorted(filter(None, sizes))
+    if not names:
+        return {}
+    return {row.name: row.salary_component
+            for row in frappe.get_all(SIZE, filters={"name": ["in", names]}, fields=["name", "salary_component"],
+                                      limit_page_length=0) if row.salary_component}
+
+
+def _overtime_component():
+    """The Looms OT's own component, where Output Pay Settings name one."""
+    chosen = settings().get("looms_ot_component")
+    return chosen if chosen and frappe.db.exists("Salary Component", chosen) else None
 
 
 def _price_hours(doc):
@@ -572,16 +624,31 @@ def _file_bytes(file_url):
 
 
 # ── 5. Paying it ──────────────────────────────────────────────────────
+def run_before_insert(doc, method=None):
+    """A run that is new, copied or amended has written no Additional
+    Salary yet. Amend copies every row with the one the cancelled run
+    wrote, and Frappe refuses a document that names a cancelled one."""
+    for table in ("earnings", "employees"):
+        for row in doc.get(table) or []:
+            row.additional_salary = None
+
+
 def run_on_submit(doc, method=None):
-    component = _component(doc.section)
+    """One Additional Salary for each person and salary component, so the
+    payslip shows each size on its own line."""
     currency = frappe.get_cached_value("Company", doc.company, "default_currency") or "UGX"
-    for row in doc.get("employees") or []:
+    if any(row.salary_component == _component_name(doc.section) for row in doc.get("earnings") or []):
+        _component(doc.section)  # ours is made once, where it is the one paid under
+    structures = {}
+    for row in doc.get("earnings") or []:
         if flt(row.amount) <= 0 or row.get("additional_salary"):
             continue
         earning = frappe.get_doc({
             "doctype": "Additional Salary", "employee": row.employee, "company": doc.company,
-            "salary_component": component, "amount": flt(row.amount), "payroll_date": doc.to_date,
-            "currency": currency, "overwrite_salary_structure_amount": 0,
+            "salary_component": row.salary_component, "amount": flt(row.amount), "payroll_date": doc.to_date,
+            "currency": currency,
+            "overwrite_salary_structure_amount": _in_structure(row.employee, row.salary_component, doc.to_date,
+                                                               structures),
             "ref_doctype": RUN, "ref_docname": doc.name,
         })
         earning.flags.ignore_permissions = True
@@ -593,26 +660,58 @@ def run_on_submit(doc, method=None):
             frappe.db.set_value(REPORT, name, "output_pay_run", doc.name, update_modified=False)
 
 
+def _in_structure(employee, component, day, seen):
+    """1 where the employee's own salary structure has a line for the
+    component: the run's figure then stands in that line's place, so a
+    structure that lists the sizes shows each of them once. 0 everywhere
+    else: paid beside what the structure pays."""
+    if employee not in seen:
+        assignment = pay.assignment_on(employee, day)
+        seen[employee] = frappe.db.get_value("Salary Structure Assignment", assignment, "salary_structure") \
+            if assignment else None
+    structure = seen[employee]
+    if (structure, component) not in seen:
+        seen[(structure, component)] = 1 if structure and frappe.db.exists(
+            "Salary Detail", {"parenttype": "Salary Structure", "parent": structure,
+                              "salary_component": component}) else 0
+    return seen[(structure, component)]
+
+
 def run_on_cancel(doc, method=None):
-    for row in doc.get("employees") or []:
-        name = row.get("additional_salary")
-        if name and frappe.db.exists("Additional Salary", name):
-            earning = frappe.get_doc("Additional Salary", name)
-            if earning.docstatus == 1:
-                earning.flags.ignore_permissions = True
-                earning.cancel()
+    # the employees' rows too: a run paid before the pay was split named its one Additional Salary there
+    for table in ("earnings", "employees"):
+        for row in doc.get(table) or []:
+            name = row.get("additional_salary")
+            if not name:
+                continue
+            # the row lets go first, so an amended copy of this run names nothing cancelled
+            row.db_set("additional_salary", None, update_modified=False)
+            if frappe.db.exists("Additional Salary", name):
+                earning = frappe.get_doc("Additional Salary", name)
+                if earning.docstatus == 1:
+                    earning.flags.ignore_permissions = True
+                    earning.cancel()
     for name in frappe.get_all(REPORT, filters={"output_pay_run": doc.name}, pluck="name",
                                limit_page_length=0):
         frappe.db.set_value(REPORT, name, "output_pay_run", None, update_modified=False)
 
 
-def _component(section):
-    """The earning a section is written to: Output Pay Settings' choice, or
-    ours, made once: an Earning, taxable, and not pro-rated by payment days."""
+def _component_name(section):
+    """The earning a section is written to, by name: Output Pay Settings'
+    choice, or ours."""
     chosen = settings().get(SETTING_FIELDS[section])
     if chosen and frappe.db.exists("Salary Component", chosen):
         return chosen
+    return COMPONENTS[section][0]
+
+
+def _component(section):
+    """That earning, with ours made once where it is the one: an Earning,
+    taxable, and not pro-rated by payment days."""
+    chosen = _component_name(section)
     name, abbr = COMPONENTS[section]
+    if chosen != name:
+        return chosen
     if not frappe.db.exists("Salary Component", name):
         component = frappe.get_doc({
             "doctype": "Salary Component", "name": name, "salary_component": name,

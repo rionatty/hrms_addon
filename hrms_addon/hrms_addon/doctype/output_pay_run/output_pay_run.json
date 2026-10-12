@@ -19,6 +19,8 @@
   "overtime",
   "employees_section",
   "employees",
+  "earnings_section",
+  "earnings",
   "totals_section",
   "total_employees",
   "column_break_2",
@@ -129,6 +131,18 @@
    "options": "Output Pay Employee"
   },
   {
+   "fieldname": "earnings_section",
+   "fieldtype": "Section Break",
+   "label": "Earnings"
+  },
+  {
+   "fieldname": "earnings",
+   "fieldtype": "Table",
+   "label": "By Salary Component",
+   "options": "Output Pay Earning",
+   "read_only": 1
+  },
+  {
    "fieldname": "totals_section",
    "fieldtype": "Section Break"
   },
@@ -174,7 +188,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-30 12:00:00.000000",
+ "modified": "2026-10-12 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Output Pay Run",

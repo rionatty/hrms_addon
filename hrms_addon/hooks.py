@@ -1692,6 +1692,8 @@ doc_events = {
         "on_cancel": "hrms_addon.hrms_addon.output_pay.report_on_cancel",
     },
     "Output Pay Run": {
+        # new, copied or amended, it names no Additional Salary of another run
+        "before_insert": "hrms_addon.hrms_addon.output_pay.run_before_insert",
         "validate": "hrms_addon.hrms_addon.output_pay.run_validate",
         "on_submit": "hrms_addon.hrms_addon.output_pay.run_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.output_pay.run_on_cancel",
