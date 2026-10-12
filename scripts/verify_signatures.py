@@ -249,6 +249,14 @@ script = "/assets/hrms_addon/js/e_signature.js"
 if script not in hooks.get("app_include_js", []):
     fail.append("the Sign button is a desk-wide script: %s" % script)
 events = hooks.get("doc_events", {})
+if events.get("*", {}).get("on_trash") != "hrms_addon.hrms_addon.signatures.forget":
+    fail.append("a deleted signable document takes its signatures with it: Frappe refuses to delete what a "
+                "Signature Log still names")
+forgetting = read("hrms_addon", "hrms_addon", "signatures.py").split("def forget(")[1].split("\ndef ")[0]
+if "if doc.doctype not in rules.SIGNABLE:" not in forgetting \
+        or '"reference_doctype": doc.doctype, "reference_name": doc.name' not in forgetting \
+        or "frappe.delete_doc(LOG, name, ignore_permissions=True, force=True)" not in forgetting:
+    fail.append("signatures.forget deletes the logs of that document alone, and only for a signable one")
 if events.get("*", {}).get("on_submit") \
         != "hrms_addon.hrms_addon.signatures.log_submission":
     fail.append("one doc event covers every signable document; a block per doctype would "

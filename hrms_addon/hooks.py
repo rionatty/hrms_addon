@@ -1808,6 +1808,9 @@ doc_events = {
     # entry covers all of them and none of the blocks above is disturbed.
     "*": {
         "on_submit": "hrms_addon.hrms_addon.signatures.log_submission",
+        # deleted, a signable document takes its signatures with it: Frappe
+        # refuses to delete what a Signature Log still names
+        "on_trash": "hrms_addon.hrms_addon.signatures.forget",
     },
     # A shift's own hours, and how many of them are overtime (shifts.py)
     "Shift Type": {

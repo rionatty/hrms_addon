@@ -30,9 +30,7 @@
   "authorised_on",
   "day_section",
   "day_kind",
-  "overtime_type",
   "column_break_8",
-  "multiplier",
   "cost_section",
   "total_cost",
   "costed_by",
@@ -202,22 +200,8 @@
    "read_only": 1
   },
   {
-   "fieldname": "overtime_type",
-   "fieldtype": "Link",
-   "label": "Overtime Type",
-   "options": "Overtime Type",
-   "read_only": 1
-  },
-  {
    "fieldname": "column_break_8",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "multiplier",
-   "fieldtype": "Float",
-   "label": "Rate Multiplier",
-   "read_only": 1,
-   "precision": "2"
   },
   {
    "fieldname": "cost_section",
@@ -323,7 +307,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-12 22:00:00.000000",
+ "modified": "2026-10-13 08:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Overtime Request",

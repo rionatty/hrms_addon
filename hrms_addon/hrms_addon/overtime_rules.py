@@ -215,13 +215,16 @@ def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, stan
     for row in rows or []:
         base = rates.get(row.get("employee"))
         day = (kinds or {}).get(row.get("employee")) or kind
-        theirs = (types or {}).get(type_name_for(day, (grosses or {}).get(row.get("employee")), lines))
+        named = type_name_for(day, (grosses or {}).get(row.get("employee")), lines)
+        theirs = (types or {}).get(named)
         own = multiplier_for(day, theirs) if theirs else multiplier_for(day, overtime_type if day == kind else None)
         rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee"))))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))
-        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost, day_kind=day))
+        # the type is named only where the site has it: a link to one it has not would refuse the save
+        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost, day_kind=day,
+                        overtime_type=named if theirs else None))
         total += cost
     return {"rows": out, "total": round(total, 2), "multiplier": multiplier,
             "unpriced": unpriced}

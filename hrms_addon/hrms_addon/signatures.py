@@ -134,6 +134,17 @@ def log_submission(doc, method=None):
         frappe.log_error(title="HRMS Addon: signature on submission")
 
 
+def forget(doc, method=None):
+    """A doc_event on the signable documents: deleted, a document takes its
+    signatures with it. Frappe refuses to delete what a Signature Log still
+    names, and a signature attests to nothing once its document is gone."""
+    if doc.doctype not in rules.SIGNABLE:
+        return
+    for name in frappe.get_all(LOG, filters={"reference_doctype": doc.doctype, "reference_name": doc.name},
+                               pluck="name", limit_page_length=0):
+        frappe.delete_doc(LOG, name, ignore_permissions=True, force=True)
+
+
 # ── 3. What a document still wants ────────────────────────────────────
 @frappe.whitelist()
 def outstanding_on(doctype, name, steps=None):

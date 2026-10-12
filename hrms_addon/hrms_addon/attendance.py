@@ -306,6 +306,10 @@ def _let_authorise(doc, users):
 
 
 def overtime_on_cancel(doc, method=None):
+    """Cancelled: what it wrote for payroll is taken back with it."""
+    from hrms_addon.hrms_addon import overtime
+
+    overtime.take_back(doc)
     doc.db_set("status", "Cancelled", update_modified=False)
 
 

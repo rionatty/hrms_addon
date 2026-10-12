@@ -86,20 +86,32 @@ def type_for(kind, company=None):
 
 # ── 2. What it costs ──────────────────────────────────────────────────
 def fill_day_and_rate(doc):
-    """Called from attendance.overtime_validate: the day, its type and its
-    multiplier, so the form shows the rate before anybody signs."""
-    if not doc.get("overtime_date") or not (doc.get("employees") or []):
+    """Called from attendance.overtime_validate: what sort of day it is, and
+    on each line the Overtime Type that person falls under and its rate, so
+    the form shows them before anybody signs. There is no one rate for the
+    sheet: a person's type follows their own pay, and one person's rest day
+    is another's working day."""
+    rows = doc.get("employees") or []
+    if not doc.get("overtime_date") or not rows:
         return
-    first = next((row.employee for row in doc.employees if row.employee), None)
+    first = next((row.employee for row in rows if row.employee), None)
     if not first:
         return
     kind = day_kind(first, doc.overtime_date)
     doc.day_kind = kind
-    doc.overtime_type = type_for(kind, doc.get("company"))
-    doc.multiplier = rules.multiplier_for(kind, _type_row(doc.overtime_type))
-    # one person's rest day is another's working day: each line carries its own
-    for row in doc.employees:
-        row.day_kind = day_kind(row.employee, doc.overtime_date) if row.employee else None
+    people_on_it = [row.employee for row in rows if row.employee]
+    kinds = {employee: day_kind(employee, doc.overtime_date) for employee in people_on_it}
+    rated = rules.priced([_plain(row) for row in rows], {}, kind, _type_row(type_for(kind, doc.get("company"))),
+                         _types_for(kind, kinds.values()), _monthly_gross(people_on_it, doc.overtime_date), None,
+                         kinds)["rows"]
+    for row, found in zip(rows, rated):
+        row.day_kind = found["day_kind"] if row.employee else None
+        row.overtime_type = found["overtime_type"] if row.employee else None
+        row.multiplier = found["multiplier"] if row.employee else 0
+
+
+def _plain(row):
+    return row.as_dict() if hasattr(row, "as_dict") else dict(row)
 
 
 def _type_row(name):
@@ -164,12 +176,13 @@ def cost_check(name, remarks=None):
     doc = frappe.get_doc(REQUEST, name)
     doc.check_permission("write")
     kind = doc.get("day_kind") or day_kind(doc.employees[0].employee, doc.overtime_date)
-    overtime_type = _type_row(doc.get("overtime_type") or type_for(kind, doc.get("company")))
+    overtime_type = _type_row(type_for(kind, doc.get("company")))
     rows = [row.as_dict() for row in doc.get("employees") or []]
     people_on_it = [row.get("employee") for row in rows if row.get("employee")]
     bases = _monthly_bases(people_on_it)
     kinds = _day_kinds(doc)
-    costed = rules.priced(rows, bases, kind, overtime_type, _types_for(kind, kinds.values()),
+    types = _types_for(kind, kinds.values())
+    costed = rules.priced(rows, bases, kind, overtime_type, types,
                           _monthly_gross(people_on_it, doc.overtime_date),
                           _standard_hours(people_on_it, doc.overtime_date), kinds)
     errors = rules.cost_check_errors({
@@ -178,20 +191,21 @@ def cost_check(name, remarks=None):
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Cost Check"))
     for row, priced_row in zip(doc.employees, costed["rows"]):
         row.db_set({"hourly_rate": priced_row["hourly_rate"], "multiplier": priced_row["multiplier"],
-                    "amount": priced_row["amount"], "day_kind": priced_row["day_kind"]}, update_modified=False)
+                    "amount": priced_row["amount"], "day_kind": priced_row["day_kind"],
+                    "overtime_type": priced_row["overtime_type"]}, update_modified=False)
+    # the ceiling is a person's day on their own type, not the sheet's hours together
+    over = [row.get("employee_name") or row.get("employee") for row in costed["rows"] if rules.over_the_cap(
+        row.get("hours"), (types.get(row.get("overtime_type")) or {}).get("maximum_overtime_hours_allowed"))]
     doc.db_set({
-        "day_kind": kind, "overtime_type": doc.get("overtime_type") or type_for(kind),
-        "multiplier": costed["multiplier"], "total_cost": costed["total"],
+        "day_kind": kind, "total_cost": costed["total"],
         "cost_remarks": remarks or doc.get("cost_remarks"),
-        "over_the_cap": 1 if rules.over_the_cap(
-            doc.get("total_hours"), (overtime_type or {}).get("maximum_overtime_hours_allowed"))
-        else 0,
+        "over_the_cap": 1 if over else 0,
         "costed_by": frappe.session.user, "costed_on": today(), "status": "Costed",
     }, update_modified=False)
-    if doc.get("over_the_cap"):
-        frappe.msgprint(_("This is over the ceiling on {0}. It may still be paid, but say so in "
-                          "the HR remarks.").format(doc.overtime_type), indicator="orange")
-    return {"total": costed["total"], "multiplier": costed["multiplier"], "kind": kind}
+    if over:
+        frappe.msgprint(_("Over the day's ceiling on their Overtime Type: {0}. It may still be paid, but say so in "
+                          "the HR remarks.").format(", ".join(over)), indicator="orange")
+    return {"total": costed["total"], "kind": kind}
 
 
 # ── 3. How it is paid ─────────────────────────────────────────────────
@@ -260,7 +274,9 @@ def send_to_payroll(name):
     marked, short = 0, []
     for row, line, (theirs, worked, paid, values) in zip(rows, doc.get("employees") or [], plans):
         frappe.db.set_value("Attendance", row["attendance"], values, update_modified=False)
-        line.db_set({"day_kind": theirs, "worked_hours": worked, "payable_hours": paid}, update_modified=False)
+        # a number column takes no empty value: a day the clock did not measure reads 0, and says so
+        line.db_set({"day_kind": theirs, "worked_hours": flt(worked), "clocked": 0 if worked is None else 1,
+                     "payable_hours": paid}, update_modified=False)
         if paid < flt(row.get("hours")):
             short.append(_("{0}: {1} of {2} hours").format(row.get("employee_name") or row["employee"], paid,
                                                            flt(row.get("hours"))))
@@ -279,6 +295,38 @@ def send_to_payroll(name):
                           frappe.utils.fmt_money(doc.get("total_cost") or 0),
                           frappe.utils.format_date(doc.overtime_date)))
     return {"attendance_marked": marked, "slips": slips, "paid_less": short}
+
+
+def take_back(doc):
+    """A cancelled request's hours come off the attendance they were written
+    onto, and off any Overtime Slip still in draft, so nothing pays them.
+    Where a submitted slip already has, the cancel is refused: that slip is
+    cancelled first. Returns the attendance cleared."""
+    names = [row.attendance for row in doc.get("employees") or []
+             if row.get("attendance") and flt(row.get("payable_hours")) > 0]
+    if not names or not doc.get("sent_to_payroll_on"):
+        return []
+    slips = sorted({line.parent for line in frappe.get_all(
+        "Overtime Details", filters={"parenttype": SLIP, "reference_document": ["in", names]}, fields=["parent"],
+        limit_page_length=0)})
+    stands = {slip: cint(frappe.db.get_value(SLIP, slip, "docstatus")) for slip in slips}
+    paid = [slip for slip in slips if stands[slip] == 1]
+    if paid:
+        frappe.throw(_("These hours are paid on {0}. Cancel that Overtime Slip first.").format(", ".join(paid)),
+                     title=_("Overtime Request"))
+    for name in slips:
+        if stands[name] != 0:
+            continue
+        slip = frappe.get_doc(SLIP, name)
+        kept = [line for line in slip.get("overtime_details") or [] if line.reference_document not in names]
+        slip.set("overtime_details", kept)
+        slip.total_overtime_duration = sum(flt(line.overtime_duration) for line in kept)
+        slip.flags.ignore_permissions = True
+        slip.save()
+    for name in names:
+        frappe.db.set_value("Attendance", name, {"overtime_type": None, "actual_overtime_duration": 0},
+                            update_modified=False)
+    return names
 
 
 def _missing_types(plans):

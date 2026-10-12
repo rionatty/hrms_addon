@@ -327,9 +327,16 @@ expect("refusing overtime already with the payroll", R.reject_errors("Sent to Pa
 expect("refusing a draft", R.reject_errors(None, "No budget."), "before it reaches the payroll")
 expect("refusing without saying why", R.reject_errors("Requested", " "), "Say why")
 request_line = fields_of(doctype("Overtime Request Employee"))
-for fieldname in ("day_kind", "worked_hours", "payable_hours"):
+for fieldname in ("day_kind", "overtime_type", "multiplier", "worked_hours", "clocked", "payable_hours"):
     if not (request_line.get(fieldname) or {}).get("read_only"):
         fail.append("Overtime Request Employee.%s is the system's to fill, and read only" % fieldname)
+if (request_line.get("overtime_type") or {}).get("options") != "Overtime Type" \
+        or not (request_line.get("overtime_type") or {}).get("in_list_view"):
+    fail.append("each line shows the Overtime Type that person falls under, Frappe HR's own")
+if (request_line.get("clocked") or {}).get("fieldtype") != "Check" \
+        or (request_line.get("worked_hours") or {}).get("fieldtype") != "Float":
+    fail.append("a line says whether the clock measured the day: its hours by the clock are a number, which "
+                "cannot be left empty")
 
 if not R.over_the_cap(20, 16) or R.over_the_cap(12, 16) or R.over_the_cap(99, 0):
     fail.append("the type's ceiling is compared, and no ceiling is no complaint")
@@ -368,16 +375,18 @@ print("capture and payment: Frappe HR's own Attendance, Overtime Type and Overti
 
 # ── 4. The paper ──────────────────────────────────────────────────────
 request = fields_of(doctype("Overtime Request"))
-for fieldname in ("day_kind", "overtime_type", "multiplier", "total_cost",
+for fieldname in ("day_kind", "total_cost",
                   "costed_by", "costed_on", "cost_remarks", "over_the_cap",
                   "sent_to_payroll_on"):
     if fieldname not in request:
         fail.append("the overtime request has no %s" % fieldname)
-for fieldname in ("day_kind", "overtime_type", "multiplier", "total_cost", "over_the_cap"):
+for fieldname in ("day_kind", "total_cost", "over_the_cap"):
     if not request.get(fieldname, {}).get("read_only"):
         fail.append("%s is worked out, not typed: it must be read-only" % fieldname)
-if request.get("overtime_type", {}).get("options") != "Overtime Type":
-    fail.append("the request points at Frappe HR's own Overtime Type")
+# each person is paid at their own rate, under their own type: the sheet has neither (12 Oct 2026, Luuka:
+# "where did the multiplier of 1.5 come from ... each employee qualifies for multiplier different")
+if "overtime_type" in request or "multiplier" in request:
+    fail.append("the request's header names no Overtime Type and no rate: each line carries its own")
 # no cost centre is asked for (12 Oct 2026): nothing read it, and payroll posts
 # overtime to the employee's own payroll cost centre
 if "cost_centre" in request or "cost_centre" in read("hrms_addon", "hrms_addon", "overtime.py") \
@@ -482,13 +491,17 @@ for needle, why in (
      "the standard day is the one of the shift worked that day"),
     ("_standard_hours(people_on_it, doc.overtime_date), kinds)",
      "HR's cost check prices each person on their own shift, and their own kind of day"),
-    ("row.day_kind = day_kind(row.employee, doc.overtime_date) if row.employee else None",
-     "each line reads the day for its own employee"),
+    ('row.day_kind = found["day_kind"] if row.employee else None', "each line reads the day for its own employee"),
+    ('row.overtime_type = found["overtime_type"] if row.employee else None',
+     "and carries the Overtime Type that person falls under"),
+    ('row.multiplier = found["multiplier"] if row.employee else 0', "and its rate, before anybody signs"),
     ("rules.worked_overtime(theirs, found.working_hours, standard)", "the overtime the clock shows is worked out"),
     ("if (found.in_time and found.out_time) else None", "only for a day the clock measured at both ends"),
     ("paid = rules.payable_hours(row.get(\"hours\"), worked)", "what is paid is the rules' answer"),
     ("hours=paid)", "and that, not what was authorised, goes onto the attendance"),
-    ('line.db_set({"day_kind": theirs, "worked_hours": worked, "payable_hours": paid}', "the line says what was paid"),
+    ('line.db_set({"day_kind": theirs, "worked_hours": flt(worked), "clocked": 0 if worked is None else 1,',
+     "the line says what the clock showed, as a number, and whether it measured the day at all"),
+    ('"payable_hours": paid}, update_modified=False)', "and what was paid"),
     ('absent=bool(found) and found.status == "Absent",', "a day that reads absent is told to the rules"),
     ("status=found.status if found else None,", "and what any other day reads"),
     ("if found and row.attendance != found.name:", "the line points at the attendance that stands"),
@@ -516,6 +529,29 @@ for status, step in R.NEXT_STEP.items():
 if 'frm.doc.docstatus === 1 && frm.doc.status === "Requested") {\n\t\t\tfrm.set_intro(' not in form \
         or "Waiting to be authorised." not in form:
     fail.append("a requested overtime says on its form that it waits to be authorised")
+filled = glue.split("def fill_day_and_rate(")[1].split(chr(10) + "def ")[0]
+if "doc.overtime_type" in glue or "doc.multiplier" in glue or "rules.priced(" not in filled:
+    fail.append("no rate is written on the request's header: the lines are rated by the same rules that cost them")
+costing = glue.split("def cost_check(")[1].split(chr(10) + "def ")[0]
+if 'row.get("hours"), (types.get(row.get("overtime_type")) or {}).get("maximum_overtime_hours_allowed"))' not in costing:
+    fail.append("the ceiling is checked on each person's hours against their own Overtime Type")
+back = glue.split("def take_back(")[1].split(chr(10) + "def ")[0]
+for needle, why in (
+    ('if not names or not doc.get("sent_to_payroll_on"):', "only what the request itself sent to payroll"),
+    ("paid = [slip for slip in slips if stands[slip] == 1]",
+     "a submitted Overtime Slip that paid the hours stops the cancel"),
+    ("kept = [line for line in slip.get(\"overtime_details\") or [] if line.reference_document not in names]",
+     "a draft slip loses the line, and keeps its others"),
+    ("slip.total_overtime_duration = sum(flt(line.overtime_duration) for line in kept)", "and its total follows"),
+    ('{"overtime_type": None, "actual_overtime_duration": 0}', "and the attendance its overtime, the hours as 0"),
+):
+    if needle not in back:
+        fail.append("overtime.take_back: %s" % why)
+if back.index("frappe.throw(") > back.index("slip.save()"):
+    fail.append("overtime.take_back refuses before it takes anything back")
+cancelled = read("hrms_addon", "hrms_addon", "attendance.py").split("def overtime_on_cancel(")[1].split(chr(10) + "def ")[0]
+if "overtime.take_back(doc)" not in cancelled:
+    fail.append("a cancelled request takes its hours back off the attendance, or they would still be paid")
 if 'values.pop("overtime_type")' in glue:
     fail.append("hours are never written onto an attendance without their Overtime Type: the slip does not read them")
 if "    if _missing_types(plans):\n        seed_overtime_types()\n        plans = planned()" not in landed \

@@ -117,14 +117,14 @@ frappe.ui.form.on("Overtime Request", {
 		}
 		frm.trigger("say_the_day");
 	},
-	// the rate is set by what sort of day it is, so the form says which
+	// what sort of day it is, and what it costs once HR have worked that
+	// out. No rate here: each line carries its own
 	say_the_day(frm) {
 		frm.dashboard.clear_headline();
 		if (frm.is_new() || !frm.doc.day_kind) return;
 		const colour = frm.doc.day_kind === "Weekday" ? "blue" : "orange";
 		frm.dashboard.set_headline(
 			`<span class="indicator-pill ${colour}">${__(frm.doc.day_kind)}</span>` +
-				(frm.doc.multiplier ? ` <span>${__("paid at")} <b>${frm.doc.multiplier}x</b></span>` : "") +
 				(frm.doc.total_cost
 					? ` <span>${__("costing")} <b>${format_currency(frm.doc.total_cost)}</b></span>`
 					: "")
