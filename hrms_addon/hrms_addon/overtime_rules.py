@@ -110,6 +110,51 @@ def type_name_for(kind, gross=None, lines=None):
     return TYPE_NAMES.get(kind, TYPE_NAMES[WEEKDAY])
 
 
+def _listed(row, key):
+    return {value for value in ((row or {}).get(key) or []) if value}
+
+
+def person_type(kind, gross, types, employee=None, department=None):
+    """The Overtime Type a person's overtime falls under on a day, and why
+    none where none does: (name, None) or (None, why).
+
+    types: {name: its row, with "employees" (those it lists) and
+    "excluded_departments" (those it is not paid to)}.
+
+      - Somebody a type lists is paid under the types that list them, and
+        under no other.
+      - A type that lists people is closed to everybody else.
+      - A type is not paid to the departments it leaves out.
+      - Among the types open to them: on a weekday the one with the highest
+        gross line their gross is above, else the day's own.
+
+    A day's type the site does not have at all is no matter of eligibility:
+    its name comes back, as type_name_for gives it."""
+    types = types or {}
+    listed = sorted(name for name, row in types.items() if employee and employee in _listed(row, "employees"))
+    if listed:
+        theirs = {name: types[name] for name in listed}
+        name = type_name_for(kind, gross, gross_lines(theirs))
+        return (name if name in theirs else listed[0]), None
+    open_to = {name: row for name, row in types.items()
+               if not _listed(row, "employees")
+               and not (department and department in _listed(row, "excluded_departments"))}
+    name = type_name_for(kind, gross, gross_lines(open_to))
+    if name in open_to or name not in types:
+        return name, None
+    if _listed(types[name], "employees"):
+        return None, "%s is only for the employees it lists." % name
+    return None, "%s is not paid to %s." % (name, department)
+
+
+def eligibility_errors(rows):
+    """The people on a request no Overtime Type is open to, as messages.
+    rows: as priced gives them."""
+    return ["%s is not eligible for this overtime: %s" % (row.get("employee_name") or row.get("employee"),
+                                                          row["not_eligible"])
+            for row in rows or [] if row.get("employee") and row.get("not_eligible")]
+
+
 def gross_lines(types):
     """{type name: its monthly gross line}, for the types that have one."""
     return {name: float(row.get("custom_gross_above") or 0) for name, row in (types or {}).items()
@@ -192,7 +237,8 @@ def amount(hours, rate, multiplier):
     return round(float(hours) * float(rate) * float(multiplier), 2)
 
 
-def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None, kinds=None):
+def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None, kinds=None,
+           departments=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
     gross}, which decides their type; standards: {employee: the standard
@@ -202,29 +248,35 @@ def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, stan
     in `kinds`.
 
     types: {Overtime Type name: its row}. Each person is priced under the
-    type their own gross puts them in (minutes §4.12); `overtime_type`
-    is the day's own type, used where theirs is not on the site.
+    type open to them that their own gross puts them in (person_type;
+    minutes §4.12), with departments: {employee: department} saying which
+    types leave them out; `overtime_type` is the day's own type, used where
+    theirs is not on the site. Somebody no type is open to is priced at
+    nothing, and the row says why ("not_eligible").
 
     A row whose employee has no base yet is priced at nothing and says so,
     rather than being dropped: HR are checking the cost, and a line they
     cannot see is worse than a line that reads zero.
     """
     multiplier = multiplier_for(kind, overtime_type)
-    lines = gross_lines(types)
     out, total, unpriced = [], 0.0, []
     for row in rows or []:
         base = rates.get(row.get("employee"))
         day = (kinds or {}).get(row.get("employee")) or kind
-        named = type_name_for(day, (grosses or {}).get(row.get("employee")), lines)
-        theirs = (types or {}).get(named)
-        own = multiplier_for(day, theirs) if theirs else multiplier_for(day, overtime_type if day == kind else None)
+        named, why = person_type(day, (grosses or {}).get(row.get("employee")), types, row.get("employee"),
+                                 (departments or {}).get(row.get("employee")))
+        theirs = (types or {}).get(named) if named else None
+        if why:
+            own = 0.0
+        else:
+            own = multiplier_for(day, theirs) if theirs else multiplier_for(day, overtime_type if day == kind else None)
         rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee"))))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))
         # the type is named only where the site has it: a link to one it has not would refuse the save
         out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost, day_kind=day,
-                        overtime_type=named if theirs else None))
+                        overtime_type=named if theirs else None, not_eligible=why))
         total += cost
     return {"rows": out, "total": round(total, 2), "multiplier": multiplier,
             "unpriced": unpriced}
@@ -245,6 +297,8 @@ def cost_check_errors(facts):
         errors.append("Overtime is costed once the authorising officer has signed it.")
     if not (facts.get("rows") or []):
         errors.append("There is nobody on the request to cost.")
+    if facts.get("not_eligible"):
+        errors.extend(facts["not_eligible"])
     if facts.get("unpriced"):
         errors.append("There is no salary on record for %s, so this overtime cannot be costed. "
                       "Assign their salary structure first." % _and(facts["unpriced"]))
@@ -361,12 +415,14 @@ def reject_errors(status, reason):
     return errors
 
 
-def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None, lines=None, hours=None):
+def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None, lines=None, hours=None,
+                      named=None):
     """What goes onto the employee's Attendance row so Frappe HR's own
-    Overtime Slip picks the hours up: the type their gross puts them in,
-    the duration paid (`hours`, else what was authorised), and the
-    standard day it is measured against."""
-    return {"overtime_type": type_name_for(kind, gross, lines),
+    Overtime Slip picks the hours up: their Overtime Type (`named`, as
+    person_type chose it, else the one their gross puts them in), the
+    duration paid (`hours`, else what was authorised), and the standard day
+    it is measured against."""
+    return {"overtime_type": named or type_name_for(kind, gross, lines),
             "actual_overtime_duration": float(row.get("hours") or 0) if hours is None else float(hours),
             "standard_working_hours": float(standard_hours)}
 

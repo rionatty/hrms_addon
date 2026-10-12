@@ -220,6 +220,61 @@ if R.attendance_update({"hours": 2}, R.WEEKDAY, 10, gross=2600000, lines=LINES)[
                 "cost check")
 print("the day: read, not typed, and priced at the Act's floor or the type's own rate")
 
+# who an Overtime Type is for: the employees it lists, the departments it is not paid to, its gross line
+OPEN = {"Weekday Overtime": {"standard_multiplier": 1.5},
+        "Rest Day Overtime": {"standard_multiplier": 2.0},
+        R.HIGHER_EARNERS: {"standard_multiplier": 1.0, "custom_gross_above": 500000,
+                           "excluded_departments": ["Stores - LPL"]},
+        "Special Overtime": {"standard_multiplier": 1.25, "employees": ["E7", "E8"]},
+        "Drivers Overtime": {"standard_multiplier": 1.1, "custom_gross_above": 300000, "employees": ["E8"]}}
+for label, got, want in (
+    ("an ordinary weekday", R.person_type(R.WEEKDAY, 260000, OPEN, "E1", "Extrusion - LPL"), ("Weekday Overtime", None)),
+    ("above the line", R.person_type(R.WEEKDAY, 900000, OPEN, "E1", "Extrusion - LPL"), (R.HIGHER_EARNERS, None)),
+    ("above the line in a department the higher earners' type is not paid to: the ordinary weekday's",
+     R.person_type(R.WEEKDAY, 900000, OPEN, "E2", "Stores - LPL"), ("Weekday Overtime", None)),
+    ("somebody a type lists is paid under it, whatever the day or their gross",
+     R.person_type(R.REST_DAY, 900000, OPEN, "E7", "Extrusion - LPL"), ("Special Overtime", None)),
+    ("listed on two: on a weekday the one whose line their gross is above",
+     R.person_type(R.WEEKDAY, 400000, OPEN, "E8", "Transport - LPL"), ("Drivers Overtime", None)),
+    ("listed on two, under that line: the first of theirs, never one that does not list them",
+     R.person_type(R.WEEKDAY, 200000, OPEN, "E8", "Transport - LPL"), ("Drivers Overtime", None)),
+    ("a type that lists people is nobody else's, even above its line",
+     R.person_type(R.WEEKDAY, 400000, OPEN, "E1", "Extrusion - LPL"), ("Weekday Overtime", None)),
+    ("a day's type the site does not have is no matter of eligibility",
+     R.person_type(R.PUBLIC_HOLIDAY, 260000, OPEN, "E1", "Extrusion - LPL"), (R.TYPE_NAMES[R.PUBLIC_HOLIDAY], None)),
+    ("with nobody and no types, the day's own", R.person_type(R.WEEKDAY, None, None), ("Weekday Overtime", None)),
+):
+    if got != want:
+        fail.append("who a type is for: %s: %s, not %s" % (label, got, want))
+closed = dict(OPEN, **{"Weekday Overtime": {"standard_multiplier": 1.5, "excluded_departments": ["Stores - LPL"]},
+                       "Rest Day Overtime": {"standard_multiplier": 2.0, "employees": ["E9"]}})
+if R.person_type(R.WEEKDAY, 260000, closed, "E2", "Stores - LPL") != (None, "Weekday Overtime is not paid to Stores - LPL."):
+    fail.append("a department the day's type is not paid to has no overtime that day, and is told which type: %s"
+                % (R.person_type(R.WEEKDAY, 260000, closed, "E2", "Stores - LPL"),))
+if R.person_type(R.REST_DAY, 260000, closed, "E1", "Extrusion - LPL") != (
+        None, "Rest Day Overtime is only for the employees it lists."):
+    fail.append("a day's type that lists people is closed to everybody else")
+if R.person_type(R.REST_DAY, 260000, closed, "E9", "Extrusion - LPL") != ("Rest Day Overtime", None):
+    fail.append("and open to those it lists")
+judged = R.priced([{"employee": "E2", "employee_name": "Ben", "hours": 2}, {"employee": "E7", "hours": 2},
+                   {"employee": "E1", "hours": 2}],
+                  {"E2": 260000, "E7": 260000, "E1": 260000}, R.WEEKDAY, closed["Weekday Overtime"], closed,
+                  {"E2": 260000, "E7": 260000, "E1": 900000}, None, None,
+                  {"E2": "Stores - LPL", "E7": "Extrusion - LPL", "E1": "Extrusion - LPL"})
+seen = [(row["employee"], row["overtime_type"], row["multiplier"], row["amount"] > 0) for row in judged["rows"]]
+if seen != [("E2", None, 0.0, False), ("E7", "Special Overtime", 1.25, True), ("E1", R.HIGHER_EARNERS, 1.0, True)]:
+    fail.append("a request is priced by who each type is for: nobody is paid under a type closed to them: %s" % seen)
+if R.eligibility_errors(judged["rows"]) != [
+        "Ben is not eligible for this overtime: Weekday Overtime is not paid to Stores - LPL."]:
+    fail.append("and the one no type is open to is named, with why: %s" % R.eligibility_errors(judged["rows"]))
+expect("costing somebody no type is open to", R.cost_check_errors(
+    {"status": "Authorised", "rows": judged["rows"], "unpriced": [], "not_eligible": R.eligibility_errors(judged["rows"])}),
+    "Ben is not eligible for this overtime")
+if R.attendance_update({"hours": 2}, R.WEEKDAY, 10, hours=1.5, named="Special Overtime") != {
+        "overtime_type": "Special Overtime", "actual_overtime_duration": 1.5, "standard_working_hours": 10.0}:
+    fail.append("the attendance carries the type chosen for the person, so the Overtime Slip pays under it")
+print("eligibility: a type's own employees, the departments it leaves out, and its gross line")
+
 # ── 2. Pricing a request, and the two gates ───────────────────────────
 rows = [{"employee": "HR-EMP-1", "employee_name": "A", "hours": 3},
         {"employee": "HR-EMP-2", "employee_name": "B", "hours": 2}]
@@ -467,7 +522,8 @@ if glue.count("check_permission(") < 2:
 if "fill_day_and_rate" not in read("hrms_addon", "hrms_addon", "attendance.py"):
     fail.append("the request must learn what day it falls on as it validates")
 landed = glue.split("def send_to_payroll(")[1].split(chr(10) + "def ")[0]
-if "gross=grosses.get(" not in landed or "lines=lines" not in landed:
+if "rules.person_type(theirs, grosses.get(row[\"employee\"]), types, row[\"employee\"]," not in landed \
+        or "hours=paid, named=named)" not in landed:
     fail.append("the hours land on each attendance under the type their own gross puts them in, or "
                 "the Overtime Slip pays a higher earner one and a half times (minutes §4.12)")
 if "rules.HIGHER_EARNERS" not in glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0]:
@@ -484,12 +540,47 @@ custom = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", 
 line_field = custom.get("Overtime Type-custom_gross_above") or {}
 if line_field.get("fieldtype") != "Currency" or '"Overtime Type-custom_gross_above"' not in read("hrms_addon", "hooks.py"):
     fail.append("the line is a field on the Overtime Type, synced with the fixtures")
+# who a type is for is kept on the type, and read with every type
+tab = [custom.get("Overtime Type-%s" % name) or {} for name in (
+    "custom_eligibility_tab", "custom_gross_above", "custom_excluded_departments", "custom_employees_section",
+    "custom_employees")]
+if [(row.get("fieldtype"), row.get("insert_after")) for row in tab] != [
+        ("Tab Break", "weekend_multiplier"), ("Currency", "custom_eligibility_tab"),
+        ("Table MultiSelect", "custom_gross_above"), ("Section Break", "custom_excluded_departments"),
+        ("Table", "custom_employees_section")]:
+    fail.append("the Overtime Type has an Eligibility tab: its gross line, the departments it is not paid to, then "
+                "the employees it lists, each field after the one before: %s"
+                % [(row.get("fieldtype"), row.get("insert_after")) for row in tab])
+if (tab[2].get("options"), tab[4].get("options"), tab[0].get("label")) != (
+        "Overtime Type Department", "Overtime Type Employee", "Eligibility"):
+    fail.append("its tables are the app's own two")
+for name in ("custom_eligibility_tab", "custom_excluded_departments", "custom_employees_section", "custom_employees"):
+    if '"Overtime Type-%s"' % name not in read("hrms_addon", "hooks.py"):
+        fail.append("hooks fixtures list Overtime Type-%s" % name)
+listed = fields_of(doctype("Overtime Type Employee"))
+left_out = fields_of(doctype("Overtime Type Department"))
+if (listed.get("employee", {}).get("options"), listed.get("employee", {}).get("reqd")) != ("Employee", 1) \
+        or list(left_out) != ["department"] or left_out["department"].get("options") != "Department":
+    fail.append("a type lists employees, and leaves out departments, by link")
+reading = glue.split("def _types_for(")[1].split(chr(10) + "def ")[0]
+if 'frappe.get_all(TYPE, pluck="name", limit_page_length=0)' not in reading \
+        or '("Overtime Type Employee", "employees", "employee")' not in reading \
+        or '("Overtime Type Department", "excluded_departments", "department")' not in reading:
+    fail.append("every Overtime Type is read with the employees it lists and the departments it leaves out")
+rated_by = glue.split("def fill_day_and_rate(")[1].split(chr(10) + "def ")[0]
+if "return rules.eligibility_errors(rated)" not in rated_by or "_departments(people_on_it))[\"rows\"]" not in rated_by:
+    fail.append("a request's lines are rated by who each type is for, and those no type is open to are reported")
+raising = read("hrms_addon", "hrms_addon", "attendance.py").split("def overtime_validate(")[1].split(chr(10) + "def ")[0]
+if "closed = overtime.fill_day_and_rate(doc) or []" not in raising or "errors += closed" not in raising:
+    fail.append("somebody no Overtime Type is open to is refused when the request is raised")
+if "if closed:\n        frappe.throw(" not in landed:
+    fail.append("and never sent to payroll under a type closed to them since")
 print("glue: the day read, the cost checked, the hours landed, the slip drawn")
 
 for needle, why in (
     ("attendance.shift_hours_of(attendance.shift_on(employee, day), hours)[\"standard\"]",
      "the standard day is the one of the shift worked that day"),
-    ("_standard_hours(people_on_it, doc.overtime_date), kinds)",
+    ("_standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it))",
      "HR's cost check prices each person on their own shift, and their own kind of day"),
     ('row.day_kind = found["day_kind"] if row.employee else None', "each line reads the day for its own employee"),
     ('row.overtime_type = found["overtime_type"] if row.employee else None',
@@ -498,7 +589,7 @@ for needle, why in (
     ("rules.worked_overtime(theirs, found.working_hours, standard)", "the overtime the clock shows is worked out"),
     ("if (found.in_time and found.out_time) else None", "only for a day the clock measured at both ends"),
     ("paid = rules.payable_hours(row.get(\"hours\"), worked)", "what is paid is the rules' answer"),
-    ("hours=paid)", "and that, not what was authorised, goes onto the attendance"),
+    ("hours=paid, named=named)", "and that, not what was authorised, goes onto the attendance"),
     ('line.db_set({"day_kind": theirs, "worked_hours": flt(worked), "clocked": 0 if worked is None else 1,',
      "the line says what the clock showed, as a number, and whether it measured the day at all"),
     ('"payable_hours": paid}, update_modified=False)', "and what was paid"),
@@ -574,7 +665,7 @@ for needle, why in (('"overtime_type": ["is", "not set"]', "only an attendance w
                     ('"actual_overtime_duration": [">", 0]', "that carries overtime"),
                     ('"docstatus": 1, "status": rules.PAID_ON', "submitted and on a day the slip reads"),
                     ('request.status != "Sent to Payroll"', "written by a request that was sent to payroll"),
-                    ("if frappe.db.exists(TYPE, name):", "and only under a type the site has")):
+                    ("if name and frappe.db.exists(TYPE, name):", "and only under a type the site has")):
     if needle not in stamp:
         fail.append("overtime.stamp_untyped: %s (%r)" % (why, needle))
 if "stamp_untyped()" not in glue.split("def setup_on_migrate(")[1]:

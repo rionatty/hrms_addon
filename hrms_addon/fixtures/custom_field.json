@@ -10821,14 +10821,58 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Overtime Type-custom_eligibility_tab",
+  "dt": "Overtime Type",
+  "fieldname": "custom_eligibility_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "weekend_multiplier",
+  "label": "Eligibility",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Overtime Type-custom_gross_above",
   "dt": "Overtime Type",
   "fieldname": "custom_gross_above",
   "fieldtype": "Currency",
-  "insert_after": "standard_multiplier",
+  "insert_after": "custom_eligibility_tab",
   "label": "For Monthly Gross Above",
-  "description": "Weekday overtime of employees whose monthly gross is above this.",
+  "description": "On a weekday, for employees whose monthly gross is above this.",
   "non_negative": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Overtime Type-custom_excluded_departments",
+  "dt": "Overtime Type",
+  "fieldname": "custom_excluded_departments",
+  "fieldtype": "Table MultiSelect",
+  "insert_after": "custom_gross_above",
+  "label": "Departments Not Eligible",
+  "options": "Overtime Type Department",
+  "description": "Their employees are not paid under this type.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Overtime Type-custom_employees_section",
+  "dt": "Overtime Type",
+  "fieldname": "custom_employees_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_excluded_departments",
+  "label": "Employees",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Overtime Type-custom_employees",
+  "dt": "Overtime Type",
+  "fieldname": "custom_employees",
+  "fieldtype": "Table",
+  "insert_after": "custom_employees_section",
+  "label": "Employees",
+  "options": "Overtime Type Employee",
+  "description": "Listed: only they are paid under this type, and under no other.",
   "module": "HRMS Addon"
  },
  {

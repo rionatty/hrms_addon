@@ -257,7 +257,7 @@ def overtime_validate(doc, method=None):
     # what sort of day it is, and so what it is worth (overtime.py)
     from hrms_addon.hrms_addon import overtime
 
-    overtime.fill_day_and_rate(doc)
+    closed = overtime.fill_day_and_rate(doc) or []
     counted = rules.coupons([row.as_dict() for row in doc.get("employees") or []])
     doc.coupons_permanent = counted.get("Permanent", 0)
     doc.coupons_casual = counted.get("Casual", 0)
@@ -269,6 +269,8 @@ def overtime_validate(doc, method=None):
         "employees": [row.as_dict() for row in doc.get("employees") or []],
         "full_shift": rules.longest_shift(all_shift_hours().values()),
     })
+    # somebody no Overtime Type is open to: said when the request is raised, not when it is costed
+    errors += closed
     if errors and doc.docstatus == 1:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Overtime Request"))
 

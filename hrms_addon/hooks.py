@@ -601,7 +601,13 @@ fixtures = [
                     "Job Opening-custom_reporting_cb",
                     "Job Opening-custom_subordinates",
                     "Job Opening-custom_show_job_description",
+                    # who an Overtime Type is for: its gross line, the departments
+                    # it is not paid to and the employees it lists (overtime.py)
+                    "Overtime Type-custom_eligibility_tab",
                     "Overtime Type-custom_gross_above",
+                    "Overtime Type-custom_excluded_departments",
+                    "Overtime Type-custom_employees_section",
+                    "Overtime Type-custom_employees",
                     "Job Opening-custom_screening_section",
                     "Job Opening-custom_pass_mark",
                     "Job Opening-custom_screening_questions",

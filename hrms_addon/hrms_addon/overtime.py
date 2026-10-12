@@ -103,11 +103,12 @@ def fill_day_and_rate(doc):
     kinds = {employee: day_kind(employee, doc.overtime_date) for employee in people_on_it}
     rated = rules.priced([_plain(row) for row in rows], {}, kind, _type_row(type_for(kind, doc.get("company"))),
                          _types_for(kind, kinds.values()), _monthly_gross(people_on_it, doc.overtime_date), None,
-                         kinds)["rows"]
+                         kinds, _departments(people_on_it))["rows"]
     for row, found in zip(rows, rated):
         row.day_kind = found["day_kind"] if row.employee else None
         row.overtime_type = found["overtime_type"] if row.employee else None
         row.multiplier = found["multiplier"] if row.employee else 0
+    return rules.eligibility_errors(rated)
 
 
 def _plain(row):
@@ -124,15 +125,28 @@ def _type_row(name):
          "maximum_overtime_hours_allowed", "overtime_salary_component", "custom_gross_above"], as_dict=True)
 
 
-def _types_for(kind, kinds=()):
-    """The Overtime Types a day of this kind can price under: its own and,
-    on a weekday, each type with a gross line (minutes §4.12). `kinds`
-    adds the days the people on the sheet have of their own."""
-    wanted = {kind} | {found for found in kinds or () if found}
-    names = {rules.type_name_for(found) for found in wanted}
-    if rules.WEEKDAY in wanted:
-        names |= set(frappe.get_all(TYPE, filters={"custom_gross_above": [">", 0]}, pluck="name"))
-    return {name: _type_row(name) for name in names if frappe.db.exists(TYPE, name)}
+def _types_for(kind=None, kinds=()):
+    """Every Overtime Type on the site with who it is for: its row, the
+    employees it lists and the departments it is not paid to. A person's
+    type is chosen among them (overtime_rules.person_type), so every type
+    is read, whatever the day."""
+    found = {name: dict(_type_row(name) or {}) for name in frappe.get_all(TYPE, pluck="name", limit_page_length=0)}
+    for table, key, field in (("Overtime Type Employee", "employees", "employee"),
+                              ("Overtime Type Department", "excluded_departments", "department")):
+        for row in frappe.get_all(table, filters={"parenttype": TYPE}, fields=["parent", field],
+                                  limit_page_length=0):
+            if row.parent in found:
+                found[row.parent].setdefault(key, []).append(row.get(field))
+    return found
+
+
+def _departments(employees):
+    """{employee: their department}."""
+    names = sorted(set(filter(None, employees)))
+    if not names:
+        return {}
+    return {row.name: row.department for row in frappe.get_all(
+        "Employee", filters={"name": ["in", names]}, fields=["name", "department"], limit_page_length=0)}
 
 
 def _day_kinds(doc):
@@ -184,9 +198,10 @@ def cost_check(name, remarks=None):
     types = _types_for(kind, kinds.values())
     costed = rules.priced(rows, bases, kind, overtime_type, types,
                           _monthly_gross(people_on_it, doc.overtime_date),
-                          _standard_hours(people_on_it, doc.overtime_date), kinds)
+                          _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it))
     errors = rules.cost_check_errors({
-        "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"]})
+        "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
+        "not_eligible": rules.eligibility_errors(costed["rows"])})
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Cost Check"))
     for row, priced_row in zip(doc.employees, costed["rows"]):
@@ -250,21 +265,29 @@ def send_to_payroll(name):
     def planned():
         """What goes onto each attendance. Read again once a missing type
         has been made: the types set who falls under which."""
-        lines = rules.gross_lines(_types_for(kind, kinds.values()))
+        types = _types_for(kind, kinds.values())
         out = []
         for row in rows:
             theirs = kinds.get(row["employee"]) or kind
+            named, why = rules.person_type(theirs, grosses.get(row["employee"]), types, row["employee"],
+                                           departments.get(row["employee"]))
+            if why:
+                closed.append(_("{0} is not eligible for this overtime: {1}").format(
+                    row.get("employee_name") or row["employee"], _(why)))
             standard = standards.get(row["employee"]) or attendance_rules.STANDARD_HOURS
             found = row["marked"]
             # the clock measured the day when it has both ends of it
             worked = rules.worked_overtime(theirs, found.working_hours, standard) \
                 if (found.in_time and found.out_time) else None
             paid = rules.payable_hours(row.get("hours"), worked)
-            out.append((theirs, worked, paid, rules.attendance_update(
-                row, theirs, standard, gross=grosses.get(row["employee"]), lines=lines, hours=paid)))
+            out.append((theirs, worked, paid, rules.attendance_update(row, theirs, standard, hours=paid, named=named)))
         return out
 
+    departments = _departments([row["employee"] for row in rows])
+    closed = []
     plans = planned()
+    if closed:
+        frappe.throw("<br>".join(closed), title=_("Payroll"))
     if _missing_types(plans):
         seed_overtime_types()
         plans = planned()
@@ -366,18 +389,19 @@ def stamp_untyped():
     untyped = frappe.get_all("Attendance", filters={
         "docstatus": 1, "status": rules.PAID_ON, "actual_overtime_duration": [">", 0],
         "overtime_type": ["is", "not set"]}, fields=["name", "employee", "attendance_date"], limit_page_length=0)
-    lines, stamped = None, []
+    types, stamped = None, []
     for found in untyped:
         sheet = frappe.get_all("Overtime Request Employee", filters={"attendance": found.name, "parenttype": REQUEST},
                                fields=["parent", "day_kind"], limit=1)
         request = frappe.db.get_value(REQUEST, sheet[0].parent, ["status", "day_kind"], as_dict=True) if sheet else None
         if not request or request.status != "Sent to Payroll":
             continue
-        if lines is None:
-            lines = rules.gross_lines(_types_for(rules.WEEKDAY))
-        name = rules.type_name_for(sheet[0].day_kind or request.day_kind or rules.WEEKDAY,
-                                   pay.monthly_gross(found.employee, found.attendance_date), lines)
-        if frappe.db.exists(TYPE, name):
+        if types is None:
+            types = _types_for()
+        name = rules.person_type(sheet[0].day_kind or request.day_kind or rules.WEEKDAY,
+                                 pay.monthly_gross(found.employee, found.attendance_date), types, found.employee,
+                                 _departments([found.employee]).get(found.employee))[0]
+        if name and frappe.db.exists(TYPE, name):
             frappe.db.set_value("Attendance", found.name, "overtime_type", name, update_modified=False)
             stamped.append(found.name)
     if stamped:
