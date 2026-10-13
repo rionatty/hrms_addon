@@ -602,12 +602,33 @@ when they handed company property to the HOD.
 The **Clearance Form (LPL/HR/22)** is the one document neither Frappe HR
 nor ERPNext has: ten boxes, A to J, each with its own items and its own
 signature. It is drawn up from the paper with the employee's own **tools
-of work** already on box A, and an item not returned needs a remark or a
-cost — the costs adding into box I and then into the settlement. Every box
-that has anything in it must be accounted for and signed before the form
-goes up. The two charts sign the same form with different people, so one
-workflow carries both chains: voluntary goes HR Officer, Finance, General
-Manager; involuntary goes General Manager, Accounts, HR Manager.
+of work** already on box A. The employee fills it: each item is ticked
+Returned or Not Applicable, and one not returned needs a remark or a cost,
+the costs adding into box I and then into the settlement. The remark a row
+is drawn up with (a tool's serial number, who takes the work over) is the
+form's own and does not account for the item. Once every item is accounted
+for the employee sends the form up, with no box signed yet. The two charts
+sign the same form with different people, so one workflow carries both
+chains: voluntary goes HR Officer, Finance, General Manager; involuntary
+goes General Manager, Accounts, HR Manager.
+
+Each box is signed on the form with **Sign Boxes**, by somebody who holds
+one of the box's roles (`exit_rules.BOX_ROLES`, and the Responsible Role
+of the Tool Provider the box stands for: IT, Stores, EHS, HR, the
+department), or by HR on the department's behalf from the signed paper, so
+a department with nobody on the system holds no exit up. Nobody signs a box
+on their own clearance. HR approve only when every box is signed, which is
+first on a voluntary exit and last on an involuntary one; until then a
+signature can be taken off by HR or by whoever gave it. The form's headline
+says how many boxes are signed and which are not. The Leave Balance on the
+form is the Annual Leave still to take on the last day, the figure the
+settlement pays out.
+
+A box's signature is read-only on the form, and for its first weeks nothing
+could put it there: the rule waited on a field no user could fill, and no
+form left Draft. The walk passed because it wrote the signatures in itself.
+`verify_exits.py` now holds the form to having a way to sign, and the walk
+(`smoke_clearance.py`) signs every box as the user who gives it.
 
 The **Full and Final Settlement Agreement (LPL/HR/20)** follows. Accounts
 work out what the paper names — final salary, leave encashment, notice

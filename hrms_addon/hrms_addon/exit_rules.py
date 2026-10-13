@@ -79,6 +79,27 @@ SECTIONS = (
 SECTION_CODES = tuple(code for code, _name, _items in SECTIONS)
 SECTION_NAMES = {code: name for code, name, _items in SECTIONS}
 
+# Who signs each box. On the paper every department initials its own box.
+# On the site a box is signed by somebody who holds one of its roles, or by
+# HR on the department's behalf from the signed paper, which is what keeps
+# a department with nobody on the system from holding an exit up.
+BOX_ROLES = {
+    "A": ("Head of Department", "Supervisor"),
+    "B": ("System Manager",),
+    "C": ("HR User", "HR Manager"),
+    "D": ("Accounts User", "Accounts Manager", "Finance Officer"),
+    "E": ("HR User", "HR Manager"),
+    "F": (),
+    "G": (),
+    "H": ("HR User", "HR Manager"),
+    "I": ("Auditor", "Accounts Manager"),
+    "J": ("Accounts User", "Accounts Manager", "Finance Officer", "Payroll Officer"),
+}
+# and the Tool Provider whose Responsible Role signs it as well, where the
+# box is a department that issues tools of work (onboarding_rules.PROVIDERS)
+BOX_PROVIDERS = {"A": "Department", "B": "IT", "F": "Stores", "G": "EHS", "H": "HR"}
+ON_BEHALF = ("HR User", "HR Manager")
+
 DRAFT, PENDING, CLEARED, CANCELLED = "Draft", "Pending", "Cleared", "Cancelled"
 
 
@@ -167,54 +188,134 @@ def separation_errors(facts):
     return errors
 
 
-def clearance_errors(facts):
-    """Problems with a Clearance Form, as user-facing messages.
+def box_label(code):
+    """A box as the form names it: "B Information Technology"."""
+    return ("%s %s" % (code or "", SECTION_NAMES.get(code) or "")).strip()
 
-    facts: "rows" of section, item, returned, cost; "sections" of section,
-    signed_by; "employee".
+
+def accounted(row):
+    """An item is accounted for once it is returned, marked as not
+    applying to this employee, or said to be missing with a remark or a
+    cost. The remark the form was drawn up with (a tool's serial number,
+    who takes the work over) is not somebody saying what became of it."""
+    said = _text(row.get("remarks"))
+    return bool(row.get("returned") or row.get("not_applicable") or _num(row.get("cost"))
+                or (said and said != _text(row.get("drawn_remarks"))))
+
+
+def used_sections(rows):
+    """The boxes that have anything in them, in the form's own order."""
+    have = {row.get("section") for row in rows or []}
+    return [code for code in SECTION_CODES if code in have]
+
+
+def unaccounted(rows):
+    """{box: [items]} still to be accounted for, in the form's own order."""
+    out = {}
+    for code in SECTION_CODES:
+        items = [row.get("item") or "An item" for row in rows or []
+                 if row.get("section") == code and not accounted(row)]
+        if items:
+            out[code] = items
+    return out
+
+
+def clearance_errors(facts):
+    """What stops a Clearance Form being sent for approval, as user-facing
+    messages: the items the employee has not accounted for.
+
+    facts: "rows" of section, item, returned, not_applicable, cost, remarks.
     """
     errors = []
     rows = facts.get("rows") or []
     if not rows:
-        errors.append("A clearance form has nothing on it. Draw up the ten boxes LPL/HR/22 prints.")
+        errors.append("The form has no items. Use Draw Up Clearance Form on the Employee Separation.")
         return errors
-    bad = sorted({row.get("section") for row in rows} - set(SECTION_CODES))
+    bad = sorted({str(row.get("section")) for row in rows} - set(SECTION_CODES))
     if bad:
-        errors.append("LPL/HR/22 has boxes A to J; %s is not one of them." % ", ".join(str(b) for b in bad))
-    for row in rows:
-        if not row.get("item"):
-            errors.append("A row in box %s does not say what it is." % (row.get("section") or "?"))
-        if not row.get("returned") and not _text(row.get("remarks")) and not _num(row.get("cost")):
-            errors.append("%s is not returned: say what became of it, or what it costs."
-                          % (row.get("item") or "An item"))
+        errors.append("The boxes are A to J. %s is not one of them." % ", ".join(bad))
+    if any(not row.get("item") for row in rows):
+        errors.append("Every row needs an item.")
+    waiting = unaccounted([row for row in rows if row.get("item")])
+    for code, items in waiting.items():
+        errors.append("%s: %s." % (box_label(code), ", ".join(items)))
+    if waiting:
+        errors.append("Tick Returned or Not Applicable for each item above, or enter a remark or a cost.")
     return errors
 
 
 def outstanding_cost(rows):
     """Box I of the form: what everything not returned comes to."""
-    return round(sum(_num(row.get("cost")) for row in rows or [] if not row.get("returned")), 2)
+    return round(sum(_num(row.get("cost")) for row in rows or []
+                     if not row.get("returned") and not row.get("not_applicable")), 2)
 
 
 def cleared_sections(rows, signatures):
     """Which of the ten boxes are done: every item accounted for and the
     box signed."""
     signed = {row.get("section") for row in signatures or [] if row.get("signed_by")}
-    done = []
-    for code in SECTION_CODES:
-        items = [row for row in rows or [] if row.get("section") == code]
-        if not items:
-            continue
-        accounted = all(row.get("returned") or _text(row.get("remarks")) or _num(row.get("cost"))
-                        for row in items)
-        if accounted and code in signed:
-            done.append(code)
-    return done
+    waiting = unaccounted(rows)
+    return [code for code in used_sections(rows) if code in signed and code not in waiting]
+
+
+def unsigned_sections(rows, signatures):
+    """The boxes in use that nobody has signed yet."""
+    signed = {row.get("section") for row in signatures or [] if row.get("signed_by")}
+    return [code for code in used_sections(rows) if code not in signed]
 
 
 def clearance_complete(rows, signatures):
     """Every box that has anything in it is accounted for and signed."""
-    used = sorted({row.get("section") for row in rows or [] if row.get("section") in SECTION_CODES})
-    return used and cleared_sections(rows, signatures) == used
+    used = used_sections(rows)
+    return bool(used) and cleared_sections(rows, signatures) == used
+
+
+def may_sign(code, roles, box_roles=None):
+    """Whether the holder of `roles` signs box `code`: one of the box's own
+    roles, or HR on the department's behalf."""
+    wanted = set(BOX_ROLES.get(code, ()) if box_roles is None else box_roles) | set(ON_BEHALF)
+    return bool(wanted & set(roles or ()))
+
+
+def sign_errors(facts):
+    """What stops a box being signed, as user-facing messages.
+
+    facts: "section", "docstatus", "roles" (the user's), "box_roles" (who
+    signs this box), "own_form" (the user is the employee leaving),
+    "signed" (already), "in_use", "waiting" (its items not accounted for).
+    """
+    code = facts.get("section")
+    label = box_label(code)
+    if int(facts.get("docstatus") or 0) != 0:
+        return ["The form is closed. No box can be signed."]
+    if code not in SECTION_CODES or not facts.get("in_use"):
+        return ["%s is not on this form." % (label or "That box")]
+    if facts.get("own_form"):
+        return ["Nobody signs a box on their own clearance."]
+    if not may_sign(code, facts.get("roles"), facts.get("box_roles")):
+        return ["%s is signed by its own department or by HR." % label]
+    if facts.get("signed"):
+        return ["%s is already signed." % label]
+    if facts.get("waiting"):
+        return ["%s: %s. Tick Returned or Not Applicable for each, or enter a remark or a cost."
+                % (label, ", ".join(facts["waiting"]))]
+    return []
+
+
+def unsign_errors(facts):
+    """What stops a signature being taken off a box.
+
+    facts: "section", "docstatus", "roles", "signed", "is_signer", "open"
+    (HR has not yet approved the form).
+    """
+    label = box_label(facts.get("section"))
+    if int(facts.get("docstatus") or 0) != 0 or not facts.get("open"):
+        return ["HR has approved the form. Its signatures stay."]
+    if not facts.get("signed"):
+        return ["%s is not signed." % label]
+    if not (facts.get("is_signer") or set(ON_BEHALF) & set(facts.get("roles") or ())):
+        return ["Only HR or whoever signed %s can remove the signature." % label]
+    return []
 
 
 def default_rows(exit_type=None):

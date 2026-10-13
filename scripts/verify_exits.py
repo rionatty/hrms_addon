@@ -181,25 +181,81 @@ if len(rows) != sum(len(items) for _c, _n, items in E.SECTIONS):
 if not all(row["section"] in E.SECTION_CODES and row["item"] for row in rows):
     fail.append("each drawn-up row knows its box and what it is")
 
-expect("a clearance form with nothing on it", E.clearance_errors({"rows": []}), "nothing on it")
+expect("a clearance form with nothing on it", E.clearance_errors({"rows": []}), "has no items")
 expect("a box that is not on the paper",
        E.clearance_errors({"rows": [{"section": "Z", "item": "Keys", "returned": 1}]}),
        "Z is not one of them")
-expect("an item not returned and not accounted for",
-       E.clearance_errors({"rows": [{"section": "A", "item": "Laptop", "returned": 0}]}),
-       "say what became of it")
-expect("an item not returned but costed",
-       E.clearance_errors({"rows": [{"section": "A", "item": "Laptop", "returned": 0, "cost": 800000}]}))
-if E.outstanding_cost([{"returned": 0, "cost": 800000}, {"returned": 1, "cost": 500000}]) != 800000:
-    fail.append("box I counts only what was not returned")
+unticked = E.clearance_errors({"rows": [{"section": "B", "item": "Laptop"}, {"section": "B", "item": "Cell phone"},
+                                        {"section": "A", "item": "Locker keys"},
+                                        {"section": "C", "item": "Passport", "not_applicable": 1}]})
+if unticked != ["A Own Department: Locker keys.", "B Information Technology: Laptop, Cell phone.",
+                "Tick Returned or Not Applicable for each item above, or enter a remark or a cost."]:
+    fail.append("the items not accounted for are named box by box, once, with what to do: %s" % unticked)
+for how in ({"returned": 1}, {"not_applicable": 1}, {"cost": 800000}, {"remarks": "Lost in the fire."}):
+    expect("an item accounted for by %s" % sorted(how),
+           E.clearance_errors({"rows": [dict({"section": "A", "item": "Laptop"}, **how)]}))
+# the remark a row is drawn up with (a tool's serial number, who takes the
+# work over) is the form's own, not somebody saying what became of the item
+drawn = {"section": "A", "item": "Dell Latitude", "remarks": "Dell, SN-9931", "drawn_remarks": "Dell, SN-9931"}
+if E.accounted(drawn) or E.accounted(dict(drawn, remarks=" Dell, SN-9931 ")):
+    fail.append("a tool is not accounted for by the serial number it was drawn up with")
+if not E.accounted(dict(drawn, remarks="Dell, SN-9931. Stolen, reported to the police.")) \
+        or not E.accounted(dict(drawn, cost=900000)) or not E.accounted(dict(drawn, returned=1)):
+    fail.append("it is once somebody adds what became of it, costs it or returns it")
+if E.outstanding_cost([{"returned": 0, "cost": 800000}, {"returned": 1, "cost": 500000},
+                       {"not_applicable": 1, "cost": 300000}]) != 800000:
+    fail.append("box I counts only what was issued and not returned")
 items = [{"section": "A", "item": "Keys", "returned": 1}, {"section": "B", "item": "Laptop", "returned": 1}]
 if E.cleared_sections(items, [{"section": "A", "signed_by": "hr"}]) != ["A"]:
     fail.append("a box is cleared when it is accounted for AND signed")
+if E.unsigned_sections(items, [{"section": "A", "signed_by": "hr"}, {"section": "B"}]) != ["B"]:
+    fail.append("the boxes in use that nobody has signed are named")
 if E.clearance_complete(items, [{"section": "A", "signed_by": "hr"}]):
     fail.append("a form with an unsigned box is not complete")
 if not E.clearance_complete(items, [{"section": "A", "signed_by": "hr"}, {"section": "B", "signed_by": "it"}]):
     fail.append("a form whose every used box is signed is complete")
-print("exits: the notice the Act asks for, whether it was served, the ten boxes of LPL/HR/22")
+if E.clearance_complete([], []) is not False:
+    fail.append("a form with nothing on it is not complete")
+if E.cleared_sections([{"section": "A", "item": "Keys"}], [{"section": "A", "signed_by": "hr"}]):
+    fail.append("a signed box with an item not accounted for is not cleared")
+if E.box_label("B") != "B Information Technology":
+    fail.append("a box is named as the form names it: %s" % E.box_label("B"))
+
+# who signs a box: its own department, or HR on the department's behalf
+if set(E.BOX_ROLES) != set(E.SECTION_CODES):
+    fail.append("every box says who signs it: %s" % sorted(set(E.SECTION_CODES) - set(E.BOX_ROLES)))
+if not set(E.BOX_PROVIDERS) <= set(E.SECTION_CODES):
+    fail.append("a provider signs a box the form has")
+provider_names = re.search(r"^PROVIDERS = \(([^)]*)\)", read("hrms_addon", "hrms_addon", "onboarding_rules.py"), re.M)
+if not provider_names or not set(E.BOX_PROVIDERS.values()) <= set(re.findall(r'"([^"]+)"', provider_names.group(1))):
+    fail.append("the providers that sign a box are Tool Providers the app seeds: %s" % sorted(E.BOX_PROVIDERS.values()))
+if not all(E.may_sign(code, ("HR User",)) and E.may_sign(code, ("HR Manager",)) for code in E.SECTION_CODES):
+    fail.append("HR can sign any box on its department's behalf, so no exit waits on a department with no user")
+if E.may_sign("B", ("Accounts User",)) or not E.may_sign("D", ("Accounts User",)):
+    fail.append("Accounts sign the loans box, not the IT box")
+if not E.may_sign("B", ("IT Officer",), box_roles=("IT Officer",)) or E.may_sign("B", ("IT Officer",)):
+    fail.append("a box is also signed by the role its Tool Provider names")
+if E.may_sign("A", ("Employee",)) or E.may_sign("A", ()):
+    fail.append("an employee does not sign a box")
+box = {"section": "B", "docstatus": 0, "roles": ("HR User",), "in_use": True}
+expect("a box ready to sign", E.sign_errors(box))
+expect("a box on a cleared form", E.sign_errors(dict(box, docstatus=1)), "The form is closed")
+expect("a box the form does not use", E.sign_errors(dict(box, in_use=False)), "is not on this form")
+expect("a box on one's own clearance", E.sign_errors(dict(box, own_form=True)), "their own clearance")
+expect("a box signed by another department", E.sign_errors(dict(box, roles=("Accounts User",))),
+       "B Information Technology is signed by its own department or by HR")
+expect("a box signed twice", E.sign_errors(dict(box, signed=True)), "is already signed")
+expect("a box with an item not accounted for", E.sign_errors(dict(box, waiting=["Laptop", "Cell phone"])),
+       "B Information Technology: Laptop, Cell phone. Tick Returned or Not Applicable")
+signed = {"section": "B", "docstatus": 0, "roles": ("HR User",), "signed": True, "open": True}
+expect("a signature HR takes off", E.unsign_errors(signed))
+expect("a signature its signer takes off", E.unsign_errors(dict(signed, roles=("Head of Department",), is_signer=True)))
+expect("a signature somebody else takes off", E.unsign_errors(dict(signed, roles=("Head of Department",))),
+       "Only HR or whoever signed")
+expect("a signature that is not there", E.unsign_errors(dict(signed, signed=False)), "is not signed")
+expect("a signature after HR approved", E.unsign_errors(dict(signed, open=False)), "Its signatures stay")
+expect("a signature on a cleared form", E.unsign_errors(dict(signed, docstatus=1)), "Its signatures stay")
+print("exits: the notice the Act asks for, whether it was served, the ten boxes of LPL/HR/22 and who signs them")
 
 # ── 2. The settlement rules ───────────────────────────────────────────
 if S.PAYABLES != ("Final Salary", "Leave Encashment", "Notice Pay", "Severance Pay", "Net Claims"):
@@ -421,7 +477,117 @@ if not {"brand", "serial_no", "number_plate"} <= set(register):
 if 'fields=["name", "tool", "brand", "serial_no", "number_plate"]' not in glue_exits or \
         '(tool.get("brand"), tool.get("serial_no"),' not in glue_exits:
     fail.append("the clearance names the tool the employee holds by its brand, serial number and plate")
-print("glue: fields that exist upstream, the rules followed, the buttons whitelisted")
+
+# A box's signature is read-only on the form, so something has to put it
+# there. Nothing did: the fields were there, the rule waited on them, and no
+# form could leave Draft. A read-only field the form waits on needs a way in.
+box_line = fields_of(doctype("Clearance Section"))
+if not all((box_line.get(name) or {}).get("read_only") for name in ("signed_by", "signed_on")):
+    fail.append("a box's signature is stamped by the system, not typed")
+for name in ("sign_boxes", "unsign_box"):
+    if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue_exits):
+        fail.append("exits.%s changes the form: a whitelisted POST method" % name)
+if not re.search(r"@frappe\.whitelist\(\)\ndef clearance_boxes\(", glue_exits):
+    fail.append("exits.clearance_boxes tells the form where its boxes stand")
+
+
+def function_of(source, name):
+    node = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == name)
+    return "\n".join(source.splitlines()[node.lineno - 1:node.end_lineno])
+
+
+sign = function_of(glue_exits, "sign_boxes")
+for needle, why in (
+    ('doc.check_permission("read")', "only somebody who can open the form signs on it"),
+    ("rules.sign_errors(_box_facts(doc, code))", "each box is judged by the rules before any is signed"),
+    ('"signed_by": frappe.session.user, "signed_on": today()', "the signature is the user's own, dated today"),
+    ("_store_progress(doc)", "the boxes cleared are counted again"),
+):
+    if needle not in sign:
+        fail.append("exits.sign_boxes: %s (%r not found)" % (why, needle))
+if sign.index("frappe.throw(") > sign.index("row.db_set("):
+    fail.append("exits.sign_boxes refuses before it signs anything")
+if "ignore_permissions" in sign or "ignore_permissions" in function_of(glue_exits, "unsign_box"):
+    fail.append("a box is signed under the user's own rights")
+facts = function_of(glue_exits, "_box_facts")
+for needle, why in (
+    ('"roles": frappe.get_roles()', "the user's own roles"),
+    ('"box_roles": _box_roles(code)', "the box's roles, its Tool Provider's among them"),
+    ('"own_form": _own_form(doc)', "nobody signs their own clearance"),
+    ("approval.open_for_signing(", "signatures stay once HR approve"),
+):
+    if needle not in facts:
+        fail.append("exits._box_facts: %s (%r not found)" % (why, needle))
+if '"Tool Provider", provider, "responsible_role"' not in function_of(glue_exits, "_box_roles"):
+    fail.append("a box that is a tools provider's is signed by that provider's Responsible Role")
+step = function_of(glue_exits, "_check_clearance_step")
+for needle, why in (
+    ("rules.unsigned_sections(items, signatures)", "HR's approval is told which boxes are unsigned"),
+    ("approval.hr_approves(", "and every item is still accounted for when HR pass the form on"),
+    ('"exit_type": doc.get("exit_type")', "the chain says which step is HR's"),
+):
+    if needle not in step:
+        fail.append("exits._check_clearance_step: %s (%r not found)" % (why, needle))
+fill = function_of(glue_exits, "_fill_clearance")
+if 'doc.append("sections", {"section": code})' not in fill:
+    fail.append("a box an item is added to gets a line to be signed on")
+if 'doc.db_set("approval_status", "Cancelled"' not in function_of(glue_exits, "clearance_on_cancel"):
+    fail.append("a cancelled form's status is written (on_cancel runs after the save)")
+if "not_applicable" not in fields_of(doctype("Clearance Item")):
+    fail.append("an item that does not apply to the employee can be marked so")
+drawn_field = fields_of(doctype("Clearance Item")).get("drawn_remarks") or {}
+if not (drawn_field.get("hidden") and drawn_field.get("read_only")):
+    fail.append("the remark a row was drawn up with is kept, out of sight and not typed")
+draw = function_of(glue_exits, "draw_up_clearance")
+if '"remarks": issued, "drawn_remarks": issued' not in draw \
+        or "row = dict(row, remarks=handover, drawn_remarks=handover)" not in draw:
+    fail.append("a tool's identification and the handover note are drawn up as the form's own remark")
+if '{"remarks": note, "drawn_remarks": note}' not in read("hrms_addon", "hrms_addon", "talent.py"):
+    fail.append("a handover note written on a form already drawn up is the form's own remark too")
+patch = read("hrms_addon", "patches", "v1_0", "clearance_forms_in_draft.py")
+if "hrms_addon.patches.v1_0.clearance_forms_in_draft" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]")[1]:
+    fail.append("the forms already drawn up are brought up to date once the new fields are in place")
+for needle, why in (
+    ('filters={"docstatus": 0}', "only forms not yet cleared"),
+    ('row.db_set("drawn_remarks", said', "a remark still as it was drawn up is kept as the form's own"),
+    ("exits._leave_balance(doc.employee, doc.get(\"leaving_date\"))", "the leave balance is worked out again"),
+    ("clearance_approval.DRAFT", "on a form nobody has sent up yet"),
+    ("frappe.log_error(", "and a form that cannot be read does not stop the migrate"),
+):
+    if needle not in patch:
+        fail.append("patch clearance_forms_in_draft: %s (%r not found)" % (why, needle))
+
+# the leave on the form is what the settlement pays out: Annual Leave only,
+# as it stands on the last day
+balance = function_of(glue_exits, "_leave_balance")
+if "leave_accrual.accrual(employee, leave_rules.ANNUAL, on)" not in balance or "Leave Allocation" in balance:
+    fail.append("the leave balance is the Annual Leave earned and not taken, not every allocation ever made")
+if '_leave_balance(exit_doc.employee, exit_doc.get("custom_relieving_date"))' not in glue_exits:
+    fail.append("the leave balance is read as at the last day of service")
+
+form_script = read("hrms_addon", "hrms_addon", "doctype", "clearance_form", "clearance_form.js")
+for name in ("clearance_boxes", "sign_boxes", "unsign_box"):
+    if '"hrms_addon.hrms_addon.exits.%s"' % name not in form_script:
+        fail.append("the Clearance Form's script calls exits.%s" % name)
+for needle, why in (
+    ('frm.add_custom_button(__("Sign Boxes")', "the button a box is signed with"),
+    ("frm.dashboard.set_headline(", "the form says how many boxes are signed"),
+    ("if (values.remarks) args.remarks = values.remarks;", "an empty remark is left out of the call"),
+    ("ha_clearance_saved(frm", "what is on the screen is saved before a box is signed for it"),
+):
+    if needle not in form_script:
+        fail.append("clearance_form.js: %s (%r not found)" % (why, needle))
+
+# what users read is plain: no "the paper", no "goes up", no chart numbers
+spoken = "\n".join(re.findall(r'"([^"\n]*)"', read("hrms_addon", "hrms_addon", "exit_rules.py").split(
+    "def clearance_errors(")[1].split("\ndef default_rows(")[0]))
+spoken += "\n" + "\n".join(re.findall(r'errors\.append\("([^"\n]*)"', read("hrms_addon", "hrms_addon",
+                                                                       "clearance_approval.py")))
+for word in ("goes up", "prints", "the paper", "LPL/HR/22", "step ", "4.5", "4.6", " — ", "; "):
+    if word in spoken:
+        fail.append("a clearance message reads as a note to ourselves: %r" % word)
+print("glue: fields that exist upstream, the rules followed, the buttons whitelisted, the boxes signable")
 
 # ── 5. The signatures ─────────────────────────────────────────────────
 route = walk(IA, IA.DRAFT, (IA.SUBMIT, IA.APPROVE))
@@ -446,10 +612,44 @@ if set(CA.CONDITIONS) != set(E.EXIT_TYPES):
     fail.append("the clearance workflow must route both exits")
 if set(CA.STAMPS) != set(CA.PENDING_STATES) or set(CA.ROLE_WAITING) != set(CA.PENDING_STATES):
     fail.append("every desk a clearance passes is stamped and known: %s" % sorted(CA.STAMPS))
-expect("a clearance sent up with a box unaccounted for",
-       CA.step_errors(CA.DRAFT, CA.PENDING_HR, {}), "accounted for and signed")
-expect("a clearance whose boxes are all done",
-       CA.step_errors(CA.DRAFT, CA.PENDING_HR, {"complete": 1}))
+# The employee sends the form up with no box signed: the boxes are signed on
+# its way, and it is HR's own approval that waits for them. HR are first on
+# a voluntary exit and last on an involuntary one.
+waiting = {"unsigned": ["B Information Technology", "F Stores"]}
+for exit_type, first in ((E.VOLUNTARY, CA.PENDING_HR), (E.INVOLUNTARY, CA.PENDING_GM)):
+    expect("a %s clearance sent up unsigned" % exit_type.lower(),
+           CA.step_errors(CA.DRAFT, first, dict(waiting, exit_type=exit_type)))
+if (CA.hr_step(E.VOLUNTARY), CA.hr_step(E.INVOLUNTARY)) != (CA.PENDING_HR, CA.PENDING_HRM):
+    fail.append("HR's own step: the HR Officer on a voluntary exit, the HR Manager on an involuntary one")
+expect("HR approving a voluntary clearance with boxes unsigned",
+       CA.step_errors(CA.PENDING_HR, CA.PENDING_FINANCE, dict(waiting, exit_type=E.VOLUNTARY)),
+       "Not signed: B Information Technology, F Stores. Use Sign Boxes.")
+expect("HR clearing an involuntary clearance with boxes unsigned",
+       CA.step_errors(CA.PENDING_HRM, CA.CLEARED, dict(waiting, exit_type=E.INVOLUNTARY)), "Not signed: B")
+expect("HR approving with every box signed",
+       CA.step_errors(CA.PENDING_HR, CA.PENDING_FINANCE, {"unsigned": [], "exit_type": E.VOLUNTARY}))
+for old, new in ((CA.PENDING_GM, CA.PENDING_ACCOUNTS), (CA.PENDING_ACCOUNTS, CA.PENDING_HRM)):
+    expect("an involuntary clearance passing %s before HR" % old,
+           CA.step_errors(old, new, dict(waiting, exit_type=E.INVOLUNTARY)))
+for old, new in ((CA.PENDING_FINANCE, CA.PENDING_GM), (CA.PENDING_GM, CA.CLEARED)):
+    expect("a voluntary clearance passing %s after HR" % old,
+           CA.step_errors(old, new, dict(waiting, exit_type=E.VOLUNTARY)))
+expect("HR returning a form with boxes unsigned",
+       CA.step_errors(CA.PENDING_HR, CA.DRAFT, dict(waiting, exit_type=E.VOLUNTARY, return_remarks="Fix box B.")))
+# passing the form on is the step that waits; sending it back never is,
+# or a form with something wrong on it could not be returned to be put right
+passes = [(exit_type, old, new) for exit_type in E.EXIT_TYPES for old in CA.route(exit_type)
+          for new in list(CA.route(exit_type)) + [CA.CANCELLED] if CA.hr_approves(exit_type, old, new)]
+if passes != [(E.VOLUNTARY, CA.PENDING_HR, CA.PENDING_FINANCE), (E.VOLUNTARY, CA.PENDING_HR, CA.PENDING_GM),
+              (E.VOLUNTARY, CA.PENDING_HR, CA.CLEARED), (E.INVOLUNTARY, CA.PENDING_HRM, CA.CLEARED)]:
+    fail.append("HR's approval is HR passing the form forward from their own desk, and nothing else: %s" % passes)
+open_at = {exit_type: [state for state in CA.route(exit_type) if CA.open_for_signing(exit_type, state)]
+           for exit_type in E.EXIT_TYPES}
+if open_at != {E.VOLUNTARY: [CA.DRAFT, CA.PENDING_HR],
+               E.INVOLUNTARY: [CA.DRAFT, CA.PENDING_GM, CA.PENDING_ACCOUNTS, CA.PENDING_HRM]}:
+    fail.append("boxes are signed and unsigned until HR approve, and not after: %s" % open_at)
+if not CA.open_for_signing(E.VOLUNTARY, None) or CA.open_for_signing(E.VOLUNTARY, CA.CANCELLED):
+    fail.append("a new form is open for signing and a cancelled one is not")
 expect("returned without a reason", CA.step_errors(CA.PENDING_FINANCE, CA.DRAFT, {}), "Return Remarks")
 if CA.next_states(CA.DRAFT, ("HR User",), E.INVOLUNTARY) != [(CA.SUBMIT, CA.PENDING_GM)]:
     fail.append("an involuntary clearance leaves Draft for the General Manager")

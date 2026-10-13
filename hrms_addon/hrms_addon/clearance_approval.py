@@ -19,8 +19,11 @@ carries both appraisal forms:
                                    --Approve--> Pending HR Manager
                                    --Clear--> Cleared
 
-Either way the ten boxes are accounted for and signed before the form
-leaves Draft, and the cessation of employment follows it.
+The employee fills the form and sends it up once every item is accounted
+for. The ten boxes are signed while it is on its way, each by its own
+department or by HR on the department's behalf, and HR approves only when
+every box is signed: first on a voluntary exit, last on an involuntary
+one. The cessation of employment follows the cleared form.
 """
 
 # the two exits, spelled here so this module stays importable on its own
@@ -136,9 +139,32 @@ ROLE_WAITING = {
 }
 
 
+# HR's own step on each chain. HR hand the form out and answer for it, so
+# theirs is the approval that needs every box signed.
+HR_STEP = {VOLUNTARY: PENDING_HR, INVOLUNTARY: PENDING_HRM}
+
+
 def route(exit_type):
     """The desks this form passes, in order."""
     return ROUTES.get(exit_type or VOLUNTARY, ROUTES[VOLUNTARY])
+
+
+def hr_step(exit_type):
+    return HR_STEP.get(exit_type or VOLUNTARY, HR_STEP[VOLUNTARY])
+
+
+def hr_approves(exit_type, old_state, new_state):
+    """Whether this step is HR passing the form on from their own desk."""
+    desks = route(exit_type)
+    step = hr_step(exit_type)
+    return old_state == step and new_state in desks and desks.index(new_state) > desks.index(step)
+
+
+def open_for_signing(exit_type, state):
+    """Whether boxes can still be signed and unsigned: until HR approve."""
+    desks = route(exit_type)
+    state = state or DRAFT
+    return state in desks and desks.index(state) <= desks.index(hr_step(exit_type))
 
 
 def compute_stamps(old_state, new_state, user, today, current):
@@ -157,8 +183,8 @@ def compute_stamps(old_state, new_state, user, today, current):
 def step_errors(old_state, new_state, facts):
     """Problems with a step, as user-facing messages.
 
-    facts: "return_remarks", the remark fields, and whether the ten boxes
-    are accounted for and signed.
+    facts: "return_remarks", "exit_type", and "unsigned", the boxes nobody
+    has signed yet, as the form names them.
     """
     if old_state == new_state:
         return []
@@ -167,8 +193,8 @@ def step_errors(old_state, new_state, facts):
         if not _text(facts.get("return_remarks")):
             errors.append("Write in Return Remarks what must be put right before returning the form.")
         return errors
-    if old_state in (None, DRAFT) and new_state != DRAFT and not facts.get("complete"):
-        errors.append("Every box on LPL/HR/22 is accounted for and signed before the form goes up.")
+    if hr_approves(facts.get("exit_type"), old_state, new_state) and facts.get("unsigned"):
+        errors.append("Not signed: %s. Use Sign Boxes." % ", ".join(facts["unsigned"]))
     return errors
 
 

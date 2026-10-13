@@ -1224,7 +1224,9 @@ def _write_handover(doc):
                                                  "item": rules.HANDOVER_ITEM}, ["name", "remarks"], as_dict=True)
     note = handover_for(doc.incumbent)
     if row and note and not (row.remarks or "").strip():
-        frappe.db.set_value("Clearance Item", row.name, "remarks", note, update_modified=False)
+        # written for the employee, so it does not account for the report
+        frappe.db.set_value("Clearance Item", row.name, {"remarks": note, "drawn_remarks": note},
+                            update_modified=False)
 
 
 def handover_for(employee):

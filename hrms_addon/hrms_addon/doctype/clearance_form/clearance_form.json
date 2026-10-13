@@ -202,7 +202,7 @@
    "fieldname": "items_section",
    "fieldtype": "Section Break",
    "label": "Clearance Items (LPL/HR/22)",
-   "description": "An item not returned needs a remark or a cost."
+   "description": "Tick Returned or Not Applicable for each item. An item not returned needs a remark or a cost."
   },
   {
    "fieldname": "items",
@@ -231,14 +231,14 @@
   {
    "fieldname": "complete",
    "fieldtype": "Check",
-   "label": "Every Box Accounted For",
+   "label": "All Boxes Cleared",
    "read_only": 1,
    "no_copy": 1
   },
   {
    "fieldname": "signatures_section",
    "fieldtype": "Section Break",
-   "label": "Signatures"
+   "label": "Box Signatures"
   },
   {
    "fieldname": "sections",
@@ -381,7 +381,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 18:00:00.000000",
+ "modified": "2026-10-13 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Clearance Form",

@@ -190,14 +190,27 @@ def _fill_clearance(doc):
         doc.days_worked = rules.days_worked(doc.date_of_joining, doc.leaving_date)
     for row in doc.get("items") or []:
         row.section_name = rules.SECTION_NAMES.get(row.section)
+        if row.get("returned") and row.get("not_applicable"):
+            row.not_applicable = 0
+    # a box an item was added to has a line to be signed on
+    have = {row.section for row in doc.get("sections") or []}
+    for code in rules.used_sections([row.as_dict() for row in doc.get("items") or []]):
+        if code not in have:
+            doc.append("sections", {"section": code})
     for row in doc.get("sections") or []:
         row.section_name = rules.SECTION_NAMES.get(row.section)
+    for field, value in _progress(doc).items():
+        doc.set(field, value)
+
+
+def _progress(doc):
+    """What the form says of itself: the cost of what is not returned, the
+    boxes done and whether that is all of them."""
     items = [row.as_dict() for row in doc.get("items") or []]
     signatures = [row.as_dict() for row in doc.get("sections") or []]
-    doc.outstanding_cost = rules.outstanding_cost(items)
-    cleared = rules.cleared_sections(items, signatures)
-    doc.boxes_cleared = ", ".join(cleared) or None
-    doc.complete = 1 if rules.clearance_complete(items, signatures) else 0
+    return {"outstanding_cost": rules.outstanding_cost(items),
+            "boxes_cleared": ", ".join(rules.cleared_sections(items, signatures)) or None,
+            "complete": 1 if rules.clearance_complete(items, signatures) else 0}
 
 
 def _check_clearance_step(doc):
@@ -207,13 +220,17 @@ def _check_clearance_step(doc):
     old_state = before.get("workflow_state") if before else None
     new_state = doc.get("workflow_state")
     if old_state != new_state:
+        items = [row.as_dict() for row in doc.get("items") or []]
+        signatures = [row.as_dict() for row in doc.get("sections") or []]
         errors = approval.step_errors(old_state, new_state, {
-            "return_remarks": doc.get("return_remarks"), "complete": doc.get("complete"),
-            **{field: doc.get(field) for field, _who in approval.REMARK_FIELDS.values()},
+            "return_remarks": doc.get("return_remarks"), "exit_type": doc.get("exit_type"),
+            "unsigned": [rules.box_label(code) for code in rules.unsigned_sections(items, signatures)],
         })
-        if new_state and new_state != approval.DRAFT and old_state in (None, approval.DRAFT):
-            errors = rules.clearance_errors({"rows": [row.as_dict() for row in doc.get("items") or []]}) \
-                + errors
+        leaving_draft = new_state and new_state != approval.DRAFT and old_state in (None, approval.DRAFT)
+        if leaving_draft or approval.hr_approves(doc.get("exit_type"), old_state, new_state):
+            # the employee accounts for every item before sending the form
+            # up, and it is still so when HR pass it on
+            errors = rules.clearance_errors({"rows": items}) + errors
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_("Clearance Form"))
         if new_state != approval.DRAFT:
@@ -245,7 +262,111 @@ def clearance_on_submit(doc, method=None):
 
 
 def clearance_on_cancel(doc, method=None):
-    doc.approval_status = "Cancelled"
+    # on_cancel runs after the document is written, so this is written here
+    doc.db_set("approval_status", "Cancelled", update_modified=False)
+
+
+# ── 3a. The ten boxes, signed ─────────────────────────────────────────
+def _box_roles(code):
+    """Who signs a box: its own roles, and the Responsible Role of the Tool
+    Provider it stands for (IT, Stores, EHS, HR, the department)."""
+    roles = list(rules.BOX_ROLES.get(code, ()))
+    provider = rules.BOX_PROVIDERS.get(code)
+    if provider:
+        role = frappe.db.get_value("Tool Provider", provider, "responsible_role")
+        if role and role not in roles:
+            roles.append(role)
+    return tuple(roles)
+
+
+def _own_form(doc):
+    """Whether the user is the employee this form clears."""
+    return bool(doc.get("employee")) and frappe.db.get_value(
+        "Employee", doc.employee, "user_id") == frappe.session.user
+
+
+def _box_facts(doc, code):
+    from hrms_addon.hrms_addon import clearance_approval as approval
+
+    items = [row.as_dict() for row in doc.get("items") or []]
+    row = next((row for row in doc.get("sections") or [] if row.section == code), None)
+    return {
+        "section": code, "docstatus": doc.docstatus, "roles": frappe.get_roles(), "box_roles": _box_roles(code),
+        "own_form": _own_form(doc), "signed": bool(row and row.get("signed_by")),
+        "is_signer": bool(row and row.get("signed_by") == frappe.session.user),
+        "in_use": code in rules.used_sections(items), "waiting": rules.unaccounted(items).get(code) or [],
+        "open": approval.open_for_signing(doc.get("exit_type"), doc.get("workflow_state")),
+    }
+
+
+@frappe.whitelist()
+def clearance_boxes(name):
+    """Where each box stands, and what this user may do with it."""
+    doc = frappe.get_doc(CLEARANCE, name)
+    doc.check_permission("read")
+    items = [row.as_dict() for row in doc.get("items") or []]
+    signed = {row.section: row for row in doc.get("sections") or [] if row.get("signed_by")}
+    boxes = []
+    for code in rules.used_sections(items):
+        facts = _box_facts(doc, code)
+        row = signed.get(code)
+        boxes.append({
+            "section": code, "label": rules.box_label(code), "waiting": facts["waiting"],
+            "signed_by": frappe.utils.get_fullname(row.signed_by) if row else None,
+            "signed_on": row.signed_on if row else None,
+            "can_sign": not rules.sign_errors(facts), "can_unsign": not rules.unsign_errors(facts),
+        })
+    return boxes
+
+
+@frappe.whitelist(methods=["POST"])
+def sign_boxes(name, sections, remarks=None):
+    """A department signs its box, or HR sign it on the department's behalf
+    from the signed paper. Returns the boxes signed."""
+    doc = frappe.get_doc(CLEARANCE, name)
+    doc.check_permission("read")
+    wanted = _codes(sections)
+    errors = [message for code in wanted for message in rules.sign_errors(_box_facts(doc, code))]
+    if not wanted:
+        errors.append("Choose the boxes to sign.")
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Clearance Form"))
+    for row in doc.get("sections") or []:
+        if row.section in wanted:
+            values = {"signed_by": frappe.session.user, "signed_on": today()}
+            if (remarks or "").strip():
+                values["remarks"] = remarks.strip()
+            row.db_set(values, update_modified=False)
+    _store_progress(doc)
+    return wanted
+
+
+@frappe.whitelist(methods=["POST"])
+def unsign_box(name, section):
+    """A signature put on the wrong box, taken off before HR approve."""
+    doc = frappe.get_doc(CLEARANCE, name)
+    doc.check_permission("read")
+    errors = rules.unsign_errors(_box_facts(doc, section))
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Clearance Form"))
+    for row in doc.get("sections") or []:
+        if row.section == section:
+            row.db_set({"signed_by": None, "signed_on": None}, update_modified=False)
+    _store_progress(doc)
+    return section
+
+
+def _codes(sections):
+    """The boxes a call names: a list, or the JSON of one as the desk posts it."""
+    import json
+
+    if isinstance(sections, str):
+        sections = json.loads(sections) if sections.strip().startswith("[") else [sections]
+    return [code for code in dict.fromkeys(sections or []) if code]
+
+
+def _store_progress(doc):
+    doc.db_set(_progress(doc), update_modified=False)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -265,20 +386,19 @@ def draw_up_clearance(separation):
         "exit_type": exit_doc.get("custom_exit_type") or rules.VOLUNTARY,
         "leaving_date": exit_doc.get("custom_relieving_date"),
         "notice_date": exit_doc.get("custom_notice_given"),
-        "leave_balance": _leave_balance(exit_doc.employee),
+        "leave_balance": _leave_balance(exit_doc.employee, exit_doc.get("custom_relieving_date")),
         "salary": pay.monthly_gross(exit_doc.employee),
     })
     handover = talent.handover_for(exit_doc.employee)
     for row in rules.default_rows(form.exit_type):
         if handover and row["section"] == "A" and row["item"] == talent_rules.HANDOVER_ITEM:
-            row = dict(row, remarks=handover)
+            row = dict(row, remarks=handover, drawn_remarks=handover)
         form.append("items", row)
     for tool in _tools(exit_doc.employee):
-        # what identifies the one issued: its brand, serial number and plate
+        issued = _issued(tool)
         form.append("items", {"section": "A", "section_name": rules.SECTION_NAMES["A"],
                               "item": tool.tool, "returned": 0, "tool": tool.tool,
-                              "remarks": ", ".join(part for part in (tool.get("brand"), tool.get("serial_no"),
-                                                                     tool.get("number_plate")) if part) or None})
+                              "remarks": issued, "drawn_remarks": issued})
     for code, name, _items in rules.SECTIONS:
         form.append("sections", {"section": code, "section_name": name})
     form.flags.ignore_permissions = True
@@ -299,14 +419,27 @@ def _tools(employee):
                           fields=["name", "tool", "brand", "serial_no", "number_plate"], limit=100)
 
 
-def _leave_balance(employee):
-    rows = frappe.get_all("Leave Allocation",
-                          filters={"employee": employee, "docstatus": 1},
-                          pluck="total_leaves_allocated")
-    taken = frappe.get_all("Leave Application",
-                           filters={"employee": employee, "docstatus": 1, "status": "Approved"},
-                           pluck="total_leave_days")
-    return flt(sum(flt(value) for value in rows)) - flt(sum(flt(value) for value in taken))
+def _issued(tool):
+    """What identifies the tool issued: its brand, serial number and plate.
+    The form is drawn up with it as the row's remark, which is why that
+    remark does not say the tool is accounted for (rules.accounted)."""
+    return ", ".join(part for part in (tool.get("brand"), tool.get("serial_no"),
+                                       tool.get("number_plate")) if part) or None
+
+
+def _leave_balance(employee, on=None):
+    """The Annual Leave the employee can still take on their last day: what
+    the days worked have earned, less what is taken. It is the figure the
+    settlement pays out, so no other leave type and no earlier year is in
+    it."""
+    from hrms_addon.hrms_addon import leave_accrual, leave_rules
+
+    on = getdate(on or today())
+    found = leave_accrual.accrual(employee, leave_rules.ANNUAL, on)
+    if found:
+        return max(flt(found.available), 0.0)
+    # leave given at the start of the year, not earned by the days worked
+    return max(flt(leave_accrual._hrms_figures(employee, leave_rules.ANNUAL, on).balance), 0.0)
 
 
 # ── 4. The watching ───────────────────────────────────────────────────
