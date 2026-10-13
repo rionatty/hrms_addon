@@ -467,7 +467,7 @@ for name, glue, module in (("draw_up_clearance", glue_exits, "exits"),
     if "check_permission(" not in glue:
         fail.append("%s.py: a whitelisted method must check the caller may act" % module)
 controller = read("hrms_addon", "hrms_addon", "doctype", "clearance_form", "clearance_form.py")
-for method in ("validate", "on_submit", "on_cancel"):
+for method in ("validate", "after_insert", "on_submit", "on_cancel"):
     if "    def %s(self):\n        exits.clearance_%s(self)" % (method, method) not in controller:
         fail.append("the Clearance Form controller must hand %s to exits.clearance_%s" % (method, method))
 # box A names each tool as it was issued: its brand, serial number and plate
@@ -533,12 +533,58 @@ if 'doc.append("sections", {"section": code})' not in fill:
     fail.append("a box an item is added to gets a line to be signed on")
 if 'doc.db_set("approval_status", "Cancelled"' not in function_of(glue_exits, "clearance_on_cancel"):
     fail.append("a cancelled form's status is written (on_cancel runs after the save)")
+# a box is signed with Sign Boxes and no other way
+keep = function_of(glue_exits, "_keep_signatures")
+for needle, why in (
+    ("before = doc.get_doc_before_save()", "what is stored is read from the form as it was before this save"),
+    ('stored = {row.section: row for row in (before.get("sections") if before else None) or []}',
+     "box by box, and nothing at all for a form that is new or amended"),
+    ('row.signed_by = kept.get("signed_by") if kept else None', "each signature is put back, or taken off"),
+    ('row.signed_on = kept.get("signed_on") if kept else None', "with its date"),
+):
+    if needle not in keep:
+        fail.append("exits._keep_signatures: %s (%r not found)" % (why, needle))
+if "_keep_signatures(doc)" not in fill or fill.index("_keep_signatures(doc)") > fill.index("_progress(doc)") \
+        or fill.index("_keep_signatures(doc)") < fill.index('doc.append("sections", {"section": code})'):
+    fail.append("the signatures are put back on every save, once every box has its line and before the boxes "
+                "cleared are counted")
+if "_fill_clearance(doc)" not in function_of(glue_exits, "clearance_validate"):
+    fail.append("every save of a Clearance Form goes through _fill_clearance")
+stored_progress = function_of(glue_exits, "_store_progress")
+if "doc.db_set(_progress(doc), notify=True)" not in stored_progress or "update_modified" in stored_progress:
+    fail.append("signing or unsigning a box marks the form as changed and tells whoever has it open: a copy "
+                "opened before then is refused when it is saved")
+if "_store_progress(doc)" not in function_of(glue_exits, "unsign_box"):
+    fail.append("exits.unsign_box counts the boxes cleared again")
+# a cancelled form is let go of, and another can be drawn up
+let_go = function_of(glue_exits, "clearance_on_cancel")
+if 'frappe.db.get_value(SEPARATION, doc.separation, "custom_clearance") == doc.name' not in let_go \
+        or 'frappe.db.set_value(SEPARATION, doc.separation, "custom_clearance", None, update_modified=False)' not in let_go:
+    fail.append("a cancelled Clearance Form is let go of by the separation that names it, and by no other")
+still = function_of(glue_exits, "_open_clearance")
+if 'frappe.db.get_value(CLEARANCE, name, "docstatus") in (0, 1)' not in still or "bool(name) and" not in still:
+    fail.append("a form is open when it is there and not cancelled")
+inserted = function_of(glue_exits, "clearance_after_insert")
+for needle, why in (
+    ("if current != doc.name and not _open_clearance(current):", "only where the separation names no open form"),
+    ('frappe.db.set_value(SEPARATION, separation, "custom_clearance", doc.name, update_modified=False)',
+     "a form drawn up again is the separation's"),
+    ("frappe.db.exists(SEPARATION, separation)", "a form naming a separation that is not there is left alone"),
+):
+    if needle not in inserted:
+        fail.append("exits.clearance_after_insert: %s (%r not found)" % (why, needle))
 if "not_applicable" not in fields_of(doctype("Clearance Item")):
     fail.append("an item that does not apply to the employee can be marked so")
 drawn_field = fields_of(doctype("Clearance Item")).get("drawn_remarks") or {}
 if not (drawn_field.get("hidden") and drawn_field.get("read_only")):
     fail.append("the remark a row was drawn up with is kept, out of sight and not typed")
 draw = function_of(glue_exits, "draw_up_clearance")
+if 'if _open_clearance(exit_doc.get("custom_clearance")):' not in draw \
+        or 'filters={"separation": separation, "docstatus": ["<", 2]}' not in draw \
+        or draw.index('"docstatus": ["<", 2]') > draw.index("frappe.new_doc(CLEARANCE)") \
+        or 'if exit_doc.get("custom_clearance"):' in draw:
+    fail.append("Draw Up Clearance opens the separation's open form, or one drawn up for it, before making "
+                "another; a cancelled form is no form to open")
 if '"remarks": issued, "drawn_remarks": issued' not in draw \
         or "row = dict(row, remarks=handover, drawn_remarks=handover)" not in draw:
     fail.append("a tool's identification and the handover note are drawn up as the form's own remark")

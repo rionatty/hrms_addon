@@ -12,6 +12,9 @@ class ClearanceForm(Document):
     def validate(self):
         exits.clearance_validate(self)
 
+    def after_insert(self):
+        exits.clearance_after_insert(self)
+
     def on_submit(self):
         exits.clearance_on_submit(self)
 

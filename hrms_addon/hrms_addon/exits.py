@@ -199,8 +199,23 @@ def _fill_clearance(doc):
             doc.append("sections", {"section": code})
     for row in doc.get("sections") or []:
         row.section_name = rules.SECTION_NAMES.get(row.section)
+    _keep_signatures(doc)
     for field, value in _progress(doc).items():
         doc.set(field, value)
+
+
+def _keep_signatures(doc):
+    """A box is signed with Sign Boxes and no other way. Whatever a save
+    carries, each box's signature is put back to what is stored: a copy of
+    the form opened before a department signed would take the signature off
+    again, and a save could write one in. A new form has none, one amended
+    from a cancelled form included, which comes with every row copied."""
+    before = doc.get_doc_before_save()
+    stored = {row.section: row for row in (before.get("sections") if before else None) or []}
+    for row in doc.get("sections") or []:
+        kept = stored.get(row.section)
+        row.signed_by = kept.get("signed_by") if kept else None
+        row.signed_on = kept.get("signed_on") if kept else None
 
 
 def _progress(doc):
@@ -261,9 +276,30 @@ def clearance_on_submit(doc, method=None):
                           doc.get("employee_name") or doc.employee))
 
 
+def clearance_after_insert(doc, method=None):
+    """A form drawn up again after one was cancelled (amended, or made by
+    hand) is the separation's from then on."""
+    separation = doc.get("separation")
+    if not separation or not frappe.db.exists(SEPARATION, separation):
+        return
+    current = frappe.db.get_value(SEPARATION, separation, "custom_clearance")
+    if current != doc.name and not _open_clearance(current):
+        frappe.db.set_value(SEPARATION, separation, "custom_clearance", doc.name, update_modified=False)
+
+
+def _open_clearance(name):
+    """Whether a Clearance Form is there and not cancelled."""
+    return bool(name) and frappe.db.get_value(CLEARANCE, name, "docstatus") in (0, 1)
+
+
 def clearance_on_cancel(doc, method=None):
     # on_cancel runs after the document is written, so this is written here
     doc.db_set("approval_status", "Cancelled", update_modified=False)
+    # The separation lets go of the form. It is submitted and names the form,
+    # which would stop the cancel (Frappe looks for that after on_cancel),
+    # and while it named a cancelled form no other could be drawn up.
+    if doc.get("separation") and frappe.db.get_value(SEPARATION, doc.separation, "custom_clearance") == doc.name:
+        frappe.db.set_value(SEPARATION, doc.separation, "custom_clearance", None, update_modified=False)
 
 
 # ── 3a. The ten boxes, signed ─────────────────────────────────────────
@@ -366,7 +402,10 @@ def _codes(sections):
 
 
 def _store_progress(doc):
-    doc.db_set(_progress(doc), update_modified=False)
+    """What the form says of itself after a box is signed or unsigned. The
+    form is marked as changed, by the signer: a copy of it opened before
+    then is refused when it is saved, and whoever has it open is told."""
+    doc.db_set(_progress(doc), notify=True)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -378,8 +417,15 @@ def draw_up_clearance(separation):
 
     exit_doc = frappe.get_doc(SEPARATION, separation)
     exit_doc.check_permission("read")
-    if exit_doc.get("custom_clearance"):
+    # the form the separation names, or one drawn up for it that it does not
+    # name yet; never a cancelled one, which is no form to fill
+    if _open_clearance(exit_doc.get("custom_clearance")):
         return exit_doc.custom_clearance
+    drawn = frappe.get_all(CLEARANCE, filters={"separation": separation, "docstatus": ["<", 2]},
+                           pluck="name", order_by="creation desc", limit=1)
+    if drawn:
+        frappe.db.set_value(SEPARATION, separation, "custom_clearance", drawn[0], update_modified=False)
+        return drawn[0]
     form = frappe.new_doc(CLEARANCE)
     form.update({
         "employee": exit_doc.employee, "company": exit_doc.company, "separation": separation,

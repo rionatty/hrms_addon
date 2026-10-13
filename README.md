@@ -712,6 +712,18 @@ form left Draft. The walk passed because it wrote the signatures in itself.
 `verify_exits.py` now holds the form to having a way to sign, and the walk
 (`smoke_clearance.py`) signs every box as the user who gives it.
 
+Read-only is the form's business, not the server's: a save carries every
+row of the table. So on every save each box's signature is put back to
+what is stored (`exits._keep_signatures`): a copy of the form opened before
+a department signed does not take the signature off, a save cannot write
+one in, and a form amended from a cancelled one starts unsigned although
+Frappe copies every row. Signing or unsigning marks the form as changed, so
+a copy opened before then is refused when it is saved, and whoever has the
+form open is told. A cancelled form is let go of by its separation: a
+submitted separation naming it would stop the cancel, and Draw Up Clearance
+would keep answering with the cancelled form. Drawn up again, or amended,
+the new form is the separation's.
+
 The **Full and Final Settlement Agreement (LPL/HR/20)** follows. Accounts
 work out what the paper names — final salary, leave encashment, notice
 pay, severance and net claims — less the notice not served, the advances
