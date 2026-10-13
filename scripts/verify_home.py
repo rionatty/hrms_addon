@@ -203,7 +203,13 @@ check("appendChild" not in script.replace("document.head.appendChild(sheet);", "
 check("if (!answer && asked_at && Date.now() - asked_at < FRESH_MS) return true;" in script
       and "there.remove();" in script and 'classList.remove("ha-has-home")' in script,
       "a failed call leaves the desk as Frappe drew it, and is not asked again at once")
-check("frappe.utils.escape_html" in script and "function esc(" in script, "what it prints is escaped")
+written = set(re.findall(r"\$\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", script.split("const CSS = `")[0]))
+served = sorted(expr for expr in written if re.search(r"\b(row|card|link|action|data|waits)\.", expr) or expr == "name")
+bare = [expr for expr in served if not (expr.startswith(("esc(", "count(", "icon(")) or ".map(esc)" in expr)]
+check("return frappe.utils.escape_html(text == null ? \"\" : String(text));" in script.split("function esc(")[1].split("}")[0]
+      and len(served) >= 12 and not bare,
+      "every value from the server is escaped as it is written into the page, a number as a number and a picture by "
+      "its name (%d looked at): %s" % (len(served), bare[:3]))
 check("frm." not in script and "bench build" in script and "sheet.textContent = CSS + order_rules();" in script,
       "its styles are written into the page, so a change needs no build")
 NOT_EDITED = '.desktop-wrapper.ha-has-home:not([data-mode="Edit"])'
