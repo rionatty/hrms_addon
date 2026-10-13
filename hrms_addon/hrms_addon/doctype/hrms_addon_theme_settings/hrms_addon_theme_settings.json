@@ -6,6 +6,7 @@
  "field_order": [
   "section_layout",
   "density",
+  "desk_home",
   "column_break_layout",
   "density_help",
   "section_colours",
@@ -42,6 +43,14 @@
    "fieldtype": "Select",
    "label": "Density",
    "options": "Comfortable\nCompact\nDense"
+  },
+  {
+   "default": "Dashboard",
+   "description": "What the desk opens on, above the module tiles.",
+   "fieldname": "desk_home",
+   "fieldtype": "Select",
+   "label": "Desk Home",
+   "options": "Dashboard\nTiles Only"
   },
   {
    "fieldname": "column_break_layout",
@@ -172,7 +181,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-01 12:00:00.000000",
+ "modified": "2026-10-13 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HRMS Addon Theme Settings",

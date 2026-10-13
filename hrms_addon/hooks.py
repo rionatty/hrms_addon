@@ -111,6 +111,9 @@ app_include_js = [
     # each document it raised or that followed it, opened from a button
     # (next_steps.py)
     "/assets/hrms_addon/js/hrms_addon_next_steps.js",
+    # the desk home: a greeting, today's figures, what waits for the user and
+    # the pages they open most, above Frappe's own module tiles (home.py)
+    "/assets/hrms_addon/js/hrms_addon_home.js",
 ]
 
 

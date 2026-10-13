@@ -111,6 +111,21 @@ def get_density():
         return DEFAULT_DENSITY
 
 
+def home_enabled():
+    """Does the desk open on the dashboard above its tiles? It does unless
+    Theme Settings say Tiles Only, and on a site where the field is missing
+    or nobody has saved the settings."""
+    from hrms_addon.hrms_addon import home_rules
+
+    try:
+        if not frappe.db.exists("DocType", "HRMS Addon Theme Settings"):
+            return 1
+        value = frappe.get_cached_doc("HRMS Addon Theme Settings").get("desk_home")
+        return 1 if home_rules.home_of(value) == home_rules.DASHBOARD else 0
+    except Exception:
+        return 1
+
+
 def workspace_cockpit_enabled():
     """Is the (opt-in) navy workspace cockpit switched on?
 
@@ -135,6 +150,8 @@ def boot_session(bootinfo):
     bootinfo.hrms_addon_theme = get_palette()
     bootinfo.hrms_addon_workspace_cockpit = workspace_cockpit_enabled()
     bootinfo.hrms_addon_density = get_density()
+    # the dashboard above the desk's tiles (hrms_addon_home.js, home.py)
+    bootinfo.hrms_addon_home = home_enabled()
     bootinfo.hrms_addon_branding = get_boot_branding()
     # the tiles taken off the desk, hidden in the browser as well for users
     # with a desktop layout of their own (hrms_addon_desk_modules.js)

@@ -76,6 +76,31 @@ any one alone is a no-op. Comfortable deliberately leaves all of it
 alone — that setting means "upstream spacing". The full reasoning is in
 the DENSITY block of the stylesheet.
 
+### Desk home
+
+**HRMS Addon Theme Settings → Desk Home** — Dashboard / Tiles Only. Ships
+as **Dashboard**: above the module tiles the desk opens on a greeting, four
+figures, what waits for the user and the pages they open most, and the
+tiles themselves are drawn as cards.
+
+- **Whose figures.** HR (HR Manager, HR User, System Manager, and only with
+  read on Employee) see the company's: employees, on site today, on leave
+  today, contracts ending in 30 days, each read with `frappe.get_list` so a
+  branch's HR sees that branch. Everybody else sees their own work only.
+- **It cannot stop the desk opening.** `home.summary` leaves out and logs a
+  part it cannot read, and the page asks with `fetch`, not `frappe.call`:
+  a failed `frappe.call` opens Frappe's Server Error dialog, on the page
+  everybody lands on. A call that fails (workers not restarted after a
+  pull, say) leaves the desk exactly as Frappe drew it.
+- **Frappe's tiles stay Frappe's.** The home is one element added above
+  `.desktop-container`. The tiles are restyled by CSS alone, on the desk's
+  top level only, and never while the desk is being edited, so folders,
+  drag and drop and the saved layout are untouched.
+- **No build.** The styles are written into the page by
+  `hrms_addon_home.js`, so a change needs a restart and not `bench build`.
+
+`scripts/verify_home.py` checks the rules (`home_rules.py`) and the wiring.
+
 ### Branding
 
 **HRMS Addon Branding** writes Frappe's own fields rather than
