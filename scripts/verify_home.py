@@ -100,7 +100,10 @@ own = R.cards(waits, None)
 check([card["key"] for card in own] == ["waiting", "unread"] and own[0]["value"] == 4 and own[0]["tone"] == "rose"
       and own[0]["mine"] == 1 and own[1]["value"] == 1 and R.cards(nothing, None)[0]["tone"] == "blue",
       "everybody else sees their own work, and nothing of the company's: %s" % [card["key"] for card in own])
-links = R.shortcuts(["leave-overview", "hr-overview", "not-a-page"])
+check(all(card.get("mine") == 1 for card in own) and own[0]["route"] == ["List", "ToDo"]
+      and own[1]["route"] == ["List", "Notification Log"],
+      "and each of their cards opens their own list, never everybody's: %s" % [(card["route"], card.get("mine")) for card in own])
+links =R.shortcuts(["leave-overview", "hr-overview", "not-a-page"])
 check(links == [{"label": "HR Overview", "route": ["hr-overview"]}, {"label": "Leave Overview", "route": ["leave-overview"]}]
       and R.shortcuts(None) == [], "the pages offered are those the user may open, in the home's own order: %s" % links)
 check(R.call_to_action(links) == {"label": "HR Overview", "route": ["hr-overview"]}
