@@ -324,6 +324,142 @@ def default_rows(exit_type=None):
             for code, name, items in SECTIONS for item in items]
 
 
+# ── Serving notice ────────────────────────────────────────────────────
+# Where an exit stands against its last day
+NOT_STARTED = "Notice Not Started"
+SERVING = "Serving Notice"
+LAST_DAY = "Last Day Today"
+GONE = "Left"
+
+# The days before the last day on which the people an exit touches are
+# reminded of it (0 is the last day itself), and who is told on each. HR
+# follow the whole exit; the supervisor and the head of department need the
+# handover; the employee their own tools and clearance; payroll the final pay.
+HR, SUPERVISOR, EMPLOYEE, PAYROLL = "hr", "supervisor", "employee", "payroll"
+REMINDERS = {
+    14: (HR, SUPERVISOR),
+    7: (HR, SUPERVISOR, EMPLOYEE, PAYROLL),
+    3: (HR,),
+    1: (HR, SUPERVISOR, EMPLOYEE),
+    0: (HR, PAYROLL),
+}
+REMINDER_DAYS = tuple(sorted(REMINDERS, reverse=True))
+# An exit HR have entered and not yet submitted is HR's own business: it may
+# be a dismissal nobody has been told of. Until it is submitted only HR are
+# reminded. And an employee who has died or deserted is never written to.
+EMPLOYEE_NOT_TOLD = (DEATH, DESERTION)
+
+# what an exit still has to go through, as its documents are called
+STEP_SEPARATION = "Employee Separation"
+STEP_INTERVIEW = "Exit Interview"
+STEP_CLEARANCE = "Clearance Form"
+STEP_SETTLEMENT = "Full and Final Statement"
+
+
+def suggested_last_day(joined, notice_given):
+    """The last day of the notice an employee owes, counted from the day
+    the letter was given. The notice grows with service, so one that carries
+    the employee past a step of the scale is the longer one."""
+    given = _date(notice_given)
+    if not given:
+        return None
+    days = notice_days(months_served(joined, given))
+    last = last_working_day(given, days)
+    longer = notice_days(months_served(joined, last))
+    return last_working_day(given, longer) if longer != days else last
+
+
+def notice_progress(notice_given, last_day, today):
+    """Where a notice stands on a day: {"stage", "days_served",
+    "days_left"}. An exit with no letter (the company gives the notice) has
+    no days served; it still has days left."""
+    given, last, today = _date(notice_given), _date(last_day), _date(today)
+    if not last or not today:
+        return {"stage": None, "days_served": 0, "days_left": None}
+    left = (last - today).days
+    served = max((min(today, last) - given).days + 1, 0) if given else 0
+    if left < 0:
+        stage = GONE
+    elif left == 0:
+        stage = LAST_DAY
+    elif given and today < given:
+        stage = NOT_STARTED
+    else:
+        stage = SERVING
+    return {"stage": stage, "days_served": served, "days_left": left}
+
+
+def outstanding_steps(facts):
+    """What an exit has still to go through, in order.
+
+    facts: "exit_type", "submitted" (the separation), "interview_done",
+    "clearance" (drawn up), "clearance_done", "settlement" (drawn up),
+    "settlement_done".
+    """
+    steps = []
+    if not facts.get("submitted"):
+        steps.append(STEP_SEPARATION)
+    # only a voluntary exit has an interview (4.5 steps 2 to 4)
+    if (facts.get("exit_type") or VOLUNTARY) == VOLUNTARY and not facts.get("interview_done"):
+        steps.append(STEP_INTERVIEW)
+    if not facts.get("clearance_done"):
+        steps.append(STEP_CLEARANCE)
+    if not facts.get("settlement_done"):
+        steps.append(STEP_SETTLEMENT)
+    return steps
+
+
+def reminder_audience(points):
+    """Who is told when these reminder days fall due together (an exit
+    entered late reaches several at once), each once, in a fixed order."""
+    wanted = {who for point in points or () for who in REMINDERS.get(int(point), ())}
+    return [who for who in (HR, SUPERVISOR, EMPLOYEE, PAYROLL) if who in wanted]
+
+
+def reminder_plan(facts):
+    """Who is reminded today, and which points that settles for HR and for
+    everybody else, who are kept apart: a point HR were reminded of while
+    the exit was a draft is still owed to the others once it is submitted,
+    as one reminder for all the points passed.
+
+    facts: "hr_due" and "others_due" (the points reached and not yet sent to
+    each), "submitted", "reason".
+    returns {"audience", "hr_sent", "others_sent"}
+    """
+    hr_due = list(facts.get("hr_due") or ())
+    others_due = list(facts.get("others_due") or ()) if facts.get("submitted") else []
+    audience = [HR] if hr_due else []
+    for who in reminder_audience(others_due):
+        if who == HR or (who == EMPLOYEE and facts.get("reason") in EMPLOYEE_NOT_TOLD):
+            continue
+        audience.append(who)
+    return {"audience": audience, "hr_sent": hr_due, "others_sent": others_due}
+
+
+def reminder_text(who, facts):
+    """What one of them is told, as a (template, values) pair for the
+    caller to translate and fill.
+
+    facts: "employee_name", "last_day" (as shown), "days_left", "steps".
+    """
+    name, day, left = facts.get("employee_name"), facts.get("last_day"), int(facts.get("days_left") or 0)
+    when = ("{0}'s last day is today.", (name,)) if left <= 0 else (
+        "{0}'s last day is {1}, in {2} day(s).", (name, day, left))
+    if who == EMPLOYEE:
+        if left <= 0:
+            return "Today is your last day. Hand over your tools of work and complete your Clearance Form.", ()
+        return ("Your last day is {0}, in {1} day(s). Hand over your tools of work and complete your "
+                "Clearance Form."), (day, left)
+    if who == SUPERVISOR:
+        return when[0] + " Arrange the handover.", when[1]
+    if who == PAYROLL:
+        return when[0] + " Prepare the final pay.", when[1]
+    steps = facts.get("steps") or []
+    if steps:
+        return when[0] + " Still to do: {%d}." % len(when[1]), when[1] + (", ".join(steps),)
+    return when
+
+
 def _date(value):
     if isinstance(value, datetime.datetime):
         return value.date()

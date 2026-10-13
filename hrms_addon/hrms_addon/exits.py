@@ -446,6 +446,7 @@ def _leave_balance(employee, on=None):
 def daily():
     _close_notice_periods()
     _chase_clearance()
+    _remind_notice()
 
 
 def _close_notice_periods():
@@ -479,6 +480,129 @@ def _chase_clearance():
                           frappe.utils.format_date(row.custom_relieving_date)),
                       date=row.custom_relieving_date)
     frappe.db.commit()
+
+
+# ── 4a. Serving notice ────────────────────────────────────────────────
+NOTICE_FIELDS = ["name", "docstatus", "employee", "employee_name", "company", "department", "designation",
+                 "custom_branch", "custom_exit_type", "custom_reason", "custom_notice_given", "custom_notice_days",
+                 "custom_relieving_date", "custom_notice_short_days", "custom_exit_interview", "custom_clearance",
+                 "custom_settlement", "custom_notice_reminders", "custom_notice_told"]
+
+
+@frappe.whitelist()
+def notice_for(employee, notice_given=None, last_day=None):
+    """The notice an employee owes and where it stands today, for the
+    separation's form: the days required, the last day they run to from
+    the day the letter was given, and the days served and left."""
+    frappe.has_permission("Employee", "read", employee, throw=True)
+    joined = frappe.db.get_value("Employee", employee, "date_of_joining")
+    suggested = rules.suggested_last_day(joined, notice_given) if notice_given else None
+    until = last_day or suggested
+    return dict(rules.notice_progress(notice_given, until, today()),
+                required_days=rules.notice_days(rules.months_served(joined, until or today())),
+                suggested_last_day=suggested)
+
+
+def exit_steps(rows):
+    """{separation: (interview status, clearance status, settlement status,
+    the steps still to do)} for separations read with NOTICE_FIELDS."""
+    from hrms_addon.hrms_addon import clearance_approval, exit_interview_approval, settlement_approval
+
+    def statuses(doctype, field, status_field):
+        names = [row.get(field) for row in rows if row.get(field)]
+        if not names:
+            return {}
+        return dict(frappe.get_all(doctype, filters={"name": ["in", names]}, fields=["name", status_field],
+                                   as_list=True, limit_page_length=0))
+
+    interviews = statuses(INTERVIEW, "custom_exit_interview", "custom_exit_status")
+    clearances = statuses(CLEARANCE, "custom_clearance", "approval_status")
+    settlements_ = statuses("Full and Final Statement", "custom_settlement", "custom_settlement_status")
+    out = {}
+    for row in rows:
+        interview = interviews.get(row.get("custom_exit_interview"))
+        clearance = clearances.get(row.get("custom_clearance"))
+        settlement = settlements_.get(row.get("custom_settlement"))
+        steps = rules.outstanding_steps({
+            "exit_type": row.get("custom_exit_type"), "submitted": row.get("docstatus") == 1,
+            "interview_done": interview == exit_interview_approval.APPROVED,
+            "clearance_done": clearance == clearance_approval.CLEARED,
+            "settlement_done": settlement == settlement_approval.SCHEDULED})
+        out[row.get("name")] = (interview, clearance, settlement, steps)
+    return out
+
+
+def _remind_notice(day=None):
+    """The people an exit touches are reminded as its last day comes: HR at
+    every point, the supervisor and head of department for the handover,
+    the employee for their tools and clearance, payroll for the final pay
+    (rules.REMINDERS). Each point is sent once; an exit entered late gets
+    one reminder for the points it has already passed.
+
+    Until the separation is submitted only HR are reminded: a draft may be
+    a dismissal nobody has been told of. What HR were sent and what the
+    others were sent are remembered apart, so the others get their one
+    reminder for the points passed once the exit is submitted
+    (rules.reminder_plan)."""
+    from hrms_addon.hrms_addon import contract_rules
+
+    day = getdate(day or today())
+    rows = frappe.get_all(SEPARATION,
+                          filters={"docstatus": ["<", 2],
+                                   "custom_relieving_date": ["between", [day, add_days(day, max(rules.REMINDER_DAYS))]]},
+                          fields=NOTICE_FIELDS, limit_page_length=0)
+    steps = exit_steps(rows) if rows else {}
+    points = list(rules.REMINDER_DAYS)
+    for row in rows:
+        plan = rules.reminder_plan({
+            "hr_due": contract_rules.alerts_due(row.custom_relieving_date, day, points, row.custom_notice_reminders),
+            "others_due": contract_rules.alerts_due(row.custom_relieving_date, day, points, row.custom_notice_told),
+            "submitted": row.docstatus == 1, "reason": row.custom_reason})
+        if not (plan["hr_sent"] or plan["others_sent"]):
+            continue
+        facts = {"employee_name": row.employee_name or row.employee,
+                 "last_day": frappe.utils.format_date(row.custom_relieving_date),
+                 "days_left": (getdate(row.custom_relieving_date) - day).days, "steps": steps[row.name][3]}
+        told = set()
+        for who in plan["audience"]:
+            users = [user for user in _notice_people(who, row) if user not in told]
+            if not users:
+                continue
+            template, values = rules.reminder_text(who, facts)
+            doctype, name = _notice_document(who, row)
+            people.notify(users, doctype, name, _(template).format(*values))
+            told.update(users)
+        frappe.db.set_value(SEPARATION, row.name, {
+            "custom_notice_reminders": contract_rules.record_alerts(row.custom_notice_reminders, plan["hr_sent"]),
+            "custom_notice_told": contract_rules.record_alerts(row.custom_notice_told, plan["others_sent"]),
+        }, update_modified=False)
+    frappe.db.commit()
+
+
+def _notice_document(who, row):
+    """What a reminder opens. Only HR can read an Employee Separation, so
+    the others are sent to a record they can: the employee to their own
+    Clearance Form once it is drawn up, everybody else to the Employee."""
+    if who == rules.HR:
+        return SEPARATION, row.name
+    if who == rules.EMPLOYEE and row.get("custom_clearance"):
+        return CLEARANCE, row.custom_clearance
+    return "Employee", row.employee
+
+
+def _notice_people(who, row):
+    """The users a reminder goes to."""
+    if who == rules.HR:
+        return people.hr_officers(row.custom_branch, row.department)
+    if who == rules.PAYROLL:
+        return people.people_for("Payroll Officer", row.custom_branch, row.department)
+    if who == rules.EMPLOYEE:
+        user = frappe.db.get_value("Employee", row.employee, "user_id")
+        return [user] if user else []
+    boss = frappe.db.get_value("Employee", row.employee, "reports_to")
+    users = [frappe.db.get_value("Employee", boss, "user_id")] if boss else []
+    users += people.people_for("Head of Department", row.custom_branch, row.department)
+    return [user for user in dict.fromkeys(users) if user]
 
 
 # ── 5. Wiring ─────────────────────────────────────────────────────────

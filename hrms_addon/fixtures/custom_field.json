@@ -11692,5 +11692,39 @@
   "hidden": 1,
   "no_copy": 1,
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Employee Separation",
+  "fieldname": "custom_notice_reminders",
+  "fieldtype": "Data",
+  "label": "Notice Reminders Sent",
+  "insert_after": "custom_succession_position",
+  "module": "HRMS Addon",
+  "name": "Employee Separation-custom_notice_reminders",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-10-13 15:00:00.000000",
+  "modified": "2026-10-13 15:00:00.000000",
+  "read_only": 1,
+  "hidden": 1,
+  "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Employee Separation",
+  "fieldname": "custom_notice_told",
+  "fieldtype": "Data",
+  "label": "Notice Reminders Sent to Others",
+  "insert_after": "custom_notice_reminders",
+  "module": "HRMS Addon",
+  "name": "Employee Separation-custom_notice_told",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-10-13 15:00:00.000000",
+  "modified": "2026-10-13 15:00:00.000000",
+  "read_only": 1,
+  "hidden": 1,
+  "no_copy": 1
  }
 ]

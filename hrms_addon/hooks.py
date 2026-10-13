@@ -1286,6 +1286,8 @@ fixtures = [
                     "Employee Separation-custom_tools_handed",
                     "Employee Separation-custom_status_updated",
                     "Employee Separation-custom_succession_position",
+                    "Employee Separation-custom_notice_reminders",
+                    "Employee Separation-custom_notice_told",
                     "Exit Interview-custom_lpl_section",
                     "Exit Interview-custom_exit_status",
                     "Exit Interview-custom_separation",

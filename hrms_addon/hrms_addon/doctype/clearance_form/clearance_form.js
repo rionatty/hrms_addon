@@ -16,10 +16,12 @@ frappe.ui.form.on("Clearance Form", {
 	show_boxes(frm) {
 		frm.dashboard.clear_headline();
 		if (frm.is_new()) return;
+		const name = frm.doc.name;
 		frappe
 			.xcall("hrms_addon.hrms_addon.exits.clearance_boxes", { name: frm.doc.name })
 			.then((boxes) => {
-				if (!boxes || !boxes.length) return;
+				// the answer is for the form that asked, not one opened since
+				if (!boxes || !boxes.length || frm.doc.name !== name) return;
 				ha_clearance_headline(frm, boxes);
 				if (frm.doc.docstatus !== 0) return;
 				if (boxes.some((box) => box.can_sign)) {

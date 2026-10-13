@@ -735,6 +735,213 @@ if (hooks.get("doctype_js") or {}).get("Employee") != "public/js/employee.js" \
     fail.append("the Executive Director's Reinstate button is on the Employee")
 print("reinstatement: the Executive Director alone, with a reason; nobody by hand")
 
+# ── Serving notice ────────────────────────────────────────────────────
+D = datetime.date
+# joined 15 Jan 2024: the letter on 1 Oct 2026 finds 32 months served, a month's notice
+if E.suggested_last_day("2024-01-15", "2026-10-01") != D(2026, 10, 30):
+    fail.append("thirty days' notice from 1 October run to the 30th: %s" % E.suggested_last_day("2024-01-15", "2026-10-01"))
+# joined 20 Oct 2021: five years fall inside the notice, so it is the sixty-day one
+if E.suggested_last_day("2021-10-20", "2026-10-01") != D(2026, 11, 29):
+    fail.append("a notice that carries the employee past five years is the longer one: %s"
+                % E.suggested_last_day("2021-10-20", "2026-10-01"))
+if E.suggested_last_day("2024-01-15", None) is not None:
+    fail.append("no letter, no last day to suggest")
+if E.notice_days(E.months_served("2021-10-20", E.suggested_last_day("2021-10-20", "2026-10-01"))) != 60:
+    fail.append("the last day suggested is one the separation then finds served in full")
+served = E.notice_served("2026-10-01", E.suggested_last_day("2021-10-20", "2026-10-01"), 60)
+if not served["served"] or served["short"]:
+    fail.append("and nothing is short on it: %s" % served)
+
+for today, wanted in (
+    ("2026-09-28", {"stage": E.NOT_STARTED, "days_served": 0, "days_left": 32}),
+    ("2026-10-01", {"stage": E.SERVING, "days_served": 1, "days_left": 29}),
+    ("2026-10-12", {"stage": E.SERVING, "days_served": 12, "days_left": 18}),
+    ("2026-10-30", {"stage": E.LAST_DAY, "days_served": 30, "days_left": 0}),
+    ("2026-10-31", {"stage": E.GONE, "days_served": 30, "days_left": -1}),
+    ("2026-11-05", {"stage": E.GONE, "days_served": 30, "days_left": -6}),
+):
+    got = E.notice_progress("2026-10-01", "2026-10-30", today)
+    if got != wanted:
+        fail.append("a notice from 1 to 30 October, on %s: %s, not %s" % (today, got, wanted))
+if E.notice_progress(None, "2026-10-15", "2026-10-12") != {"stage": E.SERVING, "days_served": 0, "days_left": 3}:
+    fail.append("an exit with no letter has days left and none served: %s"
+                % E.notice_progress(None, "2026-10-15", "2026-10-12"))
+if E.notice_progress("2026-10-01", None, "2026-10-12")["stage"] is not None:
+    fail.append("an exit with no last day is at no stage")
+
+everything = {"exit_type": E.VOLUNTARY}
+if E.outstanding_steps(everything) != [E.STEP_SEPARATION, E.STEP_INTERVIEW, E.STEP_CLEARANCE, E.STEP_SETTLEMENT]:
+    fail.append("a new voluntary exit has all four steps to do, in order: %s" % E.outstanding_steps(everything))
+if E.outstanding_steps({"exit_type": E.INVOLUNTARY, "submitted": True}) != [E.STEP_CLEARANCE, E.STEP_SETTLEMENT]:
+    fail.append("an involuntary exit has no interview")
+if E.outstanding_steps({"exit_type": E.VOLUNTARY, "submitted": True, "interview_done": True, "clearance_done": True,
+                        "settlement_done": True}):
+    fail.append("an exit gone all the way through has nothing left")
+if (E.STEP_SEPARATION, E.STEP_INTERVIEW, E.STEP_CLEARANCE, E.STEP_SETTLEMENT) != (
+        "Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement"):
+    fail.append("the steps are named as their documents are")
+
+if E.REMINDER_DAYS != (14, 7, 3, 1, 0):
+    fail.append("reminders two weeks, a week, three days and a day before, and on the last day: %s" % (E.REMINDER_DAYS,))
+if not all(E.HR in who for who in E.REMINDERS.values()):
+    fail.append("HR are told at every point")
+if E.reminder_audience([14]) != [E.HR, E.SUPERVISOR] or E.reminder_audience([3]) != [E.HR] \
+        or E.reminder_audience([0]) != [E.HR, E.PAYROLL]:
+    fail.append("each point has its own people")
+if E.reminder_audience([14, 7]) != [E.HR, E.SUPERVISOR, E.EMPLOYEE, E.PAYROLL]:
+    fail.append("points due together tell everybody any of them would, once: %s" % E.reminder_audience([14, 7]))
+if E.reminder_audience([]) or E.reminder_audience([5]):
+    fail.append("no point, nobody")
+
+# An exit HR have not submitted may be a dismissal nobody has been told of:
+# only HR are reminded of it, and what the others are owed is kept for when
+# it is submitted. Somebody who has died or deserted is never written to.
+for facts, wanted in (
+    ({"hr_due": [14], "others_due": [14], "submitted": False, "reason": "Dismissal"},
+     {"audience": [E.HR], "hr_sent": [14], "others_sent": []}),
+    ({"hr_due": [14], "others_due": [14], "submitted": True, "reason": "Dismissal"},
+     {"audience": [E.HR, E.SUPERVISOR], "hr_sent": [14], "others_sent": [14]}),
+    # submitted after HR were already reminded: the others get one reminder for the points passed
+    ({"hr_due": [], "others_due": [14, 7], "submitted": True, "reason": "Resignation"},
+     {"audience": [E.SUPERVISOR, E.EMPLOYEE, E.PAYROLL], "hr_sent": [], "others_sent": [14, 7]}),
+    ({"hr_due": [7], "others_due": [7], "submitted": True, "reason": "Death"},
+     {"audience": [E.HR, E.SUPERVISOR, E.PAYROLL], "hr_sent": [7], "others_sent": [7]}),
+    ({"hr_due": [1], "others_due": [1], "submitted": True, "reason": "Desertion"},
+     {"audience": [E.HR, E.SUPERVISOR], "hr_sent": [1], "others_sent": [1]}),
+    # a point that is HR's alone is still settled for the others
+    ({"hr_due": [3], "others_due": [3], "submitted": True, "reason": "Resignation"},
+     {"audience": [E.HR], "hr_sent": [3], "others_sent": [3]}),
+    ({"hr_due": [], "others_due": [], "submitted": True, "reason": "Resignation"},
+     {"audience": [], "hr_sent": [], "others_sent": []}),
+):
+    if E.reminder_plan(facts) != wanted:
+        fail.append("reminders for %s: %s, not %s" % (facts, E.reminder_plan(facts), wanted))
+if set(E.EMPLOYEE_NOT_TOLD) != {"Death", "Desertion"} or not set(E.EMPLOYEE_NOT_TOLD) <= set(E.REASONS[E.INVOLUNTARY]):
+    fail.append("an employee who has died or deserted is not reminded of their last day: %s" % (E.EMPLOYEE_NOT_TOLD,))
+
+
+def said(who, **facts):
+    template, values = E.reminder_text(who, dict({"employee_name": "John Okello", "last_day": "30-10-2026"}, **facts))
+    return template.format(*values)
+
+
+for who, facts, wanted in (
+    (E.HR, {"days_left": 7, "steps": ["Exit Interview", "Clearance Form"]},
+     "John Okello's last day is 30-10-2026, in 7 day(s). Still to do: Exit Interview, Clearance Form."),
+    (E.HR, {"days_left": 7, "steps": []}, "John Okello's last day is 30-10-2026, in 7 day(s)."),
+    (E.HR, {"days_left": 0, "steps": ["Full and Final Statement"]},
+     "John Okello's last day is today. Still to do: Full and Final Statement."),
+    (E.SUPERVISOR, {"days_left": 14}, "John Okello's last day is 30-10-2026, in 14 day(s). Arrange the handover."),
+    (E.PAYROLL, {"days_left": 0}, "John Okello's last day is today. Prepare the final pay."),
+    (E.EMPLOYEE, {"days_left": 1},
+     "Your last day is 30-10-2026, in 1 day(s). Hand over your tools of work and complete your Clearance Form."),
+    (E.EMPLOYEE, {"days_left": 0},
+     "Today is your last day. Hand over your tools of work and complete your Clearance Form."),
+):
+    if said(who, **facts) != wanted:
+        fail.append("what %s is told at %s day(s): %r" % (who, facts["days_left"], said(who, **facts)))
+
+# the glue: the report, the form and the daily reminders
+report_dir = os.path.join(APP, "report", "serving_notice")
+report_spec = json.load(open(os.path.join(report_dir, "serving_notice.json"), encoding="utf-8"))
+if (report_spec.get("report_type"), report_spec.get("ref_doctype"), report_spec.get("is_standard")) != (
+        "Script Report", "Employee Separation", "Yes"):
+    fail.append("Serving Notice is a standard script report on the Employee Separation")
+if {row["role"] for row in report_spec.get("roles", [])} != {"System Manager", "HR Manager", "HR User"}:
+    fail.append("Serving Notice is HR's: the roles that can read an Employee Separation")
+report = read("hrms_addon", "hrms_addon", "report", "serving_notice", "serving_notice.py")
+for needle, why in (
+    ('frappe.get_list("Employee Separation"', "read with the user's own permissions, so each plant sees its own"),
+    ("fields=exits.NOTICE_FIELDS", "the fields the reminders read too"),
+    ('wanted["custom_relieving_date"] = [">=", day]', "serving notice is a last day today or later"),
+    ("rules.notice_progress(row.custom_notice_given, row.custom_relieving_date, day)", "the days come from the rules"),
+    ("exits.exit_steps(found)", "and how far each exit has got"),
+):
+    if needle not in report:
+        fail.append("serving_notice.py: %s (%r not found)" % (why, needle))
+report_fields = set(re.findall(r'\{"fieldname": "(\w+)"', report))
+report_rows = set(re.findall(r'^\s+"(\w+)": ', report.split("data.append({")[1].split("})")[0], re.M)) \
+    | set(re.findall(r'[{,] "(\w+)": ', report.split("data.append({")[1].split("})")[0]))
+if report_fields != report_rows:
+    fail.append("every column of Serving Notice has a value and every value a column: %s"
+                % sorted(report_fields ^ report_rows))
+report_js = read("hrms_addon", "hrms_addon", "report", "serving_notice", "serving_notice.js")
+if 'frappe.query_reports["Serving Notice"]' not in report_js \
+        or set(re.findall(r'fieldname: "(\w+)"', report_js)) != {"company", "branch", "department", "exit_type", "show"}:
+    fail.append("Serving Notice filters by company, plant, department, exit type and what to show")
+shown = re.search(r'options: \["Serving Notice", "([^"]+)", "([^"]+)"\]', report_js)
+if not shown or (shown.group(1), shown.group(2)) != tuple(re.findall(
+        r'SERVING, RECENT, ALL = "Serving Notice", "([^"]+)", "([^"]+)"', report)[0]):
+    fail.append("the report's Show choices are the ones its script reads")
+
+notice_fields = set(re.search(r"NOTICE_FIELDS = \[(.*?)\]", glue, re.S).group(1).replace('"', "").replace("\n", " ")
+                    .replace(",", " ").split())
+separation_fields = set(all_fields("Employee Separation")) | {"name", "docstatus"}
+if not notice_fields <= separation_fields:
+    fail.append("the report and the reminders read fields the separation has: %s"
+                % sorted(notice_fields - separation_fields))
+shipped = [name for entry in hooks.get("fixtures", []) if isinstance(entry, dict)
+           for name in (entry.get("filters") or [[None, None, []]])[0][2]]
+for fieldname, after in (("custom_notice_reminders", "custom_succession_position"),
+                         ("custom_notice_told", "custom_notice_reminders")):
+    kept = custom_fields("Employee Separation").get(fieldname) or {}
+    if not (kept.get("hidden") and kept.get("read_only") and kept.get("no_copy")) or kept.get("insert_after") != after:
+        fail.append("%s: the reminders already sent are kept on the separation, out of sight, and not copied to an "
+                    "amendment" % fieldname)
+    if "Employee Separation-%s" % fieldname not in shipped:
+        fail.append("%s is shipped with the app's fixtures" % fieldname)
+remind = function_of(glue, "_remind_notice")
+for needle, why in (
+    ('"docstatus": ["<", 2]', "every exit not cancelled, submitted or not"),
+    ("add_days(day, max(rules.REMINDER_DAYS))", "from today to the furthest point"),
+    ('"hr_due": contract_rules.alerts_due(row.custom_relieving_date, day, points, row.custom_notice_reminders)',
+     "each point once for HR"),
+    ('"others_due": contract_rules.alerts_due(row.custom_relieving_date, day, points, row.custom_notice_told)',
+     "and once for the others, kept apart"),
+    ('"submitted": row.docstatus == 1, "reason": row.custom_reason', "a draft, and why they leave, decide who is told"),
+    ("for who in plan[\"audience\"]:", "to the people the rules name"),
+    ("rules.reminder_text(who, facts)", "in the rules' own words"),
+    ('"custom_notice_reminders": contract_rules.record_alerts(row.custom_notice_reminders, plan["hr_sent"])',
+     "what HR were sent is remembered"),
+    ('"custom_notice_told": contract_rules.record_alerts(row.custom_notice_told, plan["others_sent"])',
+     "and what the others were"),
+    ("if user not in told", "nobody told twice in one go"),
+):
+    if needle not in remind:
+        fail.append("exits._remind_notice: %s (%r not found)" % (why, needle))
+if "    _remind_notice()" not in function_of(glue, "daily"):
+    fail.append("the reminders go out with the daily job")
+# only HR can read an Employee Separation: a reminder to anybody else opens a record they can
+opens = function_of(glue, "_notice_document")
+if "doctype, name = _notice_document(who, row)" not in remind or "return SEPARATION, row.name" not in opens \
+        or "return CLEARANCE, row.custom_clearance" not in opens or 'return "Employee", row.employee' not in opens:
+    fail.append("a reminder opens the exit for HR, the Clearance Form for the employee once drawn up, the "
+                "Employee for the others")
+separation_readers = {row["role"] for row in upstream_doctype("Employee Separation").get("permissions", [])
+                      if row.get("read")}
+if separation_readers - {"System Manager", "HR Manager", "HR User"}:
+    fail.append("Frappe HR now lets %s read an Employee Separation: see who a reminder can send to it"
+                % sorted(separation_readers - {"System Manager", "HR Manager", "HR User"}))
+for_form = function_of(glue, "notice_for")
+if not re.search(r"@frappe\.whitelist\(\)\ndef notice_for\(", glue) \
+        or 'frappe.has_permission("Employee", "read", employee, throw=True)' not in for_form \
+        or "rules.suggested_last_day(joined, notice_given)" not in for_form:
+    fail.append("exits.notice_for answers the form for an employee the user may read")
+separation_js = read("hrms_addon", "public", "js", "employee_separation.js")
+for needle, why in (
+    ('.xcall("hrms_addon.hrms_addon.exits.notice_for"', "the form asks where the notice stands"),
+    ('frm.set_value("custom_relieving_date", notice.suggested_last_day)', "and is offered the last day"),
+    ("frm.doc.custom_relieving_date) return;", "never over a last day already there"),
+    ("if (frm.doc.custom_notice_given) args.notice_given = frm.doc.custom_notice_given;",
+     "an empty letter date is left out of the call"),
+):
+    if needle not in separation_js:
+        fail.append("employee_separation.js: %s (%r not found)" % (why, needle))
+navigation = read("hrms_addon", "hrms_addon", "navigation_rules.py")
+if navigation.count('("Serving Notice", "Serving Notice", REPORT') != 2 or '"Serving Notice"]),' not in navigation:
+    fail.append("Serving Notice is on the Leaving card, in the Tenure sidebar and in its Exit group")
+print("serving notice: the last day suggested, where a notice stands, who is reminded when, the report")
+
 print()
 if fail:
     print("FAILURES:")

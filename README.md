@@ -611,6 +611,29 @@ carries the resignation letter's date; an involuntary one carries the
 termination letter, when the employee was summoned, when they signed and
 when they handed company property to the HOD.
 
+The notice is followed from the day it starts. When the letter's date goes
+in, the form offers the last day the required notice runs to (never over
+one already typed), and its headline says what is required, whether it is
+served and how many days are left. The **Serving Notice** report (Tenure,
+under Exit) lists every exit with its last day, the days served, left and
+short, and how far it has got: the separation, the interview, the clearance
+and the settlement, with what is still to do. It shows who is serving
+notice now, who left in the last thirty days, or every exit with something
+still open, and reads the exits with the user's own permissions, so an HR
+Officer sees their own plant's. Reminders go out with the daily job 14, 7,
+3 and 1 day before the last day and on it (`exit_rules.REMINDERS`): HR
+every time, with what is still to do; the supervisor and the head of
+department for the handover; the employee for their tools and clearance;
+payroll for the final pay. Each point is sent once, an exit entered late
+gets one reminder for the points already passed, and since only HR can
+read an Employee Separation, everybody else's reminder opens a record they
+can: the employee's own Clearance Form once it is drawn up, otherwise the
+Employee. Until the separation is submitted only HR are reminded, because
+a draft may be a dismissal nobody has been told of; what HR were sent and
+what the others were sent are remembered apart, so the others get their one
+reminder for the points passed on the day it is submitted. An employee who
+has died or deserted is never written to.
+
 The **Clearance Form (LPL/HR/22)** is the one document neither Frappe HR
 nor ERPNext has: ten boxes, A to J, each with its own items and its own
 signature. It is drawn up from the paper with the employee's own **tools

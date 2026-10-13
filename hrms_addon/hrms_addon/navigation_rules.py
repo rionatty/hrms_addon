@@ -138,6 +138,7 @@ CARDS = {
             ("Exit Interview", "Exit Interview", DOCTYPE),
             ("Clearance Form", "Clearance Form", DOCTYPE),
             ("Full and Final Statement", "Full and Final Statement", DOCTYPE),
+            ("Serving Notice", "Serving Notice", REPORT),
         ]),
         ("Onboarding Setup", [
             ("Onboarding Settings", "Onboarding Settings", DOCTYPE),
@@ -490,6 +491,8 @@ SIDEBAR = {
         ("Exit Interview", "Exit Interview", DOCTYPE, None, "Employee Separation"),
         ("Clearance Form", "Clearance Form", DOCTYPE, None, "Exit Interview"),
         ("Full and Final Statement", "Full and Final Statement", DOCTYPE, None, "Clearance Form"),
+        # who is serving notice, and how far each exit has got
+        ("Serving Notice", "Serving Notice", REPORT, None, "Full and Final Statement"),
         ("Employee Contract", "Employee Contract", DOCTYPE, None, "Probation Evaluation"),
         # what follows the contract: a promotion, a change of designation or a
         # salary review, where the pay is sent, and internship placements
@@ -578,7 +581,8 @@ GROUPS = {
                                         "Monthly Training Schedule"]),
         ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
                                          "Safety Incident"]),
-        ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement"]),
+        ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement",
+                             "Serving Notice"]),
     ],
     "Expenses": [
         ("Claims", "receipt", ["Expense Claim", "Employee Advance", "Allowance Request"]),
