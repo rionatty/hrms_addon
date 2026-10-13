@@ -457,6 +457,8 @@ for label, got, want in (
     ("nothing from nothing", R.clock_hours(None, 30, 30), 0.0),
     ("nor from less than nothing", R.clock_hours(-2, 0, 0), 0.0),
     ("an hour and fifty-nine minutes is three half hours", R.clock_hours(1.9834, 30, 30), 1.5),
+    ("forty-five minutes where an hour is the least that counts, whatever the step", R.clock_hours(0.75, 60, 15), 0.0),
+    ("and the full hour does", R.clock_hours(1.0, 60, 15), 1.0),
 ):
     if got != want:
         fail.append("overtime by the clock: %s: %s, not %s" % (label, got, want))
