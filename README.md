@@ -79,9 +79,17 @@ the DENSITY block of the stylesheet.
 ### Desk home
 
 **HRMS Addon Theme Settings → Desk Home** — Dashboard / Tiles Only. Ships
-as **Dashboard**: above the module tiles the desk opens on a greeting, four
-figures, what waits for the user and the pages they open most, and the
-tiles themselves are drawn as cards.
+as **Dashboard**: the desk opens on a greeting, four figures, what waits for
+the user and the pages they open most, with the module tiles drawn as a
+list down the left.
+
+- **The modules run from recruitment to exit.** `home_rules.MODULES` is
+  their order, by the tile's label, as an employee's time with the company
+  goes: Recruitment, HR Setup, Shift & Attendance, Leaves, Payroll, Tax &
+  Benefits, Loans, Expenses, Performance, and Tenure last, which holds the
+  exit. A tile not named there keeps Frappe's place, after them.
+  `verify_home.py` fails when Frappe HR or this app ships an HR tile the
+  order does not name. On a narrow screen the same list sits under the home.
 
 - **Whose figures.** HR (HR Manager, HR User, System Manager, and only with
   read on Employee) see the company's: employees, on site today, on leave
@@ -92,10 +100,14 @@ tiles themselves are drawn as cards.
   a failed `frappe.call` opens Frappe's Server Error dialog, on the page
   everybody lands on. A call that fails (workers not restarted after a
   pull, say) leaves the desk exactly as Frappe drew it.
-- **Frappe's tiles stay Frappe's.** The home is one element added above
-  `.desktop-container`. The tiles are restyled by CSS alone, on the desk's
-  top level only, and never while the desk is being edited, so folders,
-  drag and drop and the saved layout are untouched.
+- **Frappe's tiles stay Frappe's.** The home is one element added before
+  `.desktop-container`. The list, its heading and its order are CSS alone
+  (`order` by the `data-id` Frappe writes on each tile), on the desk's top
+  level only, and every rule stands aside while the desk is being edited,
+  so folders, drag and drop and the saved layout are untouched.
+- **A flex row, not a grid.** The list sits beside the home in a wrapping
+  flex row on `.desktop-wrapper`. As a grid it would hold Frappe's sticky
+  navbar to its own row, and the navbar would scroll away.
 - **No build.** The styles are written into the page by
   `hrms_addon_home.js`, so a change needs a restart and not `bench build`.
 

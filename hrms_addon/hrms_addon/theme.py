@@ -144,7 +144,7 @@ def workspace_cockpit_enabled():
 def boot_session(bootinfo):
     """extend_bootinfo hook — ship the palette with the desk boot so the
     colours are applied before first paint (no extra round trip)."""
-    from hrms_addon.hrms_addon import desk_modules, next_steps_rules
+    from hrms_addon.hrms_addon import desk_modules, home_rules, next_steps_rules
     from hrms_addon.hrms_addon.branding import get_boot_branding
 
     bootinfo.hrms_addon_theme = get_palette()
@@ -152,6 +152,9 @@ def boot_session(bootinfo):
     bootinfo.hrms_addon_density = get_density()
     # the dashboard above the desk's tiles (hrms_addon_home.js, home.py)
     bootinfo.hrms_addon_home = home_enabled()
+    # the modules down the left of it, recruitment to exit: with the boot, so
+    # the tiles are never seen in another order first
+    bootinfo.hrms_addon_home_modules = list(home_rules.MODULES)
     bootinfo.hrms_addon_branding = get_boot_branding()
     # the tiles taken off the desk, hidden in the browser as well for users
     # with a desktop layout of their own (hrms_addon_desk_modules.js)

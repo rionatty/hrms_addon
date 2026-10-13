@@ -15,6 +15,7 @@ current desk is not that appealing and executive".
   cards           the figures across the top
   shortcuts       the pages offered, to those who may open them
   call_to_action  the one button beside the greeting
+  MODULES         the modules down the left, recruitment to exit
 
 WHOSE FIGURES
 
@@ -41,6 +42,24 @@ SHORTCUTS = (
     ("talent-board", "Talent Board"),
 )
 TODO = {"label": "My To Do", "route": ["List", "ToDo"], "mine": 1}
+# The modules down the left of the home, by their tile's label, in the order
+# of an employee's time with the company (Luuka, 13 Oct 2026: "in
+# chronological order starting with recruitment all the way to exit"):
+# recruited, their record set up, at work, on leave, paid, their benefits,
+# loans and expenses, appraised, and Tenure last, which holds the exit.
+# A tile not named here keeps Frappe's place, after these.
+MODULES = (
+    "Recruitment",
+    "HR Setup",
+    "Shift & Attendance",
+    "Leaves",
+    "Payroll",
+    "Tax & Benefits",
+    "Loans",
+    "Expenses",
+    "Performance",
+    "Tenure",
+)
 
 
 def home_of(value):

@@ -1,13 +1,16 @@
 // HRMS Addon — the desk home.
 //
 // Frappe v16's desk opens on a page of module tiles and nothing else. This
-// puts a home above them, on that same page: a greeting, the figures that
+// puts a home beside them, on that same page: a greeting, the figures that
 // matter today, what waits for the logged-in user, and the pages they open
 // most (hrms_addon/hrms_addon/home.py fills it in one call). The tiles stay
-// Frappe's own, drawn as cards under a Modules heading, so search, the
-// notifications, the avatar menu and editing the desktop all work as before.
+// Frappe's own, drawn as a list of modules down the left in the order of an
+// employee's time with the company, so search, the notifications, the avatar
+// menu and editing the desktop all work as before.
 //
-// Luuka, 13 Oct 2026: "the current desk is not that appealing and executive".
+// Luuka, 13 Oct 2026: "the current desk is not that appealing and executive",
+// and, seeing it live, "put the modules on the left side vertically in
+// chronological order starting with recruitment all the way to exit".
 //
 // WHAT IT MUST NEVER DO
 //
@@ -28,6 +31,11 @@
 	const METHOD = "hrms_addon.hrms_addon.home.summary";
 	const FRESH_MS = 60 * 1000; // how long an answer is shown before it is asked for again
 	const STYLE_ID = "ha-home-style";
+	// the modules in the order of an employee's time with the company (home_rules.MODULES)
+	const MODULES = Array.isArray(frappe.boot.hrms_addon_home_modules) ? frappe.boot.hrms_addon_home_modules : [];
+	// Frappe's tiles on the desk itself, and never while the desk is being edited
+	const RAIL = '.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .desktop-container';
+	const TILES = RAIL + " > .icons-container > .icons";
 	let answer = null;
 	let asked_at = 0;
 	let asking = false;
@@ -45,8 +53,6 @@
 			'<path d="M14 3.5v4h4M9 12.5h6M9 16h4"/>',
 		arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 		chevron: '<path d="M9 6l6 6-6 6"/>',
-		modules: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/>' +
-			'<rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
 		page: '<path d="M5 19V9M10 19V5M15 19v-7M20 19v-11"/>',
 	};
 
@@ -83,15 +89,27 @@
 		}
 	}
 
+	// Frappe keeps its own order of the tiles, in the page and while the desk is
+	// edited; CSS shows them in ours. A tile that is not one of the modules named
+	// keeps Frappe's place, after them.
+	function order_rules() {
+		// window.CSS: the styles below are a constant named CSS in this script
+		const escape = window.CSS && window.CSS.escape;
+		if (!escape) return "";
+		return MODULES.map(
+			(label, index) => `\n${TILES} > .desktop-icon[data-id=${escape(String(label))}] { order: ${index + 1}; }`
+		).join("");
+	}
+
 	function style() {
 		if (document.getElementById(STYLE_ID)) return;
 		const sheet = document.createElement("style");
 		sheet.id = STYLE_ID;
-		sheet.textContent = CSS;
+		sheet.textContent = CSS + order_rules();
 		document.head.appendChild(sheet);
 	}
 
-	// where the home goes: inside Frappe's desk page, above its tiles
+	// where the home goes: inside Frappe's desk page, before its tiles
 	function mount() {
 		const wrapper = document.querySelector(".desktop-wrapper");
 		const tiles = wrapper && wrapper.querySelector(".desktop-container");
@@ -103,6 +121,8 @@
 			wrapper.insertBefore(home, tiles);
 			wrapper.classList.add("ha-has-home");
 		}
+		// the heading of the list of modules, which CSS writes above Frappe's tiles
+		wrapper.style.setProperty("--ha-rail-title", JSON.stringify(__("Modules")));
 		return home;
 	}
 
@@ -112,13 +132,8 @@
 			`<section class="ha-home-hero"><div class="ha-home-hero-text">${line("260px")}${line("180px")}</div></section>` +
 			`<div class="ha-home-cards">${[1, 2, 3, 4]
 				.map(() => `<div class="ha-home-card">${line("90px")}${line("60px")}${line("120px")}</div>`)
-				.join("")}</div>` +
-			modules_heading()
+				.join("")}</div>`
 		);
-	}
-
-	function modules_heading() {
-		return `<div class="ha-home-heading">${icon("modules")}<span>${__("Modules")}</span></div>`;
 	}
 
 	function hero(data) {
@@ -232,7 +247,7 @@
 			home.innerHTML = skeleton();
 			return;
 		}
-		home.innerHTML = hero(data) + cards(data) + panels(data) + modules_heading();
+		home.innerHTML = hero(data) + cards(data) + panels(data);
 		home.querySelectorAll("[data-ha-home]").forEach((element) => {
 			element.addEventListener("click", () => {
 				try {
@@ -416,7 +431,6 @@
 .ha-home-dot.ha-band-today { background: #D98A12; box-shadow: 0 0 0 3px rgba(217,138,18,.16); }
 .ha-home-dot.ha-band-soon, .ha-home-dot.ha-band-later { background: #2F7BD1; }
 .ha-home-empty { padding: 26px 12px; text-align: center; font-size: 13px; color: var(--ha-h-muted); }
-.ha-home-heading { display: flex; align-items: center; gap: 8px; margin: 22px 2px 10px; font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--ha-h-muted); }
 
 /* while the figures are on their way */
 .ha-home-bone { height: 12px; border-radius: 6px; margin: 6px 0; background: linear-gradient(90deg, rgba(127,147,173,.16), rgba(127,147,173,.30), rgba(127,147,173,.16)); background-size: 200% 100%; animation: ha-home-shine 1.3s linear infinite; }
@@ -424,48 +438,91 @@
 @keyframes ha-home-shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .ha-home-bone { animation: none; } .ha-home * { transition: none !important; } }
 
-/* Frappe's own tiles, as cards under the Modules heading. Only the tiles of
-   the desk itself (child selectors all the way): a folder's thumbnails and
-   the folder window keep Frappe's layout, and so does the desk while it is
-   being edited. */
-.desktop-wrapper.ha-has-home .desktop-container { display: block; padding: 0 20px 44px; box-sizing: border-box; }
-.desktop-wrapper.ha-has-home .desktop-container > .icons-container { max-width: 1180px !important; width: 100% !important; margin: 0 auto !important; padding: 0 !important; }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons {
-	grid-template-columns: repeat(auto-fill, minmax(214px, 1fr)) !important; grid-template-rows: none !important;
-	grid-auto-rows: auto !important; gap: 12px !important; justify-content: stretch !important; justify-items: stretch !important;
+/* Frappe's own tiles, as a list of modules: down the left of the home on a
+   wide screen and under it on a narrow one, in the order of an employee's
+   time with the company (order_rules). Only the tiles of the desk itself
+   (child selectors all the way): a folder's thumbnails and the folder window
+   keep Frappe's layout. Every rule stands aside while the desk is being
+   edited, which is then exactly as Frappe draws it. */
+${RAIL} {
+	display: block; position: relative; box-sizing: border-box; width: auto; margin: 14px 20px 44px; padding: 57px 0 0;
+	background: var(--card-bg, #fff); border: 1px solid var(--hra-border, #D7DEEA); border-radius: 14px; overflow: hidden;
 }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon {
-	width: auto !important; height: auto !important; min-height: 64px; box-sizing: border-box; flex-direction: row !important; align-items: center !important;
-	gap: 12px !important; padding: 9px 14px !important; border: 1px solid var(--hra-border, #D7DEEA) !important;
-	border-radius: 14px !important; background: var(--card-bg, #fff); transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+${RAIL}::before {
+	content: ""; position: absolute; left: 16px; top: 13px; width: 30px; height: 30px; border-radius: 9px;
+	background: var(--hra-primary, #14395E) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='4' width='6.5' height='6.5' rx='1.6'/%3E%3Crect x='13.5' y='4' width='6.5' height='6.5' rx='1.6'/%3E%3Crect x='4' y='13.5' width='6.5' height='6.5' rx='1.6'/%3E%3Crect x='13.5' y='13.5' width='6.5' height='6.5' rx='1.6'/%3E%3C/svg%3E") center / 18px 18px no-repeat;
 }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon:hover {
-	transform: translateY(-2px); box-shadow: 0 10px 22px rgba(20,57,94,.12); border-color: var(--hra-primary-light, #3B78B5) !important;
+${RAIL}::after {
+	content: var(--ha-rail-title, "Modules"); position: absolute; left: 56px; right: 16px; top: 13px; height: 30px; line-height: 30px;
+	font-size: 14.5px; font-weight: 700; color: var(--text-color, #1E2A3A); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon > .icon-container { flex: none; padding: 0 !important; width: 44px !important; height: 44px !important; }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon > .icon-container > img { width: 44px !important; height: 44px !important; }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon > .icon-container:hover { transform: none; }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon > .icon-caption {
+${RAIL} > .icons-container {
+	display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 6px !important;
+	box-sizing: border-box; border-top: 1px solid var(--hra-border, #D7DEEA);
+}
+${TILES} {
+	position: relative; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important;
+	grid-auto-rows: auto !important; gap: 2px !important; justify-content: stretch !important; justify-items: stretch !important;
+}
+/* one line down the pictures, from the first module to the last */
+${TILES}::before {
+	content: ""; position: absolute; left: 27px; top: 25px; bottom: 25px; width: 2px; border-radius: 2px;
+	background: var(--hra-border, #D7DEEA);
+}
+${TILES} > .desktop-icon {
+	order: 1000; width: auto !important; height: auto !important; box-sizing: border-box; flex-direction: row !important; align-items: center !important;
+	gap: 12px !important; padding: 7px 10px !important; border: 0 !important; border-radius: 10px !important; transition: background .12s ease;
+}
+${TILES} > .desktop-icon:hover { background: color-mix(in srgb, var(--hra-primary, #14395E) 7%, transparent); }
+${TILES} > .desktop-icon::after {
+	content: ""; flex: none; width: 7px; height: 7px; margin-right: 5px; border-top: 1.6px solid var(--text-muted, #5C6B82);
+	border-right: 1.6px solid var(--text-muted, #5C6B82); transform: rotate(45deg); opacity: .6;
+}
+${TILES} > .desktop-icon > .icon-container {
+	flex: none; padding: 0 !important; width: 36px !important; height: 36px !important; position: relative; z-index: 1;
+	background: var(--card-bg, #fff);
+}
+${TILES} > .desktop-icon > .icon-container > img { width: 36px !important; height: 36px !important; }
+${TILES} > .desktop-icon > .icon-container:hover { transform: none; }
+${TILES} > .desktop-icon > .icon-caption {
 	text-align: left !important; height: auto !important; text-wrap: wrap; min-width: 0; flex: 1 1 auto; max-width: none !important;
 }
-.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons > .desktop-icon > .icon-caption .icon-title {
-	white-space: normal !important; overflow: visible; font-size: 13.5px; line-height: 1.25;
+${TILES} > .desktop-icon > .icon-caption .icon-title {
+	white-space: normal !important; overflow: visible; font-size: 13.5px; line-height: 1.25; color: var(--text-color, #1E2A3A);
 }
 .desktop-wrapper.ha-has-home[data-mode="Edit"] .ha-home { display: none; }
 
-@media (max-width: 900px) {
+/* a wide screen: the modules down the left, the home beside them. A flex row
+   that wraps, not a grid: a grid would hold Frappe's sticky navbar to its own
+   row, and it would scroll away. The home starts from nothing and grows to
+   its width: a line breaks before it shrinks, and a home that started at its
+   full width would drop under the list on a screen narrower than both. */
+@media (min-width: 901px) {
+	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; column-gap: 16px; }
+	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .desktop-navbar { flex: 0 0 100%; order: 0; }
+	${RAIL} {
+		/* the same 18px above and below: the list is as tall as the window allows, and a deeper margin
+		   below would push it up under the navbar at the end of the page */
+		order: 1; flex: 0 0 248px; width: 248px; margin: 18px 0 18px 20px; position: sticky;
+		top: calc(var(--desktop-navbar-height, 52px) + 18px); max-height: calc(100vh - var(--desktop-navbar-height, 52px) - 36px);
+		overflow-y: auto; scrollbar-width: thin;
+	}
+	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .ha-home { order: 2; flex: 1 1 0; min-width: 0; max-width: 1196px; margin: 18px 20px 44px 0; padding: 0; }
+}
+@media (max-width: 1100px) {
 	.ha-home-panels { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
 	.ha-home-hero { padding: 18px; }
 	.ha-home-hero h2 { font-size: 19px; }
 }
 @media (max-width: 560px) {
 	.ha-home { padding: 0 16px; margin-top: 12px; }
-	.desktop-wrapper.ha-has-home .desktop-container { padding: 0 16px 32px; }
+	${RAIL} { margin: 12px 16px 32px; }
 	.ha-home-hero-side { width: 100%; }
 	.ha-home .ha-home-chip, .ha-home .ha-home-action { flex: 1 1 auto; justify-content: center; }
 	.ha-home-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 	.ha-home-card-value { font-size: 24px; }
-	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) .desktop-container > .icons-container > .icons { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 `;
 

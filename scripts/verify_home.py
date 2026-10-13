@@ -4,12 +4,13 @@ bench.
     python scripts/verify_home.py
 
   1  the rules: whose home carries the company's figures, what waits for
-     the user, the figures across the top, the pages offered, the one button
+     the user, the figures across the top, the pages offered, the one button,
+     and the modules in the order of an employee's time with the company
   2  the glue: one call, for the logged-in user and nobody else, the
      people read as the user may see them
   3  the page: loaded with the desk, switched by a boot flag, never able to
-     stop the desk opening, and Frappe's own tiles left to Frappe while the
-     desk is being edited
+     stop the desk opening, Frappe's own tiles drawn as the list of modules
+     down the left, and the desk exactly Frappe's while it is being edited
 
 The rules are loaded without Frappe.
 """
@@ -24,6 +25,7 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.join(REPO, "hrms_addon")
+APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
 APP = os.path.join(PACKAGE, "hrms_addon")
 fail = []
 
@@ -104,7 +106,34 @@ check(links == [{"label": "HR Overview", "route": ["hr-overview"]}, {"label": "L
 check(R.call_to_action(links) == {"label": "HR Overview", "route": ["hr-overview"]}
       and R.call_to_action([]) == {"label": "My To Do", "route": ["List", "ToDo"], "mine": 1},
       "the one button: the first page they may open, else their own ToDo list")
-print("rules: HR's figures and everybody's own work, the pages offered, the one button")
+
+
+def tile_labels(folder):
+    """The labels of the desk tiles an app ships."""
+    out = []
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if name.endswith(".json"):
+            out.append(json.load(io.open(os.path.join(folder, name), encoding="utf-8")).get("label"))
+    return out
+
+
+# Frappe HR's own tile for the whole app, and the home's own page: neither is a module
+NOT_MODULES = {"Frappe HR", "HR Overview"}
+ours = tile_labels(os.path.join(APP, "desktop_icon"))
+theirs = tile_labels(os.path.join(APPS_ROOT, "hrms", "hrms", "desktop_icon"))
+check(theirs and "Recruitment" in theirs and "Loans" in ours, "the HR tiles are read from Frappe HR and from this app: %s"
+      % (theirs or "none found under %s" % APPS_ROOT))
+check(len(set(R.MODULES)) == len(R.MODULES) and set(R.MODULES) == (set(theirs) | set(ours)) - NOT_MODULES,
+      "the modules are every HR tile, each once, so a tile added later cannot be left out of the order: %s"
+      % sorted(set(R.MODULES) ^ ((set(theirs) | set(ours)) - NOT_MODULES)))
+check(R.MODULES[0] == "Recruitment" and R.MODULES[-1] == "Tenure", "from recruitment to Tenure, which holds the exit")
+check(R.MODULES == ("Recruitment", "HR Setup", "Shift & Attendance", "Leaves", "Payroll", "Tax & Benefits", "Loans",
+                    "Expenses", "Performance", "Tenure"),
+      "in the order of an employee's time with the company: %s" % (R.MODULES,))
+navigation = read("hrms_addon", "hrms_addon", "navigation_rules.py")
+check('("Exit", "log-out", ["Employee Separation"' in navigation.split("GROUPS = {")[1].split('"Tenure": [')[1].split("\n    ],")[0],
+      "and Tenure is where the exit is")
+print("rules: HR's figures and everybody's own work, the pages offered, the one button, the modules recruitment to exit")
 
 # ── 2. The glue ─────────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "home.py")
@@ -142,6 +171,8 @@ theme = read("hrms_addon", "hrms_addon", "theme.py")
 enabled = theme.split("def home_enabled(")[1].split("\ndef ")[0]
 check("bootinfo.hrms_addon_home = home_enabled()" in theme and "home_rules.home_of(value) == home_rules.DASHBOARD" in enabled
       and enabled.count("return 1") >= 2, "a boot flag switches it, on unless Theme Settings say otherwise or cannot be read")
+check("bootinfo.hrms_addon_home_modules = list(home_rules.MODULES)" in theme,
+      "the order of the modules comes with the boot, so the tiles are never seen in another order first")
 settings = {row["fieldname"]: row for row in json.loads(read(
     "hrms_addon", "hrms_addon", "doctype", "hrms_addon_theme_settings", "hrms_addon_theme_settings.json"))["fields"]}
 switch = settings.get("desk_home", {})
@@ -162,30 +193,67 @@ check(script.count("try {") >= 4 and "console.error(error);" in script,
       "nothing it does can stop the desk opening: every entry is caught")
 check("wrapper.insertBefore(home, tiles);" in script and ".desktop-container" in script
       and "innerHTML" not in script.split("function mount(")[1].split("\n\tfunction ")[0],
-      "it is added above Frappe's tiles, which it never rewrites")
+      "it is added before Frappe's tiles, which it never rewrites")
+check("appendChild" not in script.replace("document.head.appendChild(sheet);", "") and ".remove()" not in script.replace(
+    "there.remove();", "") and "setAttribute" not in script and ".style.order" not in script,
+    "nothing of Frappe's is moved, removed or marked: the list and its order are CSS")
 check("if (!answer && asked_at && Date.now() - asked_at < FRESH_MS) return true;" in script
       and "there.remove();" in script and 'classList.remove("ha-has-home")' in script,
       "a failed call leaves the desk as Frappe drew it, and is not asked again at once")
 check("frappe.utils.escape_html" in script and "function esc(" in script, "what it prints is escaped")
-check("frm." not in script and "bench build" in script and "sheet.textContent = CSS;" in script,
+check("frm." not in script and "bench build" in script and "sheet.textContent = CSS + order_rules();" in script,
       "its styles are written into the page, so a change needs no build")
-css = script.split("const CSS = `")[1].split("`;")[0]
-tiles = [line for line in css.splitlines() if ".desktop-icon" in line or "> .icons " in line or "> .icons{" in line]
-check(tiles and all(".desktop-wrapper.ha-has-home:not([data-mode=\"Edit\"]) .desktop-container > .icons-container > .icons"
-                    in line for line in tiles),
-      "Frappe's tiles are restyled only on the desk itself and never while it is being edited: a folder's tiles and "
-      "the edit layout are Frappe's (%d rules)" % len(tiles))
-check('.desktop-wrapper.ha-has-home[data-mode="Edit"] .ha-home { display: none; }' in css,
-      "and the home steps aside while the desk is edited")
+NOT_EDITED = '.desktop-wrapper.ha-has-home:not([data-mode="Edit"])'
+RAIL = NOT_EDITED + " > .desktop-container"
+TILES = RAIL + " > .icons-container > .icons"
+check("const RAIL = '%s';" % RAIL in script and 'const TILES = RAIL + " > .icons-container > .icons";' in script,
+      "the tiles it styles are those of the desk itself, by child selectors all the way, and never in edit mode")
+css = script.split("const CSS = `")[1].split("`;")[0].replace("${TILES}", TILES).replace("${RAIL}", RAIL)
+check("${" not in css, "the styles name nothing else of the script's")
+rules = [line.strip() for line in css.splitlines() if "{" in line and not line.strip().startswith(("@", "/*", "from ", "to "))]
+frappes = [line for line in rules if ".desktop-" in line or ".icons" in line or ".icon-" in line]
+hidden = '.desktop-wrapper.ha-has-home[data-mode="Edit"] .ha-home { display: none; }'
+check(frappes and hidden in frappes and all(line.startswith(NOT_EDITED) for line in frappes if line != hidden),
+      "every rule on something of Frappe's holds only outside edit mode, where the desk is exactly as Frappe draws it "
+      "(%d rules): %s" % (len(frappes), [line[:60] for line in frappes if line != hidden and not line.startswith(NOT_EDITED)][:2]))
+check(all(line.startswith((RAIL, NOT_EDITED + " > .desktop-navbar", NOT_EDITED + " > .ha-home", NOT_EDITED + " {"))
+          for line in frappes if line != hidden),
+      "and reaches only the desk's own tiles: a folder's thumbnails and the folder window keep Frappe's layout")
+wide = css.split("@media (min-width: 901px) {")[1].split("\n}\n")[0]
+check(NOT_EDITED + " { display: flex; flex-wrap: wrap;" in wide and "display: grid" not in wide
+      and NOT_EDITED + " > .desktop-navbar { flex: 0 0 100%; order: 0; }" in wide,
+      "on a wide screen the list sits beside the home in a flex row that wraps: a grid would hold Frappe's sticky "
+      "navbar to its own row")
+check("flex: 1 1 0; min-width: 0; max-width: 1196px;" in wide.split(NOT_EDITED + " > .ha-home {")[1].split("}")[0],
+      "the home starts from nothing and grows: a line breaks before it shrinks, and it would drop under the list")
+rail = wide.split(RAIL + " {")[1].split("}")[0]
+check("order: 1; flex: 0 0 248px; width: 248px; margin: 18px 0 18px 20px; position: sticky;" in rail
+      and "top: calc(var(--desktop-navbar-height, 52px) + 18px);" in rail
+      and "max-height: calc(100vh - var(--desktop-navbar-height, 52px) - 36px);" in rail and "overflow-y: auto;" in rail,
+      "the list stays under the navbar as the page scrolls, as tall as the window allows and no taller, with the same "
+      "gap below as above so it is never pushed up under the navbar")
+base = css.split(RAIL + " {")[1].split("}")[0]
+check("width: auto;" in base and "box-sizing: border-box;" in base,
+      "under the home on a narrow screen the list keeps inside the page, whatever width the density gives the container")
+check('content: var(--ha-rail-title, "Modules");' in css.split(RAIL + "::after {")[1].split("}")[0]
+      and 'wrapper.style.setProperty("--ha-rail-title", JSON.stringify(__("Modules")));' in script,
+      "its heading is written by CSS, in the user's language")
+order = script.split("function order_rules(")[1].split("\n\t}\n")[0]
+check("const escape = window.CSS && window.CSS.escape;" in order and "CSS.escape(" not in order.replace("window.CSS.escape", "")
+      and "[data-id=${escape(String(label))}] { order: ${index + 1}; }" in order and "${TILES} > .desktop-icon" in order
+      and "sheet.textContent = CSS + order_rules();" in script,
+      "the order is one CSS rule a module, by the label Frappe writes on the tile; the browser's CSS.escape is "
+      "reached through window, the styles here being a constant named CSS")
+check("frappe.boot.hrms_addon_home_modules" in script
+      and "order: 1000;" in css.split(TILES + " > .desktop-icon {")[1].split("}")[0],
+      "from the order the boot carries, and a tile that is not one of the modules named comes after them")
 loose = [line.strip() for line in css.splitlines()
          if line.strip() and not line.startswith(("\t", " ", "}", "@", "/*", "   ")) and "{" in line
          and not line.lstrip().startswith((".ha-home", ".desktop-wrapper.ha-has-home"))]
 check(not loose, "every rule is the home's own or under the desk that has one: %s" % loose[:3])
-check("box-sizing: border-box" in css.split(".desktop-wrapper.ha-has-home .desktop-container {")[1].split("}")[0],
-      "the tiles' container never widens the page")
 check("@media (prefers-reduced-motion: reduce)" in css and "@media (max-width: 560px)" in css,
       "it holds on a phone, and stills its motion for those who ask")
-print("page: loaded with the desk, switched by a boot flag, added above tiles it leaves to Frappe")
+print("page: loaded with the desk, switched by a boot flag, the modules a list down the left, the edit layout Frappe's")
 
 print()
 if fail:
