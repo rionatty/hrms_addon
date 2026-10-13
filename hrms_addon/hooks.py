@@ -1829,6 +1829,9 @@ doc_events = {
         # last approval step and no other way: a plain submit would skip
         # every step and every check (workflow_rules.py)
         "before_submit": "hrms_addon.hrms_addon.workflows.refuse_plain_submit",
+        # and a new one opens at its workflow's first state: an amendment
+        # comes with the cancelled document's state, which Frappe refuses
+        "before_insert": "hrms_addon.hrms_addon.workflows.open_at_first_state",
         "on_submit": "hrms_addon.hrms_addon.signatures.log_submission",
         # deleted, a signable document takes its signatures with it: Frappe
         # refuses to delete what a Signature Log still names

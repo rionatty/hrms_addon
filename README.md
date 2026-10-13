@@ -371,6 +371,17 @@ state is one that submits, which is how a step arrives. The checker reads
 Frappe's source for that order, so a change upstream fails it. Code that
 submits such a document itself sets the state first.
 
+The same checker covers the other end: a new document opens at its
+workflow's first state. Amend copies every field of the cancelled document,
+the workflow state among them (`create_new.js` `copy_doc` honours `no_copy`
+only on a duplicate, and the form gives the default state only to an empty
+field), and Frappe refuses a new document at any state but the first
+("Workflow State transition not allowed from Draft to Cancelled"). So no
+cancelled document of these workflows could be amended.
+`workflows.open_at_first_state` is on `before_insert` of every document,
+which runs before Frappe looks, and gives the first state to a new one that
+came with another.
+
 `verify_onboarding.py` covers the induction on Frappe HR's Employee
 Onboarding: its workflow, what each step needs before it may be taken
 (the Workplace Rules signed, the Employee created and its bio-data

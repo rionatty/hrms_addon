@@ -1,5 +1,6 @@
 """Checks that a document one of the app's workflows approves cannot be
-submitted past its approval steps, without a bench.
+submitted past its approval steps, and that a new one opens at the first of
+them, without a bench.
 
     python scripts/verify_plain_submit.py
 
@@ -12,6 +13,9 @@ submitted past its approval steps, without a bench.
   4  Frappe's own order on a submit, read from its source beside the app,
      which is why the hook is before_submit and why validate cannot do this
   5  the app's own submits of such documents set the state first
+  6  a new document: the first state whatever it was copied with, on
+     before_insert, and why (Frappe's own order on an insert, what an
+     amendment copies, and what Frappe refuses)
 
 The rules are loaded without Frappe.
 """
@@ -147,10 +151,54 @@ check("doc.workflow_state = allowed[action]" in board and "doc.submit()" in boar
       "the Talent Board sets a placement's state, then submits it")
 print("own submits: the state first")
 
+# ── 6. A new document opens at the first state ──────────────────────────
+ROUTE = [{"state": "Draft"}, {"state": "Pending"}, {"state": "Approved", "doc_status": "1"},
+         {"state": "Cancelled", "doc_status": "2"}]
+for came_with, given in (("Cancelled", "Draft"), ("Approved", "Draft"), ("Pending", "Draft"), ("Draft", None),
+                         (None, None), ("", None)):
+    check(R.opening_state(ROUTE, came_with) == given,
+          "a new document that came with %r is given %r: %r" % (came_with, given, R.opening_state(ROUTE, came_with)))
+check(R.opening_state([], "Cancelled") is None and R.opening_state(None, "Cancelled") is None,
+      "a workflow with no states gives nothing")
+for module in approvals:
+    first = module.STATES[0]["state"]
+    carried = [row["state"] for row in module.STATES if row["state"] != first]
+    check(carried and all(R.opening_state(module.STATES, state) == first for state in carried)
+          and R.opening_state(module.STATES, first) is None,
+          "%s: a new document opens at %s whatever state it was copied with" % (module.WORKFLOW_NAME, first))
+check(every.get("before_insert") == "hrms_addon.hrms_addon.workflows.open_at_first_state",
+      "the hook is on before_insert of every document: %s" % every.get("before_insert"))
+opened = glue.split("def open_at_first_state(")[1].split("\ndef ")[0]
+check("name = frappe_workflow.get_workflow_name(doc.doctype)" in opened
+      and "if not name or name not in ours():\n        return" in opened
+      and 'workflow_rules.opening_state([{"state": row.state} for row in workflow.states],' in opened
+      and "doc.get(workflow.workflow_state_field))" in opened
+      and "if first:\n        doc.set(workflow.workflow_state_field, first)" in opened and "frappe.throw" not in opened,
+      "it answers for the app's own workflows, reads the Workflow as the site holds it, and sets the state: it never "
+      "refuses a new document")
+if os.path.exists(document_path) and os.path.exists(workflow_path):
+    insert = document.split("\tdef insert(")[1].split("\n\tdef ")[0]
+    order = [insert.find('self.run_method("before_insert")'), insert.find("self.run_before_save_methods()"),
+             insert.find("self._validate()")]
+    check(-1 not in order and order == sorted(order),
+          "on an insert Frappe runs before_insert, then the document's validate, then its own look at the workflow")
+    looked = workflow.split("def validate_workflow(")[1].split("\ndef ")[0]
+    check("if not doc._doc_before_save:" in looked and "Workflow State transition not allowed from {0} to {1}" in looked
+          and "current_state = workflow.states[0].state" in looked,
+          "which allows a new document the first state and refuses any other")
+    copied_path = os.path.join(APPS_ROOT, "frappe", "frappe", "public", "js", "frappe", "model", "create_new.js")
+    states_path = os.path.join(APPS_ROOT, "frappe", "frappe", "public", "js", "frappe", "form", "workflow.js")
+    check(os.path.exists(copied_path) and "const is_no_copy = !from_amend && df && cint(df.no_copy) == 1;" in read(copied_path),
+          "an amendment copies every field, the workflow state among them: no_copy is honoured only on a duplicate")
+    check(os.path.exists(states_path) and re.search(
+        r"get_state\(\) \{\s+if \(!this\.frm\.doc\[this\.state_fieldname\]\) \{\s+this\.set_default_state\(\);", read(states_path)),
+        "and the form gives the default state only to an empty field, so the copied one stands")
+print("new documents: the first state, on before_insert, before Frappe looks")
+
 print()
 if fail:
     print("FAILURES:")
     for line in fail:
         print("  -", line)
     sys.exit(1)
-print("ALL PLAIN SUBMIT CHECKS PASSED")
+print("ALL PLAIN SUBMIT AND FIRST STATE CHECKS PASSED")

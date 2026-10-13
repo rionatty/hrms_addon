@@ -41,6 +41,12 @@ SUBMITTED ONLY BY ITS LAST STEP
 refuse_plain_submit, on before_submit of every document (hooks.py): a
 document one of these workflows approves is submitted by its last step and
 no other way (workflow_rules.py says why).
+
+A NEW DOCUMENT OPENS AT THE FIRST STATE
+
+open_at_first_state, on before_insert of every document: an amendment comes
+with the cancelled document's state, which Frappe refuses on a new document
+(workflow_rules.py).
 """
 
 import frappe
@@ -144,6 +150,23 @@ def refuse_plain_submit(doc, method=None):
     if workflow_rules.skips_approval(states, doc.get(workflow.workflow_state_field)):
         frappe.throw(_("{0} is approved step by step, from the Actions menu. It cannot be submitted directly.")
                      .format(_(doc.doctype)), title=_("Approval"))
+
+
+def open_at_first_state(doc, method=None):
+    """before_insert, on every document: a new one that this app's
+    workflows approve opens at the workflow's first state, whatever it was
+    copied with. before_insert runs before Frappe's own look at the
+    workflow, which allows a new document the first state and no other."""
+    from frappe.model import workflow as frappe_workflow
+
+    name = frappe_workflow.get_workflow_name(doc.doctype)
+    if not name or name not in ours():
+        return
+    workflow = frappe.get_cached_doc("Workflow", name)
+    first = workflow_rules.opening_state([{"state": row.state} for row in workflow.states],
+                                         doc.get(workflow.workflow_state_field))
+    if first:
+        doc.set(workflow.workflow_state_field, first)
 
 
 def ensure_workflow(rules):

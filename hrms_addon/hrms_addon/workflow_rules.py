@@ -26,6 +26,19 @@ import and a stale copy of the form in a browser do not.
   submitting_states  the states of a workflow that submit the document
   skips_approval     whether submitting a document at this state skips the
                      steps before it
+  opening_state      the state a new document is given, where it came with
+                     another
+
+A NEW DOCUMENT OPENS AT THE FIRST STATE
+
+Amend copies every field of the cancelled document, its workflow state among
+them: frappe/public/js/frappe/model/create_new.js copy_doc honours no_copy
+only when it is not an amendment, and the form sets the default state only
+on an empty field. Frappe then refuses the copy on its first save, a new
+document being allowed the first state and no other ("Workflow State
+transition not allowed from Draft to Cancelled", frappe/model/workflow.py
+validate_workflow). So a cancelled document of any of these workflows could
+not be amended. It is given the first state before Frappe looks.
 """
 
 
@@ -46,3 +59,13 @@ def skips_approval(states, state):
     """
     submitting = submitting_states(states)
     return bool(submitting) and state not in submitting
+
+
+def opening_state(states, state):
+    """The state to give a new document that came with `state`, or None
+    where it needs none: it has the first state already, has no state yet
+    (Frappe gives it the first), or the workflow has no states."""
+    first = (states[0].get("state") if states else None) or None
+    if not first or not state or state == first:
+        return None
+    return first
