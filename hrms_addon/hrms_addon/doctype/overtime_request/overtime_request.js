@@ -65,8 +65,9 @@ frappe.ui.form.on("Overtime Request", {
 					frm.doc.day_kind
 			  )}</span> `
 			: "";
-		if (!stands && !day) return;
-		frm.set_intro(day + (stands ? stands[0] : ""), stands ? stands[1] : "blue");
+		const clock = frm.doc.from_clock ? ` ${__("Raised from the clock.")}` : "";
+		if (!stands && !day && !clock) return;
+		frm.set_intro(day + (stands ? stands[0] : "") + clock, stands ? stands[1] : "blue");
 	},
 	onload(frm) {
 		if (frm.is_new() && !frm.doc.overtime_date) {

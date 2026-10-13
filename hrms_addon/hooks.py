@@ -608,6 +608,13 @@ fixtures = [
                     "Overtime Type-custom_excluded_departments",
                     "Overtime Type-custom_employees_section",
                     "Overtime Type-custom_employees",
+                    # overtime the clock shows, raised by itself (overtime.raise_from_clock)
+                    "Overtime Type-custom_clock_section",
+                    "Overtime Type-custom_from_clock",
+                    "Overtime Type-custom_clock_minimum",
+                    "Overtime Type-custom_clock_cb",
+                    "Overtime Type-custom_clock_step",
+                    "Overtime Type-custom_clock_requester",
                     "Job Opening-custom_screening_section",
                     "Job Opening-custom_pass_mark",
                     "Job Opening-custom_screening_questions",

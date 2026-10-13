@@ -29,6 +29,11 @@ salary component.
   seed_overtime_types   the three kinds of day, at the Employment Act's
                         floor, made once and then Luuka's to amend
 
+  raise_from_clock  overtime the clock shows, for people whose Overtime Type
+                  says to raise it from the clock, becomes a request by
+                  itself: the type's rules say what counts, and the
+                  employee's supervisor (else the type's own requester) is
+                  named on it
   waiting         for the Overtime Slip's form: the employee's requests in
                   the slip's dates that have not reached payroll, and the
                   step each waits for
@@ -38,7 +43,7 @@ salary component.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate, today
+from frappe.utils import add_days, cint, flt, getdate, today
 
 from hrms_addon.hrms_addon import attendance, attendance_rules, overtime_approval as approval, \
     overtime_rules as rules, pay, people
@@ -129,7 +134,8 @@ def _type_row(name):
         TYPE, name,
         ["standard_multiplier", "weekend_multiplier", "public_holiday_multiplier",
          "applicable_for_weekend", "applicable_for_public_holiday",
-         "maximum_overtime_hours_allowed", "overtime_salary_component", "custom_gross_above"], as_dict=True)
+         "maximum_overtime_hours_allowed", "overtime_salary_component", "custom_gross_above",
+         "custom_from_clock", "custom_clock_minimum", "custom_clock_step", "custom_clock_requester"], as_dict=True)
 
 
 def _types_for(kind=None, kinds=()):
@@ -342,6 +348,97 @@ def send_ready():
         except Exception:
             frappe.log_error(title="HRMS Addon: sending overtime %s to payroll" % name)
     return sent
+
+
+CLOCK_DAYS_BACK = 3
+
+
+def raise_from_clock(day=None):
+    """Daily. Not every hour of overtime is asked for beforehand: where a
+    person's Overtime Type says to raise it from the clock, the overtime
+    their attendance shows on a day becomes a request by itself, waiting
+    for the authorising officer as one raised by hand does.
+
+    The type carries the rules: the least that counts, the step it is
+    counted in, its ceiling for a day. The request names the employee's own
+    supervisor, else the requester the type gives; somebody with neither is
+    left out and said in the Error Log. Somebody already on a request for
+    that day is left to it, so a second run raises nothing twice.
+
+    `day`: the day to read; none reads the last few, as the clock's
+    attendance comes in. Returns the requests raised."""
+    if day is None:
+        raised = []
+        for back in range(CLOCK_DAYS_BACK, 0, -1):
+            raised += raise_from_clock(add_days(today(), -back))
+        return raised
+    day = getdate(day)
+    types = _types_for()
+    if not any(cint((row or {}).get("custom_from_clock")) for row in types.values()):
+        return []
+    marked = frappe.get_all("Attendance", filters={
+        "attendance_date": day, "docstatus": 1, "status": rules.PAID_ON, "in_time": ["is", "set"],
+        "out_time": ["is", "set"]}, fields=["name", "employee", "employee_name", "working_hours"], limit_page_length=0)
+    asked = _on_a_request(day)
+    marked = [row for row in marked if row.employee not in asked]
+    if not marked:
+        return []
+    names = [row.employee for row in marked]
+    seats = {row.name: row for row in frappe.get_all(
+        "Employee", filters={"name": ["in", names]},
+        fields=["name", "reports_to", "branch", "department", "company"], limit_page_length=0)}
+    grosses, standards = _monthly_gross(names, day), _standard_hours(names, day)
+    lines, nobody = [], []
+    for row in marked:
+        seat = seats.get(row.employee) or frappe._dict()
+        kind = day_kind(row.employee, day)
+        named = rules.person_type(kind, grosses.get(row.employee), types, row.employee, seat.get("department"))[0]
+        theirs = types.get(named) if named else None
+        if not theirs or not cint(theirs.get("custom_from_clock")):
+            continue
+        worked = rules.worked_overtime(kind, row.working_hours,
+                                       standards.get(row.employee) or attendance_rules.STANDARD_HOURS)
+        hours = rules.clock_hours(worked, theirs.get("custom_clock_minimum"), theirs.get("custom_clock_step"),
+                                  theirs.get("maximum_overtime_hours_allowed"))
+        if hours <= 0:
+            continue
+        requester = seat.get("reports_to") or theirs.get("custom_clock_requester")
+        if not requester:
+            nobody.append(row.employee_name or row.employee)
+            continue
+        lines.append({"employee": row.employee, "employee_name": row.employee_name, "hours": hours,
+                      "requester": requester, "branch": seat.get("branch"), "department": seat.get("department"),
+                      "company": seat.get("company")})
+    if nobody:
+        frappe.log_error(title="HRMS Addon: overtime by the clock with nobody to request it",
+                         message="%s: %s" % (day, ", ".join(sorted(nobody))))
+    raised = []
+    for sheet in rules.clock_sheets(lines):
+        doc = frappe.get_doc({
+            "doctype": REQUEST, "overtime_date": day, "requested_by": sheet["requester"], "requested_on": today(),
+            "branch": sheet["branch"], "department": sheet["department"], "section": sheet["department"],
+            "company": sheet["company"], "from_clock": 1,
+            "reason": _("Worked past the shift, by the clock."), "employees": sheet["employees"]})
+        doc.flags.ignore_permissions = True
+        doc.insert()
+        # raised: it waits for the authorising officer, as one raised by hand does
+        doc.set(approval.STATE_FIELD, approval.REQUESTED)
+        doc.flags.ignore_permissions = True
+        doc.save()
+        raised.append(doc.name)
+    return raised
+
+
+def _on_a_request(day):
+    """The employees a request already asks overtime for on the day, in
+    whatever stage but refused or cancelled."""
+    requests = frappe.get_all(REQUEST, filters={
+        "overtime_date": day, "docstatus": ["<", 2], "status": ["not in", [approval.REJECTED, approval.CANCELLED]]},
+        pluck="name", limit_page_length=0)
+    if not requests:
+        return set()
+    return set(frappe.get_all("Overtime Request Employee", filters={"parenttype": REQUEST, "parent": ["in", requests]},
+                              pluck="employee", limit_page_length=0))
 
 
 def send(doc, quiet=False):

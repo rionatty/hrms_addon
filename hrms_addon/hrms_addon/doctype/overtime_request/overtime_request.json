@@ -23,6 +23,7 @@
   "requested_on",
   "column_break_2",
   "reason",
+  "from_clock",
   "authority_section",
   "authority_remarks",
   "column_break_6",
@@ -158,6 +159,12 @@
    "fieldname": "reason",
    "fieldtype": "Small Text",
    "label": "Reason for the overtime"
+  },
+  {
+   "fieldname": "from_clock",
+   "fieldtype": "Check",
+   "label": "Raised from the Clock",
+   "read_only": 1
   },
   {
    "fieldname": "authority_section",
@@ -314,7 +321,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-13 12:00:00.000000",
+ "modified": "2026-10-13 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Overtime Request",

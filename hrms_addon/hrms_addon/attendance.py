@@ -606,10 +606,12 @@ def daily():
     for back in range(AUTOMATIC_DAYS, 0, -1):
         _mark_automatic(add_days(today(), -back))
     _chase_open_passes()
-    # approved overtime whose day's attendance is now in goes to payroll (overtime.send_ready)
+    # overtime the clock shows is raised where its type says so, and approved overtime whose day's
+    # attendance is now in goes to payroll (overtime.raise_from_clock, send_ready)
     try:
         from hrms_addon.hrms_addon import overtime
 
+        overtime.raise_from_clock()
         overtime.send_ready()
     except Exception:
         frappe.log_error(title="HRMS Addon: approved overtime to payroll")

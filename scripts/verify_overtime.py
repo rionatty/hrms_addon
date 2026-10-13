@@ -444,6 +444,37 @@ for label, got, want in (
     if got != want:
         fail.append("a request raised before the workflow: %s: %s, not %s" % (label, got, want))
 print("the approval: Submit, Approve by the officer, Approve by HR; Return and Reject with the reason")
+
+# overtime the clock shows, raised by itself under the type's own rules
+for label, got, want in (
+    ("two and three quarter hours, counted in half hours", R.clock_hours(2.75, 30, 30), 2.5),
+    ("twenty-four minutes, under the half hour that counts", R.clock_hours(0.4, 30, 30), 0.0),
+    ("exactly the least that counts", R.clock_hours(0.5, 30, 30), 0.5),
+    ("counted to the minute where no step is given", R.clock_hours(1.26, 30, 0), 1.26),
+    ("in quarter hours", R.clock_hours(1.26, 0, 15), 1.25),
+    ("never past the type's ceiling for a day", R.clock_hours(5.0, 30, 30, 4), 4.0),
+    ("no ceiling where the type gives none", R.clock_hours(5.0, 30, 30, 0), 5.0),
+    ("nothing from nothing", R.clock_hours(None, 30, 30), 0.0),
+    ("nor from less than nothing", R.clock_hours(-2, 0, 0), 0.0),
+    ("an hour and fifty-nine minutes is three half hours", R.clock_hours(1.9834, 30, 30), 1.5),
+):
+    if got != want:
+        fail.append("overtime by the clock: %s: %s, not %s" % (label, got, want))
+sheets = R.clock_sheets([
+    {"employee": "E1", "employee_name": "Ann", "hours": 2.5, "requester": "S1", "branch": "K", "department": "X", "company": "C"},
+    {"employee": "E2", "employee_name": "Ben", "hours": 1, "requester": "S2", "branch": "K", "department": "Y", "company": "C"},
+    {"employee": "E3", "employee_name": "Cat", "hours": 1.5, "requester": "S1", "branch": "K", "department": "X", "company": "C"},
+    {"employee": "E4", "employee_name": "Dan", "hours": 2, "requester": None, "branch": "K", "department": "X", "company": "C"},
+    {"employee": "E5", "employee_name": "Eve", "hours": 0, "requester": "S1", "branch": "K", "department": "X", "company": "C"},
+    {"employee": "E6", "employee_name": "Fay", "hours": 1, "requester": "S1", "branch": "K", "department": "Y", "company": "C"}])
+if [(sheet["requester"], sheet["department"], [(row["employee"], row["hours"]) for row in sheet["employees"]])
+        for sheet in sheets] != [("S1", "X", [("E1", 2.5), ("E3", 1.5)]), ("S2", "Y", [("E2", 1.0)]),
+                                 ("S1", "Y", [("E6", 1.0)])]:
+    fail.append("a day's overtime by the clock is one request for each requester and section; somebody with nobody "
+                "to request it, or nothing to ask for, is on none: %s" % sheets)
+if R.clock_sheets(None) != []:
+    fail.append("no overtime, no request")
+print("from the clock: the least that counts, the step, the ceiling, and a requester on every request")
 request_line = fields_of(doctype("Overtime Request Employee"))
 for fieldname in ("day_kind", "overtime_type", "multiplier", "worked_hours", "clocked", "payable_hours"):
     if not (request_line.get(fieldname) or {}).get("read_only"):
@@ -640,6 +671,56 @@ if "closed = overtime.fill_day_and_rate(doc) or []" not in raising \
     fail.append("somebody no Overtime Type is open to is refused when the request is raised")
 if "if closed:\n        return stopped(closed)" not in landed:
     fail.append("and never sent to payroll under a type closed to them since")
+# overtime raised from the clock: the rules are the type's own, and the request is somebody's
+clock = [custom.get("Overtime Type-%s" % name) or {} for name in (
+    "custom_clock_section", "custom_from_clock", "custom_clock_minimum", "custom_clock_cb", "custom_clock_step",
+    "custom_clock_requester")]
+if [(row.get("fieldtype"), row.get("insert_after")) for row in clock] != [
+        ("Section Break", "custom_employees"), ("Check", "custom_clock_section"), ("Int", "custom_from_clock"),
+        ("Column Break", "custom_clock_minimum"), ("Int", "custom_clock_cb"), ("Link", "custom_clock_step")]:
+    fail.append("the Overtime Type says whether its overtime is raised from the clock, the least that counts, the "
+                "step and the requester, each field after the one before: %s"
+                % [(row.get("fieldtype"), row.get("insert_after")) for row in clock])
+if clock[5].get("options") != "Employee" or (clock[2].get("default"), clock[4].get("default")) != ("30", "30") \
+        or clock[1].get("default"):
+    fail.append("half an hour counts, in half hours, until HR say otherwise; and nothing is raised until a type is ticked")
+for row in clock:
+    if '"%s"' % row.get("name") not in read("hrms_addon", "hooks.py"):
+        fail.append("hooks fixtures list %s" % row.get("name"))
+if (request.get("from_clock") or {}).get("fieldtype") != "Check" or not request["from_clock"].get("read_only"):
+    fail.append("a request says whether it was raised from the clock, and nobody types that")
+for fieldname in ("custom_from_clock", "custom_clock_minimum", "custom_clock_step", "custom_clock_requester"):
+    if '"%s"' % fieldname not in glue.split("def _type_row(")[1].split(chr(10) + "def ")[0]:
+        fail.append("a type is read with %s" % fieldname)
+rising = glue.split("def raise_from_clock(")[1].split(chr(10) + "def ")[0]
+for needle, why in (
+    ('if not any(cint((row or {}).get("custom_from_clock")) for row in types.values()):', "nothing is read until a type is ticked"),
+    ('"docstatus": 1, "status": rules.PAID_ON, "in_time": ["is", "set"],', "only a day the clock measured, and worked"),
+    ('"out_time": ["is", "set"]}', "at both ends"),
+    ("marked = [row for row in marked if row.employee not in asked]", "somebody already on a request for the day is left to it"),
+    ("rules.person_type(kind, grosses.get(row.employee), types, row.employee, seat.get(\"department\"))[0]",
+     "the type is the person's own, by who each type is for"),
+    ('if not theirs or not cint(theirs.get("custom_from_clock")):', "and only a type that says so raises it"),
+    ("rules.worked_overtime(kind, row.working_hours,", "what the clock shows past the shift"),
+    ('rules.clock_hours(worked, theirs.get("custom_clock_minimum"), theirs.get("custom_clock_step"),',
+     "counted by the type's own rules"),
+    ('theirs.get("maximum_overtime_hours_allowed"))', "up to its ceiling"),
+    ('requester = seat.get("reports_to") or theirs.get("custom_clock_requester")',
+     "the employee's supervisor requests it, else whoever the type names"),
+    ("rules.clock_sheets(lines)", "one request for each requester and section"),
+    ('"from_clock": 1,', "marked as raised from the clock"),
+    ("doc.set(approval.STATE_FIELD, approval.REQUESTED)", "and waiting for the authorising officer"),
+    ("frappe.log_error(title=\"HRMS Addon: overtime by the clock with nobody to request it\"", "somebody left out is said"),
+):
+    if needle not in rising:
+        fail.append("overtime.raise_from_clock: %s" % why)
+asked_already = glue.split("def _on_a_request(")[1].split(chr(10) + "def ")[0]
+if '"status": ["not in", [approval.REJECTED, approval.CANCELLED]]' not in asked_already:
+    fail.append("a refused or cancelled request does not stand in the way of the clock's")
+daily_job = read("hrms_addon", "hrms_addon", "attendance.py").split("\ndef daily(")[1].split(chr(10) + "def ")[0]
+if "overtime.raise_from_clock()" not in daily_job \
+        or daily_job.index("overtime.raise_from_clock()") > daily_job.index("overtime.send_ready()"):
+    fail.append("each day the clock's overtime is raised, then the approved overtime sent")
 print("glue: the day read, the cost checked, the hours landed, the slip drawn")
 
 for needle, why in (

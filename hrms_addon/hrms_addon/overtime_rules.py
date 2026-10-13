@@ -387,6 +387,47 @@ def worked_overtime(kind, working_hours, standard_hours=STANDARD_HOURS_PER_DAY):
     return round(hours, 2)
 
 
+def clock_hours(worked, minimum_minutes=0, step_minutes=0, cap=0):
+    """The overtime to request for what the clock shows on a day: nothing
+    under the least that counts, counted down to whole steps, and never
+    past the type's ceiling for a day.
+
+    worked: the overtime the clock shows, in hours (worked_overtime)."""
+    minutes = max(float(worked or 0), 0.0) * 60
+    if minutes + 1e-6 < float(minimum_minutes or 0):
+        return 0.0
+    step = float(step_minutes or 0)
+    if step > 0:
+        minutes = int((minutes + 1e-6) // step) * step
+    hours = minutes / 60
+    if cap and float(cap) > 0:
+        hours = min(hours, float(cap))
+    return round(hours, 2)
+
+
+def clock_sheets(lines):
+    """The requests to raise for a day's overtime by the clock: one for each
+    requester and section, people in the order given.
+
+    lines: [{"employee", "employee_name", "hours", "requester", "branch",
+    "department", "company"}]. Returns [{"requester", "branch",
+    "department", "company", "employees": [{"employee", "employee_name",
+    "hours"}]}]. Somebody with nobody to name as requester is left out:
+    a request has to be somebody's."""
+    sheets, order = {}, []
+    for line in lines or []:
+        if not line.get("employee") or not line.get("requester") or float(line.get("hours") or 0) <= 0:
+            continue
+        key = (line["requester"], line.get("branch"), line.get("department"), line.get("company"))
+        if key not in sheets:
+            sheets[key] = []
+            order.append(key)
+        sheets[key].append({"employee": line["employee"], "employee_name": line.get("employee_name"),
+                            "hours": float(line["hours"])})
+    return [{"requester": key[0], "branch": key[1], "department": key[2], "company": key[3], "employees": sheets[key]}
+            for key in order]
+
+
 def payable_hours(authorised, worked=None):
     """What is paid: the hours authorised, up to the hours the clock shows.
     Nobody is paid for overtime the clock says they did not work, and
