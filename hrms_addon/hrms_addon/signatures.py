@@ -124,6 +124,8 @@ def log_submission(doc, method=None):
     """
     if doc.doctype not in rules.SIGNABLE:
         return
+    if "Rejected" in (doc.get("workflow_state"), doc.get("status")):
+        return  # a request refused is submitted as a record: nobody approved it
     try:
         signed = signatures_on(doc.doctype, doc.name)
         if rules.already_signed(signed, frappe.session.user, rules.APPROVED):

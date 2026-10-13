@@ -6,14 +6,20 @@
 The rules are in overtime_rules.py, without a Frappe import
 (scripts/verify_overtime.py). This reads and writes the site.
 
-LPL/HR/14 is raised before the work and authorised by the officer who
-carries the section (attendance.py). This adds the two steps after that:
+LPL/HR/14 is raised before the work and approved on the Actions menu, as
+every other request is (overtime_approval.py): Submit, Approve by the
+officer who carries the section, Approve by HR.
 
-  cost_check      HR read what the overtime comes to — the day's rate
-                  against each person's own hourly pay — and sign for it
-  send_to_payroll the authorised hours are written onto the employees'
+  check_step      the step just taken is checked, signed for and told to
+                  whoever holds the request next
+  _cost           as HR approve it, what the overtime comes to — each
+                  person's own hourly pay at their own rate — is written on
+                  it
+  send            the approved hours are written onto the employees'
                   Attendance rows with the Overtime Type they fall under,
-                  and an Overtime Slip is drawn for the cycle
+                  and an Overtime Slip is drawn for the cycle: by itself
+                  once the day's attendance is in (approved, send_ready),
+                  or by HR from the form (send_to_payroll)
 
 The slip is Frappe HR's own: it prices the attendance it finds, holds the
 multipliers on the Overtime Type, and writes the Additional Salary the
@@ -34,7 +40,8 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import attendance, attendance_rules, overtime_rules as rules, pay, people
+from hrms_addon.hrms_addon import attendance, attendance_rules, overtime_approval as approval, \
+    overtime_rules as rules, pay, people
 
 REQUEST = "Overtime Request"
 TYPE = "Overtime Type"
@@ -183,49 +190,161 @@ def _monthly_bases(employees):
     return out
 
 
-@frappe.whitelist(methods=["POST"])
-def cost_check(name, remarks=None):
-    """Test case 3's third step: HR see what the overtime costs before it
-    goes anywhere near the payroll."""
-    doc = frappe.get_doc(REQUEST, name)
-    doc.check_permission("write")
-    kind = doc.get("day_kind") or day_kind(doc.employees[0].employee, doc.overtime_date)
-    overtime_type = _type_row(type_for(kind, doc.get("company")))
-    rows = [row.as_dict() for row in doc.get("employees") or []]
+def check_step(doc, raising=()):
+    """Called from attendance.overtime_validate, with what would stop the
+    request being raised: the step the Actions menu has just taken is
+    checked, signed for, and told to whoever holds the request next."""
+    before = doc.get_doc_before_save()
+    old = before.get(approval.STATE_FIELD) if before else None
+    new = doc.get(approval.STATE_FIELD) or approval.DRAFT
+    moved = old != new and not (old is None and new == approval.DRAFT)
+    if moved:
+        errors = approval.step_errors(old, new, {
+            field: doc.get(field) for field in ("return_remarks", "authority_remarks", "cost_remarks")})
+        if new == approval.REQUESTED:
+            errors = list(raising) + errors
+        if new == approval.COSTED and not errors:
+            errors = _cost(doc, old)
+        if errors:
+            frappe.throw("<br>".join(_(message) for message in errors), title=_(REQUEST))
+        if new != approval.DRAFT:
+            doc.return_remarks = None
+    current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
+    for field, value in approval.compute_stamps(old, new, frappe.session.user, today(), current).items():
+        doc.set(field, value)
+    doc.status = new
+    if moved:
+        _tell(doc, old, new)
+
+
+def _cost(doc, standing):
+    """HR's approval: what the overtime comes to is worked out and written
+    on the request as it is approved, each person's own hourly pay at their
+    own rate. Returns what stops it; `standing` is the state it leaves."""
+    rows = [_plain(row) for row in doc.get("employees") or []]
     people_on_it = [row.get("employee") for row in rows if row.get("employee")]
-    bases = _monthly_bases(people_on_it)
+    kind = doc.get("day_kind") or (day_kind(people_on_it[0], doc.overtime_date) if people_on_it else rules.WEEKDAY)
     kinds = _day_kinds(doc)
     types = _types_for(kind, kinds.values())
-    costed = rules.priced(rows, bases, kind, overtime_type, types,
+    costed = rules.priced(rows, _monthly_bases(people_on_it), kind, _type_row(type_for(kind, doc.get("company"))), types,
                           _monthly_gross(people_on_it, doc.overtime_date),
                           _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it))
     errors = rules.cost_check_errors({
-        "status": doc.get("status"), "rows": costed["rows"], "unpriced": costed["unpriced"],
+        "status": standing, "rows": costed["rows"], "unpriced": costed["unpriced"],
         "not_eligible": rules.eligibility_errors(costed["rows"])})
     if errors:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Cost Check"))
-    for row, priced_row in zip(doc.employees, costed["rows"]):
-        row.db_set({"hourly_rate": priced_row["hourly_rate"], "multiplier": priced_row["multiplier"],
+        return errors
+    for row, priced_row in zip(doc.get("employees") or [], costed["rows"]):
+        row.update({"hourly_rate": priced_row["hourly_rate"], "multiplier": priced_row["multiplier"],
                     "amount": priced_row["amount"], "day_kind": priced_row["day_kind"],
-                    "overtime_type": priced_row["overtime_type"]}, update_modified=False)
+                    "overtime_type": priced_row["overtime_type"]})
     # the ceiling is a person's day on their own type, not the sheet's hours together
     over = [row.get("employee_name") or row.get("employee") for row in costed["rows"] if rules.over_the_cap(
         row.get("hours"), (types.get(row.get("overtime_type")) or {}).get("maximum_overtime_hours_allowed"))]
-    doc.db_set({
-        "day_kind": kind, "total_cost": costed["total"],
-        "cost_remarks": remarks or doc.get("cost_remarks"),
-        "over_the_cap": 1 if over else 0,
-        "costed_by": frappe.session.user, "costed_on": today(), "status": "Costed",
-    }, update_modified=False)
+    doc.day_kind = kind
+    doc.total_cost = costed["total"]
+    doc.over_the_cap = 1 if over else 0
     if over:
         frappe.msgprint(_("Over the day's ceiling on their Overtime Type: {0}. It may still be paid, but say so in "
                           "the HR remarks.").format(", ".join(over)), indicator="orange")
-    return {"total": costed["total"], "kind": kind}
+    return []
+
+
+def _holders(doc, state):
+    """Who holds the request at a state: the officer who carries the section
+    while it waits to be authorised, HR while it waits to be costed."""
+    if state == approval.REQUESTED:
+        return people.people_for("Production Manager", doc.get("branch"), doc.get("department")) \
+            or people.people_for("Head of Department", doc.get("branch"), doc.get("department"))
+    if state == approval.AUTHORISED:
+        return people.hr_officers(doc.get("branch"), doc.get("department"))
+    return []
+
+
+def _tell(doc, old, new):
+    """Whoever holds the request next is told and given it, whoever held it
+    is let off, and a request returned or refused is told to whoever asked."""
+    held = list(_holders(doc, old) or [])
+    if held and doc.name:
+        people.withdraw(doc.doctype, doc.name, held)
+    day = frappe.utils.format_date(doc.overtime_date)
+    users = list(_holders(doc, new) or [])
+    if new == approval.REQUESTED:
+        message = _("Overtime for {0} on {1}: {2} employee(s), {3} hours.").format(
+            doc.get("section") or doc.get("department") or "", day, len(doc.get("employees") or []), doc.total_hours)
+    elif new == approval.AUTHORISED:
+        message = _("Overtime authorised for {0}: {1} permanent and {2} casual coupon(s) to issue, and the cost to "
+                    "approve.").format(day, doc.coupons_permanent, doc.coupons_casual)
+    elif new in (approval.REJECTED, approval.DRAFT) and old in approval.PENDING_STATES:
+        asked = frappe.db.get_value("Employee", doc.get("requested_by"), "user_id") if doc.get("requested_by") else None
+        why = doc.get("return_remarks") if new == approval.DRAFT else doc.get(approval.REMARK_FIELDS[old][0])
+        if asked:
+            people.notify([asked], doc.doctype, doc.name,
+                          (_("Overtime for {0} was returned: {1}") if new == approval.DRAFT
+                           else _("Overtime for {0} was refused: {1}")).format(day, why or ""))
+        return
+    else:
+        return
+    if users and doc.name:
+        people.notify(users, doc.doctype, doc.name, message)
+        people.assign(doc.doctype, doc.name, users, message, date=doc.overtime_date)
+        _let_act(doc, users)
+
+
+def _let_act(doc, users):
+    """Whoever is given the request can act on it. Approving saves it and
+    refusing submits it, which the role of the one asked may not carry on a
+    site, and Frappe shares an assigned document read-only."""
+    from frappe.share import add_docshare
+
+    for user in sorted({user for user in users or [] if user}):
+        if not frappe.has_permission(doc.doctype, "submit", doc.name, user=user):
+            add_docshare(doc.doctype, doc.name, user, read=1, write=1, submit=1,
+                         flags={"ignore_share_permission": True})
+
+
+def approved(doc):
+    """Overtime Request on_submit. HR's approval submits it: where its day
+    has come, the hours go to payroll at once if the attendance is in, and
+    what stops them is said; a day still to come is left to the daily job.
+    A refused request is submitted too, as a record, and nothing follows."""
+    if doc.get(approval.STATE_FIELD) != approval.COSTED:
+        return None
+    if getdate(doc.overtime_date) > getdate(today()):
+        return None
+    found = send(doc, quiet=True)
+    if found.get("errors"):
+        frappe.msgprint(_("Approved. Not with payroll yet:<br>{0}").format("<br>".join(found["errors"])),
+                        indicator="orange", title=_(REQUEST))
+    return found
 
 
 # ── 3. How it is paid ─────────────────────────────────────────────────
 @frappe.whitelist(methods=["POST"])
 def send_to_payroll(name):
+    """The Send to Payroll button, for HR: now, and saying what stops it."""
+    doc = frappe.get_doc(REQUEST, name)
+    doc.check_permission("submit")
+    return send(doc)
+
+
+def send_ready():
+    """Daily: the approved requests whose day has passed go to payroll as
+    their attendance comes in. One the attendance still stops is left as it
+    is, for HR to see why from its form. Returns those sent."""
+    sent = []
+    for name in frappe.get_all(REQUEST, filters={"docstatus": 1, "status": approval.COSTED,
+                                                 "overtime_date": ["<", getdate(today())]},
+                               pluck="name", order_by="overtime_date asc", limit_page_length=0):
+        try:
+            if not send(frappe.get_doc(REQUEST, name), quiet=True).get("errors"):
+                sent.append(name)
+        except Exception:
+            frappe.log_error(title="HRMS Addon: sending overtime %s to payroll" % name)
+    return sent
+
+
+def send(doc, quiet=False):
     """Test cases 2, 4 and 5: the hours are written onto the employees' own
     Attendance rows under the Overtime Type the day falls under, and Frappe
     HR's Overtime Slip is drawn for the cycle. The slip prices them and
@@ -240,9 +359,15 @@ def send_to_payroll(name):
     The slip reads only an attendance that carries an Overtime Type. One
     that is not on the site is made here as the migrate would have made
     it, and where it cannot be the sheet is stopped: hours written without
-    a type would read Sent to Payroll and never be paid."""
-    doc = frappe.get_doc(REQUEST, name)
-    doc.check_permission("submit")
+    a type would read Sent to Payroll and never be paid.
+
+    What stops it is thrown, or with `quiet` handed back as {"errors"}:
+    nothing is written either way."""
+    def stopped(messages):
+        if quiet:
+            return {"errors": list(messages)}
+        frappe.throw("<br>".join(messages), title=_("Payroll"))
+
     kinds = _day_kinds(doc)
     rows = []
     for row in doc.get("employees") or []:
@@ -257,7 +382,7 @@ def send_to_payroll(name):
                          clocked_in=bool(found) and bool(found.in_time)))
     errors = rules.payroll_errors({"status": doc.get("status"), "rows": rows})
     if errors:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Payroll"))
+        return stopped([_(message) for message in errors])
     kind = doc.get("day_kind") or rules.WEEKDAY
     grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
     standards = _standard_hours([row["employee"] for row in rows], doc.overtime_date)
@@ -287,13 +412,13 @@ def send_to_payroll(name):
     closed = []
     plans = planned()
     if closed:
-        frappe.throw("<br>".join(closed), title=_("Payroll"))
+        return stopped(closed)
     if _missing_types(plans):
         seed_overtime_types()
         plans = planned()
     missing = _missing_types(plans)
     if missing:
-        frappe.throw(_(rules.missing_type_error(missing)), title=_("Payroll"))
+        return stopped([_(rules.missing_type_error(missing))])
     marked, short = 0, []
     for row, line, (theirs, worked, paid, values) in zip(rows, doc.get("employees") or [], plans):
         frappe.db.set_value("Attendance", row["attendance"], values, update_modified=False)
@@ -305,7 +430,7 @@ def send_to_payroll(name):
                                                            flt(row.get("hours"))))
         marked += 1
     slips = _draw_slips(doc)
-    doc.db_set({"status": "Sent to Payroll", "sent_to_payroll_on": today()},
+    doc.db_set({"status": approval.SENT, approval.STATE_FIELD: approval.SENT, "sent_to_payroll_on": today()},
                update_modified=False)
     if short:
         frappe.msgprint(_("Paid by the clock, which shows less than was authorised:<br>{0}").format(

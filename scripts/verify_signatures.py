@@ -196,8 +196,9 @@ print("the paper: a specimen that is an image and a log nobody may delete")
 
 # ── 3. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "signatures.py")
+# status and workflow_state are the signed document's: a refusal that submits it is no approval
 known = set(signature) | set(log) | {"doctype", "name", "docstatus", "employee", "company",
-                                     "flags"}
+                                     "flags", "status", "workflow_state"}
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
     if fieldname in ("get", "set", "append", "db_set", "get_doc_before_save", "check_permission",
@@ -249,6 +250,9 @@ script = "/assets/hrms_addon/js/e_signature.js"
 if script not in hooks.get("app_include_js", []):
     fail.append("the Sign button is a desk-wide script: %s" % script)
 events = hooks.get("doc_events", {})
+logging = read("hrms_addon", "hrms_addon", "signatures.py").split("def log_submission(")[1].split(chr(10) + "def ")[0]
+if 'if "Rejected" in (doc.get("workflow_state"), doc.get("status")):' not in logging:
+    fail.append("a request refused is submitted as a record: submitting it is not signed as an approval")
 if events.get("*", {}).get("on_trash") != "hrms_addon.hrms_addon.signatures.forget":
     fail.append("a deleted signable document takes its signatures with it: Frappe refuses to delete what a "
                 "Signature Log still names")

@@ -261,18 +261,15 @@ def overtime_validate(doc, method=None):
     counted = rules.coupons([row.as_dict() for row in doc.get("employees") or []])
     doc.coupons_permanent = counted.get("Permanent", 0)
     doc.coupons_casual = counted.get("Casual", 0)
-    if doc.docstatus == 0:
-        doc.status = "Draft"
     errors = rules.overtime_errors({
         "overtime_date": doc.get("overtime_date"), "requested_by": doc.get("requested_by"),
         "section": doc.get("section"),
         "employees": [row.as_dict() for row in doc.get("employees") or []],
         "full_shift": rules.longest_shift(all_shift_hours().values()),
     })
-    # somebody no Overtime Type is open to: said when the request is raised, not when it is costed
-    errors += closed
-    if errors and doc.docstatus == 1:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Overtime Request"))
+    # somebody no Overtime Type is open to: said when the request is raised, not when it is costed.
+    # A draft is somewhere to prepare it; the step that raises it is what has to be right (overtime.check_step)
+    overtime.check_step(doc, errors + closed)
 
 
 def _employment(employee):
@@ -282,29 +279,11 @@ def _employment(employee):
 
 
 def overtime_on_submit(doc, method=None):
-    """Requested: whoever authorises overtime for the plant is told."""
-    doc.db_set("status", "Requested", update_modified=False)
-    approvers = people.people_for("Production Manager", doc.get("branch"), doc.get("department")) \
-        or people.people_for("Head of Department", doc.get("branch"), doc.get("department"))
-    message = _("Overtime for {0} on {1}: {2} employee(s), {3} hours.").format(
-        doc.get("section") or doc.get("department") or "", frappe.utils.format_date(doc.overtime_date),
-        len(doc.get("employees") or []), doc.total_hours)
-    people.notify(approvers, doc.doctype, doc.name, message)
-    people.assign(doc.doctype, doc.name, approvers, message, date=doc.overtime_date)
-    _let_authorise(doc, approvers)
+    """HR's approval submits the request: its hours go to payroll once the
+    day's attendance is in (overtime.approved)."""
+    from hrms_addon.hrms_addon import overtime
 
-
-def _let_authorise(doc, users):
-    """Whoever is asked to authorise the overtime can. The Authorise button
-    and the method behind it ask for the right to submit, which the role of
-    the one asked may not carry on a site, and Frappe shares an assigned
-    document read-only."""
-    from frappe.share import add_docshare
-
-    for user in sorted({user for user in users or [] if user}):
-        if not frappe.has_permission(doc.doctype, "submit", doc.name, user=user):
-            add_docshare(doc.doctype, doc.name, user, read=1, write=1, submit=1,
-                         flags={"ignore_share_permission": True})
+    overtime.approved(doc)
 
 
 def overtime_on_cancel(doc, method=None):
@@ -316,47 +295,11 @@ def overtime_on_cancel(doc, method=None):
 
 
 @frappe.whitelist(methods=["POST"])
-def authorise_overtime(name, remarks=None):
-    """The authorising officer signs LPL/HR/14."""
-    doc = frappe.get_doc("Overtime Request", name)
-    doc.check_permission("submit")
-    if doc.docstatus != 1:
-        frappe.throw(_("Submit the overtime request first."))
-    if doc.status == "Authorised":
-        return doc.status
-    doc.db_set({"status": "Authorised", "authorised_by": frappe.session.user, "authorised_on": today(),
-                "authority_remarks": remarks or doc.get("authority_remarks")}, update_modified=False)
-    officers = people.hr_officers(doc.get("branch"), doc.get("department"))
-    people.notify(officers, doc.doctype, doc.name,
-                  _("Overtime authorised for {0}: {1} permanent and {2} casual coupon(s) to "
-                    "issue, and the cost to check before payroll.").format(
-                      frappe.utils.format_date(doc.overtime_date), doc.coupons_permanent,
-                      doc.coupons_casual))
-    return doc.status
-
-
-@frappe.whitelist(methods=["POST"])
-def reject_overtime(name, reason=None):
-    from hrms_addon.hrms_addon import overtime_rules
-
-    doc = frappe.get_doc("Overtime Request", name)
-    doc.check_permission("submit")
-    errors = overtime_rules.reject_errors(doc.get("status") if doc.docstatus == 1 else None, reason)
-    if errors:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Overtime Request"))
-    doc.db_set({"status": "Rejected", "authority_remarks": reason, "authorised_by": frappe.session.user,
-                "authorised_on": today()}, update_modified=False)
-    # the signature above is now whoever refused: who authorised it before stays on the record
-    doc.add_comment("Info", _("Refused: {0}").format(reason))
-    return doc.status
-
-
-@frappe.whitelist(methods=["POST"])
 def issue_coupons(name):
     """HR use only: the food coupons LPL/HR/14 ends with."""
     doc = frappe.get_doc("Overtime Request", name)
     doc.check_permission("write")
-    if doc.status != "Authorised":
+    if doc.status not in ("Authorised", "Costed", "Sent to Payroll"):
         frappe.throw(_("Coupons are issued once the overtime is authorised."))
     doc.db_set({"coupons_issued": 1, "coupons_by": frappe.session.user, "coupons_on": today()},
                update_modified=False)
@@ -663,6 +606,13 @@ def daily():
     for back in range(AUTOMATIC_DAYS, 0, -1):
         _mark_automatic(add_days(today(), -back))
     _chase_open_passes()
+    # approved overtime whose day's attendance is now in goes to payroll (overtime.send_ready)
+    try:
+        from hrms_addon.hrms_addon import overtime
+
+        overtime.send_ready()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: approved overtime to payroll")
     frappe.db.commit()
 
 
@@ -716,9 +666,10 @@ def _chase_open_passes():
 def setup_workflows_on_migrate():
     """after_migrate: the off-duty request's two signatures, and the late
     arrival notice the supervisor acknowledges (workflows.py)."""
-    from hrms_addon.hrms_addon import late_notice_approval, off_duty_approval, workflows
+    from hrms_addon.hrms_addon import late_notice_approval, off_duty_approval, overtime_approval, workflows
 
     workflows.setup_on_migrate(off_duty_approval, "Off Duty Request workflow")
+    workflows.setup_on_migrate(overtime_approval, "Overtime Request workflow")
     try:
         seed_off_duty_leave_type()
     except Exception:

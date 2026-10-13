@@ -464,8 +464,8 @@ for needle, why in (
     ("        leave.cancel()\n", "cancelling the form cancels the leave it raised"),
     ("and found.leave_type == rules.OFF_DUTY_LEAVE_TYPE:", "and takes back only the day it marked off"),
     ("        seed_off_duty_leave_type()\n", "the Off Duty leave type is seeded on migrate"),
-    ('overtime_rules.reject_errors(doc.get("status") if doc.docstatus == 1 else None, reason)',
-     "overtime is refused while it is being decided, and with the reason"),
+    ("overtime.check_step(doc, errors + closed)",
+     "the overtime request is approved from the Actions menu, each step checked as it is taken"),
     ("rules.overtime_errors(", "and the overtime request"),
     ("rules.gate_pass_errors(", "and the gate pass"),
     ("rules.coupons(", "the food coupons are counted by the rules"),
@@ -478,8 +478,7 @@ for needle, why in (
 ):
     if needle not in glue:
         fail.append("attendance.py: %s (%r not found)" % (why, needle))
-for name, module, source in (("authorise_overtime", "attendance", glue), ("reject_overtime", "attendance", glue),
-                             ("issue_coupons", "attendance", glue), ("record_return", "attendance", glue),
+for name, module, source in (("issue_coupons", "attendance", glue), ("record_return", "attendance", glue),
                              ("pull", "devices", drivers), ("test_connection", "devices", drivers),
                              ("retry_failed", "devices", drivers)):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, source):
@@ -487,7 +486,7 @@ for name, module, source in (("authorise_overtime", "attendance", glue), ("rejec
 for name, source in (("register", glue), ("unknown_badges", drivers)):
     if not re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % name, source):
         fail.append("%s must be whitelisted for the form" % name)
-for name, source in (("authorise_overtime", glue), ("issue_coupons", glue), ("record_return", glue)):
+for name, source in (("issue_coupons", glue), ("record_return", glue)):
     if "doc.check_permission(" not in body_of(source, name):
         fail.append("attendance.%s must check the caller may act on the document" % name)
 if 'doc.check_permission("write")' not in body_of(drivers, "pull"):

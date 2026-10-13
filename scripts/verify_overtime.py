@@ -340,8 +340,8 @@ waits = R.waiting([
     {"name": "OT-6", "overtime_date": "2026-09-14", "hours": 2, "status": "Cancelled"},
     {"name": "OT-0", "overtime_date": "2026-09-01", "hours": 4, "status": None}])
 if [(row["name"], row["status"], row["next"]) for row in waits] != [
-        ("OT-0", "Draft", "Submit"), ("OT-1", "Requested", "Authorise"), ("OT-2", "Authorised", "Check the Cost"),
-        ("OT-3", "Costed", "Send to Payroll")]:
+        ("OT-0", "Draft", "Submit"), ("OT-1", "Requested", "Approval by the authorising officer"),
+        ("OT-2", "Authorised", "Approval by HR"), ("OT-3", "Costed", "Send to Payroll")]:
     fail.append("a request not yet with payroll is named with the step it waits for, oldest first; one sent, rejected "
                 "or cancelled waits for nothing: %s" % [(row["name"], row["status"], row["next"]) for row in waits])
 if waits[2]["hours"] != 1.5 or R.waiting(None) != [] or R.waiting([]) != []:
@@ -375,12 +375,75 @@ if [(row["day_kind"], row["multiplier"]) for row in own_day["rows"]] != [
         (R.WEEKDAY, R.ACT_MULTIPLIERS[R.WEEKDAY]), (R.REST_DAY, R.ACT_MULTIPLIERS[R.REST_DAY])]:
     fail.append("one person's rest day is another's working day, and each is priced as their own: %s"
                 % [(row["day_kind"], row["multiplier"]) for row in own_day["rows"]])
-for status in ("Requested", "Authorised", "Costed"):
-    expect("refusing overtime that is %s" % status, R.reject_errors(status, "No budget."))
-expect("refusing overtime already with the payroll", R.reject_errors("Sent to Payroll", "No budget."),
-       "before it reaches the payroll")
-expect("refusing a draft", R.reject_errors(None, "No budget."), "before it reaches the payroll")
-expect("refusing without saying why", R.reject_errors("Requested", " "), "Say why")
+
+# ── the approval: the Actions menu, as every other request ──────────────
+W = load("overtime_approval")
+if (W.DOCTYPE, W.WORKFLOW_NAME, W.STATE_FIELD) != ("Overtime Request", "Overtime Request", "workflow_state"):
+    fail.append("the workflow is the Overtime Request's own, on Frappe's state field")
+if set(W.ACTIONS) != {"Submit", "Approve", "Return", "Reject", "Cancel"}:
+    fail.append("its actions are those every other request has: %s" % (W.ACTIONS,))
+if [W.docstatus_of(state) for state in (W.DRAFT, W.REQUESTED, W.AUTHORISED, W.COSTED, W.SENT, W.REJECTED, W.CANCELLED)] \
+        != [0, 0, 0, 1, 1, 1, 2]:
+    fail.append("a request is a draft until HR approve it, which submits it; refused it is submitted as a record")
+if {row["state"] for row in W.STATES} != set(R.STATUSES) or any(row["status"] != row["state"] for row in W.STATES):
+    fail.append("every state is a status the request can read, and writes that status: %s"
+                % sorted({row["state"] for row in W.STATES} ^ set(R.STATUSES)))
+if any(row["send_email"] for row in W.STATES):
+    fail.append("no state mails the request: it carries people's hourly pay once it is costed")
+for label, got, want in (
+    ("a supervisor raises it", W.next_states(W.DRAFT, ["Supervisor"]), [("Submit", W.REQUESTED)]),
+    ("an employee cannot", W.next_states(W.DRAFT, ["Employee"]), []),
+    ("the officer who carries the section authorises, returns or refuses",
+     W.next_states(W.REQUESTED, ["Production Manager"]),
+     [("Approve", W.AUTHORISED), ("Return", W.DRAFT), ("Reject", W.REJECTED)]),
+    ("a supervisor cannot authorise their own request", W.next_states(W.REQUESTED, ["Supervisor"]), []),
+    ("HR approve the cost, return or refuse", W.next_states(W.AUTHORISED, ["HR User"]),
+     [("Approve", W.COSTED), ("Return", W.DRAFT), ("Reject", W.REJECTED)]),
+    ("the officer cannot approve the cost", W.next_states(W.AUTHORISED, ["Production Manager"]), []),
+    ("approved, only the HR Manager cancels it", W.next_states(W.COSTED, ["HR Manager"]), [("Cancel", W.CANCELLED)]),
+    ("and nobody refuses it: it is cancelled", W.next_states(W.COSTED, ["HR User", "Production Manager"]), []),
+    ("with payroll, the same", W.next_states(W.SENT, ["HR Manager"]), [("Cancel", W.CANCELLED)]),
+    ("a refused request goes nowhere", W.next_states(W.REJECTED, ["HR Manager", "Production Manager"]), []),
+):
+    if got != want:
+        fail.append("the Actions menu: %s: %s, not %s" % (label, got, want))
+if not [row for row in W.TRANSITIONS if row["next_state"] == W.SENT] == []:
+    fail.append("Sent to Payroll is no approval: nobody takes a request there from the Actions menu")
+expect("returning it without saying what to put right", W.step_errors(W.REQUESTED, W.DRAFT, {}), "Return Remarks")
+expect("returning it with the reason", W.step_errors(W.AUTHORISED, W.DRAFT, {"return_remarks": "Wrong day."}))
+expect("the officer refusing without saying why", W.step_errors(W.REQUESTED, W.REJECTED, {"cost_remarks": "x"}),
+       "authorising officer's remarks")
+expect("HR refusing without saying why", W.step_errors(W.AUTHORISED, W.REJECTED, {"authority_remarks": "x"}),
+       "HR's remarks")
+expect("refusing with the reason", W.step_errors(W.REQUESTED, W.REJECTED, {"authority_remarks": "No budget."}))
+expect("approving needs no remarks", W.step_errors(W.REQUESTED, W.AUTHORISED, {}))
+blank = dict.fromkeys(W.ALL_STAMP_FIELDS)
+signed = W.compute_stamps(W.REQUESTED, W.AUTHORISED, "pm@luuka", "2026-10-13", blank)
+if signed != dict(blank, authorised_by="pm@luuka", authorised_on="2026-10-13"):
+    fail.append("authorising signs for it: %s" % signed)
+costed_by = W.compute_stamps(W.AUTHORISED, W.COSTED, "hro@luuka", "2026-10-14", signed)
+if costed_by != dict(signed, costed_by="hro@luuka", costed_on="2026-10-14"):
+    fail.append("HR's approval signs for the cost, and the officer's signature stays: %s" % costed_by)
+if W.compute_stamps(W.AUTHORISED, W.DRAFT, "hro@luuka", "2026-10-14", signed) != blank:
+    fail.append("a return clears every signature")
+if W.compute_stamps(W.REQUESTED, W.REJECTED, "pm@luuka", "2026-10-13", blank)["authorised_by"] != "pm@luuka":
+    fail.append("a refusal is signed by whoever decided")
+if W.compute_stamps(W.AUTHORISED, W.AUTHORISED, "x", "2026-10-15", dict(signed, authorised_by="typed")) != dict(
+        signed, authorised_by="typed") or W.compute_stamps(None, W.DRAFT, "x", "2026-10-15", signed) != blank:
+    fail.append("a save that takes no step keeps the signatures as they were; a new request has none")
+for label, got, want in (
+    ("a draft", W.stage_of(0, "Draft"), (W.DRAFT, 0)),
+    ("one waiting to be authorised goes back to a draft at that step", W.stage_of(1, "Requested"), (W.REQUESTED, 0)),
+    ("one waiting for the cost check too", W.stage_of(1, "Authorised"), (W.AUTHORISED, 0)),
+    ("one costed stays submitted", W.stage_of(1, "Costed"), (W.COSTED, 1)),
+    ("one with payroll", W.stage_of(1, "Sent to Payroll"), (W.SENT, 1)),
+    ("one refused", W.stage_of(1, "Rejected"), (W.REJECTED, 1)),
+    ("one cancelled", W.stage_of(2, "Cancelled"), (W.CANCELLED, 2)),
+    ("one submitted with no status", W.stage_of(1, None), (W.REQUESTED, 0)),
+):
+    if got != want:
+        fail.append("a request raised before the workflow: %s: %s, not %s" % (label, got, want))
+print("the approval: Submit, Approve by the officer, Approve by HR; Return and Reject with the reason")
 request_line = fields_of(doctype("Overtime Request Employee"))
 for fieldname in ("day_kind", "overtime_type", "multiplier", "worked_hours", "clocked", "payable_hours"):
     if not (request_line.get(fieldname) or {}).get("read_only"):
@@ -514,14 +577,15 @@ for forbidden, why in (
 ):
     if forbidden in body:
         fail.append("overtime.py: %s (%r found in the code)" % (why, forbidden))
-for name in ("cost_check", "send_to_payroll"):
-    if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue):
-        fail.append("overtime.%s changes something: a whitelisted POST method" % name)
-if glue.count("check_permission(") < 2:
-    fail.append("each whitelisted method must check the caller may act")
+if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef send_to_payroll\(', glue) \
+        or 'doc.check_permission("submit")' not in glue.split("def send_to_payroll(")[1].split(chr(10) + "def ")[0]:
+    fail.append("overtime.send_to_payroll changes something: a whitelisted POST method that checks the caller may act")
+for gone in ("def cost_check(", "def authorise_overtime(", "def reject_overtime(", "def _let_authorise("):
+    if gone in glue or gone in read("hrms_addon", "hrms_addon", "attendance.py"):
+        fail.append("%s is gone: the request is approved from the Actions menu, not by a button of its own" % gone)
 if "fill_day_and_rate" not in read("hrms_addon", "hrms_addon", "attendance.py"):
     fail.append("the request must learn what day it falls on as it validates")
-landed = glue.split("def send_to_payroll(")[1].split(chr(10) + "def ")[0]
+landed = glue.split("def send(")[1].split(chr(10) + "def ")[0]
 if "rules.person_type(theirs, grosses.get(row[\"employee\"]), types, row[\"employee\"]," not in landed \
         or "hours=paid, named=named)" not in landed:
     fail.append("the hours land on each attendance under the type their own gross puts them in, or "
@@ -571,9 +635,10 @@ rated_by = glue.split("def fill_day_and_rate(")[1].split(chr(10) + "def ")[0]
 if "return rules.eligibility_errors(rated)" not in rated_by or "_departments(people_on_it))[\"rows\"]" not in rated_by:
     fail.append("a request's lines are rated by who each type is for, and those no type is open to are reported")
 raising = read("hrms_addon", "hrms_addon", "attendance.py").split("def overtime_validate(")[1].split(chr(10) + "def ")[0]
-if "closed = overtime.fill_day_and_rate(doc) or []" not in raising or "errors += closed" not in raising:
+if "closed = overtime.fill_day_and_rate(doc) or []" not in raising \
+        or "overtime.check_step(doc, errors + closed)" not in raising:
     fail.append("somebody no Overtime Type is open to is refused when the request is raised")
-if "if closed:\n        frappe.throw(" not in landed:
+if "if closed:\n        return stopped(closed)" not in landed:
     fail.append("and never sent to payroll under a type closed to them since")
 print("glue: the day read, the cost checked, the hours landed, the slip drawn")
 
@@ -608,22 +673,21 @@ if "hrms_addon.hrms_addon.overtime.setup_on_migrate" not in hooks.get("after_mig
 if "warn_below_the_act" not in glue:
     fail.append("a rate edited under the Act is said out loud on the deploy")
 form = read("hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.js")
-if '["Requested", "Authorised", "Costed"].includes(frm.doc.status)' not in form:
-    fail.append("the form offers Reject while the overtime is being decided, and not after")
-for needle in ("overtime.cost_check", "overtime.send_to_payroll"):
+for button in ("Authorise", "Reject", "Check the Cost"):
+    if 'add_custom_button(__("%s")' % button in form:
+        fail.append("the form has no %s button of its own: that is on the Actions menu" % button)
+if "overtime.send_to_payroll" not in form or 'frm.doc.docstatus === 1 && status === "Costed" && frm.has_perm("submit")' not in form:
+    fail.append("HR can send an approved request to payroll from its form, which says what stops it")
+if "frm.dashboard.set_headline(" in form or "frm.dashboard.clear_headline(" in form:
+    fail.append("the form says where the request stands in one line: a headline set after an intro wipes it")
+for needle in ('Requested: [__("Waiting for the authorising officer."), "orange"]',
+               'Authorised: [__("Authorised. Waiting for HR to approve the cost."), "orange"]'):
     if needle not in form:
-        fail.append("the form has no way to call %s" % needle)
-# the hours reach Frappe HR's slip, or it is said why not
-for status, step in R.NEXT_STEP.items():
-    if status != "Draft" and 'frm.add_custom_button(__("%s")' % step not in form:
-        fail.append("the step a request at %s waits for is a button on its form: %s" % (status, step))
-if 'frm.doc.docstatus === 1 && frm.doc.status === "Requested") {\n\t\t\tfrm.set_intro(' not in form \
-        or "Waiting to be authorised." not in form:
-    fail.append("a requested overtime says on its form that it waits to be authorised")
+        fail.append("a request says on its form whom it waits for (%s)" % needle)
 filled = glue.split("def fill_day_and_rate(")[1].split(chr(10) + "def ")[0]
 if "doc.overtime_type" in glue or "doc.multiplier" in glue or "rules.priced(" not in filled:
     fail.append("no rate is written on the request's header: the lines are rated by the same rules that cost them")
-costing = glue.split("def cost_check(")[1].split(chr(10) + "def ")[0]
+costing = glue.split("def _cost(")[1].split(chr(10) + "def ")[0]
 if 'row.get("hours"), (types.get(row.get("overtime_type")) or {}).get("maximum_overtime_hours_allowed"))' not in costing:
     fail.append("the ceiling is checked on each person's hours against their own Overtime Type")
 back = glue.split("def take_back(")[1].split(chr(10) + "def ")[0]
@@ -646,9 +710,10 @@ if "overtime.take_back(doc)" not in cancelled:
 if 'values.pop("overtime_type")' in glue:
     fail.append("hours are never written onto an attendance without their Overtime Type: the slip does not read them")
 if "    if _missing_types(plans):\n        seed_overtime_types()\n        plans = planned()" not in landed \
-        or "frappe.throw(_(rules.missing_type_error(missing))" not in landed:
+        or "return stopped([_(rules.missing_type_error(missing))])" not in landed:
     fail.append("a type the site does not have is made as the migrate makes it, and the hand-off refused where it cannot be")
-elif landed.index("frappe.throw(_(rules.missing_type_error(missing))") > landed.index('frappe.db.set_value("Attendance"'):
+elif landed.index("return stopped([_(rules.missing_type_error(missing))])") > landed.index(
+        'frappe.db.set_value("Attendance"'):
     fail.append("the hand-off is refused before anything is written")
 note = glue.split("def waiting(")[1].split(chr(10) + "def ")[0]
 if not re.search(r"@frappe\.whitelist\(\)\ndef waiting\(employee=None, start_date=None, end_date=None\):", glue):
@@ -685,16 +750,58 @@ request_spec = json.loads(read("hrms_addon", "hrms_addon", "doctype", "overtime_
 asked = {"Production Manager", "Head of Department"}
 may = {row["role"] for row in request_spec["permissions"] if row.get("submit")}
 if not asked <= may:
-    fail.append("those asked to authorise overtime may: the Authorise button asks for the right to submit (%s lack it)"
+    fail.append("those asked to authorise overtime may: refusing submits the request (%s lack the right)"
                 % sorted(asked - may))
-raised = read("hrms_addon", "hrms_addon", "attendance.py")
-submitted = raised.split("def overtime_on_submit(")[1].split(chr(10) + "def ")[0]
+if not asked <= set(W.AUTHORISERS) or not set(W.HR) <= {row["role"] for row in request_spec["permissions"] if row.get("submit")}:
+    fail.append("and the workflow lets them, as it lets HR approve the cost")
+holding = glue.split("def _holders(")[1].split(chr(10) + "def ")[0]
 for role in asked:
-    if 'people.people_for("%s"' % role not in submitted:
+    if 'people.people_for("%s"' % role not in holding:
         fail.append("overtime is no longer sent to the %s to authorise: see who is, and that they may" % role)
-if "_let_authorise(doc, approvers)" not in submitted or "submit=1" not in raised.split("def _let_authorise(")[1].split(
-        chr(10) + "def ")[0]:
-    fail.append("and whoever is asked on a site whose roles differ is given the right on that request")
+telling = glue.split("def _tell(")[1].split(chr(10) + "def ")[0]
+if "_let_act(doc, users)" not in telling or "submit=1" not in glue.split("def _let_act(")[1].split(chr(10) + "def ")[0] \
+        or "people.withdraw(doc.doctype, doc.name, held)" not in telling:
+    fail.append("whoever holds the request next is told, given it and able to act on it; whoever held it is let off")
+stepping = glue.split("def check_step(")[1].split(chr(10) + "def ")[0]
+for needle, why in (
+    ("before = doc.get_doc_before_save()", "the step is read off what the request was"),
+    ("approval.step_errors(old, new, {", "a return or a refusal carries its reason"),
+    ("errors = list(raising) + errors", "a request is checked as it is raised, not while it is a draft"),
+    ("errors = _cost(doc, old)", "HR's approval costs it"),
+    ("approval.compute_stamps(old, new, frappe.session.user, today(), current)", "each step is signed for"),
+    ("doc.status = new", "the status reads the stage"),
+    ("_tell(doc, old, new)", "and whoever is next is told"),
+):
+    if needle not in stepping:
+        fail.append("overtime.check_step: %s" % why)
+raised = read("hrms_addon", "hrms_addon", "attendance.py")
+if "overtime.check_step(doc, errors + closed)" not in raised.split("def overtime_validate(")[1].split(chr(10) + "def ")[0]:
+    fail.append("the request's validate hands the step to overtime.check_step, with what would stop it being raised")
+if "overtime.approved(doc)" not in raised.split("def overtime_on_submit(")[1].split(chr(10) + "def ")[0]:
+    fail.append("HR's approval submits the request, and its hours go to payroll from there")
+going = glue.split("def approved(")[1].split(chr(10) + "def ")[0]
+if "if doc.get(approval.STATE_FIELD) != approval.COSTED:" not in going or "send(doc, quiet=True)" not in going \
+        or "getdate(doc.overtime_date) > getdate(today())" not in going:
+    fail.append("only an approved request whose day has come is sent, and quietly: what stops it is said, not thrown")
+ready = glue.split("def send_ready(")[1].split(chr(10) + "def ")[0]
+if '"status": approval.COSTED' not in ready or '"overtime_date": ["<", getdate(today())]' not in ready \
+        or "quiet=True" not in ready or "frappe.log_error(" not in ready:
+    fail.append("each day the approved requests whose day has passed are sent as their attendance comes in")
+if "overtime.send_ready()" not in raised.split("\ndef daily(")[1].split(chr(10) + "def ")[0]:
+    fail.append("the daily job sends approved overtime to payroll")
+if "return stopped(" not in landed or landed.count("frappe.throw(") != 1 or "if quiet:" not in landed:
+    fail.append("what stops the hand-off is thrown, or handed back when it is tried quietly; nothing is written either way")
+if "approval.STATE_FIELD: approval.SENT" not in landed:
+    fail.append("sent, the request's stage says so as well as its status")
+if "workflows.setup_on_migrate(overtime_approval, \"Overtime Request workflow\")" not in raised:
+    fail.append("the workflow is built on every migrate")
+patch = read("hrms_addon", "patches", "v1_0", "overtime_requests_on_workflow.py")
+if "hrms_addon.patches.v1_0.overtime_requests_on_workflow" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]")[-1] or "approval.stage_of(row.docstatus, row.status)" not in patch \
+        or '[approval.STATE_FIELD, "is", "not set"]' not in patch or '"docstatus": docstatus' not in patch:
+    fail.append("the requests already on the site take their stage on the workflow, once, by a patch")
+if (request.get("return_remarks") or {}).get("fieldtype") != "Small Text":
+    fail.append("a returned request says what must be put right")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 if "Overtime Request" not in nav:
     fail.append("the request has no way in")

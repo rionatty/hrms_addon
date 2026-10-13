@@ -28,6 +28,7 @@
   "column_break_6",
   "authorised_by",
   "authorised_on",
+  "return_remarks",
   "day_section",
   "day_kind",
   "column_break_8",
@@ -188,6 +189,12 @@
    "no_copy": 1
   },
   {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "description": "What must be put right, when the request is returned."
+  },
+  {
    "fieldname": "day_section",
    "fieldtype": "Section Break",
    "label": "Day Type"
@@ -307,7 +314,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-13 08:00:00.000000",
+ "modified": "2026-10-13 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Overtime Request",

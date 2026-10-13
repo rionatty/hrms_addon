@@ -349,7 +349,8 @@ def missing_type_error(names):
 
 
 # what each request not yet with payroll waits for
-NEXT_STEP = {"Draft": "Submit", "Requested": "Authorise", "Authorised": "Check the Cost", "Costed": "Send to Payroll"}
+NEXT_STEP = {"Draft": "Submit", "Requested": "Approval by the authorising officer", "Authorised": "Approval by HR",
+             "Costed": "Send to Payroll"}
 
 
 def waiting(requests):

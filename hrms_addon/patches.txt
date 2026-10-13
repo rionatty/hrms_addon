@@ -72,3 +72,4 @@ hrms_addon.patches.v1_0.shift_overtime_hours
 hrms_addon.patches.v1_0.attendance_from_the_clock
 hrms_addon.patches.v1_0.off_duty_refused_is_refused
 hrms_addon.patches.v1_0.pay_slip_names
+hrms_addon.patches.v1_0.overtime_requests_on_workflow
