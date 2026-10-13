@@ -104,10 +104,31 @@ list down the left.
   `.desktop-container`. The list, its heading and its order are CSS alone
   (`order` by the `data-id` Frappe writes on each tile), on the desk's top
   level only, and every rule stands aside while the desk is being edited,
-  so folders, drag and drop and the saved layout are untouched.
+  so folders, drag and drop and the saved layout are untouched. A tile
+  gains only an arrow and a menu, after what Frappe wrote in it.
 - **A flex row, not a grid.** The list sits beside the home in a wrapping
   flex row on `.desktop-wrapper`. As a grid it would hold Frappe's sticky
-  navbar to its own row, and the navbar would scroll away.
+  navbar to its own row, and the navbar would scroll away. The row starts
+  at the left edge and the home fills the rest, whatever the screen's width.
+- **Frappe draws the desk afresh every time it is shown.** `desktop.js`
+  empties the page and renders it again on `on_page_show`, after
+  `page-change`, so a home put on at `page-change` was wiped a moment later:
+  coming back from a module showed the plain tiles until a reload. The home
+  goes on when Frappe says the desk is drawn (`desktop_screen`), and is
+  looked for a few times more after the page changes.
+- **Edge to edge.** The page Frappe holds the desk in is padded, so the
+  navbar stopped short of the window. `bleed()` measures how far in the
+  desk sits against the pane that scrolls and CSS draws it out by that
+  much, to the scrollbar and to the foot of the window. It stops at
+  anything that would cut it off, and leaves alone a side held in by more
+  than 64px. Measured again when the window changes size.
+- **Each module opens to its own menu.** The arrow on a module lists the
+  entries of its sidebar (`frappe.boot.workspace_sidebar_item`, already cut
+  down to what the user may open), one menu open at a time; the row itself
+  still opens the module. An entry opens as Frappe's sidebar opens it. The
+  module's sidebar is asked for by name only where the entry carries no
+  filters of its own: Frappe's sidebar clears every route option once it
+  has read its own.
 - **No build.** The styles are written into the page by
   `hrms_addon_home.js`, so a change needs a restart and not `bench build`.
 

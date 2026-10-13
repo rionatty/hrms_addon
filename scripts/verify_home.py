@@ -11,6 +11,9 @@ bench.
   3  the page: loaded with the desk, switched by a boot flag, never able to
      stop the desk opening, Frappe's own tiles drawn as the list of modules
      down the left, and the desk exactly Frappe's while it is being edited
+  4  the desk come back to, drawn out to the window's edges, and each
+     module's own menu opened from the list, with what Frappe does that
+     these lean on read from Frappe itself
 
 The rules are loaded without Frappe.
 """
@@ -197,12 +200,23 @@ check(script.count("try {") >= 4 and "console.error(error);" in script,
 check("wrapper.insertBefore(home, tiles);" in script and ".desktop-container" in script
       and "innerHTML" not in script.split("function mount(")[1].split("\n\tfunction ")[0],
       "it is added before Frappe's tiles, which it never rewrites")
-check("appendChild" not in script.replace("document.head.appendChild(sheet);", "") and ".remove()" not in script.replace(
-    "there.remove();", "") and "setAttribute" not in script and ".style.order" not in script,
-    "nothing of Frappe's is moved, removed or marked: the list and its order are CSS")
+taken_off = script.split("function unmount(")[1].split("\n\t}\n")[0]
+check("appendChild" not in script.replace("document.head.appendChild(sheet);", "") and script.count("insertBefore") == 1
+      and script.count(".remove()") == 1 and ".style.order" not in script
+      and 'wrapper.querySelectorAll(".ha-home, .ha-rail-toggle, .ha-rail-menu").forEach((node) => node.remove());' in taken_off,
+      "nothing of Frappe's is moved or removed: the list and its order are CSS, and the only things taken off the "
+      "page are the home's own")
+check(script.count("insertAdjacentHTML") == 1 and 'tile.insertAdjacentHTML(\n\t\t\t\t\t\t"beforeend",' in script
+      and script.count("setAttribute") == 1 and 'toggle.setAttribute("aria-expanded"' in script
+      and script.count("classList.add(") == 2 and 'tile.classList.add("ha-has-menu");' in script
+      and 'wrapper.classList.add("ha-has-home");' in script,
+      "a tile gains an arrow and a menu after what Frappe wrote in it, and a class; nothing else of Frappe's is marked")
 check("if (!answer && asked_at && Date.now() - asked_at < FRESH_MS) return true;" in script
-      and "there.remove();" in script and 'classList.remove("ha-has-home")' in script,
-      "a failed call leaves the desk as Frappe drew it, and is not asked again at once")
+      and "else if (there && !answer) unmount(desk());" in script
+      and 'tile.classList.remove("ha-has-menu", "ha-open")' in taken_off and 'wrapper.classList.remove("ha-has-home");' in taken_off
+      and "MEASURED.forEach((name) => wrapper.style.removeProperty(name));" in taken_off,
+      "a failed call leaves the desk as Frappe drew it, the arrows, menus and measures off it too, and is not asked "
+      "again at once")
 written = set(re.findall(r"\$\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", script.split("const CSS = `")[0]))
 served = sorted(expr for expr in written if re.search(r"\b(row|card|link|action|data|waits)\.", expr) or expr == "name")
 bare = [expr for expr in served if not (expr.startswith(("esc(", "count(", "icon(")) or ".map(esc)" in expr)]
@@ -221,20 +235,43 @@ css = script.split("const CSS = `")[1].split("`;")[0].replace("${TILES}", TILES)
 check("${" not in css, "the styles name nothing else of the script's")
 rules = [line.strip() for line in css.splitlines() if "{" in line and not line.strip().startswith(("@", "/*", "from ", "to "))]
 frappes = [line for line in rules if ".desktop-" in line or ".icons" in line or ".icon-" in line]
-hidden = '.desktop-wrapper.ha-has-home[data-mode="Edit"] .ha-home { display: none; }'
-check(frappes and hidden in frappes and all(line.startswith(NOT_EDITED) for line in frappes if line != hidden),
+EDITED = '.desktop-wrapper.ha-has-home[data-mode="Edit"]'
+hidden = (EDITED + " .ha-home { display: none; }",)
+
+
+def selectors(line):
+    """Each selector of a rule: a rule may name several."""
+    return [part.strip() for part in line.split("{")[0].split(",")]
+
+
+outside = [line for line in frappes if line not in hidden]
+check(frappes and all(line in frappes for line in hidden)
+      and all(part.startswith(NOT_EDITED) for line in outside for part in selectors(line)),
       "every rule on something of Frappe's holds only outside edit mode, where the desk is exactly as Frappe draws it "
-      "(%d rules): %s" % (len(frappes), [line[:60] for line in frappes if line != hidden and not line.startswith(NOT_EDITED)][:2]))
-check(all(line.startswith((RAIL, NOT_EDITED + " > .desktop-navbar", NOT_EDITED + " > .ha-home", NOT_EDITED + " {"))
-          for line in frappes if line != hidden),
-      "and reaches only the desk's own tiles: a folder's thumbnails and the folder window keep Frappe's layout")
+      "and only the home is hidden (%d rules): %s"
+      % (len(frappes), [line[:60] for line in outside if not all(part.startswith(NOT_EDITED) for part in selectors(line))][:2]))
+
+
+def desks_own(part):
+    """The desk itself, its navbar, the home, or the desk's own tiles."""
+    return part == NOT_EDITED or part.startswith((RAIL, NOT_EDITED + " > .desktop-navbar", NOT_EDITED + " > .ha-home"))
+
+
+check(all(desks_own(part) for line in outside for part in selectors(line)),
+      "and reaches only the desk's own tiles, every selector of every rule: a folder's thumbnails and the folder "
+      "window keep Frappe's layout: %s" % [part[:70] for line in outside for part in selectors(line) if not desks_own(part)][:2])
 wide = css.split("@media (min-width: 901px) {")[1].split("\n}\n")[0]
 check(NOT_EDITED + " { display: flex; flex-wrap: wrap;" in wide and "display: grid" not in wide
       and NOT_EDITED + " > .desktop-navbar { flex: 0 0 100%; order: 0; }" in wide,
       "on a wide screen the list sits beside the home in a flex row that wraps: a grid would hold Frappe's sticky "
       "navbar to its own row")
-check("flex: 1 1 0; min-width: 0; max-width: 1196px;" in wide.split(NOT_EDITED + " > .ha-home {")[1].split("}")[0],
-      "the home starts from nothing and grows: a line breaks before it shrinks, and it would drop under the list")
+across = wide.split(NOT_EDITED + " { display: flex;")[1].split("}")[0]
+check("justify-content: flex-start;" in across and "center" not in across and "align-content: flex-start;" in across,
+      "the row starts at the left edge, and its lines at the top: centred, a wide screen had room left over at both "
+      "sides, and a desk taller than what is on it would open a gap under the navbar")
+check("flex: 1 1 0; min-width: 0; max-width: none;" in wide.split(NOT_EDITED + " > .ha-home {")[1].split("}")[0],
+      "the home starts from nothing and grows to fill the row: a line breaks before it shrinks, and it would drop "
+      "under the list; nothing caps its width")
 rail = wide.split(RAIL + " {")[1].split("}")[0]
 check("order: 1; flex: 0 0 248px; width: 248px; margin: 18px 0 18px 20px; position: sticky;" in rail
       and "top: calc(var(--desktop-navbar-height, 52px) + 18px);" in rail
@@ -258,11 +295,130 @@ check("frappe.boot.hrms_addon_home_modules" in script
       "from the order the boot carries, and a tile that is not one of the modules named comes after them")
 loose = [line.strip() for line in css.splitlines()
          if line.strip() and not line.startswith(("\t", " ", "}", "@", "/*", "   ")) and "{" in line
-         and not line.lstrip().startswith((".ha-home", ".desktop-wrapper.ha-has-home"))]
+         and not line.lstrip().startswith((".ha-home", ".ha-rail-", ".desktop-wrapper.ha-has-home"))]
 check(not loose, "every rule is the home's own or under the desk that has one: %s" % loose[:3])
 check("@media (prefers-reduced-motion: reduce)" in css and "@media (max-width: 560px)" in css,
       "it holds on a phone, and stills its motion for those who ask")
 print("page: loaded with the desk, switched by a boot flag, the modules a list down the left, the edit layout Frappe's")
+
+# ── 4. Come back to, edge to edge, a module's own menu ───────────────────
+FRAPPE = os.path.join(APPS_ROOT, "frappe", "frappe")
+
+
+def frappes_own(*parts):
+    path = os.path.join(FRAPPE, *parts)
+    return io.open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+
+
+# Frappe draws its desk afresh every time the page is shown, after "page-change", and says when it has
+container = frappes_own("public", "js", "frappe", "views", "container.js")
+desktop = frappes_own("desk", "page", "desktop", "desktop.js")
+shown = desktop.split('frappe.pages["desktop"].on_page_show')[1].split("};")[0] if "on_page_show" in desktop else ""
+made = desktop.split("\n\tmake() {")[1].split("\n\t}\n")[0] if "\n\tmake() {" in desktop else ""
+check(container and 0 < container.find('$(document).trigger("page-change");') < container.find('$(this.page).trigger("show");')
+      and "desktop_page.update();" in shown and "$(this.page.body).empty();" in made and "this.setup();" in made
+      and '$(document).trigger("desktop_screen", { desktop: this });' in desktop.split("\n\tsetup() {")[1].split("\n\t}\n")[0],
+      "Frappe says the page changed, then empties its desk and draws it afresh, then says the desk is drawn: read "
+      "from %s" % FRAPPE)
+check('$(document).on("desktop_screen", drawn_again);' in script and '$(document).on("page-change", arrive);' in script
+      and "if (on_desk() && !present()) show();" in script.split("function drawn_again(")[1].split("\n\t}\n")[0],
+      "so the home goes back on when Frappe says the desk is drawn, where it is missing")
+looking = script.split("function arrive(")[1].split("\n\t}\n")[0]
+check("const there = present() || show();" in looking
+      and "if (tries < 12 && (!there || tries < 5)) setTimeout(look, 150 * tries);" in looking,
+      "and is looked for a few times more after the page changes, having been on the desk Frappe was about to empty")
+found = script.split("function desk(")[1].split("\n\t}\n")[0]
+there = script.split("function present(")[1].split("\n\t}\n")[0]
+check("wrapper.offsetParent !== null" in found and "const wrapper = desk();" in script.split("function mount(")[1]
+      and 'home.childElementCount && wrapper.classList.contains("ha-has-home")' in there,
+      "on the desk that is on the screen, which has the home when the home is in it with something drawn")
+
+# edge to edge
+measure = script.split("function bleed(")[1].split("\n\t}\n")[0]
+check("const MOST_INSET = 64;" in script
+      and measure.index("MEASURED.forEach((name) => wrapper.style.removeProperty(name));") < measure.index("getBoundingClientRect()")
+      and 'wrapper.closest(".main-section")' in measure and "try {" in measure and "console.error(error);" in measure,
+      "how far in the page holds the desk is measured afresh, from where Frappe puts it, against the pane that "
+      "scrolls, and never stops the desk opening")
+check('cut.overflowX !== "visible" || cut.overflowY !== "visible"' in measure
+      and "inset[side] > 0.5 && inset[side] <= MOST_INSET" in measure
+      and 'wrapper.style.setProperty("--ha-bleed-" + side, (drawn_out ? Math.round(inset[side]) : 0) + "px");' in measure
+      and "if (frame === pane) wrapper.style.setProperty(\"--ha-desk-height\"" in measure,
+      "it is drawn out no further than something that would cut it off, not at all on a side something wide holds "
+      "it in from, and made as tall as the window only against the window")
+check('const MEASURED = ["--ha-bleed-l", "--ha-bleed-r", "--ha-bleed-t", "--ha-bleed-b", "--ha-desk-height"];' in script
+      and "bleed(wrapper);" in script.split("function mount(")[1].split("\n\t}\n")[0]
+      and '$(window).on("resize", resized);' in script
+      and "measuring = setTimeout(measure, 150);" in script.split("function resized(")[1].split("\n\t}\n")[0]
+      and 'if (wrapper && wrapper.classList.contains("ha-has-home")) bleed(wrapper);' in script.split("function measure(")[1].split("\n\t}\n")[0]
+      and "if (there) measure();" in looking,
+      "measured each time the home goes on, each time it is looked for (the page may not have been laid out when it "
+      "went on) and when the window changes size")
+drawn_out = css.split("\n" + NOT_EDITED + " {")[1].split("}")[0]
+check("margin: calc(-1 * var(--ha-bleed-t, 0px)) calc(-1 * var(--ha-bleed-r, 0px)) calc(-1 * var(--ha-bleed-b, 0px)) "
+      "calc(-1 * var(--ha-bleed-l, 0px));" in drawn_out and "width: auto; max-width: none;" in drawn_out
+      and "min-height: var(--ha-desk-height, 0px);" in drawn_out and "background-color: inherit;" in drawn_out,
+      "CSS draws the desk out by what was measured, and by nothing where nothing was; its colour is the page's own, "
+      "whatever the theme")
+
+# a module's own menu
+sidebar = frappes_own("public", "js", "frappe", "ui", "sidebar", "sidebar.js")
+router = frappes_own("public", "js", "frappe", "router.js")
+check("frappe.boot.workspace_sidebar_item[desktop_icon.label.toLowerCase()]" in desktop
+      and "sidebar: desktop_icon.label," in desktop
+      and "(frappe.boot.workspace_sidebar_item || {})[String(label).toLowerCase()]" in script.split("function entries(")[1],
+      "a module's menu is its sidebar's, found by the tile's name as Frappe finds it")
+listed = script.split("function entries(")[1].split("\n\t}\n")[0]
+check('item.type === "Section Break"' in listed and 'item.type === "Link"' in listed and "path_of(item)" in listed
+      and "!row.heading || (all[index + 1] && !all[index + 1].heading)" in listed,
+      "its headings and the entries under them, an entry that goes nowhere and a heading with nothing under it left out")
+ways = script.split("function path_of(")[1].split("\n\t}\n")[0]
+item_js = frappes_own("public", "js", "frappe", "ui", "sidebar", "sidebar_item.js")
+check(all(needle in item_js for needle in ('this.item.link_type === "Report"', 'this.item.link_type == "Workspace"',
+                                           'this.item.link_type === "URL"', "tab: this.item.tab,", 'args.doc_view = "List";'))
+      and all(needle in ways for needle in ('item.link_type === "URL"', 'item.link_type === "Workspace"',
+                                            'item.link_type === "Report"', "if (!item.report) return null;",
+                                            'item.link_type === "Page" && item.route_options', "args.tab = item.tab;",
+                                            'args.doc_view = "List";', "frappe.utils.generate_route(args)")),
+      "each entry's address is worked out as Frappe's sidebar works it out: a report, a workspace, an address of its "
+      "own, a page, a tab, a list on the entry's filters")
+opened = script.split("function follow(")[1].split("\n\t}\n")[0]
+check("frappe.app.sidebar.setup(frappe.route_options.sidebar);\n\t\t\t\tfrappe.route_options = null;" in sidebar
+      and "frappe.route_hash = target_element.hash;" in router and "frappe.router.is_app_route(target_element.pathname)" in router,
+      "Frappe's sidebar clears every route option once it has read its own, and its router takes a link's tab from "
+      "its address: read from Frappe")
+check("frappe.route_options = Object.keys(options).length ? options : { sidebar: module };" in opened
+      and "if (url.hash) frappe.route_hash = url.hash;" in opened and "frappe.set_route(url.pathname);" in opened
+      and 'window.open(url.href, "_blank", "noopener");' in opened
+      and "outside || url.origin !== window.location.origin || !frappe.router.is_app_route(url.pathname)" in opened,
+      "so an entry opens on its module's sidebar unless it carries filters of its own, which would be lost; a tab "
+      "goes as the router sends it; an address outside the desk opens in a tab of its own")
+drawn = script.split("function menus(")[1].split("\n\t}\n")[0]
+check('":scope > .desktop-container > .icons-container > .icons > .desktop-icon[data-id]"' in drawn
+      and 'if (tile.querySelector(".ha-rail-menu")) return;' in drawn and "if (!list.length) return;" in drawn
+      and "event.preventDefault();" in drawn and "event.stopPropagation();" in drawn
+      and 'event.key === "Enter" || event.key === " "' in drawn and "try {" in drawn,
+      "the arrow and the menu go on the desk's own tiles once, only where there is a menu; a click on them is "
+      "theirs and never opens the module; they work from the keyboard")
+check('role="button" tabindex="0" aria-expanded="false"' in drawn and 'role="link" tabindex="0"' in drawn
+      and "${esc(__(row.heading))}" in drawn and "${esc(__(row.label))}" in drawn
+      and "open_module = open_module === module ? null : module;" in drawn,
+      "one menu open at a time, each name written as text")
+shows = [line for line in rules if ".ha-rail-" in line and "display:" in line.split("{", 1)[1].split("}")[0].replace("display: none", "")]
+check("\n.ha-rail-toggle, .ha-rail-menu { display: none; }\n" in css
+      and shows and all(part.startswith(TILES + " > .desktop-icon") for line in shows for part in selectors(line))
+      and "display: grid;" in css.split(TILES + " > .desktop-icon > .ha-rail-toggle {")[1].split("}")[0]
+      and "display:" not in css.split(TILES + " > .desktop-icon > .ha-rail-menu {")[1].split("}")[0]
+      and TILES + " > .desktop-icon.ha-open > .ha-rail-menu { display: block; }" in css,
+      "the arrow and the menu are hidden wherever their tile is (the desk being edited, a folder's window) and "
+      "shown only in the list, the menu only once its arrow opens it: %s" % [line[:70] for line in shows][:4])
+check(TILES + " > .desktop-icon.ha-open > .ha-rail-menu { display: block; }" in css
+      and "box-sizing: border-box;" in css.split(TILES + " > .desktop-icon > .ha-rail-menu {")[1].split("}")[0]
+      and TILES + " > .desktop-icon.ha-has-menu > .icon-caption { flex: 1 1 0; width: auto !important; }" in css
+      and TILES + " > .desktop-icon.ha-has-menu::after { display: none; }" in css,
+      "a menu is shut until its arrow opens it and keeps inside the list; the name shares the row with the picture "
+      "and the arrow, which stands for the plain mark")
+print("fixes: the home back on a desk drawn afresh, the desk out to the window's edges, each module's menu from the list")
 
 print()
 if fail:

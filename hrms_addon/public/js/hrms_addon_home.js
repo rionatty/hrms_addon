@@ -36,10 +36,15 @@
 	// Frappe's tiles on the desk itself, and never while the desk is being edited
 	const RAIL = '.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .desktop-container';
 	const TILES = RAIL + " > .icons-container > .icons";
+	// how far in a padded page may hold the desk and still be drawn out to the window's edges
+	const MOST_INSET = 64;
+	// what bleed() measures and CSS reads
+	const MEASURED = ["--ha-bleed-l", "--ha-bleed-r", "--ha-bleed-t", "--ha-bleed-b", "--ha-desk-height"];
 	let answer = null;
 	let asked_at = 0;
 	let asking = false;
 	let tab = "items";
+	let open_module = null; // the module whose own menu is open in the list
 
 	const ICONS = {
 		employees:
@@ -109,9 +114,23 @@
 		document.head.appendChild(sheet);
 	}
 
+	// Frappe's desk page as it is on the screen now. Frappe empties and draws it again every time the page is
+	// shown (desktop.js: on_page_show -> make), so what was put on it before is gone and it is looked for afresh.
+	function desk() {
+		const all = Array.from(document.querySelectorAll(".desktop-wrapper"));
+		return all.find((wrapper) => wrapper.offsetParent !== null) || all[0] || null;
+	}
+
+	// whether the home is on that desk already
+	function present() {
+		const wrapper = desk();
+		const home = wrapper && wrapper.querySelector(".ha-home");
+		return !!(home && home.childElementCount && wrapper.classList.contains("ha-has-home"));
+	}
+
 	// where the home goes: inside Frappe's desk page, before its tiles
 	function mount() {
-		const wrapper = document.querySelector(".desktop-wrapper");
+		const wrapper = desk();
 		const tiles = wrapper && wrapper.querySelector(".desktop-container");
 		if (!wrapper || !tiles) return null;
 		let home = wrapper.querySelector(".ha-home");
@@ -123,7 +142,215 @@
 		}
 		// the heading of the list of modules, which CSS writes above Frappe's tiles
 		wrapper.style.setProperty("--ha-rail-title", JSON.stringify(__("Modules")));
+		bleed(wrapper);
+		menus(wrapper);
 		return home;
+	}
+
+	// The page Frappe puts the desk in is padded, so the navbar stopped short of the window's edges and the
+	// home sat in from them. How far in the desk sits is measured, and CSS draws it out by that much, and
+	// down to the foot of the window. Past MOST_INSET something else holds it (a sidebar, a footer), and on
+	// that side it is left where it is.
+	function bleed(wrapper) {
+		try {
+			MEASURED.forEach((name) => wrapper.style.removeProperty(name));
+			const box = wrapper.getBoundingClientRect();
+			if (!box.width) return;
+			// what the desk may be drawn out to: the pane that scrolls, whose scrollbar it must stop at, or
+			// something inside the pane that would cut off whatever is drawn past it
+			const pane = wrapper.closest(".main-section");
+			let frame = pane;
+			let holder = wrapper; // the part of the frame that holds the desk
+			for (let node = wrapper.parentElement; node && node !== pane && node !== document.body; node = node.parentElement) {
+				const cut = getComputedStyle(node);
+				if (cut.overflowX !== "visible" || cut.overflowY !== "visible") {
+					frame = node;
+					break;
+				}
+				holder = node;
+			}
+			const edge = frame ? frame.getBoundingClientRect() : null;
+			const left = frame ? edge.left + frame.clientLeft : -window.scrollX;
+			const top = frame ? edge.top + frame.clientTop - frame.scrollTop : -window.scrollY;
+			const width = (frame || document.documentElement).clientWidth;
+			const height = (frame || document.documentElement).clientHeight;
+			const inset = {
+				l: box.left - left,
+				r: left + width - box.right,
+				t: box.top - top,
+				b: holder.getBoundingClientRect().bottom - box.bottom,
+			};
+			let room = height; // how tall the desk is when it has little on it: the window, less what stays around it
+			Object.keys(inset).forEach((side) => {
+				const drawn_out = inset[side] > 0.5 && inset[side] <= MOST_INSET;
+				wrapper.style.setProperty("--ha-bleed-" + side, (drawn_out ? Math.round(inset[side]) : 0) + "px");
+				if (!drawn_out && (side === "t" || side === "b")) room -= Math.max(inset[side], 0);
+			});
+			// only against the window: something inside the pane is as tall as what it holds, the desk included
+			if (frame === pane) wrapper.style.setProperty("--ha-desk-height", Math.max(Math.floor(room), 0) + "px");
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	// where an entry of a module's menu goes, as Frappe's own sidebar works it out (sidebar_item.js get_path)
+	function path_of(item) {
+		try {
+			if (item.link_type === "URL") return item.url || null;
+			if (item.link_type === "Workspace") {
+				if (item.route) return item.route;
+				const slug = frappe.router.slug(item.link_to);
+				const workspace = (frappe.workspaces || {})[slug];
+				return (workspace && workspace.public ? "/desk/" : "/desk/private/") + slug;
+			}
+			const args = { type: item.link_type, name: item.link_to };
+			if (item.link_type === "Report") {
+				if (!item.report) return null;
+				args.is_query_report =
+					item.report.report_type === "Query Report" || item.report.report_type === "Script Report";
+				args.report_ref_doctype = item.report.ref_doctype;
+			} else if (item.link_type === "Page" && item.route_options) {
+				args.route_options = JSON.parse(item.route_options);
+			} else {
+				args.tab = item.tab;
+				// a list opened on the entry's own filters
+				const filtered = item.link_type === "DocType" && (item.filters ? list_filters(item.filters) : item.route_options);
+				if (filtered) {
+					args.doc_view = "List";
+					args.route_options = typeof filtered === "string" ? JSON.parse(filtered) : filtered;
+				}
+			}
+			return frappe.utils.generate_route(args) || null;
+		} catch (error) {
+			return null;
+		}
+	}
+
+	// an entry's filters as the list takes them: each field's value, without its operator
+	function list_filters(filters) {
+		const found = JSON.parse(frappe.utils.get_filter_as_json(JSON.parse(filters)) || "null");
+		if (!found) return null;
+		Object.keys(found).forEach((field) => {
+			if (Array.isArray(found[field])) found[field] = found[field][1];
+		});
+		return found;
+	}
+
+	// a module's own menu, as its sidebar lists it: the headings and the entries under them
+	function entries(label) {
+		const sidebar = (frappe.boot.workspace_sidebar_item || {})[String(label).toLowerCase()];
+		const all = [];
+		((sidebar && sidebar.items) || []).forEach((item) => {
+			if (!item || item.hidden) return;
+			if (item.type === "Section Break") all.push({ heading: item.label });
+			else if (item.type === "Link") {
+				const path = path_of(item);
+				// an address of the entry's own opens beside the desk, as it does from Frappe's sidebar
+				if (path && item.label) all.push({ label: item.label, path: path, outside: item.link_type === "URL" });
+			}
+		});
+		// a heading with nothing under it says nothing
+		return all.filter((row, index) => !row.heading || (all[index + 1] && !all[index + 1].heading));
+	}
+
+	// An entry opened as Frappe's router opens a link of its own (router.js, a click on an <a>): what follows
+	// the ? as route options, what follows the # as the tab. The module's sidebar is asked for by name, as
+	// Frappe's tile asks for it, but only where nothing else rides on the route options: Frappe's sidebar
+	// clears them all once it has read its own, and a list's filters would go with it.
+	function follow(path, module, outside) {
+		const url = new URL(path, window.location.origin);
+		if (outside || url.origin !== window.location.origin || !frappe.router.is_app_route(url.pathname)) {
+			window.open(url.href, "_blank", "noopener");
+			return;
+		}
+		const options = {};
+		url.searchParams.forEach((value, key) => {
+			options[key] = value;
+		});
+		frappe.route_options = Object.keys(options).length ? options : { sidebar: module };
+		if (url.hash) frappe.route_hash = url.hash;
+		frappe.set_route(url.pathname);
+	}
+
+	function open_state(wrapper) {
+		wrapper.querySelectorAll(".desktop-icon.ha-has-menu").forEach((tile) => {
+			const open = tile.getAttribute("data-id") === open_module;
+			tile.classList.toggle("ha-open", open);
+			const toggle = tile.querySelector(".ha-rail-toggle");
+			if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
+		});
+	}
+
+	// Each module in the list opens to its own menu, so an entry is one click from the desk. The row itself
+	// is still Frappe's tile and opens the module as before; the arrow and the menu are added inside it,
+	// which keeps them out of Frappe's count of the tiles when the desk is edited.
+	function menus(wrapper) {
+		try {
+			wrapper
+				.querySelectorAll(":scope > .desktop-container > .icons-container > .icons > .desktop-icon[data-id]")
+				.forEach((tile) => {
+					if (tile.querySelector(".ha-rail-menu")) return;
+					const module = tile.getAttribute("data-id");
+					const list = entries(module);
+					if (!list.length) return;
+					tile.insertAdjacentHTML(
+						"beforeend",
+						`<span class="ha-rail-toggle" role="button" tabindex="0" aria-expanded="false" ` +
+							`title="${esc(__("Show menu"))}">${icon("chevron")}</span>` +
+							`<span class="ha-rail-menu">` +
+							list
+								.map((row, index) =>
+									row.heading
+										? `<span class="ha-rail-heading">${esc(__(row.heading))}</span>`
+										: `<span class="ha-rail-link" role="link" tabindex="0" data-index="${index}">` +
+										  `${esc(__(row.label))}</span>`
+								)
+								.join("") +
+							`</span>`
+					);
+					tile.classList.add("ha-has-menu");
+					// neither the arrow nor the menu is the tile: a click on them does not open the module
+					const mine = (event) => {
+						event.preventDefault();
+						event.stopPropagation();
+					};
+					const flip = (event) => {
+						mine(event);
+						open_module = open_module === module ? null : module;
+						open_state(wrapper);
+					};
+					const pick = (event) => {
+						mine(event);
+						const link = event.target.closest(".ha-rail-link");
+						const row = link && list[Number(link.getAttribute("data-index"))];
+						try {
+							if (row) follow(row.path, module, row.outside);
+						} catch (error) {
+							console.error(error);
+						}
+					};
+					const keyed = (act) => (event) => {
+						if (event.key === "Enter" || event.key === " ") act(event);
+					};
+					const toggle = tile.querySelector(".ha-rail-toggle");
+					const menu = tile.querySelector(".ha-rail-menu");
+					toggle.addEventListener("click", flip);
+					toggle.addEventListener("keydown", keyed(flip));
+					menu.addEventListener("click", pick);
+					menu.addEventListener("keydown", keyed(pick));
+				});
+			open_state(wrapper);
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	// the desk as Frappe drew it: nothing of the home's left on it
+	function unmount(wrapper) {
+		wrapper.querySelectorAll(".ha-home, .ha-rail-toggle, .ha-rail-menu").forEach((node) => node.remove());
+		wrapper.querySelectorAll(".ha-has-menu").forEach((tile) => tile.classList.remove("ha-has-menu", "ha-open"));
+		wrapper.classList.remove("ha-has-home");
+		MEASURED.forEach((name) => wrapper.style.removeProperty(name));
 	}
 
 	function skeleton() {
@@ -288,8 +515,7 @@
 				asking = false;
 				const there = mount();
 				if (there && answer) draw(there);
-				else if (there && !answer) there.remove(); // nothing to show: the desk as Frappe drew it
-				if (there && !answer) document.querySelector(".desktop-wrapper").classList.remove("ha-has-home");
+				else if (there && !answer) unmount(desk()); // nothing to show: the desk as Frappe drew it
 			});
 	}
 
@@ -318,15 +544,42 @@
 	}
 
 	// Frappe draws its desk page as the route settles, so the tiles may not be
-	// there yet when the page changes: look a few times, then leave it
+	// there yet when the page changes: look a few times, then leave it. And it
+	// draws the desk afresh after "page-change" each time the page is come back
+	// to, which takes the home off again: so it looks a few times more than it
+	// takes to find the desk, and puts the home back where it is missing.
 	function arrive() {
 		if (!on_desk()) return;
 		let tries = 0;
 		const look = () => {
 			tries += 1;
-			if (!show() && tries < 12) setTimeout(look, 150 * tries);
+			const there = present() || show();
+			// measured again each time: the page may not have been laid out yet when the home went on
+			if (there) measure();
+			if (tries < 12 && (!there || tries < 5)) setTimeout(look, 150 * tries);
 		};
 		look();
+	}
+
+	// Frappe says when it has drawn the desk (desktop.js setup: "desktop_screen"): the home goes on at once
+	function drawn_again() {
+		try {
+			if (on_desk() && !present()) show();
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	// how far in the desk sits, wherever the home is on it
+	function measure() {
+		const wrapper = desk();
+		if (wrapper && wrapper.classList.contains("ha-has-home")) bleed(wrapper);
+	}
+
+	let measuring = null;
+	function resized() {
+		clearTimeout(measuring);
+		measuring = setTimeout(measure, 150);
 	}
 
 	const CSS = `
@@ -492,13 +745,55 @@ ${TILES} > .desktop-icon > .icon-caption .icon-title {
 }
 .desktop-wrapper.ha-has-home[data-mode="Edit"] .ha-home { display: none; }
 
-/* a wide screen: the modules down the left, the home beside them. A flex row
-   that wraps, not a grid: a grid would hold Frappe's sticky navbar to its own
-   row, and it would scroll away. The home starts from nothing and grows to
-   its width: a line breaks before it shrinks, and a home that started at its
-   full width would drop under the list on a screen narrower than both. */
+/* A module's own menu, opened by its arrow: the entries of its sidebar, one click from the desk. Both are
+   hidden wherever their tile is, and shown only in the list: while the desk is edited, or on a tile Frappe
+   has moved into a folder's window, nothing of them is seen. */
+.ha-rail-toggle, .ha-rail-menu { display: none; }
+${TILES} > .desktop-icon.ha-has-menu { flex-wrap: wrap !important; row-gap: 0 !important; }
+${TILES} > .desktop-icon.ha-has-menu::after { display: none; }
+/* the name takes what the picture and the arrow leave, and never a line of its own: Frappe gives it the full width */
+${TILES} > .desktop-icon.ha-has-menu > .icon-caption { flex: 1 1 0; width: auto !important; }
+${TILES} > .desktop-icon.ha-open:hover { background: none; }
+${TILES} > .desktop-icon > .ha-rail-toggle {
+	display: grid; flex: none; width: 26px; height: 26px; border-radius: 8px; place-items: center; cursor: pointer;
+	color: var(--text-muted, #5C6B82); transition: transform .12s ease, background .12s ease;
+}
+${TILES} > .desktop-icon > .ha-rail-toggle:hover, ${TILES} > .desktop-icon > .ha-rail-toggle:focus-visible {
+	background: color-mix(in srgb, var(--hra-primary, #14395E) 12%, transparent); outline: none;
+}
+${TILES} > .desktop-icon > .ha-rail-toggle > svg { width: 16px; height: 16px; }
+${TILES} > .desktop-icon.ha-open > .ha-rail-toggle { transform: rotate(90deg); color: var(--hra-primary, #14395E); }
+${TILES} > .desktop-icon > .ha-rail-menu { flex: 0 0 100%; box-sizing: border-box; min-width: 0; padding: 2px 0 6px 48px; cursor: default; }
+${TILES} > .desktop-icon.ha-open > .ha-rail-menu { display: block; }
+${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-heading {
+	display: block; margin: 9px 0 2px; padding: 0 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+	text-transform: uppercase; color: var(--text-muted, #5C6B82);
+}
+${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-heading:first-child { margin-top: 2px; }
+${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-link {
+	display: block; padding: 5px 8px; border-radius: 7px; font-size: 12.5px; line-height: 1.3; cursor: pointer;
+	color: var(--text-color, #1E2A3A);
+}
+${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-link:hover, ${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-link:focus-visible {
+	background: color-mix(in srgb, var(--hra-primary, #14395E) 9%, transparent); color: var(--hra-primary, #14395E); outline: none;
+}
+
+/* The desk reaches the window's edges and its foot: the page Frappe holds it in is padded, and the navbar
+   stopped short of the edges. bleed() measures how far in it sits. Its colour is the page's own, whatever
+   the theme. */
+.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) {
+	width: auto; max-width: none; min-height: var(--ha-desk-height, 0px); box-sizing: border-box; background-color: inherit;
+	margin: calc(-1 * var(--ha-bleed-t, 0px)) calc(-1 * var(--ha-bleed-r, 0px)) calc(-1 * var(--ha-bleed-b, 0px)) calc(-1 * var(--ha-bleed-l, 0px));
+}
+
+/* a wide screen: the modules down the left, the home beside them, from one
+   edge of the window to the other. A flex row that wraps, not a grid: a grid
+   would hold Frappe's sticky navbar to its own row, and it would scroll away.
+   The home starts from nothing and grows to fill the row: a line breaks
+   before it shrinks, and a home that started at its full width would drop
+   under the list on a screen narrower than both. */
 @media (min-width: 901px) {
-	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; column-gap: 16px; }
+	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) { display: flex; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; justify-content: flex-start; column-gap: 16px; }
 	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .desktop-navbar { flex: 0 0 100%; order: 0; }
 	${RAIL} {
 		/* the same 18px above and below: the list is as tall as the window allows, and a deeper margin
@@ -507,7 +802,7 @@ ${TILES} > .desktop-icon > .icon-caption .icon-title {
 		top: calc(var(--desktop-navbar-height, 52px) + 18px); max-height: calc(100vh - var(--desktop-navbar-height, 52px) - 36px);
 		overflow-y: auto; scrollbar-width: thin;
 	}
-	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .ha-home { order: 2; flex: 1 1 0; min-width: 0; max-width: 1196px; margin: 18px 20px 44px 0; padding: 0; }
+	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .ha-home { order: 2; flex: 1 1 0; min-width: 0; max-width: none; margin: 18px 20px 44px 0; padding: 0; }
 }
 @media (max-width: 1100px) {
 	.ha-home-panels { grid-template-columns: minmax(0, 1fr); }
@@ -529,5 +824,7 @@ ${TILES} > .desktop-icon > .icon-caption .icon-title {
 	// last, once the styles above exist: the desk may already be on the page
 	hrms_addon.home.show = arrive;
 	$(document).on("page-change", arrive);
+	$(document).on("desktop_screen", drawn_again);
+	$(window).on("resize", resized);
 	$(arrive);
 })();
