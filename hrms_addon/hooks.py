@@ -1825,6 +1825,10 @@ doc_events = {
     # handlers; signatures.log_submission filters on SIGNABLE, so one
     # entry covers all of them and none of the blocks above is disturbed.
     "*": {
+        # a document one of the app's workflows approves is submitted by its
+        # last approval step and no other way: a plain submit would skip
+        # every step and every check (workflow_rules.py)
+        "before_submit": "hrms_addon.hrms_addon.workflows.refuse_plain_submit",
         "on_submit": "hrms_addon.hrms_addon.signatures.log_submission",
         # deleted, a signable document takes its signatures with it: Frappe
         # refuses to delete what a Signature Log still names

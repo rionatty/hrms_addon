@@ -35,9 +35,18 @@ Except where the rules module says DESK_MANAGED (loan_approval.py): that
 workflow is made on the first migrate and from then on set up in the desk,
 and no deploy writes over it. A change such a workflow needs from the code
 goes out as a patch that touches only that change.
+
+SUBMITTED ONLY BY ITS LAST STEP
+
+refuse_plain_submit, on before_submit of every document (hooks.py): a
+document one of these workflows approves is submitted by its last step and
+no other way (workflow_rules.py says why).
 """
 
 import frappe
+from frappe import _
+
+from hrms_addon.hrms_addon import workflow_rules
 
 
 def setup_on_migrate(rules, label):
@@ -83,6 +92,58 @@ def grant_on_migrate(rules, label):
             pass
         frappe.log_error(title="HRMS Addon: %s failed" % label)
         print("HRMS Addon: %s FAILED — see Error Log" % label)
+
+
+_OURS = None
+
+
+def ours():
+    """The names of the workflows this app builds: the WORKFLOW_NAME of each
+    *_approval module. Read once in a process; the modules import nothing."""
+    global _OURS
+    if _OURS is None:
+        import importlib
+        import pkgutil
+
+        import hrms_addon.hrms_addon as package
+
+        names = set()
+        for found in pkgutil.iter_modules(package.__path__):
+            if not found.name.endswith("_approval"):
+                continue
+            try:
+                rules = importlib.import_module("%s.%s" % (package.__name__, found.name))
+            except Exception:
+                # one module that cannot be read must not stop every submit on the site
+                frappe.log_error(title="HRMS Addon: %s could not be read" % found.name)
+                continue
+            if getattr(rules, "WORKFLOW_NAME", None):
+                names.add(rules.WORKFLOW_NAME)
+        _OURS = frozenset(names)
+    return _OURS
+
+
+def refuse_plain_submit(doc, method=None):
+    """before_submit, on every document: one that this app's workflows
+    approve is submitted by its last approval step and no other way.
+
+    before_submit and not validate, twice over: it runs on a submit only,
+    and it runs before Frappe moves the document to the first state that
+    submits, so the state read here is still the one the document stood at.
+    A step sets its state before it submits, and so does the code here that
+    writes a document already decided (a Salary Advance Processing's
+    advances, the Talent Board), so both pass.
+    """
+    from frappe.model import workflow as frappe_workflow
+
+    name = frappe_workflow.get_workflow_name(doc.doctype)
+    if not name or name not in ours():
+        return
+    workflow = frappe.get_cached_doc("Workflow", name)
+    states = [{"state": row.state, "doc_status": row.doc_status} for row in workflow.states]
+    if workflow_rules.skips_approval(states, doc.get(workflow.workflow_state_field)):
+        frappe.throw(_("{0} is approved step by step, from the Actions menu. It cannot be submitted directly.")
+                     .format(_(doc.doctype)), title=_("Approval"))
 
 
 def ensure_workflow(rules):

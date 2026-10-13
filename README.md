@@ -335,6 +335,21 @@ it deliberately imports nothing from Frappe — and walks every approval
 path: submit, each approval, rejection, revision, and a hand-typed approval
 being reverted.
 
+`verify_plain_submit.py` covers one rule for every approval here: a document
+a workflow approves is submitted by its last step and no other way. On a
+submit that is not a step Frappe runs the document's `validate` first, which
+sees no state change and so checks nothing, and then moves the document
+itself to the first state that submits (`_validate` → `validate_workflow` →
+`set_workflow_state_on_action`). A Clearance Form in Draft came out Cleared
+that way, with no box signed. The desk hides Submit while a workflow is
+active; the API, an import and a stale copy of the form in a browser do
+not. `workflows.refuse_plain_submit` is on `before_submit` of every
+document and answers for the app's own workflows (`workflow_rules.py`): it
+reads the state the document still stands at, and refuses unless that
+state is one that submits, which is how a step arrives. The checker reads
+Frappe's source for that order, so a change upstream fails it. Code that
+submits such a document itself sets the state first.
+
 `verify_onboarding.py` covers the induction on Frappe HR's Employee
 Onboarding: its workflow, what each step needs before it may be taken
 (the Workplace Rules signed, the Employee created and its bio-data
