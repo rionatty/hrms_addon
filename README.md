@@ -153,6 +153,53 @@ list down the left.
 
 `scripts/verify_home.py` checks the rules (`home_rules.py`) and the wiring.
 
+### Module pages
+
+**HRMS Addon Theme Settings → Module Pages** — Executive / Standard. Ships
+as **Executive**: each module's workspace opens in the desk home's look,
+under a header of its own, over Frappe's own charts, lists and cards.
+
+- **The header says where you are.** The module's round picture (the one
+  its tile shows) and name, the groups of its menu (Planning · Hiring ·
+  Offers), and where it falls among the modules from recruitment to exit
+  (`home_rules.MODULES`): a track of the ten, this one in gold, each other
+  module the user may open one click away, and the ones either side by name.
+  Beside it, what waits for the user in this module, and **New …** for the
+  document its work starts with (`module_pages_rules.ACTIONS`), offered only
+  to somebody who may make it. A workspace that is not one of the modules
+  gets its own icon and name, and nothing else.
+- **What waits, kept to the module.** `module_pages.summary` reads the
+  user's own assignments and unread notifications as My Alerts reads them
+  (`alerts._assignments` / `_notifications`, here kept to the doctypes the
+  module opens: its menu, then its page's cards and shortcuts). The panel
+  lists the first five, To Do and Notifications, most urgent first, and
+  See all opens the user's own list kept to those doctypes. Nothing
+  waiting, no panel.
+- **Frappe's blocks are restyled, never rewritten.** Cards become the
+  home's white panels with a navy picture beside each heading; a card of
+  links becomes rows with the home's arrow; figures get the home's band; a
+  heading between blocks gets the gold mark; the whole page sits on the
+  home's canvas. Card kinds are named, never a bare `.widget` (every heading
+  and spacer is one too), and no card is cut to its edges, where a chart's
+  or a figure's menu opens past them.
+- **Editing is Frappe's.** Every rule on the blocks holds only on
+  `.layout-main-section:not(.edit-mode)`, and the header is hidden while
+  the workspace is edited, so editing looks and works as before.
+- **It cannot stop a module opening.** The header is one element put
+  first in the workspace's body, which Frappe only ever adds its loading
+  skeleton to and takes it from (CSS keeps the header above it). The count
+  is asked with `fetch`, not `frappe.call`; a call that fails leaves the
+  header without it.
+- **The cockpit stands aside.** The navy Workspace Cockpit repaints the same
+  page, so it shows only with Module Pages set to Standard
+  (`theme.workspace_cockpit_enabled`).
+- **No build.** The styles are written into the page by
+  `hrms_addon_module_pages.js`, so a change needs a restart and not
+  `bench build`.
+
+`scripts/verify_module_pages.py` checks the rules (`module_pages_rules.py`),
+the wiring and what Frappe does that this leans on.
+
 ### Branding
 
 **HRMS Addon Branding** writes Frappe's own fields rather than

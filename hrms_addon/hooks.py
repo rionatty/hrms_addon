@@ -114,6 +114,10 @@ app_include_js = [
     # the desk home: a greeting, today's figures, what waits for the user and
     # the pages they open most, above Frappe's own module tiles (home.py)
     "/assets/hrms_addon/js/hrms_addon_home.js",
+    # each module's own page in the home's look: a header with the module's
+    # picture, its groups, what waits for the user in it and the document
+    # most often made there, over Frappe's own cards (module_pages.py)
+    "/assets/hrms_addon/js/hrms_addon_module_pages.js",
 ]
 
 

@@ -119,11 +119,11 @@ for name in ("mark_read", "mark_all_read", "mark_document_read", "close_assignme
         fail.append("%s changes something: it must be a whitelisted POST method" % name)
 if not re.search(r"@frappe\.whitelist\(\)\ndef my_alerts\(", glue):
     fail.append("my_alerts must be whitelisted for the rail to read it")
-if 'filters={"allocated_to": frappe.session.user, "status": "Open"}' not in glue:
+if 'filters=_about({"allocated_to": frappe.session.user, "status": "Open"}, "reference_type", doctypes),' not in glue:
     fail.append("alerts.py: the user's own open assignments (allocated_to, status Open)")
 # what has been attended to leaves the rail (Oct 2026): a notification once
 # read, an assignment once its work is done
-if 'filters={"for_user": frappe.session.user, "read": 0},' not in glue:
+if 'filters=_about({"for_user": frappe.session.user, "read": 0}, "document_type", doctypes),' not in glue:
     fail.append("alerts.py: the rail lists the notifications still unread: one read has been attended to")
 if '"unread": 0 if row.read else 1' not in glue:
     fail.append("alerts.py: an unread notification must be marked, or the panel cannot show which is new")
@@ -182,6 +182,22 @@ for call in calls_of(glue, "frappe.get_all"):
         fail.append("a list is read without filtering on the logged-in user: %s" % " ".join(call.split())[:90])
 if 'if owner != frappe.session.user:' not in glue or "frappe.PermissionError" not in glue:
     fail.append("a notification can only be marked read by the user it is for")
+# a module's page reads the same two lists, kept to the module's documents
+# (module_pages.py): the doctypes narrow the user's own filter and never
+# replace it, and the rail itself passes none
+about = glue.split("def _about(")[1].split("\ndef ")[0]
+if ('if doctypes is not None:\n        filters[field] = ["in", list(doctypes) or [""]]\n    return filters' not in about
+        or "frappe.session.user" in about or "pop(" in about or "del " in about):
+    fail.append("alerts._about keeps a list to the doctypes named by adding one 'in' filter, an empty list matching "
+                "nothing, and leaves the user's own filter as it is")
+if "def _assignments(day, doctypes=None):" not in glue or "def _notifications(day, doctypes=None):" not in glue \
+        or "rules.order(_assignments(day) + _notifications(day), day)" not in glue:
+    fail.append("the rail reads every one of the user's alerts: only a module's page names doctypes")
+for doctype, field in (("ToDo", "reference_type"), ("Notification Log", "document_type")):
+    spec_json = upstream_doctype(doctype)
+    if spec_json and field not in {f["fieldname"] for f in spec_json["fields"]}:
+        fail.append("a module's page keeps %s to its doctypes by %s, which %s does not have upstream" % (
+            doctype, field, doctype))
 for name in re.findall(r'frappe\.get_all\(\s*"([\w ]+)"', glue):
     if name not in ("ToDo", "Notification Log"):
         fail.append("the rail reads %s, which is not one of the two lists it shows" % name)

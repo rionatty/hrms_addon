@@ -42,7 +42,7 @@ function ha_preview(frm) {
 	const root = document.documentElement;
 	// Density is independent of the colour switch — see theme.py.
 	root.setAttribute("data-ha-density", (frm.doc.density || "Compact").toLowerCase());
-	root.classList.toggle("ha-cockpit", !!(frm.doc.enabled && frm.doc.workspace_cockpit));
+	root.classList.toggle("ha-cockpit", ha_cockpit_on(frm.doc));
 	Object.entries(HA_THEME_FIELDS).forEach(([fieldname, cssVar]) => {
 		const value = (frm.doc[fieldname] || "").trim();
 		if (frm.doc.enabled && value) {
@@ -51,6 +51,13 @@ function ha_preview(frm) {
 			root.style.removeProperty(cssVar);
 		}
 	});
+}
+
+// The cockpit repaints the workspace; the module pages draw it in the desk
+// home's look instead, so it shows only with Module Pages set to Standard
+// (theme.py workspace_cockpit_enabled).
+function ha_cockpit_on(doc) {
+	return !!(doc.enabled && doc.workspace_cockpit && doc.module_pages === "Standard");
 }
 
 function ha_restore_saved() {
@@ -149,8 +156,7 @@ const ha_handlers = {
 				if (frm.doc.enabled && value) palette[cssVar] = value;
 			});
 			frappe.boot.hrms_addon_theme = palette;
-			frappe.boot.hrms_addon_workspace_cockpit =
-				frm.doc.enabled && frm.doc.workspace_cockpit ? 1 : 0;
+			frappe.boot.hrms_addon_workspace_cockpit = ha_cockpit_on(frm.doc) ? 1 : 0;
 			frappe.boot.hrms_addon_density = frm.doc.density || "Compact";
 		}
 		ha_show_contrast(frm);
@@ -162,6 +168,10 @@ const ha_handlers = {
 	},
 
 	workspace_cockpit(frm) {
+		ha_preview(frm);
+	},
+
+	module_pages(frm) {
 		ha_preview(frm);
 	},
 

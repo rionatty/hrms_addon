@@ -126,17 +126,36 @@ def home_enabled():
         return 1
 
 
+def module_pages_enabled():
+    """Does each module open under a header of its own, in the desk home's
+    look (hrms_addon_module_pages.js)? It does unless Theme Settings say
+    Standard, and on a site where the field is missing or nobody has saved
+    the settings."""
+    from hrms_addon.hrms_addon import module_pages_rules
+
+    try:
+        if not frappe.db.exists("DocType", "HRMS Addon Theme Settings"):
+            return 1
+        value = frappe.get_cached_doc("HRMS Addon Theme Settings").get("module_pages")
+        return 1 if module_pages_rules.page_of(value) == module_pages_rules.EXECUTIVE else 0
+    except Exception:
+        return 1
+
+
 def workspace_cockpit_enabled():
     """Is the (opt-in) navy workspace cockpit switched on?
 
     It repaints ERPNext's own workspace layout wholesale, and that layout
-    differs between versions, so it stays off unless asked for.
+    differs between versions, so it stays off unless asked for. The module
+    pages draw the workspace in the desk home's look, so it stands aside
+    while they are on: Module Pages > Standard brings it back.
     """
     try:
         if not frappe.db.exists("DocType", "HRMS Addon Theme Settings"):
             return 0
         settings = frappe.get_cached_doc("HRMS Addon Theme Settings")
-        return 1 if (settings.get("enabled") and settings.get("workspace_cockpit")) else 0
+        on = settings.get("enabled") and settings.get("workspace_cockpit")
+        return 1 if (on and not module_pages_enabled()) else 0
     except Exception:
         return 0
 
@@ -144,7 +163,7 @@ def workspace_cockpit_enabled():
 def boot_session(bootinfo):
     """extend_bootinfo hook — ship the palette with the desk boot so the
     colours are applied before first paint (no extra round trip)."""
-    from hrms_addon.hrms_addon import desk_modules, home_rules, next_steps_rules
+    from hrms_addon.hrms_addon import desk_modules, home_rules, module_pages_rules, next_steps_rules
     from hrms_addon.hrms_addon.branding import get_boot_branding
 
     bootinfo.hrms_addon_theme = get_palette()
@@ -155,6 +174,10 @@ def boot_session(bootinfo):
     # the modules down the left of it, recruitment to exit: with the boot, so
     # the tiles are never seen in another order first
     bootinfo.hrms_addon_home_modules = list(home_rules.MODULES)
+    # each module's own page, in the home's look, and the document its header
+    # offers to make (hrms_addon_module_pages.js, module_pages.py)
+    bootinfo.hrms_addon_module_pages = module_pages_enabled()
+    bootinfo.hrms_addon_module_actions = dict(module_pages_rules.ACTIONS)
     bootinfo.hrms_addon_branding = get_boot_branding()
     # the tiles taken off the desk, hidden in the browser as well for users
     # with a desktop layout of their own (hrms_addon_desk_modules.js)

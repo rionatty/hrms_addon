@@ -7,6 +7,7 @@
   "section_layout",
   "density",
   "desk_home",
+  "module_pages",
   "column_break_layout",
   "density_help",
   "section_colours",
@@ -53,6 +54,14 @@
    "options": "Dashboard\nTiles Only"
   },
   {
+   "default": "Executive",
+   "description": "Executive: each module opens under its own header, in the desk home's look. Standard: Frappe's own workspace.",
+   "fieldname": "module_pages",
+   "fieldtype": "Select",
+   "label": "Module Pages",
+   "options": "Executive\nStandard"
+  },
+  {
    "fieldname": "column_break_layout",
    "fieldtype": "Column Break"
   },
@@ -80,8 +89,8 @@
   },
   {
    "default": "0",
-   "depends_on": "enabled",
-   "description": "Navy background with white tiles on workspace pages. Off by default.",
+   "depends_on": "eval:doc.enabled && doc.module_pages == \"Standard\"",
+   "description": "Navy background with white tiles on workspace pages, with Module Pages set to Standard. Off by default.",
    "fieldname": "workspace_cockpit",
    "fieldtype": "Check",
    "label": "Workspace Cockpit (navy canvas)"
@@ -181,7 +190,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-13 18:00:00.000000",
+ "modified": "2026-10-14 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HRMS Addon Theme Settings",

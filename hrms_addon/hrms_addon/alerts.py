@@ -51,12 +51,21 @@ def my_alerts(limit=LIMIT):
             "band": rules.badge(outstanding)[1] if outstanding else band}
 
 
-def _assignments(day):
-    """Open ToDos: what the user has been given to do. One whose work is done
-    is closed on the way, so Frappe's own ToDo list agrees with the rail."""
+def _about(filters, field, doctypes):
+    """The filters, kept to documents of the doctypes named where some are
+    (a module's page, module_pages.py): the user's own filter stays."""
+    if doctypes is not None:
+        filters[field] = ["in", list(doctypes) or [""]]
+    return filters
+
+
+def _assignments(day, doctypes=None):
+    """Open ToDos: what the user has been given to do, about documents of the
+    doctypes named where some are. One whose work is done is closed on the
+    way, so Frappe's own ToDo list agrees with the rail."""
     rows = frappe.get_all(
         "ToDo",
-        filters={"allocated_to": frappe.session.user, "status": "Open"},
+        filters=_about({"allocated_to": frappe.session.user, "status": "Open"}, "reference_type", doctypes),
         fields=["name", "reference_type", "reference_name", "description", "date", "priority", "creation"],
         order_by="modified desc",
         limit=LIMIT,
@@ -112,13 +121,14 @@ def _close(name):
     todo.save()
 
 
-def _notifications(day):
-    """The user's own notifications still unread, newest first: one read, or
-    whose document they have opened, has been attended to and leaves the
-    rail (Frappe's own panel still lists it)."""
+def _notifications(day, doctypes=None):
+    """The user's own notifications still unread, newest first, about
+    documents of the doctypes named where some are: one read, or whose
+    document they have opened, has been attended to and leaves the rail
+    (Frappe's own panel still lists it)."""
     rows = frappe.get_all(
         "Notification Log",
-        filters={"for_user": frappe.session.user, "read": 0},
+        filters=_about({"for_user": frappe.session.user, "read": 0}, "document_type", doctypes),
         fields=["name", "subject", "type", "document_type", "document_name", "from_user", "creation", "read"],
         order_by="creation desc",
         limit=LIMIT,
