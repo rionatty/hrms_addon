@@ -13,12 +13,21 @@ An allowance paid every month outside the structure, as a recurring
 Additional Salary (House Rent and Transport at Luuka), is part of the gross
 too; a payment made once (overtime, a bonus) is not. The rule is in
 pay_rules.py.
+
+The gross is always in the company's currency. An employee paid in another
+(Luuka's USD staff, currency_payroll.py) has theirs put into shillings at
+the month's rate in Currency Exchange, else the latest before it, and
+without the Tax Paid by Company earning, which is the tax the company pays
+on top of their pay and no salary: every module that compares the gross
+with a figure in shillings (an advance's limit, overtime eligibility, a
+loan, encashment, a settlement) reads it as it reads anybody's. With no
+rate at all to put it into shillings, the gross is none.
 """
 
 import frappe
 from frappe.utils import flt, getdate, today
 
-from hrms_addon.hrms_addon import pay_rules as rules
+from hrms_addon.hrms_addon import currency_payroll_rules, pay_rules as rules
 
 ASSIGNMENT = "Salary Structure Assignment"
 ADDITIONAL = "Additional Salary"
@@ -50,12 +59,35 @@ def monthly_gross(employee, on=None):
         structure = flt(assignment.annual_gross_earning) / rules.periods_in_year(frequency)
     else:
         structure = _previewed_gross(assignment, on)
+    foreign = _is_foreign(assignment)
+    if foreign:
+        # the tax the company pays on top of a USD salary is no salary
+        structure -= flt(_structure_amounts(assignment).get(currency_payroll_rules.TAX_COVER))
     allowances = standing_allowances(employee, on)
     # what the structure pays per component matters only to an allowance that
     # takes a component's place
     replacing = any(int(flt(row.get("overwrite"))) for row in allowances)
     period = rules.gross_per_period(structure, allowances, _structure_amounts(assignment) if replacing else {})
-    return flt(rules.per_month(period, frequency), 2)
+    month = flt(rules.per_month(period, frequency), 2)
+    return _in_company_currency(month, assignment, on) if foreign else month
+
+
+def _is_foreign(assignment):
+    """Whether an assignment pays in another currency than its company's."""
+    from hrms_addon.hrms_addon import currency_payroll
+
+    return currency_payroll_rules.foreign(assignment.get("currency"),
+                                          currency_payroll.company_currency(assignment.get("company")))
+
+
+def _in_company_currency(amount, assignment, on=None):
+    """An amount in the assignment's currency, in the company's, at the
+    month's rate else the latest before it; 0 with no rate at all."""
+    from hrms_addon.hrms_addon import currency_payroll
+
+    rate = currency_payroll.rate_for(assignment.get("currency"),
+                                     currency_payroll.company_currency(assignment.get("company")), on)
+    return currency_payroll_rules.in_company_currency(amount, rate) if rate else 0
 
 
 def standing_allowances(employee, on=None):
@@ -97,7 +129,11 @@ def assignment_gross(assignment):
     if not hasattr(type(assignment), "calculate_ctc_and_gross"):
         return None
     assignment.calculate_ctc_and_gross()
-    return flt(flt(assignment.annual_gross_earning) / 12, 2)
+    month = flt(flt(assignment.annual_gross_earning) / 12, 2)
+    if not _is_foreign(assignment):
+        return month
+    month -= flt(_structure_amounts(assignment).get(currency_payroll_rules.TAX_COVER))
+    return _in_company_currency(month, assignment, assignment.get("from_date"))
 
 
 def _previewed_gross(assignment, on):

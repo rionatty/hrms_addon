@@ -274,8 +274,9 @@ check(not table.get("allow_on_submit") and not table.get("reqd"), "it closes wit
 check('"Salary Structure Assignment-custom_planned_allowances"' in hooks_source, "hooks fixtures list the table")
 events = hooks_source.split('"Salary Structure Assignment": {')[1].split("},")[0]
 check(re.search(r'"validate": \["hrms_addon\.hrms_addon\.grades\.assignment_validate",\s*(#[^\n]*\n\s*)?'
-                r'"hrms_addon\.hrms_addon\.standing_allowances\.assignment_validate"\]', events),
-      "the listed allowances are judged on every save, after the grade's own check")
+                r'"hrms_addon\.hrms_addon\.standing_allowances\.assignment_validate"[,\]]', events),
+      "the listed allowances are judged on every save, after the grade's own check (and before anything added "
+      "after them)")
 check(re.search(r'"on_submit": \["hrms_addon\.hrms_addon\.salary_structures\.follow_replacement",\s*(#[^\n]*\n\s*)?'
                 r'"hrms_addon\.hrms_addon\.standing_allowances\.assignment_on_submit"\]', events),
       "and added on submit, when Frappe HR finds the assignment to pay them under")

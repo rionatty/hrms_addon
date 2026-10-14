@@ -1212,6 +1212,9 @@ fixtures = [
                     "Salary Structure Assignment-custom_allowances_html",
                     # entered on a draft, added when it is submitted
                     "Salary Structure Assignment-custom_planned_allowances",
+                    # the rate the USD formulas read (currency_payroll.py)
+                    "Salary Slip-custom_exchange_rate",
+                    "Salary Structure Assignment-custom_exchange_rate",
                     # how a component reads on the Pay Slip (payslip.py)
                     "Salary Component-custom_slip_name",
                     "Salary Component-custom_slip_order",
@@ -1749,6 +1752,9 @@ doc_events = {
     # deduction marks that month recovered, and a cancelled slip gives it
     # back (recoveries.py)
     "Salary Slip": {
+        # a slip in USD is worked out at the rate set for its month in
+        # Currency Exchange (currency_payroll.py)
+        "before_validate": "hrms_addon.hrms_addon.currency_payroll.salary_slip_before_validate",
         # a monthly slip is for the 26th to the 25th, the period the
         # month's recoveries are dated in (payslip.py)
         "validate": "hrms_addon.hrms_addon.payslip.period_validate",
@@ -1757,6 +1763,8 @@ doc_events = {
     },
     # and so is the monthly payroll run that makes the slips
     "Payroll Entry": {
+        # a payroll in USD is run at the rate set for its month in Currency Exchange
+        "before_validate": "hrms_addon.hrms_addon.currency_payroll.payroll_entry_before_validate",
         "validate": "hrms_addon.hrms_addon.payslip.period_validate",
     },
     # LPL/HR/27, the Employees Claim Form, on their own Expense Claim: the
@@ -1804,7 +1812,8 @@ doc_events = {
     "Salary Structure Assignment": {
         "validate": ["hrms_addon.hrms_addon.grades.assignment_validate",
                      # the allowances entered on a draft are judged as they will be added
-                     "hrms_addon.hrms_addon.standing_allowances.assignment_validate"],
+                     "hrms_addon.hrms_addon.standing_allowances.assignment_validate",
+                     "hrms_addon.hrms_addon.currency_payroll.assignment_validate"],
         # the onboarding and the position change that made it keep it as a
         # record: cancelling it to correct it cancels neither, and the one
         # that replaces it takes its place on them (salary_structures.py)

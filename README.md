@@ -1067,6 +1067,24 @@ disabled or draft one and a component a slip leaves out of its gross are
 not counted, and an allowance that overwrites a structure component takes
 its place instead of adding to it.
 
+`verify_currency_payroll.py` covers a **payroll in USD** (Luuka's USD
+staff, 14 Oct 2026): their own salary structure, whose parts are the pay
+they take home, the company paying their PAYE, NSSF 5% and Local Service Tax
+on top, each worked out in UGX at the month's rate. The structure, its
+formulas and its two components (USD Pay and Tax Paid by Company) are site
+data, from the USD Net Pay import files in Luuka's payroll folder. The app
+sets the rate: a Payroll Entry or Salary Slip in USD is run at the rate
+entered in Currency Exchange in the month its period ends, the latest of
+them, and is refused in a month with none (`currency_payroll.py`). Frappe
+HR works each formula out on the Salary Structure Assignment and again on
+the slip, and only the slip has an exchange rate, so the formulas read
+`custom_exchange_rate`, a hidden field on both that the app sets. A shilling
+payroll is left as it is. `pay.monthly_gross` gives a USD employee's gross
+in shillings at the month's rate (else the latest before it) and without
+the tax the company pays on top, so every module that compares it with a
+figure in shillings reads it as it reads anybody's; with no rate at all it
+is none.
+
 `verify_standing_allowances.py` covers the **Allowances** section on the
 Salary Structure Assignment: what the employee is paid every month besides
 the structure (House Rent, Transport, Meals, whatever HR adds next), listed
