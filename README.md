@@ -592,6 +592,17 @@ it, which is when Frappe HR allocates the leave. Annual leave is earned
 month by month, and Frappe HR only accrues earned leave through an
 assignment, so the plan gives a policy rather than a plain allocation.
 
+Which leave type is annual leave is the site's own: **Leave Management
+Settings → Annual Leave Type**. Left empty, it is the one the leave
+policies give whose name says annual (Luuka keeps theirs as "Annual"; the
+"Annual Leave" type the app seeds is then unused), and a patch fills the
+setting with it on migrate. Every part of the leave module asks
+`leave.annual_type()`, not the name: the plan, the balances and carry
+forward, Apply for My Leave, a day off taken as annual leave, the Leave
+Overview, the two leave reports and the leaving employee's balance on the
+Clearance Form and settlement. `verify_leave.py` fails if a module names the
+type again.
+
 All three of Luuka's advances are one document — their **Employee
 Advance** — because all three are the same thing: money paid before it is
 earned. The Advance Type says which, and one Workflow carries all three

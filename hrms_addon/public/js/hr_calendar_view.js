@@ -713,7 +713,7 @@ frappe.provide("hrms_addon");
 						label: __("Leave Type"),
 						options: "Leave Type",
 						reqd: 1,
-						default: "Annual Leave",
+						default: (this.data && this.data.annual_type) || "Annual Leave",
 					},
 					{ fieldtype: "Section Break", fieldname: "section_1" },
 					{ fieldtype: "Date", fieldname: "from_date", label: __("From"), reqd: 1, default: date },

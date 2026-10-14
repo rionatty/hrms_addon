@@ -632,6 +632,43 @@ if not re.search(r"@frappe\.whitelist\(\)\ndef plan_row\(employee, year, leave_p
     fail.append("leave.plan_row gives a picked employee's row, to those who may draw the plan up: what they have "
                 "for the year, else what the plan gives them")
 
+# the site's own annual leave type (Luuka keeps theirs as "Annual"): one lookup, asked everywhere
+lookup = glue_leave.split("def annual_type(")[1].split("\ndef ")[0]
+for needle, why in (
+        ('frappe.db.get_single_value("Leave Management Settings", "annual_leave_type")', "the setting first"),
+        ("name = found_annual_type()", "else what the leave policies give"),
+        ('cache["name"] = name or rules.ANNUAL', "else Annual Leave, and read once a request")):
+    if needle not in lookup:
+        fail.append("leave.annual_type: %s (%r not found)" % (why, needle))
+found_type = glue_leave.split("def found_annual_type(")[1].split("\ndef ")[0]
+if 'frappe.get_all("Leave Policy Detail", filters={"parenttype": "Leave Policy"}, pluck="leave_type",' not in found_type \
+        or "rules.policy_line(" not in found_type:
+    fail.append("the type the policies give is found as the plan finds a policy's annual line")
+ALLOWED = ("    if name == rules.ANNUAL:", "    if leave_type == rules.ANNUAL:", 'cache["name"] = name or rules.ANNUAL',
+           "rules.policy_line([{\"leave_type\": name} for name in dict.fromkeys(used) if name], rules.ANNUAL)")
+for parts in (("hrms_addon", "hrms_addon", "leave.py"), ("hrms_addon", "hrms_addon", "calendar_board.py"),
+              ("hrms_addon", "hrms_addon", "exits.py"), ("hrms_addon", "hrms_addon", "leave_overview.py"),
+              ("hrms_addon", "hrms_addon", "report", "leave_plan_adherence", "leave_plan_adherence.py"),
+              ("hrms_addon", "hrms_addon", "report", "leave_schedule", "leave_schedule.py")):
+    stray = [line.strip() for line in read(*parts).splitlines()
+             if re.search(r"\b(leave_)?rules\.ANNUAL\b", line) and not any(allowed in line for allowed in ALLOWED)]
+    if stray:
+        fail.append("%s names the annual leave type instead of asking leave.annual_type(): %s" % (parts[-1], stray[:2]))
+off_duty = glue_leave.split("def approve_for_off_duty(")[1].split("\ndef ")[0]
+if "    if leave_type == rules.ANNUAL:\n        leave_type = annual_type()" not in off_duty:
+    fail.append("a day off taken as annual leave is taken as the site's annual leave")
+if "\"annual_type\": leave.annual_type()" not in read("hrms_addon", "hrms_addon", "calendar_board.py") \
+        or "(this.data && this.data.annual_type)" not in read("hrms_addon", "public", "js", "hr_calendar_view.js"):
+    fail.append("the calendar's Apply dialog offers the site's annual leave first")
+settings_fields = {row["fieldname"]: row for row in json.loads(read(
+    "hrms_addon", "hrms_addon", "doctype", "leave_management_settings", "leave_management_settings.json"))["fields"]}
+if settings_fields.get("annual_leave_type", {}).get("options") != "Leave Type":
+    fail.append("Leave Management Settings has the Annual Leave Type")
+patch = read("hrms_addon", "patches", "v1_0", "annual_leave_type.py")
+if "hrms_addon.patches.v1_0.annual_leave_type" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1] \
+        or "found = leave.found_annual_type()" not in patch \
+        or 'if frappe.db.get_single_value(SETTINGS, "annual_leave_type"):\n        return' not in patch:
+    fail.append("the patch fills the setting from the policies after the model is synced, and never over HR's choice")
 # the plan gives each employee with no leave for the year their leave
 plan_days = glue_leave.split("def _fill_plan_days(")[1].split("\ndef ")[0]
 for needle, why in (
@@ -645,12 +682,12 @@ for needle, why in (
 if "    if drawing_up:\n        _fill_plan_days(doc, before)" not in glue_leave:
     fail.append("the days are worked out while the plan is drawn up, and stand once it is sent")
 policy_part = glue_leave.split("def _fill_plan_policy(")[1].split("\ndef ")[0]
-if "if default and rules.policy_days(_details(default), rules.ANNUAL) is not None:\n            doc.leave_policy = default" \
+if "if default and rules.policy_days(_details(default), annual_type()) is not None:\n            doc.leave_policy = default" \
         not in policy_part or "has no {1} line. It gives {2}." not in policy_part \
         or "rules.policy_summary(details)" not in policy_part:
     fail.append("the plan's Leave Policy is the settings' default until HR choose, where it gives annual leave; one "
                 "chosen without it is refused, saying what it does give")
-if "return rules.policy_days(_details(policy), rules.ANNUAL)" not in glue_leave.split("def _annual_days(")[1].split(
+if "return rules.policy_days(_details(policy), annual_type())" not in glue_leave.split("def _annual_days(")[1].split(
         "\ndef ")[0]:
     fail.append("an employee's policy days find its annual line as the plan does")
 base = glue_leave.split("def _base_policy(")[1].split("\ndef ")[0]
@@ -670,7 +707,7 @@ for needle, why in (
         fail.append("leave._assign: %s (%r not found)" % (why, needle))
 variant = glue_leave.split("def _policy_with_days(")[1].split("\ndef ")[0]
 if "rules.same_details(_details(name), wanted)" not in variant or "made.submit()" not in variant \
-        or "rules.variant_title(title, rules.ANNUAL, days)" not in variant:
+        or "rules.variant_title(title, annual_type(), days)" not in variant:
     fail.append("a policy with other annual days: one already made with the same days, else made and submitted")
 for needle, why in (
         ("    _assign_now_or_later(doc, submit=True)", "the approved plan submits the assignments: the leave is allocated"),

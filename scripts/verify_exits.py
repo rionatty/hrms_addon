@@ -607,7 +607,7 @@ for needle, why in (
 # the leave on the form is what the settlement pays out: Annual Leave only,
 # as it stands on the last day
 balance = function_of(glue_exits, "_leave_balance")
-if "leave_accrual.accrual(employee, leave_rules.ANNUAL, on)" not in balance or "Leave Allocation" in balance:
+if "leave_accrual.accrual(employee, leave.annual_type(), on)" not in balance or "Leave Allocation" in balance:
     fail.append("the leave balance is the Annual Leave earned and not taken, not every allocation ever made")
 if '_leave_balance(exit_doc.employee, exit_doc.get("custom_relieving_date"))' not in glue_exits:
     fail.append("the leave balance is read as at the last day of service")

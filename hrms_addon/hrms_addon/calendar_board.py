@@ -59,7 +59,7 @@ def month(view="leave", year=None, month=None, branch=None, department=None, eve
     view = "training" if view == "training" else "leave"
     out = {"view": view, "year": year, "month": number, "title": rules.month_title(year, number),
            "branch": branch, "department": department, "plan": plan, "schedule": schedule,
-           "hr": 1 if HR_ROLES & roles else 0, "everyone": cint(everyone)}
+           "hr": 1 if HR_ROLES & roles else 0, "everyone": cint(everyone), "annual_type": leave.annual_type()}
     if not (plan_doc or schedule_doc):
         own = leave.own_place(frappe.session.user)
         if own is not None:
@@ -408,11 +408,11 @@ def apply_leave(employee, from_date, to_date, leave_type=None):
     """A Leave Application for the days picked, for the employee to check and
     send; planned leave with these very dates is applied for from the plan."""
     leave._may_act_for(employee)
-    leave_type = leave_type or leave_rules.ANNUAL
+    leave_type = leave_type or leave.annual_type()
     first, last = getdate(from_date), getdate(to_date)
     if last < first:
         frappe.throw(_("The leave ends before it starts."))
-    if leave_type == leave_rules.ANNUAL:
+    if leave_type == leave.annual_type():
         approved = frappe.get_all(PLAN, filters={"docstatus": 1, "year": str(first.year)}, pluck="name")
         same = frappe.get_all(ROW, filters={"parent": ["in", approved or [""]], "parenttype": PLAN,
                                             "employee": employee, "planned_from": first, "planned_to": last},

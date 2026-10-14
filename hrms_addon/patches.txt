@@ -74,3 +74,4 @@ hrms_addon.patches.v1_0.off_duty_refused_is_refused
 hrms_addon.patches.v1_0.pay_slip_names
 hrms_addon.patches.v1_0.overtime_requests_on_workflow
 hrms_addon.patches.v1_0.clearance_forms_in_draft
+hrms_addon.patches.v1_0.annual_leave_type

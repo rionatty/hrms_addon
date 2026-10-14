@@ -10,7 +10,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate, today
 
-from hrms_addon.hrms_addon import leave_accrual, leave_rules as rules
+from hrms_addon.hrms_addon import leave, leave_accrual, leave_rules as rules
 
 
 def execute(filters=None):
@@ -33,7 +33,7 @@ def execute(filters=None):
         "leave_status": rules.plan_row_status(row.planned_from, today(), applications.get(row.leave_application)),
         "moved": bool(row.original_from)} for row in rows])
     start, end = rules.year_window(year)
-    earned = leave_accrual.earned_for([row.employee for row in rows], rules.ANNUAL,
+    earned = leave_accrual.earned_for([row.employee for row in rows], leave.annual_type(),
                                       min(max(getdate(today()), start), end))
     planned_days, earned_days, counted = {}, {}, set()
     for row in rows:

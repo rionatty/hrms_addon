@@ -55,7 +55,7 @@ def rows_for(year, branch=None, department=None):
         entry["total"] += flt(row.planned_days)
         entry["dates"].append(_("{0} to {1}").format(format_date(row.planned_from, "d MMM"),
                                                      format_date(row.planned_to, "d MMM")))
-    earned = leave_accrual.earned_for(list(out), rules.ANNUAL, min(max(getdate(today()), start), end))
+    earned = leave_accrual.earned_for(list(out), leave.annual_type(), min(max(getdate(today()), start), end))
     data = []
     for entry in out.values():
         entry.pop("holidays")

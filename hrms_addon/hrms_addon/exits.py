@@ -478,14 +478,14 @@ def _leave_balance(employee, on=None):
     the days worked have earned, less what is taken. It is the figure the
     settlement pays out, so no other leave type and no earlier year is in
     it."""
-    from hrms_addon.hrms_addon import leave_accrual, leave_rules
+    from hrms_addon.hrms_addon import leave, leave_accrual
 
     on = getdate(on or today())
-    found = leave_accrual.accrual(employee, leave_rules.ANNUAL, on)
+    found = leave_accrual.accrual(employee, leave.annual_type(), on)
     if found:
         return max(flt(found.available), 0.0)
     # leave given at the start of the year, not earned by the days worked
-    return max(flt(leave_accrual._hrms_figures(employee, leave_rules.ANNUAL, on).balance), 0.0)
+    return max(flt(leave_accrual._hrms_figures(employee, leave.annual_type(), on).balance), 0.0)
 
 
 # ── 4. The watching ───────────────────────────────────────────────────

@@ -12,6 +12,7 @@
   "allocation_section",
   "auto_allocate",
   "default_leave_policy",
+  "annual_leave_type",
   "allocation_cb",
   "allocate_now",
   "last_allocated_on",
@@ -88,6 +89,13 @@
    "fieldtype": "Link",
    "label": "Default Leave Policy",
    "options": "Leave Policy"
+  },
+  {
+   "fieldname": "annual_leave_type",
+   "fieldtype": "Link",
+   "label": "Annual Leave Type",
+   "options": "Leave Type",
+   "description": "The leave type annual leave is kept under. Left empty, the one your leave policies give whose name says annual."
   },
   {
    "fieldname": "allocation_cb",
@@ -251,7 +259,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-11 20:00:00.000000",
+ "modified": "2026-10-14 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Leave Management Settings",

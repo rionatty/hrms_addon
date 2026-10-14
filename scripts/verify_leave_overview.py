@@ -186,7 +186,7 @@ for needle, why in (
     ('"today_count": len(found["today"])', "and its count is whole"),
     ("limit = leave_follow.most_off(", "the limit is the one applications are read against"),
     ('"custom_reported_back": ["!=", 1]', "not back is not marked back"),
-    ("leave_accrual.earned_for(names, leave_rules.ANNUAL, on)", "the days earned are the accrual's own"),
+    ("leave_accrual.earned_for(names, annual, on)", "the days earned are the accrual's own"),
     ("pay.monthly_gross(name, on)", "priced from the salary structure, as pay is"),
 ):
     if needle not in glue:

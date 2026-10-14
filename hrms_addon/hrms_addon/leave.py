@@ -55,6 +55,44 @@ APPLICATION = "Leave Application"
 HR_ROLES = {"HR User", "HR Manager", "System Manager"}
 
 
+# ── 0. Luuka's own annual leave ───────────────────────────────────────
+def annual_type():
+    """The leave type annual leave is kept under on this site: Leave
+    Management Settings' Annual Leave Type; else the one the site's leave
+    policies give that is named for annual leave (Luuka's own "Annual");
+    else Annual Leave. Every part of the leave module asks this, not the
+    name, and it is read once a request."""
+    cache = _annual_cache()
+    if cache.get("name"):
+        return cache["name"]
+    name = None
+    if frappe.db.exists("DocType", "Leave Management Settings"):
+        name = frappe.db.get_single_value("Leave Management Settings", "annual_leave_type")
+    if not name:
+        name = found_annual_type()
+    cache["name"] = name or rules.ANNUAL
+    return cache["name"]
+
+
+def found_annual_type():
+    """The leave type the site's leave policies give that is named for
+    annual leave, as the plan finds a policy's annual line; None where none
+    is, or more than one might be."""
+    used = frappe.get_all("Leave Policy Detail", filters={"parenttype": "Leave Policy"}, pluck="leave_type",
+                          distinct=True, limit_page_length=0)
+    line = rules.policy_line([{"leave_type": name} for name in dict.fromkeys(used) if name], rules.ANNUAL)
+    return line["leave_type"] if line else None
+
+
+def _annual_cache():
+    local = getattr(frappe, "local", None)
+    if local is None:
+        return {}
+    if not hasattr(local, "ha_annual_type"):
+        local.ha_annual_type = {}
+    return local.ha_annual_type
+
+
 # ── 1. The Annual Leave Plan ──────────────────────────────────────────
 def plan_validate(doc, method=None):
     # the year is picked from a list, and kept as the list writes it
@@ -149,21 +187,21 @@ def _fill_plan_policy(doc):
     Annual Leave days it gives shown beside it."""
     if doc.docstatus == 0 and not doc.get("leave_policy"):
         default = _default_policy()
-        if default and rules.policy_days(_details(default), rules.ANNUAL) is not None:
+        if default and rules.policy_days(_details(default), annual_type()) is not None:
             doc.leave_policy = default
     doc.policy_days = None
     if doc.get("leave_policy"):
         details = _details(doc.leave_policy)
-        days = rules.policy_days(details, rules.ANNUAL)
+        days = rules.policy_days(details, annual_type())
         if days is None and doc.docstatus == 0:
             title = frappe.db.get_value(POLICY, doc.leave_policy, "title") or doc.leave_policy
             named = "%s (%s)" % (title, doc.leave_policy) if title != doc.leave_policy else doc.leave_policy
             if details:
                 message = _("The Leave Policy {0} has no {1} line. It gives {2}. Add {1} to it, or choose another "
-                            "policy.").format(named, _(rules.ANNUAL), rules.policy_summary(details))
+                            "policy.").format(named, _(annual_type()), rules.policy_summary(details))
             else:
                 message = _("The Leave Policy {0} gives no leave at all. Add {1} to it, or choose another policy.").format(
-                    named, _(rules.ANNUAL))
+                    named, _(annual_type()))
             frappe.throw(message, title=_(PLAN))
         doc.policy_days = days
 
@@ -185,7 +223,7 @@ def _held(employees, year, own=()):
             continue
         out.setdefault(row.employee, row.leave_policy)
     for row in frappe.get_all("Leave Allocation", filters={"employee": ["in", list(employees)], "docstatus": 1,
-                                                           "leave_type": rules.ANNUAL, "from_date": ["<=", end],
+                                                           "leave_type": annual_type(), "from_date": ["<=", end],
                                                            "to_date": [">=", start]},
                               fields=["employee", "leave_policy"], limit_page_length=0):
         out.setdefault(row.employee, row.get("leave_policy"))
@@ -233,16 +271,16 @@ def _policy_with_days(policy, days, cache=None):
     if key in cache:
         return cache[key]
     details = _details(policy)
-    if rules.policy_days(details, rules.ANNUAL) == flt(days):
+    if rules.policy_days(details, annual_type()) == flt(days):
         cache[key] = policy
         return policy
-    wanted = rules.with_days(details, rules.ANNUAL, days)
+    wanted = rules.with_days(details, annual_type(), days)
     for name in frappe.get_all(POLICY, filters={"docstatus": 1}, pluck="name", order_by="creation asc"):
         if rules.same_details(_details(name), wanted):
             cache[key] = name
             return name
     title = frappe.db.get_value(POLICY, policy, "title") or policy
-    made = frappe.get_doc({"doctype": POLICY, "title": rules.variant_title(title, rules.ANNUAL, days),
+    made = frappe.get_doc({"doctype": POLICY, "title": rules.variant_title(title, annual_type(), days),
                            "leave_policy_details": wanted})
     made.flags.ignore_permissions = True
     made.insert()
@@ -414,7 +452,7 @@ def _report(doc, done, submit, user=None):
 def annual_counts_holidays():
     """Whether annual leave counts the holidays inside it as leave: the
     Leave Type's own setting, as the Leave Application reads it."""
-    return cint(frappe.db.get_value("Leave Type", rules.ANNUAL, "include_holiday"))
+    return cint(frappe.db.get_value("Leave Type", annual_type(), "include_holiday"))
 
 
 def holidays_between(employee, start, end):
@@ -436,7 +474,7 @@ def _available(employee, year):
         return 0.0, 0.0
     start, end = rules.year_window(year)
     allocations = frappe.get_all("Leave Allocation",
-                                 filters={"employee": employee, "leave_type": rules.ANNUAL, "docstatus": 1,
+                                 filters={"employee": employee, "leave_type": annual_type(), "docstatus": 1,
                                           "from_date": ["<=", end], "to_date": [">=", start]},
                                  fields=["new_leaves_allocated", "unused_leaves"])
     if allocations:
@@ -444,7 +482,7 @@ def _available(employee, year):
         # an earned type is credited as it is earned, and an allocation made
         # from a policy can still read nothing, so the year's days (30, 21)
         # come from the employee's policy then
-        if not days or cint(frappe.db.get_value("Leave Type", rules.ANNUAL, "is_earned_leave")):
+        if not days or cint(frappe.db.get_value("Leave Type", annual_type(), "is_earned_leave")):
             days = _policy_days(employee, start, end) or days
         # unused_leaves is what was brought into the allocation; its
         # carry_forwarded_leaves_count is what it later passed on
@@ -466,7 +504,7 @@ def _policy_days(employee, start, end):
         if days:
             return days
     last = frappe.get_all("Leave Allocation",
-                          filters={"employee": employee, "leave_type": rules.ANNUAL, "docstatus": 1,
+                          filters={"employee": employee, "leave_type": annual_type(), "docstatus": 1,
                                    "to_date": ["<", start]},
                           fields=["new_leaves_allocated", "leave_policy"], order_by="to_date desc", limit=1)
     if last:
@@ -488,7 +526,7 @@ def _annual_days(policy):
     annual line is found as the plan finds it (leave_rules.policy_line)."""
     if not policy:
         return None
-    return rules.policy_days(_details(policy), rules.ANNUAL)
+    return rules.policy_days(_details(policy), annual_type())
 
 
 @frappe.whitelist()
@@ -540,13 +578,13 @@ def plan_years(year=None):
 def _carried_into(employee, start):
     """What the employee's annual leave balance carries into the year, when
     annual leave carries forward, up to the most it allows."""
-    carries = frappe.db.get_value("Leave Type", rules.ANNUAL, ["is_carry_forward", "maximum_carry_forwarded_leaves"],
+    carries = frappe.db.get_value("Leave Type", annual_type(), ["is_carry_forward", "maximum_carry_forwarded_leaves"],
                                   as_dict=True)
     if not carries or not cint(carries.is_carry_forward):
         return 0.0
     from hrms.hr.doctype.leave_application.leave_application import get_leave_balance_on
 
-    balance = max(flt(get_leave_balance_on(employee, rules.ANNUAL, add_days(start, -1),
+    balance = max(flt(get_leave_balance_on(employee, annual_type(), add_days(start, -1),
                                            consider_all_leaves_in_the_allocation_period=True)), 0.0)
     return min(balance, flt(carries.maximum_carry_forwarded_leaves)) if flt(carries.maximum_carry_forwarded_leaves) \
         else balance
@@ -740,7 +778,7 @@ def apply_from_plan(row):
     if target.leave_application and _still_applied(target.leave_application):
         return target.leave_application
     doc = frappe.get_doc({
-        "doctype": APPLICATION, "employee": target.employee, "leave_type": rules.ANNUAL,
+        "doctype": APPLICATION, "employee": target.employee, "leave_type": annual_type(),
         "from_date": target.planned_from, "to_date": target.planned_to,
         "company": frappe.db.get_value("Employee", target.employee, "company"),
         "custom_plan": target.parent, "custom_plan_row": target.name,
@@ -1059,6 +1097,8 @@ def approve_for_off_duty(request, leave_type):
     attendance. A leave the employee has not the balance for is refused
     here, and so the form is: HR give the day another way. Returns the
     Leave Application."""
+    if leave_type == rules.ANNUAL:
+        leave_type = annual_type()
     from frappe.model.workflow import apply_workflow
 
     from hrms_addon.hrms_addon import leave_approval as approval

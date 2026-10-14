@@ -169,7 +169,7 @@ def year_end(year=None, branch=None, department=None):
     day's pay, and the days the year end would lose. Management's, and
     asked for apart from the rest: every employee is priced from their own
     salary structure."""
-    from hrms_addon.hrms_addon import leave_accrual, pay
+    from hrms_addon.hrms_addon import leave, leave_accrual, pay
 
     seen = _reach()
     if not seen["money"]:
@@ -179,9 +179,10 @@ def year_end(year=None, branch=None, department=None):
     # this year as it stands today; an earlier one as it closed
     on = now if year == now.year else leave_rules.year_window(year)[1]
     names = list(_people(seen, branch, department))
-    kind = frappe.db.get_value("Leave Type", leave_rules.ANNUAL, ["is_carry_forward", "maximum_carry_forwarded_leaves"],
+    annual = leave.annual_type()
+    kind = frappe.db.get_value("Leave Type", annual, ["is_carry_forward", "maximum_carry_forwarded_leaves"],
                                as_dict=True) or frappe._dict()
-    earned = leave_accrual.earned_for(names, leave_rules.ANNUAL, on)
+    earned = leave_accrual.earned_for(names, annual, on)
     rows = []
     for name in names:
         found = earned.get(name)
@@ -189,11 +190,11 @@ def year_end(year=None, branch=None, department=None):
             days, balance = flt(found.available), flt(found.balance)
         else:
             # leave given at the start of the year, not earned by the days worked
-            days = balance = flt(leave_accrual._hrms_figures(name, leave_rules.ANNUAL, on).balance)
+            days = balance = flt(leave_accrual._hrms_figures(name, annual, on).balance)
         if days <= 0 and balance <= 0:
             continue
         rows.append({"earned": days, "balance": balance, "gross": pay.monthly_gross(name, on),
                      "carries_forward": cint(kind.is_carry_forward),
                      "most_carried": flt(kind.maximum_carry_forwarded_leaves)})
-    return dict(rules.year_end(rows), year=year, as_of=str(on), leave_type=leave_rules.ANNUAL,
+    return dict(rules.year_end(rows), year=year, as_of=str(on), leave_type=annual,
                 working_days=rules.WORKING_DAYS_A_MONTH)
