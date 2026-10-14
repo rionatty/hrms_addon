@@ -200,6 +200,29 @@ for label, rows, before, want in (
     if got != want:
         fail.append("employee_days, %s: %r, not %r" % (label, got, want))
 STAFF = [{"leave_type": "Annual Leave", "annual_allocation": 21}, {"leave_type": "Sick Leave", "annual_allocation": 60}]
+# a site's own name for annual leave: another case, or the one line that says "annual"
+for label, details, want in (
+        ("another case", [{"leave_type": "Annual leave", "annual_allocation": 21}], 21.0),
+        ("spaces about it", [{"leave_type": " ANNUAL LEAVE ", "annual_allocation": 30}], 30.0),
+        ("the one line that says annual", [{"leave_type": "Sick Leave", "annual_allocation": 60},
+                                           {"leave_type": "Annual Leaves", "annual_allocation": 28}], 28.0),
+        ("two that might be it, so neither", [{"leave_type": "Annual Leave 21", "annual_allocation": 21},
+                                              {"leave_type": "Annual Leave 30", "annual_allocation": 30}], None),
+        ("the very name before a likely one", [{"leave_type": "Annual Leave Bonus", "annual_allocation": 2},
+                                               {"leave_type": "Annual Leave", "annual_allocation": 21}], 21.0),
+        ("none at all", [{"leave_type": "Sick Leave", "annual_allocation": 60}], None)):
+    if L.policy_days(details, "Annual Leave") != want:
+        fail.append("policy_days, %s: %r, not %r" % (label, L.policy_days(details, "Annual Leave"), want))
+if L.policy_days([{"leave_type": "Annual Sick Pay", "annual_allocation": 5}], "Sick Leave") is not None:
+    fail.append("policy_days: only annual leave is looked for by the word")
+if L.with_days([{"leave_type": "Annual leave", "annual_allocation": 21}], "Annual Leave", 30) \
+        != [{"leave_type": "Annual leave", "annual_allocation": 30.0}]:
+    fail.append("with_days: the policy's own line changed, under its own name, not a second one added")
+if not L.same_details([{"leave_type": "Annual leave", "annual_allocation": 30}],
+                      [{"leave_type": "Annual Leave", "annual_allocation": 30}]):
+    fail.append("same_details: a type's name compared as the database compares it")
+if L.policy_summary(STAFF) != "Annual Leave 21, Sick Leave 60" or L.policy_summary([]) != "":
+    fail.append("policy_summary: what a policy gives, as a message names it")
 if (L.policy_days(STAFF, "Annual Leave"), L.policy_days(STAFF, "Maternity Leave"), L.policy_days([], "Annual Leave")) \
         != (21.0, None, None):
     fail.append("policy_days: the days a policy gives of one leave type, none where it gives none")
@@ -622,9 +645,14 @@ for needle, why in (
 if "    if drawing_up:\n        _fill_plan_days(doc, before)" not in glue_leave:
     fail.append("the days are worked out while the plan is drawn up, and stand once it is sent")
 policy_part = glue_leave.split("def _fill_plan_policy(")[1].split("\ndef ")[0]
-if "if doc.docstatus == 0 and not doc.get(\"leave_policy\"):\n        doc.leave_policy = _default_policy()" \
-        not in policy_part or "gives no {1}. Choose one that does." not in policy_part:
-    fail.append("the plan's Leave Policy is the settings' default until HR choose, and must give annual leave")
+if "if default and rules.policy_days(_details(default), rules.ANNUAL) is not None:\n            doc.leave_policy = default" \
+        not in policy_part or "has no {1} line. It gives {2}." not in policy_part \
+        or "rules.policy_summary(details)" not in policy_part:
+    fail.append("the plan's Leave Policy is the settings' default until HR choose, where it gives annual leave; one "
+                "chosen without it is refused, saying what it does give")
+if "return rules.policy_days(_details(policy), rules.ANNUAL)" not in glue_leave.split("def _annual_days(")[1].split(
+        "\ndef ")[0]:
+    fail.append("an employee's policy days find its annual line as the plan does")
 base = glue_leave.split("def _base_policy(")[1].split("\ndef ")[0]
 if "return leave_accrual._last_policy(employee) or plan_policy or _default_policy()" not in base:
     fail.append("the policy given: the employee's own before, else the plan's, else the default")

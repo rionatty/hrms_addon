@@ -144,16 +144,27 @@ def _fill_plan_days(doc, before=None):
 
 def _fill_plan_policy(doc):
     """The Leave Policy the plan gives employees with none before: Leave
-    Management Settings' default until HR choose, and the Annual Leave days
-    it gives shown beside it."""
+    Management Settings' default until HR choose, where it gives annual
+    leave (a plan is never refused for a policy nobody chose), and the
+    Annual Leave days it gives shown beside it."""
     if doc.docstatus == 0 and not doc.get("leave_policy"):
-        doc.leave_policy = _default_policy()
+        default = _default_policy()
+        if default and rules.policy_days(_details(default), rules.ANNUAL) is not None:
+            doc.leave_policy = default
     doc.policy_days = None
     if doc.get("leave_policy"):
-        days = rules.policy_days(_details(doc.leave_policy), rules.ANNUAL)
+        details = _details(doc.leave_policy)
+        days = rules.policy_days(details, rules.ANNUAL)
         if days is None and doc.docstatus == 0:
-            frappe.throw(_("The Leave Policy {0} gives no {1}. Choose one that does.").format(
-                doc.leave_policy, _(rules.ANNUAL)), title=_(PLAN))
+            title = frappe.db.get_value(POLICY, doc.leave_policy, "title") or doc.leave_policy
+            named = "%s (%s)" % (title, doc.leave_policy) if title != doc.leave_policy else doc.leave_policy
+            if details:
+                message = _("The Leave Policy {0} has no {1} line. It gives {2}. Add {1} to it, or choose another "
+                            "policy.").format(named, _(rules.ANNUAL), rules.policy_summary(details))
+            else:
+                message = _("The Leave Policy {0} gives no leave at all. Add {1} to it, or choose another policy.").format(
+                    named, _(rules.ANNUAL))
+            frappe.throw(message, title=_(PLAN))
         doc.policy_days = days
 
 
@@ -473,12 +484,11 @@ def _years(first, last):
 
 
 def _annual_days(policy):
-    """The annual leave days a Leave Policy gives; None without one."""
+    """The annual leave days a Leave Policy gives; None without one. Its
+    annual line is found as the plan finds it (leave_rules.policy_line)."""
     if not policy:
         return None
-    days = frappe.get_all("Leave Policy Detail", filters={"parent": policy, "parenttype": "Leave Policy",
-                                                          "leave_type": rules.ANNUAL}, pluck="annual_allocation")
-    return flt(days[0]) if days else None
+    return rules.policy_days(_details(policy), rules.ANNUAL)
 
 
 @frappe.whitelist()

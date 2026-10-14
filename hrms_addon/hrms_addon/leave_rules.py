@@ -267,26 +267,55 @@ def employee_days(rows, before=None):
     return {employee: (days, set_by_hr) for employee, (_rank, days, set_by_hr) in ranked.items()}
 
 
-def policy_days(details, leave_type):
-    """The days a year a leave policy gives of one leave type, None where
-    it gives none. details: its rows of leave_type and annual_allocation."""
-    for row in details or ():
-        if row.get("leave_type") == leave_type:
-            return _num(row.get("annual_allocation"))
+def _type_key(name):
+    """A leave type's name as the site's database compares it: without
+    case, and without the spaces at either end."""
+    return " ".join((name or "").split()).lower()
+
+
+def policy_line(details, leave_type):
+    """A leave policy's line for one leave type: the line of that very type,
+    whatever its case; else, for annual leave, the one line whose type says
+    "annual" (a site's own "Annual Leaves" or "Annual Leave 21"). None where
+    there is no such line, or more than one that might be it."""
+    rows = list(details or ())
+    exact = [row for row in rows if _type_key(row.get("leave_type")) == _type_key(leave_type)]
+    if exact:
+        return exact[0]
+    word = _type_key(leave_type).split(" ")[0] if leave_type else ""
+    if word == "annual":
+        likely = [row for row in rows if "annual" in _type_key(row.get("leave_type"))]
+        if len(likely) == 1:
+            return likely[0]
     return None
 
 
+def policy_days(details, leave_type):
+    """The days a year a leave policy gives of one leave type, None where
+    it gives none. details: its rows of leave_type and annual_allocation."""
+    line = policy_line(details, leave_type)
+    return _num(line.get("annual_allocation")) if line else None
+
+
+def policy_summary(details):
+    """What a leave policy gives, as a message names it: "Sick Leave 60,
+    Maternity Leave 60"."""
+    return ", ".join("%s %g" % (row.get("leave_type") or "", _num(row.get("annual_allocation")))
+                     for row in details or ())
+
+
 def with_days(details, leave_type, days):
-    """A leave policy's rows with one leave type at `days` a year: the
-    others as they are."""
-    out, found = [], False
+    """A leave policy's rows with one leave type at `days` a year: its own
+    line for it changed (under the policy's own name for the type), else one
+    added; the others as they are."""
+    line = policy_line(details, leave_type)
+    out = []
     for row in details or ():
-        if row.get("leave_type") == leave_type:
-            out.append({"leave_type": leave_type, "annual_allocation": _num(days)})
-            found = True
+        if row is line:
+            out.append({"leave_type": row.get("leave_type"), "annual_allocation": _num(days)})
         else:
             out.append({"leave_type": row.get("leave_type"), "annual_allocation": _num(row.get("annual_allocation"))})
-    if not found:
+    if line is None:
         out.append({"leave_type": leave_type, "annual_allocation": _num(days)})
     return out
 
@@ -294,7 +323,7 @@ def with_days(details, leave_type, days):
 def same_details(first, second):
     """Whether two leave policies give the same days of the same types."""
     def key(rows):
-        return sorted((row.get("leave_type") or "", _num(row.get("annual_allocation"))) for row in rows or ())
+        return sorted((_type_key(row.get("leave_type")), _num(row.get("annual_allocation"))) for row in rows or ())
     return key(first) == key(second)
 
 
