@@ -243,7 +243,7 @@ for typed in re.findall(r"\{\{\s*(p\.(?:employee_name|department|payroll_no|desi
     check(False, "%s is printed without v(), unescaped" % typed)
 
 # ── 5. Luuka's August slip for LPL1834 ──────────────────────────────────
-def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None, shown=None):
+def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None, shown=None, currency=None):
     """What payslip.pay_slip hands the print, from the same rules."""
     leave, absent = R.day_counts(attendance)
     return {"employee_name": slip["employee_name"], "department": slip["department"], "payroll_no": slip["employee"],
@@ -257,7 +257,7 @@ def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None,
                                                      slip.get("bank_account_no")) if part) or None,
             "paid_days": slip["payment_days"], "working_days": slip["total_working_days"], "holidays": holidays,
             "absent_amount": R.absent_amount(slip["earnings"]), "leave_taken": leave,
-            "absent_days": slip.get("absent_days") or absent}
+            "absent_days": slip.get("absent_days") or absent, "currency": currency}
 
 
 AUGUST = {"employee": "LPL1834", "employee_name": "SARAH AMUGE", "department": "PP DEPARTMENT",
@@ -293,6 +293,19 @@ for said in ("NAME : SARAH AMUGE", "DEPT : PP DEPARTMENT", "PAYROLL NO. : LPL183
              "= Paid Days 31 = Working Days 31 = Holidays 0 = Absent Amount 0.0000 = Leave Taken 0.0000 "
              "= Absent Days 0.0000"):
     check(said in text, "the August slip reads: %s" % said)
+check("USD" not in text and text.count("AMOUNT HOURS") == 2,
+      "a slip in shillings names no currency, as Luuka's never has")
+dollars = text_of(page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource", shown=SHOWN,
+                          currency="USD"))
+check("PAYMENTS AMOUNT USD HOURS BASIC" in dollars and "DEDUCTIONS AMOUNT USD HOURS NSSF" in dollars
+      and dollars.count("USD") == 2,
+      "a slip in another currency says it over both columns of figures, and nowhere else")
+glue = io.open(os.path.join(REPO, "hrms_addon", "hrms_addon", "payslip.py"), encoding="utf-8").read()
+said = glue.split("def _currency(")[1].split("\ndef ")[0]
+check('"currency": _currency(doc),' in glue
+      and "return currency if currency_payroll_rules.foreign(currency, home) else None" in said
+      and "currency_payroll.company_currency(doc.get(\"company\"))" in said,
+      "the slip's currency is named only where it is not the company's own, by the USD payroll's own rule")
 for hidden in ("Taxable", "Cash Gross Pay", "NSSF Employer", "Penalty Recovery"):
     check(hidden not in text, "%s is not on the slip" % hidden)
 check('<img src="/files/luuka.png">' in page, "the company's logo is on it")

@@ -56,7 +56,19 @@ def pay_slip(doc):
         "absent_amount": rules.absent_amount(earnings),
         "leave_taken": leave,
         "absent_days": flt(doc.get("absent_days")) or absent,
+        "currency": _currency(doc),
     })
+
+
+def _currency(doc):
+    """The currency the slip's figures are in, where it is not the
+    company's own (a USD payroll, currency_payroll.py); none on a slip in
+    shillings, which prints as Luuka's always has."""
+    from hrms_addon.hrms_addon import currency_payroll, currency_payroll_rules
+
+    currency = doc.get("currency")
+    home = currency_payroll.company_currency(doc.get("company"))
+    return currency if currency_payroll_rules.foreign(currency, home) else None
 
 
 def _shown(components):
