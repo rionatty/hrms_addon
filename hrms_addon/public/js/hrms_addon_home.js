@@ -61,11 +61,21 @@
 		chevron: '<path d="M9 6l6 6-6 6"/>',
 		page: '<path d="M5 19V9M10 19V5M15 19v-7M20 19v-11"/>',
 	};
+	// the cards of a manager's and an employee's desk, drawn with the pictures of HR's
+	const SAME_AS = {
+		team: "employees",
+		team_in: "on_site",
+		team_leave: "on_leave",
+		leave_left: "on_leave",
+		present: "on_site",
+		requests: "contracts",
+		calendar: "on_leave",
+	};
 
 	function icon(name) {
 		return (
 			'<svg class="ha-home-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
-			`stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS.page}</svg>`
+			`stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ICONS[SAME_AS[name]] || ICONS.page}</svg>`
 		);
 	}
 
@@ -428,19 +438,28 @@
 		);
 	}
 
-	function rows(list, empty) {
+	// a list of rows, each opening what it names; what and section say which list a click is on
+	function rows(list, empty, what = "row", section = "") {
 		if (!list.length) return `<div class="ha-home-empty">${esc(empty)}</div>`;
 		return list
-			.map(
-				(row, index) =>
-					`<button type="button" class="ha-home-row" data-ha-home="row" data-index="${index}">` +
+			.map((row, index) => {
+				// a row that opens nothing (a holiday) has no arrow
+				const arrow = what !== "item" || row.doctype ? icon("chevron") : "";
+				return (
+					`<button type="button" class="ha-home-row" data-ha-home="${what}" data-section="${section}" ` +
+					`data-index="${index}">` +
 					`<span class="ha-home-dot ha-band-${esc(row.band || "none")}"></span>` +
 					`<span class="ha-home-row-text"><span class="ha-home-row-title">${esc(row.title)}</span>` +
-					`<span class="ha-home-row-meta">${[row.doctype ? __(row.doctype) : "", row.docname, row.when ? __(row.when) : ""]
+					`<span class="ha-home-row-meta">${[
+						row.doctype ? __(row.doctype) : row.date ? day_words(row.date) : "",
+						row.docname,
+						row.when ? __(row.when) : "",
+					]
 						.filter(Boolean)
 						.map(esc)
-						.join(" · ")}</span></span>${icon("chevron")}</button>`
-			)
+						.join(" · ")}</span></span>${arrow}</button>`
+				);
+			})
 			.join("");
 	}
 
@@ -459,7 +478,7 @@
 			)
 			.join("");
 		const waiting =
-			`<section class="ha-home-panel"><header><span class="ha-home-panel-icon">${icon("waiting")}</span>` +
+			`<section class="ha-home-panel ha-home-waiting"><header><span class="ha-home-panel-icon">${icon("waiting")}</span>` +
 			`<h3>${__("Waiting for You")}</h3><span class="ha-home-tabs">${tabs}</span></header>` +
 			`<div class="ha-home-list">${rows(
 				shown,
@@ -481,6 +500,61 @@
 		return `<div class="ha-home-panels${quick ? "" : " ha-home-one"}">${waiting}${quick}</div>`;
 	}
 
+	function panel(name, title, body, note) {
+		return (
+			`<section class="ha-home-panel"><header><span class="ha-home-panel-icon">${icon(name)}</span>` +
+			`<h3>${title}</h3>${note || ""}</header><div class="ha-home-list">${body}</div></section>`
+		);
+	}
+
+	// bars, each as wide as its share of the whole: where people are today, or the departments
+	function bars(list, what, whole) {
+		const most = whole || Math.max(1, ...list.map((row) => Number(row.value) || 0));
+		return (
+			`<div class="ha-home-bars">` +
+			list
+				.map((row, index) => {
+					const width = most ? Math.round((100 * (Number(row.value) || 0)) / most) : 0;
+					return (
+						`<button type="button" class="ha-home-bar" data-ha-home="${what}" data-index="${index}">` +
+						`<span class="ha-home-bar-label">${esc(__(row.label))}</span>` +
+						`<span class="ha-home-bar-track"><i class="ha-band-${esc(row.band || "navy")}" style="width:${width}%"></i></span>` +
+						`<b>${count(row.value)}</b></button>`
+					);
+				})
+				.join("") +
+			`</div>`
+		);
+	}
+
+	// What this user's desk has under what waits for them: HR the company's people, a manager their team,
+	// everybody their own requests and holidays. Only what the server sent is drawn.
+	function sections(data) {
+		const parts = data.sections || {};
+		const blocks = [];
+		if (parts.today && parts.today.rows) {
+			blocks.push(panel("on_site", __("Today"), bars(parts.today.rows, "board", Number(parts.today.total) || 0),
+				`<span class="ha-home-panel-note">${count(parts.today.total)} ${__("employees")}</span>`));
+		}
+		if (parts.departments && parts.departments.length) {
+			blocks.push(panel("employees", __("Departments"), bars(parts.departments, "department")));
+		}
+		if (parts.coming) {
+			blocks.push(panel("calendar", __("Coming Up"), rows(parts.coming, __("Nothing in the next two weeks."), "item", "coming")));
+		}
+		if (parts.team) {
+			blocks.push(panel("employees", __("My Team Today"), rows(parts.team, __("Nobody reports to you."), "item", "team")));
+		}
+		if (parts.requests) {
+			blocks.push(panel("contracts", __("My Requests"), rows(parts.requests, __("No requests yet."), "item", "requests")));
+		}
+		if (parts.holidays) {
+			blocks.push(panel("calendar", __("Holidays"), rows(parts.holidays, __("No holidays ahead on your list."), "item", "holidays")));
+		}
+		if (!blocks.length) return "";
+		return `<div class="ha-home-panels ha-home-more ha-home-${blocks.length > 2 ? "three" : blocks.length > 1 ? "two" : "one"}">${blocks.join("")}</div>`;
+	}
+
 	// a route the server names, opened as Frappe opens it
 	function go(target) {
 		if (!target || !target.route) return;
@@ -498,7 +572,7 @@
 			home.innerHTML = skeleton();
 			return;
 		}
-		home.innerHTML = hero(data) + cards(data) + panels(data);
+		home.innerHTML = hero(data) + cards(data) + panels(data) + sections(data);
 		home.querySelectorAll("[data-ha-home]").forEach((element) => {
 			element.addEventListener("click", () => {
 				try {
@@ -515,7 +589,13 @@
 						const row = ((tab === "notes" ? data.waiting.notes : data.waiting.items) || [])[index];
 						if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
 						else go({ route: ["List", "ToDo"], mine: 1 });
-					}
+					} else if (what === "item") {
+						const row = ((data.sections || {})[element.getAttribute("data-section")] || [])[index];
+						if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
+					} else if (what === "department") {
+						const row = ((data.sections || {}).departments || [])[index];
+						if (row) go({ route: ["List", "Employee"], filters: row.filters });
+					} else if (what === "board") go({ route: ["attendance-board"] });
 				} catch (error) {
 					console.error(error);
 				}
@@ -715,6 +795,27 @@
 .ha-home-dot.ha-band-overdue { background: #D5475B; box-shadow: 0 0 0 3px rgba(213,71,91,.16); }
 .ha-home-dot.ha-band-today { background: #D98A12; box-shadow: 0 0 0 3px rgba(217,138,18,.16); }
 .ha-home-dot.ha-band-soon, .ha-home-dot.ha-band-later { background: #2F7BD1; }
+.ha-home-dot.ha-band-good { background: #1F9D6B; }
+
+/* the second row: the desk of HR, of a manager or of an employee */
+.ha-home-panels.ha-home-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ha-home-panels.ha-home-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ha-home-panel-note { font-size: 12px; color: var(--ha-h-muted); }
+.ha-home-bars { display: grid; gap: 2px; }
+.ha-home .ha-home-bar {
+	display: grid; grid-template-columns: minmax(0, 118px) minmax(0, 1fr) auto; align-items: center; gap: 10px;
+	width: 100%; padding: 8px 10px; border-radius: 10px;
+}
+.ha-home .ha-home-bar:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
+.ha-home-bar-label { font-size: 13px; font-weight: 600; color: var(--ha-h-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ha-home-bar-track { height: 8px; border-radius: 99px; overflow: hidden; background: color-mix(in srgb, var(--ha-h-navy) 8%, transparent); }
+.ha-home-bar-track > i { display: block; height: 100%; min-width: 2px; border-radius: 99px; background: var(--ha-h-navy); }
+.ha-home-bar-track > i.ha-band-good { background: #1F9D6B; }
+.ha-home-bar-track > i.ha-band-today { background: #D98A12; }
+.ha-home-bar-track > i.ha-band-soon { background: #2F7BD1; }
+.ha-home-bar-track > i.ha-band-overdue { background: #D5475B; }
+.ha-home-bar-track > i.ha-band-none { background: #9AA8BC; }
+.ha-home-bar b { min-width: 28px; text-align: right; font-size: 13.5px; color: var(--ha-h-ink); }
 .ha-home-empty { padding: 26px 12px; text-align: center; font-size: 13px; color: var(--ha-h-muted); }
 
 /* while the figures are on their way */
@@ -845,7 +946,7 @@ ${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-link:hover, ${TILES} > .deskto
 	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .ha-home { order: 2; flex: 1 1 0; min-width: 0; max-width: none; margin: 18px 20px 44px 0; padding: 0; }
 }
 @media (max-width: 1100px) {
-	.ha-home-panels { grid-template-columns: minmax(0, 1fr); }
+	.ha-home-panels, .ha-home-panels.ha-home-two, .ha-home-panels.ha-home-three { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
 	.ha-home-hero { padding: 18px; }

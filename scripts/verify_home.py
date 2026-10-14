@@ -14,6 +14,8 @@ bench.
   4  the desk come back to, drawn out to the window's edges, and each
      module's own menu opened from the list, with what Frappe does that
      these lean on read from Frappe itself
+  5  each user's own desk: HR the company's people, a manager their team,
+     an employee their own, and none given what is not theirs
 
 The rules are loaded without Frappe.
 """
@@ -141,6 +143,85 @@ check('("Exit", "log-out", ["Employee Separation"' in navigation.split("GROUPS =
       "and Tenure is where the exit is")
 print("rules: HR's figures and everybody's own work, the pages offered, the one button, the modules recruitment to exit")
 
+# ── each user's own desk ──
+import datetime  # noqa: E402
+
+D = datetime.date
+TODAY = D(2026, 10, 14)
+check([R.view_of(True, "E1", ["x"]), R.view_of(False, "E1", ["x"]), R.view_of(False, "E1", []), R.view_of(False, None, [])]
+      == [R.HR, R.MANAGER, R.STAFF, R.OWN],
+      "HR have HR's desk whoever reports to them, a manager theirs, an employee their own, anybody else what waits for them")
+where = R.where_today(["a", "b", "c", "d", "e", "f"], {"a", "d"}, {"b": ("Present", 1), "c": ("Absent", 0), "f": ("On Leave", 0)}, {"d"})
+check(where == {"a": "in", "b": "late", "c": "absent", "d": "on_leave", "e": "not_in", "f": "on_leave"},
+      "where each is today: on leave before clocked in, absent as marked, late as marked, not in yet otherwise: %s" % where)
+board = R.today_board(["a", "b", "c", "d", "e", "f"], {"a", "d"}, {"b": ("Present", 1), "c": ("Absent", 0), "f": ("On Leave", 0)}, {"d"})
+check(board["total"] == 6 and [(row["key"], row["value"]) for row in board["rows"]]
+      == [("in", 2), ("late", 1), ("on_leave", 2), ("absent", 1), ("not_in", 1)],
+      "the day's bars: those in counted with the late among them, and every employee once otherwise: %s" % board)
+staffed = R.departments([{"department": "Production - LPL"}] * 3 + [{"department": "Stores - LPL"}] * 2 + [{}]
+                        + [{"department": "D%d - LPL" % index} for index in range(6)], shown=4)
+check([(row["label"], row["value"]) for row in staffed] == [("Production", 3), ("Stores", 2), ("D0", 1), ("D1", 1), ("Other", 5)]
+      and staffed[0]["filters"] == {"status": "Active", "department": "Production - LPL"}
+      and R.departments([{}])[0]["filters"] == {"status": "Active", "department": ["is", "not set"]},
+      "the departments, the largest first by their own name, those without one last, the rest as Other, each opening "
+      "its people: %s" % staffed)
+people_rows = [
+    {"name": "E1", "employee_name": "Ann", "date_of_birth": "1990-10-14", "date_of_joining": "2026-10-20"},
+    {"name": "E2", "employee_name": "Bob", "date_of_birth": "1988-02-29", "date_of_joining": "2016-10-28",
+     "custom_probation_end_date": "2026-10-29"},
+    {"name": "E3", "employee_name": "Cy", "custom_probation_end_date": "2026-10-13", "date_of_birth": "1999-10-29"}]
+upcoming = R.coming_up(people_rows, [{"name": "SEP-1", "employee_name": "Dee", "custom_relieving_date": "2026-10-15"}], TODAY)
+check([(row["title"], row["when"]) for row in upcoming] == [
+    ("Birthday: Ann", "today"), ("Last day: Dee", "tomorrow"), ("10 years with the company: Bob", "in 14 days")]
+      and upcoming[1]["doctype"] == "Employee Separation" and upcoming[0]["doctype"] == "Employee",
+      "what is coming up in the next two weeks, the nearest first, the last of them included; not a probation that "
+      "ended yesterday, not a first year still to come, not a birthday past the fortnight: %s"
+      % [(row["title"], row["when"]) for row in upcoming])
+check(R._next(D(2027, 2, 1), 2, 29) == D(2027, 2, 28) and R._next(D(2028, 2, 1), 2, 29) == D(2028, 2, 29),
+      "a birthday on the 29th of February falls on the 28th in a year without one")
+team = R.team_today([{"name": "a", "employee_name": "Amy"}, {"name": "b", "employee_name": "Zed"},
+                     {"name": "c", "employee_name": "Bo"}, {"name": "d", "employee_name": "Al"}], {"a"}, {}, {"c"})
+blind = R.team_today([{"name": "a", "employee_name": "Amy"}, {"name": "c", "employee_name": "Bo"}], {"a"}, {}, {"c"},
+                      seen={"clock": False, "attendance": False, "leave": True})
+check((blind["in"], blind["on_leave"]) == (None, 1)
+      and [(row["title"], row["when"]) for row in blind["rows"]] == [("Bo", "On leave"), ("Amy", "")]
+      and R.team_today([{"name": "a"}], set(), {}, set(), seen={"clock": True, "attendance": False, "leave": False})["on_leave"] is None,
+      "a manager who may read neither the clock nor Attendance is told nobody's day but their leave; one who may "
+      "read neither Attendance nor leave is told nobody is on leave: %s" % blind)
+blind_cards = R.view_cards(R.MANAGER, R.waiting([]), team={"size": 2, "in": None, "on_leave": None, "employee": "E9"})
+check([(card["value"], card["note"]) for card in blind_cards[1:3]] == [(0, "Not open to you"), (0, "Not open to you")],
+      "and their cards say so, rather than a nought that would read as nobody")
+check((team["size"], team["in"], team["on_leave"]) == (4, 1, 1)
+      and [(row["title"], row["when"]) for row in team["rows"]]
+      == [("Al", "Not in yet"), ("Zed", "Not in yet"), ("Bo", "On leave"), ("Amy", "In")],
+      "a manager's team today, those not in yet first: %s" % team)
+requests = R.my_requests([("Leave Application", "Leave", {"name": "L1", "status": "Open", "docstatus": 0, "modified": "2026-10-10"}),
+                          ("Gate Pass", "Gate pass", {"name": "G1", "status": "Rejected", "docstatus": 0, "modified": "2026-10-12"}),
+                          ("Employee Loan", "Loan", {"name": "N1", "status": "Approved", "docstatus": 1, "modified": "2026-10-11"})])
+check(requests["waiting"] == 1 and [row["docname"] for row in requests["rows"]] == ["G1", "N1", "L1"]
+      and requests["rows"][2]["band"] == "today" and requests["rows"][0]["band"] == "none",
+      "an employee's requests, the latest first; waiting only those in draft that nobody has turned down: %s" % requests)
+check([row["title"] for row in R.holidays([{"holiday_date": "2026-10-09", "description": "Gone"},
+                                          {"holiday_date": "2026-12-25", "description": "Christmas Day"},
+                                          {"holiday_date": "2026-12-08", "description": "Heroes Day"}], TODAY)]
+      == ["Heroes Day", "Christmas Day"], "the holidays still to come, the nearest first")
+nobody = R.waiting([])
+manager_cards = R.view_cards(R.MANAGER, nobody, team={"size": 4, "in": 3, "on_leave": 1, "employee": "E9"})
+staff_cards = R.view_cards(R.STAFF, nobody, mine={"employee": "E1", "leave_left": 16.5, "present": 9, "late": 2, "waiting": 1})
+check([card["key"] for card in manager_cards] == ["team", "team_in", "team_leave", "waiting"]
+      and manager_cards[0]["filters"] == {"status": "Active", "reports_to": "E9"} and manager_cards[1]["note"] == "75% of your team",
+      "a manager's figures are their team's, and open their team")
+check([card["key"] for card in staff_cards] == ["leave_left", "present", "requests", "waiting"]
+      and staff_cards[0]["value"] == 16.5 and staff_cards[0]["filters"] == {"employee": "E1"}
+      and staff_cards[1]["note"] == "2 late" and "route" not in staff_cards[2],
+      "an employee's figures are their own, and open their own records")
+check(R.view_cards(R.HR, nobody, PEOPLE) == R.cards(nobody, PEOPLE)
+      and [card["key"] for card in R.view_cards(R.HR, nobody, None)] == ["waiting", "unread"]
+      and [card["key"] for card in R.view_cards(R.OWN, nobody)] == ["waiting", "unread"]
+      and [card["key"] for card in R.view_cards(R.MANAGER, nobody, team=None)] == ["waiting", "unread"],
+      "HR's figures are as before; a desk whose figures could not be read has what waits for the user")
+print("desks: HR's, a manager's, an employee's, each from what that user may know")
+
 # ── 2. The glue ─────────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "home.py")
 tree = ast.parse(glue)
@@ -167,6 +248,44 @@ guard = glue.split("def _or(")[1].split("\ndef ")[0]
 check("except Exception:" in guard and "defer_insert=True" in guard and "return fallback" in guard
       and "people = _or(None, _people, today)" in body,
       "a part that cannot be read is left out and logged past the GET's rollback, and the rest still comes")
+view_part = summary_body = body
+check("hr = rules.sees_people(frappe.get_roles(user)) and frappe.has_permission(\"Employee\", \"read\")" in body
+      and "me = _or(None, _employee_of, user)" in body and "reports = _or([], _reports, me.name) if me and not hr else []" in body
+      and "view = rules.view_of(hr, me, reports)" in body,
+      "the desk is chosen from the user's roles and their own employee record: HR's only for somebody who may read employees")
+check(body.index("if view == rules.HR:") < body.index("people = _or(None, _people, today)")
+      and body.index("elif view == rules.MANAGER:") < body.index("team = _or(None, _team, me.name, reports, today)")
+      and "if view in (rules.MANAGER, rules.STAFF):" in body and '"cards": rules.view_cards(view, waits, people, team, mine),' in body,
+      "each desk is given its own parts and no other's")
+own_record = glue.split("def _employee_of(")[1].split("\ndef ")[0]
+check('{"user_id": user, "status": "Active"}' in own_record,
+      "the user's own employee record is the active one whose user is theirs")
+for part, needle in (("_reports", 'frappe.get_list("Employee", filters={"reports_to": employee, "status": "Active"}'),
+                     ("_last_days", 'frappe.get_list("Employee Separation", filters={'),
+                     ("_mine", 'frappe.get_list("Attendance", filters={'),
+                     ("_mine", 'frappe.get_list(doctype, filters={"employee": me.name, "docstatus": ["<", 2]}')):
+    check(needle in glue.split("def %s(" % part)[1].split("\ndef ")[0],
+          "%s reads with the user's own permissions" % part)
+mine_part = glue.split("def _mine(")[1].split("\ndef ")[0]
+check('if not frappe.db.exists("DocType", doctype) or not frappe.has_permission(doctype, "read"):' in mine_part
+      and "for doctype, label in rules.REQUESTS:" in mine_part and 'if frappe.has_permission("Attendance", "read"):' in mine_part
+      and 'if not frappe.has_permission("Employee", "read"):\n        return []' in glue.split("def _reports(")[1]
+      and 'if not frappe.has_permission("Employee Separation", "read"):\n        return []' in glue.split("def _last_days(")[1]
+      and '"employee": me.name' in mine_part.split('frappe.get_list("Attendance"')[1].split(")")[0],
+      "an employee's requests and days are their own, of the doctypes the site has; a part the user may not read is "
+      "left out before it is asked for, not tried and logged on every desk load")
+marks = glue.split("def _marks(")[1].split("\ndef ")[0]
+check('"employee": ["in", names]' in marks and marks.count('"employee": ["in", names]') == 3
+      and "frappe.get_all" not in marks and marks.count("frappe.get_list(") == 3
+      and all('frappe.has_permission("%s", "read")' % doctype in marks
+              for doctype in ("Employee Checkin", "Attendance", "Leave Application"))
+      and "rules.team_today(reports, clocked, marked, on_leave, seen=seen)" in glue
+      and "clocked, marked, on_leave, _seen = _marks(names, today)" in people,
+      "today's marks are read for the employees the user may see, with the user's own permissions on each of the "
+      "clock, Attendance and leave, and not at all where they may not read it: reports_to is no permission")
+check("_or(None, exits._leave_balance, me.name, today)" in mine_part and "_or([], _holidays, me, today)" in body
+      and "_or(None, _team, me.name, reports, today)" in body and "_or(None, _mine, me, today)" in body,
+      "every part of a desk is read through _or: one that cannot be read is left out, the desk still comes")
 print("glue: one call, the user's own work, the people as they may see them")
 
 # ── 3. The page ─────────────────────────────────────────────────────────
@@ -447,6 +566,29 @@ check(TILES + " > .desktop-icon.ha-open > .ha-rail-menu { display: block; }" in 
       "a menu is shut until its arrow opens it and keeps inside the list; the name shares the row with the picture "
       "and the arrow, which stands for the plain mark")
 print("fixes: the home back on a desk drawn afresh, the desk out to the window's edges, each module's menu from the list")
+
+# ── 5. each user's own desk, drawn ──
+drawn_more = script.split("function sections(")[1].split("\n\t}\n")[0]
+check("home.innerHTML = hero(data) + cards(data) + panels(data) + sections(data);" in script
+      and all(needle in drawn_more for needle in ("parts.today && parts.today.rows", "parts.departments && parts.departments.length",
+                                                  "if (parts.coming)", "if (parts.team)", "if (parts.requests)", "if (parts.holidays)"))
+      and 'if (!blocks.length) return "";' in drawn_more,
+      "under what waits, each desk draws only the parts the server sent it")
+clicked = script.split("function draw(")[1].split("\n\t}\n")[0]
+check('const row = ((data.sections || {})[element.getAttribute("data-section")] || [])[index];' in clicked
+      and 'if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);'
+      in clicked.split('what === "item"')[1]
+      and 'go({ route: ["List", "Employee"], filters: row.filters });' in clicked
+      and 'else if (what === "board") go({ route: ["attendance-board"] });' in clicked,
+      "a row opens its record, a department its people, the day's figures the Attendance Board")
+check('class="ha-home-panel ha-home-waiting"' in script and '<span class="ha-home-bar-label">${esc(__(row.label))}</span>' in script
+      and "<b>${count(row.value)}</b>" in script,
+      "the bars write their names as text and their figures as numbers")
+check(".ha-home-panels.ha-home-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }" in css
+      and ".ha-home-panels, .ha-home-panels.ha-home-two, .ha-home-panels.ha-home-three { grid-template-columns: minmax(0, 1fr); }"
+      in css.split("@media (max-width: 1100px) {")[1],
+      "the parts sit side by side on a wide screen and one under another on a narrow one")
+print("desks drawn: HR's company, a manager's team, an employee's own")
 
 print()
 if fail:

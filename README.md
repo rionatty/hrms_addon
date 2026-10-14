@@ -91,10 +91,18 @@ list down the left.
   `verify_home.py` fails when Frappe HR or this app ships an HR tile the
   order does not name. On a narrow screen the same list sits under the home.
 
-- **Whose figures.** HR (HR Manager, HR User, System Manager, and only with
-  read on Employee) see the company's: employees, on site today, on leave
-  today, contracts ending in 30 days, each read with `frappe.get_list` so a
-  branch's HR sees that branch. Everybody else sees their own work only.
+- **Each user has their own desk** (`home_rules.view_of`). HR (HR Manager,
+  HR User, System Manager, and only with read on Employee) see the
+  company's: employees, on site today, on leave today, contracts ending in
+  30 days, then where everybody is today, the departments, and what is
+  coming up in two weeks (last days of those serving notice, probations
+  ending, birthdays, years with the company). Somebody people report to
+  sees their team: how many, who is in, who is on leave, and each of them
+  today. An employee sees their own: Annual Leave left, days at work this
+  month and how many late, their requests and where each stands, and the
+  next holidays. Anybody else sees what waits for them. People are read
+  with `frappe.get_list`, so a branch's HR sees that branch and a manager
+  only the reports they may read; a part that cannot be read is left out.
 - **It cannot stop the desk opening.** `home.summary` leaves out and logs a
   part it cannot read, and the page asks with `fetch`, not `frappe.call`:
   a failed `frappe.call` opens Frappe's Server Error dialog, on the page
