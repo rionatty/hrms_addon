@@ -210,6 +210,9 @@ for label, details, want in (
                                               {"leave_type": "Annual Leave 30", "annual_allocation": 30}], None),
         ("the very name before a likely one", [{"leave_type": "Annual Leave Bonus", "annual_allocation": 2},
                                                {"leave_type": "Annual Leave", "annual_allocation": 21}], 21.0),
+        ("the very name in another case before a likely one",
+         [{"leave_type": "Annual Leave Bonus", "annual_allocation": 2},
+          {"leave_type": "annual leave", "annual_allocation": 21}], 21.0),
         ("none at all", [{"leave_type": "Sick Leave", "annual_allocation": 60}], None)):
     if L.policy_days(details, "Annual Leave") != want:
         fail.append("policy_days, %s: %r, not %r" % (label, L.policy_days(details, "Annual Leave"), want))
