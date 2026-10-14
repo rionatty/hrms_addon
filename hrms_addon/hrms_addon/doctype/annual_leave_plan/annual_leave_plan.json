@@ -9,6 +9,8 @@
   "title",
   "year",
   "company",
+  "leave_policy",
+  "policy_days",
   "column_break_1",
   "branch",
   "department",
@@ -75,6 +77,21 @@
    "label": "Company",
    "options": "Company",
    "reqd": 1
+  },
+  {
+   "fieldname": "leave_policy",
+   "fieldtype": "Link",
+   "label": "Leave Policy",
+   "options": "Leave Policy",
+   "description": "Given to employees who have never had a leave policy. The others keep the one they had. Change anybody's days on their row."
+  },
+  {
+   "fieldname": "policy_days",
+   "fieldtype": "Float",
+   "label": "Annual Leave Days",
+   "read_only": 1,
+   "precision": "2",
+   "depends_on": "leave_policy"
   },
   {
    "fieldname": "column_break_1",
@@ -261,7 +278,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-29 18:00:00.000000",
+ "modified": "2026-10-14 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Annual Leave Plan",

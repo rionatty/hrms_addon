@@ -12,6 +12,12 @@ class AnnualLeavePlan(Document):
     def validate(self):
         leave.plan_validate(self)
 
+    def on_update(self):
+        leave.plan_on_update(self)
+
+    def on_trash(self):
+        leave.plan_on_trash(self)
+
     def on_submit(self):
         leave.plan_on_submit(self)
 

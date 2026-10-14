@@ -96,10 +96,16 @@ frappe.ui.form.on("Annual Leave Plan", {
 				frm.doc.total_days || 0
 			}</b></span>` +
 				pill(over, "{0} planned for more than they have", "orange") +
-				pill(unknown, "{0} with no leave on record", "red") +
+				pill(unknown, "{0} with no leave days", "red") +
 				pill(clashes, "{0} clash(es)", "red") +
 				(over || unknown || clashes ? "" : ` <span class="indicator-pill green">${__("Within what each has")}</span>`)
 		);
+	},
+	// the policy the plan gives: the rows it gives leave to follow it, unless HR set their days
+	leave_policy(frm) {
+		(frm.doc.employees || [])
+			.filter((row) => row.employee && !row.on_record && !row.days_set)
+			.forEach((row) => ha_fill_plan_row(frm, row));
 	},
 	year(frm) {
 		if (frm.doc.year && !frm.doc.posting_date) {
@@ -117,17 +123,40 @@ frappe.ui.form.on("Annual Leave Plan Employee", {
 	employee(frm, cdt, cdn) {
 		ha_fill_plan_row(frm, locals[cdt][cdn]);
 	},
+	// HR's own figure for the year, kept when the plan is saved: a leave split
+	// in parts shares it
+	entitlement_days(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (!row.employee || row.on_record) return;
+		(frm.doc.employees || [])
+			.filter((line) => line.employee === row.employee)
+			.forEach((line) => {
+				line.entitlement_days = row.entitlement_days;
+				line.days_set = 1;
+				line.available_days = (row.entitlement_days || 0) + (line.brought_forward || 0);
+			});
+		frm.dirty();
+		frm.refresh_field("employees");
+		frm.trigger("show_totals");
+	},
 });
 
 function ha_fill_plan_row(frm, row) {
 	if (!row.employee || !frm.doc.year || frm.doc.docstatus !== 0) return;
 	frappe
-		.xcall(HA_LEAVE + "plan_row", { employee: row.employee, year: frm.doc.year })
+		.xcall(HA_LEAVE + "plan_row", {
+			employee: row.employee,
+			year: frm.doc.year,
+			leave_policy: frm.doc.leave_policy || "",
+			plan: frm.is_new() ? "" : frm.doc.name,
+		})
 		.then((found) => {
-			for (const field of ["employee_name", "department", "designation", "entitlement_days",
-				"brought_forward", "available_days"]) {
-				frappe.model.set_value(row.doctype, row.name, field, found[field]);
-			}
+			const fields = ["employee_name", "department", "designation", "brought_forward", "on_record", "leave_policy"];
+			// days HR set stay theirs, unless the employee turns out to have their leave already
+			if (found.on_record || !row.days_set) fields.push("entitlement_days");
+			for (const field of fields) row[field] = found[field];
+			row.available_days = (row.entitlement_days || 0) + (row.brought_forward || 0);
+			frm.refresh_field("employees");
 			frm.trigger("show_totals");
 		});
 }

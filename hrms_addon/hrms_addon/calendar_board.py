@@ -234,10 +234,20 @@ def _most_off(year, branch, department):
 
 
 @frappe.whitelist(methods=["POST"])
-def leave_info(employee, year):
-    """What the employee has for the year and has planned, for the dialog."""
+def leave_info(employee, year, plan=None):
+    """What the employee has for the year and has planned, for the dialog:
+    on a plan, the days it gives them."""
     leave._may_act_for(employee)
-    entitled, brought = leave._available(employee, cint(year))
+    if plan and frappe.db.exists(PLAN, plan):
+        doc = frappe.get_doc(PLAN, plan)
+        line = next((row for row in doc.get("employees") or [] if row.employee == employee), None)
+        if line:
+            entitled, brought = flt(line.entitlement_days), flt(line.brought_forward)
+        else:
+            figures = leave.plan_figures(employee, year, doc.get("leave_policy"), plan)
+            entitled, brought = figures["entitlement_days"], figures["brought_forward"]
+    else:
+        entitled, brought = leave._available(employee, cint(year))
     plans = list(_plans(year))
     planned = sum(flt(row.planned_days) for row in frappe.get_all(
         ROW, filters={"parent": ["in", plans or [""]], "parenttype": PLAN, "employee": employee},

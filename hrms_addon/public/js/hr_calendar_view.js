@@ -692,7 +692,7 @@ frappe.provide("hrms_addon");
 			});
 			dialog.show();
 			frappe
-				.xcall(METHOD + "leave_info", { employee: row.key, year: this.year })
+				.xcall(METHOD + "leave_info", { employee: row.key, year: this.year, plan: this.opts.plan || "" })
 				.then((info) =>
 					dialog.fields_dict.info.$wrapper.html(
 						`<div class="hrv-info">${esc(__("Available"))} <b>${info.available}</b> · ${esc(

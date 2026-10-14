@@ -580,6 +580,18 @@ their controller and their leave ledger read it. Maternity, paternity and
 sick leave ask for the certificate the form marks; compassionate leave
 asks for the precise reason.
 
+The plan also gives each employee their leave for the year. Somebody who
+already has it (a Leave Policy Assignment for the year, or an annual
+allocation) keeps what it gives, fixed on their row. Anybody else is given
+the leave policy they had before, else the plan's **Leave Policy**, else
+Leave Management Settings' default, and HR may change their **Leave Days**
+on the row. Saving draws up their **Leave Policy Assignment**, with a
+policy that gives those days (one already made with the same days, else a
+copy titled "Staff, Annual Leave 30 days"), and the approved plan submits
+it, which is when Frappe HR allocates the leave. Annual leave is earned
+month by month, and Frappe HR only accrues earned leave through an
+assignment, so the plan gives a policy rather than a plain allocation.
+
 All three of Luuka's advances are one document — their **Employee
 Advance** — because all three are the same thing: money paid before it is
 earned. The Advance Type says which, and one Workflow carries all three

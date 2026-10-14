@@ -175,11 +175,46 @@ expect("a plan that adds up",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
                                               "planned_from": "2027-02-01", "planned_to": "2027-02-21",
                                               "planned_days": 21, "available_days": 21}]}))
-expect("with nothing on record, the plan waits for the leave policy or allocation",
+expect("with no days at all, the plan says how to give them: its Leave Policy, or the employee's own days",
        L.plan_errors({"year": 2027, "rows": [{"employee": "E1", "employee_name": "Okello",
                                               "planned_from": "2027-02-01", "planned_to": "2027-02-05",
                                               "planned_days": 5}]}),
-       "Okello has no annual leave on record for 2027")
+       "Okello has no leave days for 2027. Choose the plan's Leave Policy, or enter their Leave Days.")
+
+# each employee's days on the plan: a split leave shares one figure, HR's change decides it
+for label, rows, before, want in (
+        ("a part HR changed decides, and is kept",
+         [{"name": "r1", "employee": "E1", "entitlement_days": 21}, {"name": "r2", "employee": "E1", "entitlement_days": 30}],
+         {"r1": 21, "r2": 21}, {"E1": (30.0, True)}),
+        ("nothing changed: the saved figure, not set by HR",
+         [{"name": "r1", "employee": "E1", "entitlement_days": 21}], {"r1": 21}, {"E1": (21.0, False)}),
+        ("a part said to be set before stays set",
+         [{"name": "r1", "employee": "E1", "entitlement_days": 28, "days_set": 1}], {"r1": 28}, {"E1": (28.0, True)}),
+        ("a part added now does not undo a saved one",
+         [{"name": "r1", "employee": "E1", "entitlement_days": 30, "days_set": 1},
+          {"name": "new", "employee": "E1", "entitlement_days": 21}], {"r1": 30}, {"E1": (30.0, True)}),
+        ("somebody new: what their part came with",
+         [{"name": "n1", "employee": "E2", "entitlement_days": 21}], {}, {"E2": (21.0, False)}),
+        ("a row with nobody on it counts for nobody", [{"name": "x", "employee": None, "entitlement_days": 9}], {}, {})):
+    got = L.employee_days(rows, before)
+    if got != want:
+        fail.append("employee_days, %s: %r, not %r" % (label, got, want))
+STAFF = [{"leave_type": "Annual Leave", "annual_allocation": 21}, {"leave_type": "Sick Leave", "annual_allocation": 60}]
+if (L.policy_days(STAFF, "Annual Leave"), L.policy_days(STAFF, "Maternity Leave"), L.policy_days([], "Annual Leave")) \
+        != (21.0, None, None):
+    fail.append("policy_days: the days a policy gives of one leave type, none where it gives none")
+if L.with_days(STAFF, "Annual Leave", 30) != [{"leave_type": "Annual Leave", "annual_allocation": 30.0},
+                                             {"leave_type": "Sick Leave", "annual_allocation": 60.0}] \
+        or L.with_days([{"leave_type": "Sick Leave", "annual_allocation": 60}], "Annual Leave", 28)[-1] \
+        != {"leave_type": "Annual Leave", "annual_allocation": 28.0}:
+    fail.append("with_days: the one leave type changed or added, the others as the policy gives them")
+if not L.same_details(STAFF, list(reversed(STAFF))) or L.same_details(STAFF, L.with_days(STAFF, "Annual Leave", 30)):
+    fail.append("same_details: the same days of the same types, in any order, and no other")
+for title, days, want in (("Staff", 30, "Staff, Annual Leave 30 days"),
+                          ("Staff, Annual Leave 30 days", 28, "Staff, Annual Leave 28 days"),
+                          ("", 21, "Annual Leave, Annual Leave 21 days"), ("Staff", 22.5, "Staff, Annual Leave 22.5 days")):
+    if L.variant_title(title, "Annual Leave", days) != want:
+        fail.append("variant_title(%r, %g): %r, not %r" % (title, days, L.variant_title(title, "Annual Leave", days), want))
 
 # clashes: more of one department off together than the plan allows
 TEAM = [{"employee": "A", "employee_name": "Ann", "department": "Extrusion", "planned_from": "2027-03-01",
@@ -565,9 +600,86 @@ for glue, name in ((glue_leave, "leave.py"), (glue_leave_advances, "leave_advanc
 # a row fills in as its employee is picked, from what they are allocated or
 # their policy gives them (30, 21...), not only when the plan is saved
 plan_row = glue_leave.split("def plan_row(")[1].split("\ndef ")[0] if "def plan_row(" in glue_leave else ""
-if not re.search(r"@frappe\.whitelist\(\)\ndef plan_row\(", glue_leave) or \
-        'frappe.has_permission(PLAN, "write")' not in plan_row or "_available(employee, cint(year))" not in plan_row:
-    fail.append("leave.plan_row gives a picked employee's row, to those who may draw the plan up")
+figures = glue_leave.split("def plan_figures(")[1].split("\ndef ")[0] if "def plan_figures(" in glue_leave else ""
+if not re.search(r"@frappe\.whitelist\(\)\ndef plan_row\(employee, year, leave_policy=None, plan=None\):", glue_leave) \
+        or 'frappe.has_permission(PLAN, "write")' not in plan_row \
+        or "return plan_figures(employee, year, leave_policy, plan)" not in plan_row \
+        or "entitled, brought = _available(employee, year)" not in figures \
+        or "policy = _base_policy(employee, leave_policy)" not in figures:
+    fail.append("leave.plan_row gives a picked employee's row, to those who may draw the plan up: what they have "
+                "for the year, else what the plan gives them")
+
+# the plan gives each employee with no leave for the year their leave
+plan_days = glue_leave.split("def _fill_plan_days(")[1].split("\ndef ")[0]
+for needle, why in (
+        ("held = _held(employees, doc.get(\"year\"), _own_drafts(rows))", "who already has their leave for the year"),
+        ("days, brought = _available(employee, doc.get(\"year\"))", "and keeps it, as it is on record"),
+        ("chosen = rules.employee_days(", "HR's days for the others, a split leave sharing one figure"),
+        ("days = typed if kept else (_annual_days(policy) or 0)", "else their policy's days"),
+        ("row.on_record, row.days_set = on_record, days_set", "the row says which, so the form fixes or frees it")):
+    if needle not in plan_days:
+        fail.append("leave._fill_plan_days: %s (%r not found)" % (why, needle))
+if "    if drawing_up:\n        _fill_plan_days(doc, before)" not in glue_leave:
+    fail.append("the days are worked out while the plan is drawn up, and stand once it is sent")
+policy_part = glue_leave.split("def _fill_plan_policy(")[1].split("\ndef ")[0]
+if "if doc.docstatus == 0 and not doc.get(\"leave_policy\"):\n        doc.leave_policy = _default_policy()" \
+        not in policy_part or "gives no {1}. Choose one that does." not in policy_part:
+    fail.append("the plan's Leave Policy is the settings' default until HR choose, and must give annual leave")
+base = glue_leave.split("def _base_policy(")[1].split("\ndef ")[0]
+if "return leave_accrual._last_policy(employee) or plan_policy or _default_policy()" not in base:
+    fail.append("the policy given: the employee's own before, else the plan's, else the default")
+assign = glue_leave.split("def _assign(")[1].split("\ndef ")[0]
+for needle, why in (
+        ('frappe.db.savepoint("ha_leave_assignment")', "each employee in a savepoint of their own"),
+        ('frappe.db.rollback(save_point="ha_leave_assignment")', "one refused is taken back alone"),
+        ("wanted = _policy_with_days(base, days, cache)", "the policy for their days"),
+        ('"assignment_based_on": "Leave Period"', "for the plan's leave period"),
+        ("if submit:", "submitted only when the plan is approved"),
+        ("frappe.delete_doc(ASSIGNMENT, name, ignore_permissions=True, force=True)",
+         "a draft taken back from somebody who has their leave from elsewhere"),
+        ('done["failed"].append(', "and a refusal named, not swallowed")):
+    if needle not in assign:
+        fail.append("leave._assign: %s (%r not found)" % (why, needle))
+variant = glue_leave.split("def _policy_with_days(")[1].split("\ndef ")[0]
+if "rules.same_details(_details(name), wanted)" not in variant or "made.submit()" not in variant \
+        or "rules.variant_title(title, rules.ANNUAL, days)" not in variant:
+    fail.append("a policy with other annual days: one already made with the same days, else made and submitted")
+for needle, why in (
+        ("    _assign_now_or_later(doc, submit=True)", "the approved plan submits the assignments: the leave is allocated"),
+        ("    _forget(_gone(doc))\n    _assign_now_or_later(doc, submit=False)", "a draft plan's assignments follow it"),
+        ('frappe.enqueue("hrms_addon.hrms_addon.leave.assign_plan"', "a big plan's in the background")):
+    if needle not in glue_leave:
+        fail.append("leave.py: %s (%r not found)" % (why, needle))
+controller = read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.py")
+if "leave.plan_on_update(self)" not in controller or "leave.plan_on_trash(self)" not in controller:
+    fail.append("the plan's controller runs on_update and on_trash")
+row_fields = {row["fieldname"]: row for row in json.loads(read(
+    "hrms_addon", "hrms_addon", "doctype", "annual_leave_plan_employee", "annual_leave_plan_employee.json"))["fields"]}
+days_field = row_fields.get("entitlement_days", {})
+if days_field.get("read_only") or days_field.get("read_only_depends_on") != "eval:doc.on_record" \
+        or not days_field.get("in_list_view"):
+    fail.append("a row's Leave Days is HR's to change, in the grid, unless the employee already has their leave")
+for name, kind in (("on_record", "Check"), ("leave_policy", "Link"), ("leave_policy_assignment", "Link"),
+                   ("days_set", "Check")):
+    if row_fields.get(name, {}).get("fieldtype") != kind or not row_fields.get(name, {}).get("read_only"):
+        fail.append("the row's %s is a read-only %s the server writes" % (name, kind))
+if not row_fields.get("leave_policy_assignment", {}).get("no_copy"):
+    fail.append("a copied plan does not take another plan's assignments")
+if sum(row.get("columns", 0) for row in row_fields.values() if row.get("in_list_view")) > 10:
+    fail.append("the rows' grid fits Frappe's ten columns")
+plan_fields = {row["fieldname"]: row for row in json.loads(read(
+    "hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.json"))["fields"]}
+if plan_fields.get("leave_policy", {}).get("options") != "Leave Policy" \
+        or not plan_fields.get("policy_days", {}).get("read_only"):
+    fail.append("the plan has its Leave Policy, and shows the Annual Leave days it gives")
+plan_js = read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.js")
+for needle, why in (
+        ("	leave_policy(frm) {", "the plan's Leave Policy refills the rows it gives leave to"),
+        ("	entitlement_days(frm, cdt, cdn) {", "a row's days changed by HR"),
+        ("line.days_set = 1;", "kept as HR's on save"),
+        ("leave_policy: frm.doc.leave_policy", "the plan's policy goes with a picked employee")):
+    if needle not in plan_js:
+        fail.append("annual_leave_plan.js: %s (%r not found)" % (why, needle))
 plan_script = read("hrms_addon", "hrms_addon", "doctype", "annual_leave_plan", "annual_leave_plan.js")
 for needle, why in (
     ('frappe.ui.form.on("Annual Leave Plan Employee", {', "the row's own events are handled"),

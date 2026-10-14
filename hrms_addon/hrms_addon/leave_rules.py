@@ -227,11 +227,86 @@ def plan_errors(facts):
         planned = sum(span[2] for span in spans)
         available = max(span[4] for span in spans)
         if not available:
-            errors.append("%s has no annual leave on record for %s. Assign their leave policy or allocation first."
-                          % (who, year or "the year"))
+            errors.append(NO_DAYS % (who, year or "the year"))
         elif planned > available:
             errors.append("%s is planned for %g day(s), %g available." % (who, planned, available))
     return errors
+
+
+# somebody the plan has no days for: no leave policy of their own for the
+# year, none before, and none chosen on the plan
+NO_DAYS = "%s has no leave days for %s. Choose the plan's Leave Policy, or enter their Leave Days."
+
+
+def employee_days(rows, before=None):
+    """{employee: (days, set_by_hr)} the plan gives each employee. A leave
+    split in parts shares one figure. Where HR changed it on one part since
+    the plan was last saved, that part's figure is theirs; else a part saved
+    before; else a part added now. set_by_hr: the figure was changed by HR
+    now, or a part says it was before (days_set), so it is kept and not
+    filled from the leave policy again.
+
+    rows: "name", "employee", "entitlement_days", "days_set". before:
+    {row name: entitlement_days as last saved}."""
+    before = before or {}
+    ranked = {}
+    for row in rows or ():
+        employee = row.get("employee")
+        if not employee:
+            continue
+        days = _num(row.get("entitlement_days"))
+        name = row.get("name")
+        changed = name in before and _num(before[name]) != days
+        rank = 0 if changed else (1 if name in before else 2)
+        kept = ranked.get(employee)
+        set_by_hr = changed or bool(row.get("days_set")) or bool(kept and kept[2])
+        if kept is None or rank < kept[0]:
+            ranked[employee] = (rank, days, set_by_hr)
+        else:
+            ranked[employee] = (kept[0], kept[1], set_by_hr)
+    return {employee: (days, set_by_hr) for employee, (_rank, days, set_by_hr) in ranked.items()}
+
+
+def policy_days(details, leave_type):
+    """The days a year a leave policy gives of one leave type, None where
+    it gives none. details: its rows of leave_type and annual_allocation."""
+    for row in details or ():
+        if row.get("leave_type") == leave_type:
+            return _num(row.get("annual_allocation"))
+    return None
+
+
+def with_days(details, leave_type, days):
+    """A leave policy's rows with one leave type at `days` a year: the
+    others as they are."""
+    out, found = [], False
+    for row in details or ():
+        if row.get("leave_type") == leave_type:
+            out.append({"leave_type": leave_type, "annual_allocation": _num(days)})
+            found = True
+        else:
+            out.append({"leave_type": row.get("leave_type"), "annual_allocation": _num(row.get("annual_allocation"))})
+    if not found:
+        out.append({"leave_type": leave_type, "annual_allocation": _num(days)})
+    return out
+
+
+def same_details(first, second):
+    """Whether two leave policies give the same days of the same types."""
+    def key(rows):
+        return sorted((row.get("leave_type") or "", _num(row.get("annual_allocation"))) for row in rows or ())
+    return key(first) == key(second)
+
+
+def variant_title(title, leave_type, days):
+    """The title of a leave policy that is `title` with another number of
+    days of `leave_type`: "Staff, Annual Leave 30 days". A title that is
+    itself such a variant is named from what it was made from."""
+    base = (title or "").strip()
+    suffix = ", %s " % leave_type
+    if suffix in base and base.endswith(" days"):
+        base = base[:base.rindex(suffix)]
+    return "%s%s%g days" % (base or leave_type, suffix, _num(days))
 
 
 def clashes(rows, most_off):
