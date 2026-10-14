@@ -119,13 +119,24 @@ list down the left.
 - **Edge to edge.** The page Frappe holds the desk in is padded, so the
   navbar stopped short of the window. `bleed()` measures how far in the
   desk sits against the pane that scrolls and CSS draws it out by that
-  much, to the scrollbar and to the foot of the window. It stops at
-  anything that would cut it off, and leaves alone a side held in by more
-  than 64px. Measured again when the window changes size.
+  much, to the scrollbar and the top, and pulls up the padding under it.
+  The top is measured from the desk's own page, so Frappe's navbar above
+  the page (there until the desk hides it) is not taken for padding. It
+  stops at anything that would cut it off, and leaves alone a side held in
+  by more than 64px. Measured again when the window changes size. The desk
+  is as tall as what is on it: made as tall as the window, it scrolled by
+  whatever Frappe puts under the page.
+- **It opens at its top.** Frappe scrolls the window to the top when it
+  shows a page, but the desk scrolls in a pane of its own, so coming back
+  from a module showed it as far down as the module had been scrolled, the
+  greeting under the navbar. The pane is put back to the top whenever
+  Frappe draws the desk.
 - **Each module opens to its own menu.** The arrow on a module lists the
   entries of its sidebar (`frappe.boot.workspace_sidebar_item`, already cut
   down to what the user may open), one menu open at a time; the row itself
-  still opens the module. An entry opens as Frappe's sidebar opens it. The
+  still opens the module. Each heading in a menu opens and shuts the entries
+  under it, and shows in the theme's blue; it stays as it was left while the
+  desk is drawn again. An entry opens as Frappe's sidebar opens it. The
   module's sidebar is asked for by name only where the entry carries no
   filters of its own: Frappe's sidebar clears every route option once it
   has read its own.

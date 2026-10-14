@@ -39,12 +39,13 @@
 	// how far in a padded page may hold the desk and still be drawn out to the window's edges
 	const MOST_INSET = 64;
 	// what bleed() measures and CSS reads
-	const MEASURED = ["--ha-bleed-l", "--ha-bleed-r", "--ha-bleed-t", "--ha-bleed-b", "--ha-desk-height"];
+	const MEASURED = ["--ha-bleed-l", "--ha-bleed-r", "--ha-bleed-t", "--ha-bleed-b"];
 	let answer = null;
 	let asked_at = 0;
 	let asking = false;
 	let tab = "items";
 	let open_module = null; // the module whose own menu is open in the list
+	const shown_groups = new Set(); // the headings of a module's menu that are open, as "module|heading"
 
 	const ICONS = {
 		employees:
@@ -148,9 +149,10 @@
 	}
 
 	// The page Frappe puts the desk in is padded, so the navbar stopped short of the window's edges and the
-	// home sat in from them. How far in the desk sits is measured, and CSS draws it out by that much, and
-	// down to the foot of the window. Past MOST_INSET something else holds it (a sidebar, a footer), and on
-	// that side it is left where it is.
+	// home sat in from them. How far in the desk sits is measured, and CSS draws it out by that much; at the
+	// foot too, so the padding under it does not lengthen the page and push the list of modules up under the
+	// navbar at its end. Past MOST_INSET something else holds it (a sidebar), and on that side it is left
+	// where it is.
 	function bleed(wrapper) {
 		try {
 			MEASURED.forEach((name) => wrapper.style.removeProperty(name));
@@ -173,21 +175,19 @@
 			const left = frame ? edge.left + frame.clientLeft : -window.scrollX;
 			const top = frame ? edge.top + frame.clientTop - frame.scrollTop : -window.scrollY;
 			const width = (frame || document.documentElement).clientWidth;
-			const height = (frame || document.documentElement).clientHeight;
+			// the top from the desk's own page: what Frappe shows above the page (its navbar, until the desk hides
+			// it a moment after it is drawn; an announcement) is not the page's padding
+			const page = wrapper.closest(".page-container");
 			const inset = {
 				l: box.left - left,
 				r: left + width - box.right,
-				t: box.top - top,
+				t: box.top - Math.max(top, page ? page.getBoundingClientRect().top : top),
 				b: holder.getBoundingClientRect().bottom - box.bottom,
 			};
-			let room = height; // how tall the desk is when it has little on it: the window, less what stays around it
 			Object.keys(inset).forEach((side) => {
 				const drawn_out = inset[side] > 0.5 && inset[side] <= MOST_INSET;
 				wrapper.style.setProperty("--ha-bleed-" + side, (drawn_out ? Math.round(inset[side]) : 0) + "px");
-				if (!drawn_out && (side === "t" || side === "b")) room -= Math.max(inset[side], 0);
 			});
-			// only against the window: something inside the pane is as tall as what it holds, the desk included
-			if (frame === pane) wrapper.style.setProperty("--ha-desk-height", Math.max(Math.floor(room), 0) + "px");
 		} catch (error) {
 			console.error(error);
 		}
@@ -297,16 +297,7 @@
 						"beforeend",
 						`<span class="ha-rail-toggle" role="button" tabindex="0" aria-expanded="false" ` +
 							`title="${esc(__("Show menu"))}">${icon("chevron")}</span>` +
-							`<span class="ha-rail-menu">` +
-							list
-								.map((row, index) =>
-									row.heading
-										? `<span class="ha-rail-heading">${esc(__(row.heading))}</span>`
-										: `<span class="ha-rail-link" role="link" tabindex="0" data-index="${index}">` +
-										  `${esc(__(row.label))}</span>`
-								)
-								.join("") +
-							`</span>`
+							`<span class="ha-rail-menu">${menu_html(list, module)}</span>`
 					);
 					tile.classList.add("ha-has-menu");
 					// neither the arrow nor the menu is the tile: a click on them does not open the module
@@ -321,6 +312,17 @@
 					};
 					const pick = (event) => {
 						mine(event);
+						const heading = event.target.closest(".ha-rail-heading");
+						if (heading) {
+							const group = heading.parentElement;
+							const key = module + "|" + list[Number(group.getAttribute("data-group"))].heading;
+							const shown = !group.classList.contains("ha-shown");
+							group.classList.toggle("ha-shown", shown);
+							heading.setAttribute("aria-expanded", shown ? "true" : "false");
+							if (shown) shown_groups.add(key);
+							else shown_groups.delete(key);
+							return;
+						}
 						const link = event.target.closest(".ha-rail-link");
 						const row = link && list[Number(link.getAttribute("data-index"))];
 						try {
@@ -343,6 +345,28 @@
 		} catch (error) {
 			console.error(error);
 		}
+	}
+
+	// A module's menu: its first entries as they are, and each heading with the entries under it, which the
+	// heading opens and shuts. A heading stays as it was left while the desk is drawn again.
+	function menu_html(list, module) {
+		let html = "";
+		let in_group = false;
+		list.forEach((row, index) => {
+			if (row.heading) {
+				if (in_group) html += "</span></span>";
+				const shown = shown_groups.has(module + "|" + row.heading);
+				html +=
+					`<span class="ha-rail-group${shown ? " ha-shown" : ""}" data-group="${index}">` +
+					`<span class="ha-rail-heading" role="button" tabindex="0" aria-expanded="${shown ? "true" : "false"}">` +
+					`<span>${esc(__(row.heading))}</span>${icon("chevron")}</span><span class="ha-rail-items">`;
+				in_group = true;
+			} else {
+				html +=
+					`<span class="ha-rail-link" role="link" tabindex="0" data-index="${index}">` + `${esc(__(row.label))}</span>`;
+			}
+		});
+		return html + (in_group ? "</span></span>" : "");
 	}
 
 	// the desk as Frappe drew it: nothing of the home's left on it
@@ -561,10 +585,18 @@
 		look();
 	}
 
-	// Frappe says when it has drawn the desk (desktop.js setup: "desktop_screen"): the home goes on at once
+	// Frappe says when it has drawn the desk (desktop.js setup: "desktop_screen"): the home goes on at once,
+	// and is measured again once Frappe has done what it does after (it hides its own navbar). Frappe means a
+	// page it shows to open at its top (container.js, scroll_to), but scrolls the window, and the desk scrolls
+	// in a pane of its own: come back to, it was shown as far down as the module left it.
 	function drawn_again() {
 		try {
-			if (on_desk() && !present()) show();
+			if (!on_desk()) return;
+			if (!present()) show();
+			const wrapper = desk();
+			const pane = wrapper && wrapper.closest(".main-section");
+			if (pane) pane.scrollTop = 0;
+			setTimeout(measure, 0);
 		} catch (error) {
 			console.error(error);
 		}
@@ -765,24 +797,32 @@ ${TILES} > .desktop-icon > .ha-rail-toggle > svg { width: 16px; height: 16px; }
 ${TILES} > .desktop-icon.ha-open > .ha-rail-toggle { transform: rotate(90deg); color: var(--hra-primary, #14395E); }
 ${TILES} > .desktop-icon > .ha-rail-menu { flex: 0 0 100%; box-sizing: border-box; min-width: 0; padding: 2px 0 6px 48px; cursor: default; }
 ${TILES} > .desktop-icon.ha-open > .ha-rail-menu { display: block; }
-${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-heading {
-	display: block; margin: 9px 0 2px; padding: 0 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
-	text-transform: uppercase; color: var(--text-muted, #5C6B82);
+/* a heading opens and shuts the entries under it, in the theme's blue so it reads apart from them */
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-heading {
+	display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 3px 0 1px; padding: 5px 8px;
+	border-radius: 7px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; line-height: 1.3;
+	cursor: pointer; color: var(--hra-primary-mid, #2A5A8C);
 }
-${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-heading:first-child { margin-top: 2px; }
-${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-link {
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-heading:hover, ${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-heading:focus-visible {
+	background: color-mix(in srgb, var(--hra-primary-mid, #2A5A8C) 10%, transparent); outline: none;
+}
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-heading > svg { width: 13px; height: 13px; flex: none; transition: transform .12s ease; }
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-group.ha-shown > .ha-rail-heading > svg { transform: rotate(90deg); }
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-items { display: none; padding: 0 0 2px 8px; }
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-group.ha-shown > .ha-rail-items { display: block; }
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-link {
 	display: block; padding: 5px 8px; border-radius: 7px; font-size: 12.5px; line-height: 1.3; cursor: pointer;
 	color: var(--text-color, #1E2A3A);
 }
-${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-link:hover, ${TILES} > .desktop-icon > .ha-rail-menu > .ha-rail-link:focus-visible {
+${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-link:hover, ${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-link:focus-visible {
 	background: color-mix(in srgb, var(--hra-primary, #14395E) 9%, transparent); color: var(--hra-primary, #14395E); outline: none;
 }
 
-/* The desk reaches the window's edges and its foot: the page Frappe holds it in is padded, and the navbar
-   stopped short of the edges. bleed() measures how far in it sits. Its colour is the page's own, whatever
-   the theme. */
+/* The desk reaches the window's edges: the page Frappe holds it in is padded, and the navbar stopped short of
+   them. bleed() measures how far in it sits. Its colour is the page's own, whatever the theme. It is as tall
+   as what is on it: made as tall as the window, it scrolled by whatever Frappe puts under the page. */
 .desktop-wrapper.ha-has-home:not([data-mode="Edit"]) {
-	width: auto; max-width: none; min-height: var(--ha-desk-height, 0px); box-sizing: border-box; background-color: inherit;
+	width: auto; max-width: none; box-sizing: border-box; background-color: inherit;
 	margin: calc(-1 * var(--ha-bleed-t, 0px)) calc(-1 * var(--ha-bleed-r, 0px)) calc(-1 * var(--ha-bleed-b, 0px)) calc(-1 * var(--ha-bleed-l, 0px));
 }
 

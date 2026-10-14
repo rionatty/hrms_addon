@@ -207,10 +207,12 @@ check("appendChild" not in script.replace("document.head.appendChild(sheet);", "
       "nothing of Frappe's is moved or removed: the list and its order are CSS, and the only things taken off the "
       "page are the home's own")
 check(script.count("insertAdjacentHTML") == 1 and 'tile.insertAdjacentHTML(\n\t\t\t\t\t\t"beforeend",' in script
-      and script.count("setAttribute") == 1 and 'toggle.setAttribute("aria-expanded"' in script
+      and script.count("setAttribute") == 2 and 'toggle.setAttribute("aria-expanded"' in script
+      and 'heading.setAttribute("aria-expanded", shown ? "true" : "false");' in script
       and script.count("classList.add(") == 2 and 'tile.classList.add("ha-has-menu");' in script
       and 'wrapper.classList.add("ha-has-home");' in script,
-      "a tile gains an arrow and a menu after what Frappe wrote in it, and a class; nothing else of Frappe's is marked")
+      "a tile gains an arrow and a menu after what Frappe wrote in it, and a class; nothing else of Frappe's is marked "
+      "(the other aria-expanded is on a heading inside the home's own menu)")
 check("if (!answer && asked_at && Date.now() - asked_at < FRESH_MS) return true;" in script
       and "else if (there && !answer) unmount(desk());" in script
       and 'tile.classList.remove("ha-has-menu", "ha-open")' in taken_off and 'wrapper.classList.remove("ha-has-home");' in taken_off
@@ -320,9 +322,17 @@ check(container and 0 < container.find('$(document).trigger("page-change");') < 
       and '$(document).trigger("desktop_screen", { desktop: this });' in desktop.split("\n\tsetup() {")[1].split("\n\t}\n")[0],
       "Frappe says the page changed, then empties its desk and draws it afresh, then says the desk is drawn: read "
       "from %s" % FRAPPE)
+again = script.split("function drawn_again(")[1].split("\n\t}\n")[0]
 check('$(document).on("desktop_screen", drawn_again);' in script and '$(document).on("page-change", arrive);' in script
-      and "if (on_desk() && !present()) show();" in script.split("function drawn_again(")[1].split("\n\t}\n")[0],
+      and "if (!on_desk()) return;" in again and "if (!present()) show();" in again,
       "so the home goes back on when Frappe says the desk is drawn, where it is missing")
+scrolled = frappes_own("public", "js", "frappe", "utils", "utils.js")
+check('element_to_be_scrolled = element_to_be_scrolled || $("html, body");' in scrolled
+      and "frappe.utils.scroll_to(0)" in container
+      and 'const pane = wrapper && wrapper.closest(".main-section");' in again and "if (pane) pane.scrollTop = 0;" in again,
+      "and opens at its top: Frappe scrolls the window when it shows a page, and the desk scrolls in a pane of its own")
+check("setTimeout(measure, 0);" in again and '$(".sticky-top > .navbar").hide();' in desktop,
+      "measured again once Frappe has done what it does after saying so, its own navbar hidden among it")
 looking = script.split("function arrive(")[1].split("\n\t}\n")[0]
 check("const there = present() || show();" in looking
       and "if (tries < 12 && (!there || tries < 5)) setTimeout(look, 150 * tries);" in looking,
@@ -343,21 +353,26 @@ check("const MOST_INSET = 64;" in script
 check('cut.overflowX !== "visible" || cut.overflowY !== "visible"' in measure
       and "inset[side] > 0.5 && inset[side] <= MOST_INSET" in measure
       and 'wrapper.style.setProperty("--ha-bleed-" + side, (drawn_out ? Math.round(inset[side]) : 0) + "px");' in measure
-      and "if (frame === pane) wrapper.style.setProperty(\"--ha-desk-height\"" in measure,
-      "it is drawn out no further than something that would cut it off, not at all on a side something wide holds "
-      "it in from, and made as tall as the window only against the window")
-check('const MEASURED = ["--ha-bleed-l", "--ha-bleed-r", "--ha-bleed-t", "--ha-bleed-b", "--ha-desk-height"];' in script
+      and "desk-height" not in script and "b: holder.getBoundingClientRect().bottom - box.bottom," in measure,
+      "it is drawn out no further than something that would cut it off, and not at all on a side something wide holds "
+      "it in from; at the foot too, so the padding under it does not push the list up under the navbar at the end of "
+      "the page; and it is never made taller than what is on it, which scrolled the page by whatever Frappe puts under it")
+check('const page = wrapper.closest(".page-container");' in measure
+      and "t: box.top - Math.max(top, page ? page.getBoundingClientRect().top : top)," in measure,
+      "its top is measured from its own page, so Frappe's navbar above the page, there until the desk hides it, is "
+      "not taken for padding")
+check('const MEASURED = ["--ha-bleed-l", "--ha-bleed-r", "--ha-bleed-t", "--ha-bleed-b"];' in script
       and "bleed(wrapper);" in script.split("function mount(")[1].split("\n\t}\n")[0]
       and '$(window).on("resize", resized);' in script
       and "measuring = setTimeout(measure, 150);" in script.split("function resized(")[1].split("\n\t}\n")[0]
       and 'if (wrapper && wrapper.classList.contains("ha-has-home")) bleed(wrapper);' in script.split("function measure(")[1].split("\n\t}\n")[0]
-      and "if (there) measure();" in looking,
+      and "if (there) measure();" in looking and "setTimeout(measure, 0);" in again,
       "measured each time the home goes on, each time it is looked for (the page may not have been laid out when it "
       "went on) and when the window changes size")
 drawn_out = css.split("\n" + NOT_EDITED + " {")[1].split("}")[0]
 check("margin: calc(-1 * var(--ha-bleed-t, 0px)) calc(-1 * var(--ha-bleed-r, 0px)) calc(-1 * var(--ha-bleed-b, 0px)) "
-      "calc(-1 * var(--ha-bleed-l, 0px));" in drawn_out and "width: auto; max-width: none;" in drawn_out
-      and "min-height: var(--ha-desk-height, 0px);" in drawn_out and "background-color: inherit;" in drawn_out,
+      "calc(-1 * var(--ha-bleed-l, 0px));" in drawn_out and "width: auto; max-width: none;" in drawn_out and "min-height" not in drawn_out
+      and "background-color: inherit;" in drawn_out,
       "CSS draws the desk out by what was measured, and by nothing where nothing was; its colour is the page's own, "
       "whatever the theme")
 
@@ -400,10 +415,23 @@ check('":scope > .desktop-container > .icons-container > .icons > .desktop-icon[
       and 'event.key === "Enter" || event.key === " "' in drawn and "try {" in drawn,
       "the arrow and the menu go on the desk's own tiles once, only where there is a menu; a click on them is "
       "theirs and never opens the module; they work from the keyboard")
-check('role="button" tabindex="0" aria-expanded="false"' in drawn and 'role="link" tabindex="0"' in drawn
-      and "${esc(__(row.heading))}" in drawn and "${esc(__(row.label))}" in drawn
-      and "open_module = open_module === module ? null : module;" in drawn,
+written = script.split("function menu_html(")[1].split("\n\t}\n")[0]
+check('role="button" tabindex="0" aria-expanded="false"' in drawn and 'role="link" tabindex="0"' in written
+      and "${esc(__(row.heading))}" in written and "${esc(__(row.label))}" in written
+      and "${menu_html(list, module)}" in drawn and "open_module = open_module === module ? null : module;" in drawn,
       "one menu open at a time, each name written as text")
+check('const shown = shown_groups.has(module + "|" + row.heading);' in written and 'data-group="${index}"' in written
+      and '<span class="ha-rail-heading" role="button" tabindex="0"' in written
+      and 'const heading = event.target.closest(".ha-rail-heading");' in drawn
+      and 'group.classList.toggle("ha-shown", shown);' in drawn and "return;" in drawn.split("if (heading) {")[1].split("}")[0]
+      and "shown_groups.add(key);" in drawn and "shown_groups.delete(key);" in drawn,
+      "each heading of a menu opens and shuts the entries under it, and nothing else; it stays as it was left while the "
+      "desk is drawn again")
+check(TILES + " > .desktop-icon > .ha-rail-menu .ha-rail-items { display: none;" in css
+      and TILES + " > .desktop-icon > .ha-rail-menu .ha-rail-group.ha-shown > .ha-rail-items { display: block; }" in css
+      and "color: var(--hra-primary-mid, #2A5A8C);" in css.split(TILES + " > .desktop-icon > .ha-rail-menu .ha-rail-heading {")[1].split("}")[0]
+      and "color: var(--text-color, #1E2A3A);" in css.split(TILES + " > .desktop-icon > .ha-rail-menu .ha-rail-link {")[1].split("}")[0],
+      "a heading's entries are shut until it is opened, and a heading is in the theme's blue, apart from its entries")
 shows = [line for line in rules if ".ha-rail-" in line and "display:" in line.split("{", 1)[1].split("}")[0].replace("display: none", "")]
 check("\n.ha-rail-toggle, .ha-rail-menu { display: none; }\n" in css
       and shows and all(part.startswith(TILES + " > .desktop-icon") for line in shows for part in selectors(line))
