@@ -59,8 +59,14 @@ print("CSS vars: %d used, %d defined" % (len(used), len(defined)))
 if used - defined:
     fail.append("CSS references undefined vars: %s" % sorted(used - defined))
 
-# 5. doctype Color fields == palette fields
+# 5. doctype Color fields == palette fields, each showing the colour it
+#    ships with as its placeholder (Luuka, 15 Oct 2026: "let them have
+#    place holder for adjusting"): an empty field reads as that colour
 colour_fields = {f["fieldname"] for f in dt["fields"] if f["fieldtype"] == "Color"}
+for f in dt["fields"]:
+    if f["fieldtype"] == "Color" and (f.get("placeholder") or "").lower() != defaults.get(f["fieldname"], "").lower():
+        fail.append("%s shows %r as its placeholder, not the colour it ships with (%s)"
+                    % (f["fieldname"], f.get("placeholder"), defaults.get(f["fieldname"])))
 print("doctype: %s | %d fields, %d Color" % (dt["name"], len(dt["fields"]), len(colour_fields)))
 if colour_fields != set(py_map):
     fail.append("Color fields != palette fields: %s" % (colour_fields ^ set(py_map)))
@@ -79,6 +85,19 @@ if "def %s(" % fn not in ctrl:
     fail.append("%s() not defined in controller" % fn)
 if "@frappe.whitelist()" not in ctrl:
     fail.append("controller has no @frappe.whitelist()")
+
+# 6b. the form warns where text would become hard to read: white on the
+#     navies the headers and the sidebar are drawn in, and Dark Navy on the
+#     gold the desk home's and the module pages' buttons are drawn in
+contrast = block(js, "function ha_show_contrast(", "\n}\n")
+for needle in ('[__("Primary Navy"), frm.doc.primary_navy, white]', '[__("Dark Navy"), frm.doc.dark_navy, white]',
+               '[__("Sidebar"), frm.doc.sidebar_background, white]',
+               '[__("Text on Gold"), ha_colour_of(frm, "selected_highlight"), ha_colour_of(frm, "dark_navy")]',
+               "const ok = ratio >= 4.5;"):
+    if needle not in contrast:
+        fail.append("the form's contrast line no longer checks %s" % needle)
+if "return frm.doc[fieldname] || (field && field.df.placeholder) || \"\";" not in block(js, "function ha_colour_of(", "\n}\n"):
+    fail.append("a colour left empty is checked as the one it ships with, its placeholder")
 
 # 7. boot keys agree across the three files that touch them
 for key in ("hrms_addon_theme", "hrms_addon_workspace_cockpit"):

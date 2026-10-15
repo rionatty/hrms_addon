@@ -10,6 +10,7 @@
 // hrms_addon/hrms_addon/theme.py (FIELD_TO_VAR) — keep them in step.
 const HA_THEME_FIELDS = {
 	primary_navy:          "--hra-primary",
+	dark_navy:             "--hra-primary-dark",
 	section_header_colour: "--hra-primary-mid",
 	sidebar_background:    "--hra-shell",
 	navbar_background:     "--hra-shell-dark",
@@ -17,8 +18,12 @@ const HA_THEME_FIELDS = {
 	canvas_bottom:         "--hra-canvas-bottom",
 	accent_colour:         "--hra-accent",
 	selected_highlight:    "--hra-shell-marker",
+	page_background:       "--hra-wash",
 	zebra_tint:            "--hra-pale",
 	border_colour:         "--hra-border",
+	danger_colour:         "--hra-danger",
+	warning_colour:        "--hra-amber-text",
+	success_colour:        "--hra-success",
 };
 
 function ha_relative_luminance(hex) {
@@ -32,10 +37,18 @@ function ha_relative_luminance(hex) {
 	return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
-function ha_contrast_with_white(hex) {
-	const l = ha_relative_luminance(hex);
-	if (l === null) return null;
-	return 1.05 / (l + 0.05);
+// how far apart two colours are for reading, 1:1 to 21:1
+function ha_contrast(text, background) {
+	const a = ha_relative_luminance(text);
+	const b = ha_relative_luminance(background);
+	if (a === null || b === null) return null;
+	return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+// a colour field's value, or the colour it ships with (its placeholder)
+function ha_colour_of(frm, fieldname) {
+	const field = frm.fields_dict[fieldname];
+	return frm.doc[fieldname] || (field && field.df.placeholder) || "";
 }
 
 function ha_preview(frm) {
@@ -72,23 +85,33 @@ function ha_restore_saved() {
 	Object.entries(saved).forEach(([cssVar, value]) => root.style.setProperty(cssVar, value));
 }
 
-// White text sits on these three, so they are the ones that can become
-// unreadable. 4.5:1 is the WCAG AA floor for body text.
+// The colours text sits on, so the ones that can become unreadable: white
+// on the navy of the headers and the sidebar (and the cockpit's canvas,
+// where it shows), and Dark Navy on the gold of the buttons. Only a colour
+// picked here is checked; a pair is checked as soon as either side is.
+// 4.5:1 is the WCAG AA floor for body text.
 function ha_show_contrast(frm) {
 	if (!frm.doc.enabled) {
 		frm.dashboard.clear_headline();
 		return;
 	}
+	const white = "#FFFFFF";
 	const checks = [
-		[__("Canvas (Top)"), frm.doc.canvas_top],
-		[__("Canvas (Bottom)"), frm.doc.canvas_bottom],
-		[__("Sidebar"), frm.doc.sidebar_background],
+		[__("Primary Navy"), frm.doc.primary_navy, white],
+		[__("Dark Navy"), frm.doc.dark_navy, white],
+		[__("Sidebar"), frm.doc.sidebar_background, white],
 	];
+	if (ha_cockpit_on(frm.doc)) {
+		checks.push([__("Canvas (Top)"), frm.doc.canvas_top, white], [__("Canvas (Bottom)"), frm.doc.canvas_bottom, white]);
+	}
+	if (frm.doc.selected_highlight || frm.doc.dark_navy) {
+		checks.push([__("Text on Gold"), ha_colour_of(frm, "selected_highlight"), ha_colour_of(frm, "dark_navy")]);
+	}
 	const parts = [];
 	let worst = false;
-	checks.forEach(([label, colour]) => {
+	checks.forEach(([label, colour, text]) => {
 		if (!colour) return;
-		const ratio = ha_contrast_with_white(colour);
+		const ratio = ha_contrast(text, colour);
 		if (ratio === null) return;
 		const ok = ratio >= 4.5;
 		if (!ok) worst = true;
@@ -102,7 +125,7 @@ function ha_show_contrast(frm) {
 		return;
 	}
 	frm.dashboard.set_headline(
-		__("White text contrast") + ": " + parts.join(" &nbsp;·&nbsp; ") +
+		__("Text contrast") + ": " + parts.join(" &nbsp;·&nbsp; ") +
 		(worst
 			? ` &nbsp; <span style="color:var(--red-600,#dc3545)">${__("Below 4.5:1. Text will be hard to read.")}</span>`
 			: ` &nbsp; <span class="text-muted">${__("All above the 4.5:1 readability floor.")}</span>`)
@@ -169,10 +192,12 @@ const ha_handlers = {
 
 	workspace_cockpit(frm) {
 		ha_preview(frm);
+		ha_show_contrast(frm);
 	},
 
 	module_pages(frm) {
 		ha_preview(frm);
+		ha_show_contrast(frm);
 	},
 
 	density(frm) {

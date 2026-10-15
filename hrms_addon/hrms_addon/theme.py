@@ -15,7 +15,15 @@ Flow:
 FIELD_TO_VAR is the whole contract: add a Color field to the doctype,
 add its CSS variable here, and it becomes adjustable. DEFAULTS must
 mirror the :root block in the stylesheet — they are what "Reset to
-Defaults" restores and what the form shows as placeholders.
+Defaults" restores and what the form shows as placeholders (each Color
+field's placeholder in the doctype, scripts/verify_palette.py).
+
+The desk home and the module pages (hrms_addon_home.js,
+hrms_addon_module_pages.js) draw with these same properties and write no
+colour of their own (Luuka, 15 Oct 2026: "dont hard code colors let them
+have place holder for adjusting"), so a colour picked here reaches them
+too: the gold is the Gold Highlight, the statuses are the three status
+colours the alerts and the status pills use.
 
 The --hra- prefix is deliberate. Stock Addon ships the same theme under
 --agri-, so both apps can be installed on one site without either one's
@@ -27,6 +35,7 @@ import frappe
 # doctype fieldname -> CSS custom property
 FIELD_TO_VAR = {
     "primary_navy":          "--hra-primary",
+    "dark_navy":             "--hra-primary-dark",
     "section_header_colour": "--hra-primary-mid",
     "sidebar_background":    "--hra-shell",
     "navbar_background":     "--hra-shell-dark",
@@ -34,8 +43,12 @@ FIELD_TO_VAR = {
     "canvas_bottom":         "--hra-canvas-bottom",
     "accent_colour":         "--hra-accent",
     "selected_highlight":    "--hra-shell-marker",
+    "page_background":       "--hra-wash",
     "zebra_tint":            "--hra-pale",
     "border_colour":         "--hra-border",
+    "danger_colour":         "--hra-danger",
+    "warning_colour":        "--hra-amber-text",
+    "success_colour":        "--hra-success",
 }
 
 # Must match the :root blocks in public/css/hrms_addon.bundle.css — note
@@ -46,6 +59,7 @@ FIELD_TO_VAR = {
 # stylesheet and corrected below.)
 DEFAULTS = {
     "primary_navy":          "#14395E",
+    "dark_navy":             "#0A2540",
     "section_header_colour": "#2A5A8C",
     "sidebar_background":    "#14395E",
     "navbar_background":     "#0F2E4C",
@@ -53,8 +67,12 @@ DEFAULTS = {
     "canvas_bottom":         "#4878A4",
     "accent_colour":         "#0A6ED1",
     "selected_highlight":    "#F0AB00",
+    "page_background":       "#F5F8FC",
     "zebra_tint":            "#EEF3F9",
     "border_colour":         "#C3D0E0",
+    "danger_colour":         "#A62B25",
+    "warning_colour":        "#B45309",
+    "success_colour":        "#256F3A",
 }
 # what DEFAULTS said before the navy shell (5 Oct 2026). A site that saved
 # these never chose them: "Reset to Defaults" writes them in. The patch

@@ -69,6 +69,20 @@ def load(name):
     return module
 
 
+def own_colours(css_text, bundle_text):
+    """What a page's styles write that is not the theme's: any colour outside a var() fallback, white aside
+    (white text on the navy, which the settings' contrast line keeps readable), and every var(--hra-...)
+    fallback that is not the stylesheet's own value."""
+    roots = dict(re.findall(r"(--hra-[\w-]+):\s*(#[0-9A-Fa-f]{3,6})\s*;", bundle_text))
+    drift = sorted({"%s %s (the stylesheet: %s)" % (name, fallback, roots.get(name)) for name, fallback in
+                    re.findall(r"var\((--hra-[\w-]+),\s*(#[0-9A-Fa-f]{3,6})\)", css_text)
+                    if roots.get(name, "").lower() != fallback.lower()})
+    text = re.sub(r"var\(--[\w-]+,\s*(?:#[0-9A-Fa-f]{3,6}|var\([^()]*\))\)", "", css_text)
+    fixed = sorted({found for found in re.findall(r"#[0-9A-Fa-f]{3,6}\b|rgba?\([^)]*\)", text)
+                    if found.lower() not in ("#fff", "#ffffff") and not found.replace(" ", "").startswith("rgba(255,255,255,")})
+    return fixed, drift
+
+
 R = load("module_pages_rules")
 HOME = load("home_rules")
 print("loaded module_pages_rules.py and home_rules.py without Frappe")
@@ -165,8 +179,11 @@ check(settings.get("workspace_cockpit", {}).get("depends_on") == 'eval:doc.enabl
       "the cockpit is offered only where it can show, with Module Pages set to Standard")
 form = read("hrms_addon", "hrms_addon", "doctype", "hrms_addon_theme_settings", "hrms_addon_theme_settings.js")
 check('return !!(doc.enabled && doc.workspace_cockpit && doc.module_pages === "Standard");' in form
-      and form.count("ha_cockpit_on(frm.doc)") == 2 and "module_pages(frm) {" in form,
-      "the form's preview and its copy of the boot keep the cockpit to Standard too")
+      and 'root.classList.toggle("ha-cockpit", ha_cockpit_on(frm.doc));' in form
+      and "frappe.boot.hrms_addon_workspace_cockpit = ha_cockpit_on(frm.doc) ? 1 : 0;" in form
+      and "if (ha_cockpit_on(frm.doc)) {" in form.split("function ha_show_contrast(")[1].split("\n}\n")[0]
+      and "module_pages(frm) {" in form,
+      "the form's preview, its copy of the boot and its contrast line keep the cockpit to Standard too")
 print("switch: on by default, the cockpit standing aside, the boot carrying what the header needs")
 
 # ── 4. The page ─────────────────────────────────────────────────────────
@@ -224,6 +241,18 @@ check("{ allocated_to: user, status: \"Open\" }" in everything and "{ for_user: 
       "See all opens the user's own To Do or notifications, kept to the module's documents")
 check("frappe.utils.get_desktop_icon(page.name, \"solid\")" in script and "frappe.utils.icon(page.icon, \"lg\")" in script,
       "the module's picture is the one its tile shows, the app's own round one where it ships one")
+drawing = script.split("function picture(")[1].split("\n\t}\n")[0]
+check('glyph = frappe.utils.get_desktop_icon(page.name, "subtle");' in drawing
+      and "if (!GLYPHS_AT.test(String(glyph || \"\"))) glyph = false;" in drawing
+      and r"const GLYPHS_AT = /\/hrms_addon\/(?:public\/)?icons\/desktop_icons\/subtle\/[^/]+\.svg$/;" in script
+      and drawing.index("if (glyph) return") < drawing.index("if (address) return"),
+      "where the app ships the module's picture, its glyph is drawn from the app's own light picture (never another "
+      "app's, whose shapes a mask would draw wrongly), before the fixed image is fallen back on")
+disc = script.split(".ha-mod-picture.ha-mod-glyph {")[1].split("}")[0]
+check("background: var(--ha-m-navy);" in disc and "var(--ha-m-gold)" in disc
+      and "mask: var(--ha-m-glyph) center / 100% 100% no-repeat;" in script,
+      "and drawn white on a disc of the theme's navy ringed in its gold, so it takes the colours picked in Theme "
+      "Settings: the tile's own picture is an image in the shipped colours")
 check('return (frappe.get_route() || [])[0] === "Workspaces";' in script and '$(document).on("page-change", arrive);' in script
       and "if (tries < 10 && (!there || tries < 4)) setTimeout(look, 120 * tries);" in script,
       "it looks for the workspace only on a workspace's route, a few times after each change of page")
@@ -293,8 +322,17 @@ palette = set(re.findall(r"var\((--hra-[\w-]+)", css))
 bundle = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
 check(palette and all(re.search(re.escape(name) + r"\s*:", bundle) for name in palette),
       "the theme's colours it reads are the palette's own: %s" % sorted(n for n in palette if n + ":" not in bundle.replace(" ", "")))
-check("#14395E" in css and "#EAA51A" in css and "teal" not in css.lower() and "#0d9488" not in css.lower(),
-      "CyveTech navy and the home's gold, never teal")
+check("--ha-m-navy: var(--hra-primary, #14395E);" in css and "--ha-m-gold: var(--hra-shell-marker, #F0AB00);" in css
+      and "--ha-m-on-gold: var(--hra-primary-dark, #0A2540);" in css and "teal" not in css.lower(),
+      "the theme's navy and its Gold Highlight, with Dark Navy on the gold; never teal")
+fixed, drift = own_colours(css, bundle)
+check(not fixed, "the page writes no colour of its own, only the theme's, so a colour picked in Theme Settings "
+      "reaches it (white on the navy aside): %s" % fixed[:4])
+check(not drift, "and every fallback is the stylesheet's own value: %s" % drift[:3])
+check(all(".ha-mod .ha-band-%s { --ha-band: var(--hra-%s, " % (band, name) in css for band, name in (
+    ("overdue", "danger"), ("today", "amber-text"), ("soon", "accent"), ("good", "success")))
+      and "background: var(--ha-band, var(--hra-ink-muted, #546678));" in css,
+      "a row's dot is in the status colour My Alerts gives its band")
 print("page: added first in the workspace, nothing of Frappe's touched, its blocks restyled only while not edited")
 
 # ── 5. What Frappe does that this leans on ──────────────────────────────

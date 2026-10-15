@@ -44,6 +44,20 @@ def read(*parts):
     return io.open(os.path.join(REPO, *parts), encoding="utf-8").read()
 
 
+def own_colours(css_text, bundle_text):
+    """What a page's styles write that is not the theme's: any colour outside a var() fallback, white aside
+    (white text on the navy, which the settings' contrast line keeps readable), and every var(--hra-...)
+    fallback that is not the stylesheet's own value."""
+    roots = dict(re.findall(r"(--hra-[\w-]+):\s*(#[0-9A-Fa-f]{3,6})\s*;", bundle_text))
+    drift = sorted({"%s %s (the stylesheet: %s)" % (name, fallback, roots.get(name)) for name, fallback in
+                    re.findall(r"var\((--hra-[\w-]+),\s*(#[0-9A-Fa-f]{3,6})\)", css_text)
+                    if roots.get(name, "").lower() != fallback.lower()})
+    text = re.sub(r"var\(--[\w-]+,\s*(?:#[0-9A-Fa-f]{3,6}|var\([^()]*\))\)", "", css_text)
+    fixed = sorted({found for found in re.findall(r"#[0-9A-Fa-f]{3,6}\b|rgba?\([^)]*\)", text)
+                    if found.lower() not in ("#fff", "#ffffff") and not found.replace(" ", "").startswith("rgba(255,255,255,")})
+    return fixed, drift
+
+
 spec = importlib.util.spec_from_file_location("home_rules", os.path.join(APP, "home_rules.py"))
 R = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(R)  # proves it has no Frappe import
@@ -418,6 +432,16 @@ loose = [line.strip() for line in css.splitlines()
          if line.strip() and not line.startswith(("\t", " ", "}", "@", "/*", "   ")) and "{" in line
          and not line.lstrip().startswith((".ha-home", ".ha-rail-", ".desktop-wrapper.ha-has-home"))]
 check(not loose, "every rule is the home's own or under the desk that has one: %s" % loose[:3])
+bundle = read("hrms_addon", "public", "css", "hrms_addon.bundle.css")
+fixed, drift = own_colours(css, bundle)
+check(not fixed, "the home writes no colour of its own, only the theme's, so a colour picked in Theme Settings "
+      "reaches it (white on the navy aside): %s" % fixed[:4])
+check(not drift, "and every fallback is the stylesheet's own value: %s" % drift[:3])
+check("--ha-h-gold: var(--hra-shell-marker, #F0AB00);" in css and "--ha-h-on-gold: var(--hra-primary-dark, #0A2540);" in css
+      and all(".ha-home .ha-tone-%s { --ha-tone: var(--hra-%s, " % (tone, name) in css for tone, name in (
+          ("green", "success"), ("amber", "amber-text"), ("rose", "danger"), ("blue", "accent")))
+      and "background: var(--ha-band, var(--ha-h-navy));" in css,
+      "its gold is the Gold Highlight with Dark Navy on it, its figures' tones and bars the status colours")
 check("@media (prefers-reduced-motion: reduce)" in css and "@media (max-width: 560px)" in css,
       "it holds on a phone, and stills its motion for those who ask")
 print("page: loaded with the desk, switched by a boot flag, the modules a list down the left, the edit layout Frappe's")

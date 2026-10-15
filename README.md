@@ -1217,9 +1217,30 @@ Run both before committing a change to any of them.
 ### Editing the theme
 
 Colours are adjustable at runtime from **HRMS Addon Theme Settings** — no
-CSS edit, no rebuild. To add a new adjustable colour:
+CSS edit, no rebuild. Tick **Use Custom Colours**, pick a colour, and the
+desk repaints as you pick; Save keeps it for everyone. A field left empty
+is the shipped colour, which it shows as its placeholder. Fifteen colours:
+Primary Navy, Dark Navy, Section Header, Sidebar Background, Navbar
+Background, Accent / Focus, Gold Highlight, Page Background, Zebra Row
+Tint, Border, the three status colours (Overdue / Error, Due Today /
+Warning, Done / Success), and the cockpit's two canvas colours, shown only
+with Module Pages set to Standard and the cockpit on. The form warns when
+white text on a navy, or Dark Navy on the gold, falls below 4.5:1.
 
-1. add a `Color` field to `hrms_addon_theme_settings.json`
+The desk home and the module pages write no colour of their own: their
+gold is the Gold Highlight with Dark Navy on it, their status dots, bars
+and figure bands the three status colours My Alerts and the status pills
+use, their shadows and glows mixed from those, and a module's picture in
+its header its glyph on a disc of the navy ringed in the gold. White text
+on the navy stays white. (The tiles' own pictures are image files in the
+shipped navy and gold.) `verify_home.py` and `verify_module_pages.py` fail
+on any colour written outside a `var()` fallback, and on a fallback that
+is not the stylesheet's own value.
+
+To add a new adjustable colour:
+
+1. add a `Color` field to `hrms_addon_theme_settings.json`, with the
+   shipped value as its `placeholder`
 2. add `fieldname -> "--hra-var"` to `FIELD_TO_VAR` in `theme.py`
 3. add the same pair to `HA_THEME_FIELDS` in the form script
 4. add the shipped value to `DEFAULTS` in `theme.py` **and** to `:root` in

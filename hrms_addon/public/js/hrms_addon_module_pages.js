@@ -36,6 +36,9 @@
 	const MODULES = Array.isArray(frappe.boot.hrms_addon_home_modules) ? frappe.boot.hrms_addon_home_modules : [];
 	// the document most often made in each module (module_pages_rules.ACTIONS)
 	const ACTIONS = frappe.boot.hrms_addon_module_actions || {};
+	// where the app's light pictures of its modules are (/assets/hrms_addon/icons/desktop_icons/subtle/, as the
+	// theme's get_desktop_icon names them), whose glyphs the header draws in the theme's colours
+	const GLYPHS_AT = /\/hrms_addon\/(?:public\/)?icons\/desktop_icons\/subtle\/[^/]+\.svg$/;
 	// Frappe's workspace page, and its blocks only while the workspace is not being edited
 	const PAGE = 'html.ha-mod-on .page-container[data-page-route="Workspaces"]';
 	const READ = PAGE + " .layout-main-section:not(.edit-mode)";
@@ -153,14 +156,21 @@
 		return answer && answer.data && answer.data.waiting ? answer.data.waiting : null;
 	}
 
-	// the module's picture: the app's own round one where it ships one, else Frappe's, else the workspace's icon
+	// The module's picture. Where the app ships one, its glyph (the light version of the tile's picture, used as a
+	// mask) is drawn white on a disc of the theme's navy ringed in its gold, so it takes the colours picked in Theme
+	// Settings as the rest of the header does; the tile's own picture is an image in the shipped colours. Else
+	// Frappe's picture of it, else the workspace's icon.
 	function picture(page) {
+		let glyph = false;
 		let address = false;
 		try {
-			address = frappe.utils.get_desktop_icon(page.name, "solid");
+			glyph = frappe.utils.get_desktop_icon(page.name, "subtle");
+			if (!GLYPHS_AT.test(String(glyph || ""))) glyph = false;
+			address = glyph ? false : frappe.utils.get_desktop_icon(page.name, "solid");
 		} catch (error) {
-			address = false;
+			glyph = address = false;
 		}
+		if (glyph) return `<span class="ha-mod-picture ha-mod-glyph"><i style="--ha-m-glyph: url('${esc(glyph)}')"></i></span>`;
 		if (address) return `<span class="ha-mod-picture"><img src="${esc(address)}" alt=""></span>`;
 		let drawn = icon("folder");
 		try {
@@ -411,17 +421,21 @@
 	}
 
 	const CSS = `
-/* the module page's own values: the desk home's */
+/* The module page's own values, every one the theme's (HRMS Addon Theme Settings): a colour picked there
+   reaches the page, and the fallbacks are the stylesheet's own. White on the navy stays white; the settings
+   warn when a navy is too light for it. */
 ${PAGE} {
 	--ha-m-navy: var(--hra-primary, #14395E);
 	--ha-m-deep: var(--hra-primary-dark, #0A2540);
 	--ha-m-mid: var(--hra-primary-mid, #2A5A8C);
-	--ha-m-gold: #EAA51A;
-	--ha-m-line: var(--hra-border, #D7DEEA);
-	--ha-m-ink: var(--text-color, #1E2A3A);
-	--ha-m-muted: var(--text-muted, #5C6B82);
+	--ha-m-gold: var(--hra-shell-marker, #F0AB00);
+	--ha-m-on-gold: var(--hra-primary-dark, #0A2540);
+	--ha-m-line: var(--hra-border, #C3D0E0);
+	--ha-m-ink: var(--text-color, #1A2733);
+	--ha-m-muted: var(--text-muted, #546678);
 	--ha-m-card: var(--card-bg, #fff);
 	--ha-m-wash: color-mix(in srgb, var(--ha-m-navy) 6%, transparent);
+	--ha-m-shade: color-mix(in srgb, var(--ha-m-deep) 20%, transparent);
 }
 html.ha-mod-on[data-theme="dark"] .page-container[data-page-route="Workspaces"] { --ha-m-line: var(--border-color, #343B46); }
 
@@ -448,10 +462,10 @@ ${PAGE} .layout-main-section.edit-mode > .ha-mod { display: none; }
 	display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
 	padding: 20px 24px; border-radius: 18px; color: #fff; position: relative; overflow: hidden;
 	background:
-		radial-gradient(520px 220px at 88% -30%, rgba(234,165,26,.26), transparent 62%),
+		radial-gradient(520px 220px at 88% -30%, color-mix(in srgb, var(--ha-m-gold) 26%, transparent), transparent 62%),
 		radial-gradient(420px 260px at 8% 130%, rgba(255,255,255,.10), transparent 60%),
 		linear-gradient(118deg, var(--ha-m-deep) 0%, var(--ha-m-navy) 52%, var(--ha-m-mid) 100%);
-	box-shadow: 0 10px 28px rgba(10,37,64,.20);
+	box-shadow: 0 10px 28px var(--ha-m-shade);
 }
 .ha-mod-hero::after {
 	content: ""; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%;
@@ -460,9 +474,20 @@ ${PAGE} .layout-main-section.edit-mode > .ha-mod { display: none; }
 }
 .ha-mod-picture {
 	width: 58px; height: 58px; border-radius: 50%; flex: none; display: grid; place-items: center; position: relative; z-index: 1;
-	box-shadow: 0 0 0 5px rgba(255,255,255,.07), 0 8px 18px rgba(0,0,0,.18);
+	box-shadow: 0 0 0 5px rgba(255,255,255,.07), 0 8px 18px color-mix(in srgb, var(--ha-m-deep) 35%, transparent);
 }
 .ha-mod-picture > img { width: 58px; height: 58px; border-radius: 50%; display: block; object-fit: cover; }
+/* the tile's picture drawn in the theme's colours: a navy disc, a gold ring a little in from its edge as on the
+   tile, and the glyph in white through the light picture as a mask */
+.ha-mod-picture.ha-mod-glyph {
+	background: var(--ha-m-navy);
+	box-shadow: inset 0 0 0 2.5px var(--ha-m-navy), inset 0 0 0 4px color-mix(in srgb, var(--ha-m-gold) 85%, transparent),
+		0 0 0 5px rgba(255,255,255,.07), 0 8px 18px color-mix(in srgb, var(--ha-m-deep) 35%, transparent);
+}
+.ha-mod-picture.ha-mod-glyph > i {
+	display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff;
+	-webkit-mask: var(--ha-m-glyph) center / 100% 100% no-repeat; mask: var(--ha-m-glyph) center / 100% 100% no-repeat;
+}
 .ha-mod-picture.ha-mod-drawn { background: rgba(255,255,255,.10); box-shadow: inset 0 0 0 2px var(--ha-m-gold), 0 0 0 5px rgba(255,255,255,.06); }
 .ha-mod-picture.ha-mod-drawn > svg { width: 26px; height: 26px; color: #fff; stroke: #fff; --icon-stroke: #fff; --icon-fill: none; }
 .ha-mod-hero-text { flex: 1 1 300px; min-width: 0; position: relative; z-index: 1; }
@@ -474,7 +499,7 @@ ${PAGE} .layout-main-section.edit-mode > .ha-mod { display: none; }
 .ha-mod .ha-mod-step::before { content: ""; width: 100%; height: 5px; border-radius: 99px; background: rgba(255,255,255,.22); transition: background .12s ease; }
 .ha-mod .ha-mod-step.ha-done::before { background: rgba(255,255,255,.55); }
 .ha-mod .ha-mod-step.ha-now { width: 32px; }
-.ha-mod .ha-mod-step.ha-now::before { background: var(--ha-m-gold); box-shadow: 0 0 0 3px rgba(234,165,26,.22); }
+.ha-mod .ha-mod-step.ha-now::before { background: var(--ha-m-gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ha-m-gold) 22%, transparent); }
 .ha-mod button.ha-mod-step:hover::before, .ha-mod button.ha-mod-step:focus-visible::before { background: #fff; }
 .ha-mod button.ha-mod-step:focus-visible { outline: none; }
 .ha-mod span.ha-mod-step:not(.ha-now) { opacity: .5; }
@@ -499,8 +524,8 @@ ${PAGE} .layout-main-section.edit-mode > .ha-mod { display: none; }
 .ha-mod .ha-mod-chip.ha-mod-asking { width: 140px; }
 .ha-mod .ha-mod-action {
 	display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 12px;
-	background: var(--ha-m-gold); color: #1B2434; font-weight: 700; font-size: 13.5px;
-	box-shadow: 0 6px 16px rgba(234,165,26,.32); transition: transform .12s ease, filter .12s ease;
+	background: var(--ha-m-gold); color: var(--ha-m-on-gold); font-weight: 700; font-size: 13.5px;
+	box-shadow: 0 6px 16px color-mix(in srgb, var(--ha-m-gold) 32%, transparent); transition: transform .12s ease, filter .12s ease;
 }
 .ha-mod .ha-mod-action:hover, .ha-mod .ha-mod-action:focus-visible { filter: brightness(1.06); transform: translateY(-1px); outline: none; }
 .ha-mod-bone { display: block; height: 12px; width: 100%; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.30), rgba(255,255,255,.14)); background-size: 200% 100%; animation: ha-mod-shine 1.3s linear infinite; }
@@ -514,18 +539,22 @@ ${PAGE} .layout-main-section.edit-mode > .ha-mod { display: none; }
 .ha-mod-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--ha-m-navy) 7%, transparent); }
 .ha-mod .ha-mod-tab { padding: 5px 11px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ha-m-muted); display: inline-flex; gap: 6px; align-items: center; }
 .ha-mod .ha-mod-tab i { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 99px; background: color-mix(in srgb, var(--ha-m-navy) 10%, transparent); }
-.ha-mod .ha-mod-tab.ha-on { background: var(--ha-m-card); color: var(--ha-m-ink); box-shadow: 0 1px 3px rgba(20,57,94,.16); }
+.ha-mod .ha-mod-tab.ha-on { background: var(--ha-m-card); color: var(--ha-m-ink); box-shadow: 0 1px 3px color-mix(in srgb, var(--ha-m-navy) 16%, transparent); }
 .ha-mod-list { padding: 4px 6px 6px; }
 .ha-mod .ha-mod-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px; border-radius: 10px; color: var(--ha-m-muted); transition: background .12s ease; }
 .ha-mod .ha-mod-row:hover, .ha-mod .ha-mod-row:focus-visible { background: var(--ha-m-wash); outline: none; }
 .ha-mod-row-text { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
 .ha-mod-row-title { font-size: 13.5px; font-weight: 600; color: var(--ha-m-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ha-mod-row-meta { font-size: 12px; color: var(--ha-m-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ha-mod-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #9AA8BC; }
-.ha-mod-dot.ha-band-overdue { background: #D5475B; box-shadow: 0 0 0 3px rgba(213,71,91,.16); }
-.ha-mod-dot.ha-band-today { background: #D98A12; box-shadow: 0 0 0 3px rgba(217,138,18,.16); }
-.ha-mod-dot.ha-band-soon, .ha-mod-dot.ha-band-later { background: #2F7BD1; }
-.ha-mod-dot.ha-band-good { background: #1F9D6B; }
+/* each row's band in the status colours My Alerts gives it (hrms_addon.bundle.css, the bands), and done in green */
+.ha-mod .ha-band-overdue { --ha-band: var(--hra-danger, #A62B25); }
+.ha-mod .ha-band-today { --ha-band: var(--hra-amber-text, #B45309); }
+.ha-mod .ha-band-soon { --ha-band: var(--hra-accent, #0A6ED1); }
+.ha-mod .ha-band-later { --ha-band: var(--hra-primary-soft, #5B8FC7); }
+.ha-mod .ha-band-good { --ha-band: var(--hra-success, #256F3A); }
+.ha-mod .ha-band-none { --ha-band: var(--hra-ink-muted, #546678); }
+.ha-mod-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ha-band, var(--hra-ink-muted, #546678)); }
+.ha-mod-dot.ha-band-overdue, .ha-mod-dot.ha-band-today { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ha-band) 16%, transparent); }
 .ha-mod-more { display: flex; justify-content: flex-end; padding: 0 10px 10px; }
 .ha-mod .ha-mod-all { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ha-m-mid); }
 .ha-mod .ha-mod-all:hover, .ha-mod .ha-mod-all:focus-visible { background: var(--ha-m-wash); outline: none; }
@@ -625,7 +654,8 @@ ${READ} .widget.number-widget-box {
 	transition: transform .12s ease, box-shadow .12s ease !important;
 }
 ${READ} .widget.number-widget-box:hover {
-	transform: translateY(-2px) !important; box-shadow: inset 0 3px 0 var(--ha-m-navy), 0 10px 22px rgba(20,57,94,.12) !important;
+	transform: translateY(-2px) !important;
+	box-shadow: inset 0 3px 0 var(--ha-m-navy), 0 10px 22px color-mix(in srgb, var(--ha-m-navy) 12%, transparent) !important;
 }
 ${READ} .widget.number-widget-box .widget-head .widget-title {
 	font-size: 12.5px !important; font-weight: 600 !important; color: var(--ha-m-muted) !important; text-transform: none !important; letter-spacing: 0 !important;
@@ -640,7 +670,8 @@ ${READ} .widget.shortcut-widget-box {
 	padding: 12px 14px !important; transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease !important;
 }
 ${READ} .widget.shortcut-widget-box:hover {
-	border-color: color-mix(in srgb, var(--ha-m-navy) 35%, var(--ha-m-line)) !important; box-shadow: 0 8px 18px rgba(20,57,94,.10) !important;
+	border-color: color-mix(in srgb, var(--ha-m-navy) 35%, var(--ha-m-line)) !important;
+	box-shadow: 0 8px 18px color-mix(in srgb, var(--ha-m-navy) 10%, transparent) !important;
 	transform: translateY(-1px) !important;
 }
 ${READ} .widget.shortcut-widget-box .widget-head .widget-title {

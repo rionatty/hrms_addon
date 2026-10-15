@@ -699,11 +699,13 @@
 	--ha-h-navy: var(--hra-primary, #14395E);
 	--ha-h-deep: var(--hra-primary-dark, #0A2540);
 	--ha-h-mid: var(--hra-primary-mid, #2A5A8C);
-	--ha-h-gold: #EAA51A;
-	--ha-h-line: var(--hra-border, #D7DEEA);
-	--ha-h-ink: var(--text-color, #1E2A3A);
-	--ha-h-muted: var(--text-muted, #5C6B82);
+	--ha-h-gold: var(--hra-shell-marker, #F0AB00);
+	--ha-h-on-gold: var(--hra-primary-dark, #0A2540);
+	--ha-h-line: var(--hra-border, #C3D0E0);
+	--ha-h-ink: var(--text-color, #1A2733);
+	--ha-h-muted: var(--text-muted, #546678);
 	--ha-h-card: var(--card-bg, #fff);
+	--ha-h-shade: color-mix(in srgb, var(--ha-h-deep) 20%, transparent);
 	max-width: 1220px;
 	margin: 18px auto 0;
 	padding: 0 20px;
@@ -719,10 +721,10 @@
 	display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 	padding: 22px 26px; border-radius: 18px; color: #fff; position: relative; overflow: hidden;
 	background:
-		radial-gradient(520px 220px at 88% -30%, rgba(234,165,26,.26), transparent 62%),
+		radial-gradient(520px 220px at 88% -30%, color-mix(in srgb, var(--ha-h-gold) 26%, transparent), transparent 62%),
 		radial-gradient(420px 260px at 8% 130%, rgba(255,255,255,.10), transparent 60%),
 		linear-gradient(118deg, var(--ha-h-deep) 0%, var(--ha-h-navy) 52%, var(--ha-h-mid) 100%);
-	box-shadow: 0 10px 28px rgba(10,37,64,.20);
+	box-shadow: 0 10px 28px var(--ha-h-shade);
 }
 .ha-home-hero::after {
 	content: ""; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%;
@@ -749,8 +751,8 @@
 .ha-home-chip .ha-home-icon { color: var(--ha-h-gold); }
 .ha-home .ha-home-action {
 	display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 12px;
-	background: var(--ha-h-gold); color: #1B2434; font-weight: 700; font-size: 13.5px;
-	box-shadow: 0 6px 16px rgba(234,165,26,.32);
+	background: var(--ha-h-gold); color: var(--ha-h-on-gold); font-weight: 700; font-size: 13.5px;
+	box-shadow: 0 6px 16px color-mix(in srgb, var(--ha-h-gold) 32%, transparent);
 }
 .ha-home .ha-home-action:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .ha-home .ha-home-action, .ha-home .ha-home-card, .ha-home .ha-home-row { transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
@@ -763,11 +765,12 @@
 	--ha-tone: var(--ha-h-navy);
 }
 .ha-home .ha-home-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--ha-tone); }
-.ha-home .ha-home-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(20,57,94,.12); }
-.ha-home .ha-tone-green { --ha-tone: #1F9D6B; }
-.ha-home .ha-tone-amber { --ha-tone: #D98A12; }
-.ha-home .ha-tone-rose { --ha-tone: #D5475B; }
-.ha-home .ha-tone-blue { --ha-tone: #2F7BD1; }
+.ha-home .ha-home-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px color-mix(in srgb, var(--ha-h-navy) 12%, transparent); }
+/* the figures' tones are the theme's status colours and its Accent (HRMS Addon Theme Settings) */
+.ha-home .ha-tone-green { --ha-tone: var(--hra-success, #256F3A); }
+.ha-home .ha-tone-amber { --ha-tone: var(--hra-amber-text, #B45309); }
+.ha-home .ha-tone-rose { --ha-tone: var(--hra-danger, #A62B25); }
+.ha-home .ha-tone-blue { --ha-tone: var(--hra-accent, #0A6ED1); }
 .ha-home-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ha-home-card-label { font-size: 12.5px; font-weight: 600; color: var(--ha-h-muted); }
 .ha-home-card-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--ha-tone); background: color-mix(in srgb, var(--ha-tone) 12%, transparent); }
@@ -784,18 +787,23 @@
 .ha-home-tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: color-mix(in srgb, var(--ha-h-navy) 7%, transparent); }
 .ha-home .ha-home-tab { padding: 5px 11px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ha-h-muted); display: inline-flex; gap: 6px; align-items: center; }
 .ha-home .ha-home-tab i { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 99px; background: color-mix(in srgb, var(--ha-h-navy) 10%, transparent); }
-.ha-home .ha-home-tab.ha-on { background: var(--ha-h-card); color: var(--ha-h-ink); box-shadow: 0 1px 3px rgba(20,57,94,.16); }
+.ha-home .ha-home-tab.ha-on { background: var(--ha-h-card); color: var(--ha-h-ink); box-shadow: 0 1px 3px color-mix(in srgb, var(--ha-h-navy) 16%, transparent); }
 .ha-home-list { padding: 4px 6px 6px; }
 .ha-home .ha-home-row { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px; border-radius: 10px; color: var(--ha-h-muted); }
 .ha-home .ha-home-row:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
 .ha-home-row-text { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
 .ha-home-row-title { font-size: 13.5px; font-weight: 600; color: var(--ha-h-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ha-home-row-meta { font-size: 12px; color: var(--ha-h-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ha-home-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #9AA8BC; }
-.ha-home-dot.ha-band-overdue { background: #D5475B; box-shadow: 0 0 0 3px rgba(213,71,91,.16); }
-.ha-home-dot.ha-band-today { background: #D98A12; box-shadow: 0 0 0 3px rgba(217,138,18,.16); }
-.ha-home-dot.ha-band-soon, .ha-home-dot.ha-band-later { background: #2F7BD1; }
-.ha-home-dot.ha-band-good { background: #1F9D6B; }
+/* each row's and bar's band in the status colours My Alerts gives it (hrms_addon.bundle.css, the bands), and
+   good in green */
+.ha-home .ha-band-overdue { --ha-band: var(--hra-danger, #A62B25); }
+.ha-home .ha-band-today { --ha-band: var(--hra-amber-text, #B45309); }
+.ha-home .ha-band-soon { --ha-band: var(--hra-accent, #0A6ED1); }
+.ha-home .ha-band-later { --ha-band: var(--hra-primary-soft, #5B8FC7); }
+.ha-home .ha-band-good { --ha-band: var(--hra-success, #256F3A); }
+.ha-home .ha-band-none { --ha-band: var(--hra-ink-muted, #546678); }
+.ha-home-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ha-band, var(--hra-ink-muted, #546678)); }
+.ha-home-dot.ha-band-overdue, .ha-home-dot.ha-band-today { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ha-band) 16%, transparent); }
 
 /* the second row: the desk of HR, of a manager or of an employee */
 .ha-home-panels.ha-home-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -809,17 +817,12 @@
 .ha-home .ha-home-bar:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
 .ha-home-bar-label { font-size: 13px; font-weight: 600; color: var(--ha-h-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ha-home-bar-track { height: 8px; border-radius: 99px; overflow: hidden; background: color-mix(in srgb, var(--ha-h-navy) 8%, transparent); }
-.ha-home-bar-track > i { display: block; height: 100%; min-width: 2px; border-radius: 99px; background: var(--ha-h-navy); }
-.ha-home-bar-track > i.ha-band-good { background: #1F9D6B; }
-.ha-home-bar-track > i.ha-band-today { background: #D98A12; }
-.ha-home-bar-track > i.ha-band-soon { background: #2F7BD1; }
-.ha-home-bar-track > i.ha-band-overdue { background: #D5475B; }
-.ha-home-bar-track > i.ha-band-none { background: #9AA8BC; }
+.ha-home-bar-track > i { display: block; height: 100%; min-width: 2px; border-radius: 99px; background: var(--ha-band, var(--ha-h-navy)); }
 .ha-home-bar b { min-width: 28px; text-align: right; font-size: 13.5px; color: var(--ha-h-ink); }
 .ha-home-empty { padding: 26px 12px; text-align: center; font-size: 13px; color: var(--ha-h-muted); }
 
 /* while the figures are on their way */
-.ha-home-bone { height: 12px; border-radius: 6px; margin: 6px 0; background: linear-gradient(90deg, rgba(127,147,173,.16), rgba(127,147,173,.30), rgba(127,147,173,.16)); background-size: 200% 100%; animation: ha-home-shine 1.3s linear infinite; }
+.ha-home-bone { height: 12px; border-radius: 6px; margin: 6px 0; background: linear-gradient(90deg, color-mix(in srgb, var(--hra-border-strong, #7E93AD) 16%, transparent), color-mix(in srgb, var(--hra-border-strong, #7E93AD) 30%, transparent), color-mix(in srgb, var(--hra-border-strong, #7E93AD) 16%, transparent)); background-size: 200% 100%; animation: ha-home-shine 1.3s linear infinite; }
 .ha-home-hero .ha-home-bone { background: linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.30), rgba(255,255,255,.14)); background-size: 200% 100%; }
 @keyframes ha-home-shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .ha-home-bone { animation: none; } .ha-home * { transition: none !important; } }
@@ -832,7 +835,7 @@
    edited, which is then exactly as Frappe draws it. */
 ${RAIL} {
 	display: block; position: relative; box-sizing: border-box; width: auto; margin: 14px 20px 44px; padding: 57px 0 0;
-	background: var(--card-bg, #fff); border: 1px solid var(--hra-border, #D7DEEA); border-radius: 14px; overflow: hidden;
+	background: var(--card-bg, #fff); border: 1px solid var(--hra-border, #C3D0E0); border-radius: 14px; overflow: hidden;
 }
 ${RAIL}::before {
 	content: ""; position: absolute; left: 16px; top: 13px; width: 30px; height: 30px; border-radius: 9px;
@@ -844,7 +847,7 @@ ${RAIL}::after {
 }
 ${RAIL} > .icons-container {
 	display: block !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 6px !important;
-	box-sizing: border-box; border-top: 1px solid var(--hra-border, #D7DEEA);
+	box-sizing: border-box; border-top: 1px solid var(--hra-border, #C3D0E0);
 }
 ${TILES} {
 	position: relative; grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important;
@@ -853,7 +856,7 @@ ${TILES} {
 /* one line down the pictures, from the first module to the last */
 ${TILES}::before {
 	content: ""; position: absolute; left: 27px; top: 25px; bottom: 25px; width: 2px; border-radius: 2px;
-	background: var(--hra-border, #D7DEEA);
+	background: var(--hra-border, #C3D0E0);
 }
 ${TILES} > .desktop-icon {
 	order: 1000; width: auto !important; height: auto !important; box-sizing: border-box; flex-direction: row !important; align-items: center !important;
