@@ -227,6 +227,10 @@ check("frappe.utils.get_desktop_icon(page.name, \"solid\")" in script and "frapp
 check('return (frappe.get_route() || [])[0] === "Workspaces";' in script and '$(document).on("page-change", arrive);' in script
       and "if (tries < 10 && (!there || tries < 4)) setTimeout(look, 120 * tries);" in script,
       "it looks for the workspace only on a workspace's route, a few times after each change of page")
+arriving = script.split("function arrive(")[1].split("\n\t}\n")[0]
+check("setTimeout(look, 0);" in arriving and "\t\tlook();" not in arriving,
+      "the first look waits for Frappe to name the workspace it shows, which it does straight after page-change: "
+      "looked at in the page-change handler, a switch showed the last module's header for a moment")
 check("frm." not in script and "bench build" in script and "sheet.textContent = CSS;" in script,
       "its styles are written into the page, so a change needs no build")
 

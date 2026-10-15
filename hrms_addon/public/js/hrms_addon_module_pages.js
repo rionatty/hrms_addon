@@ -396,8 +396,9 @@
 		}
 	}
 
-	// Frappe says "page-change" first and names the workspace it shows a moment after, as it starts drawing it:
-	// look a few times, each time drawing the header for whichever workspace is shown, then leave it
+	// Frappe says "page-change" first and names the workspace it shows straight after, as it starts drawing it
+	// (container.js change_to, workspace.js show_page): the first look waits for that, and a few more follow,
+	// each drawing the header for whichever workspace is shown, then it is left
 	function arrive() {
 		if (!on_workspace()) return;
 		let tries = 0;
@@ -406,7 +407,7 @@
 			const there = show();
 			if (tries < 10 && (!there || tries < 4)) setTimeout(look, 120 * tries);
 		};
-		look();
+		setTimeout(look, 0);
 	}
 
 	const CSS = `
