@@ -338,6 +338,11 @@ CARDS = {
             ("Employee Document Type", "Employee Document Type", DOCTYPE),
             ("Document Expiry", "Document Expiry", REPORT),
         ]),
+        # the statuses an employee may have, and which of Frappe's four each
+        # counts as (employee_status.py)
+        ("Employee Statuses", [
+            ("Employee Status", "Employee Status", DOCTYPE),
+        ]),
         ("Job Description Lists", [
             ("KRA Perspective", "KRA Perspective", DOCTYPE),
             ("KRA Level", "KRA Level", DOCTYPE),

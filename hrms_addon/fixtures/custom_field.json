@@ -11756,5 +11756,25 @@
   "read_only": 1,
   "no_copy": 1,
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Employee",
+  "fieldname": "custom_employee_status",
+  "fieldtype": "Link",
+  "options": "Employee Status",
+  "insert_after": "image",
+  "label": "Status",
+  "bold": 1,
+  "in_list_view": 0,
+  "in_standard_filter": 1,
+  "search_index": 1,
+  "description": "Payroll, leave and attendance go by the System Status it counts as.",
+  "module": "HRMS Addon",
+  "name": "Employee-custom_employee_status",
+  "owner": "Administrator",
+  "modified_by": "Administrator",
+  "creation": "2026-10-18 12:00:00.000000",
+  "modified": "2026-10-18 12:00:00.000000"
  }
 ]

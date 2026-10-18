@@ -849,5 +849,38 @@
   "property_type": "Check",
   "value": "1",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "status",
+  "property": "label",
+  "property_type": "Data",
+  "value": "System Status",
+  "name": "Employee-status-label",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "status",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "1",
+  "name": "Employee-status-read_only",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "status",
+  "property": "description",
+  "property_type": "Text",
+  "value": "Set from Status: what payroll, leave, attendance and the login go by.",
+  "name": "Employee-status-description",
+  "module": "HRMS Addon"
  }
 ]

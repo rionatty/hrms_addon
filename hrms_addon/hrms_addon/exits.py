@@ -116,6 +116,13 @@ def _make_inactive(doc):
         doc.custom_status_updated = 1
         return
     employee.status = "Left"
+    # Luuka's own status for why they left: Resigned, Retired, Deceased...
+    # (employee_status_rules.EXIT_STATUSES)
+    from hrms_addon.hrms_addon import employee_status
+
+    left_as = employee_status.exit_status(doc.get("custom_reason"))
+    if left_as:
+        employee.set(employee_status.FIELD, left_as)
     employee.relieving_date = doc.custom_relieving_date
     employee.reason_for_leaving = doc.get("custom_reason")
     employee.flags.ignore_permissions = True

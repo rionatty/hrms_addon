@@ -202,3 +202,8 @@ def boot_session(bootinfo):
     bootinfo.hrms_addon_hidden_modules = desk_modules.hidden_labels()
     # the forms that carry Next Steps (next_steps.py, hrms_addon_next_steps.js)
     bootinfo.hrms_addon_next_steps = sorted(next_steps_rules.STEPS)
+    # each employee status, what it counts as and its colour (employee.js,
+    # employee_list.js, employee_status.py)
+    from hrms_addon.hrms_addon import employee_status
+
+    bootinfo.hrms_addon_employee_statuses = employee_status.statuses()

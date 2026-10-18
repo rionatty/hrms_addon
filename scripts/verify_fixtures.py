@@ -668,6 +668,9 @@ if by_dt.get(EM):
     BIO_TAB = "Personal Bio-Data"
     BIO_SECTIONS = ["Home and Residence", "Spouse", "Parents", "Next of Kin", "Children", "Declaration"]
     ELSEWHERE = {"custom_place_of_birth": ("Overview", "date_of_birth"),
+                 # the Status as Luuka names it, just before Frappe's own, the
+                 # System Status (employee_status.py)
+                 "custom_employee_status": ("Overview", "image"),
                  "custom_professional_section": ("Profile", "education"),
                  "custom_professional_qualifications": ("Profile", "custom_professional_section"),
                  # beside the Offer Date on the Joining tab

@@ -185,7 +185,10 @@ def _move_employee(doc, status):
                             pluck="name", limit=1)
     new = rules.employee_status_after(status, current, bool(others))
     if new:
-        frappe.db.set_value("Employee", doc.employee, "status", new, update_modified=False)
+        # the Status as Luuka names it moves with it (employee_status.py)
+        from hrms_addon.hrms_addon import employee_status
+
+        employee_status.move(doc.employee, new)
 
 
 def _concerned(doc):

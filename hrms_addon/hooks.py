@@ -242,7 +242,11 @@ doctype_js = {
 }
 # the Appraisal list: an employee on an improvement plan, and a score below
 # the pass mark, in red
-doctype_list_js = {"Appraisal": "public/js/appraisal_list.js"}
+doctype_list_js = {
+    "Appraisal": "public/js/appraisal_list.js",
+    # each employee's Status, in its own colour (employee_status.py)
+    "Employee": "public/js/employee_list.js",
+}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # the Interview calendar marks each interview still to come with the
 # candidate's answer (loaded after Frappe HR's own interview_calendar.js)
@@ -378,6 +382,9 @@ after_install = [
 # settings after an ERPNext or Frappe HR update has overwritten them, and
 # do nothing at all when everything already matches.
 after_migrate = [
+    # Frappe's four employee statuses as Employee Status records, and every
+    # employee given their Status (employee_status.py)
+    "hrms_addon.hrms_addon.employee_status.install",
     # Push the Branding screen's values into Website Settings / Navbar
     # Settings. A blank field is skipped, never cleared.
     "hrms_addon.hrms_addon.branding.apply_branding_on_migrate",
@@ -898,6 +905,7 @@ fixtures = [
                     "Employee-custom_bank_branch",
                     "Employee-custom_bank_account_name",
                     "Employee-custom_bank_code",
+                    "Employee-custom_employee_status",
                     "Employee-custom_salary_from_month",
                     "Employee-custom_wages_phone_section",
                     "Employee-custom_wages_phone",
@@ -1498,6 +1506,9 @@ fixtures = [
                     "Employee-bank_name-permlevel",
                     "Employee-bank_ac_no-permlevel",
                     "Employee-iban-permlevel",
+                    "Employee-status-label",
+                    "Employee-status-read_only",
+                    "Employee-status-description",
                     "Appraisal Template-goals-reqd",
                     "Designation-appraisal_template-reqd",
                     "Salary Structure-earnings-allow_on_submit",
@@ -1883,6 +1894,10 @@ doc_events = {
         "on_cancel": "hrms_addon.hrms_addon.onboarding.on_cancel",
     },
     "Employee": {
+        # The Status picked (one of Luuka's, an Employee Status) sets Frappe's
+        # own, the System Status, before Frappe validates it: an employee who
+        # Resigned is Left to Frappe, with a relieving date (employee_status.py)
+        "before_validate": "hrms_addon.hrms_addon.employee_status.employee_before_validate",
         # Each document's status and the days left on it, worked out on
         # the employee's own form (documents.py); and an employee who has
         # left comes back only through the Executive Director's
@@ -1930,6 +1945,9 @@ doc_events = {
 # a month before it ends (contracts.py, Onboarding Settings)
 scheduler_events = {
     "daily": [
+        # an employee whose System Status was set without a save gets the
+        # Status that goes with it (employee_status.py)
+        "hrms_addon.hrms_addon.employee_status.reconcile",
         "hrms_addon.hrms_addon.contracts.daily",
         # Training: the HR Officer reminded a month before a calendar training
         # to schedule it; everyone booked reminded a week, a day and the

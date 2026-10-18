@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "field:status_name",
+ "creation": "2026-10-18 12:00:00.000000",
+ "description": "An employee's status as Luuka names it. Each counts as one of the four system statuses, which payroll, leave, attendance and the login go by.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status_name",
+  "counts_as",
+  "colour",
+  "column_break_main",
+  "disabled",
+  "is_standard",
+  "section_description",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "status_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Status",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Payroll leaves out Inactive; Left needs a relieving date and stops earning leave; only Active can log in.",
+   "fieldname": "counts_as",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Counts As",
+   "options": "Active\nInactive\nSuspended\nLeft",
+   "reqd": 1
+  },
+  {
+   "description": "In the Employee list. Empty: the colour of what it counts as.",
+   "fieldname": "colour",
+   "fieldtype": "Select",
+   "label": "Colour",
+   "options": "\ngreen\nblue\norange\nyellow\nred\ngray\npurple\npink\ncyan"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "No longer offered for an employee.",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Disabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_standard",
+   "fieldtype": "Check",
+   "label": "Built In",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_description",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Status",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  }
+ ],
+ "quick_entry": 1,
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "status_name",
+ "track_changes": 1
+}

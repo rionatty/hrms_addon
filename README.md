@@ -1109,6 +1109,33 @@ HR, that no stage sends Frappe's own workflow email (it would go to every
 head of department), that the decision fields sit at level one, and that
 grievances already on a site take the stage they stand at.
 
+`verify_employee_status.py` covers the employee's **Status** as Luuka names
+it: Active, Inactive, On Hold, Separated, Resigned, Terminated, Deceased,
+Retired, and any HR adds under **Employee Status**. Frappe's own field stays
+underneath as the **System Status**, read-only and always one of its four,
+because payroll, leave, attendance and the login are written against those
+four (Payroll Entry leaves out only an Inactive employee, earned leave skips
+only a Left one, the login is disabled for anyone not Active). So each
+status says which of the four it **counts as**, and an Employee
+`before_validate` hook sets the System Status from the Status picked before
+ERPNext validates it: Resigned is Left, with Left's relieving date; On Hold
+is Inactive, off the payroll. When the System Status is moved by the app or
+by Frappe (a suspension, an exit, a reinstatement, Frappe HR's transfer) the
+Status is kept while it still counts as it, and becomes the System Status's
+own name if not; the daily job and every migrate put right one moved
+without a save. An exit leaves the status for its reason (Resignation as
+Resigned, Retirement as Retired, Death as Deceased, Dismissal and Desertion
+as Terminated; End of Contract, Redundancy and Medical Grounds as
+Separated), or Left where that status is gone or out of use. Frappe's four
+are statuses too, made after every migrate and never changed or removed;
+Luuka's six were seeded once by the
+patch `employee_statuses`, so one HR takes off is not put back. A status in
+use cannot be removed, and what it counts as cannot change while employees
+have it; one taken out of use is given to nobody again. The Employee list
+and the form's header show the Status in its colour. The checker runs the
+rules and reads the doctype, the fixtures, the hooks and the scripts; the
+walk `smoke_employee_status.py` runs the glue.
+
 `verify_payslip.py` covers the **Pay Slip**, the print a Salary Slip opens
 with, laid out as Luuka's payroll has always printed it: who it is for,
 PAYMENTS down to GROSS PAY, DEDUCTIONS down to TOTAL, NET PAY and the net
