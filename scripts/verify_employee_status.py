@@ -222,7 +222,8 @@ if "frappe.boot.hrms_addon_employee_statuses" not in form \
         or 'frappe.db.get_value("Employee Status", status, "counts_as")' not in form:
     fail.append("the form reads what a status counts as from the boot, else the site")
 listing = read("hrms_addon", "public", "js", "employee_list.js")
-for needle in ('"custom_employee_status"', "settings.get_indicator = function (doc)",
+for needle in ('settings.add_fields = [...(settings.add_fields || []), "custom_employee_status"]',
+               "settings.get_indicator = function (doc)",
                "frappes_own.call(this, doc)", '"custom_employee_status,=," + chosen',
                "frappe.boot.hrms_addon_employee_statuses", 'statuses[name].counts_as === "Active"',
                'settings.filters = [["custom_employee_status", "in", working]]'):
