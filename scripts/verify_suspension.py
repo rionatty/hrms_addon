@@ -226,7 +226,8 @@ for needle, why in (
         ("attendance.cancel()", "a cancelled suspension takes its days off the attendance"),
         ('"leave_type": ["in", list(rules.LEAVE_TYPES)]', "only the days a suspension marked"),
         ("rules.employee_status_after(status, current, bool(others))", "the employee's status by the tested rule"),
-        ('frappe.db.set_value("Employee", doc.employee, "status", new, update_modified=False)', "and set"),
+        # set without a save, the employee's Status with it (employee_status.py)
+        ("employee_status.move(doc.employee, new)", "and set"),
         ("rules.running_status(day, row.from_date, row.report_back_on, row.status)", "the days as they come"),
         ('{"disciplinary_case": case.name, "docstatus": ["!=", 2]}', "a case raises one suspension"),
         ('case.db_set("employee_suspension", doc.name, update_modified=False)', "and names it"),
