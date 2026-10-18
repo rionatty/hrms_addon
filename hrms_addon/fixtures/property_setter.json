@@ -882,5 +882,16 @@
   "value": "Set from Status: what payroll, leave, attendance and the login go by.",
   "name": "Employee-status-description",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "doc_type": "Employee",
+  "field_name": "status",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "name": "Employee-status-hidden",
+  "module": "HRMS Addon"
  }
 ]

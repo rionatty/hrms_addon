@@ -160,16 +160,16 @@ if not field.get("in_standard_filter") or field.get("in_list_view"):
     fail.append("the Status is a list filter; the list shows it as the indicator, not a second column")
 setters = {p["name"]: p for p in json.load(io.open(os.path.join(PACKAGE, "fixtures", "property_setter.json"),
                                                   encoding="utf-8"))}
-if (setters.get("Employee-status-label", {}).get("value"), setters.get("Employee-status-read_only", {}).get("value")) \
-        != ("System Status", "1"):
-    fail.append("Frappe's own status is the System Status, read-only: set from the Status")
+if (setters.get("Employee-status-label", {}).get("value"), setters.get("Employee-status-read_only", {}).get("value"),
+        setters.get("Employee-status-hidden", {}).get("value")) != ("System Status", "1", "1"):
+    fail.append("Frappe's own status is the System Status, read-only and hidden: the form shows one Status")
 hooks = {}
 exec(compile(read("hrms_addon", "hooks.py"), "hooks.py", "exec"), hooks)
 names = [name for fixture in hooks.get("fixtures", []) if isinstance(fixture, dict)
          for flt in fixture.get("filters", []) if isinstance(flt, (list, tuple)) and len(flt) == 3 and flt[1] == "in"
          for name in flt[2]]
 for name in ("Employee-custom_employee_status", "Employee-status-label", "Employee-status-read_only",
-             "Employee-status-description"):
+             "Employee-status-description", "Employee-status-hidden"):
     if name not in names:
         fail.append("hooks' fixtures leave out %s" % name)
     if name not in custom and name not in setters:
@@ -224,7 +224,8 @@ if "frappe.boot.hrms_addon_employee_statuses" not in form \
 listing = read("hrms_addon", "public", "js", "employee_list.js")
 for needle in ('"custom_employee_status"', "settings.get_indicator = function (doc)",
                "frappes_own.call(this, doc)", '"custom_employee_status,=," + chosen',
-               "frappe.boot.hrms_addon_employee_statuses"):
+               "frappe.boot.hrms_addon_employee_statuses", 'statuses[name].counts_as === "Active"',
+               'settings.filters = [["custom_employee_status", "in", working]]'):
     if needle not in listing:
         fail.append("the Employee list: %r" % needle)
 print("form and list: the System Status follows the Status; the indicator is the Status, in its colour")

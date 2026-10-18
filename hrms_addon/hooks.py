@@ -1509,6 +1509,7 @@ fixtures = [
                     "Employee-status-label",
                     "Employee-status-read_only",
                     "Employee-status-description",
+                    "Employee-status-hidden",
                     "Appraisal Template-goals-reqd",
                     "Designation-appraisal_template-reqd",
                     "Salary Structure-earnings-allow_on_submit",

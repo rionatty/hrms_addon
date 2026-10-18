@@ -1111,8 +1111,9 @@ grievances already on a site take the stage they stand at.
 
 `verify_employee_status.py` covers the employee's **Status** as Luuka names
 it: Active, Inactive, On Hold, Separated, Resigned, Terminated, Deceased,
-Retired, and any HR adds under **Employee Status**. Frappe's own field stays
-underneath as the **System Status**, read-only and always one of its four,
+Retired, and any HR adds under **Employee Status**. It is the one status the
+form shows. Frappe's own field stays underneath as the **System Status**,
+hidden, read-only and always one of its four,
 because payroll, leave, attendance and the login are written against those
 four (Payroll Entry leaves out only an Inactive employee, earned leave skips
 only a Left one, the login is disabled for anyone not Active). So each
@@ -1132,7 +1133,9 @@ Luuka's six were seeded once by the
 patch `employee_statuses`, so one HR takes off is not put back. A status in
 use cannot be removed, and what it counts as cannot change while employees
 have it; one taken out of use is given to nobody again. The Employee list
-and the form's header show the Status in its colour. The checker runs the
+and the form's header show the Status in its colour, and the list opens on
+the statuses that count as Active. A Data Import file needs only the Status
+column; the System Status follows from it. The checker runs the
 rules and reads the doctype, the fixtures, the hooks and the scripts; the
 walk `smoke_employee_status.py` runs the glue.
 
