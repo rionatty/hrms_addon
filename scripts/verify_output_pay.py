@@ -323,6 +323,22 @@ kept = {"work": dict(taken["work"]), "overtime": dict(taken["overtime"])}
 if O.keep_reported_days(kept, {("E1", D(2026, 7, 26)): {"45CM-60CM": 100, "74CM": 50}},
                         {("E1", D(2026, 7, 26)): 1500}, set(KEYED.values())) != [("E1", D(2026, 7, 26))]:
     fail.append("a day whose Looms OT the sheet changed is said too")
+# every day another report keeps is said with the sheet's own figures, this plant's and another's apart, so the
+# upload's figures and the sheet's add up (Luuka, 19 Oct 2026: 84,712,569 on the sheet, 84,215,144 said)
+HELD_TAKEN = {"work": {("E1", D(2026, 7, 26), "45CM-60CM"): (100, 5.2, 2), ("E1", D(2026, 7, 27), "74CM"): (50, 6.5, 3),
+                       ("E2", D(2026, 7, 26), "60CM"): (10, 7.0, 4)},
+              "overtime": {("E1", D(2026, 7, 26)): (500, 2)}}
+held = O.held_days(HELD_TAKEN, {("E1", D(2026, 7, 26)): {"R1"}, ("E2", D(2026, 7, 26)): {"R2"}}, "Kawempe",
+                   {"R1": "Kawempe", "R2": "Namanve"})
+if held != [{"own": True, "plant": "Kawempe", "days": 1, "metres": 100, "amount": 1020, "reports": ["R1"]},
+            {"own": False, "plant": "Namanve", "days": 1, "metres": 10, "amount": 70, "reports": ["R2"]}]:
+    fail.append("held_days: each day another report keeps, with the sheet's metres, pay and Looms OT, this plant's "
+                "apart from another's: %s" % held)
+if O.held_days(HELD_TAKEN, {("E2", D(2026, 7, 26)): {"R1", "R2"}}, "Kawempe",
+               {"R1": "Kawempe", "R2": "Namanve"})[0]["own"] is not True:
+    fail.append("held_days: a day this plant's own report keeps is paid by this run, whoever else has it")
+if O.held_days(HELD_TAKEN, {}, "Kawempe", {}) != []:
+    fail.append("held_days: nothing kept, nothing to say")
 print("the sheet checked: wrong IDs, doubled days, missing sizes and other months left out and said")
 
 # ── 6. The sheet built and read back ──────────────────────────────────
@@ -729,6 +745,12 @@ if "row.source or rules.ENTERED" not in entered or '["!=", rules.UPLOADED]' in e
     fail.append("a report with no source was entered by hand: a != filter would skip it")
 if "rules.keep_reported_days(" not in entered or "row.branch == doc.branch" not in entered:
     fail.append("the days on other submitted reports stay theirs; only this plant's last upload is replaced")
+elif "rules.held_days(" not in entered or entered.index("rules.held_days(") > entered.index("rules.keep_reported_days("):
+    fail.append("the days other reports keep are counted, with the sheet's figures, before they are taken out")
+if "this run does not pay them" not in entered or "this run pays them from those reports" not in entered:
+    fail.append("a day another plant's report keeps is said as not paid by this run; this plant's as paid by it")
+if '"notes": taken["notes"] + held_notes' not in body("upload_sheet"):
+    fail.append("the upload says the days this plant's own reports keep")
 for name in ("output_pay.py", "output_rules.py", "output_sheet.py"):
     if re.search(r"Production Machine|Machine Rate|machine_name|width_cm", read("hrms_addon", "hrms_addon", name)):
         fail.append("%s still reaches for the machines" % name)

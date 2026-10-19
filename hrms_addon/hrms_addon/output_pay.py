@@ -520,7 +520,8 @@ def upload_sheet(run, file_url):
                              {rules.size_key(name): name for name, seat in sizes.items() if seat["enabled"]},
                              {name: seat["rates"] for name, seat in sizes.items()},
                              (doc.from_date, doc.to_date), names)
-    kept_back = _keep_entered_days(doc, taken, {name for name, seat in sizes.items() if seat["enabled"]}, names)
+    kept_back, held_notes = _keep_entered_days(doc, taken, {name for name, seat in sizes.items() if seat["enabled"]},
+                                               names)
     days = rules.sheet_days(taken["work"], taken["overtime"])
     _replace_upload(doc, days)
     doc.uploaded_sheet = file_url
@@ -533,7 +534,7 @@ def upload_sheet(run, file_url):
         "metres": round(sum(done for done, _unit, _row in work), 3),
         "amount": round(sum(rules.line_total(done, unit) for done, unit, _row in work), 2),
         "looms_ot": round(sum(amount for amount, _row in taken["overtime"].values()), 2),
-        "problems": taken["problems"] + kept_back, "notes": taken["notes"],
+        "problems": taken["problems"] + kept_back, "notes": taken["notes"] + held_notes,
     }
 
 
@@ -559,32 +560,60 @@ def _employee_ids():
 def _keep_entered_days(doc, taken, shown, names=None):
     """A day already on another submitted report stays there: a
     supervisor's, or another plant's sheet (this plant's last upload is
-    about to be replaced). The downloaded sheet shows it, so it comes back
-    unchanged and nothing is said; a day changed on the sheet is left out,
-    and said (rules.keep_reported_days). A report with no source was
+    about to be replaced). Returns (problems, notes). Every such day is
+    said, with the sheet's metres and amount for it, so the upload's figures
+    and the sheet's add up (rules.held_days): this plant's own reports are
+    paid by this run, another plant's are not. A day changed on the sheet is
+    said too (rules.keep_reported_days). A report with no source was
     entered: it was made before sheets came in."""
-    reports = {row.name: getdate(row.report_date) for row in frappe.get_all(REPORT, filters={
+    found = {row.name: row for row in frappe.get_all(REPORT, filters={
         "docstatus": 1, "section": rules.PER_METER, "report_date": ["between", [doc.from_date, doc.to_date]]},
         fields=["name", "report_date", "source", "branch"], limit_page_length=0)
         if not ((row.source or rules.ENTERED) == rules.UPLOADED and row.branch == doc.branch)}
-    work, overtime = {}, {}
+    reports = {name: getdate(row.report_date) for name, row in found.items()}
+    work, overtime, holders = {}, {}, {}
     if reports:
         for row in frappe.get_all(REPORT_LINE, filters={"parenttype": REPORT, "parent": ["in", list(reports)]},
                                   fields=["parent", "employee", "size", "output"], limit_page_length=0):
-            day = work.setdefault((row.employee, reports[row.parent]), {})
+            key = (row.employee, reports[row.parent])
+            day = work.setdefault(key, {})
             day[row.size] = round(flt(day.get(row.size)) + flt(row.output), 3)
+            holders.setdefault(key, set()).add(row.parent)
         for row in frappe.get_all(REPORT_OT, filters={"parenttype": REPORT, "parent": ["in", list(reports)]},
                                   fields=["parent", "employee", "amount"], limit_page_length=0):
             key = (row.employee, reports[row.parent])
             overtime[key] = round(flt(overtime.get(key)) + flt(row.amount), 2)
+            holders.setdefault(key, set()).add(row.parent)
+    held = rules.held_days(taken, holders, doc.branch, {name: row.branch for name, row in found.items()})
     changed = rules.keep_reported_days(taken, work, overtime, shown)
-    if not changed:
-        return []
-    names = names or {}
-    listed = ", ".join("%s on %s" % (names.get(employee) or employee, day.strftime("%d-%b-%Y"))
-                       for employee, day in changed[:8])
-    return [_("{0} day(s) on the sheet differ from submitted daily reports, which stand: {1}{2}.")
-            .format(len(changed), listed, "…" if len(changed) > 8 else "")]
+    problems, notes = [], []
+    for group in held:
+        listed = ", ".join(group["reports"][:5]) + ("…" if len(group["reports"]) > 5 else "")
+        figures = (group["days"], _metres(group["metres"]), _money(group["amount"], doc.company), group["plant"])
+        if group["own"]:
+            notes.append(_("{0} person-day(s) on the sheet, {1} metres worth {2}, are on {3}'s daily reports "
+                           "entered by hand, which stand: this run pays them from those reports, so the figures "
+                           "above leave them out ({4}).").format(*figures, listed))
+        else:
+            problems.append(_("{0} person-day(s) on the sheet, {1} metres worth {2}, are on {3}'s submitted daily "
+                              "reports, which stand, so this run does not pay them: {4}. If they are wrong, cancel "
+                              "those reports and upload the sheet again.").format(*figures, listed))
+    if changed:
+        names = names or {}
+        listed = ", ".join("%s on %s" % (names.get(employee) or employee, day.strftime("%d-%b-%Y"))
+                           for employee, day in changed[:8])
+        problems.append(_("{0} day(s) on the sheet differ from submitted daily reports, which stand: {1}{2}.")
+                        .format(len(changed), listed, "…" if len(changed) > 8 else ""))
+    return problems, notes
+
+
+def _metres(value):
+    return "{:,.3f}".format(value).rstrip("0").rstrip(".") if value != int(value) else "{:,}".format(int(value))
+
+
+def _money(value, company=None):
+    currency = frappe.get_cached_value("Company", company, "default_currency") if company else None
+    return "%s %s" % (currency or "", "{:,.2f}".format(value)) if currency else "{:,.2f}".format(value)
 
 
 def _replace_upload(doc, days):

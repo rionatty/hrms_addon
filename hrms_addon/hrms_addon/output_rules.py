@@ -462,6 +462,45 @@ def sheet_days(work, overtime):
     return dict(sorted(days.items()))
 
 
+def held_days(taken, holders, own_branch, branches):
+    """The person-days on the sheet that other submitted reports hold, with
+    the sheet's own figures for them, to be said: keep_reported_days takes
+    them out of what the upload counts, and a total that falls short of the
+    sheet's with no word was what Luuka saw (19 Oct 2026: 84,712,569 on the
+    sheet, 84,215,144 said). Called before keep_reported_days.
+
+    taken: take_sheet's result; holders: {(employee, day): {report}};
+    own_branch: the run's plant; branches: {report: its plant}.
+
+    Returns [{"own", "plant", "days", "metres", "amount", "reports"}], the
+    run's own plant first. own: a report of the run's own plant holds the
+    day (one entered by hand: the run pays it from there); otherwise only
+    another plant's do, and this run does not pay it."""
+    figures = {}
+    for (employee, day, size), (done, unit, _row) in taken["work"].items():
+        if (employee, day) in holders:
+            metres, amount = figures.get((employee, day), (0.0, 0.0))
+            figures[(employee, day)] = (metres + _num(done), amount + line_total(done, unit))
+    for (employee, day), (extra, _row) in taken["overtime"].items():
+        if (employee, day) in holders:
+            metres, amount = figures.get((employee, day), (0.0, 0.0))
+            figures[(employee, day)] = (metres, amount + _num(extra))
+    groups = {}
+    for key, (metres, amount) in figures.items():
+        plants = sorted({branches.get(report) or "" for report in holders[key]})
+        own = own_branch in plants
+        plant = own_branch if own else plants[0]
+        group = groups.setdefault((own, plant), {"own": own, "plant": plant, "days": 0, "metres": 0.0,
+                                                 "amount": 0.0, "reports": set()})
+        group["days"] += 1
+        group["metres"] += metres
+        group["amount"] += amount
+        group["reports"] |= {report for report in holders[key] if (branches.get(report) or "") == plant}
+    return [dict(group, metres=round(group["metres"], 3), amount=round(group["amount"], 2),
+                 reports=sorted(group["reports"]))
+            for _key, group in sorted(groups.items(), key=lambda item: (not item[0][0], item[0][1]))]
+
+
 def keep_reported_days(taken, work, overtime, shown=None):
     """Takes out of take_sheet's result every person's day that another
     submitted report already has: that report stands. The downloaded sheet
