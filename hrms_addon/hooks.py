@@ -1736,6 +1736,8 @@ doc_events = {
         # a run whose pay a submitted salary slip has taken stays, the slip named
         "before_cancel": "hrms_addon.hrms_addon.output_pay.run_before_cancel",
         "on_cancel": "hrms_addon.hrms_addon.output_pay.run_on_cancel",
+        # deleted, a draft a sheet was uploaded through included: its reports let go of it
+        "on_trash": "hrms_addon.hrms_addon.output_pay.run_on_trash",
     },
     "Employee Advance": {
         "validate": "hrms_addon.hrms_addon.advances.advance_validate",

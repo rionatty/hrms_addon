@@ -705,10 +705,23 @@ def run_on_cancel(doc, method=None):
                 if earning.docstatus == 1:
                     earning.flags.ignore_permissions = True
                     earning.cancel()
-    # the month's reports let go of the run, the one it paid them in and the one that uploaded them, or
-    # Frappe refuses the cancel while they stand submitted: they stay, the month's record, for the
-    # amendment to pay (19 Oct 2026, "Cannot delete or cancel because Output Pay Run ... is linked with
-    # Daily Production Report ...")
+    _let_go_of_reports(doc)
+
+
+def run_on_trash(doc, method=None):
+    """A run deleted, a draft one a sheet was uploaded through or a cancelled
+    one: Frappe refuses to delete a document anything names, and the
+    reports the upload made name it (19 Oct 2026, deleting a draft run)."""
+    _let_go_of_reports(doc)
+
+
+def _let_go_of_reports(doc):
+    """The month's reports let go of the run, the one it paid them in and the
+    one that uploaded them, or Frappe refuses its cancel or delete while they
+    stand (19 Oct 2026, "Cannot delete or cancel because Output Pay Run ...
+    is linked with Daily Production Report ..."). They stay, the month's
+    record: the next run for the month takes them, and its upload replaces
+    them, found by plant and month."""
     for field in ("output_pay_run", "sheet_run"):
         for name in frappe.get_all(REPORT, filters={field: doc.name}, pluck="name", limit_page_length=0):
             frappe.db.set_value(REPORT, name, field, None, update_modified=False)

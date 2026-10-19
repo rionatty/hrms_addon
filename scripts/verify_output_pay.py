@@ -644,9 +644,12 @@ elif cancelling.index('row.db_set("additional_salary", None') > cancelling.index
 # Frappe refuses a cancel while a submitted document names the run: the month's reports name it twice, as
 # the run that paid them and the one that uploaded them (Luuka, 19 Oct 2026: "Cannot delete or cancel because
 # Output Pay Run ... is linked with Daily Production Report ..."), so both let go
-if 'for field in ("output_pay_run", "sheet_run"):' not in cancelling \
-        or 'frappe.db.set_value(REPORT, name, field, None, update_modified=False)' not in cancelling:
-    fail.append("cancelling a run lets its reports go, by the run that paid them and the one that uploaded them")
+letting_go = body("_let_go_of_reports")
+if 'for field in ("output_pay_run", "sheet_run"):' not in letting_go \
+        or 'frappe.db.set_value(REPORT, name, field, None, update_modified=False)' not in letting_go:
+    fail.append("a run's reports let go of it, by the run that paid them and the one that uploaded them")
+if "_let_go_of_reports(doc)" not in cancelling or "_let_go_of_reports(doc)" not in body("run_on_trash"):
+    fail.append("a run cancelled, or deleted (a draft a sheet was uploaded through), lets its reports go")
 report_links = sorted(field["fieldname"] for field in json.load(io.open(os.path.join(
     APP, "doctype", "daily_production_report", "daily_production_report.json"), encoding="utf-8"))["fields"]
                       if field.get("fieldtype") == "Link" and field.get("options") == "Output Pay Run")
@@ -754,6 +757,9 @@ if '"Daily Production Report"' not in run_form.split("frm.ignore_doctypes_on_can
 if '"before_cancel": "hrms_addon.hrms_addon.output_pay.run_before_cancel"' not in hooks.split(
         '"Output Pay Run": {')[1].split("},")[0]:
     fail.append("a run whose pay a slip has taken is checked before the cancel writes anything (before_cancel)")
+if '"on_trash": "hrms_addon.hrms_addon.output_pay.run_on_trash"' not in hooks.split(
+        '"Output Pay Run": {')[1].split("},")[0]:
+    fail.append("a run deleted lets its reports go first (on_trash runs before Frappe's link check)")
 rate_form = read("hrms_addon", "hrms_addon", "doctype", "output_rate", "output_rate.js")
 if 'frm.set_query("salary_component", () => ({ filters: { type: "Earning", disabled: 0 } }))' not in rate_form:
     fail.append("a size's component is picked from the earnings in use")
