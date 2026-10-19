@@ -641,6 +641,21 @@ if 'for table in ("earnings", "employees"):' not in cancelling:
     fail.append("a run paid before the pay was split is cancelled with its one Additional Salary too")
 elif cancelling.index('row.db_set("additional_salary", None') > cancelling.index("earning.cancel()"):
     fail.append("each row lets go of its Additional Salary before that is cancelled")
+# Frappe refuses a cancel while a submitted document names the run: the month's reports name it twice, as
+# the run that paid them and the one that uploaded them (Luuka, 19 Oct 2026: "Cannot delete or cancel because
+# Output Pay Run ... is linked with Daily Production Report ..."), so both let go
+if 'for field in ("output_pay_run", "sheet_run"):' not in cancelling \
+        or 'frappe.db.set_value(REPORT, name, field, None, update_modified=False)' not in cancelling:
+    fail.append("cancelling a run lets its reports go, by the run that paid them and the one that uploaded them")
+report_links = sorted(field["fieldname"] for field in json.load(io.open(os.path.join(
+    APP, "doctype", "daily_production_report", "daily_production_report.json"), encoding="utf-8"))["fields"]
+                      if field.get("fieldtype") == "Link" and field.get("options") == "Output Pay Run")
+if report_links != ["output_pay_run", "sheet_run"]:
+    fail.append("the report names the run in %s: each must let go on the run's cancel" % report_links)
+holding = body("run_before_cancel")
+if "advance_runs.recovered_on(RUN, [doc.name])" not in holding or "Cancel the salary slip first." not in holding:
+    fail.append("a run whose pay a submitted salary slip has taken stays, the slip named, before anything is "
+                "taken back")
 starting = body("run_before_insert")
 if "row.additional_salary = None" not in starting or 'for table in ("earnings", "employees"):' not in starting:
     fail.append("a run that is new, copied or amended names no Additional Salary: Frappe refuses one that names a "
@@ -734,6 +749,11 @@ run_form = read("hrms_addon", "hrms_addon", "doctype", "output_pay_run", "output
 if 'frm.ignore_doctypes_on_cancel_all' not in run_form or '"Additional Salary"' not in run_form:
     fail.append("cancelling a run does not offer to cancel its Additional Salary first: each would be refused as "
                 "named on a submitted run, and the run cancels its own")
+if '"Daily Production Report"' not in run_form.split("frm.ignore_doctypes_on_cancel_all = [", 1)[-1].split("];")[0]:
+    fail.append("cancelling a run does not offer to cancel the month's reports: they let go of it and stay")
+if '"before_cancel": "hrms_addon.hrms_addon.output_pay.run_before_cancel"' not in hooks.split(
+        '"Output Pay Run": {')[1].split("},")[0]:
+    fail.append("a run whose pay a slip has taken is checked before the cancel writes anything (before_cancel)")
 rate_form = read("hrms_addon", "hrms_addon", "doctype", "output_rate", "output_rate.js")
 if 'frm.set_query("salary_component", () => ({ filters: { type: "Earning", disabled: 0 } }))' not in rate_form:
     fail.append("a size's component is picked from the earnings in use")

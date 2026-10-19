@@ -33,9 +33,15 @@ frappe.ui.form.on("Output Pay Run", {
 
 	setup(frm) {
 		// the run cancels its own Additional Salary: cancelled before it, each
-		// would be refused as still named on a submitted run
+		// would be refused as still named on a submitted run. Its daily
+		// production reports let go of it and stay: the month's record, not
+		// documents to cancel with it
 		frm.ignore_doctypes_on_cancel_all = [
-			...new Set([...(frm.ignore_doctypes_on_cancel_all || []), "Additional Salary"]),
+			...new Set([
+				...(frm.ignore_doctypes_on_cancel_all || []),
+				"Additional Salary",
+				"Daily Production Report",
+			]),
 		];
 		const people = () => {
 			const filters = { custom_pay_category: frm.doc.section };

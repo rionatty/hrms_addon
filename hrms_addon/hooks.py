@@ -1733,6 +1733,8 @@ doc_events = {
         "before_insert": "hrms_addon.hrms_addon.output_pay.run_before_insert",
         "validate": "hrms_addon.hrms_addon.output_pay.run_validate",
         "on_submit": "hrms_addon.hrms_addon.output_pay.run_on_submit",
+        # a run whose pay a submitted salary slip has taken stays, the slip named
+        "before_cancel": "hrms_addon.hrms_addon.output_pay.run_before_cancel",
         "on_cancel": "hrms_addon.hrms_addon.output_pay.run_on_cancel",
     },
     "Employee Advance": {

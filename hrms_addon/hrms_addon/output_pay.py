@@ -677,6 +677,20 @@ def _in_structure(employee, component, day, seen):
     return seen[(structure, component)]
 
 
+def run_before_cancel(doc, method=None):
+    """A run whose pay a submitted salary slip has already taken stays, and
+    the slip is named: Frappe would refuse to cancel that Additional Salary
+    anyway, half way through. Nothing is taken back. A draft slip does not
+    hold the run; it keeps the line, and is named when its Additional
+    Salary is cancelled (recoveries.addition_on_cancel)."""
+    from hrms_addon.hrms_addon import advance_runs
+
+    taken = advance_runs.recovered_on(RUN, [doc.name])
+    if taken:
+        frappe.throw(_("{0} is already paid on Salary Slip {1}. Cancel the salary slip first.").format(*taken),
+                     title=_(RUN))
+
+
 def run_on_cancel(doc, method=None):
     # the employees' rows too: a run paid before the pay was split named its one Additional Salary there
     for table in ("earnings", "employees"):
@@ -691,9 +705,13 @@ def run_on_cancel(doc, method=None):
                 if earning.docstatus == 1:
                     earning.flags.ignore_permissions = True
                     earning.cancel()
-    for name in frappe.get_all(REPORT, filters={"output_pay_run": doc.name}, pluck="name",
-                               limit_page_length=0):
-        frappe.db.set_value(REPORT, name, "output_pay_run", None, update_modified=False)
+    # the month's reports let go of the run, the one it paid them in and the one that uploaded them, or
+    # Frappe refuses the cancel while they stand submitted: they stay, the month's record, for the
+    # amendment to pay (19 Oct 2026, "Cannot delete or cancel because Output Pay Run ... is linked with
+    # Daily Production Report ...")
+    for field in ("output_pay_run", "sheet_run"):
+        for name in frappe.get_all(REPORT, filters={field: doc.name}, pluck="name", limit_page_length=0):
+            frappe.db.set_value(REPORT, name, field, None, update_modified=False)
 
 
 def _component_name(section):
