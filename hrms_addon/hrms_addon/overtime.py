@@ -24,7 +24,9 @@ officer who carries the section, Approve by HR.
 The slip is Frappe HR's own: it prices the attendance it finds, holds the
 multipliers on the Overtime Type, and writes the Additional Salary the
 payroll run reads. Nothing here re-prices it, and nothing here writes a
-salary component.
+salary component. Its hour is the month's pay over Payroll Settings' Days
+in a Pay Month, 26, where Frappe HR's would be over the slip's payment days
+(pay_days.py); the cost here is divided by the same days.
 
   seed_overtime_types   the three kinds of day, at the Employment Act's
                         floor, made once and then Luuka's to amend
@@ -46,7 +48,7 @@ from frappe import _
 from frappe.utils import add_days, cint, flt, getdate, today
 
 from hrms_addon.hrms_addon import attendance, attendance_rules, overtime_approval as approval, \
-    overtime_rules as rules, pay, people
+    overtime_rules as rules, pay, pay_days, people
 
 REQUEST = "Overtime Request"
 TYPE = "Overtime Type"
@@ -234,7 +236,8 @@ def _cost(doc, standing):
     types = _types_for(kind, kinds.values())
     costed = rules.priced(rows, _monthly_bases(people_on_it), kind, _type_row(type_for(kind, doc.get("company"))), types,
                           _monthly_gross(people_on_it, doc.overtime_date),
-                          _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it))
+                          _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),
+                          days=pay_days.days_in_month())
     errors = rules.cost_check_errors({
         "status": standing, "rows": costed["rows"], "unpriced": costed["unpriced"],
         "not_eligible": rules.eligibility_errors(costed["rows"])})

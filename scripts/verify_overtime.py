@@ -728,8 +728,10 @@ print("glue: the day read, the cost checked, the hours landed, the slip drawn")
 for needle, why in (
     ("attendance.shift_hours_of(attendance.shift_on(employee, day), hours)[\"standard\"]",
      "the standard day is the one of the shift worked that day"),
-    ("_standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it))",
+    ("_standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),",
      "HR's cost check prices each person on their own shift, and their own kind of day"),
+    ("days=pay_days.days_in_month())",
+     "over the month's days the Overtime Slip divides by too (Payroll Settings' Days in a Pay Month)"),
     ('row.day_kind = found["day_kind"] if row.employee else None', "each line reads the day for its own employee"),
     ('row.overtime_type = found["overtime_type"] if row.employee else None',
      "and carries the Overtime Type that person falls under"),

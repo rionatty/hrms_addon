@@ -335,7 +335,9 @@ check("hrms_addon.hrms_addon.payslip.pay_slip" in hooks["jinja"]["methods"], "pa
 check(re.search(r"^def pay_slip\(doc\):", glue_source, re.M) and 'doc.check_permission("read")' in glue_source,
       "and it reads a slip only for someone who may read it")
 for doctype in ("Salary Slip", "Payroll Entry"):
-    check(hooks["doc_events"].get(doctype, {}).get("validate") == "hrms_addon.hrms_addon.payslip.period_validate",
+    validate = hooks["doc_events"].get(doctype, {}).get("validate")
+    # a single handler, or a list of them with the period's first
+    check((validate if isinstance(validate, list) else [validate])[0] == "hrms_addon.hrms_addon.payslip.period_validate",
           "%s validate checks the payroll period" % doctype)
 check(re.search(r"^def period_validate\(doc, method=None\):", glue_source, re.M), "period_validate(doc, method=None)")
 check(hooks["doc_events"]["Salary Slip"].get("on_submit") == "hrms_addon.hrms_addon.recoveries.slip_on_submit",

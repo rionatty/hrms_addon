@@ -1234,6 +1234,10 @@ fixtures = [
                     # how a component reads on the Pay Slip (payslip.py)
                     "Salary Component-custom_slip_name",
                     "Salary Component-custom_slip_order",
+                    # Luuka's month of 26 days, and what the days not paid
+                    # took off a slip (pay_days.py)
+                    "Payroll Settings-custom_days_in_month",
+                    "Salary Slip-custom_absent_amount",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",
@@ -1592,12 +1596,19 @@ override_doctype_class = {
     "Employee Onboarding": "hrms_addon.hrms_addon.overrides.employee_onboarding.EmployeeOnboarding",
 }
 
-# Frappe HR's three leave reports gain the leave earned beside the balances.
-# A report has no hook of its own; v16 mixes this in ahead of the Report
-# controller, alongside any other app's, and it touches only those three
+# Frappe HR's three leave reports gain the leave earned beside the balances,
+# and its Salary Register the Absent Amount beside the Absent Days. A report
+# has no hook of its own; v16 mixes these in ahead of the Report controller,
+# alongside any other app's, and each touches only its own reports
 # (report_extensions.py).
+# Luuka's month is 26 days (pay_days.py): once Frappe HR's Salary Slip has
+# counted the days, the slip is paid on 26, and an hour of overtime on the
+# Overtime Slip is the month's pay over 26 days.
 extend_doctype_class = {
-    "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns"],
+    "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
+               "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
+    "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays"],
+    "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
 }
 
 # Document Events
@@ -1780,8 +1791,12 @@ doc_events = {
         # Currency Exchange (currency_payroll.py)
         "before_validate": "hrms_addon.hrms_addon.currency_payroll.salary_slip_before_validate",
         # a monthly slip is for the 26th to the 25th, the period the
-        # month's recoveries are dated in (payslip.py)
-        "validate": "hrms_addon.hrms_addon.payslip.period_validate",
+        # month's recoveries are dated in (payslip.py); and what the days
+        # not paid took off is kept on it, the Absent Amount (pay_days.py)
+        "validate": [
+            "hrms_addon.hrms_addon.payslip.period_validate",
+            "hrms_addon.hrms_addon.pay_days.slip_validate",
+        ],
         "on_submit": "hrms_addon.hrms_addon.recoveries.slip_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.recoveries.slip_on_cancel",
     },

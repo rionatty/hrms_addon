@@ -213,14 +213,20 @@ def below_the_act(kind, multiplier):
     return float(multiplier) < ACT_MULTIPLIERS[kind]
 
 
-def hours_per_month(standard_hours=None):
-    """The hours a month's pay is for: the cycle's days of the shift's
-    standard hours, ten where the shift gives none."""
+def hours_per_month(standard_hours=None, days=None):
+    """The hours a month's pay is for: the month's days (Payroll Settings'
+    Days in a Pay Month, which the Overtime Slip divides by too; 26 where
+    none is given) of the shift's standard hours, ten where the shift gives
+    none."""
     try:
         standard = float(standard_hours or 0)
     except (TypeError, ValueError):
         standard = 0.0
-    return DAYS_PER_MONTH * (standard if standard > 0 else STANDARD_HOURS_PER_DAY)
+    try:
+        days = float(days or 0)
+    except (TypeError, ValueError):
+        days = 0.0
+    return (days if days > 0 else DAYS_PER_MONTH) * (standard if standard > 0 else STANDARD_HOURS_PER_DAY)
 
 
 def hourly_rate(monthly_base, hours_per_month=HOURS_PER_MONTH):
@@ -238,11 +244,12 @@ def amount(hours, rate, multiplier):
 
 
 def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None, kinds=None,
-           departments=None):
+           departments=None, days=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
     gross}, which decides their type; standards: {employee: the standard
-    hours of their shift}, the day that hour is divided out of; kinds:
+    hours of their shift}, the day that hour is divided out of; days: the
+    month's days (hours_per_month); kinds:
     {employee: what sort of day it is for them}, since one person's rest
     day is another's working day. `kind` is the sheet's, for anybody not
     in `kinds`.
@@ -270,7 +277,7 @@ def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, stan
             own = 0.0
         else:
             own = multiplier_for(day, theirs) if theirs else multiplier_for(day, overtime_type if day == kind else None)
-        rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee"))))
+        rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee")), days))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))

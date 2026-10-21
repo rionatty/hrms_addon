@@ -1191,6 +1191,31 @@ the penalties already run on; any other dates are refused with the dates to
 use, because a recovery is dated the 25th and a run for the 25th to the
 24th would leave the month's recoveries off every slip.
 
+`verify_pay_days.py` covers **Luuka's 26-day month**. Luuka's register prices
+a day at the month's pay divided by 26, whatever the month's length: a day
+absent takes Basic Salary / 26 off (the Absent Amt), a new hire is paid the
+days on the payroll / 26, and an hour of overtime is the month's pay / 26 /
+the day's standard hours. Frappe HR divides by the period's own days (31, 30
+or 28, less holidays if Payroll Settings leave them out), and its Overtime
+Slip by the slip's Payment Days. So, mixed in ahead of Frappe HR's own
+classes (`extend_doctype_class`, `pay_days.py`), a monthly slip not worked
+out from timesheets gets 26 Working Days once Frappe HR has counted, and
+Payment Days are the days on the payroll, up to 26, less every day Frappe HR
+took off (leave without pay, absences, half days, a Payroll Correction given
+back). Every earning that follows the payment days is then paid by Payment
+Days / 26, through Frappe HR's own proration. The Overtime Slip's hour is
+the type's components' whole monthly amount / 26 / the standard hours, and
+the overtime request's cost check divides by the same days. What the days
+not paid took off is kept on the slip as the **Absent Amount**, House Rent
+paid as an Additional Salary included. It is on the form under the Absent
+Days, on the Pay Slip, and in the Salary Register after the Absent Days.
+**Days in a Pay Month** on Payroll Settings is 26; 0 gives Frappe HR's own
+count back. A slip already submitted keeps its figures. The checker holds
+the rules to Luuka's own September register: 800,000 with a day absent is
+paid 769,231 and its Absent Amount is 30,769. It also checks that Frappe
+HR's code still does what the mixins build on. The walk `smoke_pay_days.py`
+runs the mixins over stand-ins that count as v16 does.
+
 `verify_pay.py` covers what an employee's monthly gross is made of. Every
 module that needs a gross (the advances, the loans, overtime's hourly pay,
 leave encashment, the benefits, the exit settlement) asks `pay.monthly_gross`

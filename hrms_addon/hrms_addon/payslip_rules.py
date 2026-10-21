@@ -144,14 +144,19 @@ def slip_for(end_date):
 
 def absent_amount(earnings):
     """What the days not paid took off: for each earning that follows the
-    payment days, its full amount less what was paid."""
+    payment days, its full amount less what was paid. The full amount is the
+    structure's and an Additional Salary's whole amount (House Rent paid as
+    one is cut by the days too): Frappe HR writes only the amount paid back
+    on the row. One that overwrites the structure's amount, which Frappe HR
+    pays whole, comes to nothing taken off."""
     lost = 0.0
     for row in earnings or []:
         if int(_num(row.get("statistical_component"))) or int(_num(row.get("do_not_include_in_total"))):
             continue
-        if not int(_num(row.get("depends_on_payment_days"))) or row.get("additional_salary"):
+        if not int(_num(row.get("depends_on_payment_days"))):
             continue
-        full, paid = _num(row.get("default_amount")), _num(row.get("amount"))
+        full = _num(row.get("default_amount")) + _num(row.get("additional_amount"))
+        paid = _num(row.get("amount"))
         if full > paid:
             lost += full - paid
     return round(lost, 2)
