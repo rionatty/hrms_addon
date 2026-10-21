@@ -157,6 +157,16 @@ both = R.priced([{"employee": "E1", "hours": 2}, {"employee": "E2", "hours": 2}]
 if [row["hourly_rate"] for row in both["rows"]] != [5000.0, 4000.0]:
     fail.append("each person's hour comes out of their own shift's standard day: %s"
                 % [row["hourly_rate"] for row in both["rows"]])
+# Luuka's standard working day is 8 hours (21 Oct 2026): Payroll Settings'
+# Hours in a Pay Day, which the overtime slip divides by too, sets every
+# shift's hour alike
+eight = R.priced([{"employee": "E1", "hours": 2}, {"employee": "E2", "hours": 2}], {"E1": 1040000, "E2": 1040000},
+                 R.WEEKDAY, standards={"E1": 8, "E2": 10}, days=26, day_hours=8)
+if [row["hourly_rate"] for row in eight["rows"]] != [5000.0, 5000.0]:
+    fail.append("an eight-hour pay day prices every shift's hour alike, 1,040,000 / 208: %s"
+                % [row["hourly_rate"] for row in eight["rows"]])
+if R.hours_per_month(10, 26, 8) != 208.0 or R.hours_per_month(10, 26, 0) != 260.0:
+    fail.append("the pay day's hours stand over the shift's; at 0 the shift's own")
 if R.hourly_rate(1040000) != 4000.0:
     fail.append("a million and forty thousand over 260 hours is four thousand an hour: %s"
                 % R.hourly_rate(1040000))
@@ -730,8 +740,8 @@ for needle, why in (
      "the standard day is the one of the shift worked that day"),
     ("_standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),",
      "HR's cost check prices each person on their own shift, and their own kind of day"),
-    ("days=pay_days.days_in_month())",
-     "over the month's days the Overtime Slip divides by too (Payroll Settings' Days in a Pay Month)"),
+    ("days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())",
+     "over the month's days and the day's hours the Overtime Slip divides by too (Payroll Settings)"),
     ('row.day_kind = found["day_kind"] if row.employee else None', "each line reads the day for its own employee"),
     ('row.overtime_type = found["overtime_type"] if row.employee else None',
      "and carries the Overtime Type that person falls under"),

@@ -19,7 +19,12 @@ computed from working days"):
                     a day absent is 769,231, not 774,194 (30 of 31 days)
   a part month      the days on the payroll / 26: a hire of 15 September,
                     11 days of the cycle, is paid 500,000 x 11 / 26 = 211,539
-  an hour of overtime   the month's pay / 26 / the day's standard hours
+  an hour of overtime   the month's pay / 26 / 8, the standard working hours
+                    of a day (Luuka, 21 Oct 2026: "standard woring hours is
+                    8"): 800,000 is 3,846.15 an hour, whatever the shift.
+                    When the clock counts overtime is the shift's own
+                    figure (12 hours, 2 of them overtime); what an hour is
+                    paid is this
 
 WHAT FRAPPE HR DOES
 
@@ -33,8 +38,10 @@ absences, unmarked days it counts as absent, half days, and a Payroll
 Correction it gave back.
 """
 
-# Luuka's month; Payroll Settings' Days in a Pay Month says otherwise
+# Luuka's month, and its day; Payroll Settings' Days in a Pay Month and
+# Hours in a Pay Day say otherwise
 DAYS_IN_MONTH = 26
+HOURS_IN_DAY = 8
 
 
 def _num(value):
@@ -72,7 +79,7 @@ def slip_days(days, on_payroll, counted_from, paid, without_pay, preview=False):
 
 
 def hourly_rate(monthly, days, standard_hours):
-    """An hour of the month's pay: monthly / days / the day's standard hours."""
+    """An hour of the month's pay: monthly / days / the hours of a day (8)."""
     monthly, days, standard_hours = _num(monthly), _num(days), _num(standard_hours)
     if not (monthly and days > 0 and standard_hours > 0):
         return 0.0

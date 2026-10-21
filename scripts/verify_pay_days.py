@@ -10,7 +10,7 @@ the period's own days. So:
 
   1. the days: 26 Working Days, and Payment Days the days on the payroll, up
      to 26, less what Frappe HR took off; Luuka's own register reproduced
-  2. an hour of overtime: the month's pay / 26 / the day's standard hours,
+  2. an hour of overtime: the month's pay / 26 / 8, the standard working day,
      on the Overtime Slip and on HR's cost check alike
   3. the Absent Amount: what the days not paid took off, Additional Salary
      paid by the days included
@@ -113,23 +113,28 @@ check("Frappe HR's own count would have paid 774,194 for that day absent, 4,963 
       round(frappe_way) == 774194, round(frappe_way, 2))
 
 # ── 2. An hour of overtime ────────────────────────────────────────────
-check("an hour: 800,000 / 26 days / 10 standard hours = 3,076.92",
-      round(R.hourly_rate(800000, 26, 10), 2) == 3076.92, R.hourly_rate(800000, 26, 10))
+# Luuka, 21 Oct 2026: "standard woring hours is 8"
+check("Luuka's day is 8 standard working hours", R.HOURS_IN_DAY == 8)
+check("an hour: 800,000 / 26 days / 8 hours = 3,846.15",
+      round(R.hourly_rate(800000, 26, 8), 2) == 3846.15, R.hourly_rate(800000, 26, 8))
 check("the same whatever days were worked: the month's pay, not what the slip paid",
-      R.hourly_rate(800000, 26, 10) == R.hourly_rate(800000, 26, 10.0))
-check("no pay, no days or no standard hours: nothing, never a division by nought",
-      R.hourly_rate(0, 26, 10) == 0 and R.hourly_rate(800000, 0, 10) == 0 and R.hourly_rate(800000, 26, 0) == 0
+      R.hourly_rate(800000, 26, 8) == R.hourly_rate(800000, 26, 8.0))
+check("no pay, no days or no hours: nothing, never a division by nought",
+      R.hourly_rate(0, 26, 8) == 0 and R.hourly_rate(800000, 0, 8) == 0 and R.hourly_rate(800000, 26, 0) == 0
       and R.hourly_rate(800000, 26, None) == 0)
-check("HR's cost check divides by the same days: 26 days of 10 hours, or the shift's own",
-      O.hours_per_month(10, 26) == 260 and O.hours_per_month(None, 26) == 260 and O.hours_per_month(8, 26) == 208)
+check("HR's cost check divides by the same day: 26 days of 8 hours, whatever the shift's own standard hours",
+      O.hours_per_month(10, 26, 8) == 208 and O.hours_per_month(None, 26, 8) == 208 and O.hours_per_month(12, 26, 8) == 208)
+check("with Hours in a Pay Day at 0, by the shift's own standard hours, ten where it gives none",
+      O.hours_per_month(10, 26, 0) == 260 and O.hours_per_month(None, 26, None) == 260 and O.hours_per_month(9, 26, 0) == 234)
 check("and by Payroll Settings' days where they say otherwise; 26 where they give none or 0",
-      O.hours_per_month(10, 30) == 300 and O.hours_per_month(10, None) == 260 and O.hours_per_month(10, 0) == 260)
-costed = O.priced([{"employee": "E1", "hours": 2}], {"E1": 800000}, O.WEEKDAY, standards={"E1": 10}, days=26)
-check("a request costed on 26 days: 2 hours of 3,076.92 at the weekday's 1.5",
-      costed["rows"][0]["hourly_rate"] == round(800000 / 260, 4) and costed["total"] == round(2 * round(800000 / 260, 4) * 1.5, 2),
+      O.hours_per_month(10, 30, 8) == 240 and O.hours_per_month(10, None, 8) == 208 and O.hours_per_month(10, 0, 8) == 208)
+costed = O.priced([{"employee": "E1", "hours": 2}], {"E1": 800000}, O.WEEKDAY, standards={"E1": 10}, days=26,
+                  day_hours=8)
+check("a request costed on 26 days of 8 hours: 2 hours of 3,846.15 at the weekday's 1.5, the shift's 10 aside",
+      costed["rows"][0]["hourly_rate"] == round(800000 / 208, 4) and costed["total"] == round(2 * round(800000 / 208, 4) * 1.5, 2),
       costed["rows"][0])
 check("the slip's hour and the cost check's hour agree, to the cent",
-      abs(R.hourly_rate(800000, 26, 10) - costed["rows"][0]["hourly_rate"]) < 0.01)
+      abs(R.hourly_rate(800000, 26, 8) - costed["rows"][0]["hourly_rate"]) < 0.01)
 check("full_amount: the structure's amount and an Additional Salary's whole amount",
       R.full_amount({"default_amount": 700000, "additional_amount": 0}) == 700000
       and R.full_amount({"default_amount": 0, "additional_amount": 100000}) == 100000)
@@ -253,10 +258,14 @@ ot = body("OvertimeSlipDays")
 check("the Overtime Slip mixin lets Frappe HR make its month's slip first, and keeps Frappe HR's hour where the "
       "month is not Luuka's", "theirs = super()._calculate_component_based_hourly_rate(" in ot
       and "return theirs" in ot and "on_luuka_month(slip)" in ot)
-check("its hour is the components' whole month over the days and the standard hours",
-      "rules.hourly_rate(monthly_amount(slip, components), days, standard_working_hours)" in ot
+check("its hour is the components' whole month over the days and the day's 8 hours, the shift's own only with "
+      "Hours in a Pay Day at 0",
+      "rules.hourly_rate(monthly_amount(slip, components), days, hours_in_day() or standard_working_hours)" in ot
       and 'flt(row.get("default_amount"))' in body("monthly_amount")
       and 'not row.get("additional_salary")' in body("monthly_amount"))
+check("the day's hours: 8 until it is saved otherwise, 0 to divide by each shift's own",
+      "frappe.db.get_singles_dict(SETTINGS).get(HOURS_FIELD)" in body("hours_in_day")
+      and "return rules.HOURS_IN_DAY" in body("hours_in_day") and 'HOURS_FIELD = "custom_hours_in_day"' in glue)
 check("the slip's Absent Amount is the Pay Slip's own sum", "payslip_rules.absent_amount(" in body("slip_validate")
       and "rules.absent_amount(earnings)" in read("hrms_addon", "hrms_addon", "payslip.py"))
 register_glue = body("with_absent_amount")
@@ -272,6 +281,10 @@ setting = fields.get("Payroll Settings-custom_days_in_month") or {}
 check("Payroll Settings' Days in a Pay Month: a whole number, 26, never below nought, beside the half day's fraction",
       (setting.get("fieldtype"), setting.get("default"), setting.get("non_negative"), setting.get("insert_after"))
       == ("Int", "26", 1, "daily_wages_fraction_for_half_day"), setting)
+hours = fields.get("Payroll Settings-custom_hours_in_day") or {}
+check("and its Hours in a Pay Day: 8, never below nought, under the days",
+      (hours.get("fieldtype"), hours.get("default"), hours.get("non_negative"), hours.get("insert_after"))
+      == ("Float", "8", 1, "custom_days_in_month") and '"Payroll Settings-custom_hours_in_day",' in hooks_src, hours)
 absent = fields.get("Salary Slip-custom_absent_amount") or {}
 check("the slip's Absent Amount: money in the slip's currency, read only, under the Absent Days",
       (absent.get("fieldtype"), absent.get("options"), absent.get("read_only"), absent.get("insert_after"))
@@ -281,8 +294,9 @@ check("both are in the fixtures the app ships", all('"%s",' % name in hooks_src 
                                                      "Salary Slip-custom_absent_amount")))
 check("the setting's field name is the one the code reads", 'DAYS_FIELD = "custom_days_in_month"' in glue
       and 'ABSENT_FIELD = "custom_absent_amount"' in glue)
-check("HR's cost check divides by the same days as the Overtime Slip",
-      "days=pay_days.days_in_month())" in read("hrms_addon", "hrms_addon", "overtime.py"))
+check("HR's cost check divides by the same days and hours as the Overtime Slip",
+      "days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())" in read("hrms_addon", "hrms_addon",
+                                                                                 "overtime.py"))
 
 print()
 if fail:

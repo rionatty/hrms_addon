@@ -11757,6 +11757,19 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Settings-custom_hours_in_day",
+  "dt": "Payroll Settings",
+  "fieldname": "custom_hours_in_day",
+  "fieldtype": "Float",
+  "insert_after": "custom_days_in_month",
+  "label": "Hours in a Pay Day",
+  "default": "8",
+  "non_negative": 1,
+  "description": "An hour's pay is a day's pay divided by this: an hour of overtime. Luuka's standard working day is 8 hours. 0 divides by each shift's own standard hours.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Salary Slip-custom_absent_amount",
   "dt": "Salary Slip",
   "fieldname": "custom_absent_amount",

@@ -1234,9 +1234,10 @@ fixtures = [
                     # how a component reads on the Pay Slip (payslip.py)
                     "Salary Component-custom_slip_name",
                     "Salary Component-custom_slip_order",
-                    # Luuka's month of 26 days, and what the days not paid
-                    # took off a slip (pay_days.py)
+                    # Luuka's month of 26 days and day of 8 hours, and what
+                    # the days not paid took off a slip (pay_days.py)
                     "Payroll Settings-custom_days_in_month",
+                    "Payroll Settings-custom_hours_in_day",
                     "Salary Slip-custom_absent_amount",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",

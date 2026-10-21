@@ -11,8 +11,8 @@
                      days Frappe HR took off
   OvertimeSlipDays   mixed in ahead of Frappe HR's Overtime Slip: an hour of
                      overtime priced from salary components is their monthly
-                     amount / 26 / the day's standard hours, where Frappe HR
-                     divides by the slip's Payment Days
+                     amount / 26 / 8, where Frappe HR divides by the slip's
+                     Payment Days and the shift's standard hours
   slip_validate      Salary Slip validate: the Absent Amount, what the days
                      not paid took off, kept on the slip for the form, the Pay
                      Slip and the Salary Register
@@ -20,6 +20,9 @@
                      Absent Days (report_extensions.SalaryRegisterColumns)
   days_in_month      Payroll Settings' Days in a Pay Month: 26 until HR say
                      otherwise, and 0 gives Frappe HR's own count back
+  hours_in_day       and its Hours in a Pay Day: 8 until HR say otherwise,
+                     and 0 divides an hour out of each shift's own standard
+                     day instead
 
 Only a monthly slip that is not worked out from timesheets is touched. A
 slip already submitted keeps the figures it was submitted with.
@@ -34,6 +37,7 @@ from hrms_addon.hrms_addon import payslip_rules
 
 SETTINGS = "Payroll Settings"
 DAYS_FIELD = "custom_days_in_month"
+HOURS_FIELD = "custom_hours_in_day"
 ABSENT_FIELD = "custom_absent_amount"
 MONTHLY = "Monthly"
 REGISTER = "Salary Register"
@@ -47,6 +51,16 @@ def days_in_month():
     if stored in (None, ""):
         return rules.DAYS_IN_MONTH
     return max(cint(stored), 0)
+
+
+def hours_in_day():
+    """The hours a day's pay is divided into: 8, Luuka's standard working
+    day, until Payroll Settings say otherwise (read as days_in_month is).
+    0 leaves each shift's own standard day to divide by."""
+    stored = frappe.db.get_singles_dict(SETTINGS).get(HOURS_FIELD)
+    if stored in (None, ""):
+        return rules.HOURS_IN_DAY
+    return max(flt(stored), 0)
 
 
 def on_luuka_month(slip):
@@ -104,7 +118,9 @@ class OvertimeSlipDays:
         components = (self.overtime_types.get(overtime_type) or {}).get("components") or []
         if not days or slip is None or not components or not on_luuka_month(slip):
             return theirs
-        return rules.hourly_rate(monthly_amount(slip, components), days, standard_working_hours)
+        # an hour is a day's pay over the standard working day, 8, whatever
+        # the shift; with Hours in a Pay Day at 0, over the shift's own
+        return rules.hourly_rate(monthly_amount(slip, components), days, hours_in_day() or standard_working_hours)
 
 
 def monthly_amount(slip, components):

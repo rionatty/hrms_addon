@@ -1204,22 +1204,28 @@ use, because a recovery is dated the 25th and a run for the 25th to the
 a day at the month's pay divided by 26, whatever the month's length: a day
 absent takes Basic Salary / 26 off (the Absent Amt), a new hire is paid the
 days on the payroll / 26, and an hour of overtime is the month's pay / 26 /
-the day's standard hours. Frappe HR divides by the period's own days (31, 30
-or 28, less holidays if Payroll Settings leave them out), and its Overtime
-Slip by the slip's Payment Days. So, mixed in ahead of Frappe HR's own
-classes (`extend_doctype_class`, `pay_days.py`), a monthly slip not worked
-out from timesheets gets 26 Working Days once Frappe HR has counted, and
+8, the standard working day (800,000 is 3,846.15 an hour, whatever the
+shift). Frappe HR divides by the period's own days (31, 30 or 28, less
+holidays if Payroll Settings leave them out), and its Overtime Slip by the
+slip's Payment Days and the shift's standard hours. So, mixed in ahead of
+Frappe HR's own classes (`extend_doctype_class`, `pay_days.py`), a monthly
+slip not worked out from timesheets gets 26 Working Days once Frappe HR has
+counted, and
 Payment Days are the days on the payroll, up to 26, less every day Frappe HR
 took off (leave without pay, absences, half days, a Payroll Correction given
 back). Every earning that follows the payment days is then paid by Payment
 Days / 26, through Frappe HR's own proration. The Overtime Slip's hour is
-the type's components' whole monthly amount / 26 / the standard hours, and
-the overtime request's cost check divides by the same days. What the days
+the type's components' whole monthly amount / 26 / 8, and the overtime
+request's cost check divides by the same days and hours. When the clock
+counts overtime is still the shift's own figure (12 hours, 2 of them
+overtime); only what an hour is paid is the 8-hour day. What the days
 not paid took off is kept on the slip as the **Absent Amount**, House Rent
 paid as an Additional Salary included. It is on the form under the Absent
 Days, on the Pay Slip, and in the Salary Register after the Absent Days.
 **Days in a Pay Month** on Payroll Settings is 26; 0 gives Frappe HR's own
-count back. A slip already submitted keeps its figures. The checker holds
+count back. **Hours in a Pay Day** is 8; 0 divides an hour out of each
+shift's own standard day instead. A slip already submitted keeps its
+figures. The checker holds
 the rules to Luuka's own September register: 800,000 with a day absent is
 paid 769,231 and its Absent Amount is 30,769. It also checks that Frappe
 HR's code still does what the mixins build on. The walk `smoke_pay_days.py`
