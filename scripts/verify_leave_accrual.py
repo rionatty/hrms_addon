@@ -249,7 +249,9 @@ for node in ast.parse(read("hrms_addon", "hooks.py")).body:
             hooks[node.targets[0].id] = ast.literal_eval(node.value)
         except ValueError:
             pass
-if (hooks.get("extend_doctype_class") or {}).get("Report") != ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns"]:
+# beside the Salary Register's own mixin (pay_days.py)
+if "hrms_addon.hrms_addon.report_extensions.LeaveReportColumns" not in \
+        ((hooks.get("extend_doctype_class") or {}).get("Report") or []):
     fail.append("Frappe HR's leave reports gain the Earned columns through extend_doctype_class on Report")
 mixin = read("hrms_addon", "hrms_addon", "report_extensions.py")
 for needle, why in (
