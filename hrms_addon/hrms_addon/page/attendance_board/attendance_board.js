@@ -266,7 +266,15 @@ frappe.pages["attendance-board"].on_page_load = function (wrapper) {
 };
 
 frappe.pages["attendance-board"].on_page_show = function (wrapper) {
-	if (wrapper.board) wrapper.board.refresh();
+	if (!wrapper.board) return;
+	// opened on a plant, from the desk home's Plants at a Glance: the plant is picked, which draws the board
+	const plant = frappe.route_options && frappe.route_options.branch;
+	frappe.route_options = null;
+	if (plant && wrapper.board.branch && wrapper.board.branch.get_value() !== plant) {
+		wrapper.board.branch.set_value(plant);
+		return;
+	}
+	wrapper.board.refresh();
 };
 
 hrms_addon.AttendanceBoard = class AttendanceBoard {

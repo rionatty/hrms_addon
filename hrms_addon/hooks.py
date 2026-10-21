@@ -518,6 +518,10 @@ after_migrate = [
     # The HR Alert notification type: the app's alerts go as it, and Frappe
     # emails every type but its own Alert (alerts.py, people.notify).
     "hrms_addon.hrms_addon.alerts.install_alert_type",
+    # Each desk home panel's switch in Theme Settings that nobody has saved,
+    # written on, so the next save of the settings cannot switch it off
+    # unasked (home_panels.py).
+    "hrms_addon.hrms_addon.home_panels.ensure_switches",
 ]
 
 # An alert is delivered to the person it names even when they caused it, as

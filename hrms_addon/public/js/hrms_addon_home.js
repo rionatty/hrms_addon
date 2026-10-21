@@ -29,6 +29,8 @@
 	frappe.provide("hrms_addon.home");
 
 	const METHOD = "hrms_addon.hrms_addon.home.summary";
+	// the panels under what waits for the user, asked for once the home is drawn (home_panels.py)
+	const PANELS_METHOD = "hrms_addon.hrms_addon.home_panels.panels";
 	const FRESH_MS = 60 * 1000; // how long an answer is shown before it is asked for again
 	const STYLE_ID = "ha-home-style";
 	// the modules in the order of an employee's time with the company (home_rules.MODULES)
@@ -43,6 +45,9 @@
 	let answer = null;
 	let asked_at = 0;
 	let asking = false;
+	let more = null; // the panels' answer: {"panels": [...]}
+	let more_at = 0;
+	let more_asking = false;
 	let tab = "items";
 	let open_module = null; // the module whose own menu is open in the list
 	const shown_groups = new Set(); // the headings of a module's menu that are open, as "module|heading"
@@ -60,6 +65,21 @@
 		arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 		chevron: '<path d="M9 6l6 6-6 6"/>',
 		page: '<path d="M5 19V9M10 19V5M15 19v-7M20 19v-11"/>',
+		// the panels under what waits (home_panels.py)
+		payroll: '<rect x="3.5" y="6.5" width="17" height="11" rx="2"/><circle cx="12" cy="12" r="2.4"/><path d="M6.5 9.5v5M17.5 9.5v5"/>',
+		plants: '<path d="M3.5 20h17M5 20V10.5l4.5 2.8v-2.8l4.5 2.8V7l5 3v10"/>',
+		output: '<circle cx="9" cy="12" r="5.5"/><circle cx="9" cy="12" r="1.6"/><path d="M9 17.5h11M20 17.5V14"/>',
+		movement: '<path d="M7.5 18V6M4.5 9l3-3 3 3M16.5 6v12M13.5 15l3 3 3-3"/>',
+		deadlines: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.6M9.5 3.5h5"/>',
+		recruitment: '<circle cx="10.5" cy="10.5" r="5.5"/><path d="M14.5 14.5l5 5M8 10.5h5M10.5 8v5"/>',
+		data_health: '<path d="M12 3.5l7 3v5.2c0 4.3-3 7.7-7 8.8-4-1.1-7-4.5-7-8.8V6.5z"/><path d="M8.8 12.2l2.2 2.2 4.2-4.4"/>',
+		// a step of Payroll Readiness, by where it stands
+		done: '<path d="M6.5 12.5l3.5 3.5 7.5-8"/>',
+		open: '<circle cx="12" cy="12" r="7.5"/><path d="M12 8.2V12l2.6 1.6"/>',
+		late: '<circle cx="12" cy="12" r="8"/><path d="M12 7.5v5.5M12 16.2v.3"/>',
+		todo: '<circle cx="12" cy="12" r="7.5"/>',
+		up: '<path d="M7 14l5-5 5 5"/>',
+		down: '<path d="M7 10l5 5 5-5"/>',
 	};
 	// the cards of a manager's and an employee's desk, drawn with the pictures of HR's
 	const SAME_AS = {
@@ -90,6 +110,23 @@
 		} catch (e) {
 			return String(number);
 		}
+	}
+
+	// a sum of money as the panels write it: its currency, then the figure shortened (84.7M)
+	function money(value, currency) {
+		const number = Number(value) || 0;
+		let figure;
+		try {
+			figure = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(number);
+		} catch (e) {
+			figure = count(Math.round(number));
+		}
+		return (currency ? currency + " " : "") + figure;
+	}
+
+	// hours, to a tenth where they are not whole
+	function hours(value) {
+		return count(Math.round((Number(value) || 0) * 10) / 10) + " h";
 	}
 
 	function day_words(day) {
@@ -439,15 +476,15 @@
 	}
 
 	// a list of rows, each opening what it names; what and section say which list a click is on
-	function rows(list, empty, what = "row", section = "") {
+	function rows(list, empty, what = "row", section = "", part = "rows") {
 		if (!list.length) return `<div class="ha-home-empty">${esc(empty)}</div>`;
 		return list
 			.map((row, index) => {
 				// a row that opens nothing (a holiday) has no arrow
 				const arrow = what !== "item" || row.doctype ? icon("chevron") : "";
 				return (
-					`<button type="button" class="ha-home-row" data-ha-home="${what}" data-section="${section}" ` +
-					`data-index="${index}">` +
+					`<button type="button" class="ha-home-row" data-ha-home="${what}" data-section="${esc(section)}" ` +
+					`data-part="${esc(part)}" data-index="${index}">` +
 					`<span class="ha-home-dot ha-band-${esc(row.band || "none")}"></span>` +
 					`<span class="ha-home-row-text"><span class="ha-home-row-title">${esc(row.title)}</span>` +
 					`<span class="ha-home-row-meta">${[
@@ -507,16 +544,18 @@
 		);
 	}
 
-	// bars, each as wide as its share of the whole: where people are today, or the departments
-	function bars(list, what, whole) {
+	// bars, each as wide as its share of the whole: where people are today, the departments, or a part of one of
+	// the panels under them (panel and part say which, for a click)
+	function bars(list, what, whole, panel, part) {
 		const most = whole || Math.max(1, ...list.map((row) => Number(row.value) || 0));
+		const of_panel = panel ? ` data-panel="${esc(panel)}" data-part="${esc(part)}"` : "";
 		return (
 			`<div class="ha-home-bars">` +
 			list
 				.map((row, index) => {
 					const width = most ? Math.round((100 * (Number(row.value) || 0)) / most) : 0;
 					return (
-						`<button type="button" class="ha-home-bar" data-ha-home="${what}" data-index="${index}">` +
+						`<button type="button" class="ha-home-bar" data-ha-home="${what}"${of_panel} data-index="${index}">` +
 						`<span class="ha-home-bar-label">${esc(__(row.label))}</span>` +
 						`<span class="ha-home-bar-track"><i class="ha-band-${esc(row.band || "navy")}" style="width:${width}%"></i></span>` +
 						`<b>${count(row.value)}</b></button>`
@@ -532,6 +571,13 @@
 	function sections(data) {
 		const parts = data.sections || {};
 		const blocks = [];
+		// a panel that takes the place of one of these: Plants at a Glance stands where Today stood on HR's desk
+		(data.panels || [])
+			.filter((item) => item.place === "sections")
+			.forEach((item) => {
+				const drawn = more_one(item, false);
+				if (drawn) blocks.push(drawn);
+			});
 		if (parts.today && parts.today.rows) {
 			blocks.push(panel("on_site", __("Today"), bars(parts.today.rows, "board", Number(parts.today.total) || 0),
 				`<span class="ha-home-panel-note">${count(parts.today.total)} ${__("employees")}</span>`));
@@ -555,7 +601,252 @@
 		return `<div class="ha-home-panels ha-home-more ha-home-${blocks.length > 2 ? "three" : blocks.length > 1 ? "two" : "one"}">${blocks.join("")}</div>`;
 	}
 
-	// a route the server names, opened as Frappe opens it
+	// ── The panels under what waits (home_panels.py) ──────────────────────
+	// Each comes with the home's own answer as {key, title, place}, and its figures in a second call: the
+	// greeting and what waits are never held up by them. A panel is drawn as a frame while its figures are on
+	// their way, and not at all where they could not be read.
+
+	// how a step of Payroll Readiness is coloured: done, under way, late, not started
+	const STATES = { done: "good", open: "today", late: "overdue", todo: "none" };
+
+	function panel_of(key) {
+		return ((more && more.panels) || []).find((one) => one.key === key) || null;
+	}
+
+	function more_one(item, wide) {
+		if (!more) return more_frame(item, wide);
+		const one = panel_of(item.key);
+		return one ? more_panel(one, wide) : "";
+	}
+
+	// a panel still on its way: its frame
+	function more_frame(item, wide) {
+		const line = (width) => `<div class="ha-home-bone" style="width:${width}"></div>`;
+		return (
+			`<section class="ha-home-panel${wide ? " ha-home-wide" : ""}"><header>` +
+			`<span class="ha-home-panel-icon">${icon(item.key)}</span><h3>${esc(__(item.title))}</h3></header>` +
+			`<div class="ha-home-list ha-home-pad">${line("72%")}${line("88%")}${line("54%")}</div></section>`
+		);
+	}
+
+	// a panel drawn by its kind; wide is across the page, on top
+	function more_panel(one, wide) {
+		const body = KINDS[one.kind];
+		if (!body) return "";
+		return (
+			`<section class="ha-home-panel ha-home-${esc(one.key)}${wide ? " ha-home-wide" : ""}"><header>` +
+			`<span class="ha-home-panel-icon">${icon(one.key)}</span><h3>${esc(__(one.title))}</h3>` +
+			(one.note ? `<span class="ha-home-panel-note">${esc(__(one.note))}</span>` : "") +
+			`</header><div class="ha-home-list">${body(one)}</div></section>`
+		);
+	}
+
+	function more_top(data) {
+		return (data.panels || [])
+			.filter((item) => item.place === "top")
+			.map((item) => more_one(item, true))
+			.join("");
+	}
+
+	function more_rows(data) {
+		const blocks = (data.panels || [])
+			.filter((item) => item.place === "row")
+			.map((item) => more_one(item, false))
+			.filter(Boolean);
+		if (!blocks.length) return "";
+		const across = blocks.length > 2 ? "three" : blocks.length > 1 ? "two" : "one";
+		return `<div class="ha-home-panels ha-home-extra ha-home-${across}">${blocks.join("")}</div>`;
+	}
+
+	function nothing(words) {
+		return `<div class="ha-home-empty">${esc(words)}</div>`;
+	}
+
+	// a figure against the period before: which way it moved, and how far
+	function moved(change) {
+		if (!change || change.percent == null || change.direction === "same") return "";
+		const way = change.direction === "up" ? "up" : "down";
+		return `<span class="ha-home-delta">${icon(way)}${esc(Math.abs(Number(change.percent) || 0) + "%")}</span>`;
+	}
+
+	// Payroll Readiness: the period's steps, each with where it stands
+	function steps_body(one) {
+		const all = one.steps || [];
+		if (!all.length) return nothing(__("Nothing to check yet."));
+		const done = all.filter((step) => step.state === "done").length;
+		return (
+			`<div class="ha-home-progress"><i style="width:${Math.round((100 * done) / all.length)}%"></i></div>` +
+			`<div class="ha-home-steps">` +
+			all
+				.map((step, index) => {
+					// a step that opens nothing has no arrow
+					const arrow = step.route || step.doctype ? icon("chevron") : "";
+					return (
+						`<button type="button" class="ha-home-step ha-band-${STATES[step.state] || "none"}" data-ha-home="more" ` +
+						`data-panel="${esc(one.key)}" data-part="steps" data-index="${index}">` +
+						`<span class="ha-home-step-mark">${icon(STATES[step.state] ? step.state : "todo")}</span>` +
+						`<span class="ha-home-row-text"><span class="ha-home-row-title">${esc(__(step.label))}</span>` +
+						`<span class="ha-home-row-meta">${esc(__(step.note || ""))}</span></span>${arrow}</button>`
+					);
+				})
+				.join("") +
+			`</div>`
+		);
+	}
+
+	// Plants at a Glance: who is in at each plant, of its people, and the rest of its day
+	function plants_body(one) {
+		const all = one.rows || [];
+		if (!all.length) return nothing(__("No plants to show."));
+		return all
+			.map((plant, index) => {
+				// today is not said to somebody who may read neither the clock nor the attendance
+				const known = plant.in != null;
+				const staff = Number(plant.staff) || 0;
+				const share = known && staff ? Math.round((100 * (Number(plant.in) || 0)) / staff) : 0;
+				const meta = (known
+					? [
+							`${count(plant.late)} ${__("late")}`,
+							`${count(plant.absent)} ${__("absent")}`,
+							`${count(plant.on_leave)} ${__("on leave")}`,
+					  ]
+					: []
+				)
+					.concat([`${hours(plant.overtime)} ${__("overtime")}`])
+					.join(" · ");
+				const figure = known
+					? `${count(plant.in)}<small> / ${count(plant.staff)}</small>`
+					: `${count(plant.staff)}<small> ${esc(__("staff"))}</small>`;
+				return (
+					`<button type="button" class="ha-home-plant" data-ha-home="more" data-panel="${esc(one.key)}" ` +
+					`data-part="rows" data-index="${index}">` +
+					`<span class="ha-home-plant-top"><span class="ha-home-bar-label">${esc(plant.plant)}</span>` +
+					`<span class="ha-home-bar-track"><i class="ha-band-${esc(plant.band || "good")}" style="width:${share}%"></i></span>` +
+					`<b>${figure}</b></span>` +
+					`<span class="ha-home-row-meta">${esc(meta)}</span>` +
+					(plant.silent ? `<span class="ha-home-flag">${esc(__("No punches from its clock today"))}</span>` : "") +
+					`</button>`
+				);
+			})
+			.join("");
+	}
+
+	// Output and Labour Cost: each plant's work, its pay and its overtime, against the same days of the last
+	// period. The server says which figures a plant has, and sends money only to those who may see it.
+	function output_body(one) {
+		const all = one.rows || [];
+		if (!all.length) return nothing(__("No output recorded this period."));
+		const written = (figure) =>
+			figure.kind === "money"
+				? money(figure.value, one.currency || "")
+				: figure.kind === "hours"
+				? hours(figure.value)
+				: count(Math.round(Number(figure.value) || 0));
+		return all
+			.map((plant, index) => {
+				const parts = (plant.figures || [])
+					.map(
+						(figure) =>
+							`<span class="ha-home-figure"><small>${esc(__(figure.label))}</small>` +
+							`<b>${esc(written(figure))}</b>${moved(figure)}</span>`
+					)
+					.join("");
+				return (
+					`<button type="button" class="ha-home-output" data-ha-home="more" data-panel="${esc(one.key)}" ` +
+					`data-part="rows" data-index="${index}"><span class="ha-home-bar-label">${esc(plant.plant)}</span>` +
+					`<span class="ha-home-figures">${parts}</span></button>`
+				);
+			})
+			.join("");
+	}
+
+	// Workforce Movement: joiners and leavers by month, the turnover, and the headcount by status
+	function movement_body(one) {
+		const months = one.months || [];
+		const most = Math.max(1, ...months.map((month) => Math.max(Number(month.joined) || 0, Number(month.left) || 0)));
+		const tall = (value) => Math.round((100 * (Number(value) || 0)) / most);
+		const chart =
+			`<div class="ha-home-columns">` +
+			months
+				.map(
+					(month) =>
+						`<span class="ha-home-column" title="${esc(__(month.label))}: ${count(month.joined)} ${esc(__("joined"))}, ` +
+						`${count(month.left)} ${esc(__("left"))}"><span class="ha-home-column-bars">` +
+						`<i class="ha-band-good" style="height:${tall(month.joined)}%"></i>` +
+						`<i class="ha-band-overdue" style="height:${tall(month.left)}%"></i></span>` +
+						`<span class="ha-home-column-label">${esc(__(month.label))}</span>` +
+						`<span class="ha-home-column-figures">${count(month.joined)} · ${count(month.left)}</span></span>`
+				)
+				.join("") +
+			`</div>`;
+		const turnover = one.turnover
+			? `<span class="ha-home-legend-figure">${esc(__("Turnover"))} <b>${esc(String(one.turnover.rate) + "%")}</b> ` +
+			  `${esc(__("in 12 months"))}</span>`
+			: "";
+		const legend =
+			`<div class="ha-home-legend"><span><i class="ha-band-good"></i>${esc(__("Joined"))}</span>` +
+			`<span><i class="ha-band-overdue"></i>${esc(__("Left"))}</span>${turnover}</div>`;
+		const statuses = (one.statuses || []).length
+			? `<div class="ha-home-sub">${esc(__("Headcount by status"))}</div>` + bars(one.statuses, "more", 0, one.key, "statuses")
+			: "";
+		return (months.length ? chart + legend : "") + statuses;
+	}
+
+	// Deadlines: what comes due, the nearest first
+	function list_body(one) {
+		return rows(one.rows || [], __("Nothing coming due."), "more", one.key);
+	}
+
+	// Recruitment Pipeline: each stage's figure, a few figures about it, and this week's interviews
+	function pipeline_body(one) {
+		const figures = (one.figures || [])
+			.map(
+				(figure) =>
+					`<span class="ha-home-figure"><small>${esc(__(figure.label))}</small>` +
+					`<b>${esc(figure.text != null ? __(figure.text) : count(figure.value))}</b></span>`
+			)
+			.join("");
+		const interviews = (one.rows || []).length
+			? `<div class="ha-home-sub">${esc(__("Interviews this week"))}</div>` + rows(one.rows, "", "more", one.key)
+			: "";
+		const longest = (one.longest || []).length
+			? `<div class="ha-home-sub">${esc(__("Open longest"))}</div>` + rows(one.longest, "", "more", one.key, "longest")
+			: "";
+		return (
+			bars(one.stages || [], "more", 0, one.key, "stages") +
+			(figures ? `<div class="ha-home-figures ha-home-pad">${figures}</div>` : "") +
+			interviews +
+			longest
+		);
+	}
+
+	// Data Health: what is missing, and from how many records, each opening those records
+	function health_body(one) {
+		const all = one.rows || [];
+		if (!all.length) return nothing(__("Every record has what payroll and the clock need."));
+		return all
+			.map(
+				(row, index) =>
+					`<button type="button" class="ha-home-row" data-ha-home="more" data-panel="${esc(one.key)}" ` +
+					`data-part="rows" data-index="${index}"><span class="ha-home-dot ha-band-${esc(row.band || "today")}"></span>` +
+					`<span class="ha-home-row-text"><span class="ha-home-row-title">${esc(__(row.label))}</span>` +
+					`<span class="ha-home-row-meta">${esc(__(row.note || ""))}</span></span>` +
+					`<b class="ha-home-count">${count(row.value)}</b>${icon("chevron")}</button>`
+			)
+			.join("");
+	}
+
+	const KINDS = {
+		steps: steps_body,
+		plants: plants_body,
+		output: output_body,
+		movement: movement_body,
+		list: list_body,
+		pipeline: pipeline_body,
+		health: health_body,
+	};
+
+	// a route the server names, opened as Frappe opens it: a list on its filters, a page on its options
 	function go(target) {
 		if (!target || !target.route) return;
 		const route = target.route.slice();
@@ -563,6 +854,7 @@
 		if (target.mine && route[1] === "ToDo") Object.assign(filters, { allocated_to: frappe.session.user, status: "Open" });
 		if (target.mine && route[1] === "Notification Log") Object.assign(filters, { for_user: frappe.session.user, read: 0 });
 		if (route[0] === "List" && Object.keys(filters).length) frappe.route_options = filters;
+		else if (target.options) frappe.route_options = Object.assign({}, target.options);
 		frappe.set_route(route);
 	}
 
@@ -572,7 +864,7 @@
 			home.innerHTML = skeleton();
 			return;
 		}
-		home.innerHTML = hero(data) + cards(data) + panels(data) + sections(data);
+		home.innerHTML = hero(data) + cards(data) + more_top(data) + panels(data) + sections(data) + more_rows(data);
 		home.querySelectorAll("[data-ha-home]").forEach((element) => {
 			element.addEventListener("click", () => {
 				try {
@@ -596,6 +888,13 @@
 						const row = ((data.sections || {}).departments || [])[index];
 						if (row) go({ route: ["List", "Employee"], filters: row.filters });
 					} else if (what === "board") go({ route: ["attendance-board"] });
+					else if (what === "more") {
+						// a row of one of the panels: the record it names, else the list or page it opens on
+						const one = panel_of(element.getAttribute("data-panel") || element.getAttribute("data-section"));
+						const row = one && (one[element.getAttribute("data-part") || "rows"] || [])[index];
+						if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
+						else if (row) go(row);
+					}
 				} catch (error) {
 					console.error(error);
 				}
@@ -620,6 +919,37 @@
 				const there = mount();
 				if (there && answer) draw(there);
 				else if (there && !answer) unmount(desk()); // nothing to show: the desk as Frappe drew it
+				load_more();
+			});
+	}
+
+	// The panels' figures, once the home is drawn, by fetch for the same reason as the home's own. A call that
+	// fails leaves no panel where the frames were, and is tried again later.
+	function load_more() {
+		if (more_asking || !answer || !(answer.panels || []).length || Date.now() - more_at < FRESH_MS) return;
+		more_asking = true;
+		fetch("/api/method/" + PANELS_METHOD, {
+			credentials: "same-origin",
+			cache: "no-store",
+			headers: { Accept: "application/json" },
+		})
+			.then((response) => (response.ok ? response.json() : null))
+			.then((r) => {
+				more = (r && r.message) || more || { panels: [] };
+			})
+			.catch(() => {
+				more = more || { panels: [] };
+			})
+			.then(() => {
+				more_at = Date.now();
+				more_asking = false;
+				try {
+					const wrapper = desk();
+					const home = present() ? wrapper.querySelector(".ha-home") : null;
+					if (home && answer) draw(home);
+				} catch (error) {
+					console.error(error);
+				}
 			});
 	}
 
@@ -632,6 +962,7 @@
 			if (!home) return false;
 			draw(home);
 			load(home);
+			load_more();
 			return true;
 		} catch (error) {
 			console.error(error);
@@ -820,6 +1151,57 @@
 .ha-home-bar-track > i { display: block; height: 100%; min-width: 2px; border-radius: 99px; background: var(--ha-band, var(--ha-h-navy)); }
 .ha-home-bar b { min-width: 28px; text-align: right; font-size: 13.5px; color: var(--ha-h-ink); }
 .ha-home-empty { padding: 26px 12px; text-align: center; font-size: 13px; color: var(--ha-h-muted); }
+
+/* the panels under what waits (home_panels.py): Payroll Readiness across the page on top in its week, the rest
+   in the rows, every colour the theme's */
+.ha-home-panel.ha-home-wide { margin-top: 14px; }
+.ha-home-pad { padding: 10px 16px 14px; }
+.ha-home-sub { padding: 12px 10px 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ha-h-muted); }
+.ha-home-progress { height: 6px; margin: 8px 10px 6px; border-radius: 99px; overflow: hidden; background: color-mix(in srgb, var(--ha-h-navy) 8%, transparent); }
+.ha-home-progress > i { display: block; height: 100%; min-width: 2px; border-radius: 99px; background: var(--hra-success, #256F3A); }
+.ha-home-steps { display: grid; gap: 2px; }
+.ha-home-wide .ha-home-steps { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 4px; }
+/* a step says all it has to say: its name and what stands in its way wrap rather than stop short */
+.ha-home-step .ha-home-row-title, .ha-home-step .ha-home-row-meta,
+.ha-home-data_health .ha-home-row-meta { white-space: normal; overflow: visible; }
+.ha-home .ha-home-step { display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 10px; border-radius: 10px; color: var(--ha-h-muted); }
+.ha-home .ha-home-step:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
+.ha-home-step-mark {
+	width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center;
+	color: var(--ha-band, var(--hra-ink-muted, #546678)); background: color-mix(in srgb, var(--ha-band, var(--hra-ink-muted, #546678)) 13%, transparent);
+}
+.ha-home-step-mark .ha-home-icon { width: 16px; height: 16px; }
+.ha-home .ha-home-step.ha-band-good .ha-home-step-mark { color: #fff; background: var(--ha-band); }
+.ha-home .ha-home-plant, .ha-home .ha-home-output { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 9px 10px; border-radius: 10px; }
+.ha-home .ha-home-plant:hover, .ha-home .ha-home-output:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
+.ha-home-plant-top { display: grid; grid-template-columns: minmax(0, 104px) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.ha-home-plant-top b { font-size: 13.5px; color: var(--ha-h-ink); white-space: nowrap; }
+.ha-home-plant-top small { font-size: 11.5px; font-weight: 600; color: var(--ha-h-muted); }
+.ha-home-flag {
+	align-self: flex-start; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+	color: var(--hra-danger, #A62B25); background: color-mix(in srgb, var(--hra-danger, #A62B25) 10%, transparent);
+}
+.ha-home-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px 12px; }
+.ha-home-output .ha-home-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* the pipeline's stages are named in full */
+.ha-home-recruitment .ha-home-bar { grid-template-columns: minmax(0, 168px) minmax(0, 1fr) auto; }
+.ha-home-figure { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ha-home-figure small { font-size: 11px; color: var(--ha-h-muted); }
+.ha-home-figure b { font-size: 14px; color: var(--ha-h-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ha-home-delta { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; font-weight: 600; color: var(--ha-h-muted); }
+.ha-home-delta .ha-home-icon { width: 13px; height: 13px; }
+.ha-home-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; height: 150px; padding: 12px 12px 0; }
+.ha-home-column { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; height: 100%; }
+.ha-home-column-bars { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; }
+.ha-home-column-bars > i { display: block; width: 38%; max-width: 14px; min-height: 2px; border-radius: 4px 4px 0 0; background: var(--ha-band, var(--ha-h-navy)); }
+.ha-home-column-label { font-size: 11.5px; font-weight: 600; color: var(--ha-h-ink); }
+.ha-home-column-figures { font-size: 11px; color: var(--ha-h-muted); white-space: nowrap; }
+.ha-home-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 10px 12px 4px; font-size: 12px; color: var(--ha-h-muted); }
+.ha-home-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.ha-home-legend i { width: 9px; height: 9px; border-radius: 3px; background: var(--ha-band, var(--ha-h-navy)); }
+.ha-home-legend .ha-home-legend-figure { margin-left: auto; }
+.ha-home-legend-figure b { color: var(--ha-h-ink); }
+.ha-home-count { min-width: 28px; text-align: right; font-size: 13.5px; color: var(--ha-h-ink); }
 
 /* while the figures are on their way */
 .ha-home-bone { height: 12px; border-radius: 6px; margin: 6px 0; background: linear-gradient(90deg, color-mix(in srgb, var(--hra-border-strong, #7E93AD) 16%, transparent), color-mix(in srgb, var(--hra-border-strong, #7E93AD) 30%, transparent), color-mix(in srgb, var(--hra-border-strong, #7E93AD) 16%, transparent)); background-size: 200% 100%; animation: ha-home-shine 1.3s linear infinite; }

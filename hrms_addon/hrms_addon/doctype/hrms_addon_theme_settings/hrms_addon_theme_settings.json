@@ -10,6 +10,15 @@
   "module_pages",
   "column_break_layout",
   "density_help",
+  "section_home_panels",
+  "home_payroll",
+  "home_plants",
+  "home_output",
+  "home_movement",
+  "column_break_home_panels",
+  "home_deadlines",
+  "home_recruitment",
+  "home_data_health",
   "section_colours",
   "enabled",
   "intro_html",
@@ -76,6 +85,65 @@
    "fieldname": "density_help",
    "fieldtype": "HTML",
    "options": "<p class=\"text-muted small\"><b>Comfortable</b> — upstream Frappe spacing.<br><b>Compact</b> — tighter form sections and rows, and the app launcher fills the width instead of sitting in a narrow column. <i>Shipped default.</i><br><b>Dense</b> — as tight as stays readable; best on large screens.</p><p class=\"text-muted small\">Changes apply live. Save to make them permanent for everyone.</p>"
+  },
+  {
+   "description": "Turn a panel off here to take it off every desk home. Each shows only to the roles it is for.",
+   "fieldname": "section_home_panels",
+   "fieldtype": "Section Break",
+   "label": "Desk Home Panels"
+  },
+  {
+   "default": "1",
+   "description": "The pay period's steps, for HR Managers and Payroll Officers. On top from the 18th to the 25th.",
+   "fieldname": "home_payroll",
+   "fieldtype": "Check",
+   "label": "Payroll Readiness"
+  },
+  {
+   "default": "1",
+   "description": "Each plant's people today and its overtime this period, for HR and management.",
+   "fieldname": "home_plants",
+   "fieldtype": "Check",
+   "label": "Plants at a Glance"
+  },
+  {
+   "default": "1",
+   "description": "Metres, per meter pay and overtime by plant against the last period.",
+   "fieldname": "home_output",
+   "fieldtype": "Check",
+   "label": "Output and Labour Cost"
+  },
+  {
+   "default": "1",
+   "description": "Joiners and leavers by month, turnover and headcount by status.",
+   "fieldname": "home_movement",
+   "fieldtype": "Check",
+   "label": "Workforce Movement"
+  },
+  {
+   "fieldname": "column_break_home_panels",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Probations, contracts, clearances, settlements, suspensions and documents coming due.",
+   "fieldname": "home_deadlines",
+   "fieldtype": "Check",
+   "label": "Deadlines"
+  },
+  {
+   "default": "1",
+   "description": "Requisitions through to offers, and this week's interviews.",
+   "fieldname": "home_recruitment",
+   "fieldtype": "Check",
+   "label": "Recruitment Pipeline"
+  },
+  {
+   "default": "1",
+   "description": "Employee records missing what payroll and the clock need. HR only.",
+   "fieldname": "home_data_health",
+   "fieldtype": "Check",
+   "label": "Data Health"
   },
   {
    "fieldname": "section_colours",
@@ -253,7 +321,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-15 12:00:00.000000",
+ "modified": "2026-10-21 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HRMS Addon Theme Settings",

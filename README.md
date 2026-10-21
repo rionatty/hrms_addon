@@ -150,8 +150,40 @@ list down the left.
   has read its own.
 - **No build.** The styles are written into the page by
   `hrms_addon_home.js`, so a change needs a restart and not `bench build`.
+- **Panels under what waits** (`home_panels.py`, rules in
+  `home_panels_rules.py`). Each shows to the roles it is for, and **Theme
+  Settings → Desk Home Panels** switches each off for everybody:
+  - *Payroll Readiness* (HR Manager, Payroll Officer): the steps of the
+    period that ends this month, from the clock's last read to the bank
+    entry made from the Payroll Entry. Each is done, under way, not started
+    or late once past its day. From the 18th to the 25th it sits on top,
+    across the page.
+  - *Plants at a Glance* (HR, management): each plant's people in, late,
+    absent and on leave today, a clock that has sent nothing today, and the
+    approved overtime this period. On HR's desk it stands where Today stood.
+  - *Output and Labour Cost* (management, payroll): metres, pieces, output
+    pay and overtime by plant, against the same days of the last period.
+    Money only to the HR Manager, the Payroll Officer, the General Manager
+    and the Executive Director, and only as plant totals.
+  - *Workforce Movement* (HR, management): joiners and leavers over six
+    months, the year's leavers against today's headcount, and those on the
+    books by status. A leaver whose record was made after they left (the
+    employee import's stand-in dates) counts as nobody's leaving.
+  - *Deadlines*, *Recruitment Pipeline* and *Data Health* (HR): what comes
+    due across probation, contracts, clearance, settlements, suspensions
+    and documents; requisitions through to offers, with this week's
+    interviews; and the active records missing a clock ID, a bank account
+    for bank pay, a salary structure, NSSF, TIN, a likely birth date, or
+    listed twice.
 
-`scripts/verify_home.py` checks the rules (`home_rules.py`) and the wiring.
+  The panels come in a call of their own after the home, so the greeting is
+  never held up by them; a user's answer is kept five minutes. Each record
+  is read with the user's own permissions. A Check never saved reads 0 on
+  the settings form, so every migrate writes on any switch nobody has
+  saved (`home_panels.ensure_switches`).
+
+`scripts/verify_home.py` checks the rules (`home_rules.py`) and the wiring;
+`scripts/verify_home_panels.py` the panels.
 
 ### Module pages
 

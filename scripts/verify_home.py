@@ -593,7 +593,8 @@ print("fixes: the home back on a desk drawn afresh, the desk out to the window's
 
 # ── 5. each user's own desk, drawn ──
 drawn_more = script.split("function sections(")[1].split("\n\t}\n")[0]
-check("home.innerHTML = hero(data) + cards(data) + panels(data) + sections(data);" in script
+check("home.innerHTML = hero(data) + cards(data) + more_top(data) + panels(data) + sections(data) + more_rows(data);"
+      in script
       and all(needle in drawn_more for needle in ("parts.today && parts.today.rows", "parts.departments && parts.departments.length",
                                                   "if (parts.coming)", "if (parts.team)", "if (parts.requests)", "if (parts.holidays)"))
       and 'if (!blocks.length) return "";' in drawn_more,

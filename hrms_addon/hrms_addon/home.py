@@ -58,6 +58,13 @@ def summary():
             sections["requests"] = mine.pop("requests")
             sections["holidays"] = _or([], _holidays, me, today)
     links = rules.shortcuts([page for page, _label in rules.SHORTCUTS if _may_open(page)])
+    # the panels under what waits come in a call of their own (home_panels.py): here only which, and where
+    from hrms_addon.hrms_addon import home_panels, home_panels_rules
+
+    places = _or([], home_panels.places, frappe.get_roles(user), view, today)
+    if any(item["place"] == home_panels_rules.SECTIONS for item in places):
+        # Plants at a Glance stands where Today stood, and tells the same day plant by plant
+        sections.pop("today", None)
     return {
         "greeting": hr_overview_rules.greeting(now_datetime().hour),
         "first_name": frappe.db.get_value("User", user, "first_name") or user,
@@ -69,6 +76,7 @@ def summary():
         "sections": sections,
         "shortcuts": links,
         "action": rules.call_to_action(links),
+        "panels": places,
     }
 
 
