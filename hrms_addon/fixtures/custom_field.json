@@ -10837,7 +10837,7 @@
   "fieldtype": "Currency",
   "insert_after": "custom_eligibility_tab",
   "label": "For Monthly Gross Above",
-  "description": "On a weekday, for employees whose monthly gross is above this.",
+  "description": "Only those listed whose monthly gross is above this.",
   "non_negative": 1,
   "module": "HRMS Addon"
  },
@@ -10872,7 +10872,7 @@
   "insert_after": "custom_employees_section",
   "label": "Employees",
   "options": "Overtime Type Employee",
-  "description": "Listed: only they are paid under this type, and under no other.",
+  "description": "Only those listed are paid under this type.",
   "module": "HRMS Addon"
  },
  {

@@ -76,3 +76,4 @@ hrms_addon.patches.v1_0.overtime_requests_on_workflow
 hrms_addon.patches.v1_0.clearance_forms_in_draft
 hrms_addon.patches.v1_0.annual_leave_type
 hrms_addon.patches.v1_0.employee_statuses
+hrms_addon.patches.v1_0.overtime_types_not_seeded

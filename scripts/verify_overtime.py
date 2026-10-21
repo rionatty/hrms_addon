@@ -13,7 +13,7 @@ work on a leave day or public holiday as special overtime (5).
   4  the glue reads and writes fields that exist, and really reaches
      Frappe HR's own Overtime Type and Overtime Slip rather than pricing
      the work itself
-  5  wiring: the types seeded on migrate, the buttons whitelisted, the way in
+  5  wiring: no type made on migrate, the buttons whitelisted, the way in
 
 Frappe HR's and ERPNext's own fields are read from FRAPPE_APPS_ROOT
 (default ../ERPNext).
@@ -136,10 +136,6 @@ off = {"standard_multiplier": 1.75, "applicable_for_weekend": 0,
        "applicable_for_public_holiday": 0}
 if R.multiplier_for(R.PUBLIC_HOLIDAY, off) != 1.75:
     fail.append("a type that does not separate holidays pays its standard rate on one")
-if not R.below_the_act(R.WEEKDAY, 1.25):
-    fail.append("a rate under the Act must be noticed")
-if R.below_the_act(R.WEEKDAY, 1.5) or R.below_the_act(R.WEEKDAY, None):
-    fail.append("the floor itself is not below the floor")
 
 # Luuka's month: 26 days of ten standard hours (attendance_rules)
 if R.STANDARD_HOURS_PER_DAY != A.STANDARD_HOURS:
@@ -177,133 +173,125 @@ if R.amount(3, 4000, 1.5) != 18000.0:
 if R.amount(3, 0, 1.5) != 0.0:
     fail.append("no rate is no amount")
 # the minutes of 16 and 20 July 2026, §4.12: a weekday pays 1x above a
-# gross of UGX 500,000 and 1.5x below it; a public holiday 2x
-if R.GROSS_THRESHOLD != 500000 or R.HIGHER_EARNER_MULTIPLIER != 1.0:
-    fail.append("the line is UGX 500,000, and above it a weekday pays 1x")
-BASIC = {"salary_component": "Basic", "formula": "(base * 1)", "amount_based_on_formula": 1}
-if not R.works_from_base(BASIC):
-    fail.append("Luuka's Basic (base * 1) is what an hour of overtime is worked out of")
-for row, why in ((dict(BASIC, formula="BS + MA + CB"), "a formula without the base"),
-                 (dict(BASIC, statistical_component=1), "a statistical component"),
-                 (dict(BASIC, amount_based_on_formula=0), "an earning not worked out by formula"),
-                 (dict(BASIC, formula="baseline * 2"), "a word that only starts with base")):
-    if R.works_from_base(row):
-        fail.append("not worked out of: %s" % why)
-EARNINGS = [{"name": "Basic", "salary_component_abbr": "B"}, {"name": "Overtime", "salary_component_abbr": "OT"},
-            {"name": "Overtime 1.5", "salary_component_abbr": "OT_15"},
-            {"name": "Overtime 2.0", "salary_component_abbr": "OT_20"}]
-for rate, component in ((1.5, "Overtime 1.5"), (2.0, "Overtime 2.0"), (1.0, None)):
-    if R.component_for_rate(rate, EARNINGS) != component:
-        fail.append("the overtime earning for %sx is %s, not %s" % (rate, component, R.component_for_rate(rate, EARNINGS)))
-if R.component_for_rate(2.0, [{"name": "Holiday Pay", "salary_component_abbr": "OT_20"}]) != "Holiday Pay":
-    fail.append("an overtime earning is found by its abbreviation too")
-if R.component_for_rate(2.0, [{"name": "Allowance 2.0", "salary_component_abbr": "AL2"}]) is not None:
-    fail.append("an earning that is not overtime is never an overtime type's")
-LINES = {R.HIGHER_EARNERS: 500000}
-if R.type_name_for(R.WEEKDAY, 600000, LINES) != R.HIGHER_EARNERS:
-    fail.append("a weekday for somebody grossing 600,000 goes under the higher earners' type")
-if R.type_name_for(R.WEEKDAY, 500000, LINES) != R.TYPE_NAMES[R.WEEKDAY]:
-    fail.append("and one for somebody at exactly 500,000 does not: the minutes say 'above'")
-if R.type_name_for(R.PUBLIC_HOLIDAY, 900000, LINES) != R.TYPE_NAMES[R.PUBLIC_HOLIDAY]:
-    fail.append("a public holiday pays its own rate whatever the gross")
-if R.type_name_for(R.WEEKDAY, None, LINES) != R.TYPE_NAMES[R.WEEKDAY]:
-    fail.append("with no gross known, a weekday is an ordinary weekday")
-if R.type_name_for(R.WEEKDAY, 600000, {R.HIGHER_EARNERS: 700000}) != R.TYPE_NAMES[R.WEEKDAY]:
-    fail.append("the line is the type's: moved to 700,000, a gross of 600,000 is under it")
-if R.type_name_for(R.WEEKDAY, 1200000, {R.HIGHER_EARNERS: 500000, "Senior": 1000000}) != "Senior":
-    fail.append("with more than one line, the highest one the gross is above")
-if R.gross_lines({"A": {"custom_gross_above": 500000}, "B": {"custom_gross_above": 0}, "C": None}) != {"A": 500000.0}:
-    fail.append("only the types with a line are lines")
-TYPES = {"Weekday Overtime": {"standard_multiplier": 1.5, "employees": ["HIGH", "LOW"]},
-         R.HIGHER_EARNERS: {"standard_multiplier": 1.0, "custom_gross_above": 500000, "employees": ["HIGH", "LOW"]}}
+# gross of UGX 500,000 and 1.5x below it, here on two of Luuka's own types
+TYPES = {"Overtime 1.5": {"standard_multiplier": 1.5, "employees": ["HIGH", "LOW"]},
+         "Overtime 1": {"standard_multiplier": 1.0, "custom_gross_above": 500000, "employees": ["HIGH", "LOW"]}}
 costed = R.priced([{"employee": "HIGH", "hours": 2}, {"employee": "LOW", "hours": 2}],
-                  {"HIGH": 400000, "LOW": 260000}, R.WEEKDAY, TYPES["Weekday Overtime"], TYPES,
-                  {"HIGH": 2600000, "LOW": 260000})
+                  {"HIGH": 400000, "LOW": 260000}, R.WEEKDAY, TYPES, {"HIGH": 2600000, "LOW": 260000})
 rows = {row["employee"]: row for row in costed["rows"]}
 if rows["HIGH"]["multiplier"] != 1.0 or rows["LOW"]["multiplier"] != 1.5:
-    fail.append("each person on a request is priced under their own gross's type, not their base: %s"
+    fail.append("each person on a request is priced under the type their own gross puts them in, not their base: %s"
                 % {k: v["multiplier"] for k, v in rows.items()})
 if rows["HIGH"]["hourly_rate"] != R.hourly_rate(400000):
     fail.append("while an hour of their pay is worked out of the base")
-if R.attendance_update({"hours": 2}, R.WEEKDAY, 10, gross=2600000, lines=LINES)["overtime_type"] != R.HIGHER_EARNERS:
-    fail.append("and their attendance carries that type, so the Overtime Slip pays it — not only the "
-                "cost check")
-print("the day: read, not typed, and priced at the Act's floor or the type's own rate")
+if (rows["HIGH"]["overtime_type"], rows["LOW"]["overtime_type"]) != ("Overtime 1", "Overtime 1.5"):
+    fail.append("and each line names that type, which goes onto their attendance for the Overtime Slip: %s"
+                % {k: v["overtime_type"] for k, v in rows.items()})
+# none is named or made here (Luuka, 21 Oct 2026: "dont predefine any overtime type you should pick from the
+# one assigned")
+for gone in ("TYPE_NAMES", "HIGHER_EARNERS", "GROSS_THRESHOLD", "HIGHER_EARNER_MULTIPLIER", "type_name_for",
+             "gross_lines", "component_for_rate", "works_from_base", "below_the_act", "missing_type_error",
+             "NOT_FOR_THE_DAY"):
+    if hasattr(R, gone):
+        fail.append("overtime_rules.%s is gone: no Overtime Type is named or made, a person's is the one that lists "
+                    "them" % gone)
+# the day does not choose the type: a person's own pays each kind of day at its own rate
+own = {"Overtime 3": {"standard_multiplier": 1.5, "applicable_for_weekend": 1, "weekend_multiplier": 2.0,
+                      "applicable_for_public_holiday": 1, "public_holiday_multiplier": 3.0,
+                      "employees": ["E1", "E2", "E3"]}}
+days = R.priced([{"employee": name, "hours": 2} for name in ("E1", "E2", "E3")],
+                {"E1": 1040000, "E2": 1040000, "E3": 1040000}, R.WEEKDAY, own,
+                kinds={"E2": R.REST_DAY, "E3": R.PUBLIC_HOLIDAY})
+if [(row["overtime_type"], row["multiplier"]) for row in days["rows"]] != [
+        ("Overtime 3", 1.5), ("Overtime 3", 2.0), ("Overtime 3", 3.0)]:
+    fail.append("each person's own type pays a weekday, a rest day and a public holiday at its own rates: %s"
+                % [(row["overtime_type"], row["multiplier"]) for row in days["rows"]])
+print("the day: read, not typed, and priced at the person's own type's rate, or the Act's floor")
 
 # who an Overtime Type is for: the employees it lists, and no one else (Luuka, 21 Oct 2026: "dont
-# autoallocate overtime is is not assigned on the overtime"), the departments it is not paid to, its gross line
-LISTS = {"Weekday Overtime": {"standard_multiplier": 1.5, "employees": ["E1", "E2"]},
-         "Rest Day Overtime": {"standard_multiplier": 2.0, "employees": ["E1", "E2"]},
-         R.HIGHER_EARNERS: {"standard_multiplier": 1.0, "custom_gross_above": 500000, "employees": ["E1", "E2"],
-                            "excluded_departments": ["Stores - LPL"]},
+# autoallocate overtime is is not assigned on the overtime"; "dont predefine any overtime type you should pick
+# from the one assigned"), the departments it is not paid to, its gross line
+LISTS = {"Overtime 1.5": {"standard_multiplier": 1.5, "employees": ["E1", "E2"]},
+         "Overtime 1": {"standard_multiplier": 1.0, "custom_gross_above": 500000, "employees": ["E1", "E2"],
+                        "excluded_departments": ["Stores - LPL"]},
          "Special Overtime": {"standard_multiplier": 1.25, "employees": ["E7", "E8"]},
          "Drivers Overtime": {"standard_multiplier": 1.1, "custom_gross_above": 300000, "employees": ["E8"]},
+         "Night shift overtime": {"standard_multiplier": 1.5, "employees": ["E6"]},
          # a type that lists nobody is nobody's
          "Open Overtime": {"standard_multiplier": 1.5}}
 for label, got, want in (
-    ("an ordinary weekday", R.person_type(R.WEEKDAY, 260000, LISTS, "E1", "Extrusion - LPL"), ("Weekday Overtime", None)),
-    ("above the line", R.person_type(R.WEEKDAY, 900000, LISTS, "E1", "Extrusion - LPL"), (R.HIGHER_EARNERS, None)),
-    ("above the line in a department the higher earners' type is not paid to: the ordinary weekday's",
-     R.person_type(R.WEEKDAY, 900000, LISTS, "E2", "Stores - LPL"), ("Weekday Overtime", None)),
-    ("a rest day, under the rest day's type among theirs", R.person_type(R.REST_DAY, 260000, LISTS, "E1", "Extrusion - LPL"),
-     ("Rest Day Overtime", None)),
-    ("somebody a type lists is paid under it, whatever the day or their gross",
-     R.person_type(R.REST_DAY, 900000, LISTS, "E7", "Extrusion - LPL"), ("Special Overtime", None)),
-    ("listed on two: on a weekday the one whose line their gross is above",
-     R.person_type(R.WEEKDAY, 400000, LISTS, "E8", "Transport - LPL"), ("Drivers Overtime", None)),
+    ("the one type that lists them", R.person_type(260000, LISTS, "E6", "Extrusion - LPL"),
+     ("Night shift overtime", None)),
+    ("listed on two, under the line: the one without it", R.person_type(260000, LISTS, "E1", "Extrusion - LPL"),
+     ("Overtime 1.5", None)),
+    ("above the line: the one with it", R.person_type(900000, LISTS, "E1", "Extrusion - LPL"), ("Overtime 1", None)),
+    ("at exactly the line: not above it, as the minutes say", R.person_type(500000, LISTS, "E1", "Extrusion - LPL"),
+     ("Overtime 1.5", None)),
+    ("with no gross known, never a type with a line", R.person_type(None, LISTS, "E1", "Extrusion - LPL"),
+     ("Overtime 1.5", None)),
+    ("above the line in a department the lined type is not paid to: the other",
+     R.person_type(900000, LISTS, "E2", "Stores - LPL"), ("Overtime 1.5", None)),
+    ("listed on two: the one whose line their gross is above",
+     R.person_type(400000, LISTS, "E8", "Transport - LPL"), ("Drivers Overtime", None)),
     ("listed on two, under one's line: the other, never one that does not list them",
-     R.person_type(R.WEEKDAY, 200000, LISTS, "E8", "Transport - LPL"), ("Special Overtime", None)),
-    ("a weekday is never paid under a type named for another kind of day",
-     R.person_type(R.WEEKDAY, 260000, {"Rest Day Overtime": {"employees": ["E5"]},
-                                       "Public Holiday Overtime": {"employees": ["E5"]}}, "E5", None),
-     (None, R.NOT_FOR_THE_DAY)),
-    ("nor under a type whose gross line their gross is not above",
-     R.person_type(R.WEEKDAY, 500000, {R.HIGHER_EARNERS: {"custom_gross_above": 500000, "employees": ["E5"]}}, "E5",
-                   None), (None, R.NOT_FOR_THE_DAY)),
-    ("a rest day under the rest day's type, a higher earner's too",
-     R.person_type(R.REST_DAY, 900000, LISTS, "E1", "Extrusion - LPL"), ("Rest Day Overtime", None)),
+     R.person_type(200000, LISTS, "E8", "Transport - LPL"), ("Special Overtime", None)),
+    ("of several lines, the highest their gross is above",
+     R.person_type(1200000, {"A": {"employees": ["E5"]}, "B": {"custom_gross_above": 500000, "employees": ["E5"]},
+                             "C": {"custom_gross_above": 1000000, "employees": ["E5"]}}, "E5", None), ("C", None)),
+    ("listed only under a line their gross is not above: none, and the line said",
+     R.person_type(500000, {"Overtime 1": {"custom_gross_above": 500000, "employees": ["E5"]}}, "E5", None),
+     (None, "Overtime 1 is for a monthly gross above 500,000.")),
+    ("of two such lines, the nearest is said",
+     R.person_type(100000, {"B": {"custom_gross_above": 900000, "employees": ["E5"]},
+                            "A": {"custom_gross_above": 500000, "employees": ["E5"]}}, "E5", None),
+     (None, "A is for a monthly gross above 500,000.")),
+    ("two types with nothing between them: said, not guessed",
+     R.person_type(260000, {"Overtime 3": {"employees": ["E5"]}, "Overtime 1": {"employees": ["E5"]}}, "E5", None),
+     (None, "Overtime 1 and Overtime 3 list them. Keep them on one.")),
+    ("nor two with the same line their gross is above",
+     R.person_type(900000, {"B": {"custom_gross_above": 500000, "employees": ["E5"]},
+                            "A": {"custom_gross_above": 500000, "employees": ["E5"]}, "C": {"employees": ["E5"]}},
+                   "E5", None), (None, "A and B list them. Keep them on one.")),
     ("somebody no type lists is paid under none, and told so",
-     R.person_type(R.WEEKDAY, 260000, LISTS, "E9", "Extrusion - LPL"), (None, R.NOT_LISTED)),
-    ("not even under a type that lists nobody", R.person_type(R.WEEKDAY, 260000, {"Open Overtime": {}}, "E9", None),
+     R.person_type(260000, LISTS, "E9", "Extrusion - LPL"), (None, R.NOT_LISTED)),
+    ("not even under a type that lists nobody", R.person_type(260000, {"Open Overtime": {}}, "E9", None),
      (None, R.NOT_LISTED)),
-    ("nor on a site with no types", R.person_type(R.WEEKDAY, 260000, {}, "E9", None), (None, R.NOT_LISTED)),
-    ("with no types given at all, nobody's eligibility is judged: the day's own",
-     R.person_type(R.WEEKDAY, None, None), ("Weekday Overtime", None)),
+    ("nor on a site with no types", R.person_type(260000, {}, "E9", None), (None, R.NOT_LISTED)),
+    ("with no types given at all, nobody's eligibility is judged, and no type is named",
+     R.person_type(None, None), (None, None)),
 ):
     if got != want:
         fail.append("who a type is for: %s: %s, not %s" % (label, got, want))
 if R.NOT_LISTED != "no Overtime Type lists them. Add them on a type's Eligibility tab.":
     fail.append("somebody no type lists is told where to add them: %s" % R.NOT_LISTED)
-if R.NOT_FOR_THE_DAY != "none of the Overtime Types that list them is for this day at their pay.":
-    fail.append("and somebody whose types are none of them for the day is told that: %s" % R.NOT_FOR_THE_DAY)
-closed = {"Weekday Overtime": {"standard_multiplier": 1.5, "employees": ["E1", "E2"],
-                               "excluded_departments": ["Stores - LPL"]},
-          R.HIGHER_EARNERS: {"standard_multiplier": 1.0, "custom_gross_above": 500000, "employees": ["E1"]},
+closed = {"Overtime 1.5": {"standard_multiplier": 1.5, "employees": ["E1", "E2"],
+                           "excluded_departments": ["Stores - LPL"]},
+          "Overtime 1": {"standard_multiplier": 1.0, "custom_gross_above": 500000, "employees": ["E1"]},
           "Special Overtime": {"standard_multiplier": 1.25, "employees": ["E7"]},
           "Open Overtime": {"standard_multiplier": 1.5}}
-if R.person_type(R.WEEKDAY, 260000, closed, "E2", "Stores - LPL") != (None, "Weekday Overtime is not paid to Stores - LPL."):
+if R.person_type(260000, closed, "E2", "Stores - LPL") != (None, "Overtime 1.5 is not paid to Stores - LPL."):
     fail.append("a department every type of theirs leaves out has no overtime, and is told which type: %s"
-                % (R.person_type(R.WEEKDAY, 260000, closed, "E2", "Stores - LPL"),))
-if R.person_type(R.REST_DAY, 260000, closed, "E7", "Extrusion - LPL") != ("Special Overtime", None):
+                % (R.person_type(260000, closed, "E2", "Stores - LPL"),))
+if R.person_type(260000, closed, "E7", "Extrusion - LPL") != ("Special Overtime", None):
     fail.append("and the types that list somebody are open to them")
 judged = R.priced([{"employee": "E2", "employee_name": "Ben", "hours": 2}, {"employee": "E7", "hours": 2},
                    {"employee": "E1", "hours": 2}, {"employee": "E9", "employee_name": "Nine", "hours": 2}],
-                  {"E2": 260000, "E7": 260000, "E1": 260000, "E9": 260000}, R.WEEKDAY, closed["Weekday Overtime"],
+                  {"E2": 260000, "E7": 260000, "E1": 260000, "E9": 260000}, R.WEEKDAY,
                   closed, {"E2": 260000, "E7": 260000, "E1": 900000, "E9": 260000}, None, None,
                   {"E2": "Stores - LPL", "E7": "Extrusion - LPL", "E1": "Extrusion - LPL", "E9": "Extrusion - LPL"})
 seen = [(row["employee"], row["overtime_type"], row["multiplier"], row["amount"] > 0) for row in judged["rows"]]
-if seen != [("E2", None, 0.0, False), ("E7", "Special Overtime", 1.25, True), ("E1", R.HIGHER_EARNERS, 1.0, True),
+if seen != [("E2", None, 0.0, False), ("E7", "Special Overtime", 1.25, True), ("E1", "Overtime 1", 1.0, True),
             ("E9", None, 0.0, False)]:
     fail.append("a request is priced by who each type is for: nobody is given a type that does not list them: %s"
                 % seen)
 if R.eligibility_errors(judged["rows"]) != [
-        "Ben is not eligible for this overtime: Weekday Overtime is not paid to Stores - LPL.",
+        "Ben is not eligible for this overtime: Overtime 1.5 is not paid to Stores - LPL.",
         "Nine is not eligible for this overtime: no Overtime Type lists them. Add them on a type's Eligibility tab."]:
     fail.append("and those no type is open to are named, with why: %s" % R.eligibility_errors(judged["rows"]))
 expect("costing somebody no type is open to", R.cost_check_errors(
     {"status": "Authorised", "rows": judged["rows"], "unpriced": [], "not_eligible": R.eligibility_errors(judged["rows"])}),
     "Ben is not eligible for this overtime", "Nine is not eligible for this overtime")
-if R.attendance_update({"hours": 2}, R.WEEKDAY, 10, hours=1.5, named="Special Overtime") != {
+if R.attendance_update({"hours": 2}, "Special Overtime", 10, hours=1.5) != {
         "overtime_type": "Special Overtime", "actual_overtime_duration": 1.5, "standard_working_hours": 10.0}:
     fail.append("the attendance carries the type chosen for the person, so the Overtime Slip pays under it")
 print("eligibility: a type's own employees, the departments it leaves out, and its gross line")
@@ -314,8 +302,8 @@ rows = [{"employee": "HR-EMP-1", "employee_name": "A", "hours": 3},
 costed = R.priced(rows, {"HR-EMP-1": 1040000, "HR-EMP-2": 520000}, R.WEEKDAY)
 if costed["total"] != 18000.0 + 6000.0:
     fail.append("the request totals its rows: %s" % costed["total"])
-if costed["multiplier"] != 1.5:
-    fail.append("at the day's rate")
+if [row["multiplier"] for row in costed["rows"]] != [1.5, 1.5] or any(row["overtime_type"] for row in costed["rows"]):
+    fail.append("with no types given, at the Act's floor for the day, under no type")
 if costed["unpriced"]:
     fail.append("both were priced")
 unpaid = R.priced(rows, {"HR-EMP-1": 1040000}, R.WEEKDAY)
@@ -359,11 +347,7 @@ expect("or clocked in and never out",
        R.payroll_errors(dict(paid, rows=[dict(rows[1], attendance="HR-ATT-2", absent=True, clocked_in=True)])),
        "B clocked in on that day with no clock-out")
 
-# a type the site does not have, and what an employee's requests still wait for
-said = R.missing_type_error({"Weekday Overtime", "Rest Day Overtime"})
-if said != ("There is no Overtime Type named Rest Day Overtime and Weekday Overtime, so the Overtime Slip could not "
-            "pay these hours. Add it under Overtime Type first."):
-    fail.append("hours that would go under a type the site does not have are refused, the type named: %s" % said)
+# what an employee's requests still wait for
 waits = R.waiting([
     {"name": "OT-3", "overtime_date": "2026-09-10", "hours": 2, "status": "Costed"},
     {"name": "OT-1", "overtime_date": "2026-09-03", "hours": 3, "status": "Requested"},
@@ -399,8 +383,8 @@ for why, got, want in (
 ):
     if got != want:
         fail.append("%s: expected %s, got %s" % (why, want, got))
-if R.attendance_update({"hours": 3}, R.WEEKDAY, hours=1.5)["actual_overtime_duration"] != 1.5 \
-        or R.attendance_update({"hours": 3}, R.WEEKDAY)["actual_overtime_duration"] != 3.0:
+if R.attendance_update({"hours": 3}, "Overtime 1.5", hours=1.5)["actual_overtime_duration"] != 1.5 \
+        or R.attendance_update({"hours": 3}, "Overtime 1.5")["actual_overtime_duration"] != 3.0:
     fail.append("the attendance carries the hours paid, or those authorised where nothing else is said")
 own_day = R.priced([{"employee": "E1", "hours": 2}, {"employee": "E2", "hours": 2}],
                    {"E1": 1040000, "E2": 1040000}, R.WEEKDAY, kinds={"E2": R.REST_DAY})
@@ -529,14 +513,14 @@ print("the two gates: the cost is checked before it is paid, and nothing is paid
 # ── 3. What goes onto the attendance ──────────────────────────────────
 # test cases 2 and 4: Frappe HR's Overtime Slip reads the Attendance row,
 # so that is what the authorised hours are written onto
-update = R.attendance_update({"hours": 3}, R.PUBLIC_HOLIDAY)
+update = R.attendance_update({"hours": 3}, "Overtime 3")
 attendance = fields_of(upstream_doctype("Attendance"))
 for fieldname in update:
     if fieldname not in attendance:
         fail.append("Attendance has no %s: the overtime slip would never see the hours"
                     % fieldname)
-if update["overtime_type"] != R.type_name_for(R.PUBLIC_HOLIDAY):
-    fail.append("the row carries the type the day falls under")
+if update["overtime_type"] != "Overtime 3":
+    fail.append("the row carries the person's own type")
 if update["actual_overtime_duration"] != 3.0:
     fail.append("and the hours authorised")
 slip = fields_of(upstream_doctype("Overtime Slip"))
@@ -604,7 +588,6 @@ for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
         fail.append("overtime.py reads or writes %s, which is not on the request" % fieldname)
 for needle, why in (
     ("rules.kind_of_day(", "what sort of day it is comes from the rules (case 5)"),
-    ("rules.multiplier_for(", "and what that is worth (case 1)"),
     ("rules.priced(", "the request is priced for the cost check (case 3)"),
     ("rules.cost_check_errors(", "which has to be complete before HR sign it"),
     ("rules.payroll_errors(", "and complete again before it is paid (case 4)"),
@@ -617,6 +600,9 @@ for needle, why in (
 ):
     if needle not in glue:
         fail.append("overtime.py: %s (%r not found)" % (why, needle))
+if "own = 0.0 if why else multiplier_for(day, (types or {}).get(named) if named else None)" not in read(
+        "hrms_addon", "hrms_addon", "overtime_rules.py").split("def priced(")[1].split(chr(10) + "def ")[0]:
+    fail.append("each line is worth its own type's rate for the person's day (case 1)")
 # Nothing here prices the payslip itself: that is the slip's job. The
 # prose says so, so the check reads the code with the docstrings taken
 # out rather than the file as written.
@@ -652,18 +638,21 @@ for gone in ("def cost_check(", "def authorise_overtime(", "def reject_overtime(
 if "fill_day_and_rate" not in read("hrms_addon", "hrms_addon", "attendance.py"):
     fail.append("the request must learn what day it falls on as it validates")
 landed = glue.split("def send(")[1].split(chr(10) + "def ")[0]
-if "rules.person_type(theirs, grosses.get(row[\"employee\"]), types, row[\"employee\"]," not in landed \
-        or "hours=paid, named=named)" not in landed:
-    fail.append("the hours land on each attendance under the type their own gross puts them in, or "
-                "the Overtime Slip pays a higher earner one and a half times (minutes §4.12)")
-if "rules.HIGHER_EARNERS" not in glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0]:
-    fail.append("the higher earners' weekday type is made on migrate")
-seeding = glue.split("def seed_overtime_types(")[1].split(chr(10) + "def ")[0]
-if "_hourly_components()" not in seeding or '"applicable_salary_component": [' not in glue:
-    fail.append("an Overtime Type priced from salary components is refused without them: the seeding gives them")
-if "gross_above=rules.GROSS_THRESHOLD" not in seeding \
-        or "fill_gross_line()" not in glue.split("def setup_on_migrate(")[1]:
-    fail.append("the higher earners' type carries its line, UGX 500,000 until HR move it")
+if "rules.person_type(grosses.get(row[\"employee\"]), types, row[\"employee\"]," not in landed \
+        or "rules.attendance_update(row, named, standard, hours=paid)" not in landed:
+    fail.append("the hours land on each attendance under the type that lists the person, or the Overtime Slip pays "
+                "them under another")
+# no Overtime Type is made, and none is named, here (Luuka, 21 Oct 2026: "dont predefine any overtime type")
+for gone in ("def seed_overtime_types(", "def _make_type(", "def _overtime_component(", "def _hourly_components(",
+             "def fill_gross_line(", "def warn_below_the_act(", "def type_for(", "def _missing_types(",
+             '"doctype": TYPE', "new_doc(TYPE"):
+    if gone in glue:
+        fail.append("overtime.py makes or names no Overtime Type: %s is gone" % gone)
+for name in ("Weekday Overtime", "Rest Day Overtime", "Public Holiday Overtime", "UGX 500,000"):
+    if name in code_only(glue) or name in code_only(read("hrms_addon", "hrms_addon", "overtime_rules.py")):
+        fail.append("no type is named in the code: %s" % name)
+if glue.split("def setup_on_migrate():")[1].strip() != "stamp_untyped()":
+    fail.append("the migrate makes no type: it only puts hours sent without one under the one that lists them")
 if "pay.monthly_gross(employee, day)" not in glue.split("def _monthly_gross(")[1].split(chr(10) + "def ")[0]:
     fail.append("the line is compared with the gross the salary structure works out, not the base")
 custom = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
@@ -764,7 +753,7 @@ for needle, why in (
     ('"docstatus": 1, "status": rules.PAID_ON, "in_time": ["is", "set"],', "only a day the clock measured, and worked"),
     ('"out_time": ["is", "set"]}', "at both ends"),
     ("marked = [row for row in marked if row.employee not in asked]", "somebody already on a request for the day is left to it"),
-    ("rules.person_type(kind, grosses.get(row.employee), types, row.employee, seat.get(\"department\"))[0]",
+    ("rules.person_type(grosses.get(row.employee), types, row.employee, seat.get(\"department\"))[0]",
      "the type is the person's own, by who each type is for"),
     ('if not theirs or not cint(theirs.get("custom_from_clock")):', "and only a type that says so raises it"),
     ("rules.worked_overtime(kind, row.working_hours,", "what the clock shows past the shift"),
@@ -803,7 +792,8 @@ for needle, why in (
     ("rules.worked_overtime(theirs, found.working_hours, standard)", "the overtime the clock shows is worked out"),
     ("if (found.in_time and found.out_time) else None", "only for a day the clock measured at both ends"),
     ("paid = rules.payable_hours(row.get(\"hours\"), worked)", "what is paid is the rules' answer"),
-    ("hours=paid, named=named)", "and that, not what was authorised, goes onto the attendance"),
+    ("rules.attendance_update(row, named, standard, hours=paid)",
+     "and that, not what was authorised, goes onto the attendance"),
     ('line.db_set({"day_kind": theirs, "worked_hours": flt(worked), "clocked": 0 if worked is None else 1,',
      "the line says what the clock showed, as a number, and whether it measured the day at all"),
     ('"payable_hours": paid}, update_modified=False)', "and what was paid"),
@@ -818,9 +808,7 @@ for needle, why in (
 
 # ── 6. Wiring ─────────────────────────────────────────────────────────
 if "hrms_addon.hrms_addon.overtime.setup_on_migrate" not in hooks.get("after_migrate", []):
-    fail.append("the three overtime types must be seeded on every migrate")
-if "warn_below_the_act" not in glue:
-    fail.append("a rate edited under the Act is said out loud on the deploy")
+    fail.append("hours sent to payroll without a type are put under one on every migrate")
 form = read("hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.js")
 for button in ("Authorise", "Reject", "Check the Cost"):
     if 'add_custom_button(__("%s")' % button in form:
@@ -858,10 +846,7 @@ if "overtime.take_back(doc)" not in cancelled:
     fail.append("a cancelled request takes its hours back off the attendance, or they would still be paid")
 if 'values.pop("overtime_type")' in glue:
     fail.append("hours are never written onto an attendance without their Overtime Type: the slip does not read them")
-if "    if _missing_types(plans):\n        seed_overtime_types()\n        plans = planned()" not in landed \
-        or "return stopped([_(rules.missing_type_error(missing))])" not in landed:
-    fail.append("a type the site does not have is made as the migrate makes it, and the hand-off refused where it cannot be")
-elif landed.index("return stopped([_(rules.missing_type_error(missing))])") > landed.index(
+if "return stopped(closed)" in landed and landed.index("return stopped(closed)") > landed.index(
         'frappe.db.set_value("Attendance"'):
     fail.append("the hand-off is refused before anything is written")
 note = glue.split("def waiting(")[1].split(chr(10) + "def ")[0]
@@ -879,11 +864,10 @@ for needle, why in (('"overtime_type": ["is", "not set"]', "only an attendance w
                     ('"actual_overtime_duration": [">", 0]', "that carries overtime"),
                     ('"docstatus": 1, "status": rules.PAID_ON', "submitted and on a day the slip reads"),
                     ('request.status != "Sent to Payroll"', "written by a request that was sent to payroll"),
-                    ("if name and frappe.db.exists(TYPE, name):", "and only under a type the site has")):
+                    ("rules.person_type(pay.monthly_gross(found.employee, found.attendance_date), types, found.employee,",
+                     "under the type that lists the employee")):
     if needle not in stamp:
         fail.append("overtime.stamp_untyped: %s (%r)" % (why, needle))
-if "stamp_untyped()" not in glue.split("def setup_on_migrate(")[1]:
-    fail.append("hours sent while their type was missing are put under it on migrate")
 if hooks.get("doctype_js", {}).get("Overtime Slip") != "public/js/overtime_slip.js":
     fail.append("the Overtime Slip's form says what overtime has not reached payroll")
 slip_form = read("hrms_addon", "public", "js", "overtime_slip.js")
@@ -950,12 +934,28 @@ if "hrms_addon.patches.v1_0.overtime_requests_on_workflow" not in read("hrms_add
         "[post_model_sync]")[-1] or "approval.stage_of(row.docstatus, row.status)" not in patch \
         or '[approval.STATE_FIELD, "is", "not set"]' not in patch or '"docstatus": docstatus' not in patch:
     fail.append("the requests already on the site take their stage on the workflow, once, by a patch")
+# the types the migrate used to make go, once, where nobody uses them
+unseeded = read("hrms_addon", "patches", "v1_0", "overtime_types_not_seeded.py")
+if "hrms_addon.patches.v1_0.overtime_types_not_seeded" not in read("hrms_addon", "patches.txt").split(
+        "[post_model_sync]")[-1]:
+    fail.append("the types the migrate used to make are taken off once, by a patch, after the tables are synced")
+for needle, why in (
+    ('SEEDED = ("Weekday Overtime", "Rest Day Overtime", "Public Holiday Overtime",\n'
+     '          "Weekday Overtime (Above UGX 500,000)")', "the four the migrate made, and only those"),
+    ('if frappe.db.exists("Overtime Type Employee", {"parenttype": TYPE, "parent": name}):',
+     "one that lists employees is kept"),
+    ("frappe.delete_doc(TYPE, name, ignore_permissions=True)", "with Frappe's own check that nothing names it"),
+    ("except frappe.LinkExistsError:", "one in use is kept"),
+    ('frappe.db.rollback(save_point="seeded_overtime_type")', "and nothing of it is undone"),
+):
+    if needle not in unseeded:
+        fail.append("the seeded types' patch: %s (%r)" % (why, needle))
 if (request.get("return_remarks") or {}).get("fieldtype") != "Small Text":
     fail.append("a returned request says what must be put right")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 if "Overtime Request" not in nav:
     fail.append("the request has no way in")
-print("wiring: seeded on migrate, the Act watched, both buttons on the form")
+print("wiring: no type made on migrate, the seeded ones gone where unused, both buttons on the form")
 
 if fail:
     print("\nFAILURES:")

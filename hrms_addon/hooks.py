@@ -488,9 +488,9 @@ after_migrate = [
     # position and the graduate trainee. See talent_approval.py,
     # talent_program_approval.py, succession_approval.py, trainee_approval.py.
     "hrms_addon.hrms_addon.talent.setup_workflows_on_migrate",
-    # The three kinds of overtime day, at the Employment Act's floor, and a
-    # word on the deploy if somebody has edited one below it. See
-    # overtime_rules.py.
+    # Overtime sent to payroll without an Overtime Type, put under the one
+    # that lists the employee. No type is made: they are Luuka's own. See
+    # overtime.py.
     "hrms_addon.hrms_addon.overtime.setup_on_migrate",
     # Luuka's own three shifts: the office day, and the twelve-hour day and
     # night the register's M and N stand for. See shift_rules.py.

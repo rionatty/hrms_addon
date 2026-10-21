@@ -33,22 +33,25 @@ A day is read, not typed: a date on the employee's holiday list is a
 public holiday, their weekly off is a rest day, a day they are on approved
 leave is a leave day, and anything else is a weekday.
 
-WHAT A WEEKDAY PAYS DEPENDS ON THE GROSS
+WHOSE TYPE IT IS
 
-The minutes of 16 and 20 July 2026 (Reward and Compensation, §4.12)
-record Luuka's practice: "the overtime multiplier is 1 for gross salaries
-above UGX 500,000, 1.5 for those below UGX 500,000, and 2 for public
-holidays". So a weekday has two Overtime Types, and each person's hours go
-under the one their own gross puts them in — on the attendance the
-Overtime Slip reads, so it is what they are paid, not only what the cost
-check shows. The 1x is under the Act's 1.5x floor this module was built
-to; it is Luuka's minuted practice and it stays a figure on the type,
-where it can be changed, not a constant here. So does the line: the
-higher earners' type carries it ("For Monthly Gross Above"), and the gross
-it is compared with is the one the employee's salary structure works out.
+The Overtime Types are Luuka's own, and none is made or named here (21 Oct
+2026: "dont predefine any overtime type you should pick from the one
+assigned"). Each lists the employees it is for, and a person's overtime
+goes under the type that lists them, on every kind of day: the type pays a
+rest day and a public holiday at its own weekend and holiday rates
+(multiplier_for). The type goes onto the attendance the Overtime Slip
+reads, so it is what they are paid, not only what the cost check shows.
+
+A type may carry a gross line ("For Monthly Gross Above"): it is then for
+those it lists whose monthly gross, as their salary structure works it
+out, is above the line. The minutes of 16 and 20 July 2026 (Reward and
+Compensation, §4.12) are why: "the overtime multiplier is 1 for gross
+salaries above UGX 500,000, 1.5 for those below UGX 500,000, and 2 for
+public holidays". Somebody two types list is paid under the one with the
+higher line their gross is above; two with nothing between them is said,
+not guessed.
 """
-
-import re
 
 WEEKDAY = "Weekday"
 REST_DAY = "Rest Day"
@@ -56,19 +59,9 @@ PUBLIC_HOLIDAY = "Public Holiday"
 LEAVE_DAY = "Leave Day"
 KINDS = (WEEKDAY, REST_DAY, PUBLIC_HOLIDAY, LEAVE_DAY)
 
-# The Employment Act's floor. A type on the site may pay more than this;
-# it may not pay less, which is what below_the_act() is for.
+# The Employment Act's floor: what a day is paid at where its type gives
+# no rate for it (multiplier_for).
 ACT_MULTIPLIERS = {WEEKDAY: 1.5, REST_DAY: 2.0, PUBLIC_HOLIDAY: 2.0, LEAVE_DAY: 2.0}
-
-# The names the three Overtime Types are seeded under
-TYPE_NAMES = {WEEKDAY: "Weekday Overtime", REST_DAY: "Rest Day Overtime",
-              PUBLIC_HOLIDAY: "Public Holiday Overtime", LEAVE_DAY: "Rest Day Overtime"}
-# and the weekday type for those whose gross is above the line (§4.12).
-# The type is seeded with this line and its multiplier; both are then the
-# type's, where HR change them.
-GROSS_THRESHOLD = 500000.0
-HIGHER_EARNERS = "Weekday Overtime (Above UGX 500,000)"
-HIGHER_EARNER_MULTIPLIER = 1.0
 
 # Luuka's month: the attendance cycle runs 26 to 25 and is worked as 26
 # days of ten standard hours (attendance_rules.STANDARD_HOURS), which is
@@ -97,78 +90,63 @@ def kind_of_day(facts):
     return WEEKDAY
 
 
-def type_name_for(kind, gross=None, lines=None):
-    """The Overtime Type a day falls under for one person. On a weekday it
-    depends on what they earn: of the types with a gross line (lines: {type
-    name: monthly gross above}), the one with the highest line their gross
-    is above; otherwise the weekday type."""
-    if kind == WEEKDAY and gross is not None:
-        above = sorted((float(line), name) for name, line in (lines or {}).items()
-                       if float(line or 0) > 0 and float(gross or 0) > float(line))
-        if above:
-            return above[-1][1]
-    return TYPE_NAMES.get(kind, TYPE_NAMES[WEEKDAY])
-
-
 def _listed(row, key):
     return {value for value in ((row or {}).get(key) or []) if value}
 
 
-# why somebody no Overtime Type lists is paid none, and somebody whose types
-# are none of them for the day
+# why somebody no Overtime Type lists is paid none
 NOT_LISTED = "no Overtime Type lists them. Add them on a type's Eligibility tab."
-NOT_FOR_THE_DAY = "none of the Overtime Types that list them is for this day at their pay."
 
 
-def person_type(kind, gross, types, employee=None, department=None):
-    """The Overtime Type a person's overtime falls under on a day, and why
-    none where none does: (name, None) or (None, why).
+def person_type(gross, types, employee=None, department=None):
+    """The Overtime Type a person's overtime falls under, and why none
+    where none does: (name, None) or (None, why).
 
-    types: {name: its row, with "employees" (those it lists) and
-    "excluded_departments" (those it is not paid to)}.
+    types: {name: its row, with "employees" (those it lists),
+    "excluded_departments" (those it is not paid to) and its gross line}.
 
-    Overtime is paid only under a type that lists the person. Luuka, 21 Oct
-    2026: each of their types is for a set of employees, and somebody "not
-    assigned on the overtime" is given none (a type that listed nobody used
-    to be open to everybody):
+    The type is the one that lists them, whatever the day: none is named or
+    made for them (Luuka, 21 Oct 2026: each of their types is for a set of
+    employees; "dont predefine any overtime type you should pick from the
+    one assigned").
 
       - somebody no type lists is paid under none, and is told so;
       - a type is not paid to the departments it leaves out, even to
         somebody it lists;
-      - nor on a day it is not for: a type named for another kind of day
-        (Rest Day Overtime on a weekday), or one with a gross line their
-        gross is not above (the higher earners' type for somebody under it)
-        would pay the day at another day's or another pay's rate;
-      - among the types left: on a weekday the one with the highest gross
-        line their gross is above, else the day's own where it is one of
-        them, else the first. Luuka's own types are each for a set of
-        employees and for every day, at their own weekend and holiday rates.
+      - nor to somebody whose gross is not above its gross line;
+      - of the types left, the one with the highest line their gross is
+        above. Two left with nothing between them are said, not guessed.
 
     With no types given at all (None, not a site with none), nobody's
-    eligibility is being judged: the day's own type, for a price worked out
-    on the Act's floor alone."""
+    eligibility is being judged, and the day is priced at the Act's floor."""
     if types is None:
-        return type_name_for(kind, gross), None
+        return None, None
     listed = sorted(name for name, row in types.items() if employee and employee in _listed(row, "employees"))
     if not listed:
         return None, NOT_LISTED
     paid = [name for name in listed if not (department and department in _listed(types[name], "excluded_departments"))]
     if not paid:
         return None, "%s is not paid to %s." % (listed[0], department)
-    other_days = set(TYPE_NAMES.values()) - {TYPE_NAMES.get(kind, TYPE_NAMES[WEEKDAY])}
-    fit = [name for name in paid if name not in other_days and not _under_line(types[name], gross)]
+    fit = [name for name in paid if not _under_line(types[name], gross)]
     if not fit:
-        return None, NOT_FOR_THE_DAY
-    theirs = {name: types[name] for name in fit}
-    name = type_name_for(kind, gross, gross_lines(theirs))
-    return (name if name in theirs else fit[0]), None
+        nearest = min(paid, key=lambda name: _line(types[name]))
+        return None, "%s is for a monthly gross above %s." % (nearest, format(_line(types[nearest]), ",.0f"))
+    top = max(_line(types[name]) for name in fit)
+    first = [name for name in fit if _line(types[name]) == top]
+    if len(first) > 1:
+        return None, "%s list them. Keep them on one." % _and(first)
+    return first[0], None
+
+
+def _line(row):
+    """A type's gross line, 0 where it has none."""
+    return float((row or {}).get("custom_gross_above") or 0)
 
 
 def _under_line(row, gross):
     """Whether a type has a gross line the person's gross is not above: the
     line says who the type is for (minutes §4.12, "above UGX 500,000")."""
-    line = float((row or {}).get("custom_gross_above") or 0)
-    return line > 0 and float(gross or 0) <= line
+    return _line(row) > 0 and float(gross or 0) <= _line(row)
 
 
 def eligibility_errors(rows):
@@ -177,12 +155,6 @@ def eligibility_errors(rows):
     return ["%s is not eligible for this overtime: %s" % (row.get("employee_name") or row.get("employee"),
                                                           row["not_eligible"])
             for row in rows or [] if row.get("employee") and row.get("not_eligible")]
-
-
-def gross_lines(types):
-    """{type name: its monthly gross line}, for the types that have one."""
-    return {name: float(row.get("custom_gross_above") or 0) for name, row in (types or {}).items()
-            if row and float(row.get("custom_gross_above") or 0) > 0}
 
 
 def multiplier_for(kind, overtime_type=None):
@@ -199,42 +171,6 @@ def multiplier_for(kind, overtime_type=None):
     else:
         given = overtime_type.get("standard_multiplier")
     return float(given) if given else ACT_MULTIPLIERS[kind]
-
-
-def works_from_base(row):
-    """An earning a salary structure works out from the base (Luuka's
-    Basic: base * 1). An hour of overtime is worked out of these."""
-    return bool(row.get("amount_based_on_formula")) and not row.get("statistical_component") \
-        and not row.get("do_not_include_in_total") \
-        and re.search(r"\bbase\b", str(row.get("formula") or "")) is not None
-
-
-def component_for_rate(rate, components):
-    """The company's own overtime earning for a rate: one named for overtime
-    with the rate in its name ("Overtime 1.5", "Overtime 2.0") or in its
-    abbreviation (OT_15, OT_20). None when there is none.
-
-    components: [{"name", "salary_component_abbr"}]."""
-    rate = float(rate)
-    for component in components or ():
-        name = str(component.get("name") or "")
-        abbr = str(component.get("salary_component_abbr") or "")
-        if "overtime" not in name.lower() and not abbr.lower().startswith("ot"):
-            continue
-        if any(float(number) == rate for number in re.findall(r"\d+(?:\.\d+)?", name)):
-            return name
-        for digits in re.findall(r"\d+", abbr):
-            if float(digits) == rate or (len(digits) > 1 and float(digits[0] + "." + digits[1:]) == rate):
-                return name
-    return None
-
-
-def below_the_act(kind, multiplier):
-    """A rate under the statutory floor is not a policy decision anybody
-    is allowed to make quietly."""
-    if multiplier in (None, ""):
-        return False
-    return float(multiplier) < ACT_MULTIPLIERS[kind]
 
 
 def hours_per_month(standard_hours=None, days=None, day_hours=None):
@@ -270,51 +206,44 @@ def amount(hours, rate, multiplier):
     return round(float(hours) * float(rate) * float(multiplier), 2)
 
 
-def priced(rows, rates, kind, overtime_type=None, types=None, grosses=None, standards=None, kinds=None,
-           departments=None, days=None, day_hours=None):
+def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=None, departments=None, days=None,
+           day_hours=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
-    gross}, which decides their type; standards: {employee: the standard
-    hours of their shift}, the day that hour is divided out of where no
-    day_hours are given; days and day_hours: the month's days and a day's
-    hours (hours_per_month); kinds:
-    {employee: what sort of day it is for them}, since one person's rest
-    day is another's working day. `kind` is the sheet's, for anybody not
-    in `kinds`.
+    gross}, which a type's gross line is compared with; standards:
+    {employee: the standard hours of their shift}, the day that hour is
+    divided out of where no day_hours are given; days and day_hours: the
+    month's days and a day's hours (hours_per_month); kinds: {employee:
+    what sort of day it is for them}, since one person's rest day is
+    another's working day. `kind` is the sheet's, for anybody not in
+    `kinds`.
 
     types: {Overtime Type name: its row}. Each person is priced under the
-    type open to them that their own gross puts them in (person_type;
-    minutes §4.12), with departments: {employee: department} saying which
-    types leave them out; `overtime_type` is the day's own type, used where
-    theirs is not on the site. Somebody no type is open to is priced at
-    nothing, and the row says why ("not_eligible").
+    type that lists them (person_type), at its rate for their day, with
+    departments: {employee: department} saying which types leave them out.
+    Somebody no type is open to is priced at nothing, and the row says why
+    ("not_eligible"). With no types given, every day is priced at the Act's
+    floor.
 
     A row whose employee has no base yet is priced at nothing and says so,
     rather than being dropped: HR are checking the cost, and a line they
     cannot see is worse than a line that reads zero.
     """
-    multiplier = multiplier_for(kind, overtime_type)
     out, total, unpriced = [], 0.0, []
     for row in rows or []:
         base = rates.get(row.get("employee"))
         day = (kinds or {}).get(row.get("employee")) or kind
-        named, why = person_type(day, (grosses or {}).get(row.get("employee")), types, row.get("employee"),
+        named, why = person_type((grosses or {}).get(row.get("employee")), types, row.get("employee"),
                                  (departments or {}).get(row.get("employee")))
-        theirs = (types or {}).get(named) if named else None
-        if why:
-            own = 0.0
-        else:
-            own = multiplier_for(day, theirs) if theirs else multiplier_for(day, overtime_type if day == kind else None)
+        own = 0.0 if why else multiplier_for(day, (types or {}).get(named) if named else None)
         rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee")), days, day_hours))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))
-        # the type is named only where the site has it: a link to one it has not would refuse the save
-        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost, day_kind=day,
-                        overtime_type=named if theirs else None, not_eligible=why))
+        out.append(dict(row, hourly_rate=rate, multiplier=own, amount=cost, day_kind=day, overtime_type=named,
+                        not_eligible=why))
         total += cost
-    return {"rows": out, "total": round(total, 2), "multiplier": multiplier,
-            "unpriced": unpriced}
+    return {"rows": out, "total": round(total, 2), "unpriced": unpriced}
 
 
 def over_the_cap(hours, cap):
@@ -372,15 +301,6 @@ def payroll_errors(facts):
         errors.append("Overtime is paid on a day the attendance reads %s, which it does not for %s. Correct the "
                       "attendance first." % (PAID_ON, _and(other)))
     return errors
-
-
-def missing_type_error(names):
-    """Said when the hours would go onto the attendance under an Overtime
-    Type that is not on the site: Frappe HR's Overtime Slip reads only an
-    attendance that carries one, so they would be written down and never
-    paid."""
-    return ("There is no Overtime Type named %s, so the Overtime Slip could not pay these hours. "
-            "Add it under Overtime Type first." % _and(sorted(names)))
 
 
 # what each request not yet with payroll waits for
@@ -492,14 +412,12 @@ def reject_errors(status, reason):
     return errors
 
 
-def attendance_update(row, kind, standard_hours=STANDARD_HOURS_PER_DAY, gross=None, lines=None, hours=None,
-                      named=None):
+def attendance_update(row, overtime_type, standard_hours=STANDARD_HOURS_PER_DAY, hours=None):
     """What goes onto the employee's Attendance row so Frappe HR's own
-    Overtime Slip picks the hours up: their Overtime Type (`named`, as
-    person_type chose it, else the one their gross puts them in), the
-    duration paid (`hours`, else what was authorised), and the standard day
-    it is measured against."""
-    return {"overtime_type": named or type_name_for(kind, gross, lines),
+    Overtime Slip picks the hours up: their Overtime Type, as person_type
+    chose it, the duration paid (`hours`, else what was authorised), and
+    the standard day it is measured against."""
+    return {"overtime_type": overtime_type,
             "actual_overtime_duration": float(row.get("hours") or 0) if hours is None else float(hours),
             "standard_working_hours": float(standard_hours)}
 
