@@ -382,6 +382,10 @@ after_install = [
 # settings after an ERPNext or Frappe HR update has overwritten them, and
 # do nothing at all when everything already matches.
 after_migrate = [
+    # Upload Attendance put back if Frappe HR's patch that deleted their own
+    # (by the same name) took ours; before the navigation, which links to it
+    # (attendance_upload.py)
+    "hrms_addon.hrms_addon.attendance_upload.keep_doctype",
     # Frappe's four employee statuses as Employee Status records, and every
     # employee given their Status (employee_status.py)
     "hrms_addon.hrms_addon.employee_status.install",

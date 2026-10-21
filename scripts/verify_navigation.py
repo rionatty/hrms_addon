@@ -865,6 +865,49 @@ if SIDE[1]["label"] != "Employee Separation":
 print("the groups: %d sidebars laid out under headings, every top entry with an icon Frappe ships, Reports "
       "and Setup folded below, a second migrate the same" % grouped_pages)
 
+# ── 8. Frappe HR's own doctypes: on a page, or left off on purpose ─────
+# Luuka, 21 Oct 2026: "i cant find doct type upload attendace ... i hope
+# there are other HR doctype modules you have forget to expose". Frappe HR's
+# pages do not link everything it ships: twenty of its doctypes could only
+# be found by searching for them. Each is now on a page or a sidebar, or in
+# navigation_rules.LEFT_OFF with the reason, and the next one an update
+# brings fails here until it is placed.
+HRMS = os.path.join(APPS_ROOT, "hrms", "hrms")
+theirs = {}
+for path in glob.glob(os.path.join(HRMS, "**", "doctype", "*", "*.json"), recursive=True):
+    try:
+        spec = json.load(open(path, encoding="utf-8"))
+    except ValueError:
+        continue
+    if isinstance(spec, dict) and spec.get("doctype") == "DocType" and not spec.get("istable"):
+        theirs[spec["name"]] = spec
+reached = set(listed)
+for path in glob.glob(os.path.join(HRMS, "**", "workspace", "*", "*.json"), recursive=True):
+    spec = json.load(open(path, encoding="utf-8"))
+    reached |= {row.get("link_to") for row in (spec.get("links") or []) + (spec.get("shortcuts") or [])}
+for path in glob.glob(os.path.join(HRMS, "workspace_sidebar", "*.json")):
+    reached |= {item.get("link_to") for item in json.load(open(path, encoding="utf-8")).get("items") or []}
+reached |= {entry[1] for entries in R.SIDEBAR.values() for entry in entries}
+if theirs:
+    for name in sorted(theirs):
+        if name not in reached and name not in R.LEFT_OFF:
+            fail.append("Frappe HR's %s is on no page and no sidebar: put it in CARDS and SIDEBAR, or in "
+                        "LEFT_OFF with the reason" % name)
+    for name, why in sorted(R.LEFT_OFF.items()):
+        if name not in theirs:
+            fail.append("LEFT_OFF names %s, which Frappe HR no longer ships" % name)
+        elif name in reached:
+            fail.append("LEFT_OFF names %s, which is on a page now: take it out of LEFT_OFF" % name)
+        if not why:
+            fail.append("LEFT_OFF: say why %s is left off" % name)
+    # the one Frappe HR deleted (patches/v16_0/delete_upload_attendance_doctype) is ours now
+    if "Upload Attendance" in theirs:
+        fail.append("Frappe HR ships Upload Attendance again: ours has the same name")
+    print("Frappe HR's own doctypes: %d, each on a page or a sidebar but the %d left off on purpose (%s)"
+          % (len(theirs), len(R.LEFT_OFF), ", ".join(sorted(R.LEFT_OFF))))
+else:
+    print("Frappe HR's own doctypes: NOT CHECKED, Frappe HR was not found under %s" % APPS_ROOT)
+
 print()
 if fail:
     print("FAILURES:")

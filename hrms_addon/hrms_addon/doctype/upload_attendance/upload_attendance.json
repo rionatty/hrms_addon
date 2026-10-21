@@ -1,0 +1,218 @@
+{
+ "actions": [],
+ "autoname": "HR-ATU-.YYYY.-.#####",
+ "creation": "2026-10-21 09:00:00.000000",
+ "description": "A month of attendance from one sheet: download the template, put a Status on each day, attach it and press Import.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "branch",
+  "department",
+  "column_break_period",
+  "from_date",
+  "to_date",
+  "file_section",
+  "attendance_file",
+  "result_section",
+  "status",
+  "imported_by",
+  "imported_on",
+  "column_break_counts",
+  "days_in_file",
+  "marked",
+  "already_marked",
+  "not_marked",
+  "problems_section",
+  "problems_file",
+  "problems"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "column_break_period",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "file_section",
+   "fieldtype": "Section Break",
+   "label": "Filled Template"
+  },
+  {
+   "description": "The template, with a Status on each day to mark.",
+   "fieldname": "attendance_file",
+   "fieldtype": "Attach",
+   "label": "Attendance File"
+  },
+  {
+   "depends_on": "eval:doc.status && doc.status != 'Draft'",
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nQueued\nImporting\nDone\nDone with Problems\nFailed",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "imported_by",
+   "fieldtype": "Link",
+   "label": "Imported By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "imported_on",
+   "fieldtype": "Datetime",
+   "label": "Imported On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Rows with a Status.",
+   "fieldname": "days_in_file",
+   "fieldtype": "Int",
+   "label": "Days in the File",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "marked",
+   "fieldtype": "Int",
+   "label": "Marked",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "already_marked",
+   "fieldtype": "Int",
+   "label": "Already Marked",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "not_marked",
+   "fieldtype": "Int",
+   "label": "Not Marked",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "depends_on": "eval:doc.problems || doc.problems_file",
+   "fieldname": "problems_section",
+   "fieldtype": "Section Break",
+   "label": "Not Marked"
+  },
+  {
+   "description": "Each row not marked, with why. Put them right in this file, attach it and import again.",
+   "fieldname": "problems_file",
+   "fieldtype": "Attach",
+   "label": "Rows Not Marked",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "problems",
+   "fieldtype": "Long Text",
+   "label": "Why",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-21 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Upload Attendance",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

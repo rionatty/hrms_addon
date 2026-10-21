@@ -91,6 +91,14 @@ CARDS = {
             ("Examination Level", "Examination Level", DOCTYPE),
             ("District", "District", DOCTYPE),
             ("Relationship", "Relationship", DOCTYPE),
+            # where an applicant heard of the job: Frappe HR's own list,
+            # which their pages never link (Luuka, 21 Oct 2026)
+            ("Job Applicant Source", "Job Applicant Source", DOCTYPE),
+        ]),
+        # the terms a Job Offer is made on, beside the offer in Frappe HR's
+        # own Jobs card
+        ("Jobs", [
+            ("Offer Term", "Offer Term", DOCTYPE),
         ]),
         # how the applicants screen (cv_screening.py), how the panels score,
         # how each round goes, how long a hire and a requisition take
@@ -116,6 +124,9 @@ CARDS = {
             ("Employee Position Change", "Employee Position Change", DOCTYPE),
             ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE),
             ("Intern Placement", "Intern Placement", DOCTYPE),
+            # Frappe HR's own move to another company or plant, which an
+            # internal hire makes (internal_hire_rules.py)
+            ("Employee Transfer", "Employee Transfer", DOCTYPE),
         ]),
         # Employee relations and welfare: the disciplinary case (5.3), the
         # safety incident, and the two lists they are judged by. The
@@ -139,6 +150,14 @@ CARDS = {
             ("Clearance Form", "Clearance Form", DOCTYPE),
             ("Full and Final Statement", "Full and Final Statement", DOCTYPE),
             ("Serving Notice", "Serving Notice", REPORT),
+            # what a leaver is paid for their years, and the separation's
+            # activities set up once: Frappe HR's own, linked nowhere
+            ("Gratuity", "Gratuity", DOCTYPE),
+            ("Employee Separation Template", "Employee Separation Template", DOCTYPE),
+        ]),
+        # the skills an Employee Skill Map is made of, in Frappe HR's own card
+        ("Onboarding", [
+            ("Skill", "Skill", DOCTYPE),
         ]),
         ("Onboarding Setup", [
             ("Onboarding Settings", "Onboarding Settings", DOCTYPE),
@@ -272,6 +291,12 @@ CARDS = {
             ("Leave Plan Adherence", "Leave Plan Adherence", REPORT),
             # leave earned by the days worked (leave_accrual.py)
             ("Leave Accrual", "Leave Accrual", REPORT),
+            # every day given and taken, which each balance is added up from
+            ("Leave Ledger", "Leave Ledger Entry", DOCTYPE),
+        ]),
+        # a balance put right by hand, in Frappe HR's own Allocation card
+        ("Allocation", [
+            ("Leave Adjustment", "Leave Adjustment", DOCTYPE),
         ]),
         ("Leave Settings", [
             ("Leave Management Settings", "Leave Management Settings", DOCTYPE),
@@ -283,6 +308,11 @@ CARDS = {
         # LPL/HR/07 on screen, filled from the punches (attendance_board.py)
         ("The Floor", [
             ("Attendance Board", "attendance-board", PAGE),
+        ]),
+        # a month of attendance from one sheet, in Frappe HR's own Attendance
+        # card: their Upload Attendance was deleted in v16 (attendance_upload.py)
+        ("Attendance", [
+            ("Upload Attendance", "Upload Attendance", DOCTYPE),
         ]),
         ("Attendance Forms", [
             ("Off Duty Request", "Off Duty Request", DOCTYPE),
@@ -308,8 +338,25 @@ CARDS = {
             ("Sizes and Work Units", "Output Rate", DOCTYPE),
             ("Output Pay Settings", "Output Pay Settings", DOCTYPE),
         ]),
+        # pay owed from an earlier month, and a slip put right: Frappe HR
+        # v16's own, in their Payroll card, which never listed them
+        ("Payroll", [
+            ("Arrears", "Arrear", DOCTYPE),
+            ("Payroll Correction", "Payroll Correction", DOCTYPE),
+        ]),
+        ("Gratuity", [
+            ("Gratuity", "Gratuity", DOCTYPE),
+            ("Gratuity Rule", "Gratuity Rule", DOCTYPE),
+        ]),
     ],
     "HR Setup": [
+        # Frappe HR's own lists an employee is described by, which their
+        # Employee card leaves out; the contract's usual length is kept on
+        # the Employment Type (contracts.py)
+        ("Employee", [
+            ("Employment Type", "Employment Type", DOCTYPE),
+            ("Employee Health Insurance", "Employee Health Insurance", DOCTYPE),
+        ]),
         # The scale the travel form reads its rates off (grades.py). The
         # Gradar band and its steps are custom fields on Frappe HR's own
         # Employee Grade, which is already on this page and is left where
@@ -369,7 +416,30 @@ CARDS = {
             ("Per Diem Rate", "Per Diem Rate", DOCTYPE),
             ("Travel Destination", "Travel Destination", DOCTYPE),
         ]),
+        # the kinds of ID a Travel Request names, in Frappe HR's Travel card
+        ("Travel", [
+            ("Identification Document Type", "Identification Document Type", DOCTYPE),
+        ]),
     ],
+    # Frappe HR's own benefit ledger and other income, missing from their
+    # own page
+    "Tax & Benefits": [
+        ("Benefits", [
+            ("Employee Benefit Ledger", "Employee Benefit Ledger", DOCTYPE),
+        ]),
+        ("Exemption", [
+            ("Employee Other Income", "Employee Other Income", DOCTYPE),
+        ]),
+    ],
+}
+
+# Frappe HR's own doctypes that are on no page, on purpose: everything else
+# they ship is reached from a page or a sidebar (scripts/verify_navigation.py
+# fails on one that is neither, so the next one they add is not missed)
+LEFT_OFF = {
+    "Interest": "nothing in Frappe HR links to it",
+    "HR Telemetry Milestone": "Frappe HR's own record of what it has reported",
+    "PWA Notification": "the mobile app's notifications, read in the app",
 }
 
 # The desk routes a Report link by its kind: a Script or Query Report opens
@@ -404,6 +474,8 @@ SIDEBAR = {
         ("Interview Criterion", "Interview Criterion", DOCTYPE, "Setup", None),
         ("Interview Criteria Group", "Interview Criteria Group", DOCTYPE, "Setup", None),
         ("Qualification Type", "Qualification Type", DOCTYPE, "Setup", None),
+        ("Job Applicant Source", "Job Applicant Source", DOCTYPE, "Setup", None),
+        ("Offer Term", "Offer Term", DOCTYPE, "Setup", None),
         ("Applicant Screening", "Applicant Screening", REPORT, "Reports", None),
         ("Interviewer Calibration", "Interviewer Calibration", REPORT, "Reports", None),
         ("Interview Pass Rate", "Interview Pass Rate", REPORT, "Reports", None),
@@ -463,13 +535,16 @@ SIDEBAR = {
         ("HR Calendar", "hr-calendar", PAGE, None, "Leave Plan Change"),
         ("Leave Advance", "Leave Advance", DOCTYPE, None, "hr-calendar"),
         ("Leave Advance Processing", "Leave Advance Processing", DOCTYPE, None, "Leave Advance"),
+        ("Leave Adjustment", "Leave Adjustment", DOCTYPE, None, "Leave Allocation"),
         ("Leave Schedule", "Leave Schedule", REPORT, "Reports", None),
         ("Leave Plan Adherence", "Leave Plan Adherence", REPORT, "Reports", None),
         ("Leave Accrual", "Leave Accrual", REPORT, "Reports", None),
+        ("Leave Ledger", "Leave Ledger Entry", DOCTYPE, "Reports", None),
         ("Leave Management Settings", "Leave Management Settings", DOCTYPE, "Setup", None),
     ],
     "Shift & Attendance": [
         ("Attendance Board", "attendance-board", PAGE, None, None),
+        ("Upload Attendance", "Upload Attendance", DOCTYPE, None, "Employee Attendance Tool"),
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
@@ -485,8 +560,12 @@ SIDEBAR = {
     "Payroll": [
         ("Daily Production Report", "Daily Production Report", DOCTYPE, None, "Additional Salary"),
         ("Output Pay Run", "Output Pay Run", DOCTYPE, None, "Daily Production Report"),
+        ("Arrear", "Arrear", DOCTYPE, None, "Salary Withholding"),
+        ("Payroll Correction", "Payroll Correction", DOCTYPE, None, "Arrear"),
+        ("Gratuity", "Gratuity", DOCTYPE, None, "Payroll Correction"),
         ("Sizes and Work Units", "Output Rate", DOCTYPE, "Setup", None),
         ("Output Pay Settings", "Output Pay Settings", DOCTYPE, "Setup", None),
+        ("Gratuity Rule", "Gratuity Rule", DOCTYPE, "Setup", None),
     ],
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),
@@ -497,12 +576,14 @@ SIDEBAR = {
         ("Clearance Form", "Clearance Form", DOCTYPE, None, "Exit Interview"),
         ("Full and Final Statement", "Full and Final Statement", DOCTYPE, None, "Clearance Form"),
         # who is serving notice, and how far each exit has got
-        ("Serving Notice", "Serving Notice", REPORT, None, "Full and Final Statement"),
+        ("Gratuity", "Gratuity", DOCTYPE, None, "Full and Final Statement"),
+        ("Serving Notice", "Serving Notice", REPORT, None, "Gratuity"),
         ("Employee Contract", "Employee Contract", DOCTYPE, None, "Probation Evaluation"),
         # what follows the contract: a promotion, a change of designation or a
         # salary review, where the pay is sent, and internship placements
         ("Employee Position Change", "Employee Position Change", DOCTYPE, None, "Employee Contract"),
-        ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE, None, "Employee Position Change"),
+        ("Employee Transfer", "Employee Transfer", DOCTYPE, None, "Employee Position Change"),
+        ("Employee Data Change Request", "Employee Data Change Request", DOCTYPE, None, "Employee Transfer"),
         ("Intern Placement", "Intern Placement", DOCTYPE, None, "Employee Data Change Request"),
         ("Contract Expiry Status", "Contract Expiry Status", REPORT, "Reports", None),
         # the training process, in the order it runs
@@ -524,10 +605,13 @@ SIDEBAR = {
         ("Tool of Work", "Tool of Work", DOCTYPE, "Setup", None),
         ("Tool Provider", "Tool Provider", DOCTYPE, "Setup", None),
         ("Probation Factor", "Probation Factor", DOCTYPE, "Setup", None),
+        ("Skill", "Skill", DOCTYPE, "Setup", None),
+        ("Employee Separation Template", "Employee Separation Template", DOCTYPE, "Setup", None),
     ],
     "Expenses": [
         ("Allowance Request", "Allowance Request", DOCTYPE, None, "Expense Claim"),
         ("Allowance Type", "Allowance Type", DOCTYPE, "Setup", None),
+        ("Identification Document Type", "Identification Document Type", DOCTYPE, "Setup", None),
     ],
 }
 
@@ -564,30 +648,32 @@ GROUPS = {
         ("Requests", "clipboard-pen", ["Leave Application", "Leave Encashment"]),
         ("Leave Advances", "wallet", ["Leave Advance", "Leave Advance Processing"]),
         ("Planning", "calendar-days", ["Annual Leave Plan", "Leave Plan Change"]),
-        ("Allocation", "layers", ["Leave Control Panel", "Leave Policy Assignment", "Leave Allocation"]),
+        ("Allocation", "layers", ["Leave Control Panel", "Leave Policy Assignment", "Leave Allocation",
+                                  "Leave Adjustment"]),
     ],
     "Shift & Attendance": [
-        ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Attendance Request",
-                                 "Late Arrival Notice", "Gate Pass", "Off Duty Request"]),
+        ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Upload Attendance",
+                                 "Attendance Request", "Late Arrival Notice", "Gate Pass", "Off Duty Request"]),
         ("Shifts", "repeat", ["Shift Request", "Shift Rotation", "Shift Allowance"]),
         ("Overtime", "calendar-clock", ["Overtime Request", "Overtime Slip"]),
     ],
     "Payroll": [
         ("Payroll", "banknote", ["Payroll Entry", "Salary Structure Assignment", "Salary Slip", "Additional Salary",
-                                 "Salary Withholding"]),
+                                 "Salary Withholding", "Arrear", "Payroll Correction"]),
         ("Output Pay", "factory", ["Daily Production Report", "Output Pay Run"]),
+        ("Gratuity", "piggy-bank", ["Gratuity"]),
     ],
     "Tenure": [
         ("Joining", "user-plus", ["Employee Onboarding", "Onboarding Review", "Probation Evaluation",
                                   "Intern Placement"]),
-        ("Contracts", "file-text", ["Employee Contract", "Employee Position Change",
+        ("Contracts", "file-text", ["Employee Contract", "Employee Position Change", "Employee Transfer",
                                     "Employee Data Change Request"]),
         ("Training", "graduation-cap", ["Training Requisition", "Training Needs Assessment", "Training Calendar",
                                         "Monthly Training Schedule"]),
         ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
                                          "Safety Incident"]),
         ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement",
-                             "Serving Notice"]),
+                             "Gratuity", "Serving Notice"]),
     ],
     "Expenses": [
         ("Claims", "receipt", ["Expense Claim", "Employee Advance", "Allowance Request"]),
@@ -618,13 +704,17 @@ SHORT_LABELS = {
     "Leave Control Panel": "Control Panel",
     "Leave Policy Assignment": "Policy Assignment",
     "Leave Allocation": "Allocation",
+    "Leave Adjustment": "Adjustment",
     "Employee Checkin": "Checkin",
     "Employee Attendance Tool": "Attendance Tool",
     "Salary Structure Assignment": "Salary Assignment",
     "Salary Withholding": "Withholding",
+    "Arrear": "Arrears",
+    "Payroll Correction": "Correction",
     "Daily Production Report": "Daily Production",
     "Employee Onboarding": "Onboarding",
     "Employee Data Change Request": "Data Change Request",
+    "Employee Transfer": "Transfer",
     "Training Needs Assessment": "Needs Assessment",
     "Monthly Training Schedule": "Monthly Schedule",
     "Employee Grievance": "Grievance",
