@@ -151,8 +151,9 @@ def _clock(fact, today, start, end, now):
         when = last.strftime("%d %b %H:%M") if last else "never"
         return {"done": False, "started": True, "urgent": True, "note": "Not read since %s%s" % (when, tail), **target}
     if today > end:
-        done = last.date() > end and not unplaced
-        return {"done": done, "started": True, "note": ("Read past %s" % end.strftime("%d %b")) + tail, **target}
+        past = last.date() > end
+        said = ("Read past %s" if past else "Not read past %s yet") % end.strftime("%d %b")
+        return {"done": past and not unplaced, "started": True, "note": said + tail, **target}
     return {"done": False, "started": True, "note": "Read at %s%s" % (last.strftime("%H:%M"), tail), **target}
 
 

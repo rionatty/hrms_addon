@@ -152,6 +152,28 @@ check(after["clock"]["state"] == "late" and after["clock"]["note"] == "Not read 
 short = steps_of(dict(GOOD, clock=dict(GOOD["clock"], unplaced=1)), D(2026, 10, 26), CLOSED)
 check(short["clock"]["state"] == "open" and short["clock"]["note"] == "Read past 25 Oct · 1 punch not placed",
       "a punch of the period not placed keeps the clock's step open")
+quiet = steps_of(dict(GOOD, clock=dict(GOOD["clock"], last_success="2026-10-21 05:00:00")), D(2026, 10, 21))
+check((quiet["clock"]["state"], quiet["clock"]["note"]) == ("late", "Not read since 21 Oct 05:00"),
+      "four and a half hours without a read is a failing clock, not only days: %s" % quiet["clock"])
+eve = steps_of(dict(GOOD, clock=dict(GOOD["clock"], last_success="2026-10-25 23:00:00")), D(2026, 10, 26),
+               datetime.datetime(2026, 10, 26, 1, 0))
+check((eve["clock"]["state"], eve["clock"]["note"]) == ("open", "Not read past 25 Oct yet"),
+      "a read on the last evening is not past the period: its night shift is still to come in: %s" % eve["clock"])
+for label, facts, key, want in (
+        ("a report left out of a paid run keeps the runs open",
+         dict(GOOD, output={"needed": ["Namanve Per Meter"], "paid": ["Namanve Per Meter"], "unpaid_reports": 1}),
+         "output", ("open", "1 of 1 paid · 1 report not in a run")),
+        ("a paid advance run with recoveries off the payroll is not done",
+         dict(GOOD, advances={"run": "paid", "unposted": 2}), "advances",
+         ("open", "The advance run is paid · 2 recoveries not on the payroll")),
+        ("one entry of two with its slips submitted is not all of them",
+         dict(GOOD, slips={"entries": [{"name": "A", "docstatus": 1, "slips_submitted": 1},
+                                       {"name": "B", "docstatus": 1, "slips_submitted": 0}]}),
+         "slips", ("open", "Slips made, not yet submitted")),
+        ("nor one bank entry of two",
+         dict(GOOD, bank={"entries": [{"name": "A"}, {"name": "B"}], "paid": 1}), "bank", ("open", "1 of 2 paid"))):
+    got = steps_of(facts, D(2026, 10, 21))[key]
+    check((got["state"], got["note"]) == want, "%s: %s" % (label, (got["state"], got["note"])))
 blank = {"clock": {"enabled": 1, "last_success": "2026-10-21 08:00:00", "error": "Timed out", "unplaced": 2},
          "overtime": {"total": 2, "waiting": 1, "approved": 0, "slips": 0},
          "output": {"needed": ["Kawempe Hourly", "Namanve Per Meter"], "paid": [], "unpaid_reports": 0},
@@ -237,7 +259,10 @@ people = [
      "creation": "2020-01-01 09:00:00", "custom_employee_status": "Terminated"},
     {"name": "m", "status": "Inactive", "date_of_joining": "2019-01-01", "creation": "2019-01-01 09:00:00",
      "custom_employee_status": "On Hold"},
-    {"name": "n", "status": "Active", "date_of_joining": "2018-01-01", "creation": "2018-01-01 09:00:00"}]
+    {"name": "n", "status": "Active", "date_of_joining": "2018-01-01", "creation": "2018-01-01 09:00:00"},
+    # left more than a year ago, recorded before they went: in no month shown and not in the year's turnover
+    {"name": "o", "status": "Left", "date_of_joining": "2015-01-01", "relieving_date": "2025-09-30",
+     "creation": "2015-01-01 09:00:00", "custom_employee_status": "Resigned"}]
 moved = R.movement(people, {"Active": "Active", "On Hold": "Inactive", "Resigned": "Left", "Terminated": "Left"},
                    D(2026, 10, 21))
 check([(month["label"], month["joined"], month["left"]) for month in moved["months"]] == [
