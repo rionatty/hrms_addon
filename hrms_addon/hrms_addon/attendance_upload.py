@@ -1,22 +1,34 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Upload Attendance: a month of attendance from one sheet.
+"""Upload Attendance: a month of attendance from one sheet, for any number
+of people.
 
 The reading and the checks are in attendance_upload_rules.py (tested by
 scripts/verify_upload_attendance.py); this is the part that asks the site
 and marks the days.
 
   this_cycle         the cycle today is in, the period a new upload starts with
-  download_template  everybody of a company, plant or department, every day
-                     of the period not marked yet
-  start_import       Import: the file read while the person waits, so a
-                     wrong file is said at once; the marking queued
-  mark_all           the background job: every row checked first, then each
-                     day marked and submitted on its own, so a day that
-                     fails costs only its own row
+  download_template  the register (LPL/HR/07) of a company, plant or
+                     department for the period: a row per employee, a
+                     column per day, the days marked already in it
+  start_import       Import: the file's heading checked while the person
+                     waits; the days read, checked and marked in the
+                     background
+  mark_all           the background job: the file read as it goes, a part at
+                     a time, each part checked and then marked, a day at a
+                     time, so a day that fails costs only its own row and a
+                     file of any size is never held whole
   keep_doctype       after_migrate: Frappe HR's patch that deleted their
                      Upload Attendance takes ours too if it ever runs
+
+A JOB OF ANY LENGTH
+
+Each part saves the counts, which keeps the upload's modified time moving.
+An upload that says Queued or Importing and has not moved for STOPPED_AFTER
+minutes has lost its job (a worker restarted under it), and is free to be
+imported again: what it marked counts as marked already, so it goes on from
+where it stopped.
 
 Each day is a Frappe HR Attendance, inserted and submitted as the person
 who pressed Import. Their permissions apply, and so does every check made
@@ -43,13 +55,14 @@ RUNNING = (QUEUED, IMPORTING)
 # who is in the template: anybody on the staff during the period, a leaver
 # up to the day they left. Frappe HR marks no attendance for Inactive.
 ON_STAFF = ("Active", "Suspended", "Left")
-# days written between commits, which is also how often the bar moves
-BATCH = 50
+# the days read and checked together, and marked between two saves of the counts
+PART = 2000
+BATCH = 200
 # the most problems listed on the upload itself; the file has every one
 LISTED = 50
-# the job's own limit, and when an upload still "running" past it is taken
-# to have died with its worker
-TIMEOUT_HOURS = 4
+# a job is given a day; one that has not moved for this long has died
+JOB_HOURS = 24
+STOPPED_AFTER = 30
 SAVEPOINT = "ha_upload_attendance"
 COUNTS = ("days_in_file", "marked", "already_marked", "not_marked")
 
@@ -64,18 +77,24 @@ def upload_validate(doc, method=None):
         frappe.throw(_("This upload is being marked now. Change the file when it is done."), title=_(DOCTYPE))
 
 
+def upload_onload(doc, method=None):
+    """Whether an upload that says it is being marked has stopped, so the
+    form can say Import goes on from where it stopped."""
+    doc.set_onload("stopped", doc.get("status") in RUNNING and not running(doc))
+
+
 def upload_on_trash(doc, method=None):
     if running(doc):
         frappe.throw(_("This upload is being marked now. Delete it when it is done."), title=_(DOCTYPE))
 
 
 def running(doc):
-    """Whether the upload is being marked: queued or under way, and not so
-    long ago that its job must have died with the worker."""
+    """Whether the upload is being marked: queued or under way, and moved in
+    the last STOPPED_AFTER minutes, as a live job keeps it moving."""
     if doc.get("status") not in RUNNING:
         return False
-    started = doc.get("imported_on")
-    return not started or get_datetime(started) > add_to_date(now_datetime(), hours=-(TIMEOUT_HOURS + 1))
+    moved = doc.get("modified")
+    return not moved or get_datetime(moved) > add_to_date(now_datetime(), minutes=-STOPPED_AFTER)
 
 
 @frappe.whitelist()
@@ -88,10 +107,10 @@ def this_cycle():
 # ── The template ──────────────────────────────────────────────────────
 @frappe.whitelist()
 def download_template(company, from_date, to_date, branch=None, department=None):
-    """The template for a company, plant or department: one row per person
-    per day of the period not marked yet. Returned as {"filename",
-    "content"} (base64), so a problem comes back as a message, not as a
-    page of error in a new tab."""
+    """The register of a company, plant or department for the period: a row
+    per employee, a column per day. Returned as {"filename", "content"}
+    (base64), so a problem comes back as a message, not as a page of error
+    in a new tab."""
     attendance.only_hr()
     frappe.has_permission(DOCTYPE, "create", throw=True)
     if not (company and from_date and to_date):
@@ -99,6 +118,9 @@ def download_template(company, from_date, to_date, branch=None, department=None)
     start, end = getdate(from_date), getdate(to_date)
     if end < start:
         frappe.throw(_("The To Date is before the From Date."), title=_(DOCTYPE))
+    days = rules.period_days(start, end)
+    if len(days) > rules.MAX_DAYS:
+        frappe.throw(_("That is {0} days. Pick a period of a year at most.").format(len(days)), title=_(DOCTYPE))
     people = _people(company, start, end, branch, department)
     where = ", ".join(part for part in (department, branch, company) if part)
     if not people:
@@ -106,21 +128,15 @@ def download_template(company, from_date, to_date, branch=None, department=None)
                      title=_(DOCTYPE))
     default_list = frappe.db.get_value("Company", company, "default_holiday_list")
     lists = {row.holiday_list or default_list for row in people} - {None, ""}
-    rows = rules.template_rows(
+    marked = {key: code for key, (_status, _name, code) in _marked([row.name for row in people], start, end).items()}
+    rows = rules.register_rows(
         [{"employee": row.name, "employee_name": row.employee_name, "department": row.department,
           "date_of_joining": row.date_of_joining, "relieving_date": row.relieving_date,
           "holiday_list": row.holiday_list or default_list} for row in people],
-        start, end, getdate(today()), set(_marked([row.name for row in people], start, end)),
-        _holidays(lists, start, end))
-    if not rows:
-        frappe.throw(_("Every day from {0} to {1} is marked already at {2}.").format(_day(start), _day(end), where),
-                     title=_(DOCTYPE))
-    if len(rows) > rules.MAX_ROWS:
-        frappe.throw(_("That is {0} rows. Pick a plant or a department, or fewer days.").format(len(rows)),
-                     title=_(DOCTYPE))
-    content = rules.build_template(rows, _names("Leave Type"), _names("Shift Type"))
+        days, getdate(today()), marked, _holidays(lists, start, end))
+    content = rules.build_template(rows, days, _names("Leave Type"))
     name = "Attendance %s to %s %s.xlsx" % (start, end, branch or department or company)
-    return {"filename": name.replace("/", "-"), "content": base64.b64encode(content).decode(), "rows": len(rows)}
+    return {"filename": name.replace("/", "-"), "content": base64.b64encode(content).decode(), "people": len(rows)}
 
 
 def _people(company, start, end, branch=None, department=None):
@@ -139,16 +155,19 @@ def _people(company, start, end, branch=None, department=None):
 
 
 def _marked(employees, start, end):
-    """{(employee, date): (status, the Attendance)} for every day marked in
-    the period, in draft or submitted: Frappe HR refuses a second one."""
+    """{(employee, date): (status, the Attendance, its letter on the register)}
+    for every day marked in the period, in draft or submitted: Frappe HR
+    refuses a second one."""
     if not employees:
         return {}
-    return {(row.employee, getdate(row.attendance_date)): (row.status, row.name)
+    return {(row.employee, getdate(row.attendance_date)):
+            (row.status, row.name, register.register_code({"status": row.status, "shift": row.shift,
+                                                           "leave_type": row.leave_type}))
             for row in frappe.get_all(
                 ATTENDANCE, limit_page_length=0,
                 filters={"employee": ["in", employees], "docstatus": ["<", 2],
                          "attendance_date": ["between", [start, end]]},
-                fields=["name", "employee", "attendance_date", "status"])}
+                fields=["name", "employee", "attendance_date", "status", "shift", "leave_type"])}
 
 
 def _holidays(lists, start, end):
@@ -169,8 +188,9 @@ def _day(value):
 
 # ── Import ────────────────────────────────────────────────────────────
 def start_import(doc):
-    """Import: the file read now, while the person is there to be told what
-    is wrong with it; the days checked and marked in the background."""
+    """Import: the file's heading checked while the person waits, so a wrong
+    file is said at once; the days read, checked and marked in the
+    background, however many there are."""
     attendance.only_hr()
     doc.check_permission("write")
     if running(doc):
@@ -178,19 +198,15 @@ def start_import(doc):
     if not doc.attendance_file:
         frappe.throw(_("Attach the filled template first."), title=_(DOCTYPE))
     try:
-        found = rules.read_file(_file_bytes(doc.attendance_file), doc.attendance_file)
+        rules.layout_of(_file_bytes(doc.attendance_file), doc.attendance_file)
     except ValueError as error:
         frappe.throw(_(str(error)), title=_(DOCTYPE))
-    days = len([row for row in found["rows"] if rules.text(row.get("status"))])
-    if not days:
-        frappe.throw(_("No row has a Status. Put a Status on each day to mark and attach the file again."),
-                     title=_(DOCTYPE))
     doc.db_set(dict({field: 0 for field in COUNTS}, status=QUEUED, imported_by=frappe.session.user,
                     imported_on=now_datetime(), problems=None, problems_file=None), notify=True)
     frappe.enqueue("hrms_addon.hrms_addon.attendance_upload.mark_all", queue="long",
-                   timeout=TIMEOUT_HOURS * 3600, job_id="upload_attendance::%s" % doc.name, deduplicate=True,
+                   timeout=JOB_HOURS * 3600, job_id="upload_attendance::%s" % doc.name, deduplicate=True,
                    enqueue_after_commit=True, upload=doc.name)
-    return {"status": QUEUED, "days": days}
+    return {"status": QUEUED}
 
 
 def mark_all(upload):
@@ -208,52 +224,95 @@ def mark_all(upload):
 
 
 def _mark_file(doc):
+    content = _file_bytes(doc.attendance_file)
     try:
-        found = rules.read_file(_file_bytes(doc.attendance_file), doc.attendance_file)
+        # the days counted first, read as they come, for the bar to move by
+        total = sum(1 for _record in rules.days_in(content, doc.attendance_file))
     except ValueError as error:
         doc.db_set({"status": FAILED, "problems": _(str(error))}, commit=True, notify=True)
         return
-    filled = [row for row in found["rows"] if rules.text(row.get("status"))]
-    if not filled:
-        doc.db_set({"status": FAILED, "problems": _("No row has a Status.")}, commit=True, notify=True)
+    if not total:
+        doc.db_set({"status": FAILED, "problems": _(rules.NOTHING_FILLED)}, commit=True, notify=True)
         return
-    employees = _employees({rules.text(row.get("employee")) for row in filled} - {""})
-    days = [day for day in (rules.parse_date(row.get("attendance_date")) for row in filled) if day]
-    marked = _marked(list(employees), min(days), max(days)) if employees and days else {}
-    checked = rules.check_rows(filled, employees, _names("Leave Type"), _names("Shift Type"), marked,
-                               getdate(today()))
-    problems = list(checked["problems"])
-    counts = {"days_in_file": len(filled), "marked": 0, "already_marked": checked["already"]}
-    total = len(checked["to_mark"])
-    for number, row in enumerate(checked["to_mark"], 1):
-        why = _mark_day(row, employees)
-        if why:
-            problems.append((row["source"], why))
-        else:
-            counts["marked"] += 1
-        if number % BATCH == 0 or number == total:
-            counts["not_marked"] = len(problems)
-            doc.db_set(counts, commit=True)
-            frappe.publish_progress(number * 100.0 / total, title=_("Marking attendance"), doctype=DOCTYPE,
-                                    docname=doc.name, description=_("{0} of {1}").format(number, total))
-    counts["not_marked"] = len(problems)
+    counts = {"days_in_file": total, "marked": 0, "already_marked": 0, "not_marked": 0}
+    doc.db_set(counts, commit=True, notify=True)
+    names = _site_names()
+    # people: {name: what the checks need}; index: {name in small letters: name,
+    # or None for one the site does not have}, so each is looked up once
+    people, index, seen, problems = {}, {}, {}, []
+    done, shown = 0, -1
+    for part in _parts(rules.days_in(content, doc.attendance_file), PART):
+        _learn(people, index, part)
+        dates = [day for day in (rules.parse_date(record.get("attendance_date")) for record in part) if day]
+        here = list({index.get(rules.text(record.get("employee")).lower()) for record in part} - {None})
+        marked = _marked(here, min(dates), max(dates)) if here and dates else {}
+        checked = rules.check_days(part, people, names, marked, getdate(today()), seen=seen)
+        problems += checked["problems"]
+        counts["already_marked"] += checked["already"]
+        for row in checked["to_mark"]:
+            why = _mark_day(row, people)
+            if why:
+                problems.append((row["source"], why))
+            else:
+                counts["marked"] += 1
+            done += 1
+            if done % BATCH == 0:
+                counts["not_marked"] = len(problems)
+                doc.db_set(counts, commit=True)
+        done += len(part) - len(checked["to_mark"])
+        counts["not_marked"] = len(problems)
+        # a part saved is a part the job has got through: the upload moves on
+        doc.db_set(counts, commit=True)
+        percent = int(done * 100 / total)
+        if percent != shown:
+            shown = percent
+            frappe.publish_progress(percent, title=_("Marking attendance"), doctype=DOCTYPE, docname=doc.name,
+                                    description=_("{0} of {1} days").format(min(done, total), total))
     doc.db_set(dict(counts, status=DONE_WITH_PROBLEMS if problems else DONE,
                     problems=rules.listed(problems, LISTED) if problems else None,
-                    problems_file=_problems_file(doc, found["header"], problems) if problems else None),
+                    problems_file=_problems_file(doc, problems) if problems else None),
                commit=True, notify=True)
 
 
-def _employees(named):
-    """{name: what the checks need} for the employees the file names. The
-    database matches a name without case, as the checks do."""
-    if not named:
-        return {}
-    return {row.name: row for row in frappe.get_all(
-        "Employee", filters={"name": ["in", list(named)]}, limit_page_length=0,
-        fields=["name", "company", "date_of_joining", "relieving_date", "status"])}
+def _parts(records, size):
+    """The days in parts of `size`, read as they come."""
+    part = []
+    for record in records:
+        part.append(record)
+        if len(part) >= size:
+            yield part
+            part = []
+    if part:
+        yield part
 
 
-def _mark_day(row, employees):
+def _site_names():
+    """What the days' letters and names are checked against: the site's
+    leave types and shifts, its annual leave and the off-duty leave."""
+    from hrms_addon.hrms_addon import leave
+
+    return {"leave_types": _names("Leave Type"), "shifts": _names("Shift Type"), "annual": leave.annual_type(),
+            "off_duty": register.OFF_DUTY_LEAVE_TYPE}
+
+
+def _learn(people, index, part):
+    """The employees a part names that are not looked up yet, read once each,
+    and those the site does not have remembered as such. The database
+    matches a name without case, as the checks do."""
+    wanted = {rules.text(record.get("employee")) for record in part} - {""}
+    wanted = [name for name in wanted if name.lower() not in index]
+    if not wanted:
+        return
+    for name in wanted:
+        index[name.lower()] = None
+    for row in frappe.get_all("Employee", filters={"name": ["in", wanted]}, limit_page_length=0,
+                              fields=["name", "company", "date_of_joining", "relieving_date", "status",
+                                      "default_shift"]):
+        people[row.name] = row
+        index[row.name.lower()] = row.name
+
+
+def _mark_day(row, people):
     """One day marked and submitted, or why not. A day that fails is rolled
     back to before it, so it takes nothing else with it."""
     frappe.db.savepoint(SAVEPOINT)
@@ -261,7 +320,7 @@ def _mark_day(row, employees):
         day = frappe.get_doc({
             "doctype": ATTENDANCE, "employee": row["employee"], "attendance_date": row["attendance_date"],
             "status": row["status"], "leave_type": row["leave_type"], "shift": row["shift"],
-            "company": employees[row["employee"]].company,
+            "company": people[row["employee"]].company,
         })
         day.insert()
         day.submit()
@@ -279,12 +338,12 @@ def _reason(error):
     return strip_html_tags(str(error)).strip() or type(error).__name__
 
 
-def _problems_file(doc, header, problems):
-    """The rows not marked, with why, attached to the upload."""
+def _problems_file(doc, problems):
+    """The days not marked, with why, attached to the upload."""
     saved = frappe.get_doc({
-        "doctype": "File", "file_name": "%s rows not marked.xlsx" % doc.name,
+        "doctype": "File", "file_name": "%s days not marked.xlsx" % doc.name,
         "attached_to_doctype": DOCTYPE, "attached_to_name": doc.name, "attached_to_field": "problems_file",
-        "is_private": 1, "content": rules.problems_file(header, problems),
+        "is_private": 1, "content": rules.problems_file(problems),
     })
     saved.insert(ignore_permissions=True)
     return saved.file_url

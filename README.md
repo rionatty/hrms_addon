@@ -1157,24 +1157,33 @@ attendance from one sheet. Frappe HR v16 deleted its own Upload Attendance
 (the patch `delete_upload_attendance_doctype`, in favour of the Employee
 Attendance Tool, which marks one day at a time), so this app has one under
 the same name, one record per upload, on the Shift & Attendance page.
-**Download Template** gives every employee of the company, plant or
-department, one row a day, from the cycle's first day or the day they
-joined to its last day, the day they left or today. A day already marked,
-even in draft, is left out, and a holiday says so. Status, Leave Type and
-Shift are picked from lists. **Import** reads the file at once, so a wrong
-file is said while you wait, then marks the days in the background as the
-person importing. Every row is checked first: an employee, a date and a
-Status the site knows, not after today, between joining and leaving, not
-an inactive employee, a Leave Type on a day On Leave, a day not twice in
-the file, and not marked otherwise already. Then each day is inserted and
-submitted as a Frappe HR Attendance on its own, rolled back alone if
-Frappe HR refuses it. A day marked the same already is counted, never
-marked twice. The rows not marked come back as a file with why, to put
-right and import again as it is. Columns are found by their heading, so
-a Data Import file or a .csv reads too. Frappe HR's patch deletes the
-doctype by name, so after every migrate `keep_doctype` reloads ours if it
-was taken, before the navigation links to it. The walk
-`smoke_upload_attendance.py` runs the glue.
+**Download Template** gives the register, LPL/HR/07 as HR keep it: a row per
+employee of the company, plant or department, and a column per day of the
+period. A row per employee per day made a whole company over a cycle 103,182
+rows, so the register is what holds any number of people; only the period
+is held to a year. Each day takes the register's letter: M day shift, N
+night shift, A absent, L annual leave, S sick leave, O off duty, P, HD and
+WFH. Frappe HR's statuses and a leave type's name are read too. A day
+already marked, even in draft, shows its letter in grey, a holiday WO, and a
+day before joining, after leaving or after today "-". **Import** checks the
+file's heading while you wait, then reads and marks the days in the
+background as the person importing. It reads the file as it goes, a part at
+a time, so a file of any size is never held whole. Each part is checked
+first: an employee, a date and a letter the site knows, the leave type and
+shift it comes to (M and N are the employee's own Default Shift, else the
+site's only day or night shift), not after today, between joining and
+leaving, not an inactive employee, a day not twice in the file, and not
+marked otherwise already. Then each day is inserted and submitted as a
+Frappe HR Attendance on its own, rolled back alone if Frappe HR refuses it.
+A day left as the register showed it is counted as marked already, never
+marked twice. The counts are saved as it goes. An upload that has not moved
+for half an hour has lost its job, and Import goes on from where it stopped.
+The days not marked come back as a file, a row per day with why, to put
+right and import again as it is: a file with a row per day (Employee,
+Attendance Date, Status) reads as well as the register, a Data Import file
+or a .csv included. Frappe HR's patch deletes the doctype by name, so after
+every migrate `keep_doctype` reloads ours if it was taken, before the
+navigation links to it. The walk `smoke_upload_attendance.py` runs the glue.
 
 `verify_payslip.py` covers the **Pay Slip**, the print a Salary Slip opens
 with, laid out as Luuka's payroll has always printed it: who it is for,

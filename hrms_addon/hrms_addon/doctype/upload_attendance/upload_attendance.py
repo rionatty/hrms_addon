@@ -10,6 +10,9 @@ from hrms_addon.hrms_addon import attendance_upload
 
 
 class UploadAttendance(Document):
+    def onload(self):
+        attendance_upload.upload_onload(self)
+
     def validate(self):
         attendance_upload.upload_validate(self)
 

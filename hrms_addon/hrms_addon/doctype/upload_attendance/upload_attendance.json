@@ -2,7 +2,7 @@
  "actions": [],
  "autoname": "HR-ATU-.YYYY.-.#####",
  "creation": "2026-10-21 09:00:00.000000",
- "description": "A month of attendance from one sheet: download the template, put a Status on each day, attach it and press Import.",
+ "description": "A month of attendance from one sheet, for any number of people: download the register, put the day's letter on each day, attach it and press Import.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -74,7 +74,7 @@
    "label": "Filled Template"
   },
   {
-   "description": "The template, with a Status on each day to mark.",
+   "description": "The register, with the day's letter on each day to mark. A file with a row per day reads too.",
    "fieldname": "attendance_file",
    "fieldtype": "Attach",
    "label": "Attendance File"
@@ -116,7 +116,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Rows with a Status.",
+   "description": "Days with a letter or a status.",
    "fieldname": "days_in_file",
    "fieldtype": "Int",
    "label": "Days in the File",
@@ -151,10 +151,10 @@
    "label": "Not Marked"
   },
   {
-   "description": "Each row not marked, with why. Put them right in this file, attach it and import again.",
+   "description": "Each day not marked, with why. Put them right in this file, attach it and import again.",
    "fieldname": "problems_file",
    "fieldtype": "Attach",
-   "label": "Rows Not Marked",
+   "label": "Days Not Marked",
    "read_only": 1,
    "no_copy": 1
   },
