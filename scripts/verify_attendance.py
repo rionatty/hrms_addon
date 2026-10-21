@@ -464,7 +464,7 @@ for needle, why in (
     ("        leave.cancel()\n", "cancelling the form cancels the leave it raised"),
     ("and found.leave_type == rules.OFF_DUTY_LEAVE_TYPE:", "and takes back only the day it marked off"),
     ("        seed_off_duty_leave_type()\n", "the Off Duty leave type is seeded on migrate"),
-    ("overtime.check_step(doc, errors + closed)",
+    ("overtime.check_step(doc, errors + closed, notes=closed)",
      "the overtime request is approved from the Actions menu, each step checked as it is taken"),
     ("rules.overtime_errors(", "and the overtime request"),
     ("rules.gate_pass_errors(", "and the gate pass"),

@@ -267,9 +267,10 @@ def overtime_validate(doc, method=None):
         "employees": [row.as_dict() for row in doc.get("employees") or []],
         "full_shift": rules.longest_shift(all_shift_hours().values()),
     })
-    # somebody no Overtime Type is open to: said when the request is raised, not when it is costed.
-    # A draft is somewhere to prepare it; the step that raises it is what has to be right (overtime.check_step)
-    overtime.check_step(doc, errors + closed)
+    # somebody no Overtime Type is open to: said as the draft is saved, and refused when the request is
+    # raised, not when it is costed. A draft is somewhere to prepare it; the step that raises it is what
+    # has to be right (overtime.check_step)
+    overtime.check_step(doc, errors + closed, notes=closed)
 
 
 def _employment(employee):

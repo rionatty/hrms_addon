@@ -156,6 +156,39 @@ def _types_for(kind=None, kinds=()):
     return found
 
 
+@frappe.whitelist()
+def employees_of_departments(departments, branch=None, overtime_type=None):
+    """An Overtime Type's Get Employees (Luuka, 21 Oct 2026: "allow some one
+    to get employee from a specific/multple depatrment instead of entering
+    one by one"): the active employees of the departments picked and of the
+    departments under them, at the plant if one is picked, each with the
+    other types that list them already. The form adds them to the type's
+    Employees, those another type lists only when asked: each of Luuka's
+    types is for its own set of employees."""
+    frappe.has_permission(TYPE, "write", throw=True)
+    if isinstance(departments, str):
+        departments = frappe.parse_json(departments)
+    picked = [name for name in departments or [] if name]
+    if not picked:
+        frappe.throw(_("Pick a department."), title=_(TYPE))
+    under = set(picked)
+    for name in picked:
+        under.update(frappe.db.get_descendants("Department", name) or [])
+    filters = {"status": "Active", "department": ["in", sorted(under)]}
+    if branch:
+        filters["branch"] = branch
+    people = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "department"],
+                            order_by="department asc, employee_name asc", limit_page_length=0)
+    elsewhere = {}
+    if people:
+        for row in frappe.get_all("Overtime Type Employee", limit_page_length=0, fields=["parent", "employee"],
+                                  filters={"parenttype": TYPE, "employee": ["in", [person.name for person in people]]}):
+            if row.parent != overtime_type:
+                elsewhere.setdefault(row.employee, set()).add(row.parent)
+    return [{"employee": person.name, "employee_name": person.employee_name, "department": person.department,
+             "elsewhere": sorted(elsewhere.get(person.name, ()))} for person in people]
+
+
 def _departments(employees):
     """{employee: their department}."""
     names = sorted(set(filter(None, employees)))
@@ -199,14 +232,20 @@ def _monthly_bases(employees):
     return out
 
 
-def check_step(doc, raising=()):
+def check_step(doc, raising=(), notes=()):
     """Called from attendance.overtime_validate, with what would stop the
     request being raised: the step the Actions menu has just taken is
-    checked, signed for, and told to whoever holds the request next."""
+    checked, signed for, and told to whoever holds the request next.
+    `notes` are said as a draft is saved, so they are seen as the lines
+    are filled in and not only when the request is raised: who no Overtime
+    Type is open to."""
     before = doc.get_doc_before_save()
     old = before.get(approval.STATE_FIELD) if before else None
     new = doc.get(approval.STATE_FIELD) or approval.DRAFT
     moved = old != new and not (old is None and new == approval.DRAFT)
+    if not moved and notes and new == approval.DRAFT:
+        frappe.msgprint("<br>".join(_(message) for message in notes), title=_("Not Eligible for Overtime"),
+                        indicator="orange")
     if moved:
         errors = approval.step_errors(old, new, {
             field: doc.get(field) for field in ("return_remarks", "authority_remarks", "cost_remarks")})

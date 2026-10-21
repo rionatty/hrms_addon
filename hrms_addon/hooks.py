@@ -216,6 +216,9 @@ doctype_js = {
     # a slip that finds nothing names the overtime requests still on their
     # way to payroll (overtime.waiting)
     "Overtime Slip": "public/js/overtime_slip.js",
+    # Get Employees: a type's Employees filled from whole departments at once
+    # (overtime.employees_of_departments)
+    "Overtime Type": "public/js/overtime_type.js",
     "Salary Structure": "public/js/salary_structure.js",
     # LPL/HR/15 on their Leave Application: the balances headline, the
     # advance the form asks for, and the report back (leave.py)

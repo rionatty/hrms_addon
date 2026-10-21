@@ -1059,7 +1059,15 @@ anybody signs, and after the authorising officer signs it goes to HR for
 the cost check — each person's own hourly pay out of their salary
 structure, times the day's rate. Sending it on
 writes the hours onto the Attendance rows with the right Overtime Type and
-draws the slips for the cycle. The checker asserts the multipliers seeded
+draws the slips for the cycle. Overtime is paid only under a type that
+lists the employee on its Eligibility tab. Luuka's types are each for a set
+of employees: somebody no type lists is given none, and is named when the
+request is saved and refused when it is raised. A type is also not paid on
+a day it is not for: one named for another kind of day, or one whose gross
+line the person is under. **Get Employees** on the Overtime Type adds the
+active employees of one or more departments (and of those under them) at
+once, at a plant if one is picked, leaving out those another type lists
+unless asked. The checker asserts the multipliers seeded
 are the Employment Act's floor (one and a half on a normal day, twice on a
 rest day or public holiday), that the standard day agrees with
 `attendance_rules.STANDARD_HOURS`, and that nothing in the module writes an

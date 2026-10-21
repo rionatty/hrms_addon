@@ -114,6 +114,12 @@ def _listed(row, key):
     return {value for value in ((row or {}).get(key) or []) if value}
 
 
+# why somebody no Overtime Type lists is paid none, and somebody whose types
+# are none of them for the day
+NOT_LISTED = "no Overtime Type lists them. Add them on a type's Eligibility tab."
+NOT_FOR_THE_DAY = "none of the Overtime Types that list them is for this day at their pay."
+
+
 def person_type(kind, gross, types, employee=None, department=None):
     """The Overtime Type a person's overtime falls under on a day, and why
     none where none does: (name, None) or (None, why).
@@ -121,30 +127,48 @@ def person_type(kind, gross, types, employee=None, department=None):
     types: {name: its row, with "employees" (those it lists) and
     "excluded_departments" (those it is not paid to)}.
 
-      - Somebody a type lists is paid under the types that list them, and
-        under no other.
-      - A type that lists people is closed to everybody else.
-      - A type is not paid to the departments it leaves out.
-      - Among the types open to them: on a weekday the one with the highest
-        gross line their gross is above, else the day's own.
+    Overtime is paid only under a type that lists the person. Luuka, 21 Oct
+    2026: each of their types is for a set of employees, and somebody "not
+    assigned on the overtime" is given none (a type that listed nobody used
+    to be open to everybody):
 
-    A day's type the site does not have at all is no matter of eligibility:
-    its name comes back, as type_name_for gives it."""
-    types = types or {}
+      - somebody no type lists is paid under none, and is told so;
+      - a type is not paid to the departments it leaves out, even to
+        somebody it lists;
+      - nor on a day it is not for: a type named for another kind of day
+        (Rest Day Overtime on a weekday), or one with a gross line their
+        gross is not above (the higher earners' type for somebody under it)
+        would pay the day at another day's or another pay's rate;
+      - among the types left: on a weekday the one with the highest gross
+        line their gross is above, else the day's own where it is one of
+        them, else the first. Luuka's own types are each for a set of
+        employees and for every day, at their own weekend and holiday rates.
+
+    With no types given at all (None, not a site with none), nobody's
+    eligibility is being judged: the day's own type, for a price worked out
+    on the Act's floor alone."""
+    if types is None:
+        return type_name_for(kind, gross), None
     listed = sorted(name for name, row in types.items() if employee and employee in _listed(row, "employees"))
-    if listed:
-        theirs = {name: types[name] for name in listed}
-        name = type_name_for(kind, gross, gross_lines(theirs))
-        return (name if name in theirs else listed[0]), None
-    open_to = {name: row for name, row in types.items()
-               if not _listed(row, "employees")
-               and not (department and department in _listed(row, "excluded_departments"))}
-    name = type_name_for(kind, gross, gross_lines(open_to))
-    if name in open_to or name not in types:
-        return name, None
-    if _listed(types[name], "employees"):
-        return None, "%s is only for the employees it lists." % name
-    return None, "%s is not paid to %s." % (name, department)
+    if not listed:
+        return None, NOT_LISTED
+    paid = [name for name in listed if not (department and department in _listed(types[name], "excluded_departments"))]
+    if not paid:
+        return None, "%s is not paid to %s." % (listed[0], department)
+    other_days = set(TYPE_NAMES.values()) - {TYPE_NAMES.get(kind, TYPE_NAMES[WEEKDAY])}
+    fit = [name for name in paid if name not in other_days and not _under_line(types[name], gross)]
+    if not fit:
+        return None, NOT_FOR_THE_DAY
+    theirs = {name: types[name] for name in fit}
+    name = type_name_for(kind, gross, gross_lines(theirs))
+    return (name if name in theirs else fit[0]), None
+
+
+def _under_line(row, gross):
+    """Whether a type has a gross line the person's gross is not above: the
+    line says who the type is for (minutes §4.12, "above UGX 500,000")."""
+    line = float((row or {}).get("custom_gross_above") or 0)
+    return line > 0 and float(gross or 0) <= line
 
 
 def eligibility_errors(rows):
