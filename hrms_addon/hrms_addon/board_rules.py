@@ -23,7 +23,7 @@ WHAT IS DECIDED HERE
 
 Only the reading. Whether a machine has gone quiet, whether somebody is
 still inside, whether their hours have crossed into overtime, how full a
-day was. The queries are in attendance_board.py, and what a day's cell
+day was, and which day a punch belongs to. The queries are in attendance_board.py, and what a day's cell
 says is attendance_rules.register_code — this module does not repeat it.
 """
 
@@ -59,6 +59,9 @@ HEALTH_MEANING = {
 # look at. The counting is in the glue; the meaning is here.
 HIGH, MEDIUM = "high", "medium"
 EXCEPTIONS = (
+    {"kind": "clocked_not_marked", "severity": HIGH,
+     "label": "Clocked in, not marked",
+     "why": "Check auto attendance on their shift."},
     {"kind": "on_leave_but_punched", "severity": HIGH,
      "label": "Clocked in while on approved leave",
      "why": "Check the leave dates or who used the badge."},
@@ -273,6 +276,59 @@ def progress(days, today):
     done = len([day for day in days if _day(day) <= today])
     return {"day": done, "of": len(days),
             "through": round(float(done) / len(days), 4)}
+
+
+# ── The days the clock saw ────────────────────────────────────────────
+# One turn of work: a clock-in and the punches after it. The longest real
+# one is a twelve-hour shift clocked in an hour early and out four hours
+# late (shift_rules.CHECK_OUT_AFTER_MINUTES), seventeen hours; the next
+# turn starts with the same shift a day later. Twenty sits between them.
+TURN_HOURS = 20
+# Frappe HR marks a shift once its last clock-out has passed, and a night
+# shift ends the next morning. A day the clock saw that is still unmarked
+# two days on is not waiting to be marked: it has been missed.
+MARKED_WITHIN_DAYS = 2
+
+
+def clocked_days(punches, turn_hours=TURN_HOURS):
+    """{employee: {date: shift or None}}: the days the machines saw each
+    person, whether or not anybody has marked them yet.
+
+    punches: [{"employee", "time", "shift", "shift_start"}], in any order.
+
+    A punch Frappe HR placed in a shift belongs to the day that shift
+    started, which is the day Frappe HR marks. One it placed in no shift
+    belongs to its turn: a punch opens a turn, every punch in the next
+    `turn_hours` is part of it, and the turn is the day it opened on. So a
+    night shift's clock-out the next morning is the night before, not a
+    day of its own.
+    """
+    seen, turns = {}, {}
+    ordered = sorted((row for row in punches or [] if row.get("employee") and row.get("time")),
+                     key=lambda row: (str(row["employee"]), _moment(row["time"])))
+    for row in ordered:
+        who, moment = row["employee"], _moment(row["time"])
+        turn = turns.get(who)
+        if row.get("shift_start"):
+            opened = _moment(row["shift_start"])
+            turn = turns[who] = (opened, opened.date())
+        elif not turn or (moment - turn[0]).total_seconds() >= float(turn_hours) * 3600:
+            turn = turns[who] = (moment, moment.date())
+        days = seen.setdefault(who, {})
+        if not days.get(turn[1]):
+            days[turn[1]] = row.get("shift") or None
+    return seen
+
+
+def unmarked_days(rows, today, within_days=MARKED_WITHIN_DAYS):
+    """How many days on the register the clock saw and nobody has marked,
+    leaving out the last `within_days`, which Frappe HR may still be
+    marking.
+
+    rows: [{"clock": [dates]}]
+    """
+    last = _day(today) - datetime.timedelta(days=int(within_days))
+    return sum(1 for row in rows or [] for day in row.get("clock") or () if _day(day) <= last)
 
 
 def worked_and_overtime(codes, day_codes=("M", "N"), full_shift=FULL_SHIFT_HOURS,

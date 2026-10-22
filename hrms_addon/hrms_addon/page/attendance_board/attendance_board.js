@@ -211,6 +211,9 @@ const HRA_BOARD_STYLE = `
   background: var(--hra-board-grey-soft); color: var(--hra-ink-muted, #546678); }
 .hra-register tbody tr td.hra-code-O, .hra-legend i.hra-code-O {
   background: var(--hra-board-gold-soft); color: var(--hra-board-gold); }
+/* a day only the clock has seen: its shift's letter, faded, until it is marked */
+.hra-register tbody tr td.hra-clock, .hra-legend i.hra-clock {
+  opacity: .7; font-style: italic; }
 
 /* the plants, side by side */
 .hra-plants tbody tr { cursor: pointer; }
@@ -702,9 +705,12 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 				)}">${day.slice(8)}</th>`;
 			})
 			.join("");
+		const unmarked = frappe.utils.escape_html(__("Clocked in, not marked"));
 		const body = (board.register.rows || [])
-			.map(
-				(row) => `
+			.map((row) => {
+				// the columns only the clock has seen: nobody has marked them yet
+				const clock = new Set(row.clock || []);
+				return `
 				<tr>
 					<th class="hra-who">
 						<a href="/app/employee/${encodeURIComponent(row.employee)}">${frappe.utils.escape_html(
@@ -715,17 +721,20 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 						)}</small>
 					</th>
 					${row.codes
-						.map(
-							(code, index) =>
-								`<td class="hra-cell hra-code-${code || "none"}" data-employee="${
-									row.employee
-								}" data-date="${days[index]}">${code}</td>`
+						.map((code, index) =>
+							clock.has(index)
+								? `<td class="hra-cell hra-code-${code || "none"} hra-clock" data-clock="1" title="${unmarked}" data-employee="${
+										row.employee
+								  }" data-date="${days[index]}">${code}</td>`
+								: `<td class="hra-cell hra-code-${code || "none"}" data-employee="${
+										row.employee
+								  }" data-date="${days[index]}">${code}</td>`
 						)
 						.join("")}
 					<td class="hra-sum">${row.worked}</td>
 					<td class="hra-sum">${row.overtime}</td>
-				</tr>`
-			)
+				</tr>`;
+			})
 			.join("");
 		const feet = (board.register.tallies || [])
 			.map(
@@ -737,14 +746,15 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 				</tr>`
 			)
 			.join("");
-		const legend = (board.codes || [])
-			.map(
-				(one) =>
-					`<span class="hra-legend"><i class="hra-code-${one.code}">${one.code}</i> ${frappe.utils.escape_html(
-						__(one.meaning)
-					)}</span>`
-			)
-			.join("");
+		const legend =
+			(board.codes || [])
+				.map(
+					(one) =>
+						`<span class="hra-legend"><i class="hra-code-${one.code}">${one.code}</i> ${frappe.utils.escape_html(
+							__(one.meaning)
+						)}</span>`
+				)
+				.join("") + `<span class="hra-legend"><i class="hra-code-M hra-clock">M</i> ${unmarked}</span>`;
 		band.find(".hra-band-body").html(`
 			<div class="hra-legends">${legend}</div>
 			<div class="hra-register-scroll">
@@ -762,6 +772,15 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		`);
 		band.find(".hra-cell").on("click", (event) => {
 			const cell = $(event.currentTarget);
+			if (cell.attr("data-clock")) {
+				// nothing is marked to open: the punches, with a night's clock-out the morning after
+				const day = cell.attr("data-date");
+				frappe.set_route("List", "Employee Checkin", {
+					employee: cell.attr("data-employee"),
+					time: ["between", [day, frappe.datetime.add_days(day, 1)]],
+				});
+				return;
+			}
 			frappe.set_route("List", "Attendance", {
 				employee: cell.attr("data-employee"),
 				attendance_date: cell.attr("data-date"),

@@ -11,6 +11,7 @@ of the floor above it and the things that need a person below.
   3  it builds on what is already there rather than deciding again
   4  the page: the route, the roles, and what it calls
   5  the letters keep their colours, and the board has a way in
+  6  a day the clock saw is on the register before anybody marks it
 """
 import importlib.util
 import json
@@ -181,7 +182,7 @@ if "lines[:limit]" not in board:
 for called, why in (
     ("_machines(now, branch)", "one plant's HR Officer cannot act on another plant's "
                                "machine, and a red dot they cannot act on is noise"),
-    ("_exceptions(start, end, marked, machines, branch, list(people))",
+    ("_exceptions(start, end, marked, machines, branch, list(people),",
      "nor fix another plant's failed punches"),
 ):
     if called not in board:
@@ -309,6 +310,96 @@ if '"attendance-board", PAGE' not in nav:
 if nav.count('"attendance-board"') < 2:
     fail.append("and one from the sidebar as well, which is where people look")
 print("the letters keep their colours, and the board has a way in")
+
+# ── 6. A day the clock saw ────────────────────────────────────────────
+# Luuka, 22 Oct 2026: the register was blank for a whole cycle, "present
+# is not marked here", because it showed only what Frappe HR had marked.
+# A present day comes from the punches for those who clock in and from
+# the upload for those who do not, so a day the clock saw is on the
+# register at once, lighter until it is marked.
+S = load("shift_rules")
+
+
+def days_of(punches, who="E1"):
+    return {str(day): shift for day, shift in (B.clocked_days(punches).get(who) or {}).items()}
+
+
+night = [{"employee": "E1", "time": "2026-10-01 19:02:00", "shift": None},
+         {"employee": "E1", "time": "2026-10-02 07:05:00", "shift": None},
+         {"employee": "E1", "time": "2026-10-02 19:01:00", "shift": None},
+         {"employee": "E1", "time": "2026-10-03 06:58:00", "shift": None}]
+if days_of(night) != {"2026-10-01": None, "2026-10-02": None}:
+    fail.append("a night shift's clock-out the next morning is the night before, not a day of its own: %s"
+                % days_of(night))
+if days_of(list(reversed(night))) != days_of(night):
+    fail.append("the punches are read in time order whatever order they come in")
+placed = [{"employee": "E1", "time": "2026-10-02 06:40:00", "shift": "Night Shift",
+           "shift_start": "2026-10-01 19:00:00"}]
+if days_of(placed) != {"2026-10-01": "Night Shift"}:
+    fail.append("a punch Frappe HR placed in a shift belongs to the day that shift started, which is the "
+                "day Frappe HR marks: %s" % days_of(placed))
+late_out = [{"employee": "E1", "time": "2026-10-01 18:55:00", "shift": "Night Shift",
+             "shift_start": "2026-10-01 19:00:00"},
+            {"employee": "E1", "time": "2026-10-02 11:30:00", "shift": None}]
+if days_of(late_out) != {"2026-10-01": "Night Shift"}:
+    fail.append("a clock-out after the shift's own window is still that shift's, not a new day: %s"
+                % days_of(late_out))
+first_unplaced = [{"employee": "E1", "time": "2026-10-05 06:30:00", "shift": None},
+                  {"employee": "E1", "time": "2026-10-05 07:01:00", "shift": "Day Shift",
+                   "shift_start": "2026-10-05 07:00:00"}]
+if days_of(first_unplaced) != {"2026-10-05": "Day Shift"}:
+    fail.append("the day's shift is the one any of its punches was placed in: %s" % days_of(first_unplaced))
+two = [{"employee": "E1", "time": "2026-10-05 07:00:00"}, {"employee": "E2", "time": "2026-10-05 19:00:00"},
+       {"employee": "E2", "time": "2026-10-06 07:00:00"}, {"employee": None, "time": "2026-10-07 07:00:00"},
+       {"employee": "E1", "time": None}]
+if sorted(B.clocked_days(two)) != ["E1", "E2"] or days_of(two, "E2") != {"2026-10-05": None}:
+    fail.append("each person's turns are their own, and a punch with nobody or no time on it is no day")
+if not (A.FULL_SHIFT_HOURS + 1 + max(S.CHECK_OUT_AFTER_MINUTES.values()) / 60.0 < B.TURN_HOURS < 24):
+    fail.append("a turn is longer than the longest shift with its early clock-in and late clock-out, and "
+                "shorter than a day, or the next day's shift would be folded into this one")
+rows6 = [{"clock": ["2026-10-20", "2026-10-21", "2026-10-22"]}, {"clock": ["2026-10-01"]}, {}]
+if B.unmarked_days(rows6, "2026-10-22") != 2:
+    fail.append("a day the clock saw counts as missed once two days have passed, and not before, because "
+                "Frappe HR marks a night shift the next morning: %s" % B.unmarked_days(rows6, "2026-10-22"))
+kinds = {row["kind"]: row for row in B.EXCEPTIONS}
+if kinds.get("clocked_not_marked", {}).get("severity") != B.HIGH:
+    fail.append("days the clock saw that nobody has marked are a payroll problem, listed first among what "
+                "needs a person")
+for needle, why in (
+    ("clocked = _clocked(start, end, list(people))", "the board reads what the machines saw"),
+    ('"time": ["between", [add_days(start, -1), add_days(end, 1)]]},',
+     "a day either side, because a night shift crosses midnight at both ends of the cycle"),
+    ("seen = rules.clocked_days(punches)", "which day a punch belongs to is board_rules' to say"),
+    ("came = not marked_day and day in seen", "a day somebody has marked is what they marked, whatever the clock saw"),
+    ('"status": marked_day.status if marked_day else ("Present" if came else None),',
+     "and an unmarked day the clock saw reads as present, through register_code like any other"),
+    ("shift = (marked_day.shift if marked_day else seen.get(day)) or person.default_shift",
+     "in the shift the punch was placed in, else the person's own"),
+    ("clock=[index for index, day in enumerate(days) if getdate(day) in clock])",
+     "the page is told which columns only the clock has seen"),
+    ("unmarked=rules.unmarked_days(rows, getdate(now))",
+     "and the missed days are counted from the register's own rows, so a plant is counted its own"),
+    ('"clocked_not_marked": unmarked,', "they are on the list of what needs a person"),
+    ('"attendance": ["is", "not set"], "skip_auto_attendance": 0,', "which leads to the punches nothing marked"),
+):
+    if needle not in glue:
+        fail.append("attendance_board.py: %s (%r not found)" % (why, needle))
+for needle, why in (
+    ("td.hra-clock", "a day only the clock has seen is drawn lighter in the grid"),
+    ("i.hra-clock", "and in the key"),
+):
+    if needle not in css:
+        fail.append("attendance_board.js: %s (%r not found)" % (why, needle))
+for needle, why in (
+    ('const clock = new Set(row.clock || []);', "the cells the server says only the clock has seen"),
+    ('hra-clock" data-clock="1" title="${unmarked}"', "are marked so, with a title saying what they are"),
+    ('<i class="hra-code-M hra-clock">M</i> ${unmarked}</span>', "and the key says what the lighter letter means"),
+    ('const unmarked = frappe.utils.escape_html(__("Clocked in, not marked"));', "in plain words"),
+    ('frappe.set_route("List", "Employee Checkin", {', "and clicking one opens the punches, as there is nothing marked"),
+):
+    if needle not in page_js:
+        fail.append("attendance_board.js: %s (%r not found)" % (why, needle))
+print("a day the clock saw is on the register, lighter, until it is marked")
 
 if fail:
     print("\nFAILURES:")

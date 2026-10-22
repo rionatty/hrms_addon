@@ -16,6 +16,17 @@ pushes a punch and never closes a cycle — those belong to Frappe HR's
 own auto-attendance and to devices.py. A board that quietly wrote things
 while somebody looked at it would be a bad board.
 
+A DAY THE CLOCK SAW
+
+Luuka mark a day two ways: from the punches for those who clock in, and
+by Upload Attendance for those who do not. An upload is on the register
+as soon as it is in. A punch is marked only when Frappe HR's auto
+attendance gets to it, and not at all for a shift without auto attendance
+or a person on no shift. So a day nobody has marked yet that a machine
+saw somebody on is shown as the shift they came in for, drawn lighter
+(board_rules.clocked_days), and one still unmarked two days on is listed
+under what needs a person.
+
 THE CYCLE
 
 The 26th of one month to the 25th of the next, which is Luuka's
@@ -61,6 +72,7 @@ def board(cycle=None, branch=None, department=None, limit=None):
     limit = cint(limit) or REGISTER_LIMIT
 
     marked = _attendance(start, end, list(people))
+    clocked = _clocked(start, end, list(people))
     # LPL/HR/25 has one day per form and its own letter on the register;
     # attendance.py already reads them, so this does not read them twice
     off_duty = (attendance._off_duty_between(list(people), start, end)
@@ -71,7 +83,7 @@ def board(cycle=None, branch=None, department=None, limit=None):
     # every row is worked out, and only the SHOWING of them is capped:
     # a footer that tallied the first three hundred people would be a
     # footer that quietly disagreed with the register it sits under
-    rows = _register_rows(people, marked, off_duty, holidays, days, shift_hours)
+    rows = _register_rows(people, marked, off_duty, holidays, days, shift_hours, clocked)
     tallies = register.tallies(rows, days)
     lines = [_line(row, days) for row in rows]
 
@@ -97,7 +109,8 @@ def board(cycle=None, branch=None, department=None, limit=None):
             "shown": min(len(lines), limit), "of": len(lines),
             "nights_short": [str(day) for day in rules.nights_covered(tallies, days)],
         },
-        "exceptions": _exceptions(start, end, marked, machines, branch, list(people)),
+        "exceptions": _exceptions(start, end, marked, machines, branch, list(people),
+                                  unmarked=rules.unmarked_days(rows, getdate(now))),
         "machines": machines,
         "codes": [{"code": code, "meaning": meaning}
                   for code, meaning in register.CODE_MEANING.items()],
@@ -158,6 +171,22 @@ def _attendance(start, end, employees):
     return marked
 
 
+def _clocked(start, end, employees):
+    """Every day in the cycle a machine saw somebody on, as {employee:
+    {date: shift}} (board_rules.clocked_days). Read from the day before to
+    the day after, because a night shift crosses midnight at both ends."""
+    if not employees:
+        return {}
+    punches = frappe.get_all(
+        CHECKIN, limit_page_length=0,
+        filters={"employee": ["in", employees],
+                 "time": ["between", [add_days(start, -1), add_days(end, 1)]]},
+        fields=["employee", "time", "shift", "shift_start"], order_by="time asc")
+    seen = rules.clocked_days(punches)
+    return {who: {day: shift for day, shift in days.items() if start <= day <= end}
+            for who, days in seen.items()}
+
+
 def _holidays(people, start, end):
     """The holiday each person's list keeps, read once per list rather
     than once per person."""
@@ -176,21 +205,26 @@ def _holidays(people, start, end):
 
 
 # ── The register ──────────────────────────────────────────────────────
-def _register_rows(people, marked, off_duty, holidays, days, shift_hours=None):
+def _register_rows(people, marked, off_duty, holidays, days, shift_hours=None, clocked=None):
     """One line per person, each day a letter of LPL/HR/07, and the
-    overtime the day's own shift carries."""
+    overtime the day's own shift carries. A day nobody has marked that a
+    machine saw them on reads as present, and is listed in "clock"."""
     rows = []
     for name, person in people.items():
         theirs = marked.get(name) or {}
+        seen = (clocked or {}).get(name) or {}
         kept = (holidays["lists"].get(person.holiday_list or holidays["default"])
                 or set())
-        cells, overtime = {}, {}
+        cells, overtime, clock = {}, {}, set()
         for day in days:
             day = getdate(day)
             marked_day = theirs.get(day)
-            shift = (marked_day.shift if marked_day else None) or person.default_shift
+            came = not marked_day and day in seen
+            if came:
+                clock.add(day)
+            shift = (marked_day.shift if marked_day else seen.get(day)) or person.default_shift
             cells[day] = register.register_code({
-                "status": marked_day.status if marked_day else None,
+                "status": marked_day.status if marked_day else ("Present" if came else None),
                 "shift": shift,
                 "leave_type": marked_day.leave_type if marked_day else None,
                 "off_duty": (name, day) in off_duty,
@@ -202,20 +236,23 @@ def _register_rows(people, marked, off_duty, holidays, days, shift_hours=None):
             "branch": person.branch, "department": person.department,
             "designation": person.designation,
             "employment": person.employment_type, "days": cells, "overtime": overtime,
+            "clock": clock,
         })
     return rows
 
 
 def _line(row, days):
     """A register row as the page draws it: the letters in column order,
-    and what they add up to."""
+    what they add up to, and which columns only the clock has seen."""
     codes = [row["days"].get(getdate(day)) or "" for day in days]
     carried = row.get("overtime")
+    clock = row.get("clock") or ()
     return dict(rules.worked_and_overtime(
                     codes, overtime_by_day=[carried.get(getdate(day)) for day in days] if carried else None),
                 employee=row["employee"], employee_name=row["employee_name"],
                 branch=row["branch"], department=row["department"],
-                employment=row["employment"], codes=codes)
+                employment=row["employment"], codes=codes,
+                clock=[index for index, day in enumerate(days) if getdate(day) in clock])
 
 
 def _tally_lines(tallies, days):
@@ -298,13 +335,14 @@ def _floor(people, now, shift_hours=None):
 
 
 # ── What needs a person ───────────────────────────────────────────────
-def _exceptions(start, end, marked, machines, branch=None, everybody=None):
+def _exceptions(start, end, marked, machines, branch=None, everybody=None, unmarked=0):
     """Each thing somebody has to act on, counted, with where to go.
 
     Every count is scoped to the plant being looked at. Luuka's plants
     have their own HR Officers, and a list that showed one plant's
     register beside another plant's dead machines would be telling
-    somebody to go and fix something that is not theirs.
+    somebody to go and fix something that is not theirs. `unmarked` is
+    already theirs: it is counted from the register's own rows.
     """
     punched = _days_with_a_punch(start, end, list(marked))
     on_leave, absent = 0, 0
@@ -323,6 +361,7 @@ def _exceptions(start, end, marked, machines, branch=None, everybody=None):
     on_theirs = {"device": ["in", theirs]} if branch else {}
     unplaced = [row for row in _devices() if not row.branch or not row.direction]
     counted = {
+        "clocked_not_marked": unmarked,
         "on_leave_but_punched": on_leave,
         "absent_with_punch": absent,
         "in_without_out": _open_days(now_datetime(), list(marked) if branch else None),
@@ -335,6 +374,10 @@ def _exceptions(start, end, marked, machines, branch=None, everybody=None):
     }
     at_plant = {"branch": branch} if branch else {}
     routes = {
+        # the cycle's punches nothing has marked a day from
+        "clocked_not_marked": {"doctype": CHECKIN, "filters": {
+            "attendance": ["is", "not set"], "skip_auto_attendance": 0,
+            "time": ["between", [str(start), str(add_days(end, 1))]]}},
         "unknown_badge": {"doctype": LOG, "filters": dict(on_theirs,
                                                           status="Unknown Employee")},
         "failed_push": {"doctype": LOG, "filters": dict(on_theirs, status="Failed")},
