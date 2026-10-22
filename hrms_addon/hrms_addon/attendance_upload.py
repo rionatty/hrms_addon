@@ -9,9 +9,8 @@ scripts/verify_upload_attendance.py); this is the part that asks the site
 and marks the days.
 
   this_cycle         the cycle today is in, the period a new upload starts with
-  download_template  the register (LPL/HR/07) of a company, plant or
-                     department for the period: a row per employee, a
-                     column per day, the days marked already in it
+  download_template  the template of a company, plant or department for
+                     the period: a row per employee per day still to mark
   start_import       Import: the file's heading checked while the person
                      waits; the days read, checked and marked in the
                      background
@@ -107,10 +106,10 @@ def this_cycle():
 # ── The template ──────────────────────────────────────────────────────
 @frappe.whitelist()
 def download_template(company, from_date, to_date, branch=None, department=None):
-    """The register of a company, plant or department for the period: a row
-    per employee, a column per day. Returned as {"filename", "content"}
-    (base64), so a problem comes back as a message, not as a page of error
-    in a new tab."""
+    """The template of a company, plant or department for the period: a row
+    per employee per day still to be marked. Returned as {"filename",
+    "content" (base64), "rows"}, so a problem comes back as a message, not
+    as a page of error in a new tab."""
     attendance.only_hr()
     frappe.has_permission(DOCTYPE, "create", throw=True)
     if not (company and from_date and to_date):
@@ -118,9 +117,9 @@ def download_template(company, from_date, to_date, branch=None, department=None)
     start, end = getdate(from_date), getdate(to_date)
     if end < start:
         frappe.throw(_("The To Date is before the From Date."), title=_(DOCTYPE))
-    days = rules.period_days(start, end)
-    if len(days) > rules.MAX_DAYS:
-        frappe.throw(_("That is {0} days. Pick a period of a year at most.").format(len(days)), title=_(DOCTYPE))
+    if (end - start).days + 1 > rules.MAX_DAYS:
+        frappe.throw(_("That is {0} days. Pick a period of a year at most.").format((end - start).days + 1),
+                     title=_(DOCTYPE))
     people = _people(company, start, end, branch, department)
     where = ", ".join(part for part in (department, branch, company) if part)
     if not people:
@@ -128,15 +127,22 @@ def download_template(company, from_date, to_date, branch=None, department=None)
                      title=_(DOCTYPE))
     default_list = frappe.db.get_value("Company", company, "default_holiday_list")
     lists = {row.holiday_list or default_list for row in people} - {None, ""}
-    marked = {key: code for key, (_status, _name, code) in _marked([row.name for row in people], start, end).items()}
-    rows = rules.register_rows(
-        [{"employee": row.name, "employee_name": row.employee_name, "department": row.department,
-          "date_of_joining": row.date_of_joining, "relieving_date": row.relieving_date,
-          "holiday_list": row.holiday_list or default_list} for row in people],
-        days, getdate(today()), marked, _holidays(lists, start, end))
-    content = rules.build_template(rows, days, _names("Leave Type"))
+    marked = _marked([row.name for row in people], start, end)
+    staff = [{"employee": row.name, "employee_name": row.employee_name, "department": row.department,
+              "date_of_joining": row.date_of_joining, "relieving_date": row.relieving_date,
+              "holiday_list": row.holiday_list or default_list} for row in people]
+    on = getdate(today())
+    total = rules.count_rows(staff, start, end, on, marked)
+    if total > rules.MAX_ROWS:
+        frappe.throw(_("That is {0} rows, more than one Excel sheet holds. Pick a plant or a department, or fewer "
+                       "days.").format(frappe.format(total, {"fieldtype": "Int"})), title=_(DOCTYPE))
+    if not total:
+        frappe.throw(_("No day is left to mark at {0} from {1} to {2}: each is marked already, or after today.")
+                     .format(where, _day(start), _day(end)), title=_(DOCTYPE))
+    content = rules.build_template(rules.template_rows(staff, start, end, on, marked, _holidays(lists, start, end)),
+                                   total, _names("Leave Type"), _names("Shift Type"))
     name = "Attendance %s to %s %s.xlsx" % (start, end, branch or department or company)
-    return {"filename": name.replace("/", "-"), "content": base64.b64encode(content).decode(), "people": len(rows)}
+    return {"filename": name.replace("/", "-"), "content": base64.b64encode(content).decode(), "rows": total}
 
 
 def _people(company, start, end, branch=None, department=None):
@@ -155,19 +161,16 @@ def _people(company, start, end, branch=None, department=None):
 
 
 def _marked(employees, start, end):
-    """{(employee, date): (status, the Attendance, its letter on the register)}
-    for every day marked in the period, in draft or submitted: Frappe HR
-    refuses a second one."""
+    """{(employee, date): (status, the Attendance)} for every day marked in
+    the period, in draft or submitted: Frappe HR refuses a second one."""
     if not employees:
         return {}
-    return {(row.employee, getdate(row.attendance_date)):
-            (row.status, row.name, register.register_code({"status": row.status, "shift": row.shift,
-                                                           "leave_type": row.leave_type}))
+    return {(row.employee, getdate(row.attendance_date)): (row.status, row.name)
             for row in frappe.get_all(
                 ATTENDANCE, limit_page_length=0,
                 filters={"employee": ["in", employees], "docstatus": ["<", 2],
                          "attendance_date": ["between", [start, end]]},
-                fields=["name", "employee", "attendance_date", "status", "shift", "leave_type"])}
+                fields=["name", "employee", "attendance_date", "status"])}
 
 
 def _holidays(lists, start, end):
@@ -198,7 +201,7 @@ def start_import(doc):
     if not doc.attendance_file:
         frappe.throw(_("Attach the filled template first."), title=_(DOCTYPE))
     try:
-        rules.layout_of(_file_bytes(doc.attendance_file), doc.attendance_file)
+        rules.header_of(_file_bytes(doc.attendance_file), doc.attendance_file)
     except ValueError as error:
         frappe.throw(_(str(error)), title=_(DOCTYPE))
     doc.db_set(dict({field: 0 for field in COUNTS}, status=QUEUED, imported_by=frappe.session.user,
@@ -270,7 +273,8 @@ def _mark_file(doc):
                                     description=_("{0} of {1} days").format(min(done, total), total))
     doc.db_set(dict(counts, status=DONE_WITH_PROBLEMS if problems else DONE,
                     problems=rules.listed(problems, LISTED) if problems else None,
-                    problems_file=_problems_file(doc, problems) if problems else None),
+                    problems_file=_problems_file(doc, rules.header_of(content, doc.attendance_file), problems)
+                    if problems else None),
                commit=True, notify=True)
 
 
@@ -287,12 +291,8 @@ def _parts(records, size):
 
 
 def _site_names():
-    """What the days' letters and names are checked against: the site's
-    leave types and shifts, its annual leave and the off-duty leave."""
-    from hrms_addon.hrms_addon import leave
-
-    return {"leave_types": _names("Leave Type"), "shifts": _names("Shift Type"), "annual": leave.annual_type(),
-            "off_duty": register.OFF_DUTY_LEAVE_TYPE}
+    """What a row's Leave Type and Shift are checked against: the site's own."""
+    return {"leave_types": _names("Leave Type"), "shifts": _names("Shift Type")}
 
 
 def _learn(people, index, part):
@@ -306,8 +306,7 @@ def _learn(people, index, part):
     for name in wanted:
         index[name.lower()] = None
     for row in frappe.get_all("Employee", filters={"name": ["in", wanted]}, limit_page_length=0,
-                              fields=["name", "company", "date_of_joining", "relieving_date", "status",
-                                      "default_shift"]):
+                              fields=["name", "company", "date_of_joining", "relieving_date", "status"]):
         people[row.name] = row
         index[row.name.lower()] = row.name
 
@@ -338,12 +337,12 @@ def _reason(error):
     return strip_html_tags(str(error)).strip() or type(error).__name__
 
 
-def _problems_file(doc, problems):
-    """The days not marked, with why, attached to the upload."""
+def _problems_file(doc, header, problems):
+    """The rows not marked, each as it was with why, attached to the upload."""
     saved = frappe.get_doc({
         "doctype": "File", "file_name": "%s days not marked.xlsx" % doc.name,
         "attached_to_doctype": DOCTYPE, "attached_to_name": doc.name, "attached_to_field": "problems_file",
-        "is_private": 1, "content": rules.problems_file(problems),
+        "is_private": 1, "content": rules.problems_file(header, problems),
     })
     saved.insert(ignore_permissions=True)
     return saved.file_url

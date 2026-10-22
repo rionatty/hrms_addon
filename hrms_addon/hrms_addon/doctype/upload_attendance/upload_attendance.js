@@ -1,10 +1,10 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 
-// Upload Attendance: the register out, the filled file back in. Import
-// checks the file's heading at once and marks the days in the background,
-// however many there are; the page updates when it is done
-// (attendance_upload.py).
+// Upload Attendance: the template out, a row per employee per day, the
+// filled file back in. Import checks the file's heading at once and marks
+// the days in the background, however many there are; the page updates when
+// it is done (attendance_upload.py).
 const HA_UPLOAD_ATTENDANCE = "hrms_addon.hrms_addon.attendance_upload.";
 const HA_UPLOAD_RUNNING = ["Queued", "Importing"];
 
@@ -44,10 +44,7 @@ function ha_upload_attendance_buttons(frm) {
 			"orange"
 		);
 	} else if (!frm.doc.attendance_file) {
-		ha_upload_attendance_hint(
-			frm,
-			__("Download the template, put the day's letter on each day to mark, then attach it here.")
-		);
+		ha_upload_attendance_hint(frm, __("Download the template, put a Status on each day to mark, then attach it here."));
 	} else {
 		ha_upload_attendance_hint(frm, "");
 	}
@@ -80,7 +77,7 @@ function ha_attendance_template(frm) {
 		)
 		.then((file) => {
 			ha_save_download(file.filename, file.content);
-			frappe.show_alert({ message: __("{0} people on the register.", [file.people]), indicator: "green" });
+			frappe.show_alert({ message: __("{0} row(s) to fill.", [file.rows]), indicator: "green" });
 		});
 }
 
