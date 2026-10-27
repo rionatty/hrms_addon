@@ -9,7 +9,9 @@ the boot (theme.boot_session), and the cards under it are Frappe's own. The
 rules are in module_pages_rules.py (scripts/verify_module_pages.py).
 
   summary   what waits for the logged-in user among the documents the
-            module's page and menu open, and the doctypes of what waits
+            module's page and menu open, the doctypes of what waits, and
+            the desk home's tab of dashboards for the module, where the
+            user has it (dashboards.py)
 
 WHOSE ALERTS
 
@@ -35,7 +37,9 @@ def summary(workspace: str):
     mine = rules.mine_in(_or([], _alerts, names) if names else [], names)
     # the doctypes of what waits, which the user's own lists are kept to when they open them from here
     return {"workspace": workspace, "waiting": home_rules.waiting(mine, rules.SHOWN),
-            "doctypes": rules.doctypes(alert.get("doctype") for alert in mine)}
+            "doctypes": rules.doctypes(alert.get("doctype") for alert in mine),
+            # the desk home's tab of dashboards for this module, where the user has it
+            "dashboard": _or(None, _dashboard, workspace)}
 
 
 def _or(fallback, read, *args):
@@ -46,6 +50,14 @@ def _or(fallback, read, *args):
     except Exception:
         frappe.log_error(title="Module page: %s" % getattr(read, "__name__", "read"), defer_insert=True)
         return fallback
+
+
+def _dashboard(workspace):
+    """The desk home's tab for the module, where the user has it; asked here, under the guard, so the header comes
+    whatever happens to the dashboards."""
+    from hrms_addon.hrms_addon import dashboards
+
+    return dashboards.tab_of_workspace(workspace)
 
 
 def _doctypes(workspace):

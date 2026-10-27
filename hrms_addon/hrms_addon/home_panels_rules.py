@@ -25,14 +25,13 @@ reads the site and public/js/hrms_addon_home.js draws the panels.
   data_health  Data Health: employee records missing what payroll and the
                clock need
 
-WHO SEES WHICH
+WHO SEES WHICH, AND WHERE
 
-Each panel shows to the roles it is for (PANELS), and only where Theme
-Settings have not switched it off. Payroll is the HR Manager's and the
-Payroll Officer's; the plants and the movement are HR's and management's;
-the output is management's and payroll's; the deadlines, recruitment and
-data health are HR's. Money is shown only to MONEY_ROLES, and only as a
-company's or a plant's total: no panel shows anybody's own pay.
+Since the tabs of dashboards (27 Oct 2026) each panel stands on its module's
+tab, for the roles dashboards_rules.PANELS gives it, and the payroll's, the
+plants', the deadlines' and what needs attention on the overview too
+(dashboards_rules.OVERVIEW_PANELS). Money is shown only to MONEY_ROLES, and
+only as a company's or a plant's total: no panel shows anybody's own pay.
 """
 
 import datetime
@@ -46,57 +45,6 @@ EXECUTIVE_ROLES = ("Executive Director", "General Manager", "Management Viewer")
 PAYROLL_ROLES = ("HR Manager", "Payroll Officer", "System Manager")
 # money as a plant's or the company's total, never a person's
 MONEY_ROLES = ("HR Manager", "Payroll Officer", "System Manager", "Executive Director", "General Manager")
-
-# (key, title, the Theme Settings switch, the roles it shows to), in the order the desk draws them
-PANELS = (
-    (PAYROLL, "Payroll Readiness", "home_payroll", PAYROLL_ROLES),
-    (PLANTS, "Plants at a Glance", "home_plants", HR_ROLES + EXECUTIVE_ROLES),
-    (OUTPUT, "Output and Labour Cost", "home_output", PAYROLL_ROLES + EXECUTIVE_ROLES),
-    (MOVEMENT, "Workforce Movement", "home_movement", HR_ROLES + EXECUTIVE_ROLES),
-    (DEADLINES, "Deadlines", "home_deadlines", HR_ROLES),
-    (RECRUITMENT, "Recruitment Pipeline", "home_recruitment", HR_ROLES),
-    (DATA_HEALTH, "Data Health", "home_data_health", HR_ROLES),
-)
-SWITCHES = tuple(switch for _key, _title, switch, _roles in PANELS)
-TITLES = {key: title for key, title, _switch, _roles in PANELS}
-
-# Payroll Readiness sits on top, beside what waits for the user, from the 18th to the 25th: the week before
-# the period closes, when its steps are due
-TOP_FROM, TOP_TO = 18, 25
-
-# how long a user's panels are kept before they are read again
-CACHE_SECONDS = 300
-
-
-def switched_on(stored):
-    """The switches Theme Settings hold, as on or off. stored: {fieldname:
-    value} as the Single stores it; a switch never saved is on, as its
-    field's default says."""
-    stored = stored or {}
-    out = {}
-    for switch in SWITCHES:
-        value = stored.get(switch)
-        out[switch] = True if value is None or value == "" else bool(int(value))
-    return out
-
-
-def panels_for(roles, switches=None):
-    """The panels a user's desk has, in the desk's order: those their roles
-    are for that Theme Settings have not switched off. switches as
-    switched_on gives them; none given are all on."""
-    roles = set(roles or ())
-    switches = switches if switches is not None else switched_on({})
-    return [key for key, _title, switch, allowed in PANELS if roles & set(allowed) and switches.get(switch, True)]
-
-
-def money_for(roles):
-    """Whether money is shown to the user at all."""
-    return bool(set(roles or ()) & set(MONEY_ROLES))
-
-
-def payroll_on_top(today):
-    """Payroll Readiness sits on top from the 18th to the 25th."""
-    return TOP_FROM <= today.day <= TOP_TO
 
 
 # ── Payroll Readiness ─────────────────────────────────────────────────
@@ -714,27 +662,6 @@ def data_health(people, assigned, today, bank_known=True):
         rows.append({"key": key, "label": label, "note": note, "value": len(names), "band": band,
                      "route": ["List", "Employee"], "filters": dict({"status": "Active"}, **opened)})
     return rows
-
-
-# ── Where each panel goes ─────────────────────────────────────────────
-# HR's desk (home_rules.HR): Plants at a Glance takes the place of Today there
-HR_VIEW = "hr"
-TOP, SECTIONS, ROW = "top", "sections", "row"
-
-
-def places(keys, view, today):
-    """Each panel of a desk with where it goes: Payroll Readiness on top in its week, Plants at a Glance in
-    Today's place on HR's desk, and the rest in the rows under what waits: [{"key", "title", "place"}]."""
-    out = []
-    for key in keys or []:
-        if key == PAYROLL and payroll_on_top(today):
-            place = TOP
-        elif key == PLANTS and view == HR_VIEW:
-            place = SECTIONS
-        else:
-            place = ROW
-        out.append({"key": key, "title": TITLES[key], "place": place})
-    return out
 
 
 def change(now, before):

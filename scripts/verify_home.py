@@ -593,13 +593,16 @@ print("fixes: the home back on a desk drawn afresh, the desk out to the window's
 
 # ── 5. each user's own desk, drawn ──
 drawn_more = script.split("function sections(")[1].split("\n\t}\n")[0]
-check("home.innerHTML = hero(data) + cards(data) + more_top(data) + panels(data) + sections(data) + more_rows(data);"
-      in script
+drawn_home = script.split("function draw(")[1].split("\n\t}\n")[0]
+check("return cards(data) + more_top(data) + panels(data) + sections(data) + more_rows(data);"
+      in script.split("function overview(")[1].split("\n\t}\n")[0]
+      and "const body = open ? tab_panel(data, open) : overview(data);" in drawn_home and "hero(data) +" in drawn_home
       and all(needle in drawn_more for needle in ("parts.today && parts.today.rows", "parts.departments && parts.departments.length",
                                                   "if (parts.coming)", "if (parts.team)", "if (parts.requests)", "if (parts.holidays)"))
       and 'if (!blocks.length) return "";' in drawn_more,
-      "under what waits, each desk draws only the parts the server sent it")
-clicked = script.split("function draw(")[1].split("\n\t}\n")[0]
+      "under what waits, each desk draws only the parts the server sent it, the overview of the tabs being the home "
+      "as it was")
+clicked = script.split("function act(")[1].split("\n\t}\n")[0]
 check('const row = ((data.sections || {})[element.getAttribute("data-section")] || [])[index];' in clicked
       and 'if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);'
       in clicked.split('what === "item"')[1]
@@ -610,8 +613,8 @@ check('class="ha-home-panel ha-home-waiting"' in script and '<span class="ha-hom
       and "<b>${count(row.value)}</b>" in script,
       "the bars write their names as text and their figures as numbers")
 check(".ha-home-panels.ha-home-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }" in css
-      and ".ha-home-panels, .ha-home-panels.ha-home-two, .ha-home-panels.ha-home-three { grid-template-columns: minmax(0, 1fr); }"
-      in css.split("@media (max-width: 1100px) {")[1],
+      and ".ha-home-panels, .ha-home-panels.ha-home-two, .ha-home-panels.ha-home-three, .ha-home-grid "
+          "{ grid-template-columns: minmax(0, 1fr); }" in css.split("@media (max-width: 1100px) {")[1],
       "the parts sit side by side on a wide screen and one under another on a narrow one")
 print("desks drawn: HR's company, a manager's team, an employee's own")
 

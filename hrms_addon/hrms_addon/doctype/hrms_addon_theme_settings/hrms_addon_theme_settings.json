@@ -10,15 +10,19 @@
   "module_pages",
   "column_break_layout",
   "density_help",
-  "section_home_panels",
-  "home_payroll",
-  "home_plants",
-  "home_output",
-  "home_movement",
-  "column_break_home_panels",
-  "home_deadlines",
-  "home_recruitment",
-  "home_data_health",
+  "section_dashboard_tabs",
+  "dash_people",
+  "dash_recruitment",
+  "dash_attendance",
+  "dash_leave",
+  "dash_payroll",
+  "dash_loans",
+  "column_break_dashboard_tabs",
+  "dash_expenses",
+  "dash_performance",
+  "dash_training",
+  "dash_relations",
+  "dash_tenure",
   "section_colours",
   "enabled",
   "intro_html",
@@ -87,63 +91,91 @@
    "options": "<p class=\"text-muted small\"><b>Comfortable</b> — upstream Frappe spacing.<br><b>Compact</b> — tighter form sections and rows, and the app launcher fills the width instead of sitting in a narrow column. <i>Shipped default.</i><br><b>Dense</b> — as tight as stays readable; best on large screens.</p><p class=\"text-muted small\">Changes apply live. Save to make them permanent for everyone.</p>"
   },
   {
-   "description": "Turn a panel off here to take it off every desk home. Each shows only to the roles it is for.",
-   "fieldname": "section_home_panels",
+   "description": "Turn a tab off here to take it off every desk home. Each shows only to the roles it is for, and only where they may read its documents.",
+   "fieldname": "section_dashboard_tabs",
    "fieldtype": "Section Break",
-   "label": "Desk Home Panels"
+   "label": "Dashboard Tabs"
   },
   {
    "default": "1",
-   "description": "The pay period's steps, for HR Managers and Payroll Officers. On top from the 18th to the 25th.",
-   "fieldname": "home_payroll",
+   "description": "Headcount, joiners and leavers, departments and plants, and data health.",
+   "fieldname": "dash_people",
    "fieldtype": "Check",
-   "label": "Payroll Readiness"
+   "label": "People"
   },
   {
    "default": "1",
-   "description": "Each plant's people today and its overtime this period, for HR and management.",
-   "fieldname": "home_plants",
+   "description": "Vacancies, requisitions, applicants, offers and the pipeline.",
+   "fieldname": "dash_recruitment",
    "fieldtype": "Check",
-   "label": "Plants at a Glance"
+   "label": "Recruitment"
   },
   {
    "default": "1",
-   "description": "Metres, per meter pay and overtime by plant against the last period.",
-   "fieldname": "home_output",
+   "description": "Who is in, absent or late, overtime, and each plant's day.",
+   "fieldname": "dash_attendance",
    "fieldtype": "Check",
-   "label": "Output and Labour Cost"
+   "label": "Attendance"
   },
   {
    "default": "1",
-   "description": "Joiners and leavers by month, turnover and headcount by status.",
-   "fieldname": "home_movement",
+   "description": "Who is away, leave waiting for approval and leave coming up.",
+   "fieldname": "dash_leave",
    "fieldtype": "Check",
-   "label": "Workforce Movement"
+   "label": "Leave"
   },
   {
-   "fieldname": "column_break_home_panels",
+   "default": "1",
+   "description": "The pay period's steps and its pay. For HR Managers, Payroll and management.",
+   "fieldname": "dash_payroll",
+   "fieldtype": "Check",
+   "label": "Payroll"
+  },
+  {
+   "default": "1",
+   "description": "Loans, salary advances and what is owed.",
+   "fieldname": "dash_loans",
+   "fieldtype": "Check",
+   "label": "Loans"
+  },
+  {
+   "fieldname": "column_break_dashboard_tabs",
    "fieldtype": "Column Break"
   },
   {
    "default": "1",
-   "description": "Probations, contracts, clearances, settlements, suspensions and documents coming due.",
-   "fieldname": "home_deadlines",
+   "description": "Claims and allowances, waiting and paid.",
+   "fieldname": "dash_expenses",
    "fieldtype": "Check",
-   "label": "Deadlines"
+   "label": "Expenses"
   },
   {
    "default": "1",
-   "description": "Requisitions through to offers, and this week's interviews.",
-   "fieldname": "home_recruitment",
+   "description": "Appraisals, ratings, improvement plans and the nine box.",
+   "fieldname": "dash_performance",
    "fieldtype": "Check",
-   "label": "Recruitment Pipeline"
+   "label": "Performance"
   },
   {
    "default": "1",
-   "description": "Employee records missing what payroll and the clock need. HR only.",
-   "fieldname": "home_data_health",
+   "description": "Trainings held and booked, requisitions and evaluations.",
+   "fieldname": "dash_training",
    "fieldtype": "Check",
-   "label": "Data Health"
+   "label": "Training"
+  },
+  {
+   "default": "1",
+   "description": "Grievances, disciplinary cases, suspensions and safety.",
+   "fieldname": "dash_relations",
+   "fieldtype": "Check",
+   "label": "Relations"
+  },
+  {
+   "default": "1",
+   "description": "Onboarding, probations, exits, clearances and settlements.",
+   "fieldname": "dash_tenure",
+   "fieldtype": "Check",
+   "label": "Tenure"
   },
   {
    "fieldname": "section_colours",
@@ -321,7 +353,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-21 18:00:00.000000",
+ "modified": "2026-10-28 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HRMS Addon Theme Settings",

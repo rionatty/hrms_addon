@@ -8,7 +8,9 @@ The rules are in home_rules.py, without a Frappe import
 (scripts/verify_home.py). This reads the site, in one call, and
 public/js/hrms_addon_home.js draws it on Frappe's own desk page.
 
-  summary   everything the home shows, for the logged-in user
+  summary   everything the home shows, for the logged-in user, with the
+            tabs of dashboards and the overview's panels it has; their
+            figures come in calls of their own (dashboards.py)
 
 WHOSE FIGURES
 
@@ -58,11 +60,12 @@ def summary():
             sections["requests"] = mine.pop("requests")
             sections["holidays"] = _or([], _holidays, me, today)
     links = rules.shortcuts([page for page, _label in rules.SHORTCUTS if _may_open(page)])
-    # the panels under what waits come in a call of their own (home_panels.py): here only which, and where
-    from hrms_addon.hrms_addon import home_panels, home_panels_rules
+    # the tabs of dashboards and the overview's panels come with their figures in calls of their own
+    # (dashboards.py): here only which, and where
+    from hrms_addon.hrms_addon import dashboards, dashboards_rules
 
-    places = _or([], home_panels.places, frappe.get_roles(user), view, today)
-    if any(item["place"] == home_panels_rules.SECTIONS for item in places):
+    desk = _or({"tabs": [], "panels": []}, dashboards.desk_of, user, view, today)
+    if any(item["place"] == dashboards_rules.SECTIONS for item in desk["panels"]):
         # Plants at a Glance stands where Today stood, and tells the same day plant by plant
         sections.pop("today", None)
     return {
@@ -76,7 +79,8 @@ def summary():
         "sections": sections,
         "shortcuts": links,
         "action": rules.call_to_action(links),
-        "panels": places,
+        "panels": desk["panels"],
+        "tabs": desk["tabs"],
     }
 
 

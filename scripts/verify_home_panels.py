@@ -3,19 +3,22 @@
 
     python scripts/verify_home_panels.py
 
-  1  the rules: who sees which panel, where each goes, money only to whom
-     it is for, every switch on until Theme Settings say otherwise
+  1  who sees which panel: since the tabs of dashboards (27 Oct 2026) the
+     panels stand on their modules' tabs, for the roles dashboards_rules
+     gives them, and the two rules modules name the same roles
+     (verify_home_dashboards.py checks the tabs, the overview and the
+     switches)
   2  each panel's figures: Payroll Readiness's steps by their days, the
      plants, the output against the same days before, the movement without
      the import's stand-in leaving dates, the deadlines, the pipeline and the
      records' health
   3  the rules agree with what they name: the roles, the statuses and the
-     options of the doctypes they read, the switches on Theme Settings
-  4  the glue: one call, the user's own permissions, a part that cannot be
-     read left out, the answer kept five minutes, the switches written on
-     at migrate, the home sending only where each panel goes
-  5  the page: a call of its own by fetch, each kind of panel drawn, every
-     value from the server escaped, the Attendance Board opened on a plant
+     options of the doctypes they read
+  4  the readers: the user's own permissions, a part that cannot be read
+     left out, each window of days, and nothing whitelisted of their own:
+     dashboards.py asks for them
+  5  the page: each kind of panel drawn, every value from the server
+     escaped, the Attendance Board opened on a plant
 
 The rules are loaded without Frappe; Frappe HR's doctypes are read from
 FRAPPE_APPS_ROOT (default ../ERPNext).
@@ -85,38 +88,21 @@ H = load("home_rules")
 print("loaded home_panels_rules.py without Frappe")
 D = datetime.date
 
-# ── 1. Who sees which, and where ──────────────────────────────────────
+# ── 1. Who sees which ─────────────────────────────────────────────────
+DR = load("dashboards_rules")
 ALL = ["payroll", "plants", "output", "movement", "deadlines", "recruitment", "data_health"]
-check([key for key, _title, _switch, _roles in R.PANELS] == ALL, "the seven panels, in the desk's order")
-for roles, want in ((["HR Manager"], ALL), (["System Manager"], ALL),
-                    (["HR User", "Employee"], ["plants", "movement", "deadlines", "recruitment", "data_health"]),
-                    (["Payroll Officer"], ["payroll", "output"]),
-                    (["General Manager"], ["plants", "output", "movement"]),
-                    (["Executive Director"], ["plants", "output", "movement"]),
-                    (["Management Viewer"], ["plants", "output", "movement"]),
-                    (["Employee", "Supervisor", "Head of Department"], []), (None, [])):
-    check(R.panels_for(roles) == want, "the panels of %s: %s, not %s" % (roles, R.panels_for(roles), want))
-check(R.money_for(["HR Manager"]) and R.money_for(["Payroll Officer"]) and R.money_for(["General Manager"])
-      and R.money_for(["Executive Director"]) and not R.money_for(["HR User"]) and not R.money_for(["Management Viewer"])
-      and not R.money_for(None), "money only to the HR Manager, payroll and the two who sign for the company")
-switches = R.switched_on({})
-check(all(switches.values()) and len(switches) == 7, "a switch nobody has saved is on")
-check(R.switched_on({"home_plants": "0", "home_output": 0, "home_payroll": "1", "home_movement": ""})
-      == dict(switches, home_plants=False, home_output=False),
-      "a switch saved off is off; one saved on, or saved empty, is on")
-check(R.panels_for(["HR Manager"], dict(switches, home_plants=False, home_data_health=False))
-      == ["payroll", "output", "movement", "deadlines", "recruitment"], "a panel switched off is on nobody's desk")
-check([R.payroll_on_top(D(2026, 10, day)) for day in (17, 18, 25, 26)] == [False, True, True, False],
-      "Payroll Readiness on top from the 18th to the 25th, both days in")
-places = R.places(ALL, "hr", D(2026, 10, 20))
-check([(item["key"], item["place"]) for item in places] == [
-    ("payroll", "top"), ("plants", "sections"), ("output", "row"), ("movement", "row"), ("deadlines", "row"),
-    ("recruitment", "row"), ("data_health", "row")] and places[0]["title"] == "Payroll Readiness",
-    "on HR's desk the plants stand in Today's place, payroll on top in its week, the rest in the rows")
-check([item["place"] for item in R.places(["plants", "payroll"], "manager", D(2026, 10, 5))] == ["row", "row"],
-      "on anybody else's desk, and outside the week, in the rows")
-check(R.HR_VIEW == H.HR, "HR's desk is the home's own HR view")
-print("rules: who sees which panel, where each goes, money only to whom it is for")
+check(all(getattr(R, name.upper()) == name for name in ALL), "the seven panels by their keys")
+check(all(tuple(getattr(R, name)) == tuple(getattr(DR, name)) for name in (
+    "HR_ROLES", "EXECUTIVE_ROLES", "PAYROLL_ROLES", "MONEY_ROLES")), "the two rules modules name the same roles")
+WHOSE = {"payroll": R.PAYROLL_ROLES, "plants": R.HR_ROLES + R.EXECUTIVE_ROLES,
+         "output": R.PAYROLL_ROLES + R.EXECUTIVE_ROLES, "movement": R.HR_ROLES + R.EXECUTIVE_ROLES,
+         "deadlines": R.HR_ROLES, "recruitment": R.HR_ROLES + R.EXECUTIVE_ROLES, "data_health": R.HR_ROLES}
+check(all(set(DR.PANELS[key][4]) == set(roles) for key, roles in WHOSE.items()),
+      "each stands on its tab for the roles it served on the desk, the pipeline management's too now it has a tab: %s"
+      % [key for key, roles in WHOSE.items() if set(DR.PANELS[key][4]) != set(roles)])
+check(not any(hasattr(R, name) for name in ("PANELS", "SWITCHES", "switched_on", "panels_for", "places")),
+      "and nothing of where they go or whether they are switched on is left here to drift from the tabs")
+print("rules: the seven panels, each for the roles it is for, as the tabs place them")
 
 # ── 2. Each panel's figures ───────────────────────────────────────────
 START, END = D(2026, 9, 26), D(2026, 10, 25)
@@ -387,32 +373,19 @@ for name in ("Employee Separation-custom_relieving_date", "Employee Separation-c
              "Full and Final Statement-custom_settlement_status", "Full and Final Statement-custom_payroll_date",
              "Full and Final Statement-custom_additional_salary", "Employee Advance-custom_recoveries"):
     check(name in custom, "the custom field %s is there" % name)
-settings = {row["fieldname"]: row for row in ours("HRMS Addon Theme Settings").get("fields", [])}
-check(all((settings.get(switch) or {}).get("fieldtype") == "Check" and settings[switch].get("default") == "1"
-          for switch in R.SWITCHES), "each panel has its switch on Theme Settings, a Check on by default")
-check([settings[switch]["label"] for switch in R.SWITCHES] == [title for _key, title, _switch, _roles in R.PANELS],
-      "each switch is named as its panel")
-order = ours("HRMS Addon Theme Settings").get("field_order", [])
-check(order.index("section_home_panels") == order.index("density_help") + 1
-      and all(switch in order for switch in R.SWITCHES), "the switches in a section of their own, after the desk's layout")
 print("names: the roles, the statuses and the fields the rules count by are the site's own")
 
 # ── 4. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "home_panels.py")
 tree = ast.parse(glue)
-check(len(re.findall(r"@frappe\.whitelist", glue)) == 1 and re.search(r"@frappe\.whitelist\(\)\ndef panels\(\):", glue),
-      "one whitelisted call, taking nobody to look at")
-calls = body_of(glue, "panels")
-check("roles = frappe.get_roles(user)" in calls and "rules.panels_for(roles, rules.switched_on(home._or({}, _stored)))" in calls
-      and 'if not keys:\n        return {"panels": []}' in calls,
-      "the panels are those of the user's own roles that Theme Settings show; nothing is read for anybody else")
-check("panel = home._or(None, READERS[key], today, money, roles)" in calls and "if panel:" in calls,
-      "each panel is read through the home's guard: one that cannot be read is logged and left out")
-check('kept.get("keys") == keys and kept.get("day") == str(today) and kept.get("money") == money' in calls
-      and "home._or(None, _keep, user, out)" in calls
-      and "frappe.cache.set_value(CACHE_KEY, value, user=user, expires_in_sec=rules.CACHE_SECONDS)" in glue
-      and "frappe.cache.get_value(CACHE_KEY, user=user)" in glue and R.CACHE_SECONDS == 300,
-      "a user's panels are kept for five minutes, for that user, that day and those panels only")
+check(not re.findall(r"@frappe\.whitelist", glue) and "def panels(" not in glue and "def places(" not in glue
+      and "def ensure_switches(" not in glue,
+      "no call of their own: the dashboards ask for them (dashboards.py), and the switches are the tabs'")
+board = read("hrms_addon", "hrms_addon", "dashboards.py")
+check("found = home_panels.READERS[key](self.today, self.money, self.roles)" in board
+      and "home._or(None, reader.panel, panel)" in board,
+      "each is read through the dashboards' guard, with the user's money and roles: one that cannot be read is "
+      "logged and left out")
 check(set(re.findall(r"rules\.(\w+): _\w+", glue.split("READERS = {")[1])) == {
     "PAYROLL", "PLANTS", "OUTPUT", "MOVEMENT", "DEADLINES", "RECRUITMENT", "DATA_HEALTH"}, "every panel has its reader")
 check("ignore_permissions" not in glue and "frappe.db.sql" not in glue, "nothing is read past the user's permissions")
@@ -427,13 +400,8 @@ check(listed and listed <= mays | {"Overtime Request", "Job Applicant"},
       "every doctype read is first asked whether the user may read it: %s" % sorted(listed - mays))
 check('return bool(frappe.db.exists("DocType", doctype) and frappe.has_permission(doctype, "read"))' in body_of(glue, "_may"),
       "and whether the site has it")
-switches_fn = body_of(glue, "ensure_switches")
-check("frappe.db.get_singles_dict(SETTINGS)" in switches_fn and "if stored.get(switch) is None:" in switches_fn
-      and "frappe.db.set_single_value(SETTINGS, switch, 1)" in switches_fn,
-      "at migrate only a switch nobody has saved is written on")
 hooks = read("hrms_addon", "hooks.py")
-check('"hrms_addon.hrms_addon.home_panels.ensure_switches",' in hooks.split("after_migrate = [")[1].split("]")[0],
-      "on every migrate")
+check("home_panels" not in hooks, "nothing of theirs runs at migrate any more: the tabs' switches do (dashboards.py)")
 payroll = body_of(glue, "_payroll")
 check("attendance_rules.cycle_window(today.year, today.month)" in payroll
       and "rules.payroll_steps(facts, today, start, end, now_datetime())" in payroll,
@@ -460,42 +428,32 @@ check('fields += ["salary_mode", "bank_ac_no"]' in body_of(glue, "_data_health")
       and "bank_known = bool(set(roles or ()) & set(rules.BANK_ROLES))" in body_of(glue, "_data_health"),
       "the bank fields are asked for only by those who may read them")
 summary = read("hrms_addon", "hrms_addon", "home.py").split("def summary(")[1].split("\ndef ")[0]
-check("places = _or([], home_panels.places, frappe.get_roles(user), view, today)" in summary
-      and 'sections.pop("today", None)' in summary and '"panels": places,' in summary
-      and "if any(item[\"place\"] == home_panels_rules.SECTIONS for item in places):" in summary,
+check("desk = _or({\"tabs\": [], \"panels\": []}, dashboards.desk_of, user, view, today)" in summary
+      and 'sections.pop("today", None)' in summary and '"panels": desk["panels"],' in summary
+      and "if any(item[\"place\"] == dashboards_rules.SECTIONS for item in desk[\"panels\"]):" in summary,
       "the home sends which panels and where; Today gives way to the plants")
-check("home_panels.panels" not in summary and "READERS" not in summary,
+check("home_panels" not in summary and "READERS" not in summary,
       "and never their figures, which would hold up the greeting")
-print("glue: one call, the user's own permissions, kept five minutes, switches written on at migrate")
+print("glue: the readers, with the user's own permissions, each over its own days, asked for by the dashboards")
 
 # ── 5. The page ───────────────────────────────────────────────────────
 script = read("hrms_addon", "public", "js", "hrms_addon_home.js")
-check('const PANELS_METHOD = "hrms_addon.hrms_addon.home_panels.panels";' in script
-      and script.count('fetch("/api/method/" + PANELS_METHOD') == 1, "the panels are asked of their own call")
-loading = script.split("function load_more(")[1].split("\n\t}\n")[0]
-check("if (more_asking || !answer || !(answer.panels || []).length || Date.now() - more_at < FRESH_MS) return;" in loading
-      and "response.ok ? response.json() : null" in loading and "more = more || { panels: [] };" in loading
-      and "console.error(error);" in loading,
-      "once the home has said which, not while one is on its way, and a failure leaves no frame behind")
-check("load_more();" in script.split("function load(")[1].split("\n\t}\n")[0]
-      and "load_more();" in script.split("function show()")[1].split("\n\t}\n")[0],
-      "asked as the home is answered, and as the desk is shown again")
 kinds = set(re.findall(r'return \{"kind": "(\w+)"', glue)) | set(re.findall(r'kind="(\w+)"', glue))
 drawn = set(re.findall(r"(\w+): \w+_body,", script.split("const KINDS = {")[1].split("};")[0]))
-check(kinds and kinds == drawn, "every kind of panel the server sends is drawn: %s vs %s" % (sorted(kinds), sorted(drawn)))
+check(kinds and kinds <= drawn, "every kind of panel these send is drawn: %s of %s" % (sorted(kinds), sorted(drawn)))
 check("more_top(data) + panels(data) + sections(data) + more_rows(data)" in script
       and '.filter((item) => item.place === "top")' in script and '.filter((item) => item.place === "row")' in script
       and '.filter((item) => item.place === "sections")' in script.split("function sections(")[1].split("\n\t}\n")[0],
-      "each panel drawn where the server places it")
-check("if (!more) return more_frame(item, wide);" in script and 'return one ? more_panel(one, wide) : "";' in script,
+      "each panel of the overview drawn where the server places it")
+check("if (!parts[current]) return more_frame(item, wide);" in script and 'return one ? more_panel(one, wide) : "";' in script,
       "a frame while its figures are on their way, nothing where they could not be read")
-clicked = script.split('else if (what === "more") {')[1].split("}")[0]
+clicked = script.split('else if (what === "more") {')[1].split("} else if")[0]
 check('one[element.getAttribute("data-part") || "rows"]' in clicked
       and 'frappe.set_route("Form", row.doctype, row.docname)' in clicked and "go(row)" in clicked,
       "a row opens its record, else the list or page it names")
 check("else if (target.options) frappe.route_options = Object.assign({}, target.options);" in script.split("function go(")[1],
       "a page opens on the options the row gives it")
-panel_code = script.split("// ── The panels under what waits")[1].split("// a route the server names")[0]
+panel_code = script.split("// ── The panels:")[1].split("// a route the server names")[0]
 written = set(re.findall(r"\$\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", panel_code))
 served = sorted(expr for expr in written if re.search(r"\b(one|step|plant|figure|month|row|item|change)\.", expr))
 bare = [expr for expr in served if not (expr.startswith(("esc(", "count(", "icon(", "hours(", "moved(", "money(", "tall(",
@@ -507,7 +465,7 @@ shown = board.split('frappe.pages["attendance-board"].on_page_show')[1]
 check("const plant = frappe.route_options && frappe.route_options.branch;" in shown and "frappe.route_options = null;" in shown
       and "wrapper.board.branch.set_value(plant);" in shown,
       "the Attendance Board opens on the plant a row names, and forgets it after")
-print("page: a call of its own, each kind drawn where it goes, every value escaped")
+print("page: each kind drawn where it goes, every value escaped")
 
 print()
 if fail:

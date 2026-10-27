@@ -52,6 +52,7 @@
 		chevron: '<path d="M9 6l6 6-6 6"/>',
 		back: '<path d="M15 6l-6 6 6 6"/>',
 		folder: '<path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h4l2 2.2h7A1.5 1.5 0 0 1 20 9.7v8.8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/>',
+		board: '<path d="M5 19V10M10 19V5M15 19v-7M20 19v-11"/>',
 	};
 	// the pictures CSS puts on Frappe's cards, white on the module's navy
 	const GLYPHS = {
@@ -150,6 +151,12 @@
 		}
 	}
 
+	// the desk home's tab of dashboards for the module, once the server has said it is the user's
+	function dashboard_of(name) {
+		const answer = answers[name];
+		return answer && answer.data && answer.data.dashboard ? String(answer.data.dashboard) : null;
+	}
+
 	// what waits for the user in the module, once the server has said: null until then, or where it could not say
 	function waits_of(name) {
 		const answer = answers[name];
@@ -221,13 +228,18 @@
 			? `<button type="button" class="ha-mod-action" data-ha-mod="new">${icon("plus")}` +
 			  `<span>${esc(__("New {0}", [__(doctype)]))}</span></button>`
 			: "";
+		// the module's tab of dashboards on the desk home, where the user has it (dashboards.py)
+		const board = dashboard_of(name)
+			? `<button type="button" class="ha-mod-board" data-ha-mod="dashboard">${icon("board")}` +
+			  `<span>${esc(__("Dashboard"))}</span></button>`
+			: "";
 		return (
 			`<section class="ha-mod-hero">${picture(page)}` +
 			`<div class="ha-mod-hero-text"><h2>${esc(__(page.title || name))}</h2>` +
 			(groups.length ? `<p>${groups.map(esc).join(" · ")}</p>` : "") +
 			(stage ? track(stage) : "") +
 			`</div>` +
-			(chip || make ? `<div class="ha-mod-hero-side">${chip}${make}</div>` : "") +
+			(chip || board || make ? `<div class="ha-mod-hero-side">${chip}${board}${make}</div>` : "") +
 			`</section>`
 		);
 	}
@@ -320,6 +332,13 @@
 		else if (what === "new") {
 			const doctype = action_of(page.name);
 			if (doctype) frappe.new_doc(doctype);
+		} else if (what === "dashboard") {
+			// the desk home, opened on this module's tab (hrms_addon_home.js take_request)
+			const board = dashboard_of(page.name);
+			if (board) {
+				frappe.route_options = { dashboard: board };
+				frappe.set_route("/desk");
+			}
 		} else if (what === "waiting") {
 			if (element.closest(".ha-mod").querySelector(".ha-mod-panel")) {
 				tab = "items";
@@ -528,6 +547,12 @@ ${PAGE} .layout-main-section.edit-mode > .ha-mod { display: none; }
 	box-shadow: 0 6px 16px color-mix(in srgb, var(--ha-m-gold) 32%, transparent); transition: transform .12s ease, filter .12s ease;
 }
 .ha-mod .ha-mod-action:hover, .ha-mod .ha-mod-action:focus-visible { filter: brightness(1.06); transform: translateY(-1px); outline: none; }
+.ha-mod .ha-mod-board {
+	display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 12px; color: #fff; font-weight: 600;
+	font-size: 13.5px; background: rgba(255,255,255,.09); box-shadow: inset 0 0 0 1px rgba(255,255,255,.20); transition: background .12s ease;
+}
+.ha-mod .ha-mod-board:hover, .ha-mod .ha-mod-board:focus-visible { background: rgba(255,255,255,.16); outline: none; }
+.ha-mod .ha-mod-board .ha-mod-icon { color: var(--ha-m-gold); }
 .ha-mod-bone { display: block; height: 12px; width: 100%; border-radius: 6px; background: linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.30), rgba(255,255,255,.14)); background-size: 200% 100%; animation: ha-mod-shine 1.3s linear infinite; }
 @keyframes ha-mod-shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
@@ -708,7 +733,7 @@ ${READ} .widget.spacer { background: transparent !important; }
 	.ha-mod-picture, .ha-mod-picture > img { width: 48px; height: 48px; }
 	.ha-mod-hero-text { flex-basis: 200px; }
 	.ha-mod-hero-side { width: 100%; }
-	.ha-mod .ha-mod-chip, .ha-mod .ha-mod-action { flex: 1 1 auto; justify-content: center; }
+	.ha-mod .ha-mod-chip, .ha-mod .ha-mod-action, .ha-mod .ha-mod-board { flex: 1 1 auto; justify-content: center; }
 }
 `;
 

@@ -150,40 +150,68 @@ list down the left.
   has read its own.
 - **No build.** The styles are written into the page by
   `hrms_addon_home.js`, so a change needs a restart and not `bench build`.
-- **Panels under what waits** (`home_panels.py`, rules in
-  `home_panels_rules.py`). Each shows to the roles it is for, and **Theme
-  Settings → Desk Home Panels** switches each off for everybody:
-  - *Payroll Readiness* (HR Manager, Payroll Officer): the steps of the
-    period that ends this month, from the clock's last read to the bank
-    entry made from the Payroll Entry. Each is done, under way, not started
-    or late once past its day. From the 18th to the 25th it sits on top,
-    across the page.
-  - *Plants at a Glance* (HR, management): each plant's people in, late,
-    absent and on leave today, a clock that has sent nothing today, and the
-    approved overtime this period. On HR's desk it stands where Today stood.
-  - *Output and Labour Cost* (management, payroll): metres, pieces, output
-    pay and overtime by plant, against the same days of the last period.
-    Money only to the HR Manager, the Payroll Officer, the General Manager
-    and the Executive Director, and only as plant totals.
-  - *Workforce Movement* (HR, management): joiners and leavers over six
-    months, the year's leavers against today's headcount, and those on the
-    books by status. A leaver whose record was made after they left (the
-    employee import's stand-in dates) counts as nobody's leaving.
-  - *Deadlines*, *Recruitment Pipeline* and *Data Health* (HR): what comes
-    due across probation, contracts, clearance, settlements, suspensions
-    and documents; requisitions through to offers, with this week's
-    interviews; and the active records missing a clock ID, a bank account
-    for bank pay, a salary structure, NSSF, TIN, a likely birth date, or
-    listed twice.
+- **A tab of dashboards for each module** (`dashboards.py`, rules in
+  `dashboards_rules.py`). Under the greeting runs a row of tabs: Overview,
+  then People, Recruitment, Attendance, Leave, Payroll, Loans, Expenses,
+  Performance, Training, Relations and Tenure. Each shows to the roles it
+  is for (Payroll only to those who see money), and only where the user may
+  read the documents it is drawn from. **Theme Settings → Dashboard Tabs**
+  switches each off for everybody. A module's tab has four figures, Needs
+  Attention, its charts and lists, and the reports and pages for a closer
+  look. Each figure, bar, part of a ring, month and row opens the documents
+  it counts, on the same filters.
+  - *Overview* is the home as it was. Payroll Readiness sits on top from
+    the 18th to the 25th, and Plants at a Glance stands where Today stood
+    on HR's desk. Needs Attention gathers every tab's checks, each naming
+    its module. The count on a tab is how many need attention there, in the
+    colour of the most pressing.
+  - *Needs Attention* counts 48 checks: what waits for a decision, what is
+    late, and what falls due this week. A document with no date is never
+    counted late. For `<` on a date, Frappe v16 reads an empty date as the
+    earliest of all, so lateness is asked as between 1 Jan 2000 and
+    yesterday.
+  - *The panels the home had* now stand on their modules' tabs, read as
+    before by `home_panels.py` (rules in `home_panels_rules.py`):
+    - *Payroll Readiness* (HR Manager, Payroll Officer) lists the steps of
+      the period that ends this month, from the clock's last read to the
+      bank entry made from the Payroll Entry. Each is done, under way, not
+      started, or late once past its day.
+    - *Plants at a Glance* shows each plant's people in, late, absent and
+      on leave today, a clock that has sent nothing today, and the approved
+      overtime this period.
+    - *Output and Labour Cost* (Payroll) shows metres, pieces, output pay
+      and overtime by plant, against the same days of the last period.
+      Money goes only to the HR Manager, the Payroll Officer, the General
+      Manager and the Executive Director, and only as plant totals.
+    - *Workforce Movement* (People) shows joiners and leavers over six
+      months, the year's leavers against today's headcount, and those on
+      the books by status. A leaver whose record was made after they left
+      (the employee import's stand-in dates) is not counted as leaving.
+    - *Deadlines* (Tenure) lists what comes due across probation,
+      contracts, clearance, settlements, suspensions and documents.
+    - *Recruitment Pipeline* (Recruitment) follows requisitions through to
+      offers, with this week's interviews.
+    - *Data Health* (People) lists the active records missing a clock ID,
+      a bank account for bank pay, a salary structure, NSSF, TIN or a
+      likely birth date, and those listed twice.
+  - *Two across, with no hole.* A panel that would be alone on its row is
+    widened across it. The last one takes the reports beside it instead.
+    The two panels of a row are as tall as each other.
+- **Each tab is read as it is opened**, in a call of its own
+  (`dashboards.figures`), after the home, so the greeting is never held up.
+  A tab never opened is never read. Each tab's answer is kept five minutes
+  for the user, and Refresh reads every part read so far again. Each record
+  is read with `frappe.get_list` under the user's own permissions. A part
+  that cannot be read is logged and left out.
+- **The desk opens on the tab last opened.** A module page's **Dashboard**
+  button opens the desk on that module's tab.
+- A Check never saved reads 0 on the settings form, so every migrate writes
+  on any switch nobody has saved (`dashboards.ensure_switches`).
 
-  The panels come in a call of their own after the home, so the greeting is
-  never held up by them; a user's answer is kept five minutes. Each record
-  is read with the user's own permissions. A Check never saved reads 0 on
-  the settings form, so every migrate writes on any switch nobody has
-  saved (`home_panels.ensure_switches`).
-
-`scripts/verify_home.py` checks the rules (`home_rules.py`) and the wiring;
-`scripts/verify_home_panels.py` the panels.
+`scripts/verify_home.py` checks the rules (`home_rules.py`) and the wiring.
+`scripts/verify_home_panels.py` checks the panels. `scripts/verify_home_dashboards.py`
+checks the tabs, and that every doctype, field, status and report they read
+is the site's own.
 
 ### Module pages
 
@@ -207,6 +235,9 @@ under a header of its own, over Frappe's own charts, lists and cards.
   lists the first five, To Do and Notifications, most urgent first, and
   See all opens the user's own list kept to those doctypes. Nothing
   waiting, no panel.
+- **Dashboard** opens the desk home on the module's tab of dashboards
+  (`dashboards.tab_of_workspace`). It shows only where the user has that
+  tab.
 - **Frappe's blocks are restyled, never rewritten.** Cards become the
   home's white panels with a navy picture beside each heading; a card of
   links becomes rows with the home's arrow; figures get the home's band; a

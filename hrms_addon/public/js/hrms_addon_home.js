@@ -21,6 +21,17 @@
 //
 // A plain asset in app_include_js, so a change to it needs no `bench build`:
 // its styles are written into the page here for the same reason.
+//
+// THE TABS
+//
+// Above what the home shows, a tab for each HR module the user's work is
+// about (dashboards_rules.py): Overview is the home as it was, and each
+// module's tab has its figures, what needs attention in it, its charts and
+// lists, and the reports a decision is made from, read as the tab is first
+// opened (dashboards.py). Luuka, 27 Oct 2026, of the ERPNext desk's module
+// tabs: "create such dashboards for every module be smart", "but for HR
+// specific". The tab last opened is the one the desk opens on, and a module
+// page's Dashboard button opens the desk on that module's.
 
 (function () {
 	if (typeof frappe === "undefined" || !frappe.boot) return;
@@ -29,10 +40,16 @@
 	frappe.provide("hrms_addon.home");
 
 	const METHOD = "hrms_addon.hrms_addon.home.summary";
-	// the panels under what waits for the user, asked for once the home is drawn (home_panels.py)
-	const PANELS_METHOD = "hrms_addon.hrms_addon.home_panels.panels";
+	// the figures of one part of the home, the overview's panels or a module's tab, asked for as it is opened
+	// (dashboards.py)
+	const FIGURES_METHOD = "hrms_addon.hrms_addon.dashboards.figures";
 	const FRESH_MS = 60 * 1000; // how long an answer is shown before it is asked for again
 	const STYLE_ID = "ha-home-style";
+	// the tab last opened, remembered in this browser
+	const TAB_KEY = "hrms_addon:home_tab";
+	const OVERVIEW = "overview";
+	// how many colours a ring of parts takes in turn (the --ha-slice-* of the styles)
+	const SLICES = 7;
 	// the modules in the order of an employee's time with the company (home_rules.MODULES)
 	const MODULES = Array.isArray(frappe.boot.hrms_addon_home_modules) ? frappe.boot.hrms_addon_home_modules : [];
 	// Frappe's tiles on the desk itself, and never while the desk is being edited
@@ -45,10 +62,12 @@
 	let answer = null;
 	let asked_at = 0;
 	let asking = false;
-	let more = null; // the panels' answer: {"panels": [...]}
-	let more_at = 0;
-	let more_asking = false;
-	let tab = "items";
+	// each part's figures as the server read them, by tab: {cards, panels, badges, at, currency, time}
+	const parts = {};
+	const parts_asking = {};
+	let current = OVERVIEW; // the tab open now
+	let requested = null; // a tab a module page's Dashboard button asked for, until it is opened
+	let tab = "items"; // the list open in Waiting for You
 	let open_module = null; // the module whose own menu is open in the list
 	const shown_groups = new Set(); // the headings of a module's menu that are open, as "module|heading"
 
@@ -80,6 +99,32 @@
 		todo: '<circle cx="12" cy="12" r="7.5"/>',
 		up: '<path d="M7 14l5-5 5 5"/>',
 		down: '<path d="M7 10l5 5 5-5"/>',
+		// the tabs (dashboards_rules.TABS)
+		overview:
+			'<rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/>' +
+			'<rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/>',
+		attendance:
+			'<rect x="4" y="5.5" width="16" height="14.5" rx="2.2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4M9 14.8l2 2 4-4"/>',
+		leave:
+			'<circle cx="12" cy="12" r="3.6"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4L18 18' +
+			'M6 18l1.6-1.6M16.4 7.6L18 6"/>',
+		loans: '<path d="M4 10l8-5 8 5"/><path d="M6 10v7M10 10v7M14 10v7M18 10v7M4 19.5h16"/>',
+		expenses:
+			'<path d="M6.5 3.5h11v17l-2.2-1.5-2.1 1.5-2.2-1.5-2.2 1.5-2.3-1.5z"/><path d="M9 8h6M9 11.5h6M9 15h3.5"/>',
+		performance: '<path d="M4 19.5h16"/><path d="M6.5 15.5l4-4 3 3 5-6"/><path d="M15 8.5h3.5V12"/>',
+		training: '<path d="M3 9.5l9-4.5 9 4.5-9 4.5z"/><path d="M7 11.5v4c0 1.4 2.2 2.5 5 2.5s5-1.1 5-2.5v-4M21 9.5v5"/>',
+		relations: '<path d="M12 4v16M7.5 20h9M5 7.5h14"/><path d="M5 7.5l-2.5 6h5zM19 7.5l-2.5 6h5z"/>',
+		tenure: '<path d="M13.5 4.5H6.5v15h7"/><path d="M10.5 12h9M16.5 9l3 3-3 3"/>',
+		// on a module's tab
+		attention: '<path d="M12 4l9 16H3z"/><path d="M12 10v4.2M12 17.2v.3"/>',
+		reports:
+			'<path d="M7 3.5h7l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-9.5A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5z"/>' +
+			'<path d="M9 13.5v3M12 11v5.5M15 14.5v2"/>',
+		refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>',
+		trend: '<path d="M4 19.5h16"/><path d="M6.5 16V12M10.5 16V8.5M14.5 16v-5M18.5 16V6"/>',
+		ring: '<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5V12l5.3 5.3"/>',
+		money: '<rect x="3.5" y="6.5" width="17" height="11" rx="2"/><circle cx="12" cy="12" r="2.4"/>',
+		clock: '<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>',
 	};
 	// the cards of a manager's and an employee's desk, drawn with the pictures of HR's
 	const SAME_AS = {
@@ -601,20 +646,27 @@
 		return `<div class="ha-home-panels ha-home-more ha-home-${blocks.length > 2 ? "three" : blocks.length > 1 ? "two" : "one"}">${blocks.join("")}</div>`;
 	}
 
-	// ── The panels under what waits (home_panels.py) ──────────────────────
-	// Each comes with the home's own answer as {key, title, place}, and its figures in a second call: the
-	// greeting and what waits are never held up by them. A panel is drawn as a frame while its figures are on
-	// their way, and not at all where they could not be read.
+	// ── The panels: the overview's under what waits, and a module tab's (dashboards.py) ──
+	// The home's own answer names the tabs the user has, and the overview's panels with where each goes
+	// ({key, title, place}); their figures come in a call of their own for each part, as its tab is opened, so
+	// the greeting and what waits are never held up by them. A panel is drawn as a frame while its figures are
+	// on their way, and not at all where they could not be read.
 
 	// how a step of Payroll Readiness is coloured: done, under way, late, not started
 	const STATES = { done: "good", open: "today", late: "overdue", todo: "none" };
 
+	function tab_of(key) {
+		return ((answer && answer.tabs) || []).find((one) => one.key === key) || null;
+	}
+
+	// a panel of the tab open now, as the server read it
 	function panel_of(key) {
-		return ((more && more.panels) || []).find((one) => one.key === key) || null;
+		const read = parts[current];
+		return ((read && read.panels) || []).find((one) => one.key === key) || null;
 	}
 
 	function more_one(item, wide) {
-		if (!more) return more_frame(item, wide);
+		if (!parts[current]) return more_frame(item, wide);
 		const one = panel_of(item.key);
 		return one ? more_panel(one, wide) : "";
 	}
@@ -624,20 +676,30 @@
 		const line = (width) => `<div class="ha-home-bone" style="width:${width}"></div>`;
 		return (
 			`<section class="ha-home-panel${wide ? " ha-home-wide" : ""}"><header>` +
-			`<span class="ha-home-panel-icon">${icon(item.key)}</span><h3>${esc(__(item.title))}</h3></header>` +
+			`<span class="ha-home-panel-icon">${icon(item.icon || item.key)}</span><h3>${esc(__(item.title))}</h3></header>` +
 			`<div class="ha-home-list ha-home-pad">${line("72%")}${line("88%")}${line("54%")}</div></section>`
 		);
 	}
 
-	// a panel drawn by its kind; wide is across the page, on top
+	// a panel drawn by its kind; wide is across the page
 	function more_panel(one, wide) {
 		const body = KINDS[one.kind];
 		if (!body) return "";
 		return (
 			`<section class="ha-home-panel ha-home-${esc(one.key)}${wide ? " ha-home-wide" : ""}"><header>` +
-			`<span class="ha-home-panel-icon">${icon(one.key)}</span><h3>${esc(__(one.title))}</h3>` +
+			`<span class="ha-home-panel-icon">${icon(one.icon || one.key)}</span><h3>${esc(__(one.title))}</h3>` +
 			(one.note ? `<span class="ha-home-panel-note">${esc(__(one.note))}</span>` : "") +
-			`</header><div class="ha-home-list">${body(one)}</div></section>`
+			`</header><div class="ha-home-list">${body(one)}</div>${see_all(one)}</section>`
+		);
+	}
+
+	// the way to the whole list, where a panel shows only some of it
+	function see_all(one) {
+		const listed = (one.rows || []).length;
+		if (!one.route || !one.total || one.total <= listed) return "";
+		return (
+			`<div class="ha-home-seeall"><button type="button" class="ha-home-all" data-ha-home="all" data-panel="${esc(one.key)}">` +
+			`<span>${esc(__("See all {0}", [count(one.total)]))}</span>${icon("chevron")}</button></div>`
 		);
 	}
 
@@ -752,7 +814,7 @@
 					)
 					.join("");
 				return (
-					`<button type="button" class="ha-home-output" data-ha-home="more" data-panel="${esc(one.key)}" ` +
+					`<button type="button" class="ha-home-output-plant" data-ha-home="more" data-panel="${esc(one.key)}" ` +
 					`data-part="rows" data-index="${index}"><span class="ha-home-bar-label">${esc(plant.plant)}</span>` +
 					`<span class="ha-home-figures">${parts}</span></button>`
 				);
@@ -792,9 +854,9 @@
 		return (months.length ? chart + legend : "") + statuses;
 	}
 
-	// Deadlines: what comes due, the nearest first
+	// Deadlines, and a module's lists: what comes due, the nearest first, or what has waited longest
 	function list_body(one) {
-		return rows(one.rows || [], __("Nothing coming due."), "more", one.key);
+		return rows(one.rows || [], __(one.empty || "Nothing coming due."), "more", one.key);
 	}
 
 	// Recruitment Pipeline: each stage's figure, a few figures about it, and this week's interviews
@@ -836,6 +898,141 @@
 			.join("");
 	}
 
+	// Needs Attention: what waits for a decision or is late, the most pressing first, each opening its list; on
+	// the overview each says which module it is in
+	function attention_body(one) {
+		const all = one.rows || [];
+		if (!all.length) return nothing(__("Nothing is waiting or late. All clear."));
+		return all
+			.map(
+				(check, index) =>
+					`<button type="button" class="ha-home-row ha-home-check" data-ha-home="more" data-panel="${esc(one.key)}" ` +
+					`data-part="rows" data-index="${index}"><b class="ha-home-check-count ha-band-${esc(check.band || "none")}">` +
+					`${count(check.value)}</b><span class="ha-home-row-text"><span class="ha-home-row-title">${esc(__(check.label))}</span>` +
+					(check.module ? `<span class="ha-home-row-meta">${esc(__(check.module))}</span>` : "") +
+					`</span>${icon("chevron")}</button>`
+			)
+			.join("");
+	}
+
+	// a figure of a panel as its kind writes it: money in the company's currency, hours, a percent, or a count
+	function written_by(one) {
+		return (value) =>
+			one.money
+				? money(value, one.currency || "")
+				: one.hours
+				? hours(value)
+				: one.percent
+				? percent(value)
+				: count(Math.round(Number(value) || 0));
+	}
+
+	// a percent, to a tenth where it is not whole
+	function percent(value) {
+		return count(Math.round((Number(value) || 0) * 10) / 10) + "%";
+	}
+
+	// Six months of something: a column for each series in each month, a month opening what it is made of.
+	// Nothing is drawn for a month with none.
+	function columns_body(one) {
+		const months = one.months || [];
+		const series = one.series || [];
+		if (!months.length || !series.length) return nothing(__(one.empty || "Nothing to show yet."));
+		const written = written_by(one);
+		const most = Math.max(1, ...months.map((month) => Math.max(0, ...(month.values || []).map((v) => Number(v) || 0))));
+		const tall = (value) => Math.round((100 * Math.max(0, Number(value) || 0)) / most);
+		const chart =
+			`<div class="ha-home-columns">` +
+			months
+				.map((month, index) => {
+					const values = month.values || [];
+					const says = series.map((s, at) => __(s.label) + " " + written(values[at])).join(", ");
+					return (
+						`<button type="button" class="ha-home-column" data-ha-home="month" data-panel="${esc(one.key)}" ` +
+						`data-index="${index}" title="${esc(__(month.label) + ": " + says)}"><span class="ha-home-column-bars">` +
+						series
+							.map((s, at) =>
+								tall(values[at]) > 0
+									? `<i class="ha-band-${esc(s.band || "soon")}" style="height:${tall(values[at])}%"></i>`
+									: ""
+							)
+							.join("") +
+						`</span><span class="ha-home-column-label">${esc(__(month.label))}</span>` +
+						`<span class="ha-home-column-figures">${esc(written(values[0]))}</span></button>`
+					);
+				})
+				.join("") +
+			`</div>`;
+		const latest = months[months.length - 1].values || [];
+		const legend =
+			`<div class="ha-home-legend">` +
+			series
+				.map(
+					(s, at) =>
+						`<span><i class="ha-band-${esc(s.band || "soon")}"></i>${esc(__(s.label))} <b>${esc(written(latest[at]))}</b></span>`
+				)
+				.join("") +
+			`<span class="ha-home-legend-figure">${esc(__("This month so far"))}</span></div>`;
+		return chart + legend;
+	}
+
+	// A breakdown as bars, each as long as its share of the largest, opening what it is made of
+	function bars_body(one) {
+		const all = one.rows || [];
+		if (!all.length) return nothing(__(one.empty || "Nothing to show yet."));
+		const written = written_by(one);
+		const most = Math.max(1, ...all.map((part) => Math.abs(Number(part.value) || 0)));
+		return (
+			`<div class="ha-home-bars">` +
+			all
+				.map((part, index) => {
+					const width = Math.round((100 * Math.abs(Number(part.value) || 0)) / most);
+					return (
+						`<button type="button" class="ha-home-bar" data-ha-home="more" data-panel="${esc(one.key)}" data-part="rows" ` +
+						`data-index="${index}"><span class="ha-home-bar-label">${esc(__(part.label))}</span>` +
+						`<span class="ha-home-bar-track">` +
+						(width > 0 ? `<i class="ha-band-${esc(part.band || "navy")}" style="width:${width}%"></i>` : "") +
+						`</span><b>${esc(written(part.value))}</b></button>`
+					);
+				})
+				.join("") +
+			`</div>`
+		);
+	}
+
+	// A ring of a whole's parts in the theme's colours, each listed with its share and opening what it is made
+	// of; the rest, put together, in the quiet gray
+	function donut_body(one) {
+		const all = one.rows || [];
+		const whole = all.reduce((sum, part) => sum + Math.max(0, Number(part.value) || 0), 0);
+		if (!all.length || !whole) return nothing(__(one.empty || "Nothing to show yet."));
+		const written = written_by(one);
+		const shade = (part, index) => (part.rest ? "var(--ha-slice-rest)" : `var(--ha-slice-${index % SLICES})`);
+		let at = 0;
+		const stops = all
+			.map((part, index) => {
+				const from = at;
+				at += (100 * Math.max(0, Number(part.value) || 0)) / whole;
+				return `${shade(part, index)} ${from.toFixed(2)}% ${at.toFixed(2)}%`;
+			})
+			.join(", ");
+		const ring =
+			`<div class="ha-home-donut"><span class="ha-home-donut-ring" role="img" ` +
+			`aria-label="${esc(all.map((part) => `${__(part.label)}: ${written(part.value)}`).join(", "))}" ` +
+			`style="background: conic-gradient(${stops})"></span>` +
+			`<span class="ha-home-donut-middle"><b>${esc(written(whole))}</b><small>${esc(__("in all"))}</small></span></div>`;
+		const legend = all
+			.map(
+				(part, index) =>
+					`<button type="button" class="ha-home-slice" data-ha-home="more" data-panel="${esc(one.key)}" data-part="rows" ` +
+					`data-index="${index}"><i style="background:${shade(part, index)}"></i>` +
+					`<span class="ha-home-bar-label">${esc(__(part.label))}</span><b>${esc(written(part.value))}</b>` +
+					`<small>${Math.round((100 * Math.max(0, Number(part.value) || 0)) / whole)}%</small></button>`
+			)
+			.join("");
+		return `<div class="ha-home-donut-row">${ring}<div class="ha-home-slices">${legend}</div></div>`;
+	}
+
 	const KINDS = {
 		steps: steps_body,
 		plants: plants_body,
@@ -844,7 +1041,298 @@
 		list: list_body,
 		pipeline: pipeline_body,
 		health: health_body,
+		attention: attention_body,
+		columns: columns_body,
+		bars: bars_body,
+		donut: donut_body,
 	};
+
+	// ── The tabs ──────────────────────────────────────────────────────────
+
+	// The tab a module page's Dashboard button asks for. It comes as a route option, which Frappe's router may
+	// also carry in the address, JSON-encoded (router.js set_route), and it is taken off both once read: the tab
+	// the viewer moves to is not undone when the desk is drawn again, and the next list opened does not take it
+	// for a filter. Only while the desk is on the screen: Frappe keeps the pages it has shown, hidden, and
+	// another page's options are its own.
+	function take_request() {
+		const wrapper = desk();
+		if (!wrapper || wrapper.offsetParent === null) return;
+		try {
+			let named = null;
+			const options = frappe.route_options;
+			if (options && options.dashboard != null) {
+				named = options.dashboard;
+				delete options.dashboard;
+				if (!Object.keys(options).length) frappe.route_options = null;
+			}
+			const address = new URL(window.location.href);
+			if (address.searchParams.has("dashboard")) {
+				named = named || address.searchParams.get("dashboard");
+				address.searchParams.delete("dashboard");
+				window.history.replaceState(window.history.state, "", address.pathname + address.search + address.hash);
+			}
+			if (typeof named === "string" && named.startsWith('"')) named = JSON.parse(named);
+			if (named) requested = String(named);
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	// The tab to open first: the one asked for, else the one the viewer last opened, else the overview; only one
+	// the user has
+	function first_tab(data) {
+		const have = (key) => (data.tabs || []).some((one) => one.key === key);
+		take_request();
+		const named = requested;
+		requested = null;
+		if (named && have(named)) return named;
+		let kept = null;
+		try {
+			kept = window.localStorage.getItem(TAB_KEY);
+		} catch (error) {
+			kept = null;
+		}
+		return kept && have(kept) ? kept : OVERVIEW;
+	}
+
+	function keep_tab() {
+		try {
+			window.localStorage.setItem(TAB_KEY, current);
+		} catch (error) {
+			// the tab still opens; it is only not remembered
+		}
+	}
+
+	// A tab asked for once the home is here opens over the one open; until then, the home's answer opens it
+	function follow_request() {
+		take_request();
+		if (!requested || !answer) return;
+		const named = requested;
+		requested = null;
+		if (!tab_of(named) || named === current) return;
+		current = named;
+		keep_tab();
+		redraw();
+		load_parts(false);
+	}
+
+	// how much needs attention on a tab, as the overview read it
+	function badge_of(key) {
+		const badges = (parts[OVERVIEW] && parts[OVERVIEW].badges) || {};
+		return badges[key] || null;
+	}
+
+	// a tab for each module the user's work is about, the overview first: each says how much needs attention in it
+	function tab_bar(data) {
+		const all = data.tabs || [];
+		if (all.length < 2) return "";
+		return (
+			`<nav class="ha-home-tabbar" role="tablist" aria-label="${esc(__("Dashboards"))}">` +
+			all
+				.map((one) => {
+					const on = one.key === current;
+					const badge = badge_of(one.key);
+					const says = badge && badge.value ? __("{0} need attention", [count(badge.value)]) : "";
+					return (
+						`<button type="button" role="tab" id="ha-home-tab-${esc(one.key)}" class="ha-home-tabbtn${on ? " ha-on" : ""}" ` +
+						`data-ha-home="open" data-tab="${esc(one.key)}" aria-selected="${on ? "true" : "false"}" ` +
+						`aria-controls="ha-home-tabpanel" tabindex="${on ? "0" : "-1"}"${says ? ` title="${esc(says)}"` : ""}>` +
+						`${icon(one.icon)}<span>${esc(__(one.title))}</span>` +
+						(badge && badge.value ? `<i class="ha-home-badge ha-band-${esc(badge.band || "none")}">${count(badge.value)}</i>` : "") +
+						`</button>`
+					);
+				})
+				.join("") +
+			`</nav>`
+		);
+	}
+
+	// a time the server stamped ("2026-10-27 14:05:09") as the viewer's clock writes it
+	function time_words(stamp) {
+		try {
+			const [day, time] = String(stamp).split(" ");
+			const date = day.split("-").map(Number);
+			const clock = (time || "00:00").split(":").map(Number);
+			return new Date(date[0], date[1] - 1, date[2], clock[0], clock[1]).toLocaleTimeString(undefined, {
+				hour: "numeric",
+				minute: "2-digit",
+			});
+		} catch (e) {
+			return stamp || "";
+		}
+	}
+
+	// when the figures of a tab were read, and a way to read them again
+	function stamp(key) {
+		const read = parts[key];
+		if (!read || !read.at) return "";
+		return (
+			`<span class="ha-home-stamp"><span>${esc(__("As of {0}", [time_words(read.at)]))}</span>` +
+			`<button type="button" class="ha-home-refresh${parts_asking[key] ? " ha-busy" : ""}" data-ha-home="refresh">` +
+			`${icon("refresh")}<span>${esc(__("Refresh"))}</span></button></span>`
+		);
+	}
+
+	// A module's workspace, opened as its tile opens it, with its own menu down the left; only one the user may
+	// open, which is one whose menu the boot carries
+	function open_workspace(name) {
+		if (!name || !entries(name).length) return;
+		frappe.route_options = { sidebar: name };
+		frappe.set_route(frappe.router.slug(name));
+	}
+
+	// the heading of a module's tab: what it is, when its figures were read with a way to read them again, and the
+	// way into the module itself
+	function tab_head(data, open) {
+		const workspace = (open.workspaces || []).find((name) => entries(name).length);
+		const into = workspace
+			? `<button type="button" class="ha-home-into" data-ha-home="module" data-workspace="${esc(workspace)}">` +
+			  `<span>${esc(__("Open {0}", [__(workspace)]))}</span>${icon("arrow")}</button>`
+			: "";
+		const company = data.company ? `<p>${esc(data.company)}</p>` : "";
+		return (
+			`<div class="ha-home-tabhead"><div class="ha-home-tabhead-text">` +
+			`<h3>${esc(__("{0} Dashboard", [__(open.title)]))}</h3>${company}</div>` +
+			`<div class="ha-home-tabhead-side">${stamp(open.key)}${into}</div></div>`
+		);
+	}
+
+	// the figures across the top of a module's tab: frames until they are read, then those that could be
+	function tab_cards(open) {
+		const read = parts[open.key];
+		const found = (key) => ((read && read.cards) || []).find((one) => one.key === key) || null;
+		return (open.cards || []).map((frame) => (read ? found(frame.key) : frame)).filter(Boolean);
+	}
+
+	function module_cards(open) {
+		const all = tab_cards(open);
+		if (!all.length) return "";
+		const line = (width) => `<div class="ha-home-bone" style="width:${width}"></div>`;
+		return (
+			`<div class="ha-home-cards">` +
+			all
+				.map((figure) => {
+					const top =
+						`<span class="ha-home-card-top"><span class="ha-home-card-label">${esc(__(figure.label))}</span>` +
+						`<span class="ha-home-card-icon">${icon(figure.icon || figure.key)}</span></span>`;
+					if (figure.frame) return `<div class="ha-home-card ha-home-frame">${top}${line("70%")}${line("50%")}</div>`;
+					const value =
+						figure.kind === "money"
+							? money(figure.value, figure.currency || "")
+							: figure.kind === "hours"
+							? hours(figure.value)
+							: figure.kind === "percent"
+							? percent(figure.value)
+							: count(figure.value);
+					const delta = moved(figure.change);
+					return (
+						`<button type="button" class="ha-home-card ha-tone-${esc(figure.tone || "navy")}" data-ha-home="figure" ` +
+						`data-key="${esc(figure.key)}">${top}<span class="ha-home-card-value">${esc(value)}</span>` +
+						`<span class="ha-home-card-note">${delta}${esc(__(figure.note || ""))}</span></button>`
+					);
+				})
+				.join("") +
+			`</div>`
+		);
+	}
+
+	// the reports a closer look is taken in, each opening for the user's company; across the page, or beside the
+	// last panel where that one would be alone on its row
+	function reports_panel(open, wide) {
+		const all = open.reports || [];
+		if (!all.length) return "";
+		return (
+			`<section class="ha-home-panel${wide ? " ha-home-wide" : ""} ha-home-reports"><header>` +
+			`<span class="ha-home-panel-icon">${icon("reports")}</span><h3>${esc(__("Reports"))}</h3>` +
+			`<span class="ha-home-panel-note">${esc(__("For a closer look"))}</span></header><div class="ha-home-list">` +
+			all
+				.map(
+					(report, index) =>
+						`<button type="button" class="ha-home-row" data-ha-home="report" data-index="${index}">` +
+						`<span class="ha-home-row-text"><span class="ha-home-row-title">${esc(__(report.label))}</span></span>` +
+						`${icon("chevron")}</button>`
+				)
+				.join("") +
+			`</div></section>`
+		);
+	}
+
+	// whether a panel of the tab open now is drawn: its frame until the tab is read, then only one the server read
+	// in a kind this page draws
+	function drawn(item) {
+		if (!parts[current]) return true;
+		const one = panel_of(item.key);
+		return Boolean(one && KINDS[one.kind]);
+	}
+
+	// Two across, a wide one across both, and no row with a hole in it: a panel that would be alone on its row is
+	// widened across it, the last one taking the reports beside it instead where there are reports.
+	function packed(items, reports) {
+		const out = items.map((item) => ({ item, wide: item.size === "wide" }));
+		let alone = null;
+		out.forEach((one, index) => {
+			if (one.wide) {
+				if (alone !== null) out[alone].wide = true;
+				alone = null;
+			} else alone = alone === null ? index : null;
+		});
+		if (alone !== null && !reports) out[alone].wide = true;
+		return { panels: out, reports_wide: alone === null };
+	}
+
+	// a module's tab: its heading, its figures, what needs attention and its dashboards, and its reports
+	function tab_panel(data, open) {
+		const rows = packed((open.panels || []).filter(drawn), (open.reports || []).length > 0);
+		const blocks = rows.panels
+			.map((one) => more_one(one.item, one.wide))
+			.concat([reports_panel(open, rows.reports_wide)])
+			.filter(Boolean);
+		return tab_head(data, open) + module_cards(open) + (blocks.length ? `<div class="ha-home-grid">${blocks.join("")}</div>` : "");
+	}
+
+	// the overview: the home as it was
+	function overview(data) {
+		return cards(data) + more_top(data) + panels(data) + sections(data) + more_rows(data);
+	}
+
+	// A tab bar wider than the screen scrolls sideways. It stays where the viewer left it, unless the open tab is
+	// out of sight there: then it moves just far enough to show it.
+	function reveal(bar, scrolled) {
+		bar.scrollLeft = scrolled;
+		const on = bar.querySelector(".ha-home-tabbtn.ha-on");
+		if (!on || bar.scrollWidth <= bar.clientWidth) return;
+		const edge = parseFloat(getComputedStyle(bar).paddingLeft) || 0;
+		const start = on.offsetLeft - edge;
+		const end = on.offsetLeft + on.offsetWidth + edge;
+		if (start < bar.scrollLeft) bar.scrollLeft = start;
+		else if (end > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = end - bar.clientWidth;
+	}
+
+	// The tab bar is worked by the keyboard as a row of tabs (the WAI-ARIA tabs pattern): the arrows move to the
+	// next tab and open it, Home and End to the first and the last.
+	function keyed(event) {
+		const button = event.target.closest(".ha-home-tabbtn");
+		if (!button || !answer) return;
+		const all = (answer.tabs || []).map((one) => one.key);
+		const at = all.indexOf(button.getAttribute("data-tab"));
+		const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: all.length - 1 }[event.key];
+		if (to == null || at < 0) return;
+		event.preventDefault();
+		open_tab(all[(to + all.length) % all.length], true);
+	}
+
+	// another tab opened: drawn at once, its figures asked for if they are not here yet
+	function open_tab(key, focus) {
+		if (!tab_of(key)) return;
+		current = key;
+		keep_tab();
+		redraw();
+		load_parts(false);
+		if (focus) {
+			const button = document.getElementById("ha-home-tab-" + key);
+			if (button) button.focus();
+		}
+	}
 
 	// a route the server names, opened as Frappe opens it: a list on its filters, a page on its options
 	function go(target) {
@@ -858,48 +1346,108 @@
 		frappe.set_route(route);
 	}
 
-	function draw(home) {
+	// scrolled: how far along the tab bar was scrolled before it was drawn again
+	function draw(home, scrolled) {
 		const data = answer;
 		if (!data) {
 			home.innerHTML = skeleton();
 			return;
 		}
-		home.innerHTML = hero(data) + cards(data) + more_top(data) + panels(data) + sections(data) + more_rows(data);
+		const open = current !== OVERVIEW ? tab_of(current) : null;
+		const body = open ? tab_panel(data, open) : overview(data);
+		const bar = tab_bar(data);
+		const shown = open ? open.key : OVERVIEW;
+		home.innerHTML =
+			hero(data) +
+			(bar
+				? bar +
+				  `<div class="ha-home-tabpanel" id="ha-home-tabpanel" role="tabpanel" aria-labelledby="ha-home-tab-${esc(shown)}">` +
+				  `${body}</div>`
+				: body);
+		const tabs = home.querySelector(".ha-home-tabbar");
+		if (tabs) {
+			reveal(tabs, scrolled || 0);
+			tabs.addEventListener("keydown", keyed);
+		}
 		home.querySelectorAll("[data-ha-home]").forEach((element) => {
 			element.addEventListener("click", () => {
 				try {
-					const what = element.getAttribute("data-ha-home");
-					const index = Number(element.getAttribute("data-index"));
-					if (what === "tab") {
-						tab = element.getAttribute("data-tab");
-						draw(home);
-					} else if (what === "todo") go({ route: ["List", "ToDo"], mine: 1 });
-					else if (what === "action") go(data.action);
-					else if (what === "card") go((data.cards || [])[index]);
-					else if (what === "link") go((data.shortcuts || [])[index]);
-					else if (what === "row") {
-						const row = ((tab === "notes" ? data.waiting.notes : data.waiting.items) || [])[index];
-						if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
-						else go({ route: ["List", "ToDo"], mine: 1 });
-					} else if (what === "item") {
-						const row = ((data.sections || {})[element.getAttribute("data-section")] || [])[index];
-						if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
-					} else if (what === "department") {
-						const row = ((data.sections || {}).departments || [])[index];
-						if (row) go({ route: ["List", "Employee"], filters: row.filters });
-					} else if (what === "board") go({ route: ["attendance-board"] });
-					else if (what === "more") {
-						// a row of one of the panels: the record it names, else the list or page it opens on
-						const one = panel_of(element.getAttribute("data-panel") || element.getAttribute("data-section"));
-						const row = one && (one[element.getAttribute("data-part") || "rows"] || [])[index];
-						if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
-						else if (row) go(row);
-					}
+					act(element);
 				} catch (error) {
 					console.error(error);
 				}
 			});
 		});
+	}
+
+	// what a click on the home does: data-ha-home says what was clicked, data-index which of its kind
+	function act(element) {
+		const data = answer;
+		const what = element.getAttribute("data-ha-home");
+		const index = Number(element.getAttribute("data-index"));
+		if (what === "tab") {
+			tab = element.getAttribute("data-tab");
+			redraw();
+		} else if (what === "open") open_tab(element.getAttribute("data-tab"), false);
+		else if (what === "todo") go({ route: ["List", "ToDo"], mine: 1 });
+		else if (what === "action") go(data.action);
+		else if (what === "card") go((data.cards || [])[index]);
+		else if (what === "figure") {
+			// a figure across the top of a module's tab
+			const open = tab_of(current);
+			const key = element.getAttribute("data-key");
+			go(open && tab_cards(open).find((one) => one.key === key && !one.frame));
+		} else if (what === "link") go((data.shortcuts || [])[index]);
+		else if (what === "row") {
+			const row = ((tab === "notes" ? data.waiting.notes : data.waiting.items) || [])[index];
+			if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
+			else go({ route: ["List", "ToDo"], mine: 1 });
+		} else if (what === "item") {
+			const row = ((data.sections || {})[element.getAttribute("data-section")] || [])[index];
+			if (row && row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
+		} else if (what === "department") {
+			const row = ((data.sections || {}).departments || [])[index];
+			if (row) go({ route: ["List", "Employee"], filters: row.filters });
+		} else if (what === "board") go({ route: ["attendance-board"] });
+		else if (what === "more") {
+			// a row of one of the panels: the record it names, else the list or page it opens on, else the panel's
+			// own list narrowed to it
+			const one = panel_of(element.getAttribute("data-panel") || element.getAttribute("data-section"));
+			const row = one && (one[element.getAttribute("data-part") || "rows"] || [])[index];
+			if (!row) return;
+			if (row.doctype && row.docname) frappe.set_route("Form", row.doctype, row.docname);
+			else if (row.route) go(row);
+			else if (row.filters && one.route) go({ route: one.route, filters: Object.assign({}, one.filters, row.filters) });
+		} else if (what === "month") {
+			// a month of a chart: its documents, by the date the chart counts them on
+			const one = panel_of(element.getAttribute("data-panel"));
+			const month = one && (one.months || [])[index];
+			if (month && one.route && one.day) {
+				go({ route: one.route, filters: Object.assign({}, one.filters, { [one.day]: ["between", [month.from, month.to]] }) });
+			}
+		} else if (what === "all") {
+			const one = panel_of(element.getAttribute("data-panel"));
+			if (one) go(one);
+		} else if (what === "report") {
+			const open = tab_of(current);
+			const report = open && (open.reports || [])[index];
+			if (report) go({ route: report.route, options: report.options });
+		} else if (what === "module") open_workspace(element.getAttribute("data-workspace"));
+		else if (what === "refresh") load_parts(true);
+	}
+
+	// the home drawn again where it is, the tab bar scrolled to where the viewer left it, not back to its start
+	function redraw() {
+		try {
+			const wrapper = desk();
+			const home = present() ? wrapper.querySelector(".ha-home") : null;
+			if (home && answer) {
+				const bar = home.querySelector(".ha-home-tabbar");
+				draw(home, bar ? bar.scrollLeft : 0);
+			}
+		} catch (error) {
+			console.error(error);
+		}
 	}
 
 	function load(home) {
@@ -910,7 +1458,13 @@
 		fetch("/api/method/" + METHOD, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } })
 			.then((response) => (response.ok ? response.json() : null))
 			.then((r) => {
+				const first = !answer;
 				answer = (r && r.message) || answer;
+				// the desk opens on the tab asked for, else the one last opened, once the tabs are known
+				if (answer && first) {
+					current = first_tab(answer);
+					keep_tab();
+				}
 			})
 			.catch(() => {})
 			.then(() => {
@@ -919,37 +1473,44 @@
 				const there = mount();
 				if (there && answer) draw(there);
 				else if (there && !answer) unmount(desk()); // nothing to show: the desk as Frappe drew it
-				load_more();
+				load_parts(false);
 			});
 	}
 
-	// The panels' figures, once the home is drawn, by fetch for the same reason as the home's own. A call that
-	// fails leaves no panel where the frames were, and is tried again later.
-	function load_more() {
-		if (more_asking || !answer || !(answer.panels || []).length || Date.now() - more_at < FRESH_MS) return;
-		more_asking = true;
-		fetch("/api/method/" + PANELS_METHOD, {
+	// What the tab open now needs, and the overview's figures, which say how much needs attention on each tab:
+	// the overview's part only where it has panels or there are tabs to count for. Refresh asks the server to
+	// read again each part already read.
+	function load_parts(fresh) {
+		if (!answer) return;
+		const wanted = [];
+		if ((answer.panels || []).length || (answer.tabs || []).length > 1) wanted.push(OVERVIEW);
+		if (current !== OVERVIEW && tab_of(current)) wanted.push(current);
+		const again = fresh ? Object.keys(parts) : [];
+		Array.from(new Set(wanted.concat(again))).forEach((part) => load_part(part, fresh));
+	}
+
+	// One part's figures, by fetch for the same reason as the home's own. A call that fails leaves no panel where
+	// its frames were, and is tried again later.
+	function load_part(part, fresh) {
+		if (!answer || parts_asking[part]) return;
+		const had = parts[part];
+		if (!fresh && had && Date.now() - had.time < FRESH_MS) return;
+		if (part !== OVERVIEW && !tab_of(part)) return;
+		parts_asking[part] = true;
+		if (fresh) redraw(); // the refresh turns while it reads
+		const query = "?part=" + encodeURIComponent(part) + (fresh ? "&fresh=1" : "");
+		fetch("/api/method/" + FIGURES_METHOD + query, {
 			credentials: "same-origin",
 			cache: "no-store",
 			headers: { Accept: "application/json" },
 		})
 			.then((response) => (response.ok ? response.json() : null))
-			.then((r) => {
-				more = (r && r.message) || more || { panels: [] };
-			})
-			.catch(() => {
-				more = more || { panels: [] };
-			})
-			.then(() => {
-				more_at = Date.now();
-				more_asking = false;
-				try {
-					const wrapper = desk();
-					const home = present() ? wrapper.querySelector(".ha-home") : null;
-					if (home && answer) draw(home);
-				} catch (error) {
-					console.error(error);
-				}
+			.then((r) => (r && r.message) || null)
+			.catch(() => null)
+			.then((read) => {
+				parts[part] = Object.assign({ cards: [], panels: [] }, read || had || {}, { time: Date.now() });
+				parts_asking[part] = false;
+				redraw();
 			});
 	}
 
@@ -962,7 +1523,7 @@
 			if (!home) return false;
 			draw(home);
 			load(home);
-			load_more();
+			load_parts(false);
 			return true;
 		} catch (error) {
 			console.error(error);
@@ -991,6 +1552,8 @@
 			const there = present() || show();
 			// measured again each time: the page may not have been laid out yet when the home went on
 			if (there) measure();
+			// a module page's Dashboard button may have asked for a tab
+			if (there) follow_request();
 			if (tries < 12 && (!there || tries < 5)) setTimeout(look, 150 * tries);
 		};
 		look();
@@ -1004,6 +1567,7 @@
 		try {
 			if (!on_desk()) return;
 			if (!present()) show();
+			follow_request();
 			const wrapper = desk();
 			const pane = wrapper && wrapper.closest(".main-section");
 			if (pane) pane.scrollTop = 0;
@@ -1172,8 +1736,8 @@
 }
 .ha-home-step-mark .ha-home-icon { width: 16px; height: 16px; }
 .ha-home .ha-home-step.ha-band-good .ha-home-step-mark { color: #fff; background: var(--ha-band); }
-.ha-home .ha-home-plant, .ha-home .ha-home-output { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 9px 10px; border-radius: 10px; }
-.ha-home .ha-home-plant:hover, .ha-home .ha-home-output:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
+.ha-home .ha-home-plant, .ha-home .ha-home-output-plant { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 9px 10px; border-radius: 10px; }
+.ha-home .ha-home-plant:hover, .ha-home .ha-home-output-plant:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
 .ha-home-plant-top { display: grid; grid-template-columns: minmax(0, 104px) minmax(0, 1fr) auto; align-items: center; gap: 10px; }
 .ha-home-plant-top b { font-size: 13.5px; color: var(--ha-h-ink); white-space: nowrap; }
 .ha-home-plant-top small { font-size: 11.5px; font-weight: 600; color: var(--ha-h-muted); }
@@ -1182,7 +1746,9 @@
 	color: var(--hra-danger, #A62B25); background: color-mix(in srgb, var(--hra-danger, #A62B25) 10%, transparent);
 }
 .ha-home-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px 12px; }
-.ha-home-output .ha-home-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ha-home-output-plant .ha-home-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Output and Labour Cost across the page: the plants side by side */
+.ha-home-output.ha-home-wide .ha-home-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 0 8px; }
 /* the pipeline's stages are named in full */
 .ha-home-recruitment .ha-home-bar { grid-template-columns: minmax(0, 168px) minmax(0, 1fr) auto; }
 .ha-home-figure { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
@@ -1190,6 +1756,7 @@
 .ha-home-figure b { font-size: 14px; color: var(--ha-h-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ha-home-delta { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; font-weight: 600; color: var(--ha-h-muted); }
 .ha-home-delta .ha-home-icon { width: 13px; height: 13px; }
+.ha-home-card-note .ha-home-delta { margin-right: 6px; }
 .ha-home-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; height: 150px; padding: 12px 12px 0; }
 .ha-home-column { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; height: 100%; }
 .ha-home-column-bars { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; }
@@ -1203,11 +1770,92 @@
 .ha-home-legend-figure b { color: var(--ha-h-ink); }
 .ha-home-count { min-width: 28px; text-align: right; font-size: 13.5px; color: var(--ha-h-ink); }
 
+/* the tabs: Overview, then each module's dashboard, kept in sight under the desk's bar as the page scrolls, and
+   scrolling sideways where they do not fit */
+.ha-home-tabbar {
+	display: flex; gap: 4px; margin-top: 14px; padding: 5px; overflow-x: auto; scrollbar-width: thin;
+	position: sticky; top: calc(var(--desktop-navbar-height, 52px) + 6px); z-index: 3;
+	background: var(--ha-h-card); border: 1px solid var(--ha-h-line); border-radius: 14px;
+	box-shadow: 0 6px 18px color-mix(in srgb, var(--ha-h-navy) 8%, transparent);
+}
+.ha-home .ha-home-tabbtn {
+	flex: none; display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 10px;
+	font-size: 13.5px; font-weight: 600; color: var(--ha-h-muted); white-space: nowrap;
+}
+.ha-home .ha-home-tabbtn:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); color: var(--ha-h-ink); }
+.ha-home .ha-home-tabbtn:focus-visible { outline: 2px solid var(--ha-h-gold); outline-offset: 1px; }
+.ha-home .ha-home-tabbtn.ha-on { background: var(--ha-h-navy); color: #fff; }
+.ha-home .ha-home-tabbtn.ha-on .ha-home-icon { color: var(--ha-h-gold); }
+.ha-home-tabbtn .ha-home-icon { width: 17px; height: 17px; }
+.ha-home-badge {
+	font-style: normal; font-size: 11px; font-weight: 700; line-height: 18px; min-width: 20px; padding: 0 6px;
+	border-radius: 99px; text-align: center; color: #fff; background: var(--ha-band, var(--ha-h-muted));
+}
+/* the heading of a module's tab */
+.ha-home-tabhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 18px 2px 0; }
+.ha-home-tabhead h3 { margin: 0; font-size: 19px; font-weight: 700; color: var(--ha-h-ink); letter-spacing: -.01em; }
+.ha-home-tabhead p { margin: 3px 0 0; font-size: 12.5px; color: var(--ha-h-muted); }
+.ha-home-tabhead-side { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ha-home-stamp { display: inline-flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--ha-h-muted); }
+.ha-home .ha-home-refresh { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--hra-accent, #0A6ED1); }
+.ha-home-refresh .ha-home-icon { width: 15px; height: 15px; }
+.ha-home .ha-home-refresh.ha-busy .ha-home-icon { animation: ha-home-turn .9s linear infinite; }
+@keyframes ha-home-turn { to { transform: rotate(360deg); } }
+.ha-home .ha-home-into {
+	display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 10px; font-size: 13px;
+	font-weight: 600; color: var(--ha-h-ink); background: var(--ha-h-card); border: 1px solid var(--ha-h-line);
+}
+.ha-home .ha-home-into:hover { border-color: var(--ha-h-navy); }
+.ha-home-card.ha-home-frame { cursor: default; }
+/* a module's dashboards: two across, a wide one across both, the two of a row as tall as each other */
+.ha-home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+.ha-home-grid > .ha-home-panel.ha-home-wide { grid-column: 1 / -1; margin-top: 0; }
+.ha-home-reports .ha-home-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 2px 8px; }
+/* Needs Attention across the page: its checks side by side, as many as fit */
+.ha-home-grid > .ha-home-attention.ha-home-wide .ha-home-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: 0 8px; }
+.ha-home-grid .ha-home-list > .ha-home-empty { grid-column: 1 / -1; }
+.ha-home-seeall { padding: 0 10px 10px; }
+.ha-home .ha-home-all { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--hra-accent, #0A6ED1); }
+.ha-home-all .ha-home-icon { width: 15px; height: 15px; }
+/* Needs Attention: how many of each, in the band of how pressing it is */
+.ha-home-check-count {
+	min-width: 30px; height: 26px; padding: 0 8px; border-radius: 99px; flex: none; display: inline-grid; place-items: center;
+	font-size: 12.5px; font-weight: 700; color: #fff; background: var(--ha-band, var(--hra-ink-muted, #546678));
+}
+/* six months of something: each month a column that opens its documents */
+.ha-home .ha-home-column { border-radius: 8px; padding: 2px 0; text-align: center; }
+.ha-home .ha-home-column:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
+/* a ring of a whole's parts, in the theme's colours, the rest in the quiet gray */
+.ha-home-donut-row {
+	display: flex; align-items: center; gap: 16px; padding: 10px 10px 6px; flex-wrap: wrap;
+	--ha-slice-0: var(--hra-primary, #14395E); --ha-slice-1: var(--hra-shell-marker, #F0AB00);
+	--ha-slice-2: var(--hra-accent, #0A6ED1); --ha-slice-3: var(--hra-success, #256F3A);
+	--ha-slice-4: var(--hra-amber-text, #B45309); --ha-slice-5: var(--hra-primary-soft, #5B8FC7);
+	--ha-slice-6: var(--hra-danger, #A62B25); --ha-slice-rest: var(--hra-ink-muted, #546678);
+}
+.ha-home-donut { position: relative; width: 132px; height: 132px; flex: none; }
+.ha-home-donut-ring { position: absolute; inset: 0; border-radius: 50%; }
+.ha-home-donut-middle {
+	position: absolute; inset: 21px; border-radius: 50%; background: var(--ha-h-card); display: flex; flex-direction: column;
+	align-items: center; justify-content: center; text-align: center;
+}
+.ha-home-donut-middle b { font-size: 15px; color: var(--ha-h-ink); line-height: 1.15; }
+.ha-home-donut-middle small { font-size: 11px; color: var(--ha-h-muted); }
+.ha-home-slices { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; }
+.ha-home .ha-home-slice {
+	display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
+	width: 100%; padding: 6px 8px; border-radius: 9px;
+}
+.ha-home .ha-home-slice:hover { background: color-mix(in srgb, var(--ha-h-navy) 6%, transparent); }
+.ha-home-slice > i { width: 10px; height: 10px; border-radius: 3px; }
+.ha-home-slice b { font-size: 13px; color: var(--ha-h-ink); white-space: nowrap; }
+.ha-home-slice small { font-size: 11.5px; color: var(--ha-h-muted); min-width: 32px; text-align: right; }
+
 /* while the figures are on their way */
 .ha-home-bone { height: 12px; border-radius: 6px; margin: 6px 0; background: linear-gradient(90deg, color-mix(in srgb, var(--hra-border-strong, #7E93AD) 16%, transparent), color-mix(in srgb, var(--hra-border-strong, #7E93AD) 30%, transparent), color-mix(in srgb, var(--hra-border-strong, #7E93AD) 16%, transparent)); background-size: 200% 100%; animation: ha-home-shine 1.3s linear infinite; }
 .ha-home-hero .ha-home-bone { background: linear-gradient(90deg, rgba(255,255,255,.14), rgba(255,255,255,.30), rgba(255,255,255,.14)); background-size: 200% 100%; }
 @keyframes ha-home-shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-@media (prefers-reduced-motion: reduce) { .ha-home-bone { animation: none; } .ha-home * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { .ha-home-bone, .ha-home .ha-home-refresh.ha-busy .ha-home-icon { animation: none; } .ha-home * { transition: none !important; } }
 
 /* Frappe's own tiles, as a list of modules: down the left of the home on a
    wide screen and under it on a narrow one, in the order of an employee's
@@ -1331,7 +1979,7 @@ ${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-link:hover, ${TILES} > .deskto
 	.desktop-wrapper.ha-has-home:not([data-mode="Edit"]) > .ha-home { order: 2; flex: 1 1 0; min-width: 0; max-width: none; margin: 18px 20px 44px 0; padding: 0; }
 }
 @media (max-width: 1100px) {
-	.ha-home-panels, .ha-home-panels.ha-home-two, .ha-home-panels.ha-home-three { grid-template-columns: minmax(0, 1fr); }
+	.ha-home-panels, .ha-home-panels.ha-home-two, .ha-home-panels.ha-home-three, .ha-home-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
 	.ha-home-hero { padding: 18px; }

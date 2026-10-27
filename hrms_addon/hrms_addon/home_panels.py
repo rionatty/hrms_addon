@@ -1,17 +1,14 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""The desk home's panels under what waits for the user (home_panels_rules.py
-has the rules and says what each panel is): read here, in a call of their
-own, so the greeting and what waits are never held up by them.
-public/js/hrms_addon_home.js draws them.
+"""The desk home's first seven panels, read from the site
+(home_panels_rules.py has the rules and says what each panel is). Since the
+tabs of dashboards (27 Oct 2026) each stands on its module's tab, and some on
+the overview too: dashboards.py asks READERS for them, with the rest of a
+tab's figures, and public/js/hrms_addon_home.js draws them.
 
-  panels           every panel the user's roles are for and Theme Settings
-                   show, with its figures
-  places           the panels of a desk and where each goes, for
-                   home.summary
-  ensure_switches  after_migrate: a switch nobody has saved is written on,
-                   so the settings form shows it on
+  READERS   {panel: the reader of its figures}, each called with the day,
+            whether the user may see money, and their roles
 
 AS THE USER MAY SEE IT
 
@@ -20,78 +17,14 @@ home's are: a plant's HR see their plant. A doctype the user may not read is
 not asked for: its step says so, or its rows are left out. The rows of a
 table are read only for records the user has read. A part that cannot be
 read is logged and left out (home._or), and the rest still come.
-
-KEPT FIVE MINUTES
-
-The desk asks again every minute it is open, so a user's panels are kept
-for five minutes (CACHE_SECONDS) and read afresh after.
 """
 
 import frappe
-from frappe.utils import add_days, cint, getdate, now_datetime, nowdate
+from frappe.utils import add_days, cint, now_datetime
 
 from hrms_addon.hrms_addon import attendance_rules, home, home_panels_rules as rules, home_rules
 
-SETTINGS = "HRMS Addon Theme Settings"
-CACHE_KEY = "hrms_addon_home_panels"
 UNREADABLE = {rules.UNREADABLE: 1}
-
-
-@frappe.whitelist()
-def panels():
-    """Every panel of the logged-in user's desk, with its figures."""
-    user = frappe.session.user
-    roles = frappe.get_roles(user)
-    keys = rules.panels_for(roles, rules.switched_on(home._or({}, _stored)))
-    if not keys:
-        return {"panels": []}
-    today = getdate(nowdate())
-    money = rules.money_for(roles)
-    kept = home._or(None, _kept, user)
-    if kept and kept.get("keys") == keys and kept.get("day") == str(today) and kept.get("money") == money:
-        return kept
-    found = []
-    for key in keys:
-        panel = home._or(None, READERS[key], today, money, roles)
-        if panel:
-            found.append(dict(panel, key=key, title=rules.TITLES[key]))
-    out = {"panels": found, "keys": keys, "day": str(today), "money": money}
-    home._or(None, _keep, user, out)
-    return out
-
-
-def places(roles, view, today):
-    """The panels of a desk and where each goes, for home.summary to send
-    with the home so the page can lay them out before their figures come."""
-    return rules.places(rules.panels_for(roles, rules.switched_on(home._or({}, _stored))), view, today)
-
-
-def _stored():
-    """What Theme Settings have saved; a switch nobody has saved is not in it."""
-    if not frappe.db.exists("DocType", SETTINGS):
-        return {}
-    return frappe.db.get_singles_dict(SETTINGS)
-
-
-def _kept(user):
-    return frappe.cache.get_value(CACHE_KEY, user=user)
-
-
-def _keep(user, value):
-    frappe.cache.set_value(CACHE_KEY, value, user=user, expires_in_sec=rules.CACHE_SECONDS)
-
-
-def ensure_switches():
-    """after_migrate. Each panel's switch that nobody has saved is written
-    on, as its field's default says: a Check never saved reads 0 on the
-    settings form, and the next save of the settings would switch the panel
-    off without anybody choosing to."""
-    if not frappe.db.exists("DocType", SETTINGS):
-        return
-    stored = frappe.db.get_singles_dict(SETTINGS)
-    for switch in rules.SWITCHES:
-        if stored.get(switch) is None:
-            frappe.db.set_single_value(SETTINGS, switch, 1)
 
 
 def _may(doctype):
