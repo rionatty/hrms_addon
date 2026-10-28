@@ -325,9 +325,11 @@ check('if (frappe.session && frappe.session.user === "Guest") return;' in script
 check('const METHOD = "hrms_addon.hrms_addon.home.summary";' in script
       and script.count('fetch("/api/method/" + METHOD') == 1 and "if (asking || Date.now() - asked_at < FRESH_MS) return;" in script,
       "it asks home.summary, once at a time")
-check(not re.search(r"frappe\s*\.\s*x?call\(", script) and "response.ok ? response.json() : null" in script
+check(not re.search(r"frappe\s*\.\s*x?call\(", script)
+      and script.count("response.ok ? response.json() : null") == script.count('fetch("/api/method/') >= 2
       and ".catch(() => {})" in script,
-      "and never through frappe.call, whose failure opens Frappe's Server Error dialog on the page everybody lands on")
+      "and never through frappe.call, whose failure opens Frappe's Server Error dialog on the page everybody lands on; "
+      "each call reads an answer only from a call that worked")
 check(script.count("try {") >= 4 and "console.error(error);" in script,
       "nothing it does can stop the desk opening: every entry is caught")
 check("wrapper.insertBefore(home, tiles);" in script and ".desktop-container" in script
