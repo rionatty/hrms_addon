@@ -511,7 +511,7 @@ def _component(company=None):
     if not frappe.db.exists("Salary Component", DEFAULT_COMPONENT):
         try:
             doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
-                                  "type": "Deduction", "salary_component_abbr": "AR",
+                                  "type": "Deduction", "salary_component_abbr": "AR", "depends_on_payment_days": 0,
                                   "description": "Recovery of an employee advance (LPL/HR/21)."})
             doc.insert(ignore_permissions=True)
         except Exception:

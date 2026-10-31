@@ -148,6 +148,21 @@ def totals(earnings, deductions, timesheet=0):
             "net_pay": 0.0 if int(timesheet or 0) else earned - deducted}
 
 
+def taxable_formula(formula, abbrs, adding=()):
+    """A Taxable Salary formula that names only abbreviations the site has, and counts the ones in `adding` too:
+    Overtime 1.0's old OT_15 (the line keeps the abbreviation it was made with, the component no longer has it) read
+    as OT1, and each abbreviation in `adding` the site has, added where the formula lacks it. abbrs: every component's
+    abbreviation on the site."""
+    abbrs = set(abbrs or ())
+    formula = formula or ""
+    if "OT_15" not in abbrs and "OT1" in abbrs:
+        formula = re.sub(r"\(\s*OT_15\s+or\s+0\s*\)|(?<![\w.])OT_15(?![\w.])", "OT1", formula)
+    for abbr in adding:
+        if abbr in abbrs and not re.search(r"(?<![\w.])%s(?![\w.])" % re.escape(abbr), formula):
+            formula = "%s + %s" % (formula, abbr) if formula.strip() else abbr
+    return formula
+
+
 def _uses(formula, abbr):
     """Whether a formula names an abbreviation as a whole word."""
     return re.search(r"\b%s\b" % re.escape(abbr), formula) is not None

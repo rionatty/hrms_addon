@@ -222,7 +222,7 @@ def _component():
         return DEFAULT_COMPONENT
     try:
         doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
-                              "type": "Deduction", "salary_component_abbr": "PEN",
+                              "type": "Deduction", "salary_component_abbr": "PEN", "depends_on_payment_days": 0,
                               "description": "Recovery of a penalty for property lost or damaged."})
         doc.insert(ignore_permissions=True)
         return doc.name

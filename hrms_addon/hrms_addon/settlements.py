@@ -196,7 +196,7 @@ def _component():
         return DEFAULT_COMPONENT
     try:
         doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
-                              "type": "Earning", "salary_component_abbr": "TB",
+                              "type": "Earning", "salary_component_abbr": "TB", "depends_on_payment_days": 0,
                               "description": "Full and final settlement (LPL/HR/20)."})
         doc.insert(ignore_permissions=True)
         return doc.name
