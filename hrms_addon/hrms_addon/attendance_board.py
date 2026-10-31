@@ -29,6 +29,7 @@ from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime
 
 from hrms_addon.hrms_addon import (attendance, attendance_rules as register,
                                    board_rules as rules)
+from hrms_addon.hrms_addon.queries import aggregate
 
 ATTENDANCE = "Attendance"
 CHECKIN = "Employee Checkin"
@@ -440,11 +441,11 @@ def _machines(now, branch=None):
         return []
     last = {row.device: row.last_seen for row in frappe.get_all(
         LOG, filters={"device": ["in", [row.name for row in devices]]},
-        fields=["device", "MAX(punch_time) as last_seen"], group_by="device")}
+        fields=["device", aggregate("MAX", "punch_time", "last_seen")], group_by="device")}
     today = {row.device: row.punches for row in frappe.get_all(
         LOG, filters={"device": ["in", [row.name for row in devices]],
                       "punch_time": [">=", getdate(now)]},
-        fields=["device", "COUNT(name) as punches"], group_by="device")}
+        fields=["device", aggregate("COUNT", "name", "punches")], group_by="device")}
     machines = []
     for row in devices:
         seen = last.get(row.name)

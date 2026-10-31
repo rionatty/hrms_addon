@@ -34,6 +34,7 @@ from frappe.utils import cint, getdate, now_datetime, nowdate
 
 from hrms_addon.hrms_addon import alerts_rules, attendance_rules, home, home_panels, home_rules
 from hrms_addon.hrms_addon import dashboards_rules as rules
+from hrms_addon.hrms_addon.queries import aggregate
 
 SETTINGS = "HRMS Addon Theme Settings"
 CACHE_KEY = "hrms_addon_home_figures"
@@ -451,13 +452,6 @@ class Reader:
 
 
 # ── Reading the site ──────────────────────────────────────────────────
-def aggregate(function, field, alias):
-    """SUM or COUNT as a get_list field. Frappe v16 takes it as a dict, v15 only as SQL in a string."""
-    if _major() >= 16:
-        return {function: field, "as": alias}
-    return "%s(%s) as %s" % (function.lower(), field if field == "*" else "`%s`" % field, alias)
-
-
 def total(doctype, field, filters):
     """The sum of a field over the documents the user may read."""
     rows = frappe.get_list(doctype, filters=filters, fields=[aggregate("SUM", field, "total")], order_by=None)
@@ -475,13 +469,6 @@ def grouped(doctype, by, field, filters, alias=None):
     fields = ["%s as %s" % (by, alias) if alias else by, aggregate("SUM", field, "total")]
     return frappe.get_list(doctype, filters=filters, fields=fields, group_by=by, order_by="%s asc" % by,
                            limit_page_length=0)
-
-
-def _major():
-    try:
-        return int(str(frappe.__version__).split(".")[0])
-    except (AttributeError, ValueError):
-        return 16
 
 
 def _currency(company):

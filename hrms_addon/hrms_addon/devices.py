@@ -40,6 +40,7 @@ from frappe import _
 from frappe.utils import add_days, cint, get_datetime, getdate, now_datetime
 
 from hrms_addon.hrms_addon import attendance_rules, zkteco_rules as rules
+from hrms_addon.hrms_addon.queries import aggregate
 
 CHECKIN = "Employee Checkin"
 LOG = "Attendance Device Log"
@@ -478,7 +479,7 @@ def tell_silent_machines():
         return []
     last = {row.device: row.last_seen for row in frappe.get_all(
         LOG, filters={"device": ["in", [row.name for row in machines]]},
-        fields=["device", "MAX(punch_time) as last_seen"], group_by="device")}
+        fields=["device", aggregate("MAX", "punch_time", "last_seen")], group_by="device")}
     now, told = now_datetime(), []
     for machine in machines:
         seen = last.get(machine.name)
