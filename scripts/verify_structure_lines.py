@@ -247,6 +247,130 @@ check("custom_nssf_exempt" not in everything and "custom_paye_special" not in ev
       "nobody is exempted from NSSF or put on a PAYE of their own")
 print("modules: advances, loans, penalties and settlements take their components in full; nobody exempted")
 
+# ── 4. Overtime in full, Leave Advance, the pay NSSF, LST and PAYE are on ──
+LST_11_OCT = ("(0 if (gross_pay - (rmb or 0) - (CB or 0)) <= 100000 else 1250 if (gross_pay - (rmb or 0) - (CB or 0)) <= 200000 "
+              "else 2500 if (gross_pay - (rmb or 0) - (CB or 0)) <= 300000 else 5000 if (gross_pay - (rmb or 0) - (CB or 0)) "
+              "<= 400000 else 7500 if (gross_pay - (rmb or 0) - (CB or 0)) <= 500000 else 10000 if (gross_pay - (rmb or 0) - "
+              "(CB or 0)) <= 600000 else 15000 if (gross_pay - (rmb or 0) - (CB or 0)) <= 700000 else 17500 if (gross_pay - "
+              "(rmb or 0) - (CB or 0)) <= 800000 else 20000 if (gross_pay - (rmb or 0) - (CB or 0)) <= 900000 else 22500 if "
+              "(gross_pay - (rmb or 0) - (CB or 0)) <= 1000000 else 25000) if getdate(end_date).month in (7, 8, 9, 10) else 0")
+PAYE_11_OCT = ("floor((0 if (gross_pay - (rmb or 0) - (LST or 0)) <= 335000 else ((gross_pay - (rmb or 0) - (LST or 0)) - "
+               "335000) * 0.2 if (gross_pay - (rmb or 0) - (LST or 0)) <= 410000 else 15000 + ((gross_pay - (rmb or 0) - "
+               "(LST or 0)) - 410000) * 0.25 if (gross_pay - (rmb or 0) - (LST or 0)) <= 485000 else 33750 + ((gross_pay - "
+               "(rmb or 0) - (LST or 0)) - 485000) * 0.3 if (gross_pay - (rmb or 0) - (LST or 0)) <= 10000000 else 2888250 + "
+               "((gross_pay - (rmb or 0) - (LST or 0)) - 10000000) * 0.4) + 0.500001)")
+NSSF_11_OCT = "floor((gross_pay - (rmb or 0) - (CB or 0)) * 0.05 + 0.500001)"
+NSSFER_11_OCT = "floor((gross_pay - (rmb or 0) - (CB or 0)) * 0.1 + 0.500001)"
+fixed = {name: rules.pay_base_formula(name, formula) for name, formula in (
+    ("Local Service Tax", LST_11_OCT), ("PAYEE", PAYE_11_OCT), ("NSSF Employee", NSSF_11_OCT),
+    ("NSSF Employer 10%", NSSFER_11_OCT))}
+check("(CB or 0)" not in fixed["Local Service Tax"] + fixed["NSSF Employee"] + fixed["NSSF Employer 10%"]
+      and fixed["PAYEE"].count(rules.TAXABLE_PAY) == PAYE_11_OCT.count(rules.TAXABLE_PAY_WAS) == 8,
+      "every place the old formulas name the pay is corrected", fixed)
+check(all(rules.pay_base_formula(name, formula) == formula for name, formula in fixed.items())
+      and rules.pay_base_formula("Basic", "base") == "base" and rules.pay_base_formula("PAYEE", "") == "",
+      "and nothing more the second time, nor on another line")
+
+
+def pay(gross, cb=0, sw=0, rmb=0):
+    data = {"gross_pay": gross, "CB": cb, "SW": sw, "rmb": rmb, "end_date": "2026-09-25"}
+    scope = {"__builtins__": {}, "floor": math.floor, "getdate": __import__("datetime").date.fromisoformat}
+    data["LST"] = eval(fixed["Local Service Tax"], dict(scope), dict(data))
+    return (data["LST"], eval(fixed["PAYEE"], dict(scope), dict(data)), eval(fixed["NSSF Employee"], dict(scope), dict(data)))
+
+
+check(pay(4000000) == (25000, 1080750, 200000), "a plain 4,000,000 as before: LST 25,000, PAYE 1,080,750, NSSF 200,000",
+      pay(4000000))
+check(pay(4000000, cb=500000) == (25000, 1230750, 200000),
+      "a car benefit of 500,000 is taxed, and no longer takes NSSF down", pay(4000000, cb=500000))
+check(pay(4300000, sw=300000) == (25000, 1080750, 200000),
+      "a Sacco withdrawal of 300,000 is neither taxed nor charged NSSF", pay(4300000, sw=300000))
+check(pay(130000, sw=40000)[0] == 0 and pay(130000)[0] == 1250, "nor counted for LST")
+
+
+class Pays:
+    """A stand-in for Frappe with the components, overtime types and structure lines the second patch reads."""
+
+    def __init__(self):
+        self.components = {"Overtime": {"depends_on_payment_days": 1}, "Overtime 3": {"depends_on_payment_days": 0},
+                           "Night Overtime": {"depends_on_payment_days": 1}, "Basic": {"depends_on_payment_days": 1},
+                           "Leave Advance": {"formula": "base * .6\n", "amount_based_on_formula": 1}}
+        self.types = ["Overtime 3", "Night Overtime", None]
+        self.lines = [
+            {"name": "L1", "parenttype": "Salary Structure", "salary_component": "Overtime", "depends_on_payment_days": 1},
+            {"name": "L2", "parenttype": "Salary Slip", "salary_component": "Overtime", "depends_on_payment_days": 1},
+            {"name": "L3", "parenttype": "Salary Structure", "salary_component": "Leave Advance", "formula": "base * .6",
+             "amount_based_on_formula": 1},
+            {"name": "L4", "parenttype": "Salary Structure", "salary_component": "Local Service Tax", "formula": LST_11_OCT},
+            {"name": "L5", "parenttype": "Salary Structure", "salary_component": "PAYEE", "formula": PAYE_11_OCT},
+            {"name": "L6", "parenttype": "Salary Structure", "salary_component": "NSSF Employee", "formula": NSSF_11_OCT},
+            {"name": "L7", "parenttype": "Salary Structure", "salary_component": "NSSF Employer 10%", "formula": NSSFER_11_OCT},
+            {"name": "L8", "parenttype": "Salary Slip", "salary_component": "PAYEE", "formula": PAYE_11_OCT}]
+        self.writes = 0
+
+    def frappe(self):
+        site = self
+
+        def matches(line, filters):
+            for field, wanted in filters.items():
+                value = line.get(field)
+                if isinstance(wanted, list) and wanted[0] == "in":
+                    if value not in wanted[1]:
+                        return False
+                elif value != wanted:
+                    return False
+            return True
+
+        def get_all(doctype, filters=None, pluck=None, fields=None):
+            if doctype == "Overtime Type":
+                return [name for name in site.types if name]
+            out = [line for line in site.lines if matches(line, filters or {})]
+            if pluck:
+                return [line[pluck] for line in out]
+            return [types.SimpleNamespace(**{field: line.get(field) for field in fields}) for line in out]
+
+        def set_value(doctype, name, field, value=None, update_modified=True):
+            site.writes += 1
+            values = field if isinstance(field, dict) else {field: value}
+            record = site.components[name] if doctype == "Salary Component" else next(
+                line for line in site.lines if line["name"] == name)
+            record.update(values)
+
+        module = types.ModuleType("frappe")
+        module.db = types.SimpleNamespace(
+            exists=lambda doctype, name=None: doctype == "DocType" or name in site.components,
+            get_value=lambda doctype, name, field: site.components.get(name, {}).get(field),
+            set_value=set_value)
+        module.get_all = get_all
+        return module
+
+
+pays = Pays()
+sys.modules["frappe"] = pays.frappe()
+second = load("overtime_and_pay_bases", os.path.join(REPO, "hrms_addon", "patches", "v1_0", "overtime_and_pay_bases.py"))
+second.execute()
+by_line = {line["name"]: line for line in pays.lines}
+check(pays.components["Overtime"]["depends_on_payment_days"] == 0
+      and pays.components["Night Overtime"]["depends_on_payment_days"] == 0
+      and pays.components["Basic"]["depends_on_payment_days"] == 1,
+      "Overtime and every component an Overtime Type pays into are paid in full; Basic still by the days", pays.components)
+check(by_line["L1"]["depends_on_payment_days"] == 0 and by_line["L2"]["depends_on_payment_days"] == 1,
+      "and a structure's overtime line too; a slip is left alone")
+check(pays.components["Leave Advance"] == {"formula": "", "amount_based_on_formula": 0}
+      and by_line["L3"]["formula"] == "" and by_line["L3"]["amount_based_on_formula"] == 0,
+      "Leave Advance takes no formula, on the component or a structure's line", (pays.components["Leave Advance"], by_line["L3"]))
+check([by_line[name]["formula"] for name in ("L4", "L5", "L6", "L7")]
+      == [fixed["Local Service Tax"], fixed["PAYEE"], fixed["NSSF Employee"], fixed["NSSF Employer 10%"]]
+      and by_line["L8"]["formula"] == PAYE_11_OCT, "LST, PAYEE and both NSSF lines on the right pay; a slip untouched")
+writes = pays.writes
+second.execute()
+check(pays.writes == writes, "the second run writes nothing", pays.writes - writes)
+check("hrms_addon.patches.v1_0.overtime_and_pay_bases" in patches.split("[post_model_sync]")[1]
+      and patches.index("overtime_and_pay_bases") > patches.index("salaried_structure_lines"),
+      "it runs after the doctypes are migrated, and after the lines are added")
+print("overtime and pay bases: overtime paid in full, Leave Advance without a formula, NSSF, LST and PAYE on the right "
+      "pay, once")
+
 print()
 if fail:
     print("FAILURES:")

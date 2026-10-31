@@ -163,6 +163,27 @@ def taxable_formula(formula, abbrs, adding=()):
     return formula
 
 
+# The pay NSSF, LST and PAYE are worked out on, as the 11 Oct 2026 formulas wrote it, and as it should be. The Car
+# Benefit (CB) is "do not include in total": never in gross_pay, so taking it off again made NSSF and LST too low, and
+# PAYE never taxed it. Sacco withdrawals (SW) are in gross_pay but are the member's own savings: neither taxed nor
+# charged NSSF.
+CASH_PAY_WAS = "(gross_pay - (rmb or 0) - (CB or 0))"
+CASH_PAY = "(gross_pay - (rmb or 0) - (SW or 0))"
+TAXABLE_PAY_WAS = "(gross_pay - (rmb or 0) - (LST or 0))"
+TAXABLE_PAY = "(gross_pay + (CB or 0) - (rmb or 0) - (SW or 0) - (LST or 0))"
+PAY_BASES = {"Local Service Tax": (CASH_PAY_WAS, CASH_PAY), "NSSF Employee": (CASH_PAY_WAS, CASH_PAY),
+             "NSSF Employer 10%": (CASH_PAY_WAS, CASH_PAY), "PAYEE": (TAXABLE_PAY_WAS, TAXABLE_PAY)}
+
+
+def pay_base_formula(component, formula):
+    """A structure line's formula with the pay it is worked out on corrected (PAY_BASES): the same formula where the
+    component is not one of them, or the formula is not written on the old base."""
+    if component not in PAY_BASES or not formula:
+        return formula
+    was, now = PAY_BASES[component]
+    return formula.replace(was, now)
+
+
 def _uses(formula, abbr):
     """Whether a formula names an abbreviation as a whole word."""
     return re.search(r"\b%s\b" % re.escape(abbr), formula) is not None

@@ -78,3 +78,4 @@ hrms_addon.patches.v1_0.annual_leave_type
 hrms_addon.patches.v1_0.employee_statuses
 hrms_addon.patches.v1_0.overtime_types_not_seeded
 hrms_addon.patches.v1_0.salaried_structure_lines
+hrms_addon.patches.v1_0.overtime_and_pay_bases
