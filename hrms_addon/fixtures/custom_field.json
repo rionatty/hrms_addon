@@ -11794,6 +11794,26 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Entry-custom_salary_register_tab",
+  "dt": "Payroll Entry",
+  "fieldname": "custom_salary_register_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "overtime_step",
+  "label": "Salary Register",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Payroll Entry-custom_salary_register",
+  "dt": "Payroll Entry",
+  "fieldname": "custom_salary_register",
+  "fieldtype": "HTML",
+  "insert_after": "custom_salary_register_tab",
+  "label": "Salary Register",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Salary Slip-custom_absent_amount",
   "dt": "Salary Slip",
   "fieldname": "custom_absent_amount",

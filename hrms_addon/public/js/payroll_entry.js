@@ -2,9 +2,23 @@
 // and nothing is posted: the drafts are deleted and made again on the same
 // payroll, in the background (payroll_entries.py). Frappe HR's own refresh
 // clears the buttons of a submitted payroll first; this one runs after it.
+//
+// The Salary Register tab: Frappe HR's Salary Register kept to this payroll's
+// slips, drafts or submitted (payroll_register.py). It loads when the tab is
+// opened, not with the form, and again once the payroll changes or Refresh
+// is pressed.
+const HA_PAYROLL_REGISTER_TAB = "custom_salary_register_tab";
+const HA_PAYROLL_REGISTER_FIELD = "custom_salary_register";
+const HA_PAYROLL_REGISTER_METHOD = "hrms_addon.hrms_addon.payroll_register.salary_register";
+const HA_PAYROLL_REGISTER_DOWNLOAD = "hrms_addon.hrms_addon.payroll_register.download_salary_register";
+
 frappe.ui.form.on("Payroll Entry", {
 	refresh(frm) {
 		ha_payroll_recreate_button(frm);
+		ha_payroll_register(frm);
+	},
+	on_tab_change(frm) {
+		ha_payroll_register(frm);
 	},
 });
 
@@ -28,4 +42,126 @@ function ha_payroll_recreate_button(frm) {
 				});
 		});
 	});
+}
+
+function ha_payroll_register(frm, again) {
+	const field = frm.get_field(HA_PAYROLL_REGISTER_FIELD);
+	if (!field || !field.$wrapper) return;
+	const $wrapper = field.$wrapper;
+	const key = frm.doc.name + "|" + frm.doc.modified;
+	if ($wrapper.data("ha-register") !== key) {
+		// another payroll, or this one since changed: what is drawn is not its register
+		$wrapper.data("ha-register", null).empty();
+	}
+	const tab = frm.get_active_tab && frm.get_active_tab();
+	if (!tab || !tab.df || tab.df.fieldname !== HA_PAYROLL_REGISTER_TAB) return;
+	if (frm.is_new()) {
+		$wrapper.html(ha_payroll_register_note(__("No salary slips yet.")));
+		return;
+	}
+	if ($wrapper.data("ha-register") === key && !again) return;
+	$wrapper.data("ha-register", key).html(ha_payroll_register_note(__("Loading...")));
+	// fetch, not frappe.call: a register that cannot be loaded says so in the tab, not in a dialog
+	fetch("/api/method/" + HA_PAYROLL_REGISTER_METHOD + "?payroll_entry=" + encodeURIComponent(frm.doc.name), {
+		credentials: "same-origin",
+		cache: "no-store",
+		headers: { Accept: "application/json" },
+	})
+		.then((response) =>
+			response
+				.json()
+				.catch(() => null)
+				.then((body) => {
+					if (!response.ok) throw { ha_message: ha_payroll_register_error(body) };
+					return (body && body.message) || {};
+				})
+		)
+		.then((register) => {
+			if ($wrapper.data("ha-register") !== key) return;
+			ha_payroll_register_draw(frm, $wrapper, register);
+		})
+		.catch((error) => {
+			if ($wrapper.data("ha-register") !== key) return;
+			// asked again the next time the tab is opened
+			const message = (error && error.ha_message) || __("The Salary Register could not be loaded.");
+			$wrapper.data("ha-register", null).html(ha_payroll_register_note(message));
+		});
+}
+
+function ha_payroll_register_draw(frm, $wrapper, register) {
+	const rows = register.rows || [];
+	if (!rows.length) {
+		$wrapper.html(ha_payroll_register_note(__("No salary slips yet.")));
+		return;
+	}
+	// the table's height is read as it is drawn, so its rule is in place before; fewer rows than fit take less
+	$wrapper.html(`
+		<div class="ha-payroll-register">
+			<style>.ha-payroll-register .datatable .dt-scrollable { height: 60vh; }</style>
+			<div class="flex align-center justify-between" style="gap: 8px; margin-bottom: 10px;">
+				<span class="text-muted">${__("{0} salary slips", [format_number(rows.length, null, 0)])}</span>
+				<span>
+					<button class="btn btn-default btn-sm" data-action="refresh">${__("Refresh")}</button>
+					<button class="btn btn-default btn-sm" data-action="download">${__("Download Excel")}</button>
+				</span>
+			</div>
+			<div class="ha-payroll-register-table"></div>
+		</div>`);
+	$wrapper.find('[data-action="refresh"]').on("click", () => ha_payroll_register(frm, true));
+	$wrapper.find('[data-action="download"]').on("click", () => {
+		window.open(
+			"/api/method/" + HA_PAYROLL_REGISTER_DOWNLOAD + "?payroll_entry=" + encodeURIComponent(frm.doc.name)
+		);
+	});
+	const columns = (register.columns || [])
+		.filter((column) => !column.hidden)
+		.map((column) => ha_payroll_register_column(column, rows));
+	// as Frappe's own reports draw it: a filter row, and a total row that follows the filters
+	new frappe.DataTable($wrapper.find(".ha-payroll-register-table")[0], {
+		columns: columns,
+		data: rows,
+		inlineFilters: true,
+		layout: "fixed",
+		cellHeight: 33,
+		showTotalRow: true,
+		language: frappe.boot.lang,
+		translations: frappe.utils.datatable.get_translations(),
+		direction: frappe.utils.is_rtl() ? "rtl" : "ltr",
+		hooks: { columnTotal: frappe.utils.report_column_total },
+	});
+}
+
+function ha_payroll_register_column(column, rows) {
+	const width = parseInt(column.width);
+	return Object.assign({}, column, {
+		id: column.fieldname,
+		name: column.label,
+		width: width > 0 ? width : 120,
+		editable: false,
+		format: (value, row, df, data) => {
+			if (!data) {
+				// the total row: its first column says so, and its amounts are in the slips' currency
+				if (df.id === "salary_slip_id") return `<b>${__("Total")}</b>`;
+				if (!frappe.model.is_numeric_field(df.fieldtype)) return "";
+				data = rows[0];
+			}
+			return frappe.format(value, df, { always_show_decimals: true }, data);
+		},
+	});
+}
+
+function ha_payroll_register_note(text) {
+	return `<div class="text-muted" style="padding: 12px 0;">${frappe.utils.escape_html(text)}</div>`;
+}
+
+function ha_payroll_register_error(body) {
+	// the message a refused or failed call came back with, as Frappe sends it
+	try {
+		const messages = JSON.parse((body && body._server_messages) || "[]");
+		const first = messages.length ? JSON.parse(messages[0]) : null;
+		if (first && first.message) return $("<div>").html(first.message).text();
+	} catch (e) {
+		// the plain message instead
+	}
+	return __("The Salary Register could not be loaded.");
 }

@@ -1251,6 +1251,9 @@ fixtures = [
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
                     "Payroll Settings-custom_nssf_age_limit",
                     "Employee-custom_nssf_voluntary",
+                    # the Salary Register tab on a payroll (payroll_register.py)
+                    "Payroll Entry-custom_salary_register_tab",
+                    "Payroll Entry-custom_salary_register",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",
