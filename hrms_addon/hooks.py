@@ -179,6 +179,8 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # Result Areas table of the Job Description tab.
 doctype_js = {
     "Job Requisition": "public/js/job_requisition.js",
+    # Recreate Salary Slips on a submitted payroll whose slips are still drafts (payroll_entries.py)
+    "Payroll Entry": "public/js/payroll_entry.js",
     # A new opening fills itself from its requisition and its JD
     "Job Opening": "public/js/job_opening.js",
     # A hired graduate becomes a Graduate Trainee Program from their own
