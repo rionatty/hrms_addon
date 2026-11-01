@@ -15,16 +15,18 @@ gives none to a component no slip in it has.
 
 The Employees tab shows each employee's figures beside them (Luuka: "under
 employee tab add number of working days, paid days, absent, and absent amount
-and basic salary", "per employee"), read from their slip. The Basic Salary
-is the month's whole Basic, before anything is taken off for days not paid,
-as Luuka's own Basic Salary column has it.
+and basic salary", "per employee"), read from their slip. The days are the
+calendar's, Sundays and holidays included, as the slip shows them
+(pay_days_rules.calendar_days). The Basic Salary is the month's whole Basic,
+before anything is taken off for days not paid, as Luuka's own Basic Salary
+column has it.
 """
 
 AMOUNT = "Currency"
 # the register's own amounts, shown whatever they come to; every other amount column is a salary component's
 TOTALS = ("absent_amount", "gross_pay", "total_loan_repayment", "total_deduction", "net_pay")
 # a row of the Employees table's figure, and the slip's field it is read from
-SLIP_FIGURES = {"custom_working_days": "total_working_days", "custom_paid_days": "payment_days",
+SLIP_FIGURES = {"custom_working_days": "custom_days_in_period", "custom_paid_days": "custom_days_paid",
                 "custom_absent_days": "absent_days", "custom_absent_amount": "custom_absent_amount"}
 BASIC_SALARY = "custom_basic_salary"
 # a row with no slip: Frappe sends a blank number as nought all the same

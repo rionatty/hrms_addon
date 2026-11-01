@@ -1250,6 +1250,9 @@ fixtures = [
                     "Payroll Settings-custom_days_in_month",
                     "Payroll Settings-custom_hours_in_day",
                     "Salary Slip-custom_absent_amount",
+                    # the days a slip shows, the calendar's (pay_days.py)
+                    "Salary Slip-custom_days_in_period",
+                    "Salary Slip-custom_days_paid",
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
                     "Payroll Settings-custom_nssf_age_limit",
                     "Employee-custom_nssf_voluntary",
@@ -1513,6 +1516,10 @@ fixtures = [
                     "Leave Application-main-default_print_format",
                     # the Salary Slip opens with Luuka's Pay Slip (payslip.py)
                     "Salary Slip-main-default_print_format",
+                    # Frappe HR's days are the 26's that pay works from: a slip
+                    # shows the calendar's (pay_days.py)
+                    "Salary Slip-total_working_days-hidden",
+                    "Salary Slip-payment_days-hidden",
                     # an allowance's last day is set on the submitted record
                     # (standing_allowances.end)
                     "Additional Salary-to_date-allow_on_submit",

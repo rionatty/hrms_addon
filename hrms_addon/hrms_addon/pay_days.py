@@ -8,8 +8,10 @@
                      (hooks.extend_doctype_class): once Frappe HR has counted
                      the days, the month is 26 Working Days and the Payment
                      Days are the days on the payroll, up to 26, less the
-                     days Frappe HR took off
-  OvertimeSlipDays   mixed in ahead of Frappe HR's Overtime Slip: an hour of
+                     days Frappe HR took off; the slip also keeps the days it
+                     shows, the calendar's, for the form, the Pay Slip, the
+                     Salary Register and the payroll's Employees tab
+  OvertimeSlipDays  mixed in ahead of Frappe HR's Overtime Slip: an hour of
                      overtime priced from salary components is their monthly
                      amount / 26 / 8, where Frappe HR divides by the slip's
                      Payment Days and the shift's standard hours
@@ -17,7 +19,8 @@
                      not paid took off, kept on the slip for the form, the Pay
                      Slip and the Salary Register
   with_absent_amount the Salary Register with the Absent Amount beside the
-                     Absent Days (report_extensions.SalaryRegisterColumns)
+                     Absent Days, and the Payment Days the slip shows
+                     (report_extensions.SalaryRegisterColumns)
   days_in_month      Payroll Settings' Days in a Pay Month: 26 until HR say
                      otherwise, and 0 gives Frappe HR's own count back
   hours_in_day       and its Hours in a Pay Day: 8 until HR say otherwise,
@@ -39,6 +42,7 @@ SETTINGS = "Payroll Settings"
 DAYS_FIELD = "custom_days_in_month"
 HOURS_FIELD = "custom_hours_in_day"
 ABSENT_FIELD = "custom_absent_amount"
+PAID_FIELD = "custom_days_paid"
 MONTHLY = "Monthly"
 REGISTER = "Salary Register"
 
@@ -79,23 +83,28 @@ class SalarySlipDays:
 
 def set_month(slip, for_preview=0):
     """The slip's Working Days and Payment Days on Luuka's month, from what
-    Frappe HR has just counted."""
+    Frappe HR has just counted, and the days it shows beside them: the
+    calendar's on that month, and otherwise Frappe HR's own count."""
+    slip.custom_days_in_period, slip.custom_days_paid = slip.total_working_days, slip.payment_days
     days = days_in_month()
     if not days or not on_luuka_month(slip):
         return
+    period = date_diff(slip.end_date, slip.start_date) + 1
     if cint(for_preview):
         slip.total_working_days, slip.payment_days = rules.slip_days(days, 0, 0, 0, 0, preview=True)
+        slip.custom_days_in_period, slip.custom_days_paid = period, period
         return
     holidays_counted = frappe.db.get_single_value(SETTINGS, "include_holidays_in_total_working_days")
-    counted = rules.slip_days(
-        days,
+    facts = dict(
         on_payroll=date_diff(slip.actual_end_date, slip.actual_start_date) + 1,
         counted_from=slip.get_payment_days(holidays_counted),
         paid=slip.payment_days,
         without_pay=slip.leave_without_pay,
     )
+    counted = rules.slip_days(days, **facts)
     if counted:
         slip.total_working_days, slip.payment_days = counted
+    slip.custom_days_in_period, slip.custom_days_paid = rules.calendar_days(period, **facts)
 
 
 def slip_validate(doc, method=None):
@@ -147,7 +156,7 @@ def with_absent_amount(result):
     names = [row.get("salary_slip_id") for row in data if isinstance(row, dict) and row.get("salary_slip_id")]
     slips = {row.name: row for row in frappe.get_all(
         "Salary Slip", filters={"name": ["in", names]}, limit_page_length=0,
-        fields=["name", ABSENT_FIELD, "currency", "exchange_rate"])} if names else {}
+        fields=["name", ABSENT_FIELD, PAID_FIELD, "currency", "exchange_rate"])} if names else {}
     for row in data:
         slip = slips.get(row.get("salary_slip_id")) if isinstance(row, dict) else None
         if slip is None:
@@ -157,4 +166,6 @@ def with_absent_amount(result):
         if row.get("currency") and row.get("currency") != slip.currency:
             amount *= flt(slip.exchange_rate) or 1
         row["absent_amount"] = amount
+        # the days the slip shows; Frappe HR's are the 26's
+        row["payment_days"] = flt(slip.get(PAID_FIELD))
     return (columns, data, *result[2:])

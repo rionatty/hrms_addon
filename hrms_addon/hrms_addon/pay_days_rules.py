@@ -36,6 +36,16 @@ slip is given 26 Working Days, and its Payment Days are the days on the
 payroll, up to 26, less every day Frappe HR took off: leave without pay,
 absences, unmarked days it counts as absent, half days, and a Payroll
 Correction it gave back.
+
+WHAT THE SLIP SHOWS
+
+Luuka's register and Pay Slip count their days on the calendar, Sundays and
+holidays included (Luuka, 1 Nov 2026: "then you should include holiday
+sunday"): 31 days in the cycle of 26 August, 30 Paid Days with a day absent,
+and that day still a 26th of the pay. So a slip keeps both. Frappe HR's Working
+Days and Payment Days stay on the 26, because they are what it divides by,
+here and in a Payroll Correction, and are hidden on the form. The Working Days
+and Payment Days shown are the calendar's (calendar_days), and pay nobody.
 """
 
 # Luuka's month, and its day; Payroll Settings' Days in a Pay Month and
@@ -76,6 +86,22 @@ def slip_days(days, on_payroll, counted_from, paid, without_pay, preview=False):
         return days, max(paid, 0.0)
     taken = counted_from - paid
     return days, max(0.0, min(_num(on_payroll), days) - taken)
+
+
+def calendar_days(period, on_payroll, counted_from, paid, without_pay):
+    """(Working Days, Payment Days) as the slip shows them: every day of the
+    period, Sundays and holidays included, and the days on the payroll less
+    every day Frappe HR took off.
+
+    period         the period's calendar days
+    the rest       as slip_days has them
+    """
+    on_payroll, counted_from, paid = _num(on_payroll), _num(counted_from), _num(paid)
+    if counted_from <= _num(without_pay):
+        # as slip_days: leave without pay took every day, and what is paid
+        # all the same is a Payroll Correction it gave back
+        return _num(period), max(paid, 0.0)
+    return _num(period), max(0.0, min(on_payroll, on_payroll - (counted_from - paid)))
 
 
 def hourly_rate(monthly, days, standard_hours):

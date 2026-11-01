@@ -841,6 +841,28 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Salary Slip-total_working_days-hidden",
+  "doc_type": "Salary Slip",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "total_working_days"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Salary Slip-payment_days-hidden",
+  "doc_type": "Salary Slip",
+  "doctype_or_field": "DocField",
+  "property": "hidden",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon",
+  "field_name": "payment_days"
+ },
+ {
+  "doctype": "Property Setter",
   "name": "Additional Salary-to_date-allow_on_submit",
   "doc_type": "Additional Salary",
   "doctype_or_field": "DocField",

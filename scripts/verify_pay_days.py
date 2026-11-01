@@ -17,6 +17,9 @@ the period's own days. So:
   4. Frappe HR's own code still does what the overrides build on
   5. the wiring: the mixins, the slip's check, the register's column, the
      two fields
+  6. the days a slip shows: the calendar's, Sundays and holidays included, as
+     Luuka's register and Pay Slip count them, on every screen, and paying
+     nobody
 """
 import ast
 import importlib.util
@@ -297,6 +300,94 @@ check("the setting's field name is the one the code reads", 'DAYS_FIELD = "custo
 check("HR's cost check divides by the same days and hours as the Overtime Slip",
       "days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())" in read("hrms_addon", "hrms_addon",
                                                                                  "overtime.py"))
+
+# ── 6. The days a slip shows ──────────────────────────────────────────
+# Luuka, 1 Nov 2026: "then you should include holiday sunday". Their own
+# September register: Paid Days + Absent Days = 31 for all 1,353 monthly staff,
+# and the Absent Amt still the full pay / 26 for all 503 absences.
+# (what it is, the period, on the payroll, Frappe HR counted from, Frappe HR paid, leave without pay) -> days shown
+SHOWN = [
+    ("a whole cycle of 31 days", 31, 31, 31, 31, 0, 31),
+    ("a day absent", 31, 31, 31, 30, 0, 30),
+    ("half a day absent, as Luuka's register has 30.5", 31, 31, 31, 30.5, 0, 30.5),
+    ("a day absent, Sundays left out of Frappe HR's count: the Sundays are still shown", 31, 31, 27, 26, 0, 30),
+    ("a hire of the 15th, 11 days of the cycle", 31, 11, 11, 11, 0, 11),
+    ("the same with a day absent", 31, 11, 11, 10, 0, 10),
+    ("the same hire, Sundays left out", 31, 11, 9, 9, 0, 11),
+    ("a leaver of the 10th, 16 days of the cycle", 31, 16, 16, 16, 0, 16),
+    ("a hire of the cycle's second day, paid the whole 26: the 30 days they were here", 31, 30, 30, 30, 0, 30),
+    ("two days without pay, a day absent and half a day", 31, 31, 31, 27.5, 2, 27.5),
+    ("every day without pay: nothing", 31, 31, 31, 0, 31, 0),
+    ("every day without pay, two days given back by a Payroll Correction", 31, 31, 31, 2, 31, 2),
+    ("every working day without pay, Sundays left out: nothing, not the four Sundays", 31, 31, 27, 0, 27, 0),
+    ("the same with two days given back", 31, 31, 27, 2, 27, 2),
+    ("absent more days than are left: nothing, never less", 31, 5, 5, -1, 0, 0),
+    ("a Payroll Correction giving back more than was taken: never more days than they were here", 31, 31, 31, 33, 0, 31),
+    ("the cycle of 26 February, 28 days, a day absent", 28, 28, 28, 27, 0, 27),
+    ("a period of 30 days", 30, 30, 30, 29, 0, 29),
+]
+for what, period, on_payroll, counted, frappe_paid, lwp, wanted in SHOWN:
+    got = R.calendar_days(period, on_payroll, counted, frappe_paid, lwp)
+    check("shown: %s: %s working days, %s paid" % (what, period, wanted), got == (period, wanted), got)
+check("and the same day is still a 26th of the pay: 30 days shown, 800,000 x 25 / 26 paid, as Luuka's register",
+      R.calendar_days(31, 31, 31, 30, 0) == (31, 30) and round(paid(800000, R.slip_days(26, 31, 31, 30, 0))) == 769231)
+month = body("set_month")
+check("a slip's pay is still worked out on the 26, the days shown from the same facts, after it",
+      "counted = rules.slip_days(days, **facts)" in month
+      and "slip.total_working_days, slip.payment_days = counted" in month
+      and "slip.custom_days_in_period, slip.custom_days_paid = rules.calendar_days(period, **facts)" in month
+      and month.index("facts = dict(") < month.index("rules.slip_days(days, **facts)")
+      < month.index("rules.calendar_days(period, **facts)"))
+check("the period is every day of it, not the days on the payroll",
+      "period = date_diff(slip.end_date, slip.start_date) + 1" in month)
+check("a slip left to Frappe HR shows Frappe HR's own count; a preview the whole period",
+      month.index("slip.custom_days_in_period, slip.custom_days_paid = slip.total_working_days, slip.payment_days")
+      < month.index("if not days or not on_luuka_month(slip):")
+      and "slip.custom_days_in_period, slip.custom_days_paid = period, period" in month)
+for name, label, after, about in (("custom_days_in_period", "Working Days", "total_working_days", "Sundays and holidays"),
+                                  ("custom_days_paid", "Payment Days", "payment_days", "Sundays and holidays")):
+    field = fields.get("Salary Slip-%s" % name) or {}
+    check("the slip's %s: a read only number under Frappe HR's, in the fixtures the app ships" % label,
+          (field.get("fieldtype"), field.get("label"), field.get("read_only"), field.get("no_copy"),
+           field.get("insert_after")) == ("Float", label, 1, 1, after) and about in field.get("description", "")
+          and '"Salary Slip-%s",' % name in hooks_src, field)
+setters = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "property_setter.json"))}
+for name in ("total_working_days", "payment_days"):
+    setter = setters.get("Salary Slip-%s-hidden" % name) or {}
+    check("Frappe HR's own %s, the 26 that pay works from, is hidden on the form: one Working Days and one Payment "
+          "Days to read" % name,
+          (setter.get("doc_type"), setter.get("field_name"), setter.get("property"), setter.get("value"))
+          == ("Salary Slip", name, "hidden", "1") and '"Salary Slip-%s-hidden",' % name in hooks_src, setter)
+register_glue = body("with_absent_amount")
+check("the Salary Register's Payment Days are the days the slip shows",
+      'PAID_FIELD = "custom_days_paid"' in glue and 'row["payment_days"] = flt(slip.get(PAID_FIELD))' in register_glue
+      and 'fields=["name", ABSENT_FIELD, PAID_FIELD, "currency", "exchange_rate"]' in register_glue)
+printed = read("hrms_addon", "hrms_addon", "payslip.py")
+check("the Pay Slip prints them, as Luuka's own slip does: Paid Days 31, Working Days 31",
+      '"paid_days": flt(doc.get("custom_days_paid")),' in printed
+      and '"working_days": flt(doc.get("custom_days_in_period")),' in printed)
+payroll_rules = load("payroll_register_rules")
+check("and the payroll's Employees tab reads them",
+      payroll_rules.SLIP_FIGURES["custom_working_days"] == "custom_days_in_period"
+      and payroll_rules.SLIP_FIGURES["custom_paid_days"] == "custom_days_paid")
+patches = read("hrms_addon", "patches.txt")
+patch = read("hrms_addon", "patches", "v1_0", "slip_days_on_the_calendar.py")
+check("slips already made are given them, once the fields are there, with their pay left alone",
+      "hrms_addon.patches.v1_0.slip_days_on_the_calendar" in patches
+      and patch.index('sync_fixtures("hrms_addon")') < patch.index("frappe.get_all(SLIP")
+      and 'filters={"docstatus": ["<", 2]}, limit_page_length=0, fields=[' in patch
+      and "update_modified=False" in patch and ".save(" not in patch
+      and "total_working_days\":" not in patch and "if flt(slip.custom_days_in_period):\n            continue" in patch)
+if os.path.exists(os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "payroll_correction", "payroll_correction.py")):
+    correction = open(os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "payroll_correction",
+                                   "payroll_correction.py"), encoding="utf-8").read()
+    check("why Frappe HR's own two stay on the 26: a Payroll Correction prices a day from the slip's stored Working Days",
+          'total_working_days = salary_slip.get("total_working_days", 1)' in correction
+          and 'per_day_amount = flt(component_data["default_amount"] / total_working_days)' in correction)
+    report = open(os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "report", "salary_register", "salary_register.py"),
+                  encoding="utf-8").read()
+    check("Frappe HR's Salary Register has a Payment Days column for them",
+          '"payment_days": ss.payment_days,' in report and '"fieldname": "payment_days",' in report)
 
 print()
 if fail:

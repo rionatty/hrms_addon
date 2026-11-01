@@ -9,8 +9,9 @@ public/js/payroll_entry.js; scripts/verify_payroll_register.py).
                              drafts or submitted, for the tab
   download_salary_register   the same as an Excel file
   employee_figures           Payroll Entry onload: each row of the Employees
-                             table given its slip's working days, paid days,
-                             absent days, absent amount and Basic
+                             table given the working days and paid days its
+                             slip shows, its absent days, absent amount and
+                             Basic
 
 The first two run Frappe HR's own Salary Register, with the Absent Amount the
 app adds to it (report_extensions.SalaryRegisterColumns), over the payroll's

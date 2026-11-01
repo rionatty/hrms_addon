@@ -285,9 +285,9 @@ class Entry:
 
 
 SLIPS = [{"name": "SS-1", "employee": "E1", "total_working_days": 26, "payment_days": 25, "absent_days": 1,
-          "custom_absent_amount": 30769.23},
+          "custom_days_in_period": 31, "custom_days_paid": 30, "custom_absent_amount": 30769.23},
          {"name": "SS-2", "employee": "E2", "total_working_days": 26, "payment_days": 25.5, "absent_days": 0.5,
-          "custom_absent_amount": 5769.23}]
+          "custom_days_in_period": 31, "custom_days_paid": 30.5, "custom_absent_amount": 5769.23}]
 BASICS = [{"parent": "SS-1", "default_amount": 800000, "additional_amount": 0},
           {"parent": "SS-2", "default_amount": 300000, "additional_amount": 0},
           {"parent": "SS-2", "default_amount": 0, "additional_amount": 50000}]
@@ -303,17 +303,20 @@ def figures(site):
 
 site = Site(slips=SLIPS, details=BASICS)
 shown = figures(site)
-check("a row is given its slip's working days, paid days, absent days and absent amount, and the month's Basic",
-      shown["E1"] == {"custom_working_days": 26, "custom_paid_days": 25, "custom_absent_days": 1,
+# Luuka, 1 Nov 2026: "then you should include holiday sunday", as their own register counts
+check("a row is given the days its slip shows, Sundays and holidays included, not the 26 pay works from; its absent "
+      "days and absent amount, and the month's Basic",
+      shown["E1"] == {"custom_working_days": 31, "custom_paid_days": 30, "custom_absent_days": 1,
                       "custom_absent_amount": 30769.23, "custom_basic_salary": 800000}, shown["E1"])
 check("half days as they are, and the Basic with an Additional Salary on it whole", shown["E2"] == {
-    "custom_working_days": 26, "custom_paid_days": 25.5, "custom_absent_days": 0.5, "custom_absent_amount": 5769.23,
+    "custom_working_days": 31, "custom_paid_days": 30.5, "custom_absent_days": 0.5, "custom_absent_amount": 5769.23,
     "custom_basic_salary": 350000}, shown["E2"])
 check("a row with no slip shows nothing of an earlier one", shown["E3"] == R.NO_FIGURES, shown["E3"])
 asked = [call for call in site.calls if call[0] == "get_all"]
 check("the slips read are the payroll's, cancelled ones left out, all of them",
       asked[0] == ("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
-                   ["name", "employee", "total_working_days", "payment_days", "absent_days", "custom_absent_amount"], 0),
+                   ["name", "employee", "custom_days_in_period", "custom_days_paid", "absent_days",
+                    "custom_absent_amount"], 0),
       asked[0])
 check("and of their earnings the Basic rows, all of them",
       asked[1] == ("get_all", "Salary Detail", {"parenttype": "Salary Slip", "parentfield": "earnings",
