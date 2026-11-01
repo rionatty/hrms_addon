@@ -671,6 +671,8 @@ if by_dt.get(EM):
     BIO_TAB = "Personal Bio-Data"
     BIO_SECTIONS = ["Home and Residence", "Spouse", "Parents", "Next of Kin", "Children", "Declaration"]
     ELSEWHERE = {"custom_place_of_birth": ("Overview", "date_of_birth"),
+                 # under the NSSF No.: pays NSSF on past the NSSF Age Limit (nssf_age.py)
+                 "custom_nssf_voluntary": ("Personal Details", "custom_nssf_no"),
                  # the Status as Luuka names it, just before Frappe's own, the
                  # System Status (employee_status.py)
                  "custom_employee_status": ("Overview", "image"),

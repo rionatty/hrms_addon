@@ -1937,6 +1937,17 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Employee-custom_nssf_voluntary",
+  "dt": "Employee",
+  "fieldname": "custom_nssf_voluntary",
+  "fieldtype": "Check",
+  "insert_after": "custom_nssf_no",
+  "label": "NSSF Voluntary",
+  "description": "Keeps paying NSSF past the NSSF Age Limit.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Employee-custom_place_of_birth",
   "dt": "Employee",
   "fieldname": "custom_place_of_birth",
@@ -11766,6 +11777,19 @@
   "default": "8",
   "non_negative": 1,
   "description": "An hour's pay is a day's pay divided by this: an hour of overtime. Luuka's standard working day is 8 hours. 0 divides by each shift's own standard hours.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Payroll Settings-custom_nssf_age_limit",
+  "dt": "Payroll Settings",
+  "fieldname": "custom_nssf_age_limit",
+  "fieldtype": "Int",
+  "insert_after": "custom_hours_in_day",
+  "label": "NSSF Age Limit",
+  "default": "55",
+  "non_negative": 1,
+  "description": "NSSF stops at this age unless the employee has NSSF Voluntary ticked. 0 means no limit.",
   "module": "HRMS Addon"
  },
  {

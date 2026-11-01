@@ -1248,6 +1248,9 @@ fixtures = [
                     "Payroll Settings-custom_days_in_month",
                     "Payroll Settings-custom_hours_in_day",
                     "Salary Slip-custom_absent_amount",
+                    # the age NSSF stops at, and who pays on past it (nssf_age.py)
+                    "Payroll Settings-custom_nssf_age_limit",
+                    "Employee-custom_nssf_voluntary",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",
@@ -1617,11 +1620,15 @@ override_doctype_class = {
 # Luuka's month is 26 days (pay_days.py): once Frappe HR's Salary Slip has
 # counted the days, the slip is paid on 26, and an hour of overtime on the
 # Overtime Slip is the month's pay over 26 days.
+# The salary formulas read the age NSSF stops at, and the employee's age, on
+# the slip and on the assignment alike (nssf_age.py).
 extend_doctype_class = {
     "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
-    "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays"],
+    "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays",
+                    "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
+    "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"],
 }
 
 # Document Events

@@ -216,8 +216,8 @@ for node in ast.parse(hooks_src).body:
         except ValueError:
             pass
 extended = hooks.get("extend_doctype_class") or {}
-check("the Salary Slip is paid on Luuka's month", extended.get("Salary Slip") ==
-      ["hrms_addon.hrms_addon.pay_days.SalarySlipDays"], extended.get("Salary Slip"))
+check("the Salary Slip is paid on Luuka's month", "hrms_addon.hrms_addon.pay_days.SalarySlipDays" in
+      (extended.get("Salary Slip") or []), extended.get("Salary Slip"))
 check("and the Overtime Slip's hour too", extended.get("Overtime Slip") ==
       ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"], extended.get("Overtime Slip"))
 check("the Salary Register gains its column beside the leave reports'",
