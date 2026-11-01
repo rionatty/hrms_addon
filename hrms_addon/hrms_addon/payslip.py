@@ -36,6 +36,7 @@ def pay_slip(doc):
     shown = _shown({row.get("salary_component") for row in earnings + deductions if row.get("salary_component")})
     net = flt(doc.get("net_pay"))
     return frappe._dict({
+        "company": doc.get("company"),
         "employee_name": doc.get("employee_name"),
         "department": _department(doc.get("department")),
         "payroll_no": doc.get("employee"),

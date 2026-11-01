@@ -199,22 +199,18 @@ read_keys = set(re.findall(r"\bp\.(\w+)", html))
 check(read_keys and read_keys <= handed, "the print reads only what pay_slip hands it: %s" % sorted(read_keys - handed))
 check(handed <= read_keys, "and prints all of it: %s" % sorted(handed - read_keys))
 check(not handed & set(dir(dict)), "no key that a dict's own method would hide: %s" % sorted(handed & set(dir(dict))))
-for said in ("NAME", "DEPT", "PAYROLL NO.", "PAY SLIP FOR", "DESIGNATION", "CATEGORY", "SECTION",
-             '<span class="spaced">PAYMENTS</span>', "AMOUNT", "HOURS", "GROSS PAY", "DEDUCTIONS", "TOTAL",
-             '<span class="spaced">NETPAY</span>', "NET PAY R/o", "PAYMENT BY :",
+for said in ("PAY SLIP", "NAME", "DEPT", "PAYROLL NO.", "DESIGNATION", "CATEGORY", "SECTION",
+             "PAYMENTS", "AMOUNT", "HOURS", "GROSS PAY", "DEDUCTIONS", "TOTAL", "NET PAY", "NET PAY R/o", "PAYMENT BY",
              "Paid Days", "Working Days", "Holidays", "Absent Amount", "Leave Taken", "Absent Days"):
     check(said in html, "the slip says %s, as Luuka's does" % said)
-# Laid out to Luuka's own slip, measured from their PDF: a 270pt by 600pt box,
-# Arial 8pt on a 10pt line, the deductions in a serif, rules of 5pt dashes.
-# And with no table: Frappe's print styles pad every cell (6px in
+# What Luuka's slip says, set out to be read (1 Nov 2026; "now can we beautfy
+# this"), at the size of their slip, measured from their PDF ("same size...
+# dont compromise size"). With no table: Frappe's print styles pad every cell (6px in
 # standard.css, 10px in the Redesign style) and grey every heading with
 # !important, whatever the format says, which is how the first Pay Slip came
-# out three times as tall as theirs on the site.
+# out three times as tall as it should on the site.
 check(not re.search(r"<(table|tr|td|th)\b", html), "no table, so no print style can pad or grey its cells")
 check(not re.search(r"<(p|label|h\d)\b", html), "nor a paragraph, a label or a heading, which they space too")
-check(html.count("<svg ") == 6 and html.count('viewBox="0 0 235 1"') == 3 and html.count('viewBox="0 0 188 1"') == 1
-      and html.count('viewBox="0 0 195 1"') == 2,
-      "six rules, as theirs: three across the slip, one under the gross, two round the total")
 style = html.split("<style>")[1].split("</style>")[0]
 selectors = [rule.split("{")[0].strip() for rule in re.sub(r"/\*.*?\*/", "", style, flags=re.S).split("}")
              if "{" in rule and not rule.strip().startswith("@supports")]
@@ -223,30 +219,34 @@ check(selectors and all(part.strip().startswith(".print-format .lpl-slip") for s
       "every rule is written under .print-format .lpl-slip, so it outranks the site's own: %s"
       % [selector for selector in selectors if not selector.startswith(".print-format .lpl-slip")])
 for needle, why in (
-    ("width: 270pt; min-height: 600pt; border: 1pt solid #000;", "the box is theirs, 270pt by 600pt, framed"),
-    ("font-family: Arial, Helvetica, sans-serif !important; font-size: 8pt !important; line-height: 10pt !important;",
-     "Arial 8pt on a 10pt line, whatever the print style sets on a div or a span"),
-    ('font-family: "DejaVu Serif"', "the deductions in their serif"),
-    ("line-height: 11pt !important;", "on an 11pt line"),
-    ('stroke="#000" stroke-width="1" stroke-dasharray="5 3"',
-     "rules of 5pt dashes 3pt apart, drawn as lines so a PDF keeps them sharp"),
-    (".print-format .lpl-slip .n { float: left; width: 93pt; text-align: right;",
-     "the amounts end 209pt in, as theirs do"),
-    ('"{:,.4f}".format', "payments, the gross and the net to four places, as their slip prints them"),
-    ('"{:,.2f}".format', "the deductions to two"),
+    ("width: 270pt; min-height: 600pt;", "the box is theirs, 270pt by 600pt"),
+    ('font-family: Arial, Helvetica, "Liberation Sans", sans-serif !important; font-size: 8pt !important;',
+     "Arial 8pt, as theirs, whatever the print style sets on a div or a span"),
+    ("print-color-adjust: exact;", "the tints print"),
+    ('"{:,.2f}".format', "every amount to two places"),
+    ('"{:g}".format', "days and hours as they are: 30, 30.5"),
+    (".print-format .lpl-slip .s-i { overflow: hidden;", "each detail on a line of its own, so a long name wrapping leaves the next alone"),
 ):
     check(needle in html, "the print: %s (%r not found)" % (why, needle))
+check('"{:,.4f}".format' not in html and "serif" not in style.replace("sans-serif", ""),
+      "no four places and no second font, as the paper slip had")
+check(not re.search(r"color:\s*(#fff|white)", style), "no white text: a slip printed without background graphics still reads")
+check(not re.search(r"display:\s*(flex|grid)", style), "floats, as wkhtmltopdf has neither flex nor grid")
+sizes = [float(size) for size in re.findall(r"font-size:\s*([\d.]+)pt", style)]
+check(sizes and min(sizes) == 8, "nothing smaller than their 8pt: %s" % sizes)
 check("doc.earnings" not in html and "doc.deductions" not in html,
       "the lines come from pay_slip, never straight off the slip (the working would print)")
-for typed in re.findall(r"\{\{\s*(p\.(?:employee_name|department|payroll_no|designation|category|section|payment_by)"
+for typed in re.findall(r"\{\{\s*(p\.(?:company|employee_name|department|payroll_no|designation|category|section|payment_by)"
                         r"|line\.name)\s*\}\}", html):
     check(False, "%s is printed without v(), unescaped" % typed)
 
 # ── 5. Luuka's August slip for LPL1834 ──────────────────────────────────
 def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None, shown=None, currency=None):
+    # the fields a slip's print is handed
     """What payslip.pay_slip hands the print, from the same rules."""
     leave, absent = R.day_counts(attendance)
-    return {"employee_name": slip["employee_name"], "department": slip["department"], "payroll_no": slip["employee"],
+    return {"company": slip.get("company"), "employee_name": slip["employee_name"], "department": slip["department"],
+            "payroll_no": slip["employee"],
             "slip_for": R.slip_for(slip["end_date"]), "designation": slip["designation"],
             "category": employee.get("custom_pay_category") or employee.get("employment_type"),
             "section": section, "payments": R.lines(slip["earnings"], hours, shown),
@@ -260,7 +260,7 @@ def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None,
             "absent_days": slip.get("absent_days") or absent, "currency": currency}
 
 
-AUGUST = {"employee": "LPL1834", "employee_name": "SARAH AMUGE", "department": "PP DEPARTMENT",
+AUGUST = {"company": "Luuka Plastics Limited", "employee": "LPL1834", "employee_name": "SARAH AMUGE", "department": "PP DEPARTMENT",
           "designation": "ASSISTANT SUPERVISOR", "branch": "LPL Kawempe", "start_date": "2026-07-26",
           "end_date": "2026-08-25", "earnings": EARNINGS, "deductions": DEDUCTIONS, "gross_pay": 878400,
           "total_deduction": 561050, "net_pay": 317350, "rounded_total": 317350, "payment_days": 31,
@@ -283,21 +283,20 @@ def text_of(page):
 page = page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource", shown=SHOWN)
 text = text_of(page)
 check(not re.findall(r"\{\{ [\w.]+ \}\}", page), "nothing left undefined: %s" % re.findall(r"\{\{ [\w.]+ \}\}", page))
-for said in ("NAME : SARAH AMUGE", "DEPT : PP DEPARTMENT", "PAYROLL NO. : LPL1834", "PAY SLIP FOR : AUGUST 2026",
-             "DESIGNATION : ASSISTANT SUPERVISOR", "CATEGORY : Monthly", "SECTION : Human Resource",
-             "PAYMENTS AMOUNT HOURS BASIC 736,058.0000 HRA 72,342.0000 "
-             "TRANSPORT ALLOWANCE 70,000.0000 GROSS PAY 878,400.0000",
-             "DEDUCTIONS AMOUNT HOURS NSSF 43,920.00 PAYE 145,770.00 LOCAL SERVICE TAX 20,000.00 "
+for said in ("Luuka Plastics Limited PAY SLIP AUGUST 2026 NAME SARAH AMUGE DEPT PP DEPARTMENT PAYROLL NO. LPL1834 "
+             "DESIGNATION ASSISTANT SUPERVISOR CATEGORY Monthly SECTION Human Resource",
+             "PAYMENTS AMOUNT BASIC 736,058.00 HRA 72,342.00 TRANSPORT ALLOWANCE 70,000.00",
+             "GROSS PAY 878,400.00",
+             "DEDUCTIONS AMOUNT NSSF 43,920.00 PAYE 145,770.00 LOCAL SERVICE TAX 20,000.00 "
              "Advance Salary 351,360.00 TOTAL 561,050.00",
-             "NETPAY 317,350.0000 NET PAY R/o 317,350.0000", "PAYMENT BY : Bank Stanbic 9030001",
-             "= Paid Days 31 = Working Days 31 = Holidays 0 = Absent Amount 0.0000 = Leave Taken 0.0000 "
-             "= Absent Days 0.0000"):
+             "NET PAY 317,350.00 NET PAY R/o 317,350.00", "PAYMENT BY Bank Stanbic 9030001",
+             "31 Paid Days 31 Working Days 0 Holidays 0.00 Absent Amount 0 Leave Taken 0 Absent Days"):
     check(said in text, "the August slip reads: %s" % said)
-check("USD" not in text and text.count("AMOUNT HOURS") == 2,
-      "a slip in shillings names no currency, as Luuka's never has")
+check("USD" not in text and text.count("AMOUNT") == 2 and "HOURS" not in text,
+      "a slip in shillings names no currency, as Luuka's never has; with no overtime hours, no Hours column")
 dollars = text_of(page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource", shown=SHOWN,
                           currency="USD"))
-check("PAYMENTS AMOUNT USD HOURS BASIC" in dollars and "DEDUCTIONS AMOUNT USD HOURS NSSF" in dollars
+check("PAYMENTS AMOUNT USD BASIC" in dollars and "DEDUCTIONS AMOUNT USD NSSF" in dollars
       and dollars.count("USD") == 2,
       "a slip in another currency says it over both columns of figures, and nowhere else")
 glue = io.open(os.path.join(REPO, "hrms_addon", "hrms_addon", "payslip.py"), encoding="utf-8").read()
@@ -316,11 +315,12 @@ OCTOBER = dict(AUGUST, employee_name="John <Okello>", start_date="2026-09-26", e
                gross_pay=758827, total_deduction=34941.35, net_pay=723885.65, rounded_total=0, payment_days=28,
                mode_of_payment=None, bank_name=None, bank_account_no=None, absent_days=0)
 text = text_of(page_of(OCTOBER, {"employment_type": "Permanent"}, attendance=days, holidays=1, hours={"ADS-1": 12.5}))
-for said in ("NAME : John &lt;Okello&gt;", "PAY SLIP FOR : OCTOBER 2026", "CATEGORY : Permanent SECTION : PAYMENTS",
-             "OVERTIME 54,000.0000 12.5", "NSSF EMPLOYEE 34,941.35 TOTAL 34,941.35",
-             "NETPAY 723,885.6500 NET PAY R/o 723,886.0000", "PAYMENT BY : = Paid Days 28",
-             "= Holidays 1 = Absent Amount 71,231.0000 = Leave Taken 1.5000 = Absent Days 2.5000"):
+for said in ("NAME John &lt;Okello&gt;", "PAY SLIP OCTOBER 2026", "CATEGORY Permanent PAYMENTS",
+             "PAYMENTS AMOUNT HOURS", "OVERTIME 54,000.00 12.5", "NSSF EMPLOYEE 34,941.35", "TOTAL 34,941.35",
+             "NET PAY 723,885.65 NET PAY R/o 723,886.00", "28 Paid Days",
+             "1 Holidays 71,231.00 Absent Amount 1.5 Leave Taken 2.5 Absent Days"):
     check(said in text, "another slip reads: %s" % said)
+check("SECTION" not in text and "PAYMENT BY" not in text, "no section and no payment details: no bare label for either")
 check("PAYE" not in text, "a deduction of nought is not printed")
 
 # ── 6. wiring ───────────────────────────────────────────────────────────
