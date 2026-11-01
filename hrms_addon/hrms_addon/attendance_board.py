@@ -56,7 +56,7 @@ OPEN_DAYS = 7
 
 
 @frappe.whitelist()
-def board(cycle=None, branch=None, department=None, limit=None):
+def board(cycle=None, branch=None, department=None, limit=None, employee=None):
     """Everything on the board, in one answer."""
     # everybody's attendance: Frappe HR lets every employee read Attendance
     # (their own), so the board asks who is asking, not only that
@@ -68,7 +68,11 @@ def board(cycle=None, branch=None, department=None, limit=None):
     year, month = _cycle(cycle, now)
     start, end = register.cycle_window(year, month)
     days = register.cycle_days(year, month)
-    people = _people(start, end, branch, department)
+    people = _people(start, end, branch, department, employee)
+    # one person is looked at in their own plant: its machines and what it
+    # has to put right, not every plant's
+    if employee and not branch and employee in people:
+        branch = people[employee].branch
     limit = cint(limit) or REGISTER_LIMIT
 
     marked = _attendance(start, end, list(people))
@@ -107,7 +111,8 @@ def board(cycle=None, branch=None, department=None, limit=None):
             "rows": lines[:limit],
             "tallies": _tally_lines(tallies, days),
             "shown": min(len(lines), limit), "of": len(lines),
-            "nights_short": [str(day) for day in rules.nights_covered(tallies, days)],
+            # a plant can be short of a night shift; one person cannot
+            "nights_short": [] if employee else [str(day) for day in rules.nights_covered(tallies, days)],
         },
         "exceptions": _exceptions(start, end, marked, machines, branch, list(people),
                                   unmarked=rules.unmarked_days(rows, getdate(now))),
@@ -131,7 +136,7 @@ def _cycle(cycle, now):
 
 
 # ── Who is on the register ────────────────────────────────────────────
-def _people(start, end, branch=None, department=None):
+def _people(start, end, branch=None, department=None, employee=None):
     """Everybody who was on the books during the cycle, by number.
 
     Not only those still here: somebody who left on the 10th still worked
@@ -142,6 +147,8 @@ def _people(start, end, branch=None, department=None):
         filters["branch"] = branch
     if department:
         filters["department"] = department
+    if employee:
+        filters["name"] = employee
     found = frappe.get_all(
         "Employee", filters=filters, limit_page_length=0,
         fields=["name", "employee_name", "branch", "department", "designation",

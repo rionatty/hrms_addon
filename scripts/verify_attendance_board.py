@@ -194,6 +194,22 @@ if "if branch" not in scoped:
 opening = glue.split("def _open_days(")[1].split(chr(10) + "def ")[0]
 if "employees" not in opening:
     fail.append("and an open day belongs to the plant whose people left it open")
+if "def board(cycle=None, branch=None, department=None, limit=None, employee=None):" not in glue \
+        or "people = _people(start, end, branch, department, employee)" not in board \
+        or '    if employee:\n        filters["name"] = employee\n' not in glue:
+    fail.append("the board can be narrowed to one employee: 300 of 2018 people cannot be scrolled to")
+if "    if employee and not branch and employee in people:\n        branch = people[employee].branch\n" not in board:
+    fail.append("one person is looked at in their own plant, not beside every plant's machines")
+if '"nights_short": [] if employee else ' not in board:
+    fail.append("a plant can be short of a night shift; one person is not to be told so")
+for needle, why in (
+    ('fieldname: "employee",\n\t\t\toptions: "Employee",', "the page has an Employee filter"),
+    ("employee: this.employee ? this.employee.get_value() : null,", "and asks the board for the one picked"),
+    ("Filter by plant, department or employee to see the rest.", "and says so where the register is cut"),
+    ("this.ask_again = true;", "a filter changed while the board is being read is read next, not lost"),
+):
+    if needle not in page_js:
+        fail.append(why)
 print("the glue: one call fills the board, and every one of its reads is a read")
 
 if "    attendance.only_hr()\n    if not frappe.has_permission(ATTENDANCE, \"read\"):" not in glue \

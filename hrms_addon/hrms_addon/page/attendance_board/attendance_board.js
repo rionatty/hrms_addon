@@ -313,6 +313,22 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 			options: "Department",
 			change: () => this.refresh(),
 		});
+		this.employee = this.page.add_field({
+			fieldtype: "Link",
+			label: __("Employee"),
+			fieldname: "employee",
+			options: "Employee",
+			// those the register can show, in the plant and department picked
+			get_query: () => {
+				const filters = { status: ["in", ["Active", "Left"]] };
+				const plant = this.branch.get_value();
+				const department = this.department.get_value();
+				if (plant) filters.branch = plant;
+				if (department) filters.department = department;
+				return { filters: filters };
+			},
+			change: () => this.refresh(),
+		});
 		this.page.set_primary_action(__("Refresh"), () => this.refresh(), "refresh");
 	}
 
@@ -402,17 +418,26 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	}
 
 	refresh() {
-		if (this.asking) return;
+		// a filter changed while the board is still being read is read next, not lost
+		if (this.asking) {
+			this.ask_again = true;
+			return;
+		}
 		this.asking = true;
 		frappe
 			.xcall("hrms_addon.hrms_addon.attendance_board.board", {
 				cycle: this.cycle ? this.cycle.get_value() : null,
 				branch: this.branch ? this.branch.get_value() : null,
 				department: this.department ? this.department.get_value() : null,
+				employee: this.employee ? this.employee.get_value() : null,
 			})
 			.then((board) => this.draw(board))
 			.finally(() => {
 				this.asking = false;
+				if (this.ask_again) {
+					this.ask_again = false;
+					this.refresh();
+				}
 			});
 	}
 
@@ -592,6 +617,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 	plants(board) {
 		const rows = board.plants || [];
 		if (this.branch && this.branch.get_value()) return;
+		if (this.employee && this.employee.get_value()) return;
 		if (rows.length < 2) return;
 		const watching = rows.filter((seat) => seat.machines_watch > 0).length;
 		const band = this.band(
@@ -691,7 +717,7 @@ hrms_addon.AttendanceBoard = class AttendanceBoard {
 		const band = this.band(
 			__("Register"),
 			board.register.shown < board.register.of
-				? __("Showing {0} of {1} people. Filter by plant or department to see the rest.", [
+				? __("Showing {0} of {1} people. Filter by plant, department or employee to see the rest.", [
 						board.register.shown,
 						board.register.of,
 				  ])
