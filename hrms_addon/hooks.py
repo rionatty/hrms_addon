@@ -1254,6 +1254,12 @@ fixtures = [
                     # the Salary Register tab on a payroll (payroll_register.py)
                     "Payroll Entry-custom_salary_register_tab",
                     "Payroll Entry-custom_salary_register",
+                    # each employee's figures on a payroll's Employees tab (payroll_register.py)
+                    "Payroll Employee Detail-custom_working_days",
+                    "Payroll Employee Detail-custom_paid_days",
+                    "Payroll Employee Detail-custom_absent_days",
+                    "Payroll Employee Detail-custom_absent_amount",
+                    "Payroll Employee Detail-custom_basic_salary",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",
@@ -1828,6 +1834,8 @@ doc_events = {
         # a payroll in USD is run at the rate set for its month in Currency Exchange
         "before_validate": "hrms_addon.hrms_addon.currency_payroll.payroll_entry_before_validate",
         "validate": "hrms_addon.hrms_addon.payslip.period_validate",
+        # each employee's days and basic, from their slip, on the Employees tab
+        "onload": "hrms_addon.hrms_addon.payroll_register.employee_figures",
     },
     # LPL/HR/27, the Employees Claim Form, on their own Expense Claim: the
     # supervisor's "genuine" line and the chain above it (benefits.py)

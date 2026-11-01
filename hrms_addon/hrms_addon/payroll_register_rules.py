@@ -12,11 +12,23 @@ every payroll run in them. On a payroll's own tab (1 Nov 2026; Luuka: "add a
 tab for salary register here") it is kept to that payroll's salary slips,
 and a salary component none of them has is given no column, as the register
 gives none to a component no slip in it has.
+
+The Employees tab shows each employee's figures beside them (Luuka: "under
+employee tab add number of working days, paid days, absent, and absent amount
+and basic salary", "per employee"), read from their slip. The Basic Salary
+is the month's whole Basic, before anything is taken off for days not paid,
+as Luuka's own Basic Salary column has it.
 """
 
 AMOUNT = "Currency"
 # the register's own amounts, shown whatever they come to; every other amount column is a salary component's
 TOTALS = ("absent_amount", "gross_pay", "total_loan_repayment", "total_deduction", "net_pay")
+# a row of the Employees table's figure, and the slip's field it is read from
+SLIP_FIGURES = {"custom_working_days": "total_working_days", "custom_paid_days": "payment_days",
+                "custom_absent_days": "absent_days", "custom_absent_amount": "custom_absent_amount"}
+BASIC_SALARY = "custom_basic_salary"
+# a row with no slip: Frappe sends a blank number as nought all the same
+NO_FIGURES = dict.fromkeys((*SLIP_FIGURES, BASIC_SALARY), 0)
 
 
 def register_of(columns, data, slips):
@@ -35,6 +47,17 @@ def sheet(columns, rows):
     shown = [column for column in columns or [] if not column.get("hidden")]
     return [[column.get("label") for column in shown]] + [
         [row.get(column.get("fieldname")) for column in shown] for row in rows or []]
+
+
+def figures_of(slips, basics):
+    """{employee: the figures for their row of the Employees table}. slips: the payroll's, with their name, employee
+    and the fields SLIP_FIGURES names; basics: {slip name: the month's Basic on it}."""
+    figures = {}
+    for slip in slips or []:
+        row = {field: _num(slip.get(source)) for field, source in SLIP_FIGURES.items()}
+        row[BASIC_SALARY] = _num((basics or {}).get(slip.get("name")))
+        figures[slip.get("employee")] = row
+    return figures
 
 
 def _num(value):

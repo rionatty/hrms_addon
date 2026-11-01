@@ -13,7 +13,9 @@ by the walk smoke_payroll_register.py):
      drafts and submitted slips alike, cancelled ones left out; the period,
      company and currency of the payroll; the download
   3  the tab: its fields, the form script and its wiring
-  4  upstream: what the glue and the tab stand on in Frappe and Frappe HR
+  4  each employee's figures on the Employees tab: read from their slip as
+     the form opens, for whoever may see the register, the fields they show in
+  5  upstream: what the glue and the tab stand on in Frappe and Frappe HR
 """
 import importlib.util
 import io
@@ -48,7 +50,8 @@ def load(name, path):
 
 
 R = load("payroll_register_rules", os.path.join(APP, "payroll_register_rules.py"))  # proves it has no Frappe import
-print("loaded payroll_register_rules.py without Frappe")
+P = load("pay_days_rules", os.path.join(APP, "pay_days_rules.py"))
+print("loaded payroll_register_rules.py and pay_days_rules.py without Frappe")
 
 
 def amount(fieldname, label):
@@ -97,14 +100,21 @@ class Refused(Exception):
     pass
 
 
+class Row(dict):
+    """frappe._dict, as far as the glue reads it."""
+    __getattr__ = dict.get
+
+
 class Site:
     """A stand-in for Frappe with one payroll, its slips and Frappe HR's Salary Register."""
 
-    def __init__(self, may_read=True, report_roles=True, slip_report=True, slips=None, result=None):
+    def __init__(self, may_read=True, report_roles=True, slip_report=True, slips=None, result=None, details=(),
+                 broken=False):
         self.may_read, self.report_roles, self.slip_report = may_read, report_roles, slip_report
         self.slips = [{"name": "SS-1", "start_date": "2026-09-26", "end_date": "2026-10-25"},
                       {"name": "SS-2", "start_date": "2026-09-27", "end_date": "2026-10-25"}] if slips is None else slips
         self.result = (COLUMNS, [OURS, THEIRS, DRAFT]) if result is None else result
+        self.details, self.broken = details, broken
         self.calls = []
 
     def frappe(self):
@@ -145,9 +155,15 @@ class Site:
 
         def get_all(doctype, filters=None, fields=None, limit_page_length=None):
             site.calls.append(("get_all", doctype, filters, fields, limit_page_length))
-            return [types.SimpleNamespace(**slip) for slip in site.slips]
+            if site.broken:
+                raise ValueError("unreadable")
+            return [Row(row) for row in (site.details if doctype == "Salary Detail" else site.slips)]
+
+        def log_error(title=None, defer_insert=False):
+            site.calls.append(("log_error", title, defer_insert))
 
         module.throw, module.get_doc, module.has_permission, module.get_all = throw, get_doc, has_permission, get_all
+        module.log_error = log_error
         module.whitelist = lambda *args, **kwargs: (lambda function: function)
         desk_utils = types.ModuleType("frappe.desk.utils")
         desk_utils.provide_binary_file = lambda filename, extension, content: site.calls.append(
@@ -165,8 +181,9 @@ package = types.ModuleType("hrms_addon")
 package.__path__ = []
 app = types.ModuleType("hrms_addon.hrms_addon")
 app.__path__ = []
-app.payroll_register_rules = R
-sys.modules.update({"hrms_addon": package, "hrms_addon.hrms_addon": app, "hrms_addon.hrms_addon.payroll_register_rules": R})
+app.payroll_register_rules, app.pay_days_rules = R, P
+sys.modules.update({"hrms_addon": package, "hrms_addon.hrms_addon": app, "hrms_addon.hrms_addon.payroll_register_rules": R,
+                    "hrms_addon.hrms_addon.pay_days_rules": P})
 
 
 def run(site, call="register"):
@@ -248,7 +265,105 @@ check("drawn as Frappe's reports draw it: a filter row, a total row, the hidden 
       and "hooks: { columnTotal: frappe.utils.report_column_total }," in script
       and ".filter((column) => !column.hidden)" in script and "new frappe.DataTable(" in script)
 
-# ── 4. Upstream ───────────────────────────────────────────────────────
+# ── 4. Each employee's figures on the Employees tab ───────────────────
+class EntryRow:
+    def __init__(self, employee):
+        self.employee, self.shown = employee, {"custom_absent_amount": 999, "custom_basic_salary": 999}
+
+    def update(self, values):
+        self.shown.update(values)
+
+
+class Entry:
+    name = "HR-PRUN-2026-00016"
+
+    def __init__(self, employees):
+        self.rows = [EntryRow(employee) for employee in employees]
+
+    def get(self, field):
+        return self.rows if field == "employees" else None
+
+
+SLIPS = [{"name": "SS-1", "employee": "E1", "total_working_days": 26, "payment_days": 25, "absent_days": 1,
+          "custom_absent_amount": 30769.23},
+         {"name": "SS-2", "employee": "E2", "total_working_days": 26, "payment_days": 25.5, "absent_days": 0.5,
+          "custom_absent_amount": 5769.23}]
+BASICS = [{"parent": "SS-1", "default_amount": 800000, "additional_amount": 0},
+          {"parent": "SS-2", "default_amount": 300000, "additional_amount": 0},
+          {"parent": "SS-2", "default_amount": 0, "additional_amount": 50000}]
+
+
+def figures(site):
+    site.frappe()
+    glue = load("payroll_register", os.path.join(APP, "payroll_register.py"))
+    entry = Entry(("E1", "E2", "E3"))
+    glue.employee_figures(entry)
+    return {row.employee: row.shown for row in entry.rows}
+
+
+site = Site(slips=SLIPS, details=BASICS)
+shown = figures(site)
+check("a row is given its slip's working days, paid days, absent days and absent amount, and the month's Basic",
+      shown["E1"] == {"custom_working_days": 26, "custom_paid_days": 25, "custom_absent_days": 1,
+                      "custom_absent_amount": 30769.23, "custom_basic_salary": 800000}, shown["E1"])
+check("half days as they are, and the Basic with an Additional Salary on it whole", shown["E2"] == {
+    "custom_working_days": 26, "custom_paid_days": 25.5, "custom_absent_days": 0.5, "custom_absent_amount": 5769.23,
+    "custom_basic_salary": 350000}, shown["E2"])
+check("a row with no slip shows nothing of an earlier one", shown["E3"] == R.NO_FIGURES, shown["E3"])
+asked = [call for call in site.calls if call[0] == "get_all"]
+check("the slips read are the payroll's, cancelled ones left out, all of them",
+      asked[0] == ("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
+                   ["name", "employee", "total_working_days", "payment_days", "absent_days", "custom_absent_amount"], 0),
+      asked[0])
+check("and of their earnings the Basic rows, all of them",
+      asked[1] == ("get_all", "Salary Detail", {"parenttype": "Salary Slip", "parentfield": "earnings",
+                                                "salary_component": "Basic", "parent": ["in", ["SS-1", "SS-2"]]},
+                   ["parent", "default_amount", "additional_amount"], 0) and len(asked) == 2, asked[1:])
+site = Site(slips=[])
+shown = figures(site)
+check("a payroll with no slips yet: nothing on any row, and nothing more asked",
+      all(row == R.NO_FIGURES for row in shown.values())
+      and [call[1] for call in site.calls if call[0] == "get_all"] == ["Salary Slip"], site.calls)
+for refused, label in ((Site(report_roles=False, slips=SLIPS), "the Salary Register's roles"),
+                       (Site(slip_report=False, slips=SLIPS), "report on salary slips")):
+    shown = figures(refused)
+    check("whoever may not %s sees none of it, and no slip is read" % label,
+          all(row == R.NO_FIGURES for row in shown.values())
+          and not [call for call in refused.calls if call[0] == "get_all"], refused.calls)
+site = Site(slips=SLIPS, broken=True)
+shown = figures(site)
+check("figures that cannot be read leave the payroll opening, with nothing on the rows",
+      all(row == R.NO_FIGURES for row in shown.values()))
+check("and are logged, in a way that outlives a read's rollback",
+      ("log_error", "HRMS Addon: employee figures on HR-PRUN-2026-00016", True) in site.calls, site.calls)
+check("Frappe sends a row's blank number as nought, so the rows are given nought",
+      set(R.NO_FIGURES.values()) == {0})
+check("the figures are given as the payroll's form opens", re.search(
+    r'"Payroll Entry": \{[^}]*"onload": "hrms_addon\.hrms_addon\.payroll_register\.employee_figures"', hooks_src))
+check("the slip's Absent Amount is the field pay_days.py keeps it in",
+      'ABSENT_FIELD = "custom_absent_amount"' in read("hrms_addon", "hrms_addon", "pay_days.py")
+      and R.SLIP_FIGURES["custom_absent_amount"] == "custom_absent_amount")
+LOOK = (("custom_working_days", "Working Days", "Float", 2, "is_salary_withheld"),
+        ("custom_paid_days", "Paid Days", "Float", 1, "custom_working_days"),
+        ("custom_absent_days", "Absent", "Float", 1, "custom_paid_days"),
+        ("custom_absent_amount", "Absent Amount", "Currency", 2, "custom_absent_days"),
+        ("custom_basic_salary", "Basic Salary", "Currency", 2, "custom_absent_amount"))
+for fieldname, label, fieldtype, columns, after in LOOK:
+    field = fields.get("Payroll Employee Detail-%s" % fieldname) or {}
+    check("the Employees table's %s: in that order, a column of its own" % label,
+          (field.get("fieldname"), field.get("label"), field.get("fieldtype"), field.get("columns"),
+           field.get("insert_after"), field.get("in_list_view")) == (fieldname, label, fieldtype, columns, after, 1), field)
+    check("and nobody types in it; a submitted payroll saved with it shown is not refused",
+          field.get("read_only") == 1 and field.get("allow_on_submit") == 1 and field.get("no_copy") == 1, field)
+    check("and it reads as days with their halves, or in the payroll's currency",
+          field.get("precision") == "1" if fieldtype == "Float" else field.get("options") == "currency", field)
+    check("and it is in the fixtures the app ships", '"Payroll Employee Detail-%s",' % fieldname in hooks_src)
+check("every figure the rules give has its field", set(R.NO_FIGURES) == {one[0] for one in LOOK})
+check("and nothing else sits under them",
+      all([(row["dt"], row.get("insert_after")) for row in fields.values()].count(("Payroll Employee Detail", one[4])) == 1
+          for one in LOOK), [row["name"] for row in fields.values() if row["dt"] == "Payroll Employee Detail"])
+
+# ── 5. Upstream ───────────────────────────────────────────────────────
 hrms = os.path.join(APPS_ROOT, "hrms", "hrms")
 frappe_app = os.path.join(APPS_ROOT, "frappe", "frappe")
 entry_json = os.path.join(hrms, "payroll", "doctype", "payroll_entry", "payroll_entry.json")
@@ -297,6 +412,41 @@ if all(os.path.exists(path) for path in (entry_json, register_py, register_json,
               os.path.join(frappe_app, "public", "js", "frappe", "utils", "utils.js"), encoding="utf-8").read())
     check("Frappe ships DataTable 1.20.7, the version the walk draws with", '"frappe-datatable": "1.20.7"' in open(
         os.path.join(APPS_ROOT, "frappe", "package.json"), encoding="utf-8").read())
+    payroll = os.path.join(hrms, "payroll", "doctype")
+
+    def doctype_fields(name):
+        data = json.load(open(os.path.join(payroll, name, name + ".json"), encoding="utf-8"))
+        return data["field_order"], {field["fieldname"]: field for field in data["fields"]}
+
+    order, _rows = doctype_fields("payroll_employee_detail")
+    check("Frappe HR's Employees table ends with Is Salary Withheld, under which the figures go",
+          order[-1] == "is_salary_withheld", order)
+    _order, slip_fields = doctype_fields("salary_slip")
+    check("a slip has its Working Days, Payment Days and Absent Days",
+          {"total_working_days", "payment_days", "absent_days"} <= set(slip_fields))
+    _order, detail_fields = doctype_fields("salary_detail")
+    check("a slip's row has the month's amount and an Additional Salary's whole amount",
+          {"default_amount", "additional_amount"} <= set(detail_fields))
+    check("the Employees table's Currency finds the payroll's currency", "currency" in doctype_fields("payroll_entry")[1]
+          and "} else if (cur_frm && cur_frm.doc[df.options]) {" in open(os.path.join(
+              frappe_app, "public", "js", "frappe", "model", "meta.js"), encoding="utf-8").read())
+    entry_py = open(os.path.join(payroll, "payroll_entry", "payroll_entry.py"), encoding="utf-8").read()
+    check("Frappe HR makes a payroll's slips one by one, by the payroll's name",
+          '"payroll_entry": args.get("payroll_entry"),' in entry_py and "frappe.get_doc(slip_args).insert()" in entry_py)
+    load_py = open(os.path.join(frappe_app, "desk", "form", "load.py"), encoding="utf-8").read()
+    save_py = open(os.path.join(frappe_app, "desk", "form", "save.py"), encoding="utf-8").read()
+    document_py = open(os.path.join(frappe_app, "model", "document.py"), encoding="utf-8").read()
+    check("Frappe runs onload as a form opens and after it is saved, with the app's hooks",
+          "\trun_onload(doc)" in load_py and "\trun_onload(doc)" in save_py and 'doc.run_method("onload")' in load_py
+          and "doc_events.get(self.doctype, {}).get(method, [])" in document_py)
+    base_document = open(os.path.join(frappe_app, "model", "base_document.py"), encoding="utf-8").read()
+    check("Frappe sends a blank number as nought", "elif fieldtype in float_like_fields and not isinstance(value, float):"
+          "\n\t\t\t\t\tvalue = flt(value)" in base_document)
+    check("and refuses a submitted row changed, unless the field allows it",
+          "if df and not df.allow_on_submit and not df.is_virtual and (self.get(key) or db_value):" in base_document)
+    check("Frappe's table scrolls past ten column units, wider than Frappe HR's five",
+          'current_grid.addClass("column-limit-reached");' in open(os.path.join(
+              frappe_app, "public", "js", "frappe", "form", "grid_row.js"), encoding="utf-8").read())
 else:
     print("Frappe and Frappe HR's own code: NOT CHECKED, they were not found under %s" % APPS_ROOT)
 check("the app's Absent Amount reaches the register through execute_module", "def execute_module(self, filters):"
