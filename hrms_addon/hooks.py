@@ -1502,6 +1502,9 @@ fixtures = [
                     # an allowance's last day is set on the submitted record
                     # (standing_allowances.end)
                     "Additional Salary-to_date-allow_on_submit",
+                    # the Additional Salary list filtered by its payroll date and company
+                    "Additional Salary-payroll_date-in_standard_filter",
+                    "Additional Salary-company-in_standard_filter",
                     "Interview Type-expected_skill_set-reqd",
                     "Training Feedback-feedback-label",
                     "Training Feedback-feedback-reqd",

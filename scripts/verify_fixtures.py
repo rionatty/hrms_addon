@@ -62,6 +62,9 @@ DOCFIELD_PROPERTIES = {
     # a table a submitted document still takes new rows in (Salary
     # Structure's components; customize_form.py docfield_properties)
     "allow_on_submit": "Check",
+    # a field in the list's filter bar (Additional Salary's payroll date and
+    # company; customize_form.py docfield_properties)
+    "in_standard_filter": "Check",
 }
 # autoname: a document of Frappe HR's numbered Luuka's way (Employee
 # Grievance, LPL-GRV-YYYY-); customize_form.py doctype_properties has it

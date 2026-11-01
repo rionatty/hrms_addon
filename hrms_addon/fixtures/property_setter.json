@@ -852,6 +852,28 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Additional Salary-payroll_date-in_standard_filter",
+  "doc_type": "Additional Salary",
+  "doctype_or_field": "DocField",
+  "field_name": "payroll_date",
+  "property": "in_standard_filter",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Additional Salary-company-in_standard_filter",
+  "doc_type": "Additional Salary",
+  "doctype_or_field": "DocField",
+  "field_name": "company",
+  "property": "in_standard_filter",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
   "doctype_or_field": "DocField",
   "doc_type": "Employee",
   "field_name": "status",
