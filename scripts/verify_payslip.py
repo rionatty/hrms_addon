@@ -8,7 +8,8 @@
   2  the month a slip is for, what absence took off, leave and absent days
   3  the payroll period: the 26th to the 25th, the same cycle as the
      attendance register and the advances; a monthly payroll for any other
-     dates is refused, with the dates to use
+     dates is refused, with the dates to use; the periods are picked from a
+     list, by the name the slip gives them
   4  the Pay Slip is a standard Jinja print of this app, the one a Salary
      Slip opens with, and reads only what payslip.pay_slip hands it
   5  it prints Luuka's August slip for LPL1834 as their own payroll laid it
@@ -174,6 +175,28 @@ check(recovered_on == datetime.date(2026, 9, 25) and R.period_of("2026-09-15")[0
       "September's advance is recovered on the 25th, inside September's period")
 check(not (datetime.date(2026, 8, 25) <= recovered_on <= datetime.date(2026, 9, 24)),
       "and outside a payroll run for the 25th to the 24th, which is why that run is refused")
+# the list a monthly payroll is picked from
+listed = R.pay_periods(datetime.date(2026, 11, 1))
+check([period["name"] for period in listed[:5]]
+      == ["January 2027", "December 2026", "November 2026", "October 2026", "September 2026"],
+      "the latest first, November being the one the 1st of November falls in: %s" % listed[:5])
+check({"name": "September 2026", "start": "2026-08-26", "end": "2026-09-25"} in listed, "September is the 26th to the 25th")
+check(len(listed) == R.PERIODS_AHEAD + 1 + R.PERIODS_BACK == 27 and listed[-1]["name"] == "November 2024",
+      "two ahead and two years back: %s" % listed[-1])
+over_a_leap_year = R.pay_periods(datetime.date(2028, 3, 10))
+for rows in (listed, over_a_leap_year):
+    check(all(R.period_errors("Monthly", row["start"], row["end"]) == [] for row in rows),
+          "every one listed is one the payroll accepts")
+    check(all(older["end"] == str(datetime.date.fromisoformat(newer["start"]) - datetime.timedelta(days=1))
+              for newer, older in zip(rows, rows[1:])), "with no day between them and none in two")
+    check(all(R.slip_for(row["end"]).title() == row["name"] for row in rows), "named as the slip names the month")
+    check(len({row["name"] for row in rows}) == len(rows), "no name twice")
+check({"name": "February 2028", "start": "2028-01-26", "end": "2028-02-25"} in over_a_leap_year, "through a February")
+check(R.period_name("2026-08-26", "2026-09-25") == "September 2026", "dates that make a period give its name")
+check(R.period_name(datetime.date(2026, 12, 26), datetime.date(2027, 1, 25)) == "January 2027", "over the new year")
+for dates in (("2026-09-01", "2026-09-30"), ("2026-08-26", "2026-09-24"), ("2026-08-25", "2026-09-25"), (None, "2026-09-25"),
+              ("2026-08-26", None), (None, None)):
+    check(R.period_name(*dates) is None, "%s to %s is no period" % dates)
 
 # ── 4. the print format ─────────────────────────────────────────────────
 form = json.loads(read("hrms_addon", "hrms_addon", "print_format", "pay_slip", "pay_slip.json"))
@@ -340,6 +363,34 @@ for doctype in ("Salary Slip", "Payroll Entry"):
     check((validate if isinstance(validate, list) else [validate])[0] == "hrms_addon.hrms_addon.payslip.period_validate",
           "%s validate checks the payroll period" % doctype)
 check(re.search(r"^def period_validate\(doc, method=None\):", glue_source, re.M), "period_validate(doc, method=None)")
+named_by = "hrms_addon.hrms_addon.payslip.period_name_validate"
+check(hooks["doc_events"]["Payroll Entry"]["validate"] == ["hrms_addon.hrms_addon.payslip.period_validate", named_by]
+      and named_by not in hooks["doc_events"]["Salary Slip"]["validate"],
+      "a payroll's Period is written from its dates once they are accepted; a slip has none")
+check(re.search(r"^def period_name_validate\(doc, method=None\):", glue_source, re.M) and "@frappe.whitelist()\ndef pay_periods():" in glue_source
+      and "return rules.pay_periods(getdate())" in glue_source, "the form asks for the list, from today")
+period_field = json.loads(read("hrms_addon", "fixtures", "custom_field.json"))
+anchored = [row["name"] for row in period_field if row["dt"] == "Payroll Entry" and row.get("insert_after") == "payroll_frequency"]
+check(anchored == ["Payroll Entry-custom_pay_period"], "the Period alone stands after the frequency: %s" % anchored)
+period_field = next(row for row in period_field if row["name"] == "Payroll Entry-custom_pay_period")
+check((period_field["fieldtype"], period_field["label"], period_field.get("hidden")) == ("Select", "Period", 1)
+      and not period_field.get("options") and not period_field.get("reqd"),
+      "a Select with no options of its own, so the server judges none, shown and required by the form once it has the list")
+check('"Payroll Entry-custom_pay_period"' in hooks_source, "the hooks fixtures list the Period")
+form = read("hrms_addon", "public", "js", "payroll_entry.js")
+for needle, why in (
+    ('const HA_PAYROLL_PERIOD_FIELD = "custom_pay_period";', "the field"),
+    ('const HA_PAYROLL_PERIOD_METHOD = "hrms_addon.hrms_addon.payslip.pay_periods";', "the list"),
+    ("payroll_frequency: ha_payroll_period_changed,", "a change of frequency is followed"),
+    ("salary_slip_based_on_timesheet: ha_payroll_period_changed,", "and of the timesheet tick"),
+    ("custom_pay_period: ha_payroll_period_dates,", "the dates follow the Period"),
+    ("start_date: ha_payroll_period_dates,", "and are put back when Frappe HR fills them"),
+    ("end_date: ha_payroll_period_dates,", "both of them"),
+    ('frm.toggle_enable(["start_date", "end_date"], !on);', "not typed while the Period sets them"),
+    ('frm.doc.payroll_frequency === "Monthly"', "only on a monthly payroll"),
+    ("!cint(frm.doc.salary_slip_based_on_timesheet)", "and not on a timesheet one"),
+):
+    check(needle in form, "the form: %s (%r not found)" % (why, needle))
 check(hooks["doc_events"]["Salary Slip"].get("on_submit") == "hrms_addon.hrms_addon.recoveries.slip_on_submit",
       "the slip still marks its recoveries on submit")
 check("salary_slip_based_on_timesheet" in glue_source, "a timesheet slip keeps its own dates")

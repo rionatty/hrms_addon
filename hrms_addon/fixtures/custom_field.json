@@ -11794,6 +11794,17 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Entry-custom_pay_period",
+  "dt": "Payroll Entry",
+  "fieldname": "custom_pay_period",
+  "fieldtype": "Select",
+  "hidden": 1,
+  "insert_after": "payroll_frequency",
+  "label": "Period",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Payroll Entry-custom_salary_register_tab",
   "dt": "Payroll Entry",
   "fieldname": "custom_salary_register_tab",

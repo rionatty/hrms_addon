@@ -7,11 +7,12 @@ monthly payroll runs for. The rules are in payslip_rules.py.
   pay_slip         the Pay Slip print format's figures (a jinja method)
   period_validate  Payroll Entry and Salary Slip validate: a monthly
                    payroll runs for the 26th to the 25th
+  pay_periods      the list a monthly payroll's Period is picked from
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, getdate
 
 from hrms_addon.hrms_addon import payslip_rules as rules
 
@@ -20,6 +21,8 @@ OVERTIME_SLIP = "Overtime Slip"
 COMPONENT = "Salary Component"
 # a component's Name on Pay Slip, and its place among the lines
 SHOWN = ("custom_slip_name", "custom_slip_order")
+# what a monthly payroll is for, picked on its form; the dates follow it
+PERIOD_FIELD = "custom_pay_period"
 
 
 def pay_slip(doc):
@@ -173,3 +176,18 @@ def period_validate(doc, method=None):
     errors = rules.period_errors(doc.get("payroll_frequency"), doc.get("start_date"), doc.get("end_date"))
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Payroll Period"))
+
+
+def period_name_validate(doc, method=None):
+    """A payroll's Period says what its dates are, however they were set. Only
+    a monthly payroll has one."""
+    monthly = (doc.get("payroll_frequency") or rules.MONTHLY) == rules.MONTHLY
+    timesheet = doc.get("salary_slip_based_on_timesheet")
+    named = rules.period_name(doc.get("start_date"), doc.get("end_date")) if monthly and not timesheet else None
+    doc.set(PERIOD_FIELD, named)
+
+
+@frappe.whitelist()
+def pay_periods():
+    """The periods a monthly payroll is picked from, the latest first."""
+    return rules.pay_periods(getdate())

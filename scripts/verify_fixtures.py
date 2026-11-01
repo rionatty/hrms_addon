@@ -33,6 +33,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES = os.path.join(REPO, "hrms_addon", "fixtures")
 APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
 MODULE = "HRMS Addon"
+# a Select whose list the form draws, so the server judges none (payslip.pay_periods)
+LISTED_BY_THE_FORM = {"Payroll Entry.custom_pay_period"}
 
 BREAKS = {"Section Break", "Column Break", "Tab Break"}
 NO_VALUE = BREAKS | {"HTML", "Button", "Heading", "Image", "Fold"}
@@ -209,7 +211,7 @@ for f in custom_fields:
             fail.append("%s: Table options %r is not a child table (istable)" % (where, f.get("options")))
         elif doctype_in_repo(f["options"]) and child.get("module") != MODULE:
             fail.append("%s: this app's child doctype %r has module %r" % (where, f["options"], child.get("module")))
-    if ft == "Select" and not [o for o in (f.get("options") or "").split("\n") if o.strip()]:
+    if ft == "Select" and where not in LISTED_BY_THE_FORM and not [o for o in (f.get("options") or "").split("\n") if o.strip()]:
         fail.append("%s: Select without options" % where)
     if ft in BREAKS and f.get("options"):
         fail.append("%s: %s should not have options" % (where, ft))

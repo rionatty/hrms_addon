@@ -1259,6 +1259,8 @@ fixtures = [
                     # the Salary Register tab on a payroll (payroll_register.py)
                     "Payroll Entry-custom_salary_register_tab",
                     "Payroll Entry-custom_salary_register",
+                    # the Period a monthly payroll is picked by (payslip.py)
+                    "Payroll Entry-custom_pay_period",
                     # each employee's figures on a payroll's Employees tab (payroll_register.py)
                     "Payroll Employee Detail-custom_working_days",
                     "Payroll Employee Detail-custom_paid_days",
@@ -1843,7 +1845,10 @@ doc_events = {
     "Payroll Entry": {
         # a payroll in USD is run at the rate set for its month in Currency Exchange
         "before_validate": "hrms_addon.hrms_addon.currency_payroll.payroll_entry_before_validate",
-        "validate": "hrms_addon.hrms_addon.payslip.period_validate",
+        "validate": [
+            "hrms_addon.hrms_addon.payslip.period_validate",
+            "hrms_addon.hrms_addon.payslip.period_name_validate",
+        ],
         # each employee's days and basic, from their slip, on the Employees tab
         "onload": "hrms_addon.hrms_addon.payroll_register.employee_figures",
     },

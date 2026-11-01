@@ -24,6 +24,9 @@ and what period a monthly payroll runs for:
                 25th, the day the period closes, so a payroll run for the
                 25th to the 24th leaves every recovery of the month off the
                 slip and takes it a month late.
+  pay_periods   the periods a monthly payroll is picked from, by the name
+                the slip gives them ("September 2026"), so that nobody has
+                to type the dates
 
 No Frappe import: scripts/verify_payslip.py loads this file on its own.
 """
@@ -35,6 +38,9 @@ import datetime
 # checks the three agree
 CYCLE_START_DAY = 26
 CYCLE_END_DAY = 25
+# how far the list of periods reaches from the one today falls in
+PERIODS_BACK = 24
+PERIODS_AHEAD = 2
 MONTHLY = "Monthly"
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
           "November", "December")
@@ -212,3 +218,24 @@ def period_errors(frequency, start_date, end_date):
             "recovered from the month's pay (advances, loans, penalties) is dated %s and would be left off."
             % (CYCLE_START_DAY, CYCLE_END_DAY, slip_for(wanted_end).title(), _day(wanted_start), _day(wanted_end),
                _day(start), _day(end), _day(wanted_end))]
+
+
+def period_name(start_date, end_date):
+    """What a period is called, "September 2026": the month it closes in. None
+    for dates that are not one whole period."""
+    start, end = _date(start_date), _date(end_date)
+    if not start or not end or period_of(start) != (start, end):
+        return None
+    return slip_for(end).title()
+
+
+def pay_periods(today):
+    """The periods a monthly payroll is picked from, the latest first:
+    [{"name": "September 2026", "start": "2026-08-26", "end": "2026-09-25"}]."""
+    periods = [period_of(today)]
+    for _step in range(PERIODS_AHEAD):
+        periods.insert(0, period_of(periods[0][1] + datetime.timedelta(days=1)))
+    for _step in range(PERIODS_BACK):
+        periods.append(period_of(periods[-1][0] - datetime.timedelta(days=1)))
+    return [{"name": period_name(start, end), "start": start.isoformat(), "end": end.isoformat()}
+            for start, end in periods]

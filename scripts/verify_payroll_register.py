@@ -254,7 +254,7 @@ check("and the two methods the glue whitelists", all(
     and "@frappe.whitelist()\ndef %s(payroll_entry):" % method in glue_src
     for const, method in (("METHOD", "salary_register"), ("DOWNLOAD", "download_salary_register"))))
 check("it loads when the tab is opened, and on refresh only while the tab is open",
-      re.search(r"refresh\(frm\) \{\s*ha_payroll_recreate_button\(frm\);\s*ha_payroll_register\(frm\);\s*\}", script)
+      re.search(r"refresh\(frm\) \{\s*ha_payroll_recreate_button\(frm\);\s*ha_payroll_register\(frm\);\s*ha_payroll_period\(frm\);\s*\}", script)
       and re.search(r"on_tab_change\(frm\) \{\s*ha_payroll_register\(frm\);\s*\}", script)
       and "tab.df.fieldname !== HA_PAYROLL_REGISTER_TAB) return;" in script)
 check("with fetch, so a register that cannot load says so in the tab, not in a dialog",
