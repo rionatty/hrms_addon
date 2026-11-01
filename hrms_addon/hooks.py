@@ -2110,6 +2110,13 @@ override_whitelisted_methods = {
     "hrms.hr.doctype.appraisal_cycle.appraisal_cycle.get_appraisal_cycle_summary": (
         "hrms_addon.hrms_addon.appraisals.get_appraisal_cycle_summary"
     ),
+    # Submit, Cancel, Edit and Delete from a list on thousands of records:
+    # Frappe stops at 500, and deletes in one job stopped after five
+    # minutes; these work in batches of 500 on the long queue (bulk.py)
+    "frappe.desk.doctype.bulk_update.bulk_update.submit_cancel_or_update_docs": (
+        "hrms_addon.hrms_addon.bulk.submit_cancel_or_update_docs"
+    ),
+    "frappe.desk.reportview.delete_items": "hrms_addon.hrms_addon.bulk.delete_items",
 }
 #
 # each overriding function accepts a `data` argument;
