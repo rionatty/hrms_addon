@@ -542,7 +542,7 @@ def schedule_recovery(advance):
     component = recovery_component(advance.company)
     made = 0
     for row in advance.get("recoveries") or []:
-        if row.additional_salary or row.recovered:
+        if row.additional_salary or row.recovered or row.get("cancelled_deduction"):
             continue
         deduction = frappe.get_doc({
             "doctype": "Additional Salary", "employee": advance.employee, "company": advance.company,

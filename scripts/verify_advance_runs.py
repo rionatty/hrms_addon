@@ -14,6 +14,8 @@ Processing), without a bench.
   4  wiring: the hooks, the form script for the bank entry, the run's
      on_trash, and the notice for a draft salary slip that still carries
      a cancelled deduction
+  5  a deduction cancelled by itself: the row of the standing advance, loan
+     or penalty lets go and remembers it, so nothing makes it again
 
 Frappe refuses to cancel a document a submitted document names, and to
 delete one anything names. Those refusals are what this guards against,
@@ -31,6 +33,7 @@ import json
 import os
 import re
 import sys
+import types
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -200,6 +203,138 @@ check(hooks["doc_events"]["Additional Salary"]["on_cancel"] == "hrms_addon.hrms_
       and '"docstatus": 0' in notice and '"additional_salary": doc.name' in notice and "frappe.msgprint(" in notice
       and "frappe.throw(" not in notice,
       "a draft salary slip that still carries a cancelled deduction is named, and holds nothing up")
+
+
+# ── 5. a deduction cancelled by itself ──────────────────────────────────
+# Luuka, 1 Nov 2026: "its should allow canceling". On a stand-in for Frappe; the
+# walks put Frappe's own link rules on theirs (smoke_advance_run_cancel.py).
+class Row(dict):
+    __getattr__ = dict.get
+
+
+def matches(row, filters):
+    for field, wanted in (filters or {}).items():
+        value = row.get(field)
+        if isinstance(wanted, list):
+            if (wanted[0] == "in" and value not in wanted[1]) or (wanted[0] == "!=" and (value or 0) == wanted[1]):
+                return False
+        elif value != wanted:
+            return False
+    return True
+
+
+def recoveries_on(rows, docstatus):
+    """recoveries.py on a site of these {table: [rows]}, and what it told."""
+    told = []
+    site = types.ModuleType("frappe")
+    site._ = lambda text: text
+    utils = types.ModuleType("frappe.utils")
+    utils.today = lambda: "2026-11-01"
+    site.utils = utils
+
+    def get_all(doctype, filters=None, fields=None, pluck=None, **_kwargs):
+        found = [Row(row) for row in rows.get(doctype, []) if matches(row, filters)]
+        return [row[pluck] for row in found] if pluck else found
+
+    def set_value(doctype, name, values, update_modified=True):
+        check(update_modified is False, "a row let go of does not move the document it is on")
+        next(row for row in rows[doctype] if row["name"] == name).update(values)
+
+    site.get_all, site.msgprint = get_all, lambda message, **_kwargs: told.append(message)
+    site.whitelist = lambda *_a, **_k: (lambda function_: function_)
+    site.db = types.SimpleNamespace(get_value=lambda doctype, name, field: docstatus[(doctype, name)], set_value=set_value)
+    sys.modules.update({"frappe": site, "frappe.utils": utils})
+    return load("recoveries"), told
+
+
+TABLES = {"Advance Recovery": "advance_recovery", "Leave Advance Recovery": "leave_advance_recovery",
+          "Loan Repayment": "loan_repayment"}
+PARENTS = {"Advance Recovery": ("Employee Advance",), "Leave Advance Recovery": ("Leave Advance",),
+           "Loan Repayment": ("Employee Loan", "Employee Penalty")}
+for table, parents in PARENTS.items():
+    for parent in parents:
+        rows = {table: [{"name": "R1", "parent": "D1", "parenttype": parent, "additional_salary": "AS-1", "recovered": 0},
+                        {"name": "R2", "parent": "D1", "parenttype": parent, "additional_salary": "AS-2", "recovered": 0}]}
+        module, told = recoveries_on(rows, {(parent, "D1"): 1})
+        module.addition_on_cancel(Row(doctype="Additional Salary", name="AS-1", salary_component="Advance Recovery"))
+        check((rows[table][0]["additional_salary"], rows[table][0].get("cancelled_deduction")) == (None, "AS-1"),
+              "%s: the row of a standing %s lets go, and keeps the name of what was cancelled" % (table, parent))
+        check(rows[table][1]["additional_salary"] == "AS-2" and not rows[table][1].get("cancelled_deduction"),
+              "%s: and no other month does" % table)
+        check(told == ["AS-1 will not be deducted. It stays outstanding on D1."], "%s: and they are told" % table)
+        rows[table].append({"name": "R3", "parent": "D1", "parenttype": parent, "additional_salary": None,
+                            "cancelled_deduction": "AS-1"})
+        amount = module.INSTALMENT[table]
+        module.addition_on_submit(Row(doctype="Additional Salary", name="AS-9", amended_from="AS-1", amount=5,
+                                      payroll_date="2026-12-25"))
+        check((rows[table][0]["additional_salary"], rows[table][0].get("cancelled_deduction"),
+               rows[table][0]["payroll_date"], rows[table][0][amount]) == ("AS-9", None, "2026-12-25", 5),
+              "%s: amended, the new deduction takes the month, at its date and amount" % table)
+        before_plain = json.dumps(rows, sort_keys=True)
+        module.addition_on_submit(Row(doctype="Additional Salary", name="AS-8", amount=7, payroll_date="2026-12-25"))
+        check(json.dumps(rows, sort_keys=True) == before_plain, "%s: a new deduction touches no row" % table)
+    rows = {table: [{"name": "R1", "parent": "D1", "parenttype": parents[0], "additional_salary": "AS-1", "recovered": 0}]}
+    module, told = recoveries_on(rows, {(parents[0], "D1"): 2})
+    module.addition_on_cancel(Row(doctype="Additional Salary", name="AS-1", salary_component="X"))
+    check(rows[table][0]["additional_salary"] == "AS-1" and not rows[table][0].get("cancelled_deduction") and not told,
+          "%s: a document being cancelled has taken its deductions back itself, nothing to tell" % table)
+    rows = {table: [{"name": "R1", "parent": "D1", "parenttype": parents[0], "additional_salary": "AS-1", "recovered": 1}]}
+    module, told = recoveries_on(rows, {(parents[0], "D1"): 1})
+    module.addition_on_cancel(Row(doctype="Additional Salary", name="AS-1", salary_component="X"))
+    check(rows[table][0]["additional_salary"] == "AS-1" and not told, "%s: a month recovered does not let go" % table)
+    check(sorted(module.SCHEDULES.items()) == sorted(PARENTS.items()) and set(module.INSTALMENT) == set(PARENTS),
+          "every table a deduction is kept in is let go of")
+    source = json.loads(read("hrms_addon", "hrms_addon", "doctype", TABLES[table], TABLES[table] + ".json"))
+    field = next((one for one in source["fields"] if one["fieldname"] == module.CANCELLED), {})
+    check((field.get("fieldtype"), field.get("read_only"), field.get("no_copy")) == ("Data", 1, 1)
+          and module.CANCELLED in source["field_order"],
+          "%s: the name is kept in a Data field nobody types in: a Link to it would hold the cancel" % table)
+    check(source["modified"] >= "2026-11-01", "%s: its modified moves on, or migrate keeps the old table" % table)
+    check(module.INSTALMENT[table] in {one["fieldname"] for one in source["fields"]}, "%s: its amount field" % table)
+sys.modules.pop("frappe", None)
+sys.modules.pop("frappe.utils", None)
+
+check(hooks["doc_events"]["Additional Salary"].get("on_submit") == "hrms_addon.hrms_addon.recoveries.addition_on_submit",
+      "the amended deduction reaches the row")
+check(module.INSTALMENT == {"Loan Repayment": "total", "Advance Recovery": "amount", "Leave Advance Recovery": "amount"}
+      and "sum(flt(child.total) for child in doc.repayments if child.recovered)" in read("hrms_addon", "hrms_addon", "loans.py")
+      and "sum(flt(row.total) for row in doc.get(\"repayments\") or [] if row.recovered)" in read(
+          "hrms_addon", "hrms_addon", "penalties.py")
+      and "sum(flt(child.amount) for child in doc.get(\"custom_recoveries\") or [] if child.recovered)" in read(
+          "hrms_addon", "hrms_addon", "advances.py")
+      and "sum(flt(row.amount) for row in doc.get(\"recoveries\") or [] if row.recovered)" in read(
+          "hrms_addon", "hrms_addon", "leave_advances.py"),
+      "an amended amount goes in the field each document sums what it has recovered from")
+for path, needle, why in (
+    (("advances.py",), 'if not (row.additional_salary or row.recovered or row.get("cancelled_deduction"))]',
+     "an advance's payment does not make it again"),
+    (("advances.py",), 'if any(not (row.additional_salary or row.recovered or row.get("cancelled_deduction"))',
+     "nor the daily job, which would take it as waiting"),
+    (("leave_advances.py",), 'if row.additional_salary or row.recovered or row.get("cancelled_deduction"):',
+     "nor a leave advance"),
+    (("loans.py",), 'if row.get("additional_salary") or row.get("recovered") or row.get("cancelled_deduction"):',
+     "nor a loan"),
+    (("penalties.py",), 'if row.additional_salary or row.recovered or row.get("cancelled_deduction"):', "nor a penalty"),
+    (("home_panels.py",), '"cancelled_deduction": ["is", "not set"]},', "the desk does not count it as not posted"),
+):
+    check(needle in read("hrms_addon", "hrms_addon", *path), why)
+check("!row.additional_salary && !row.recovered && !row.cancelled_deduction" in read(
+    "hrms_addon", "public", "js", "employee_advance.js"), "the advance's form does not say it waits for the payment")
+check(hooks["doctype_js"].get("Additional Salary") == "public/js/additional_salary.js", "the deduction's form script")
+form = read("hrms_addon", "public", "js", "additional_salary.js")
+check("frm.ignore_doctypes_on_cancel_all" in form and all('"%s",' % parent in form for parents in PARENTS.values()
+                                                         for parent in parents),
+      "its Cancel does not offer to cancel what the deduction recovers")
+upstream = os.path.join(os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext")), "frappe", "frappe")
+if os.path.exists(upstream):
+    document = io.open(os.path.join(upstream, "model", "document.py"), encoding="utf-8").read()
+    check('self.run_method("on_cancel")\n\t\t\tself.check_no_back_links_exist()' in document.replace("\r\n", "\n"),
+          "Frappe runs on_cancel before it looks for what names the document: that is what lets the row let go")
+    check("ignore_doctypes_on_cancel_all" in io.open(os.path.join(upstream, "public", "js", "frappe", "form", "form.js"),
+                                                     encoding="utf-8").read(),
+          "Frappe's form leaves these out of Cancel All Documents")
+else:
+    print("Frappe's own code: NOT CHECKED, it was not found under %s" % upstream)
 
 print()
 print("FAILED: %d" % len(fail) if fail else "ALL ADVANCE RUN CHECKS PASSED")

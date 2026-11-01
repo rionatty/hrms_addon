@@ -13,6 +13,14 @@ unmarked and the balance goes back up.
 
 Once a day, anything a slip took that is not marked yet is caught up —
 slips submitted before this was installed, or while it failed.
+
+A deduction can be cancelled by itself while what it recovers stands (1 Nov
+2026; Luuka: "its should allow canceling"). Frappe refuses a cancel while a
+submitted document's row names the deduction, but runs on_cancel first, so
+the row lets go there. It keeps the name of what was cancelled, so nothing
+makes that month's deduction again, and the amount stays outstanding. A
+deduction a submitted slip has taken is still refused: that money is paid.
+Amending the cancelled deduction puts the new one back on the row.
 """
 
 import frappe
@@ -25,6 +33,10 @@ SCHEDULES = {
     "Advance Recovery": ("Employee Advance",),
     "Leave Advance Recovery": ("Leave Advance",),
 }
+# a schedule's row: what it takes in a month, and the deduction cancelled by itself. A Data field, for a Link to a
+# cancelled deduction would refuse the document it is on
+INSTALMENT = {"Loan Repayment": "total", "Advance Recovery": "amount", "Leave Advance Recovery": "amount"}
+CANCELLED = "cancelled_deduction"
 
 
 def _refreshers():
@@ -47,15 +59,45 @@ def _deductions(slip):
 
 
 def addition_on_cancel(doc, method=None):
-    """An Additional Salary cancelled after a draft salary slip took it up.
-    Frappe HR leaves its line on the slip, which would still pay or deduct
-    it, so the slips to make again are named."""
+    """An Additional Salary cancelled. The instalment it is, of a document
+    still standing, lets go of it (_let_go). And if a draft salary slip took
+    it up, Frappe HR leaves its line on the slip, which would still pay or
+    deduct it, so the slips to make again are named."""
+    _let_go(doc)
     slips = frappe.get_all("Salary Detail", filters={"parenttype": "Salary Slip", "docstatus": 0,
                                                      "additional_salary": doc.name},
                            pluck="parent", distinct=True, limit_page_length=0)
     if slips:
         frappe.msgprint(_("{0} is still on draft Salary Slip {1}. Delete the slip and create it again.").format(
             doc.get("salary_component"), ", ".join(slips)), title=_("Salary Slip"), indicator="orange")
+
+
+def _let_go(deduction):
+    """The row of a submitted loan, penalty or advance naming this deduction,
+    which would refuse its cancel. A document being cancelled has taken its
+    deductions back itself, and one taking back a payment lets go first."""
+    for child, parents in SCHEDULES.items():
+        for row in frappe.get_all(child, filters={"additional_salary": deduction.name, "parenttype": ["in", list(parents)],
+                                                  "recovered": ["!=", 1]}, fields=["name", "parent", "parenttype"]):
+            if frappe.db.get_value(row.parenttype, row.parent, "docstatus") != 1:
+                continue
+            frappe.db.set_value(child, row.name, {"additional_salary": None, CANCELLED: deduction.name},
+                                update_modified=False)
+            frappe.msgprint(_("{0} will not be deducted. It stays outstanding on {1}.").format(
+                deduction.name, row.parent), title=_("Additional Salary"), indicator="orange")
+
+
+def addition_on_submit(doc, method=None):
+    """A cancelled deduction amended: the new one is that month's instalment,
+    so the slip that takes it marks the month recovered."""
+    if not doc.get("amended_from"):
+        return
+    for child, parents in SCHEDULES.items():
+        for name in frappe.get_all(child, filters={CANCELLED: doc.amended_from, "parenttype": ["in", list(parents)]},
+                                   pluck="name"):
+            frappe.db.set_value(child, name, {"additional_salary": doc.name, CANCELLED: None,
+                                              "payroll_date": doc.payroll_date, INSTALMENT[child]: doc.amount},
+                                update_modified=False)
 
 
 def mark(additional_salaries, recovered, parent=None):

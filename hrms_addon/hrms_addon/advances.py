@@ -418,7 +418,8 @@ def schedule_recovery(doc):
     if doc.docstatus != 1:
         return 0
     room = flt(doc.get("paid_amount")) - flt(doc.get("claimed_amount")) - _scheduled(doc.name)
-    waiting = [row for row in doc.get("custom_recoveries") or [] if not (row.additional_salary or row.recovered)]
+    waiting = [row for row in doc.get("custom_recoveries") or []
+               if not (row.additional_salary or row.recovered or row.get("cancelled_deduction"))]
     if not waiting or room <= 0:
         return 0
     component = doc.get("custom_recovery_component") or _component(doc.get("company"))
@@ -592,7 +593,8 @@ def _schedule_paid():
     for name in frappe.get_all(DOCTYPE, filters={"docstatus": 1, "paid_amount": [">", 0]}, pluck="name",
                                limit_page_length=0):
         doc = frappe.get_doc(DOCTYPE, name)
-        if any(not (row.additional_salary or row.recovered) for row in doc.get("custom_recoveries") or []):
+        if any(not (row.additional_salary or row.recovered or row.get("cancelled_deduction"))
+               for row in doc.get("custom_recoveries") or []):
             scheduled = schedule_recovery(doc)
             if scheduled:
                 _tell_scheduled(doc, scheduled)

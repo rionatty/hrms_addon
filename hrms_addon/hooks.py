@@ -179,6 +179,8 @@ extend_bootinfo = "hrms_addon.hrms_addon.theme.boot_session"
 # Result Areas table of the Job Description tab.
 doctype_js = {
     "Job Requisition": "public/js/job_requisition.js",
+    # a deduction cancelled by itself leaves the advance, loan or penalty standing (recoveries.py)
+    "Additional Salary": "public/js/additional_salary.js",
     # Recreate Salary Slips on a submitted payroll whose slips are still drafts (payroll_entries.py)
     "Payroll Entry": "public/js/payroll_entry.js",
     # A new opening fills itself from its requisition and its JD
@@ -1811,6 +1813,7 @@ doc_events = {
     # the line, so it is named (recoveries.py)
     "Additional Salary": {
         "on_cancel": "hrms_addon.hrms_addon.recoveries.addition_on_cancel",
+        "on_submit": "hrms_addon.hrms_addon.recoveries.addition_on_submit",
     },
     # The slip that takes a loan's, a penalty's or an advance's monthly
     # deduction marks that month recovered, and a cancelled slip gives it

@@ -64,7 +64,9 @@ frappe.ui.form.on("Employee Advance", {
 	show_recovery(frm) {
 		if (frm.doc.docstatus !== 1) return;
 		const rows = frm.doc.custom_recoveries || [];
-		const waiting = rows.filter((row) => !row.additional_salary && !row.recovered).length;
+		const waiting = rows.filter(
+			(row) => !row.additional_salary && !row.recovered && !row.cancelled_deduction
+		).length;
 		if (!waiting) return;
 		frm.dashboard.add_comment(
 			flt(frm.doc.paid_amount)

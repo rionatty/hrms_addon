@@ -132,7 +132,8 @@ def _unposted(start, end):
         if not _may(parent) or not frappe.db.exists("DocType", table):
             continue
         rows = frappe.get_all(table, filters={"parenttype": parent, "payroll_date": ["between", [start, end]],
-                                              "additional_salary": ["is", "not set"]},
+                                              "additional_salary": ["is", "not set"],
+                                              "cancelled_deduction": ["is", "not set"]},
                               fields=["parent"], limit_page_length=0)
         if not rows:
             continue

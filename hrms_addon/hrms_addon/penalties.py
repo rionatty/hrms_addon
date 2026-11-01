@@ -204,7 +204,7 @@ def _make_deductions(doc):
     if not component:
         return
     for row in doc.get("repayments") or []:
-        if row.additional_salary or row.recovered:
+        if row.additional_salary or row.recovered or row.get("cancelled_deduction"):
             continue
         deduction = frappe.get_doc({
             "doctype": "Additional Salary", "employee": doc.employee, "company": doc.company,
