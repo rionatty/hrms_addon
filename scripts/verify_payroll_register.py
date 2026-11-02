@@ -14,7 +14,8 @@ by the walk smoke_payroll_register.py):
      company and currency of the payroll; the download
   3  the tab: its fields, the form script and its wiring
   4  each employee's figures on the Employees tab: read from their slip as
-     the form opens, for whoever may see the register, the fields they show in
+     the form opens, for whoever may see the register, the fields they show in;
+     with no slip yet, what it will show (scripts/verify_slip_figures.py)
   5  upstream: what the glue and the tab stand on in Frappe and Frappe HR
 """
 import importlib.util
@@ -109,12 +110,13 @@ class Site:
     """A stand-in for Frappe with one payroll, its slips and Frappe HR's Salary Register."""
 
     def __init__(self, may_read=True, report_roles=True, slip_report=True, slips=None, result=None, details=(),
-                 broken=False):
+                 broken=False, expected=None, expected_broken=False):
         self.may_read, self.report_roles, self.slip_report = may_read, report_roles, slip_report
         self.slips = [{"name": "SS-1", "start_date": "2026-09-26", "end_date": "2026-10-25"},
                       {"name": "SS-2", "start_date": "2026-09-27", "end_date": "2026-10-25"}] if slips is None else slips
         self.result = (COLUMNS, [OURS, THEIRS, DRAFT]) if result is None else result
         self.details, self.broken = details, broken
+        self.expected, self.expected_broken = expected or {}, expected_broken
         self.calls = []
 
     def frappe(self):
@@ -174,6 +176,16 @@ class Site:
         sys.modules.update({"frappe": module, "frappe.desk": types.ModuleType("frappe.desk"),
                             "frappe.desk.utils": desk_utils, "frappe.utils": types.ModuleType("frappe.utils"),
                             "frappe.utils.xlsxutils": xlsxutils})
+
+        def expected(doc, employees):
+            site.calls.append(("expected", doc.name, list(employees)))
+            if site.expected_broken:
+                raise ValueError("unreadable")
+            return site.expected
+
+        slip_figures = types.ModuleType("hrms_addon.hrms_addon.slip_figures")
+        slip_figures.expected = expected
+        sys.modules["hrms_addon.hrms_addon.slip_figures"] = slip_figures
         return module
 
 
@@ -311,7 +323,8 @@ check("a row is given the days its slip shows, Sundays and holidays included, no
 check("half days as they are, and the Basic with an Additional Salary on it whole", shown["E2"] == {
     "custom_working_days": 31, "custom_paid_days": 30.5, "custom_absent_days": 0.5, "custom_absent_amount": 5769.23,
     "custom_basic_salary": 350000}, shown["E2"])
-check("a row with no slip shows nothing of an earlier one", shown["E3"] == R.NO_FIGURES, shown["E3"])
+check("a row with no slip and nothing expected shows nothing of an earlier one", shown["E3"] == R.NO_FIGURES, shown["E3"])
+check("only those with no slip are worked out", ("expected", "HR-PRUN-2026-00016", ["E3"]) in site.calls, site.calls)
 asked = [call for call in site.calls if call[0] == "get_all"]
 check("the slips read are the payroll's, cancelled ones left out, all of them",
       asked[0] == ("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
@@ -322,21 +335,32 @@ check("and of their earnings the Basic rows, all of them",
       asked[1] == ("get_all", "Salary Detail", {"parenttype": "Salary Slip", "parentfield": "earnings",
                                                 "salary_component": "Basic", "parent": ["in", ["SS-1", "SS-2"]]},
                    ["parent", "default_amount", "additional_amount"], 0) and len(asked) == 2, asked[1:])
-site = Site(slips=[])
+EXPECTED = {"custom_working_days": 31, "custom_paid_days": 29, "custom_absent_days": 2, "custom_absent_amount": 61538.46,
+            "custom_basic_salary": 800000}
+site = Site(slips=SLIPS, details=BASICS, expected={"E3": EXPECTED})
 shown = figures(site)
-check("a payroll with no slips yet: nothing on any row, and nothing more asked",
-      all(row == R.NO_FIGURES for row in shown.values())
+check("a row with no slip yet shows what its slip will, beside those read from theirs",
+      shown["E3"] == EXPECTED and shown["E1"]["custom_absent_amount"] == 30769.23, shown)
+site = Site(slips=SLIPS, details=BASICS, expected_broken=True)
+shown = figures(site)
+check("what cannot be worked out leaves the slips' figures standing, and is logged",
+      shown["E1"]["custom_absent_amount"] == 30769.23 and shown["E3"] == R.NO_FIGURES
+      and ("log_error", "HRMS Addon: employee figures on HR-PRUN-2026-00016", True) in site.calls, site.calls)
+site = Site(slips=[], expected={"E1": EXPECTED, "E2": EXPECTED, "E3": EXPECTED})
+shown = figures(site)
+check("a payroll with no slips yet: every row shows what its slip will, with only the slips and nothing more read here",
+      all(row == EXPECTED for row in shown.values()) and ("expected", "HR-PRUN-2026-00016", ["E1", "E2", "E3"]) in site.calls
       and [call[1] for call in site.calls if call[0] == "get_all"] == ["Salary Slip"], site.calls)
 for refused, label in ((Site(report_roles=False, slips=SLIPS), "the Salary Register's roles"),
                        (Site(slip_report=False, slips=SLIPS), "report on salary slips")):
     shown = figures(refused)
-    check("whoever may not %s sees none of it, and no slip is read" % label,
+    check("whoever may not %s sees none of it, and no slip is read or worked out" % label,
           all(row == R.NO_FIGURES for row in shown.values())
-          and not [call for call in refused.calls if call[0] == "get_all"], refused.calls)
+          and not [call for call in refused.calls if call[0] in ("get_all", "expected")], refused.calls)
 site = Site(slips=SLIPS, broken=True)
 shown = figures(site)
 check("figures that cannot be read leave the payroll opening, with nothing on the rows",
-      all(row == R.NO_FIGURES for row in shown.values()))
+      all(row == R.NO_FIGURES for row in shown.values()) and not [call for call in site.calls if call[0] == "expected"])
 check("and are logged, in a way that outlives a read's rollback",
       ("log_error", "HRMS Addon: employee figures on HR-PRUN-2026-00016", True) in site.calls, site.calls)
 check("Frappe sends a row's blank number as nought, so the rows are given nought",

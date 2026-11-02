@@ -11,7 +11,8 @@ public/js/payroll_entry.js; scripts/verify_payroll_register.py).
   employee_figures           Payroll Entry onload: each row of the Employees
                              table given the working days and paid days its
                              slip shows, its absent days, absent amount and
-                             Basic
+                             Basic; until there is a slip, what it will show
+                             (slip_figures.py)
 
 The first two run Frappe HR's own Salary Register, with the Absent Amount the
 app adds to it (report_extensions.SalaryRegisterColumns), over the payroll's
@@ -23,7 +24,7 @@ refuses them, and is not shown the figures.
 import frappe
 from frappe import _
 
-from hrms_addon.hrms_addon import pay_days_rules, payroll_register_rules as rules
+from hrms_addon.hrms_addon import pay_days_rules, payroll_register_rules as rules, slip_figures
 
 DOCTYPE = "Payroll Entry"
 SLIP = "Salary Slip"
@@ -69,14 +70,18 @@ def register(payroll_entry):
 
 
 def employee_figures(doc, method=None):
-    """Payroll Entry onload. The figures are read from the slips as the form opens, as Frappe HR's own onload sets the
-    Overtime Step, and are not kept: a slip made again or changed while a draft shows as it now is. If they cannot be
-    read the payroll still opens."""
+    """Payroll Entry onload, which also runs on the save Get Employees ends with. The figures are read from the slips
+    as the form opens, as Frappe HR's own onload sets the Overtime Step, and are not kept: a slip made again or changed
+    while a draft shows as it now is. A row with no slip yet shows what its slip will. If they cannot be read the
+    payroll still opens."""
+    figures = {}
     try:
-        figures = _figures(doc.name) if _report_if_permitted() else {}
+        if _report_if_permitted():
+            figures = _figures(doc.name)
+            figures.update(slip_figures.expected(doc, [row.employee for row in doc.get("employees") or []
+                                                       if row.employee not in figures]))
     except Exception:
         frappe.log_error(title="HRMS Addon: employee figures on %s" % doc.name, defer_insert=True)
-        figures = {}
     for row in doc.get("employees") or []:
         row.update(figures.get(row.employee) or rules.NO_FIGURES)
 

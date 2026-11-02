@@ -19,7 +19,8 @@ and basic salary", "per employee"), read from their slip. The days are the
 calendar's, Sundays and holidays included, as the slip shows them
 (pay_days_rules.calendar_days). The Basic Salary is the month's whole Basic,
 before anything is taken off for days not paid, as Luuka's own Basic Salary
-column has it.
+column has it. A row with no slip yet shows what its slip will
+(slip_figures_rules.py).
 """
 
 AMOUNT = "Currency"
@@ -29,7 +30,7 @@ TOTALS = ("absent_amount", "gross_pay", "total_loan_repayment", "total_deduction
 SLIP_FIGURES = {"custom_working_days": "custom_days_in_period", "custom_paid_days": "custom_days_paid",
                 "custom_absent_days": "absent_days", "custom_absent_amount": "custom_absent_amount"}
 BASIC_SALARY = "custom_basic_salary"
-# a row with no slip: Frappe sends a blank number as nought all the same
+# a row with nothing to show: Frappe sends a blank number as nought all the same
 NO_FIGURES = dict.fromkeys((*SLIP_FIGURES, BASIC_SALARY), 0)
 
 
