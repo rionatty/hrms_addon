@@ -1,0 +1,320 @@
+{
+ "actions": [],
+ "autoname": "HR-ATD-.YYYY.-.#####",
+ "creation": "2026-11-02 09:00:00.000000",
+ "description": "A month of attendance deleted while everybody else keeps working.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "department",
+  "employee",
+  "attendance_status",
+  "column_break_period",
+  "from_date",
+  "to_date",
+  "keep_deleted",
+  "count_section",
+  "to_delete",
+  "draft_slips",
+  "column_break_count",
+  "kept_on_slips",
+  "kept_from_requests",
+  "kept_in_use",
+  "result_section",
+  "status",
+  "started_by",
+  "started_on",
+  "finished_on",
+  "column_break_result",
+  "deleted",
+  "kept",
+  "message",
+  "files_section",
+  "backup_file",
+  "column_break_files",
+  "kept_file",
+  "job_section",
+  "cursor_date",
+  "cursor_name",
+  "backup_size",
+  "kept_size",
+  "stop_requested"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "attendance_status",
+   "fieldtype": "Select",
+   "label": "Attendance Status",
+   "options": "\nPresent\nAbsent\nOn Leave\nHalf Day\nWork From Home"
+  },
+  {
+   "fieldname": "column_break_period",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "keep_deleted",
+   "fieldtype": "Check",
+   "label": "Keep Deleted",
+   "default": "1",
+   "description": "Auto attendance will not mark these days again."
+  },
+  {
+   "fieldname": "count_section",
+   "fieldtype": "Section Break",
+   "label": "Count",
+   "depends_on": "eval:!doc.__islocal"
+  },
+  {
+   "fieldname": "to_delete",
+   "fieldtype": "Int",
+   "label": "Will Be Deleted",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "draft_slips",
+   "fieldtype": "Int",
+   "label": "Draft Salary Slips",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "They keep their figures until recreated."
+  },
+  {
+   "fieldname": "column_break_count",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "kept_on_slips",
+   "fieldtype": "Int",
+   "label": "Kept On Salary Slips",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "A submitted salary slip covers the day."
+  },
+  {
+   "fieldname": "kept_from_requests",
+   "fieldtype": "Int",
+   "label": "Kept From Requests",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "A leave application or attendance request made it."
+  },
+  {
+   "fieldname": "kept_in_use",
+   "fieldtype": "Int",
+   "label": "Kept In Use",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Another document uses it, or a file is attached."
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result",
+   "depends_on": "eval:doc.status && doc.status != 'Draft'"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nQueued\nDeleting\nStopped\nFinished\nFailed",
+   "default": "Draft",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "started_by",
+   "fieldtype": "Link",
+   "label": "Started By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "started_on",
+   "fieldtype": "Datetime",
+   "label": "Started On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "finished_on",
+   "fieldtype": "Datetime",
+   "label": "Finished On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "deleted",
+   "fieldtype": "Int",
+   "label": "Deleted",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "kept",
+   "fieldtype": "Int",
+   "label": "Kept",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "label": "Message",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "files_section",
+   "fieldtype": "Section Break",
+   "label": "Files",
+   "depends_on": "eval:doc.backup_file || doc.kept_file"
+  },
+  {
+   "fieldname": "backup_file",
+   "fieldtype": "Attach",
+   "label": "Records Deleted",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Attach this in Upload Attendance to put the submitted days back."
+  },
+  {
+   "fieldname": "column_break_files",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "kept_file",
+   "fieldtype": "Attach",
+   "label": "Records Kept",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Each record kept, with why."
+  },
+  {
+   "fieldname": "job_section",
+   "fieldtype": "Section Break",
+   "hidden": 1
+  },
+  {
+   "fieldname": "cursor_date",
+   "fieldtype": "Date",
+   "label": "Cursor Date",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "cursor_name",
+   "fieldtype": "Data",
+   "label": "Cursor Name",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "backup_size",
+   "fieldtype": "Int",
+   "label": "Backup Size",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "kept_size",
+   "fieldtype": "Int",
+   "label": "Kept Size",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "stop_requested",
+   "fieldtype": "Check",
+   "label": "Stop Requested",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-02 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Attendance Deletion",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

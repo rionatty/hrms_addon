@@ -313,6 +313,7 @@ CARDS = {
         # card: their Upload Attendance was deleted in v16 (attendance_upload.py)
         ("Attendance", [
             ("Upload Attendance", "Upload Attendance", DOCTYPE),
+            ("Attendance Deletion", "Attendance Deletion", DOCTYPE),
         ]),
         ("Attendance Forms", [
             ("Off Duty Request", "Off Duty Request", DOCTYPE),
@@ -545,6 +546,7 @@ SIDEBAR = {
     "Shift & Attendance": [
         ("Attendance Board", "attendance-board", PAGE, None, None),
         ("Upload Attendance", "Upload Attendance", DOCTYPE, None, "Employee Attendance Tool"),
+        ("Attendance Deletion", "Attendance Deletion", DOCTYPE, None, "Upload Attendance"),
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
@@ -652,7 +654,7 @@ GROUPS = {
                                   "Leave Adjustment"]),
     ],
     "Shift & Attendance": [
-        ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Upload Attendance",
+        ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Upload Attendance", "Attendance Deletion",
                                  "Attendance Request", "Late Arrival Notice", "Gate Pass", "Off Duty Request"]),
         ("Shifts", "repeat", ["Shift Request", "Shift Rotation", "Shift Allowance"]),
         ("Overtime", "calendar-clock", ["Overtime Request", "Overtime Slip"]),

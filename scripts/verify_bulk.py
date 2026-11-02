@@ -53,6 +53,10 @@ print("rules: batches of 500, every record once, in the order chosen")
 
 
 # ── 2. The glue, on a stand-in for Frappe ─────────────────────────────
+class Refused(Exception):
+    pass
+
+
 class Stand:
     def __init__(self):
         self.enqueued, self.messages, self.frappe_calls, self.deleted_now = [], [], [], []
@@ -66,6 +70,12 @@ class Stand:
         frappe.parse_json = json.loads
         frappe._ = lambda text: text
         frappe.form_dict = form or {}
+
+        def throw(message, **kwargs):
+            raise Refused(message)
+
+        frappe.throw = throw
+        frappe.utils = types.SimpleNamespace(get_link_to_form=lambda doctype, name, label: "<a>%s %s</a>" % (label, name))
         desk = types.ModuleType("frappe.desk")
         doctype = types.ModuleType("frappe.desk.doctype")
         package = types.ModuleType("frappe.desk.doctype.bulk_update")
@@ -124,7 +134,28 @@ check(answer is None and [(method, kwargs["queue"], kwargs["timeout"], len(kwarg
       "1,201 to delete: three jobs on the long queue, none the default queue stops at five minutes", stand.enqueued)
 check([name for _method, kwargs in stand.enqueued for name in kwargs["items"]] == sorted(names[:1201], reverse=True),
       "every record once, in Frappe's order")
-print("glue: up to 500 (10 to delete) as Frappe does them; beyond, batches of 500 on the long queue")
+# Frappe queues a job for every record it deletes, and the queue holds 500: more attendance than a batch goes to its own screen
+for action, count, refused in (("cancel", 501, True), ("cancel", 500, False), ("submit", 501, False), ("update", 501, False)):
+    stand = Stand()
+    bulk = stand.install()
+    try:
+        bulk.submit_cancel_or_update_docs("Attendance", names[:count], action)
+        said = None
+    except Refused as error:
+        said = str(error)
+    check(bool(said) == refused and (not refused or ("Attendance Deletion" in said and "500" in said and not stand.enqueued and not stand.frappe_calls)),
+          "%d attendance records to %s: %s" % (count, action, "Attendance Deletion, with nothing queued" if refused else "as for any other"), said)
+for count, refused in ((501, True), (500, False)):
+    stand = Stand()
+    bulk = stand.install({"items": json.dumps(names[:count]), "doctype": "Attendance"})
+    try:
+        bulk.delete_items()
+        said = None
+    except Refused as error:
+        said = str(error)
+    check(bool(said) == refused and (not refused or ("Attendance Deletion" in said and not stand.enqueued and not stand.deleted_now)),
+          "%d attendance records to delete: %s" % (count, "Attendance Deletion, with nothing queued" if refused else "as for any other"), said)
+print("glue: up to 500 (10 to delete) as Frappe does them; beyond, batches of 500 on the long queue; more attendance than a batch to Attendance Deletion")
 
 # ── 3. Wiring ─────────────────────────────────────────────────────────
 hooks = ast.parse(open(os.path.join(REPO, "hrms_addon", "hooks.py"), encoding="utf-8").read())

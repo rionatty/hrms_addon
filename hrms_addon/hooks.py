@@ -1642,6 +1642,8 @@ override_doctype_class = {
 # Overtime Slip is the month's pay over 26 days.
 # The salary formulas read the age NSSF stops at, and the employee's age, on
 # the slip and on the assignment alike (nssf_age.py).
+# Auto attendance leaves the days a deletion said to keep deleted
+# (attendance_deletions.py).
 extend_doctype_class = {
     "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
@@ -1649,6 +1651,7 @@ extend_doctype_class = {
                     "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
     "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"],
+    "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted"],
 }
 
 # Document Events
