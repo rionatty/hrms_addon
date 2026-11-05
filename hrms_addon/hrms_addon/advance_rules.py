@@ -70,8 +70,8 @@ ACTIVE = "Active"
 # ── How gross is earned (minutes §4.6) ────────────────────────────────
 # Per Meter and Per Piece pay on output, the other casuals by the hour, and
 # everyone else a monthly salary.
-MONTHLY, PER_METER, PER_PIECE, HOURLY = "Monthly", "Per Meter", "Per Piece", "Hourly"
-PAY_CATEGORIES = (MONTHLY, PER_METER, PER_PIECE, HOURLY)
+MONTHLY, PER_METER, PER_PIECE, WEEKLY = "Monthly", "Per Meter", "Per Piece", "Weekly"
+PAY_CATEGORIES = (MONTHLY, PER_METER, PER_PIECE, WEEKLY)
 
 # the payroll period runs from the 26th of one month to the 25th of the next
 CYCLE_START_DAY = 26

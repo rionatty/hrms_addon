@@ -19,8 +19,7 @@ the site.
                      what each person is paid (their work and Looms OT),
                      and under which salary components
   get_output         the run filled from the submitted daily reports, the
-                     sheet's among them (Per Meter, Per Piece), or from
-                     attendance (Hourly)
+                     sheet's among them
   download_sheet     the month in Luuka's own layout, with what the system
                      has, to fill in
   upload_sheet       the sheet read back and checked: one report a day,
@@ -72,7 +71,6 @@ COMPONENTS = {rules.PER_METER: ("Per Meter Earnings", "PME"),
               rules.HOURLY: ("Hourly Earnings", "HRE")}
 SETTING_FIELDS = {rules.PER_METER: "per_meter_component", rules.PER_PIECE: "per_piece_component",
                   rules.HOURLY: "hourly_component"}
-PRESENT = ("Present", "Half Day", "Work From Home")
 HAND_LINE_FIELDS = ("employee", "size", "shifts", "output")
 HAND_OT_FIELDS = ("employee", "amount")
 
@@ -192,18 +190,13 @@ def _paid_run(branch, section, day):
 def run_validate(doc, method=None):
     _set_period(doc)
     _one_run_a_month(doc)
-    if doc.get("section") in rules.OUTPUT_SECTIONS:
-        _price_lines(doc)
-        _check_overtime(doc)
-        _employees_from_lines(doc)
-    else:
-        doc.set("overtime", [])
-        _price_hours(doc)
+    _price_lines(doc)
+    _check_overtime(doc)
+    _employees_from_lines(doc)
     _earnings(doc)
     # a draft is somewhere to gather the month; only paying it has to be right
     if doc.docstatus == 1:
-        errors = rules.run_errors(doc.get("section"), [_row(row) for row in doc.get("employees") or []],
-                                  {row.employee: row.get("rate") for row in doc.get("employees") or []})
+        errors = rules.run_errors(doc.get("section"), [_row(row) for row in doc.get("employees") or []])
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(RUN))
     doc.total_employees = len(doc.get("employees") or [])
@@ -297,15 +290,10 @@ def _earnings(doc):
     written stays linked, so a re-save never forgets it."""
     written = {(row.employee, row.salary_component): row.get("additional_salary")
                for row in doc.get("earnings") or []}
-    section = doc.get("section")
-    default = _component_name(section)
-    if section in rules.OUTPUT_SECTIONS:
-        lines = [_row(row) for row in doc.get("lines") or []]
-        found = rules.earnings(lines, rules.overtime_by_employee([_row(row) for row in doc.get("overtime") or []]),
-                               _size_components({row.get("size") for row in lines}), default, _overtime_component())
-    else:
-        found = rules.earnings([{"employee": row.employee, "amount": row.get("amount")}
-                                for row in doc.get("employees") or []], None, None, default)
+    lines = [_row(row) for row in doc.get("lines") or []]
+    found = rules.earnings(lines, rules.overtime_by_employee([_row(row) for row in doc.get("overtime") or []]),
+                           _size_components({row.get("size") for row in lines}), _component_name(doc.get("section")),
+                           _overtime_component())
     doc.set("earnings", [])
     for row in found:
         doc.append("earnings", dict(row, additional_salary=written.get((row["employee"], row["salary_component"]))))
@@ -327,27 +315,10 @@ def _overtime_component():
     return chosen if chosen and frappe.db.exists("Salary Component", chosen) else None
 
 
-def _price_hours(doc):
-    s = settings()
-    rates = _hourly_rates([row.employee for row in doc.get("employees") or []], s)
-    for row in doc.get("employees") or []:
-        row.rate = rates.get(row.employee) or 0
-        row.amount = round(flt(row.get("hours")) * flt(row.rate), 2)
-
-
-def _hourly_rates(employees, s):
-    own = {}
-    if frappe.get_meta("Employee").has_field("custom_hourly_rate"):
-        own = {name: flt(frappe.db.get_value("Employee", name, "custom_hourly_rate")) for name in employees}
-    return {name: own.get(name) or flt(s.get("standard_hourly_rate")) for name in employees}
-
-
 @frappe.whitelist(methods=["POST"])
 def get_output(run):
     """Fill the run: the daily reports' lines, per person per size, and
-    their Looms OT (Per Meter, Per Piece); or each hourly casual's standard
-    hours from their attendance (Hourly). Lines and Looms OT entered by
-    hand are kept."""
+    their Looms OT. Lines and Looms OT entered by hand are kept."""
     doc = frappe.get_doc(RUN, run)
     doc.check_permission("write")
     if doc.docstatus != 0:
@@ -359,9 +330,6 @@ def get_output(run):
 
 def _fill(doc):
     _set_period(doc)
-    if doc.section not in rules.OUTPUT_SECTIONS:
-        _fill_hours(doc)
-        return
     reports = _month_reports(doc)
     lines = frappe.get_all(REPORT_LINE, filters={"parenttype": REPORT, "parent": ["in", reports or [""]]},
                            fields=["employee", "size", "output", "amount"], limit_page_length=0) if reports else []
@@ -389,31 +357,6 @@ def _month_reports(doc):
     return frappe.get_all(REPORT, filters={
         "docstatus": 1, "branch": doc.branch, "section": doc.section,
         "report_date": ["between", [doc.from_date, doc.to_date]]}, pluck="name", limit_page_length=0)
-
-
-def _fill_hours(doc):
-    s = settings()
-    standard = flt(s.get("standard_hours")) or rules.STANDARD_HOURS
-    people = frappe.get_all("Employee", filters={"branch": doc.branch, "status": ["in", ("Active", "Left")],
-                                                 "custom_pay_category": rules.HOURLY},
-                            fields=["name", "relieving_date"], limit_page_length=0)
-    people = [row.name for row in people
-              if not row.relieving_date or getdate(row.relieving_date) >= getdate(doc.from_date)]
-    days = {}
-    for row in frappe.get_all("Attendance", filters={
-            "employee": ["in", people or [""]], "docstatus": 1, "status": ["in", PRESENT],
-            "attendance_date": ["between", [doc.from_date, doc.to_date]]},
-            fields=["employee", "working_hours"], limit_page_length=0) if people else []:
-        days.setdefault(row.employee, []).append(flt(row.working_hours))
-    rates = _hourly_rates(people, s)
-    doc.set("employees", [])
-    for name in people:
-        if name not in days:
-            continue
-        month = rules.hourly_pay(days[name], rates.get(name), standard)
-        doc.append("employees", {"employee": name, "shifts": month["days"], "hours": month["hours"],
-                                 "overtime_hours": month["overtime"], "rate": rates.get(name),
-                                 "amount": month["amount"]})
 
 
 # ── 4. Luuka's Per Meter sheet, out and back ──────────────────────────
@@ -684,9 +627,8 @@ def run_on_submit(doc, method=None):
         earning.insert()
         earning.submit()
         row.db_set("additional_salary", earning.name, update_modified=False)
-    if doc.section in rules.OUTPUT_SECTIONS:
-        for name in _month_reports(doc):
-            frappe.db.set_value(REPORT, name, "output_pay_run", doc.name, update_modified=False)
+    for name in _month_reports(doc):
+        frappe.db.set_value(REPORT, name, "output_pay_run", doc.name, update_modified=False)
 
 
 def _in_structure(employee, component, day, seen):

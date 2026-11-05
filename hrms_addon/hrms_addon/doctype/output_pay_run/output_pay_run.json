@@ -58,7 +58,7 @@
    "fieldname": "section",
    "fieldtype": "Select",
    "label": "Section",
-   "options": "Per Meter\nPer Piece\nHourly",
+   "options": "Per Meter\nPer Piece",
    "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1
@@ -188,7 +188,7 @@
   }
  ],
  "links": [],
- "modified": "2026-10-12 23:00:00.000000",
+ "modified": "2026-11-05 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Output Pay Run",

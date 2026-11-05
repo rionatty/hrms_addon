@@ -8,15 +8,28 @@
 // opened, not with the form, and again once the payroll changes or Refresh
 // is pressed.
 //
-// The Period of a monthly payroll: picked from a list, and the dates follow it.
-// The list is the server's, where the 26th to the 25th is kept (payslip_rules.py).
-// Should it not come, the dates stay open to type and the server still checks
-// them. Frappe HR fills the dates from the calendar month whenever the frequency
-// changes; these handlers run after its own and put them back.
+// The Period of a monthly payroll: picked from its company's open months, and the
+// dates follow it (payroll_months.py). Should the list not come, the dates stay
+// open to type and the server still checks them. Frappe HR fills the dates from
+// the calendar month whenever the frequency changes; these handlers run after
+// its own and put them back.
 const HA_PAYROLL_PERIOD_FIELD = "custom_pay_period";
-const HA_PAYROLL_PERIOD_METHOD = "hrms_addon.hrms_addon.payslip.pay_periods";
+const HA_PAYROLL_PERIOD_METHOD = "hrms_addon.hrms_addon.payroll_months.open_months";
+// the list, once it is here; false if it could not be had. And who asked: months close and open, so each document
+// asks again
 let ha_payroll_periods = null;
-let ha_payroll_periods_asked = false;
+let ha_payroll_periods_of = null;
+
+const HA_WEEKLY_METHOD = "hrms_addon.hrms_addon.weekly_pay.dates_for";
+const HA_WEEKLY_FILTERS = ["branch", "department", "designation", "grade"];
+// where a weekly payroll starts and stops, once it is here; false if it could not be had. And who it was asked for
+let ha_weekly_dates = null;
+let ha_weekly_for = null;
+// whether the answer on its way is written onto the form: a new payroll's, or one changed to Weekly, or to another
+// company or filter
+let ha_weekly_fill = false;
+// what the End says under it, set only when it changes
+let ha_weekly_hint = "";
 
 const HA_PAYROLL_REGISTER_TAB = "custom_salary_register_tab";
 const HA_PAYROLL_REGISTER_FIELD = "custom_salary_register";
@@ -28,28 +41,44 @@ frappe.ui.form.on("Payroll Entry", {
 		ha_payroll_recreate_button(frm);
 		ha_payroll_register(frm);
 		ha_payroll_period(frm);
+		ha_weekly(frm);
 	},
 	on_tab_change(frm) {
 		ha_payroll_register(frm);
 	},
-	payroll_frequency: ha_payroll_period_changed,
-	salary_slip_based_on_timesheet: ha_payroll_period_changed,
+	company: ha_payroll_dates_changed,
+	payroll_frequency: ha_payroll_dates_changed,
+	salary_slip_based_on_timesheet: ha_payroll_dates_changed,
+	branch: ha_weekly_changed,
+	department: ha_weekly_changed,
+	designation: ha_weekly_changed,
+	grade: ha_weekly_changed,
+	// Frappe HR moves the End a week from a Start typed: this runs after its own, its answer in, and puts it back
+	set_end_date: ha_weekly_after_frappe_end,
 	custom_pay_period: ha_payroll_period_dates,
 	start_date: ha_payroll_period_dates,
 	end_date: ha_payroll_period_dates,
 });
 
+function ha_payroll_dates_changed(frm) {
+	ha_payroll_period_changed(frm);
+	ha_weekly_changed(frm);
+}
+
+function ha_payroll_period_asked(frm) {
+	return (frm.doc.company || "") + "|" + frm.doc.name;
+}
+
 function ha_payroll_period_on(frm) {
 	return (
-		ha_payroll_periods &&
-		ha_payroll_periods.length > 0 &&
+		Array.isArray(ha_payroll_periods) &&
 		frm.doc.payroll_frequency === "Monthly" &&
 		!cint(frm.doc.salary_slip_based_on_timesheet)
 	);
 }
 
 function ha_payroll_period(frm) {
-	if (!ha_payroll_periods) {
+	if (ha_payroll_periods_of !== ha_payroll_period_asked(frm)) {
 		ha_payroll_period_load(frm);
 		return;
 	}
@@ -57,6 +86,7 @@ function ha_payroll_period(frm) {
 	frm.toggle_display(HA_PAYROLL_PERIOD_FIELD, on);
 	frm.toggle_reqd(HA_PAYROLL_PERIOD_FIELD, on);
 	frm.toggle_enable(["start_date", "end_date"], !on);
+	ha_weekly_show(frm);
 	if (!on) return;
 	// a payroll saved before there was a list shows the period its dates make, and is not changed by it
 	const its_own = ha_payroll_periods.find(
@@ -68,26 +98,38 @@ function ha_payroll_period(frm) {
 	// one older than the list stays as it is
 	if (kept && !names.includes(kept)) names.push(kept);
 	frm.set_df_property(HA_PAYROLL_PERIOD_FIELD, "options", ["", ...names].join("\n"));
+	frm.set_df_property(
+		HA_PAYROLL_PERIOD_FIELD,
+		"description",
+		names.length ? "" : __("No open period for this company. Open or add one in Payroll Period.")
+	);
 	frm.refresh_field(HA_PAYROLL_PERIOD_FIELD);
 }
 
 function ha_payroll_period_load(frm) {
-	if (ha_payroll_periods_asked) return;
-	ha_payroll_periods_asked = true;
+	const company = frm.doc.company || "";
+	const asked = ha_payroll_period_asked(frm);
+	ha_payroll_periods_of = asked;
+	ha_payroll_periods = null;
 	// fetch, not frappe.call: a list that cannot be loaded leaves the dates to type, with no dialog
-	fetch("/api/method/" + HA_PAYROLL_PERIOD_METHOD, {
-		credentials: "same-origin",
-		cache: "no-store",
-		headers: { Accept: "application/json" },
-	})
-		.then((response) => (response.ok ? response.json() : null))
-		.catch(() => null)
-		.then((body) => {
-			ha_payroll_periods = (body && body.message) || [];
-			// an unsaved payroll may have had the calendar month filled in by now; a saved one keeps what it has
-			if (frm.is_new()) ha_payroll_period_changed(frm);
-			else ha_payroll_period(frm);
-		});
+	const answer = company
+		? fetch("/api/method/" + HA_PAYROLL_PERIOD_METHOD + "?company=" + encodeURIComponent(company), {
+				credentials: "same-origin",
+				cache: "no-store",
+				headers: { Accept: "application/json" },
+		  })
+				.then((response) => (response.ok ? response.json() : null))
+				.catch(() => null)
+				.then((body) => (body ? body.message || [] : false))
+		: Promise.resolve([]);
+	answer.then((periods) => {
+		// the company changed while it was on its way: it is the later answer that counts
+		if (ha_payroll_periods_of !== asked) return;
+		ha_payroll_periods = periods;
+		// an unsaved payroll may have had the calendar month filled in by now; a saved one keeps what it has
+		if (frm.is_new()) ha_payroll_period_changed(frm);
+		else ha_payroll_period(frm);
+	});
 }
 
 function ha_payroll_period_changed(frm) {
@@ -109,6 +151,100 @@ function ha_payroll_period_dates(frm) {
 	Object.keys(wanted).forEach((field) => {
 		if ((frm.doc[field] || "") !== wanted[field]) frm.set_value(field, wanted[field]);
 	});
+}
+
+function ha_weekly_on(frm) {
+	return frm.doc.payroll_frequency === "Weekly" && !cint(frm.doc.salary_slip_based_on_timesheet);
+}
+
+function ha_weekly_asked(frm) {
+	return JSON.stringify(["name", "company", ...HA_WEEKLY_FILTERS].map((field) => frm.doc[field] || ""));
+}
+
+function ha_weekly(frm) {
+	if (ha_weekly_on(frm) && frm.doc.docstatus === 0 && ha_weekly_for !== ha_weekly_asked(frm)) {
+		ha_weekly_load(frm, frm.is_new());
+	} else {
+		ha_weekly_show(frm);
+	}
+}
+
+function ha_weekly_changed(frm) {
+	if (!ha_weekly_on(frm) || frm.doc.docstatus !== 0) {
+		ha_weekly_show(frm);
+	} else if (ha_weekly_for !== ha_weekly_asked(frm)) {
+		ha_weekly_load(frm, true);
+	} else if (ha_weekly_dates === null) {
+		// asked already, as the form refreshed: written on when the answer comes
+		ha_weekly_fill = true;
+	} else {
+		ha_weekly_write(frm);
+	}
+}
+
+function ha_weekly_load(frm, fill) {
+	const asked = ha_weekly_asked(frm);
+	ha_weekly_for = asked;
+	ha_weekly_dates = null;
+	ha_weekly_fill = fill;
+	const args = new URLSearchParams();
+	["company", ...HA_WEEKLY_FILTERS].forEach((field) => {
+		if (frm.doc[field]) args.set(field, frm.doc[field]);
+	});
+	// fetch, not frappe.call: dates that cannot be had leave them to type, with no dialog
+	const answer = frm.doc.company
+		? fetch("/api/method/" + HA_WEEKLY_METHOD + "?" + args.toString(), {
+				credentials: "same-origin",
+				cache: "no-store",
+				headers: { Accept: "application/json" },
+		  })
+				.then((response) => (response.ok ? response.json() : null))
+				.catch(() => null)
+				.then((body) => (body && body.message ? body.message : false))
+		: Promise.resolve(false);
+	answer.then((dates) => {
+		// asked again while it was on its way: it is the later answer that counts
+		if (ha_weekly_for !== asked) return;
+		ha_weekly_dates = dates;
+		if (ha_weekly_fill) ha_weekly_write(frm);
+		else ha_weekly_show(frm);
+	});
+}
+
+function ha_weekly_write(frm) {
+	const dates = ha_weekly_dates;
+	if (dates && ha_weekly_on(frm) && frm.doc.docstatus === 0) {
+		ha_weekly_put(frm, "start_date", dates.start);
+		ha_weekly_put(frm, "end_date", dates.end);
+	}
+	ha_weekly_show(frm);
+}
+
+// after Frappe HR's End a week from a Start: the last day marked instead, where there is one or a payroll before
+function ha_weekly_after_frappe_end(frm) {
+	const dates = ha_weekly_dates;
+	if (!dates || !ha_weekly_on(frm) || frm.doc.docstatus !== 0) return;
+	if (dates.end || dates.last) ha_weekly_put(frm, "end_date", dates.end);
+	ha_weekly_show(frm);
+}
+
+function ha_weekly_show(frm) {
+	const dates = ha_weekly_on(frm) && frm.doc.docstatus === 0 ? ha_weekly_dates : null;
+	// it starts where the last one stopped; the first has nothing to go from
+	if (dates && dates.last) frm.toggle_enable("start_date", false);
+	const nothing = dates && dates.last && !frm.doc.end_date;
+	const hint = nothing ? __("No attendance to pay after {0}.", [frappe.datetime.str_to_user(dates.last)]) : "";
+	if (hint === ha_weekly_hint) return;
+	ha_weekly_hint = hint;
+	frm.set_df_property("end_date", "description", hint);
+}
+
+// written straight on, not with set_value: Frappe HR's handlers would work the End out from the Start again
+function ha_weekly_put(frm, field, value) {
+	if ((frm.doc[field] || "") === (value || "")) return;
+	frm.doc[field] = value || "";
+	frm.refresh_field(field);
+	frm.dirty();
 }
 
 function ha_payroll_recreate_button(frm) {

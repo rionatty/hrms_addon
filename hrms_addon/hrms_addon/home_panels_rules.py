@@ -456,7 +456,7 @@ def overtime_hours(lines):
 # ── Output and Labour Cost ────────────────────────────────────────────
 PER_METER, PER_PIECE = "Per Meter", "Per Piece"
 # the ways of being paid by output, each with a run a month at its plant (Employee.custom_pay_category)
-OUTPUT_SECTIONS = ("Per Meter", "Per Piece", "Hourly")
+OUTPUT_SECTIONS = ("Per Meter", "Per Piece")
 # an Overtime Request whose hours are approved: costed, or on the attendance
 OVERTIME_COUNTED = ("Costed", "Sent to Payroll")
 

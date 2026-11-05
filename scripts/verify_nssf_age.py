@@ -290,8 +290,8 @@ check("the Salary Slip's formulas are given the age, beside Luuka's month",
       "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge" in (extended.get("Salary Slip") or [])
       and "hrms_addon.hrms_addon.pay_days.SalarySlipDays" in (extended.get("Salary Slip") or []),
       extended.get("Salary Slip"))
-check("and the assignment's", extended.get("Salary Structure Assignment")
-      == ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"], extended.get("Salary Structure Assignment"))
+check("and the assignment's", "hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"
+      in (extended.get("Salary Structure Assignment") or []), extended.get("Salary Structure Assignment"))
 glue = read("hrms_addon", "hrms_addon", "nssf_age.py")
 check("the mixins build on Frappe HR's own context", "data, default_data = super().get_data_for_eval()" in glue
       and "default_data.update(extra)" in glue and "data = super()._get_component_eval_context()" in glue)

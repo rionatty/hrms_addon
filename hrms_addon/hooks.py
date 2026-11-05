@@ -183,6 +183,8 @@ doctype_js = {
     "Additional Salary": "public/js/additional_salary.js",
     # Recreate Salary Slips on a submitted payroll whose slips are still drafts (payroll_entries.py)
     "Payroll Entry": "public/js/payroll_entry.js",
+    # a payroll year's months are made from its dates (payroll_months.py)
+    "Payroll Period": "public/js/payroll_period.js",
     # A new opening fills itself from its requisition and its JD
     "Job Opening": "public/js/job_opening.js",
     # A hired graduate becomes a Graduate Trainee Program from their own
@@ -396,6 +398,9 @@ after_migrate = [
     # Frappe's four employee statuses as Employee Status records, and every
     # employee given their Status (employee_status.py)
     "hrms_addon.hrms_addon.employee_status.install",
+    # a payroll year saved before there were months gets them, each open
+    # (payroll_months.py)
+    "hrms_addon.hrms_addon.payroll_months.fill_on_migrate",
     # Push the Branding screen's values into Website Settings / Navbar
     # Settings. A blank field is skipped, never cleared.
     "hrms_addon.hrms_addon.branding.apply_branding_on_migrate",
@@ -1253,6 +1258,11 @@ fixtures = [
                     # the days a slip shows, the calendar's (pay_days.py)
                     "Salary Slip-custom_days_in_period",
                     "Salary Slip-custom_days_paid",
+                    # the hours and days a weekly slip pays (weekly_pay.py)
+                    "Salary Slip-custom_weekly_section",
+                    "Salary Slip-custom_weekly_hours",
+                    "Salary Slip-custom_weekly_rate",
+                    "Salary Slip-custom_weekly_days",
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
                     "Payroll Settings-custom_nssf_age_limit",
                     "Employee-custom_nssf_voluntary",
@@ -1261,6 +1271,9 @@ fixtures = [
                     "Payroll Entry-custom_salary_register",
                     # the Period a monthly payroll is picked by (payslip.py)
                     "Payroll Entry-custom_pay_period",
+                    # a payroll year's months, each open or closed (payroll_months.py)
+                    "Payroll Period-custom_months_section",
+                    "Payroll Period-custom_months",
                     # each employee's figures on a payroll's Employees tab (payroll_register.py)
                     "Payroll Employee Detail-custom_working_days",
                     "Payroll Employee Detail-custom_paid_days",
@@ -1645,14 +1658,20 @@ override_doctype_class = {
 # Auto attendance leaves the days a deletion said to keep deleted
 # (attendance_deletions.py).
 # A machine's punch is not asked for coordinates, a phone's still is (devices.py).
+# A weekly payroll's Get Employees finds those paid by the week with days to pay,
+# each slip's one line reads its hours at the rate, and no tax is added
+# (weekly_pay.py).
 extend_doctype_class = {
     "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
     "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays",
-                    "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge"],
+                    "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge",
+                    "hrms_addon.hrms_addon.weekly_pay.SalarySlipWeekly"],
+    "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
     "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],
-    "Salary Structure Assignment":["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"],
+    "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge",
+                                    "hrms_addon.hrms_addon.weekly_pay.SalaryStructureAssignmentWeekly"],
     "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted"],
 }
 
@@ -1835,16 +1854,29 @@ doc_events = {
     "Salary Slip": {
         # a slip in USD is worked out at the rate set for its month in
         # Currency Exchange (currency_payroll.py)
-        "before_validate": "hrms_addon.hrms_addon.currency_payroll.salary_slip_before_validate",
+        # and a weekly slip pays the days still unpaid (weekly_pay.py)
+        "before_validate": [
+            "hrms_addon.hrms_addon.currency_payroll.salary_slip_before_validate",
+            "hrms_addon.hrms_addon.weekly_pay.slip_before_validate",
+        ],
         # a monthly slip is for the 26th to the 25th, the period the
         # month's recoveries are dated in (payslip.py); and what the days
         # not paid took off is kept on it, the Absent Amount (pay_days.py)
         "validate": [
             "hrms_addon.hrms_addon.payslip.period_validate",
             "hrms_addon.hrms_addon.pay_days.slip_validate",
+            "hrms_addon.hrms_addon.payroll_months.refuse_closed",
+            "hrms_addon.hrms_addon.weekly_pay.slip_validate",
         ],
         "on_submit": "hrms_addon.hrms_addon.recoveries.slip_on_submit",
+        # nothing moves in a closed month (payroll_months.py)
+        "before_cancel": "hrms_addon.hrms_addon.payroll_months.refuse_closed",
         "on_cancel": "hrms_addon.hrms_addon.recoveries.slip_on_cancel",
+        "on_trash": "hrms_addon.hrms_addon.payroll_months.refuse_closed",
+    },
+    # a payroll year's months are made from its dates (payroll_months.py)
+    "Payroll Period": {
+        "validate": "hrms_addon.hrms_addon.payroll_months.year_validate",
     },
     # and so is the monthly payroll run that makes the slips
     "Payroll Entry": {
@@ -1853,7 +1885,12 @@ doc_events = {
         "validate": [
             "hrms_addon.hrms_addon.payslip.period_validate",
             "hrms_addon.hrms_addon.payslip.period_name_validate",
+            "hrms_addon.hrms_addon.payroll_months.payroll_validate",
+            # a weekly payroll starts where the last one stopped (weekly_pay.py)
+            "hrms_addon.hrms_addon.weekly_pay.payroll_validate",
         ],
+        # nothing moves in a closed month (payroll_months.py)
+        "before_cancel": "hrms_addon.hrms_addon.payroll_months.refuse_closed",
         # each employee's days and basic, from their slip, on the Employees tab
         "onload": "hrms_addon.hrms_addon.payroll_register.employee_figures",
     },

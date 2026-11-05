@@ -162,7 +162,7 @@ for label, facts, key, want in (
     check((got["state"], got["note"]) == want, "%s: %s" % (label, (got["state"], got["note"])))
 blank = {"clock": {"enabled": 1, "last_success": "2026-10-21 08:00:00", "error": "Timed out", "unplaced": 2},
          "overtime": {"total": 2, "waiting": 1, "approved": 0, "slips": 0},
-         "output": {"needed": ["Kawempe Hourly", "Namanve Per Meter"], "paid": [], "unpaid_reports": 0},
+         "output": {"needed": ["Kawempe Per Piece", "Namanve Per Meter"], "paid": [], "unpaid_reports": 0},
          "advances": {"run": None, "unposted": 0}, "drafted": {"entries": []}, "slips": {"entries": []},
          "bank": {"entries": [], "paid": 0}}
 for today, want in ((D(2026, 10, 21), {"clock": "late", "overtime": "open", "output": "todo", "advances": "todo",
@@ -177,7 +177,7 @@ for today, want in ((D(2026, 10, 21), {"clock": "late", "overtime": "open", "out
     check(got == want, "on %s each step is late once past its day, and a failing clock at once: %s" % (today, got))
 said = steps_of(blank, D(2026, 10, 21))
 check(said["clock"]["note"] == "The last read failed · 2 punches not placed"
-      and said["output"]["note"] == "0 of 2 paid · Kawempe Hourly, Namanve Per Meter to go"
+      and said["output"]["note"] == "0 of 2 paid · Kawempe Per Piece, Namanve Per Meter to go"
       and said["advances"]["note"] == "No advance run this month" and said["drafted"]["note"] == "Not made yet",
       "each step says what stands in its way: %s" % {key: step["note"] for key, step in said.items()})
 none = steps_of(dict(GOOD, clock=None, bank={R.UNREADABLE: 1}), D(2026, 10, 21))

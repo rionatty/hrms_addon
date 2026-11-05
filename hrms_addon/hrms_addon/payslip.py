@@ -7,12 +7,11 @@ monthly payroll runs for. The rules are in payslip_rules.py.
   pay_slip         the Pay Slip print format's figures (a jinja method)
   period_validate  Payroll Entry and Salary Slip validate: a monthly
                    payroll runs for the 26th to the 25th
-  pay_periods      the list a monthly payroll's Period is picked from
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import flt
 
 from hrms_addon.hrms_addon import payslip_rules as rules
 
@@ -23,6 +22,8 @@ COMPONENT = "Salary Component"
 SHOWN = ("custom_slip_name", "custom_slip_order")
 # what a monthly payroll is for, picked on its form; the dates follow it
 PERIOD_FIELD = "custom_pay_period"
+WEEKLY = "Weekly"
+WEEKLY_HOURS = "custom_weekly_hours"
 
 
 def pay_slip(doc):
@@ -43,11 +44,12 @@ def pay_slip(doc):
         "employee_name": doc.get("employee_name"),
         "department": _department(doc.get("department")),
         "payroll_no": doc.get("employee"),
-        "slip_for": rules.slip_for(doc.get("end_date")),
+        "slip_for": rules.slip_for(doc.get("end_date"),
+                                   doc.get("start_date") if doc.get("payroll_frequency") == WEEKLY else None),
         "designation": doc.get("designation"),
         "category": employee.get("custom_pay_category") or employee.get("employment_type"),
         "section": _section(doc.get("designation")),
-        "payments": rules.lines(earnings, _overtime_hours(earnings), shown),
+        "payments": rules.lines(earnings, _hours(doc, earnings), shown),
         "gross": flt(doc.get("gross_pay")),
         "deductions": rules.lines(deductions, None, shown),
         "total_deductions": flt(doc.get("total_deduction")),
@@ -146,6 +148,15 @@ def _holidays(doc):
                                          only_non_weekly=True))
 
 
+def _hours(doc, earnings):
+    """The hours beside the payments: overtime's, and a week's on the structure's own line."""
+    hours = _overtime_hours(earnings)
+    if flt(doc.get(WEEKLY_HOURS)):
+        hours.update({row.get("salary_component"): flt(doc.get(WEEKLY_HOURS))
+                      for row in earnings if not row.get("additional_salary")})
+    return hours
+
+
 def _overtime_hours(earnings):
     """{Additional Salary: hours} for the earnings an Overtime Slip pays: the
     hours of its overtime types that are paid through that component."""
@@ -185,9 +196,3 @@ def period_name_validate(doc, method=None):
     timesheet = doc.get("salary_slip_based_on_timesheet")
     named = rules.period_name(doc.get("start_date"), doc.get("end_date")) if monthly and not timesheet else None
     doc.set(PERIOD_FIELD, named)
-
-
-@frappe.whitelist()
-def pay_periods():
-    """The periods a monthly payroll is picked from, the latest first."""
-    return rules.pay_periods(getdate())

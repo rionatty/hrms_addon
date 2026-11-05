@@ -228,7 +228,7 @@ check("the Salary Register gains its column beside the leave reports'",
       and "hrms_addon.hrms_addon.report_extensions.LeaveReportColumns" in (extended.get("Report") or []))
 validate = (hooks.get("doc_events") or {}).get("Salary Slip", {}).get("validate")
 check("the slip keeps its Absent Amount on validate, after the period is checked",
-      validate == ["hrms_addon.hrms_addon.payslip.period_validate", "hrms_addon.hrms_addon.pay_days.slip_validate"],
+      validate[:2] == ["hrms_addon.hrms_addon.payslip.period_validate", "hrms_addon.hrms_addon.pay_days.slip_validate"],
       validate)
 glue = read("hrms_addon", "hrms_addon", "pay_days.py")
 

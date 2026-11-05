@@ -8,8 +8,8 @@
   2  the month a slip is for, what absence took off, leave and absent days
   3  the payroll period: the 26th to the 25th, the same cycle as the
      attendance register and the advances; a monthly payroll for any other
-     dates is refused, with the dates to use; the periods are picked from a
-     list, by the name the slip gives them
+     dates is refused, with the dates to use; a payroll year's months, by the
+     name the slip gives them (scripts/verify_payroll_months.py)
   4  the Pay Slip is a standard Jinja print of this app, the one a Salary
      Slip opens with, and reads only what payslip.pay_slip hands it
   5  it prints Luuka's August slip for LPL1834 as their own payroll laid it
@@ -128,6 +128,14 @@ check(R.lines(None) == [] and R.lines([{"salary_component": "X", "amount": "abc"
 check(R.slip_for("2026-09-25") == "SEPTEMBER 2026" and R.slip_for("2026-09-24") == "SEPTEMBER 2026",
       "a slip is for the month its period closes in")
 check(R.slip_for(datetime.date(2027, 1, 25)) == "JANUARY 2027" and R.slip_for(None) == "", "January, and no date")
+check(R.slip_for("2026-11-04", "2026-10-29") == "29 OCT TO 4 NOV 2026"
+      and R.slip_for(datetime.date(2027, 1, 3), datetime.date(2026, 12, 28)) == "28 DEC 2026 TO 3 JAN 2027",
+      "a week's slip says its days, the year once unless the week runs into the next: %s"
+      % R.slip_for(datetime.date(2027, 1, 3), datetime.date(2026, 12, 28)))
+week_line = R.lines([{"salary_component": "Hourly Earnings", "amount": 132500},
+                     {"salary_component": "Overtime", "amount": 9000, "additional_salary": "ADS-9"}], {"Hourly Earnings": 53})
+check([(line["name"], line["hours"]) for line in week_line] == [("HOURLY EARNINGS", 53.0), ("OVERTIME", None)],
+      "a week's own line shows its hours; an Additional Salary of another component shows its own or none: %s" % week_line)
 check(R.absent_amount(EARNINGS) == 0, "full payment days: nothing lost to absence")
 short = [{"salary_component": "Basic", "amount": 664827, "default_amount": 736058, "depends_on_payment_days": 1},
          {"salary_component": "Airtime", "amount": 30000, "default_amount": 30000, "depends_on_payment_days": 0},
@@ -175,23 +183,28 @@ check(recovered_on == datetime.date(2026, 9, 25) and R.period_of("2026-09-15")[0
       "September's advance is recovered on the 25th, inside September's period")
 check(not (datetime.date(2026, 8, 25) <= recovered_on <= datetime.date(2026, 9, 24)),
       "and outside a payroll run for the 25th to the 24th, which is why that run is refused")
-# the list a monthly payroll is picked from
-listed = R.pay_periods(datetime.date(2026, 11, 1))
-check([period["name"] for period in listed[:5]]
-      == ["January 2027", "December 2026", "November 2026", "October 2026", "September 2026"],
-      "the latest first, November being the one the 1st of November falls in: %s" % listed[:5])
-check({"name": "September 2026", "start": "2026-08-26", "end": "2026-09-25"} in listed, "September is the 26th to the 25th")
-check(len(listed) == R.PERIODS_AHEAD + 1 + R.PERIODS_BACK == 27 and listed[-1]["name"] == "November 2024",
-      "two ahead and two years back: %s" % listed[-1])
-over_a_leap_year = R.pay_periods(datetime.date(2028, 3, 10))
-for rows in (listed, over_a_leap_year):
-    check(all(R.period_errors("Monthly", row["start"], row["end"]) == [] for row in rows),
-          "every one listed is one the payroll accepts")
-    check(all(older["end"] == str(datetime.date.fromisoformat(newer["start"]) - datetime.timedelta(days=1))
-              for newer, older in zip(rows, rows[1:])), "with no day between them and none in two")
-    check(all(R.slip_for(row["end"]).title() == row["name"] for row in rows), "named as the slip names the month")
-    check(len({row["name"] for row in rows}) == len(rows), "no name twice")
-check({"name": "February 2028", "start": "2028-01-26", "end": "2028-02-25"} in over_a_leap_year, "through a February")
+# the months of a payroll year
+year = R.months_of("2026-01-01", "2026-12-31")
+check([month["period_name"] for month in year] == ["%s 2026" % name for name in R.MONTHS], "a year of the calendar has its twelve")
+check(year[0] == {"period_name": "January 2026", "start_date": datetime.date(2025, 12, 26), "end_date": datetime.date(2026, 1, 25)},
+      "January opens on the 26th of December")
+check(year[8] == {"period_name": "September 2026", "start_date": datetime.date(2026, 8, 26), "end_date": datetime.date(2026, 9, 25)},
+      "September is the 26th to the 25th")
+check(year[-1]["end_date"] == datetime.date(2026, 12, 25), "and December closes on the 25th: what is left of the year is next January's")
+over_a_leap_year = R.months_of(datetime.date(2028, 1, 1), datetime.date(2028, 12, 31))
+for rows in (year, over_a_leap_year):
+    check(all(R.period_errors("Monthly", row["start_date"], row["end_date"]) == [] for row in rows), "every one is one the payroll accepts")
+    check(all(later["start_date"] == earlier["end_date"] + datetime.timedelta(days=1) for earlier, later in zip(rows, rows[1:])),
+          "with no day between them and none in two")
+    check(all(R.slip_for(row["end_date"]).title() == row["period_name"] for row in rows), "named as the slip names the month")
+check({"period_name": "February 2028", "start_date": datetime.date(2028, 1, 26), "end_date": datetime.date(2028, 2, 25)} in over_a_leap_year, "through a February")
+check([month["period_name"] for month in R.months_of("2026-07-01", "2027-06-30")][:2] == ["July 2026", "August 2026"]
+      and len(R.months_of("2026-07-01", "2027-06-30")) == 12, "a year that starts in July")
+check(len(R.months_of("2025-12-26", "2026-12-25")) == 12, "or on the cycle's own dates")
+check(R.months_of("2026-01-01", "2026-01-20") == [] and R.months_of("2026-01-25", "2026-01-25")[0]["period_name"] == "January 2026",
+      "a month belongs where it closes")
+check(R.months_of(None, "2026-12-31") == [] and R.months_of("2026-01-01", None) == [] and R.months_of("2026-12-31", "2026-01-01") == [],
+      "no dates, or dates the wrong way round: no months")
 check(R.period_name("2026-08-26", "2026-09-25") == "September 2026", "dates that make a period give its name")
 check(R.period_name(datetime.date(2026, 12, 26), datetime.date(2027, 1, 25)) == "January 2027", "over the new year")
 for dates in (("2026-09-01", "2026-09-30"), ("2026-08-26", "2026-09-24"), ("2026-08-25", "2026-09-25"), (None, "2026-09-25"),
@@ -364,11 +377,10 @@ for doctype in ("Salary Slip", "Payroll Entry"):
           "%s validate checks the payroll period" % doctype)
 check(re.search(r"^def period_validate\(doc, method=None\):", glue_source, re.M), "period_validate(doc, method=None)")
 named_by = "hrms_addon.hrms_addon.payslip.period_name_validate"
-check(hooks["doc_events"]["Payroll Entry"]["validate"] == ["hrms_addon.hrms_addon.payslip.period_validate", named_by]
+check(hooks["doc_events"]["Payroll Entry"]["validate"][:2] == ["hrms_addon.hrms_addon.payslip.period_validate", named_by]
       and named_by not in hooks["doc_events"]["Salary Slip"]["validate"],
       "a payroll's Period is written from its dates once they are accepted; a slip has none")
-check(re.search(r"^def period_name_validate\(doc, method=None\):", glue_source, re.M) and "@frappe.whitelist()\ndef pay_periods():" in glue_source
-      and "return rules.pay_periods(getdate())" in glue_source, "the form asks for the list, from today")
+check(re.search(r"^def period_name_validate\(doc, method=None\):", glue_source, re.M), "period_name_validate(doc, method=None)")
 period_field = json.loads(read("hrms_addon", "fixtures", "custom_field.json"))
 anchored = [row["name"] for row in period_field if row["dt"] == "Payroll Entry" and row.get("insert_after") == "payroll_frequency"]
 check(anchored == ["Payroll Entry-custom_pay_period"], "the Period alone stands after the frequency: %s" % anchored)
@@ -380,9 +392,11 @@ check('"Payroll Entry-custom_pay_period"' in hooks_source, "the hooks fixtures l
 form = read("hrms_addon", "public", "js", "payroll_entry.js")
 for needle, why in (
     ('const HA_PAYROLL_PERIOD_FIELD = "custom_pay_period";', "the field"),
-    ('const HA_PAYROLL_PERIOD_METHOD = "hrms_addon.hrms_addon.payslip.pay_periods";', "the list"),
-    ("payroll_frequency: ha_payroll_period_changed,", "a change of frequency is followed"),
-    ("salary_slip_based_on_timesheet: ha_payroll_period_changed,", "and of the timesheet tick"),
+    ('const HA_PAYROLL_PERIOD_METHOD = "hrms_addon.hrms_addon.payroll_months.open_months";', "the list"),
+    ("company: ha_payroll_dates_changed,", "a change of company is followed"),
+    ("payroll_frequency: ha_payroll_dates_changed,", "a change of frequency is followed"),
+    ("salary_slip_based_on_timesheet: ha_payroll_dates_changed,", "and of the timesheet tick"),
+    ("function ha_payroll_dates_changed(frm) {\n\tha_payroll_period_changed(frm);", "each by the Period first"),
     ("custom_pay_period: ha_payroll_period_dates,", "the dates follow the Period"),
     ("start_date: ha_payroll_period_dates,", "and are put back when Frappe HR fills them"),
     ("end_date: ha_payroll_period_dates,", "both of them"),
@@ -405,7 +419,9 @@ for name in ("Salary Component-custom_slip_name", "Salary Component-custom_slip_
 for needle, why in (
     ("shown = _shown({row.get(\"salary_component\") for row in earnings + deductions if row.get(\"salary_component\")})",
      "the slip's components are asked how they read"),
-    ("rules.lines(earnings, _overtime_hours(earnings), shown)", "the payments are named and placed by it"),
+    ("rules.lines(earnings, _hours(doc, earnings), shown)", "the payments are named and placed by it"),
+    ('doc.get("start_date") if doc.get("payroll_frequency") == WEEKLY else None', "a week's slip is headed with its days"),
+    ('for row in earnings if not row.get("additional_salary")})', "and its hours go beside the structure's own line"),
     ("rules.lines(deductions, None, shown)", "and the deductions"),
     ("if not components or not all(meta.has_field(field) for field in SHOWN):\n        return {}",
      "a site without the two fields prints as before"),

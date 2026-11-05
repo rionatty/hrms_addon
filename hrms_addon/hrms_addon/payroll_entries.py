@@ -21,6 +21,7 @@ import frappe
 from frappe import _
 
 from hrms_addon.hrms_addon import payroll_entry_rules as rules
+from hrms_addon.hrms_addon import payroll_months
 
 DOCTYPE = "Payroll Entry"
 SLIP = "Salary Slip"
@@ -33,6 +34,7 @@ def recreate_salary_slips(payroll_entry):
     """The run's draft slips deleted and made again in the background. Returns how many drafts there were."""
     run = frappe.get_doc(DOCTYPE, payroll_entry)
     run.check_permission("write")
+    payroll_months.refuse_closed(run)
     submitted = frappe.db.count(SLIP, {"payroll_entry": run.name, "docstatus": 1})
     posted = len(frappe.get_all("Journal Entry Account", filters={"reference_type": DOCTYPE, "reference_name": run.name,
                                                                  "docstatus": ["<", 2]}, pluck="parent", distinct=True))

@@ -166,6 +166,7 @@ MODULES = {
     "hrms_addon.hrms_addon.signatures": read("hrms_addon/hrms_addon/signatures.py"),
     "hrms_addon.hrms_addon.biotime": read("hrms_addon/hrms_addon/biotime.py"),
     "hrms_addon.hrms_addon.employee_status": read("hrms_addon/hrms_addon/employee_status.py"),
+    "hrms_addon.hrms_addon.payroll_months": read("hrms_addon/hrms_addon/payroll_months.py"),
     "hrms_addon.hrms_addon.attendance_upload": read("hrms_addon/hrms_addon/attendance_upload.py"),
     "hrms_addon.hrms_addon.dashboards": read("hrms_addon/hrms_addon/dashboards.py"),
 }

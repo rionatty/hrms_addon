@@ -45,6 +45,7 @@ DOCTYPE = "Attendance Deletion"
 ATTENDANCE = "Attendance"
 CHECKIN = "Employee Checkin"
 SLIP = "Salary Slip"
+WEEKLY_DAY = "Weekly Pay Day"
 # what a record's own links do not hold it back for: these are let go of with it
 LET_GO = {(ATTENDANCE, "amended_from"), (CHECKIN, "attendance")}
 BACKUP, KEPT = "deleted attendance", "attendance kept"
@@ -182,9 +183,15 @@ def _slices(doc, fields, first=None, after=None):
     for column, choice in (("department", "department"), ("employee", "employee"), ("status", "attendance_status")):
         if doc.get(choice):
             choices[column] = doc.get(choice)
+    # a weekly slip can pay a day marked after its week, which its own dates do not reach: the period's, read once
+    paid_later = {}
+    for row in frappe.get_all(WEEKLY_DAY, filters={"docstatus": 1, "attendance_date": [
+            "between", [first or doc.get("from_date"), doc.get("to_date")]]},
+            fields=["employee", "attendance_date"], limit_page_length=0):
+        paid_later.setdefault(getdate(row.attendance_date), set()).add(row.employee)
     for day in rules.days_between(doc.get("from_date"), doc.get("to_date"), first):
         on_slips = set(frappe.get_all(SLIP, filters={"docstatus": 1, "start_date": ["<=", day], "end_date": [">=", day]},
-                                      pluck="employee", limit_page_length=0))
+                                      pluck="employee", limit_page_length=0)) | paid_later.get(getdate(day), set())
         past = after if day == first else None
         while True:
             filters = dict(choices, attendance_date=day)

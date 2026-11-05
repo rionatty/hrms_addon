@@ -24,9 +24,9 @@ and what period a monthly payroll runs for:
                 25th, the day the period closes, so a payroll run for the
                 25th to the 24th leaves every recovery of the month off the
                 slip and takes it a month late.
-  pay_periods   the periods a monthly payroll is picked from, by the name
-                the slip gives them ("September 2026"), so that nobody has
-                to type the dates
+  months_of     the periods of a payroll year, by the name the slip gives
+                them ("September 2026"): a monthly payroll is picked from
+                those still open (payroll_months.py)
 
 No Frappe import: scripts/verify_payslip.py loads this file on its own.
 """
@@ -38,9 +38,6 @@ import datetime
 # checks the three agree
 CYCLE_START_DAY = 26
 CYCLE_END_DAY = 25
-# how far the list of periods reaches from the one today falls in
-PERIODS_BACK = 24
-PERIODS_AHEAD = 2
 MONTHLY = "Monthly"
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
           "November", "December")
@@ -118,7 +115,8 @@ def seed_for(component, current=None):
 def lines(rows, hours=None, shown=None):
     """[{"component", "name", "amount", "hours"}] for a slip's earnings or
     deductions. `hours` maps a row's Additional Salary to the hours it pays
-    (overtime). `shown` maps a component to how it reads on the slip:
+    (overtime), or the component of a row with none to its hours (a week's
+    pay). `shown` maps a component to how it reads on the slip:
     {"name": its Name on Pay Slip, "order": its place}. Lines with a place
     come first, in it; the rest follow in the slip's own order."""
     hours, shown = hours or {}, shown or {}
@@ -134,7 +132,7 @@ def lines(rows, hours=None, shown=None):
         place = int(_num(how.get("order")))
         out.append(((place if place > 0 else UNPLACED, index),
                     {"component": component, "name": slip_name(component, how.get("name")), "amount": amount,
-                     "hours": _num(hours.get(row.get("additional_salary"))) or None}))
+                     "hours": _num(hours.get(row.get("additional_salary") or component)) or None}))
     return [line for _at, line in sorted(out, key=lambda pair: pair[0])]
 
 
@@ -142,10 +140,18 @@ def total(shown):
     return round(sum(_num(line.get("amount")) for line in shown or []), 2)
 
 
-def slip_for(end_date):
-    """The month a slip is for: the one its period closes in."""
-    day = _date(end_date)
-    return "%s %d" % (MONTHS[day.month - 1].upper(), day.year) if day else ""
+def slip_for(end_date, week_from=None):
+    """What a slip is for: the month its period closes in, or the days of a
+    week's. week_from: the day a week's slip starts."""
+    day, first = _date(end_date), _date(week_from)
+    if not day:
+        return ""
+    if not first:
+        return "%s %d" % (MONTHS[day.month - 1].upper(), day.year)
+    last = "%d %s %d" % (day.day, MONTHS[day.month - 1][:3].upper(), day.year)
+    if first.year != day.year:
+        return "%d %s %d TO %s" % (first.day, MONTHS[first.month - 1][:3].upper(), first.year, last)
+    return "%d %s TO %s" % (first.day, MONTHS[first.month - 1][:3].upper(), last)
 
 
 def absent_amount(earnings):
@@ -229,13 +235,17 @@ def period_name(start_date, end_date):
     return slip_for(end).title()
 
 
-def pay_periods(today):
-    """The periods a monthly payroll is picked from, the latest first:
-    [{"name": "September 2026", "start": "2026-08-26", "end": "2026-09-25"}]."""
-    periods = [period_of(today)]
-    for _step in range(PERIODS_AHEAD):
-        periods.insert(0, period_of(periods[0][1] + datetime.timedelta(days=1)))
-    for _step in range(PERIODS_BACK):
-        periods.append(period_of(periods[-1][0] - datetime.timedelta(days=1)))
-    return [{"name": period_name(start, end), "start": start.isoformat(), "end": end.isoformat()}
-            for start, end in periods]
+def months_of(start_date, end_date):
+    """The periods of a payroll year, in order: those that close within its
+    dates, so that a year of the calendar has twelve, each in one year alone.
+    [{"period_name": "January 2026", "start_date": 26 December 2025,
+    "end_date": 25 January 2026}, ...]."""
+    start, end = _date(start_date), _date(end_date)
+    if not start or not end:
+        return []
+    months = []
+    opens, closes = period_of(start)
+    while closes <= end:
+        months.append({"period_name": period_name(opens, closes), "start_date": opens, "end_date": closes})
+        opens, closes = period_of(closes + datetime.timedelta(days=1))
+    return months

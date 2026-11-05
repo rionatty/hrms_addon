@@ -112,6 +112,7 @@ TABLES = {
     "tabAttendance": ATTENDANCE_COLUMNS,
     "tabEmployee Checkin": "name TEXT PRIMARY KEY, employee TEXT, attendance TEXT, shift TEXT, shift_start TEXT, time TEXT, skip_auto_attendance INT DEFAULT 0, offshift INT DEFAULT 0",
     "tabSalary Slip": "name TEXT PRIMARY KEY, docstatus INT, employee TEXT, company TEXT, department TEXT, start_date DATE, end_date DATE",
+    "tabWeekly Pay Day": "name TEXT PRIMARY KEY, docstatus INT, parent TEXT, employee TEXT, attendance_date DATE, hours REAL",
     "tabOvertime Details": "name TEXT PRIMARY KEY, parent TEXT, parenttype TEXT, reference_document TEXT, docstatus INT",
     "tabLate Arrival Notice": "name TEXT PRIMARY KEY, attendance TEXT, docstatus INT",
     "tabFile": "name TEXT PRIMARY KEY, file_url TEXT, file_size INT, attached_to_doctype TEXT, attached_to_name TEXT, attached_to_field TEXT, is_private INT, file_name TEXT",
@@ -465,6 +466,16 @@ counted = site.glue.count(site.deletion("D-NONE", from_date=D(2020, 1, 1), to_da
 check(not any(counted.values()), "dates with nothing on them", counted)
 counted = site.glue.count(site.deletion("D-OTHER", company="Other Co"))
 check(counted["to_delete"] == 1, "another company's are its own", counted)
+# a casual's day paid on a later week's slip: that slip's dates do not reach it, its list of days does
+late = Site()
+complicated(late)
+late.add("Weekly Pay Day", name="WPD-1", docstatus=1, parent="SS-WEEK", employee="E5", attendance_date=D(2026, 8, 30), hours=10)
+late.add("Weekly Pay Day", name="WPD-2", docstatus=2, parent="SS-WEEK-GONE", employee="E5", attendance_date=D(2026, 8, 31), hours=10)
+late.add("Weekly Pay Day", name="WPD-3", docstatus=0, parent="SS-WEEK-DRAFT", employee="E5", attendance_date=D(2026, 9, 1), hours=10)
+late.conn.commit()
+counted = late.glue.count(late.deletion("D-LATE", employee="E5"))
+check(counted["kept_on_slips"] == 1 and counted["to_delete"] == 3,
+      "a day a weekly slip paid after its week is kept; one on a cancelled or a draft slip is not", counted)
 
 
 def validated(doc, before=None, changed=()):

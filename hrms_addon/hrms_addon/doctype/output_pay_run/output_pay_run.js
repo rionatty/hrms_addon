@@ -2,8 +2,7 @@
 // For license information, please see license.txt
 
 // The month's output pay (minutes 4.6): Get Output fills it from the
-// submitted daily reports, or an hourly run from attendance; a Per Meter
-// run can also take Luuka's own sheet, downloaded for the month and
+// submitted daily reports; a Per Meter run can also take Luuka's own sheet, downloaded for the month and
 // uploaded filled in. Submitting it writes each person's pay as
 // Additional Salary, one for each salary component they are paid under
 // (a size's own, from its Output Rate).
@@ -56,8 +55,7 @@ frappe.ui.form.on("Output Pay Run", {
 
 	refresh(frm) {
 		if (frm.doc.docstatus !== 0 || frm.is_new()) return;
-		const label = frm.doc.section === "Hourly" ? __("Get Hours") : __("Get Output");
-		frm.add_custom_button(label, () =>
+		frm.add_custom_button(__("Get Output"), () =>
 			frappe
 				.xcall("hrms_addon.hrms_addon.output_pay.get_output", { run: frm.doc.name })
 				.then((found) => {

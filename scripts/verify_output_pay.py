@@ -210,10 +210,10 @@ plain = O.earnings(merged, extra, {}, "Per Meter Earnings")
 if {row["employee"]: row["amount"] for row in plain} != {name: seat["amount"] for name, seat in people.items()} \
         or {row["salary_component"] for row in plain} != {"Per Meter Earnings"} or len(plain) != len(people):
     fail.append("where no size names a component, each person is paid once, their whole month: %s" % plain)
-hourly_split = O.earnings([{"employee": "H1", "amount": 70000}, {"employee": "H2", "amount": 0}], None, None,
-                          "Hourly Earnings")
-if hourly_split != [{"employee": "H1", "salary_component": "Hourly Earnings", "amount": 70000.0}]:
-    fail.append("an hourly person is paid under the hourly earning: %s" % hourly_split)
+nothing_left = O.earnings([{"employee": "H1", "size": "S", "amount": 70000}, {"employee": "H2", "size": "S", "amount": 0}],
+                          None, None, "Per Piece Earnings")
+if nothing_left != [{"employee": "H1", "salary_component": "Per Piece Earnings", "amount": 70000.0}]:
+    fail.append("a person whose work comes to nothing has no earning: %s" % nothing_left)
 if O.earnings([{"employee": "E1", "size": "X", "amount": 5}], None, None, None) != [] or O.earnings(None, None, None, "X") != []:
     fail.append("nothing is paid under no component, and nobody from nothing")
 for label, found, needle in (
@@ -478,18 +478,15 @@ except ValueError as error:
 print("the sheet: Luuka's layout with its formulas, the same pay on it as in the system, and read back")
 
 # ── 7. The hourly casuals ─────────────────────────────────────────────
-month = O.hourly_pay([12, 10, 8, 0], 2500)
-if month != {"days": 3, "hours": 28.0, "overtime": 2.0, "amount": 70000.0}:
-    fail.append("an hourly casual is paid their standard hours; a twelve-hour day pays ten here and its "
-                "two hours of overtime are the overtime module's: %s" % month)
 if O.STANDARD_HOURS != A.STANDARD_HOURS:
     fail.append("the standard hours are the attendance register's: a twelve-hour shift, two of them overtime")
-expect("hours but no rate", O.run_errors(O.HOURLY, [{"employee": "H1", "hours": 20, "amount": 0}], {"H1": 0}),
-       "no hourly rate")
+expect("an Hourly run", O.run_errors(O.HOURLY, [{"employee": "H1", "amount": 1000}]), "Per Meter or Per Piece")
+if "hourly_pay" in dir(O) or O.HOURLY in O.OUTPUT_SECTIONS:
+    fail.append("the hourly casuals are paid by the week, not by a run (weekly_pay.py)")
 expect("a run with nobody in it", O.run_errors(O.PER_METER, []), "nothing in this run")
 expect("a run paying less than nothing", O.run_errors(O.PER_METER, [{"employee": "E1", "amount": -1}]),
        "less than nothing")
-print("hourly: the standard hours paid at the rate, the overtime counted but not paid twice")
+print("hourly: no run of its own now; the weekly casuals are paid by their payroll")
 
 # ── 8. The paper ──────────────────────────────────────────────────────
 
@@ -551,8 +548,8 @@ if "employee" not in extra_row or extra_row.get("amount", {}).get("label") != "L
     fail.append("a Looms OT row is a person and an amount")
 if not spec("Output Pay Run").get("is_submittable"):
     fail.append("the month's run is submitted, and only then paid")
-if options("Output Pay Run", "section") != list(O.SECTIONS):
-    fail.append("a run is for exactly the sections the rules know: %s" % (O.SECTIONS,))
+if options("Output Pay Run", "section") != list(O.OUTPUT_SECTIONS):
+    fail.append("a run is for exactly the sections the rules know: %s" % (O.OUTPUT_SECTIONS,))
 run_fields = fields("Output Pay Run")
 if run_fields.get("overtime", {}).get("options") != "Output Pay Overtime":
     fail.append("the month's Looms OT is on the run")
@@ -684,7 +681,7 @@ for needle, why in (
     ("rules.earnings(", "who is paid under which component is the rules' to say"),
     ('_size_components({row.get("size") for row in lines})', "each size's own component, from its Output Rate"),
     ("_overtime_component()", "the Looms OT's own, from Output Pay Settings"),
-    ("default = _component_name(section)", "and the section's for the rest"),
+    ('_component_name(doc.get("section"))', "and the section's for the rest"),
     ('written.get((row["employee"], row["salary_component"]))', "an Additional Salary already written stays linked"),
 ):
     if needle not in split_body:
@@ -704,11 +701,9 @@ if '"depends_on_payment_days": 0' not in component:
                 "earned, and pro-rating it would take a missed day off twice")
 if '"type": "Earning"' not in component:
     fail.append("output pay is an earning")
-hours = body("_fill_hours")
-if "rules.hourly_pay(" not in hours or "PRESENT" not in hours:
-    fail.append("an hourly casual is paid the standard hours of the days they were present")
-if "custom_hourly_rate" not in body("_hourly_rates") or "standard_hourly_rate" not in body("_hourly_rates"):
-    fail.append("their own rate first, the standard one otherwise")
+if "_fill_hours" in glue or "_price_hours" in glue or "Hourly" in read("hrms_addon", "hrms_addon", "doctype", "output_pay_run",
+                                                                          "output_pay_run.json"):
+    fail.append("a run is for Per Meter or Per Piece: the hourly casuals are paid by the week (weekly_pay.py)")
 kept = body("_fill")
 if "from_reports" not in kept or "HAND_LINE_FIELDS" not in kept or "HAND_OT_FIELDS" not in kept \
         or "REPORT_OT" not in kept:

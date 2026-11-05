@@ -33,7 +33,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES = os.path.join(REPO, "hrms_addon", "fixtures")
 APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
 MODULE = "HRMS Addon"
-# a Select whose list the form draws, so the server judges none (payslip.pay_periods)
+# a Select whose list the form draws, so the server judges none (payroll_months.open_months)
 LISTED_BY_THE_FORM = {"Payroll Entry.custom_pay_period"}
 
 BREAKS = {"Section Break", "Column Break", "Tab Break"}
@@ -728,7 +728,7 @@ if by_dt.get(EM):
                  # how gross is earned, beside Frappe HR's own Employment Type
                  # (minutes §4.6; the Per Meter salary advance reads it)
                  "custom_pay_category": ("Overview", "employment_type"),
-                 # an hourly casual's own rate, beside how they are paid (output_pay.py)
+                 # a weekly casual's own hourly rate, beside how they are paid (weekly_pay.py)
                  "custom_hourly_rate": ("Overview", "custom_pay_category"),
                  # attendance: the badge is Frappe HR's own field and these sit beside it
                  "custom_automatic_attendance": ("Attendance & Leaves", "attendance_device_id")}

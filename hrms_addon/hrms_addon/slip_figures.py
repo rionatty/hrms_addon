@@ -16,7 +16,7 @@ import unicodedata
 import frappe
 from frappe.utils import cint, date_diff, getdate, today
 
-from hrms_addon.hrms_addon import pay_days, pay_days_rules, payslip_rules
+from hrms_addon.hrms_addon import pay_days, pay_days_rules, payslip_rules, weekly_pay_rules
 from hrms_addon.hrms_addon import slip_figures_rules as rules
 
 SETTINGS = "Payroll Settings"
@@ -65,7 +65,7 @@ def expected(doc, employees):
     # what a formula may read, as Frappe HR seeds it for a whole month with nothing taken off
     shared = {**get_component_abbr_map(), **SALARY_SLIP_EVAL_DEFAULTS, "start_date": start, "end_date": end,
               "payment_days": period, "total_working_days": period, "leave_without_pay": 0, "absent_days": 0,
-              "unmarked_days": 0}
+              "unmarked_days": 0, weekly_pay_rules.PAY: 0}
 
     evaluate = _evaluator()
     figures = {}
@@ -93,6 +93,10 @@ def expected(doc, employees):
             "custom_basic_salary": sum(pay_days_rules.full_amount(row) for row in rows
                                        if row["salary_component"] == BASIC),
         }
+    if weekly_pay_rules.on_weekly_pay(doc):
+        from hrms_addon.hrms_addon import weekly_pay
+
+        weekly_pay.show_on_figures(doc, figures)
     return figures
 
 

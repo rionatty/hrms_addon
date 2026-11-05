@@ -133,7 +133,7 @@ events = next(node.value for node in ast.parse(hooks).body
 wired = {ast.literal_eval(key): {ast.literal_eval(k): ast.literal_eval(v) for k, v in zip(value.keys, value.values)}
          for key, value in zip(events.keys, events.values)}
 check(wired["Payroll Entry"].get("before_validate") == "hrms_addon.hrms_addon.currency_payroll.payroll_entry_before_validate"
-      and wired["Salary Slip"].get("before_validate") == "hrms_addon.hrms_addon.currency_payroll.salary_slip_before_validate",
+      and (wired["Salary Slip"].get("before_validate") or [None])[0] == "hrms_addon.hrms_addon.currency_payroll.salary_slip_before_validate",
       "the rate is set before the Payroll Entry and the slip are validated, so the slip's formulas are worked out at it")
 slip_checks = wired["Salary Slip"].get("validate")
 check("hrms_addon.hrms_addon.currency_payroll.assignment_validate" in wired["Salary Structure Assignment"]["validate"]

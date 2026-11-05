@@ -22,8 +22,9 @@ METER AUGUST 2026:
               together. The month runs from the 26th to the 25th.
   Per Piece   the casuals at Matugga, the same way in pieces: each piece
               category has its own price.
-  Hourly      the other casuals, at Namanve and Kawempe: hours worked x the
-              standard hourly rate, "and then adding any overtime".
+  Weekly      the other casuals, at Namanve and Kawempe: hours worked x the
+              standard hourly rate, "and then adding any overtime". They are
+              not on a run: a weekly Payroll Entry pays them (weekly_pay.py).
 
 NO MACHINES
 
@@ -59,8 +60,7 @@ import re
 
 PER_METER, PER_PIECE, HOURLY = "Per Meter", "Per Piece", "Hourly"
 OUTPUT_SECTIONS = (PER_METER, PER_PIECE)
-SECTIONS = (PER_METER, PER_PIECE, HOURLY)
-UNITS = {PER_METER: "Metres", PER_PIECE: "Pieces", HOURLY: "Hours"}
+UNITS = {PER_METER: "Metres", PER_PIECE: "Pieces"}
 SIZE_WORD = {PER_METER: "size", PER_PIECE: "piece category"}
 SHIFTS = ("Day", "Night")
 ENTERED, UPLOADED = "Entered", "Uploaded"
@@ -531,39 +531,16 @@ def keep_reported_days(taken, work, overtime, shown=None):
     return sorted(changed, key=lambda key: (key[1], str(key[0])))
 
 
-# ── The hourly casuals ────────────────────────────────────────────────
-def standard_hours(hours, standard=STANDARD_HOURS):
-    return round(min(max(_num(hours), 0.0), _num(standard) or STANDARD_HOURS), 2)
-
-
-def overtime_hours(hours, standard=STANDARD_HOURS):
-    return round(max(_num(hours) - (_num(standard) or STANDARD_HOURS), 0.0), 2)
-
-
-def hourly_pay(daily_hours, rate, standard=STANDARD_HOURS):
-    """An hourly casual's month: the standard hours of each day at the
-    rate. The overtime is counted, to be seen, and not paid here."""
-    days = [hours for hours in daily_hours or [] if _num(hours) > 0]
-    paid = round(sum(standard_hours(hours, standard) for hours in days), 2)
-    return {"days": len(days), "hours": paid,
-            "overtime": round(sum(overtime_hours(hours, standard) for hours in days), 2),
-            "amount": round(paid * _num(rate), 2)}
-
-
-def run_errors(section, employees, hourly_rates=None):
+def run_errors(section, employees):
     """What stops a month's run being paid, as messages."""
     errors = []
-    if section not in SECTIONS:
-        return ["A run is for Per Meter, Per Piece or Hourly pay."]
+    if section not in OUTPUT_SECTIONS:
+        return ["A run is for Per Meter or Per Piece pay."]
     if not employees:
         errors.append("There is nothing in this run to pay.")
     for row in employees or []:
         if _num(row.get("amount")) < 0:
             errors.append("%s cannot be paid less than nothing." % row.get("employee"))
-        if section == HOURLY and _num((hourly_rates or {}).get(row.get("employee"))) <= 0 \
-                and _num(row.get("hours")) > 0:
-            errors.append("%s has hours but no hourly rate: set one on the employee or the standard "
-                          "rate on Output Pay Settings." % row.get("employee"))
     return errors
 
 

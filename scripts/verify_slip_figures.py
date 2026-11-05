@@ -342,6 +342,9 @@ class Site:
                             "hrms_addon": package, "hrms_addon.hrms_addon": app, "hrms_addon.hrms_addon.pay_days_rules": pay_days_rules,
                             "hrms_addon.hrms_addon.payslip_rules": payslip_rules, "hrms_addon.hrms_addon.slip_figures_rules": R})
         sys.modules["hrms_addon.hrms_addon.pay_days"] = load("pay_days")
+        sys.modules["hrms_addon.hrms_addon.weekly_pay_rules"] = load("weekly_pay_rules")
+        # what a weekly payroll's tab shows is weekly_pay's (verify_weekly_pay.py): left as the month's count here
+        sys.modules["hrms_addon.hrms_addon.weekly_pay"] = types.SimpleNamespace(show_on_figures=lambda doc, figures: None)
         self.glue = load("slip_figures")
 
 
@@ -599,6 +602,31 @@ check(many.checked.count("(base * 1)") == 1 and many.checked.count("BS") == 1,
       "with each formula checked once, not 600 times", many.checked[:5])
 check(many_shown["P5"]["custom_basic_salary"] == 100005.0 and many_shown["P599"]["custom_basic_salary"] == 100599.0,
       "while each still comes to their own", many_shown["P599"])
+
+# ── 5b. A weekly payroll: the days its slips will pay ─────
+told = []
+
+
+def show_on_figures(doc, figures):
+    told.append((doc.get("payroll_frequency"), sorted(figures)))
+    for row in figures.values():
+        row.update(custom_working_days=7, custom_paid_days=5)
+
+
+def told_of(run, employees):
+    site = Site()
+    sys.modules["hrms_addon.hrms_addon.weekly_pay"] = types.SimpleNamespace(show_on_figures=show_on_figures)
+    return site.glue.expected(run, employees)
+
+
+WEEKLY_RUN = Run(name="HR-PRUN-9", company="LPL", docstatus=0, payroll_frequency="Weekly", start_date="2026-09-03", end_date="2026-09-09")
+shown = told_of(WEEKLY_RUN, ("E1", "E3"))
+check(told == [("Weekly", ["E1", "E3"])] and shown["E1"]["custom_paid_days"] == 5 and shown["E3"]["custom_working_days"] == 7,
+      "a weekly payroll's tab shows the days weekly pay will pay, not a month's count", (told, shown))
+told.clear()
+told_of(MONTHLY, ("E1",))
+told_of(Run(WEEKLY_RUN, salary_slip_based_on_timesheet=1), ("E1",))
+check(not told, "a monthly payroll, and a weekly one on timesheets, keep the month's count", told)
 
 # ── 6. Upstream ──────────────────────────────────────────
 utils_path = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "utils.py")

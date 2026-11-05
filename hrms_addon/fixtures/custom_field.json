@@ -10024,7 +10024,7 @@
   "creation": "2026-09-23 09:00:00.000000",
   "modified": "2026-09-23 09:00:00.000000",
   "label": "Pay Category",
-  "options": "Monthly\nPer Meter\nPer Piece\nHourly",
+  "options": "Monthly\nPer Meter\nPer Piece\nWeekly",
   "default": "Monthly"
  },
  {
@@ -10218,7 +10218,7 @@
   "creation": "2026-09-23 12:00:00.000000",
   "modified": "2026-09-23 12:00:00.000000",
   "label": "Hourly Rate",
-  "depends_on": "eval:doc.custom_pay_category=='Hourly'",
+  "depends_on": "eval:doc.custom_pay_category=='Weekly'",
   "description": "Leave empty to use the standard hourly rate."
  },
  {
@@ -11805,6 +11805,28 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Period-custom_months_section",
+  "dt": "Payroll Period",
+  "depends_on": "eval:!doc.__islocal",
+  "fieldname": "custom_months_section",
+  "fieldtype": "Section Break",
+  "insert_after": "end_date",
+  "label": "Months",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Payroll Period-custom_months",
+  "dt": "Payroll Period",
+  "fieldname": "custom_months",
+  "fieldtype": "Table",
+  "insert_after": "custom_months_section",
+  "label": "Months",
+  "module": "HRMS Addon",
+  "options": "Payroll Month"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Payroll Entry-custom_salary_register_tab",
   "dt": "Payroll Entry",
   "fieldname": "custom_salary_register_tab",
@@ -11941,6 +11963,55 @@
   "read_only": 1,
   "no_copy": 1,
   "description": "The days on the payroll, Sundays and holidays included, less the days not paid.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Slip-custom_weekly_section",
+  "dt": "Salary Slip",
+  "fieldname": "custom_weekly_section",
+  "fieldtype": "Section Break",
+  "insert_after": "base_hour_rate",
+  "label": "Weekly Pay",
+  "depends_on": "eval:doc.payroll_frequency=='Weekly'",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Slip-custom_weekly_hours",
+  "dt": "Salary Slip",
+  "fieldname": "custom_weekly_hours",
+  "fieldtype": "Float",
+  "insert_after": "custom_weekly_section",
+  "label": "Hours",
+  "read_only": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Slip-custom_weekly_rate",
+  "dt": "Salary Slip",
+  "fieldname": "custom_weekly_rate",
+  "fieldtype": "Currency",
+  "insert_after": "custom_weekly_hours",
+  "label": "Hourly Rate",
+  "options": "currency",
+  "read_only": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Slip-custom_weekly_days",
+  "dt": "Salary Slip",
+  "fieldname": "custom_weekly_days",
+  "fieldtype": "Table",
+  "insert_after": "custom_weekly_rate",
+  "label": "Days Paid",
+  "options": "Weekly Pay Day",
+  "read_only": 1,
+  "no_copy": 1,
   "module": "HRMS Addon"
  },
  {
