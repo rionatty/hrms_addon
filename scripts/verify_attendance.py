@@ -242,6 +242,19 @@ expect("someone listed twice",
 expect("no duration", A.overtime_errors(dict(OT, employees=[{"employee": "HR-EMP-1"}])), "duration in hours")
 expect("longer than a shift",
        A.overtime_errors(dict(OT, employees=[{"employee": "HR-EMP-1", "hours": 20}])), "longer than a full shift")
+# paid by the full hour, rounded down (Luuka, 5 Nov 2026)
+expect("an hour and a half",
+       A.overtime_errors(dict(OT, employees=[{"employee": "HR-EMP-1", "hours": 1.5}])),
+       "Overtime is paid in whole hours, rounded down: give 1 for HR-EMP-1, not 1.5.")
+expect("half an hour",
+       A.overtime_errors(dict(OT, employees=[{"employee": "HR-EMP-1", "hours": 0.5}])),
+       "0.5 for HR-EMP-1 is under an hour, which is not paid")
+expect("the second line's two and a quarter",
+       A.overtime_errors(dict(OT, employees=[OT["employees"][0], {"employee": "HR-EMP-3", "hours": 2.25}])),
+       "give 2 for HR-EMP-3, not 2.25")
+expect("whole hours typed as decimals", A.overtime_errors(dict(OT, employees=[{"employee": "HR-EMP-1", "hours": 2.0}])))
+expect("two hours a hair short from the arithmetic",
+       A.overtime_errors(dict(OT, employees=[{"employee": "HR-EMP-1", "hours": 1.9999999}])))
 if A.coupons(OT["employees"]) != {"Permanent": 1, "Casual": 1}:
     fail.append("the food coupons are counted per employment kind: %s" % A.coupons(OT["employees"]))
 if A.COUPON_KINDS != ("Permanent", "Casual"):

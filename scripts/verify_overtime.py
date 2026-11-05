@@ -375,14 +375,24 @@ for why, got, want in (
     ("of a public holiday", R.worked_overtime(R.PUBLIC_HOLIDAY, 5.5, 10), 5.5),
     ("and of a day of leave", R.worked_overtime(R.LEAVE_DAY, 4, 10), 4.0),
     ("no more than was authorised", R.payable_hours(2, 3.5), 2.0),
-    ("what the clock shows where it shows less", R.payable_hours(3, 1.5), 1.5),
-    ("in full within a quarter of an hour", R.payable_hours(2, 1.75), 2.0),
-    ("not beyond it", R.payable_hours(2, 1.74), 1.74),
+    # Luuka, 5 Nov 2026: "if employee works for 1:30 then its should be 1hr"
+    ("what the clock shows where it shows less, in whole hours: an hour and a half is one",
+     R.payable_hours(3, 1.5), 1.0),
+    ("an hour and fifty-nine minutes is one: no grace short of the hour", R.payable_hours(2, 1 + 59 / 60.0), 1.0),
+    ("the clock's arithmetic a hair under the hour is the hour", R.payable_hours(2, 1.9999999), 2.0),
+    ("two hours worked of two authorised are two", R.payable_hours(2, 2), 2.0),
     ("nothing where the clock shows none", R.payable_hours(2, 0), 0.0),
+    ("nor under an hour", R.payable_hours(2, 0.75), 0.0),
     ("as authorised where the clock did not measure the day", R.payable_hours(2, None), 2.0),
+    ("and an authority for an hour and a half, from before the rule, pays one", R.payable_hours(1.5, None), 1.0),
 ):
     if got != want:
         fail.append("%s: expected %s, got %s" % (why, want, got))
+if [R.whole_hours(value) for value in (None, -1, 0, 0.99, 1, 1.5, 2.99999, 2.9999999, 12.25)] != [
+        0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 3.0, 12.0]:
+    fail.append("whole hours are counted down; only the clock's arithmetic a hair under the hour is the hour")
+if hasattr(R, "CLOCK_TOLERANCE_HOURS"):
+    fail.append("no grace short of the hour: overtime is paid in whole hours")
 if R.attendance_update({"hours": 3}, "Overtime 1.5", hours=1.5)["actual_overtime_duration"] != 1.5 \
         or R.attendance_update({"hours": 3}, "Overtime 1.5")["actual_overtime_duration"] != 3.0:
     fail.append("the attendance carries the hours paid, or those authorised where nothing else is said")
@@ -464,18 +474,23 @@ print("the approval: Submit, Approve by the officer, Approve by HR; Return and R
 
 # overtime the clock shows, raised by itself under the type's own rules
 for label, got, want in (
-    ("two and three quarter hours, counted in half hours", R.clock_hours(2.75, 30, 30), 2.5),
-    ("twenty-four minutes, under the half hour that counts", R.clock_hours(0.4, 30, 30), 0.0),
-    ("exactly the least that counts", R.clock_hours(0.5, 30, 30), 0.5),
-    ("counted to the minute where no step is given", R.clock_hours(1.26, 30, 0), 1.26),
-    ("in quarter hours", R.clock_hours(1.26, 0, 15), 1.25),
-    ("never past the type's ceiling for a day", R.clock_hours(5.0, 30, 30, 4), 4.0),
-    ("no ceiling where the type gives none", R.clock_hours(5.0, 30, 30, 0), 5.0),
-    ("nothing from nothing", R.clock_hours(None, 30, 30), 0.0),
+    ("two and three quarter hours are two", R.clock_hours(2.75, 60, 60), 2.0),
+    ("an hour and a half is one", R.clock_hours(1.5, 60, 60), 1.0),
+    ("fifty-nine minutes, under the hour, are none", R.clock_hours(59 / 60.0, 60, 60), 0.0),
+    ("exactly the hour", R.clock_hours(1.0, 60, 60), 1.0),
+    ("a type still counting half hours counts whole ones", R.clock_hours(2.75, 30, 30), 2.0),
+    ("and from half an hour, none under the hour", R.clock_hours(0.5, 30, 30), 0.0),
+    ("one counting to the minute counts whole hours", R.clock_hours(1.26, 30, 0), 1.0),
+    ("a step of two hours is kept", R.clock_hours(3.5, 60, 120), 2.0),
+    ("a least of ninety minutes is kept", R.clock_hours(80 / 60.0, 90, 60), 0.0),
+    ("and ninety minutes past it are one", R.clock_hours(1.5, 90, 60), 1.0),
+    ("never past the type's ceiling for a day", R.clock_hours(5.0, 60, 60, 4), 4.0),
+    ("nor past a ceiling of two and a half, in whole hours", R.clock_hours(5.0, 60, 60, 2.5), 2.0),
+    ("no ceiling where the type gives none", R.clock_hours(5.0, 60, 60, 0), 5.0),
+    ("nothing from nothing", R.clock_hours(None, 60, 60), 0.0),
     ("nor from less than nothing", R.clock_hours(-2, 0, 0), 0.0),
-    ("an hour and fifty-nine minutes is three half hours", R.clock_hours(1.9834, 30, 30), 1.5),
-    ("forty-five minutes where an hour is the least that counts, whatever the step", R.clock_hours(0.75, 60, 15), 0.0),
-    ("and the full hour does", R.clock_hours(1.0, 60, 15), 1.0),
+    ("an hour and fifty-nine minutes is one", R.clock_hours(1.9834, 60, 60), 1.0),
+    ("the clock's arithmetic a hair under two hours is two", R.clock_hours(1.99999999, 60, 60), 2.0),
 ):
     if got != want:
         fail.append("overtime by the clock: %s: %s, not %s" % (label, got, want))
@@ -736,9 +751,11 @@ if [(row.get("fieldtype"), row.get("insert_after")) for row in clock] != [
     fail.append("the Overtime Type says whether its overtime is raised from the clock, the least that counts, the "
                 "step and the requester, each field after the one before: %s"
                 % [(row.get("fieldtype"), row.get("insert_after")) for row in clock])
-if clock[5].get("options") != "Employee" or (clock[2].get("default"), clock[4].get("default")) != ("30", "30") \
+if clock[5].get("options") != "Employee" or (clock[2].get("default"), clock[4].get("default")) != ("60", "60") \
         or clock[1].get("default"):
-    fail.append("half an hour counts, in half hours, until HR say otherwise; and nothing is raised until a type is ticked")
+    fail.append("an hour counts, in whole hours, until HR say otherwise; and nothing is raised until a type is ticked")
+if "whole hours" not in (clock[4].get("description") or ""):
+    fail.append("the step says overtime is paid in whole hours")
 for row in clock:
     if '"%s"' % row.get("name") not in read("hrms_addon", "hooks.py"):
         fail.append("hooks fixtures list %s" % row.get("name"))

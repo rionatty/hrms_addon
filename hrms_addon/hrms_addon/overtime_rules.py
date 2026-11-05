@@ -53,6 +53,8 @@ higher line their gross is above; two with nothing between them is said,
 not guessed.
 """
 
+import math
+
 WEEKDAY = "Weekday"
 REST_DAY = "Rest Day"
 PUBLIC_HOLIDAY = "Public Holiday"
@@ -327,9 +329,16 @@ def waiting(requests):
 
 # the one attendance status Frappe HR's Overtime Slip reads hours from
 PAID_ON = "Present"
-# overtime the clock shows within this of what was authorised is paid in
-# full: a quarter of an hour, the grace a shift gives a late arrival
-CLOCK_TOLERANCE_HOURS = 0.25
+
+
+# Overtime is counted and paid in whole hours, rounded down (Luuka, 5 Nov
+# 2026: "over time is only rounded to full hour like if employee works for
+# 1:30 then its should be 1hr"). An hour and a half is one; an hour and
+# fifty-nine minutes is one.
+def whole_hours(hours):
+    """The full hours in `hours`, rounded down. A hair under the hour from
+    the clock's arithmetic is the hour; a minute under it is not."""
+    return float(math.floor(max(float(hours or 0), 0.0) + 1e-6))
 
 
 def worked_overtime(kind, working_hours, standard_hours=STANDARD_HOURS_PER_DAY):
@@ -344,8 +353,9 @@ def worked_overtime(kind, working_hours, standard_hours=STANDARD_HOURS_PER_DAY):
 
 def clock_hours(worked, minimum_minutes=0, step_minutes=0, cap=0):
     """The overtime to request for what the clock shows on a day: nothing
-    under the least that counts, counted down to whole steps, and never
-    past the type's ceiling for a day.
+    under the least that counts, counted down to whole steps, never past the
+    type's ceiling for a day, and in whole hours (whole_hours), whatever the
+    step.
 
     worked: the overtime the clock shows, in hours (worked_overtime)."""
     minutes = max(float(worked or 0), 0.0) * 60
@@ -357,7 +367,7 @@ def clock_hours(worked, minimum_minutes=0, step_minutes=0, cap=0):
     hours = minutes / 60
     if cap and float(cap) > 0:
         hours = min(hours, float(cap))
-    return round(hours, 2)
+    return whole_hours(hours)
 
 
 def clock_sheets(lines):
@@ -384,19 +394,16 @@ def clock_sheets(lines):
 
 
 def payable_hours(authorised, worked=None):
-    """What is paid: the hours authorised, up to the hours the clock shows.
-    Nobody is paid for overtime the clock says they did not work, and
-    nobody for more than was authorised. `worked` is None for a day the
-    clock did not measure (marked by hand, or no clock-out): then what was
-    authorised stands, and the row says the clock was not asked."""
-    authorised = max(float(authorised or 0), 0.0)
-    if worked is None:
-        return round(authorised, 2)
-    worked = max(float(worked), 0.0)
-    if worked >= authorised - CLOCK_TOLERANCE_HOURS:
-        # a clock-out a few minutes before the hour is not docked
-        return round(authorised, 2)
-    return round(worked, 2)
+    """What is paid: the hours authorised, up to the hours the clock shows,
+    in whole hours rounded down. Nobody is paid for overtime the clock says
+    they did not work, and nobody for more than was authorised. `worked` is
+    None for a day the clock did not measure (marked by hand, or no
+    clock-out): then what was authorised stands, and the row says the clock
+    was not asked."""
+    hours = max(float(authorised or 0), 0.0)
+    if worked is not None:
+        hours = min(hours, max(float(worked), 0.0))
+    return whole_hours(hours)
 
 
 def reject_errors(status, reason):

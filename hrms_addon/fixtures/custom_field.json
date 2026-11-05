@@ -10964,7 +10964,7 @@
   "insert_after": "custom_from_clock",
   "label": "Least Minutes to Count",
   "module": "HRMS Addon",
-  "default": "30",
+  "default": "60",
   "depends_on": "eval:doc.custom_from_clock",
   "non_negative": 1
  },
@@ -10986,10 +10986,10 @@
   "insert_after": "custom_clock_cb",
   "label": "Counted in Steps of (minutes)",
   "module": "HRMS Addon",
-  "default": "30",
+  "default": "60",
   "depends_on": "eval:doc.custom_from_clock",
   "non_negative": 1,
-  "description": "Rounded down. Empty: to the minute."
+  "description": "Rounded down. Overtime is paid in whole hours."
  },
  {
   "doctype": "Custom Field",

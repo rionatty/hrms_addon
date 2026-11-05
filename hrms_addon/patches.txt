@@ -84,3 +84,4 @@ hrms_addon.patches.v1_0.slip_days_on_the_calendar
 hrms_addon.patches.v1_0.hourly_casuals_weekly
 hrms_addon.patches.v1_0.pay_category_regular
 hrms_addon.patches.v1_0.maternity_by_child
+hrms_addon.patches.v1_0.overtime_whole_hours

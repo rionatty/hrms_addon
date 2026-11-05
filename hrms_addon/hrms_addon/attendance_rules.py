@@ -455,6 +455,16 @@ def overtime_errors(facts):
             errors.append("%s hours is longer than a full shift (%g): check the duration."
                           % (hours, full_shift))
             break
+        # paid by the full hour, rounded down (overtime_rules.whole_hours)
+        full = int(float(hours) + 1e-6)
+        if float(hours) - full > 1e-6:
+            if full < 1:
+                errors.append("Overtime is paid in whole hours: %g for %s is under an hour, which is not paid."
+                              % (float(hours), row.get("employee") or "?"))
+            else:
+                errors.append("Overtime is paid in whole hours, rounded down: give %d for %s, not %g."
+                              % (full, row.get("employee") or "?", float(hours)))
+            break
     return errors
 
 
