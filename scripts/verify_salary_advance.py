@@ -58,6 +58,7 @@ for key, value, why in (
     ("salary_processing_day", 15, "§4.9: processed on the 15th of each month"),
     ("salary_move_before", 1, "§4.9: a weekend or public holiday moves it before that date"),
     ("salary_max_absent_days", 3, "§4.9: not absent for more than three days"),
+    ("salary_max_unmarked_days", 0, "Luuka, 5 Nov 2026: no advance while attendance is not marked"),
     ("salary_off_duty_not_absent", 1, "§4.9: the Off-Duty Forms are checked against the absences"),
     ("salary_not_on_leave", 1, "§4.9: employees on leave are removed"),
     ("salary_no_bank_loan", 1, "§4.9: have no bank loan"),
@@ -233,7 +234,37 @@ if V.days_absent(ABSENT, ["2026-09-02"], {"salary_off_duty_not_absent": 0}) != 5
     fail.append("and not counting them is a setting")
 if V.days_absent(ABSENT + ["2026-09-01"]) != 5:
     fail.append("a day is counted once however many records say it")
-print("attendance: absences since the 26th, approved off-duty days not held against anyone")
+
+# Luuka, 5 Nov 2026: "if employee attendance is not marked one should not qualify for advance"
+def cycle(first, last):
+    import datetime as _dt
+    day, days = _dt.date.fromisoformat(first), []
+    while day <= _dt.date.fromisoformat(last):
+        days.append(str(day))
+        day += _dt.timedelta(days=1)
+    return days
+
+
+EVERY_DAY = cycle("2026-09-26", "2026-10-12")
+for what, facts, wanted in (
+    ("every working day marked", dict(marked=EVERY_DAY), 0),
+    ("nothing marked at all: 26 Sep to 12 Oct", {}, 17),
+    ("the last two days before today, which the clock may not have marked yet, are not held against anybody",
+     dict(marked=cycle("2026-09-26", "2026-10-11")), 1),
+    ("a holiday or weekly off on their list is not a working day", dict(holidays=["2026-10-04", "2026-10-11"]), 15),
+    ("nor an approved off-duty day", dict(off_duty=["2026-10-01"]), 16),
+    ("nor a day before they joined", dict(joined="2026-10-05"), 8),
+    ("a day marked twice is one day", dict(marked=EVERY_DAY + EVERY_DAY[:3]), 0),
+    ("any attendance marks a day, an absence or a leave included", dict(marked=EVERY_DAY[:-1]), 1),
+):
+    got = V.days_unmarked("2026-09-26", "2026-10-14", today="2026-10-14", **facts)
+    if got != wanted:
+        fail.append("days_unmarked: %s: %s, not %s" % (what, got, wanted))
+if V.days_unmarked("2026-09-26", "2026-09-27", today="2026-09-27") != 0 \
+        or V.days_unmarked("2026-09-26", "2026-10-14") != 19 or V.days_unmarked(None, "2026-10-14") != 0:
+    fail.append("days_unmarked: nothing to count before the period has two days behind it; every day of a period "
+                "already past; and nothing without a start")
+print("attendance: absences since the 26th, approved off-duty days not held against anyone, every working day marked")
 
 # ── 4. Who qualifies ──────────────────────────────────────────────────
 OK = {"advance_type": "Salary Advance", "status": "Active", "employment_type": "Permanent",
@@ -246,6 +277,8 @@ expect("nobody asks how long a salary advance applicant has served",
        V.eligibility_errors(dict(OK, date_of_joining="2026-09-01"), S))
 for label, change, needle in (
     ("four days absent", {"days_absent": 4}, "no more than 3"),
+    ("a working day nobody marked", {"days_unmarked": 1},
+     "Attendance not marked for 1 working day(s) since 26 Aug 2026; every working day must be marked"),
     ("a casual", {"employment_type": "Casual"}, "regular employees"),
     ("on leave on the day", {"on_leave": "HR-LAP-0001"}, "On leave on 15 Sep 2026"),
     ("a bank loan", {"bank_loan": True}, "bank loan"),
@@ -263,6 +296,7 @@ for label, change, needle in (
 # each rule is a switch, and a switched-off rule is silent
 for label, change, switch in (
     ("four days absent", {"days_absent": 9}, {"salary_max_absent_days": 9}),
+    ("three days not marked", {"days_unmarked": 3}, {"salary_max_unmarked_days": 3}),
     ("a casual", {"employment_type": "Casual"}, {"salary_regular_only": 0}),
     ("on leave", {"on_leave": "HR-LAP-0001"}, {"salary_not_on_leave": 0}),
     ("a bank loan", {"bank_loan": True}, {"salary_no_bank_loan": 0}),
@@ -273,6 +307,12 @@ for label, change, switch in (
 expect("no absence allowed at all", V.eligibility_errors(dict(OK, days_absent=1),
                                                         V.settings_from({"salary_max_absent_days": "0"})),
        "no more than 0")
+expect("some days not marked allowed, and more than that", V.eligibility_errors(
+    dict(OK, days_unmarked=3), V.settings_from({"salary_max_unmarked_days": "2"})),
+    "Attendance not marked for 3 working day(s) since 26 Aug 2026; a salary advance allows no more than 2")
+if "The days not marked allowed cannot be fewer than none." not in V.settings_errors(
+        V.settings_from({"salary_max_unmarked_days": "-1"})):
+    fail.append("the days not marked allowed cannot be set below none")
 
 # the leave advance beside it (§4.4)
 LEAVE = {"advance_type": "Leave Advance", "status": "Active", "employment_type": "Permanent",
@@ -388,9 +428,23 @@ for needle, why in (
     ("rules.joins_run(", "a request joins only the months it covers, approved in time"),
     ("min(getdate(today()), processed_on)", "absences are counted to today until the processing date"),
     ("_paid_this_month(", "nobody is paid twice in a month"),
+    ("rules.days_unmarked(start, upto, marked, holidays, off_duty, employee.date_of_joining, today())",
+     "and the working days nobody marked, from the days marked, their holidays, off-duty days and joining"),
+    ('"days_unmarked": row.days_unmarked,', "which judge the line too"),
 ):
     if needle not in part("_work_out"):
         fail.append("the run's lines: %s" % why)
+if '"docstatus": 1, "attendance_date": ["between", [start, end]]}' not in part("_marked_days") \
+        or '"status"' in part("_marked_days"):
+    fail.append("a day is marked by any submitted attendance, whatever it says: an absence or a leave is marked")
+if "attendance.holiday_list_of(employee)" not in part("_holidays") or 'doc.flags.setdefault("holidays_read", {})' not in part("_holidays"):
+    fail.append("the holidays are the employee's list, else the company's, read once a list for the run")
+for doctype, fieldname, wanted in (("advance_settings", "salary_max_unmarked_days", ("Int", "0")),
+                                   ("salary_advance_processing_employee", "days_unmarked", ("Int", None))):
+    meta = json.loads(read("hrms_addon", "hrms_addon", "doctype", doctype, doctype + ".json"))
+    field = next((row for row in meta["fields"] if row["fieldname"] == fieldname), {})
+    if (field.get("fieldtype"), field.get("default")) != wanted or fieldname not in meta["field_order"]:
+        fail.append("%s needs its %s field: %s" % (doctype, fieldname, field))
 if "rules.run_errors(" not in part("run_before_submit") or "_work_out(" not in part("run_before_submit"):
     fail.append("the run is held to its day, its plants confirmed, and counted again before it is submitted")
 paying = part("run_on_submit")

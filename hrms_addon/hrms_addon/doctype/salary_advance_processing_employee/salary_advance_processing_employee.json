@@ -13,6 +13,7 @@
   "gross_pay",
   "amount",
   "days_absent",
+  "days_unmarked",
   "qualifies",
   "include",
   "remarks",
@@ -89,6 +90,14 @@
    "columns": 1
   },
   {
+   "fieldname": "days_unmarked",
+   "fieldtype": "Int",
+   "label": "Days Not Marked",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
    "fieldname": "qualifies",
    "fieldtype": "Check",
    "label": "Qualifies",
@@ -140,7 +149,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-24 09:00:00.000000",
+ "modified": "2026-11-06 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Salary Advance Processing Employee",

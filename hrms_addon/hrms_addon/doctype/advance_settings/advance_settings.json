@@ -16,6 +16,7 @@
   "salary_regular_only",
   "salary_not_on_leave",
   "salary_max_absent_days",
+  "salary_max_unmarked_days",
   "salary_off_duty_not_absent",
   "salary_no_bank_loan",
   "salary_no_outstanding",
@@ -109,6 +110,14 @@
    "label": "Maximum Days Absent",
    "default": "3",
    "description": "Counted from the 26th to the processing date."
+  },
+  {
+   "fieldname": "salary_max_unmarked_days",
+   "fieldtype": "Int",
+   "label": "Most Days Not Marked",
+   "default": "0",
+   "non_negative": 1,
+   "description": "Working days since the 26th with no attendance at all. 0: every working day must be marked."
   },
   {
    "fieldname": "salary_off_duty_not_absent",
@@ -220,7 +229,7 @@
  "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-09-28 12:00:00.000000",
+ "modified": "2026-11-06 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Advance Settings",

@@ -159,8 +159,8 @@ def _fill_period(doc, s):
 
 def _work_out(row, doc, s):
     """One employee's line: what they may have this month, and whether
-    they qualify. Absences are counted to today until the processing date,
-    and in full on it."""
+    they qualify. Absences, and the days nobody marked, are counted to today
+    until the processing date, and in full on it."""
     from hrms_addon.hrms_addon import advances, attendance
 
     employee = frappe.db.get_value("Employee", row.employee,
@@ -173,11 +173,14 @@ def _work_out(row, doc, s):
         row.set(field, employee.get(field))
     start, processed_on = getdate(doc.period_start), getdate(doc.processing_date)
     upto = min(getdate(today()), processed_on)
-    absent, off_duty = set(), set()
+    absent, off_duty, marked, holidays = set(), set(), set(), set()
     if upto >= start:
         absent = advances._absent_days(row.employee, start, upto)
         off_duty = {day for _who, day in attendance._off_duty_between([row.employee], start, upto)}
+        marked = _marked_days(row.employee, start, upto)
+        holidays = _holidays(row.employee, start, upto, doc)
     row.days_absent = rules.days_absent(absent, off_duty, s)
+    row.days_unmarked = rules.days_unmarked(start, upto, marked, holidays, off_duty, employee.date_of_joining, today())
     row.pay_category = advances._pay_category(row.employee)
     row.gross_pay = pay.monthly_gross(row.employee, processed_on)
     request = frappe.db.get_value(REQUEST, row.request, ["status", "request_date", "first_month", "until_month",
@@ -191,7 +194,8 @@ def _work_out(row, doc, s):
         "date_of_joining": employee.date_of_joining, "today": today(), "gross_pay": row.gross_pay,
         "amount": row.amount, "outstanding": advances._outstanding_elsewhere(row.employee, None),
         "instalments": s["salary_instalments"], "processing_date": processed_on, "window_start": start,
-        "days_absent": row.days_absent, "on_leave": advances._on_leave(row.employee, processed_on),
+        "days_absent": row.days_absent, "days_unmarked": row.days_unmarked,
+        "on_leave": advances._on_leave(row.employee, processed_on),
         "bank_loan": advances._bank_loan(row.employee, processed_on)}, s)
     if not row.amount:
         errors = [rules.no_gross(processed_on)] + [error for error in errors if error != rules.ASK_AMOUNT]
@@ -206,6 +210,29 @@ def _work_out(row, doc, s):
         errors.insert(0, "Already paid this month in %s." % paid_in)
     row.qualifies = 0 if errors else 1
     row.remarks = "; ".join(errors) or None
+
+
+def _marked_days(employee, start, end):
+    """The days of the period that any submitted attendance covers, whatever it says."""
+    return {getdate(day) for day in frappe.get_all(
+        "Attendance", filters={"employee": employee, "docstatus": 1, "attendance_date": ["between", [start, end]]},
+        pluck="attendance_date", limit_page_length=0)}
+
+
+def _holidays(employee, start, end, doc):
+    """The holidays and weekly offs of the period on the employee's own list, else the company's
+    (attendance.holiday_list_of), each list read once for the run."""
+    from hrms_addon.hrms_addon import attendance
+
+    name = attendance.holiday_list_of(employee)
+    if not name:
+        return set()
+    read = doc.flags.setdefault("holidays_read", {})
+    if (name, start, end) not in read:
+        read[(name, start, end)] = {getdate(day) for day in frappe.get_all(
+            "Holiday", filters={"parent": name, "holiday_date": ["between", [start, end]]},
+            pluck="holiday_date", limit_page_length=0)}
+    return read[(name, start, end)]
 
 
 def _standing(request):

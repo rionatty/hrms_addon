@@ -89,6 +89,8 @@ DEFAULTS = {
     "salary_request_days_before": 3,
     "salary_hold_until_processing": 1,
     "salary_max_absent_days": 3,
+    # Luuka, 5 Nov 2026: "if employee attendance is not marked one should not qualify"
+    "salary_max_unmarked_days": 0,
     "salary_off_duty_not_absent": 1,
     "salary_not_on_leave": 1,
     "salary_no_bank_loan": 1,
@@ -161,6 +163,8 @@ def settings_errors(settings):
         errors.append("Requests cannot close after the day they are processed.")
     if s["salary_max_absent_days"] < 0:
         errors.append("The days of absence allowed cannot be fewer than none.")
+    if s["salary_max_unmarked_days"] < 0:
+        errors.append("The days not marked allowed cannot be fewer than none.")
     for key, what in (("salary_instalments", "a salary advance"), ("special_max_instalments", "a special advance")):
         if s[key] < 1:
             errors.append("%s is recovered in at least one month." % _cap(what))
@@ -238,6 +242,30 @@ def days_absent(absent, off_duty=(), settings=None):
     if int(s["salary_off_duty_not_absent"]):
         counted -= {_date(day) for day in off_duty or () if _date(day)}
     return len(counted)
+
+
+# the clock's days are marked once a night shift has ended, the morning after:
+# the last two are not held against anybody yet (board_rules.MARKED_WITHIN_DAYS)
+MARKED_WITHIN_DAYS = 2
+
+
+def days_unmarked(start, end, marked=(), holidays=(), off_duty=(), joined=None, today=None,
+                  within=MARKED_WITHIN_DAYS):
+    """The working days from `start` to `end` that no submitted attendance
+    covers, whatever it says. A holiday or weekly off on the employee's list,
+    an approved off-duty day, the days before they joined and the last
+    `within` days before `today`, which may not be marked yet, are not counted.
+    """
+    first, last = _date(start), _date(end)
+    if not first or not last:
+        return 0
+    if _date(joined) and _date(joined) > first:
+        first = _date(joined)
+    if _date(today):
+        last = min(last, _date(today) - datetime.timedelta(days=int(within)))
+    covered = {_date(day) for day in [*(marked or ()), *(holidays or ()), *(off_duty or ())] if _date(day)}
+    return sum(1 for step in range((last - first).days + 1)
+               if first + datetime.timedelta(days=step) not in covered)
 
 
 def entitled(kind, gross, pay_category=None, settings=None, average_gross=None):
@@ -384,7 +412,7 @@ def eligibility_errors(facts, settings=None):
     facts: "advance_type", "status", "employment_type", "pay_category",
     "date_of_joining", "today", "gross_pay", "average_gross", "amount",
     "outstanding", "instalments", and for a salary advance
-    "processing_date", "window_start", "days_absent", "on_leave",
+    "processing_date", "window_start", "days_absent", "days_unmarked", "on_leave",
     "bank_loan"; for a leave advance "bank_loan", "company_loan",
     "leave_days".
     """
@@ -426,6 +454,13 @@ def _salary_errors(facts, s):
     if absent > allowed:
         errors.append("Absent %d day(s) since %s; a salary advance allows no more than %d."
                       % (absent, _day(facts.get("window_start")), allowed))
+    unmarked = int(_num(facts.get("days_unmarked")))
+    allowed = int(s["salary_max_unmarked_days"])
+    if unmarked > allowed:
+        errors.append("Attendance not marked for %d working day(s) since %s; %s."
+                      % (unmarked, _day(facts.get("window_start")),
+                         "a salary advance allows no more than %d" % allowed if allowed
+                         else "every working day must be marked for a salary advance"))
     if int(s["salary_no_bank_loan"]) and facts.get("bank_loan"):
         errors.append("Has a bank loan, and a salary advance is not given alongside one.")
     if int(s["salary_no_outstanding"]) and _num(facts.get("outstanding")) > 0:
