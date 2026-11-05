@@ -204,8 +204,8 @@ def _company_loan(employee):
 
 def _pay_category(employee):
     if not employee or not _has("Employee", "custom_pay_category"):
-        return rules.MONTHLY
-    return frappe.db.get_value("Employee", employee, "custom_pay_category") or rules.MONTHLY
+        return rules.REGULAR
+    return frappe.db.get_value("Employee", employee, "custom_pay_category") or rules.REGULAR
 
 
 def _average_gross(employee, months):

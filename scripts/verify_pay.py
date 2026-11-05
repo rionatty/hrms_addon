@@ -80,9 +80,9 @@ check(len(R.standing([dict(HOUSE, type=None)], "2026-03-13")) == 1, "a row that 
 luuka = R.gross_per_period(736058, [HOUSE, TRANSPORT])
 check(luuka == 878400, "Basic 736,058 with House Rent 72,342 and Transport 70,000 is a gross of 878,400: %s" % luuka)
 s = V.settings_from({})
-check(V.entitled(V.SALARY_ADVANCE, luuka, V.MONTHLY, s) == 351360,
-      "the salary advance is 40%% of it, 351,360, as on Luuka's own slip: %s" % V.entitled(V.SALARY_ADVANCE, luuka, V.MONTHLY, s))
-check(V.entitled(V.SALARY_ADVANCE, 736058, V.MONTHLY, s) == 294423.2, "and was 294,423.20 on the Basic alone")
+check(V.entitled(V.SALARY_ADVANCE, luuka, V.REGULAR, s) == 351360,
+      "the salary advance is 40%% of it, 351,360, as on Luuka's own slip: %s" % V.entitled(V.SALARY_ADVANCE, luuka, V.REGULAR, s))
+check(V.entitled(V.SALARY_ADVANCE, 736058, V.REGULAR, s) == 294423.2, "and was 294,423.20 on the Basic alone")
 check(R.gross_per_period(736058, []) == 736058 and R.gross_per_period(736058, None) == 736058,
       "no standing allowance: the structure's gross as it is")
 replaced = R.gross_per_period(878400, [row("House Rent Allowance", 90000, overwrite=1)], {"House Rent Allowance": 72342})

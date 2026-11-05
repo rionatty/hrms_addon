@@ -59,6 +59,10 @@ import datetime
 import re
 
 PER_METER, PER_PIECE, HOURLY = "Per Meter", "Per Piece", "Hourly"
+# everybody on a salary: Luuka's own word for it (5 Nov 2026)
+REGULAR = "Regular"
+# everybody on a salary: Luuka's own word for it (5 Nov 2026)
+REGULAR = "Regular"
 OUTPUT_SECTIONS = (PER_METER, PER_PIECE)
 UNITS = {PER_METER: "Metres", PER_PIECE: "Pieces"}
 SIZE_WORD = {PER_METER: "size", PER_PIECE: "piece category"}
@@ -154,7 +158,7 @@ def report_errors(section, rows, overtime=None, employees=None, sizes=None):
                           % (number, size))
         if who in employees and employees[who] != section:
             errors.append("Row %d: %s is paid %s, so their work does not belong on a %s report."
-                          % (number, who, employees[who] or "Monthly", section))
+                          % (number, who, employees[who] or REGULAR, section))
         if (who, size) in seen:
             errors.append("Row %d: %s on %s is already on this report." % (number, who, size))
         seen.add((who, size))
@@ -183,7 +187,7 @@ def overtime_errors(section, overtime, employees=None, where="report"):
             errors.append("Looms OT row %d: it cannot be less than nothing." % number)
         if who in employees and employees[who] != PER_METER:
             errors.append("Looms OT row %d: %s is paid %s, not Per Meter."
-                          % (number, who, employees[who] or "Monthly"))
+                          % (number, who, employees[who] or REGULAR))
         if who in seen:
             errors.append("Looms OT row %d: %s already has Looms OT on this %s." % (number, who, where))
         seen.add(who)
@@ -395,7 +399,7 @@ def take_sheet(lines, ids, categories, sizes, rates, period, names=None):
         if categories.get(employee) != PER_METER:
             if has_work:
                 once(("category", employee), "%s is paid %s, not Per Meter: their work is left out."
-                     % (called(employee), categories.get(employee) or "Monthly"), problems)
+                     % (called(employee), categories.get(employee) or REGULAR), problems)
             continue
         day = _date(line.get("date"))
         if not day or (start and day < start) or (end and day > end):

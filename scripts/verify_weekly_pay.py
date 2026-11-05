@@ -383,7 +383,7 @@ def populated():
         ("W6", "Weekly", "North", "Left", D(2024, 6, 1), D(2026, 9, 30), 2500),
         ("W7", "Weekly", "North", "Active", D(2025, 5, 5), None, 2500),
         ("W8", "Weekly", "North", "Active", D(2025, 5, 5), None, 2500),
-        ("M1", "Monthly", "North", "Active", D(2020, 1, 1), None, 0),
+        ("M1", "Regular", "North", "Active", D(2020, 1, 1), None, 0),
     )
     for name, category, branch, status, joined, left, rate in people:
         s.add("Employee", name=name, company="LPL", custom_pay_category=category, branch=branch, status=status,
@@ -819,8 +819,8 @@ print("the Employees tab: the days the slips will pay, read for everyone at once
 # ── 7. Wiring ────────────────────────────────────────────
 custom = {row["name"]: row for row in json.load(open(os.path.join(PACKAGE, "fixtures", "custom_field.json"), encoding="utf-8"))}
 category = custom["Employee-custom_pay_category"]
-check(category["options"].split("\n") == ["Monthly", "Per Meter", "Per Piece", "Weekly"],
-      "the Pay Category says Weekly, not Hourly", category["options"])
+check(category["options"].split("\n") == ["Regular", "Per Meter", "Per Piece", "Weekly"],
+      "the Pay Category says Weekly, not Hourly, and Regular, not Monthly", category["options"])
 check(custom["Employee-custom_hourly_rate"]["depends_on"] == "eval:doc.custom_pay_category=='Weekly'",
       "and a weekly casual's own rate shows beside it")
 chain = [("Salary Slip-custom_weekly_section", "Section Break", "base_hour_rate"),

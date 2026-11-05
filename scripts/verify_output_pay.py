@@ -103,7 +103,7 @@ print("sizes: each its own Work Unit from a date, the August sheet's six to star
 
 # ── 2. A day ──────────────────────────────────────────────────────────
 IN_USE = dict({label: O.PER_METER for label, _unit in O.SHEET_SIZES}, **{"CAT A": O.PER_PIECE})
-PEOPLE = {"E1": O.PER_METER, "E2": O.PER_METER, "P1": O.PER_PIECE, "M1": "Monthly"}
+PEOPLE = {"E1": O.PER_METER, "E2": O.PER_METER, "P1": O.PER_PIECE, "M1": "Regular"}
 ok = {"employee": "E1", "size": "74CM", "output": 100, "rate": 6.5}
 expect("a sound day", O.report_errors(O.PER_METER, [ok, dict(ok, size="60CM", rate=6.9)],
                                       [{"employee": "E1", "amount": 2000}], PEOPLE, IN_USE))
@@ -116,7 +116,7 @@ for label, change, needle in (
     ("a size not in use", {"size": "90CM"}, "not a size in use"),
     ("a piece category on a Per Meter report", {"size": "CAT A"}, "Per Piece piece category, not Per Meter"),
     ("no Work Unit that day", {"rate": None}, "has no Work Unit on this day"),
-    ("somebody paid monthly", {"employee": "M1"}, "paid Monthly"),
+    ("somebody paid monthly", {"employee": "M1"}, "paid Regular"),
 ):
     expect(label, O.report_errors(O.PER_METER, [dict(ok, **change)], [], PEOPLE, IN_USE), needle)
 expect("a Per Piece report asks for the piece category",
@@ -130,7 +130,7 @@ for label, section, overtime, needle in (
     ("Looms OT for nobody", O.PER_METER, [{"employee": None, "amount": 100}], "say whose it is"),
     ("Looms OT of less than nothing", O.PER_METER, [{"employee": "E1", "amount": -5}], "less than nothing"),
     ("Looms OT for somebody paid monthly", O.PER_METER, [{"employee": "M1", "amount": 100}],
-     "paid Monthly, not Per Meter"),
+     "paid Regular, not Per Meter"),
     ("Looms OT twice for one person", O.PER_METER,
      [{"employee": "E1", "amount": 100}, {"employee": "E1", "amount": 50}], "already has Looms OT"),
 ):
@@ -228,7 +228,7 @@ print("the payslip: each size under its own salary component, the Looms OT under
 if O.employee_key(" lpl12261. ") != "LPL12261":
     fail.append("an Employee Id is matched without the dots and spaces the sheet adds")
 IDS = {"LPL001": "E1", "LPL002": "E2", "LPL003": "E3", "LPL004": "E4"}
-CATEGORIES = {"E1": O.PER_METER, "E2": O.PER_METER, "E3": "Monthly", "E4": O.PER_METER}
+CATEGORIES = {"E1": O.PER_METER, "E2": O.PER_METER, "E3": "Regular", "E4": O.PER_METER}
 NAMES = {"E1": "ALICE", "E2": "BOB", "E3": "CAROL", "E4": "EVE"}
 KEYED = {O.size_key(label): label for label, _unit in O.SHEET_SIZES}
 RATES = {label: [{"work_unit": unit, "valid_from": O.SHEET_FROM}] for label, unit in O.SHEET_SIZES}
@@ -278,7 +278,7 @@ for needle in (
     "Row 9: no size, so its 15 metres are left out.",
     "Row 10: 90CM is not a size in use, so its 15 metres are left out.",
     "Row 11: ABOVE 39CM has no Work Unit on 30-Jul-2026.",
-    "CAROL (E3) is paid Monthly, not Per Meter",
+    "CAROL (E3) is paid Regular, not Per Meter",
     "LPL999 is not an employee here",
     "Row 14: 26-Aug-2026 is not a day of this month (26-Jul-2026 to 25-Aug-2026).",
     "Row 15: Work Done 'ten' is not a number of metres.",

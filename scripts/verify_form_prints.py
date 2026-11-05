@@ -135,7 +135,7 @@ ADVANCE = {
     "name": "HR-LVA-0009", "posting_date": "2026-10-10", "employee": "E1", "employee_name": "John Okello",
     "department": "Production - LPL", "branch": "Kawempe", "leave_type": "Annual Leave", "leave_days": 21,
     "from_date": "2026-11-02", "to_date": "2026-11-22", "leave_application": "HR-LAP-0210", "status": "Paid",
-    "pay_category": "Monthly", "gross_pay": 1000000, "allowed_amount": 600000, "amount": 600000,
+    "pay_category": "Regular", "gross_pay": 1000000, "allowed_amount": 600000, "amount": 600000,
     "instalments": 2, "first_deduction": "2026-11-25", "eligibility_remarks": None, "outstanding": 300000,
     "recoveries": [{"payroll_date": "2026-11-25", "amount": 300000, "recovered": 1},
                    {"payroll_date": "2026-12-25", "amount": 300000, "recovered": 0}],

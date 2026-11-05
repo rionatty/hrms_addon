@@ -46,7 +46,7 @@ DEFAULTS = {
     "raise_on_approval": 1,
 }
 
-MONTHLY, PER_METER = "Monthly", "Per Meter"
+REGULAR, PER_METER = "Regular", "Per Meter"
 ACTIVE = "Active"
 
 DRAFT = "Draft"

@@ -170,8 +170,8 @@ def _fill_amount(doc, leave, s):
 
 def _pay_category(employee):
     if not frappe.get_meta("Employee").has_field("custom_pay_category"):
-        return rules.MONTHLY
-    return frappe.db.get_value("Employee", employee, "custom_pay_category") or rules.MONTHLY
+        return rules.REGULAR
+    return frappe.db.get_value("Employee", employee, "custom_pay_category") or rules.REGULAR
 
 
 def _check_eligibility(doc, leave, s):

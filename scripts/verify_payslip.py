@@ -316,11 +316,11 @@ def text_of(page):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S))).strip()
 
 
-page = page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource", shown=SHOWN)
+page = page_of(AUGUST, {"custom_pay_category": "Regular"}, section="Human Resource", shown=SHOWN)
 text = text_of(page)
 check(not re.findall(r"\{\{ [\w.]+ \}\}", page), "nothing left undefined: %s" % re.findall(r"\{\{ [\w.]+ \}\}", page))
 for said in ("Luuka Plastics Limited PAY SLIP AUGUST 2026 NAME SARAH AMUGE DEPT PP DEPARTMENT PAYROLL NO. LPL1834 "
-             "DESIGNATION ASSISTANT SUPERVISOR CATEGORY Monthly SECTION Human Resource",
+             "DESIGNATION ASSISTANT SUPERVISOR CATEGORY Regular SECTION Human Resource",
              "PAYMENTS AMOUNT BASIC 736,058.00 HRA 72,342.00 TRANSPORT ALLOWANCE 70,000.00",
              "GROSS PAY 878,400.00",
              "DEDUCTIONS AMOUNT NSSF 43,920.00 PAYE 145,770.00 LOCAL SERVICE TAX 20,000.00 "
@@ -330,7 +330,7 @@ for said in ("Luuka Plastics Limited PAY SLIP AUGUST 2026 NAME SARAH AMUGE DEPT 
     check(said in text, "the August slip reads: %s" % said)
 check("USD" not in text and text.count("AMOUNT") == 2 and "HOURS" not in text,
       "a slip in shillings names no currency, as Luuka's never has; with no overtime hours, no Hours column")
-dollars = text_of(page_of(AUGUST, {"custom_pay_category": "Monthly"}, section="Human Resource", shown=SHOWN,
+dollars = text_of(page_of(AUGUST, {"custom_pay_category": "Regular"}, section="Human Resource", shown=SHOWN,
                           currency="USD"))
 check("PAYMENTS AMOUNT USD BASIC" in dollars and "DEDUCTIONS AMOUNT USD NSSF" in dollars
       and dollars.count("USD") == 2,

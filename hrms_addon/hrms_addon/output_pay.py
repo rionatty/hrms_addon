@@ -113,7 +113,7 @@ def _pay_categories(employees):
     names = sorted(set(filter(None, employees)))
     if not names or not frappe.get_meta("Employee").has_field("custom_pay_category"):
         return {}
-    return {row.name: row.custom_pay_category or "Monthly"
+    return {row.name: row.custom_pay_category or rules.REGULAR
             for row in frappe.get_all("Employee", filters={"name": ["in", names]},
                                       fields=["name", "custom_pay_category"], limit_page_length=0)}
 
@@ -495,7 +495,7 @@ def _employee_ids():
     for row in rows:
         if row.get("employee_number"):
             ids.setdefault(rules.employee_key(row.employee_number), row.name)
-        categories[row.name] = (row.get("custom_pay_category") if has_category else None) or "Monthly"
+        categories[row.name] = (row.get("custom_pay_category") if has_category else None) or rules.REGULAR
         names[row.name] = row.employee_name
     return ids, categories, names
 

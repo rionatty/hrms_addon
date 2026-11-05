@@ -89,14 +89,14 @@ if R.settings_from({"advance_percent": 0, "more_than_days": "0"})["more_than_day
 expect("settings as the minutes set them", R.settings_errors(S))
 expect("a percentage over 100", R.settings_errors(dict(S, advance_percent=120)), "no more than 100%")
 expect("the usual months above the most", R.settings_errors(dict(S, instalments=4, max_instalments=3)), "cannot be more")
-if R.gross_basis(R.MONTHLY, 1000000) != (1000000.0, "the monthly gross from the salary structure, UGX 1,000,000"):
-    fail.append("gross_basis: a monthly employee's gross is the salary structure's: %s" % (R.gross_basis(R.MONTHLY, 1000000),))
+if R.gross_basis(R.REGULAR, 1000000) != (1000000.0, "the monthly gross from the salary structure, UGX 1,000,000"):
+    fail.append("gross_basis: a monthly employee's gross is the salary structure's: %s" % (R.gross_basis(R.REGULAR, 1000000),))
 if R.gross_basis(R.PER_METER, 1000000, [700000, 900000, 5000000], 2) != (800000.0, "the average gross of the last 2 month(s), UGX 800,000"):
     fail.append("gross_basis: Per Meter, the average of the last two months' paid gross only")
 basis = R.gross_basis(R.PER_METER, 1000000, [], 2)
 if basis[0] != 1000000.0 or "no payslip yet" not in basis[1]:
     fail.append("gross_basis: Per Meter with no payslip yet falls back to the structure, saying so: %s" % (basis,))
-if R.gross_basis(R.MONTHLY, 0) != (None, None) or R.allowed(None) is not None or R.allowed(800000) != 480000.0:
+if R.gross_basis(R.REGULAR, 0) != (None, None) or R.allowed(None) is not None or R.allowed(800000) != 480000.0:
     fail.append("allowed: 60% of the gross, nothing when there is no gross")
 GOOD = {"status": "Active", "employment_type": "Permanent", "bank_loan": False, "company_loan": 0,
         "leave_type": "Annual Leave", "earned_leave": True, "leave_days": 21, "outstanding": 0,

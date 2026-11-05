@@ -237,7 +237,7 @@ print("attendance: absences since the 26th, approved off-duty days not held agai
 
 # ── 4. Who qualifies ──────────────────────────────────────────────────
 OK = {"advance_type": "Salary Advance", "status": "Active", "employment_type": "Permanent",
-      "pay_category": "Monthly", "date_of_joining": "2026-08-01", "gross_pay": 1000000, "amount": 400000,
+      "pay_category": "Regular", "date_of_joining": "2026-08-01", "gross_pay": 1000000, "amount": 400000,
       "outstanding": 0, "instalments": 1, "processing_date": "2026-09-15", "window_start": "2026-08-26",
       "days_absent": 3, "on_leave": None, "bank_loan": False}
 S = V.settings_from({"not_regular_types": ["Casual"]})
@@ -276,7 +276,7 @@ expect("no absence allowed at all", V.eligibility_errors(dict(OK, days_absent=1)
 
 # the leave advance beside it (§4.4)
 LEAVE = {"advance_type": "Leave Advance", "status": "Active", "employment_type": "Permanent",
-         "pay_category": "Monthly", "gross_pay": 1000000, "amount": 600000, "outstanding": 0,
+         "pay_category": "Regular", "gross_pay": 1000000, "amount": 600000, "outstanding": 0,
          "instalments": 1, "leave_days": 21, "bank_loan": False, "company_loan": 0}
 expect("a regular employee taking 21 days, asking 60%", V.eligibility_errors(LEAVE, S))
 expect("nineteen days of leave", V.eligibility_errors(dict(LEAVE, leave_days=19), S), "more than 19 days")
@@ -287,12 +287,12 @@ print("who qualifies: each of the minutes' conditions its own reason, and each o
 
 # ── 5. The amount ─────────────────────────────────────────────────────
 for args, expected, why in (
-    (("Salary Advance", 1000000, "Monthly"), 400000.0, "40% of gross"),
+    (("Salary Advance", 1000000, "Regular"), 400000.0, "40% of gross"),
     (("Salary Advance", 1000000, "Per Meter"), 110000.0, "the Per Meter standard rate, whatever the gross"),
     (("Salary Advance", 0, "Per Meter"), 110000.0, "even with no gross on record"),
-    (("Salary Advance", 0, "Monthly"), None, "and nothing to work 40% of when there is no gross"),
-    (("Leave Advance", 1000000, "Monthly"), 600000.0, "60% of gross for leave"),
-    (("Special Advance", 1000000, "Monthly"), 500000.0, "half for the special advance"),
+    (("Salary Advance", 0, "Regular"), None, "and nothing to work 40% of when there is no gross"),
+    (("Leave Advance", 1000000, "Regular"), 600000.0, "60% of gross for leave"),
+    (("Special Advance", 1000000, "Regular"), 500000.0, "half for the special advance"),
 ):
     if V.entitled(*args) != expected:
         fail.append("entitled%s is %r, expected %r: %s" % (args, V.entitled(*args), expected, why))
@@ -458,6 +458,21 @@ if not category:
 elif category.get("options", "").split("\n") != list(V.PAY_CATEGORIES):
     fail.append("the employee's Pay Category must offer exactly the categories the rules know: %s"
                 % (V.PAY_CATEGORIES,))
+# Luuka, 5 Nov 2026: "pay category should change from monthly to regular"
+if V.PAY_CATEGORIES[0] != "Regular" or (category or {}).get("default") != "Regular" or "Monthly" in V.PAY_CATEGORIES:
+    fail.append("a salaried employee's Pay Category is Regular, Luuka's word, and new employees start on it")
+regular_patch = read("hrms_addon", "patches", "v1_0", "pay_category_regular.py")
+for doctype, field in (("Employee", "custom_pay_category"), ("Employee Advance", "custom_pay_category"),
+                       ("Leave Advance", "pay_category"), ("Salary Advance Processing Employee", "pay_category")):
+    if '("%s", "%s")' % (doctype, field) not in regular_patch:
+        fail.append("the patch moves %s.%s from Monthly to Regular, or a record left on Monthly cannot be saved"
+                    % (doctype, field))
+if "hrms_addon.patches.v1_0.pay_category_regular" not in read("hrms_addon", "patches.txt") \
+        or 'frappe.db.set_value(doctype, {field: "Monthly"}, field, "Regular", update_modified=False)' not in regular_patch:
+    fail.append("and the patch runs on migrate, changing nothing else")
+for module in ("advance_rules", "leave_advance_rules", "output_rules", "output_pay", "advances", "leave_advances"):
+    if '"Monthly"' in read("hrms_addon", "hrms_addon", module + ".py"):
+        fail.append("%s.py still names Monthly as a pay category" % module)
 for fieldname in ("custom_has_bank_loan", "custom_bank_loan_until"):
     if ("Employee", fieldname) not in fields:
         fail.append("the employee has nowhere to record a bank loan (%s)" % fieldname)
