@@ -17,7 +17,8 @@ WHAT IT DOES
   pull_all()        every enabled machine, hourly
   retry_failed()    the punches that were written down but never landed —
                     Luuka's "attendance jumps out" — pushed again without
-                    going back to the machine
+                    going back to the machine, and the days the clock marked
+                    absent without them marked again
   test_connection() the machine answered, and what it says it is
 
 WHY EVERY PUNCH IS WRITTEN DOWN FIRST
@@ -27,6 +28,15 @@ supplier has to push it. Writing the punch down before turning it into a
 check-in means the record exists either way: a log row that says Failed or
 Unknown Employee can be seen, corrected and re-pushed, and nothing depends
 on the machine still holding it.
+
+A MACHINE HAS NO COORDINATES
+
+With HR Settings' Allow Geolocation Tracking on, Frappe HR refuses a check-in
+without a latitude and longitude, and every punch was kept as Failed: "Latitude
+and longitude values are required for checking in" (Luuka, 5 Nov 2026). That is
+a question for a phone. A machine stays where it is mounted, so a punch pushed
+from here is let through (EmployeeCheckinFromMachine), and a phone is still
+asked.
 
 THE DRIVER IS OPTIONAL
 
@@ -50,6 +60,8 @@ BADGE_FIELD = "attendance_device_id"
 # a machine that will not answer holds the attendance back this long, and
 # no longer: after it the days are marked from what the others sent
 HOLD_HOURS = 6
+# a long retry keeps what it has pushed, this many punches at a time
+COMMIT_EVERY = 200
 
 
 # ── the machine and its log, as documents ─────────────────────────────
@@ -365,6 +377,7 @@ def _push(device, log):
     try:
         from hrms.hr.doctype.employee_checkin.employee_checkin import add_log_based_on_employee_field
 
+        frappe.flags.machine_punch = True
         checkin = add_log_based_on_employee_field(
             employee_field_value=log.device_user_id,
             timestamp=str(log.punch_time),
@@ -381,6 +394,27 @@ def _push(device, log):
     except Exception as error:  # noqa: BLE001 - one bad punch must not stop the pull
         log.db_set({"status": "Failed", "error": str(error)[:500]}, update_modified=False)
         return "failed"
+    finally:
+        frappe.flags.machine_punch = False
+
+
+class EmployeeCheckinFromMachine:
+    """Mixed in ahead of Frappe HR's Employee Checkin (hooks.extend_doctype_class):
+    how far a check-in is from its shift's location is asked of a phone, not of a
+    machine on a wall, which has no coordinates to give."""
+
+    def validate_distance_from_shift_location(self):
+        if not from_machine(self):
+            super().validate_distance_from_shift_location()
+
+
+def from_machine(checkin):
+    """Whether a check-in is a machine's: being pushed by _push now, or pushed
+    earlier and saved again, as HR may to put one right. The flag is set only here,
+    so a phone cannot claim to be a machine, as it could by naming a device."""
+    if frappe.flags.machine_punch:
+        return True
+    return not checkin.is_new() and bool(frappe.db.exists(LOG, {"employee_checkin": checkin.name}))
 
 
 def _clear(device):
@@ -396,24 +430,50 @@ def _clear(device):
 @frappe.whitelist(methods=["POST"])
 def retry_failed(device=None, limit=500):
     """The punches that were written down but never landed. Luuka's
-    "attendance jumps out": this pushes them again without the machine."""
+    "attendance jumps out": this pushes them again without the machine. A day
+    the clock marked absent without them is marked again (redo_absences), and
+    what is pushed is kept as it goes, however many there are."""
     if not frappe.has_permission(LOG, "write"):
         frappe.throw(_("You may not push attendance logs."), frappe.PermissionError)
-    filters = {"status": ["in", ("Failed", "Unknown Employee", "Pending")]}
-    if device:
-        filters["device"] = device
-    found = {"pushed": 0, "unknown": 0, "duplicate": 0, "failed": 0}
-    for name in frappe.get_all(LOG, filters=filters, pluck="name", order_by="punch_time asc",
-                               limit=cint(limit) or 500):
+    started = now_datetime()
+    found = {"pushed": 0, "unknown": 0, "duplicate": 0, "failed": 0, "redone": 0}
+    landed = []
+    for count, name in enumerate(_to_retry(device, cint(limit) or 500), 1):
         log = frappe.get_doc(LOG, name)
         if not log.employee:
             log.employee = _employee_for(log.device_user_id)
             if log.employee:
                 log.db_set("employee", log.employee, update_modified=False)
-        outcome = _push(frappe.get_doc(DEVICE, log.device), log)
+        machine = frappe.get_doc(DEVICE, log.device)
+        # a machine set one way: a punch written down before it was set goes
+        # in the way it faces. One that goes both ways says nothing here, and
+        # the punch keeps the way it was given
+        way = rules.direction_of(None, machine.get("direction") or rules.DIRECTION_BOTH)
+        if way and way != log.log_type:
+            log.db_set("log_type", way, update_modified=False)
+        outcome = _push(machine, log)
         found[outcome] = found.get(outcome, 0) + 1
+        if outcome == "pushed":
+            landed.append({"employee": log.employee, "time": log.punch_time})
+        if not count % COMMIT_EVERY:
+            found["redone"] += len(redo_absences(landed, started))
+            landed = []
+            frappe.db.commit()
+    found["redone"] += len(redo_absences(landed, started))
     frappe.db.commit()
     return found
+
+
+def _to_retry(device, limit):
+    """The log rows to push again, oldest first: what failed before a badge
+    nobody carries, which may never land and must not use up the limit."""
+    machine = {"device": device} if device else {}
+    names = frappe.get_all(LOG, filters=dict(machine, status=["in", ("Failed", "Pending")]), pluck="name",
+                           order_by="punch_time asc", limit=limit)
+    if len(names) < limit:
+        names += frappe.get_all(LOG, filters=dict(machine, status="Unknown Employee"), pluck="name",
+                                order_by="punch_time asc", limit=limit - len(names))
+    return names
 
 
 def pull_all():

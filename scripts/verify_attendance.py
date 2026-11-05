@@ -495,6 +495,55 @@ if "frappe.has_permission" not in body_of(drivers, "retry_failed"):
     fail.append("devices.retry_failed pushes check-ins: it must check the caller first")
 print("the glue: the rules followed, the driver optional, every button checked and whitelisted")
 
+# a machine has no coordinates (Luuka, 5 Nov 2026, of a log marked Failed: "Latitude
+# and longitude values are required for checking in." "fix this")
+pushing = body_of(drivers, "_push")
+for needle, why in (
+    ('"Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],', "the mixin is put ahead of Frappe HR's Employee Checkin"),
+):
+    if needle not in read("hrms_addon", "hooks.py"):
+        fail.append("hooks.py: %s (%r not found)" % (why, needle))
+for needle, why in (
+    ("    def validate_distance_from_shift_location(self):\n        if not from_machine(self):\n"
+     "            super().validate_distance_from_shift_location()\n",
+     "only a machine's punch is let past Frappe HR's question: a phone is still asked"),
+    ("    if frappe.flags.machine_punch:\n        return True\n", "a punch being pushed from here is a machine's"),
+    ('bool(frappe.db.exists(LOG, {"employee_checkin": checkin.name}))', "and one its log row names, saved again"),
+):
+    if needle not in drivers:
+        fail.append("devices.py: %s (%r not found)" % (why, needle))
+if "device_id" in body_of(drivers, "from_machine"):
+    fail.append("a machine must not be told from the device a check-in names: a phone could name one")
+if not (pushing.index("frappe.flags.machine_punch = True") < pushing.index("add_log_based_on_employee_field(")
+        and "    finally:\n        frappe.flags.machine_punch = False\n" in pushing):
+    fail.append("the flag goes up for the push and comes down however it ends, or the next phone is let through")
+retrying = body_of(drivers, "retry_failed")
+for needle, why in (
+    ('found["redone"] += len(redo_absences(landed, started))',
+     "a day the clock marked absent without the punches is marked again"),
+    ("for count, name in enumerate(_to_retry(device, cint(limit) or 500), 1):", "what to push is _to_retry's"),
+    ("if not count % COMMIT_EVERY:", "a long retry keeps what it has pushed as it goes"),
+    ('rules.direction_of(None, machine.get("direction") or rules.DIRECTION_BOTH)',
+     "a punch goes in the way a machine set one way faces, and the stored punch code, 0 where it was blank, is not read"),
+):
+    if needle not in retrying:
+        fail.append("devices.retry_failed: %s (%r not found)" % (why, needle))
+choosing = body_of(drivers, "_to_retry")
+if not choosing.index('("Failed", "Pending")') < choosing.index('"Unknown Employee"') or "limit - len(names)" not in choosing:
+    fail.append("what failed goes before a badge nobody carries, or those use up the limit for ever")
+checkin_src = os.path.join(APPS_ROOT, "hrms", "hrms", "hr", "doctype", "employee_checkin", "employee_checkin.py")
+if os.path.exists(checkin_src):
+    frappe_checkin = open(checkin_src, encoding="utf-8").read()
+    for needle, why in (
+        ("self.validate_distance_from_shift_location()", "the check-in asks where it is as it validates"),
+        ("def validate_distance_from_shift_location(self):", "in the method the mixin follows"),
+        ('frappe.db.get_single_value("HR Settings", "allow_geolocation_tracking")', "by HR Settings"),
+        ('_("Latitude and longitude values are required for checking in.")', "and refuses a check-in with none"),
+    ):
+        if needle not in frappe_checkin:
+            fail.append("Frappe HR's Employee Checkin: %s (%r not found)" % (why, needle))
+print("a machine's punch needs no coordinates, a phone's still does, and what failed for it can be pushed again")
+
 # what the clock says of a day (the attendance review, 11 Oct 2026)
 moment = datetime.datetime
 if A.shift_span("2026-10-12", "07:00:00", "19:00:00") != (moment(2026, 10, 12, 7), moment(2026, 10, 12, 19)) \

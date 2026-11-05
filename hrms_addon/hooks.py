@@ -1644,13 +1644,15 @@ override_doctype_class = {
 # the slip and on the assignment alike (nssf_age.py).
 # Auto attendance leaves the days a deletion said to keep deleted
 # (attendance_deletions.py).
+# A machine's punch is not asked for coordinates, a phone's still is (devices.py).
 extend_doctype_class = {
     "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
     "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays",
                     "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
-    "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"],
+    "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],
+    "Salary Structure Assignment":["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge"],
     "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted"],
 }
 
