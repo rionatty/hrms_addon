@@ -184,6 +184,37 @@ expect("nobody said whose", B.claim_errors(dict(LOSS, relation=None)), "say whos
 expect("no gross on record", B.claim_errors(dict(LOSS, gross_pay=0)), "no gross on record")
 if B.ceiling(LOSS) != 700000 or B.ceiling(BASE) != 350000:
     fail.append("the most a claim may be: its share of gross, or its standard amount")
+# Luuka, 5 Nov 2026: maternity is for three children born since the
+# employee joined, twins being two ("they count number of kids"), and is
+# paid by the child; a parent's loss is paid once for each, two at most
+BABY = dict(BASE, counts_children=1, times_before=1, born_on="2026-09-28", children=1,
+            date_of_joining="2023-01-09")
+expect("her second child", B.claim_errors(BABY))
+expect("no birth date", B.claim_errors(dict(BABY, born_on=None)), "Say when the child was born")
+expect("a child born before she joined", B.claim_errors(dict(BABY, born_on="2023-01-08")),
+       "born since the employee joined on 09 Jan 2023; this child was born on 08 Jan 2023")
+expect("a child born the day she joined", B.claim_errors(dict(BABY, born_on="2023-01-09")))
+expect("no child born", B.claim_errors(dict(BABY, children=0)), "twins are two")
+expect("twins after one child", B.claim_errors(dict(BABY, children=2, amount=700000)))
+expect("twins claimed at more than 350,000 a child", B.claim_errors(dict(BABY, children=2, amount=700001)),
+       "UGX 350,000 a child: UGX 700,000 for 2, not UGX 700,001")
+expect("one child claimed at twice the amount", B.claim_errors(dict(BABY, amount=700000)),
+       "standard claim of UGX 350,000; UGX 700,000 is being claimed")
+expect("twins after two children", B.claim_errors(dict(BABY, children=2, amount=700000, times_before=2)),
+       "at most 3 children born in an employment; this employee has been paid for 2, and this claim is for 2")
+expect("a fourth child", B.claim_errors(dict(BABY, times_before=3)), "has been paid for 3, and this claim is for 1")
+expect("a type that does not count children counts claims, whatever the claim says",
+       B.claim_errors(dict(BASE, children=2, born_on=None, amount=700000)), "standard claim of UGX 350,000;")
+if B.ceiling(dict(BABY, children=2)) != 700000 or B.ceiling(dict(BASE, children=2)) != 350000:
+    fail.append("a type paid by the child is worth its amount for each child, and only such a type")
+expect("his mother after his father", B.claim_errors(dict(LOSS, relation="Mother", parents_before=["Father"])))
+expect("his father again", B.claim_errors(dict(LOSS, parents_before=["Father"])),
+       "loss of a father has been paid already: it is paid once for each parent")
+expect("a third parent", B.claim_errors(dict(LOSS, relation="Mother", parents_before=["Father", "Father"])),
+       "paid for 2 parents already")
+expect("a child after both parents", B.claim_errors(dict(LOSS, relation="Child", parents_before=["Father", "Mother"])))
+if B.PARENTS != ("Mother", "Father") or B.MOST_PARENTS != 2:
+    fail.append("a parent is a mother or a father, and two are paid for at most")
 print("claims: what a claim must say, the standard amounts, the genuine line, the birthdays")
 
 # ── 2. The paper is on their form ─────────────────────────────────────
@@ -207,6 +238,12 @@ types = custom_fields("Expense Claim Type")
 for fieldname in ("custom_is_standard", "custom_standard_amount", "custom_occasion", "custom_requires_evidence"):
     if fieldname not in types:
         fail.append("Expense Claim Type has no %s: the script asks for standard claims" % fieldname)
+for doctype_name, fieldname in (("Expense Claim", "custom_child_born_on"), ("Expense Claim", "custom_children_born"),
+                                ("Expense Claim Type", "custom_counts_children")):
+    if fieldname not in (claim_fields if doctype_name == "Expense Claim" else types):
+        fail.append("%s has no %s: maternity counts the children born since joining" % (doctype_name, fieldname))
+if (claim_fields.get("custom_children_born") or {}).get("default") != "1":
+    fail.append("a birth is one child unless the claim says otherwise")
 if "custom_is_allowance_line" in types:
     fail.append("an allowance is an Allowance Type now, not an Expense Claim Type")
 print("the paper: LPL/HR/27 on their Expense Claim")
@@ -224,6 +261,7 @@ for needle, why in (
     ("rules.payment_errors(", "and so is what Accounts pay"),
     ("rules.birthdays_due(", "the birthdays come from the rules"),
     ("approval.upstream_approval(", "Frappe HR's own approval_status is kept in step"),
+    ('"docstatus": 1, "approval_status": "Approved"', "only a claim paid counts: a rejected one is submitted too"),
 ):
     if needle not in glue_benefits:
         fail.append("benefits.py: %s (%r not found)" % (why, needle))

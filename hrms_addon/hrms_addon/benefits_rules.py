@@ -53,11 +53,18 @@ BIRTHDAY_HORIZONS = (7, 0)
 # where these are seeded from; the claim type is the setting.
 MATERNITY_BENEFIT = "Maternity Benefit"
 MATERNITY_AMOUNT = 350000.0
+# for three children at most, born since the employee joined, twins being two
+# (Luuka, 5 Nov 2026: "only 3 children allowed born from when someone joins the
+# company", "they count number of kids")
 MATERNITY_TIMES = 3
 FEMALE = "Female"
 BEREAVEMENT_SUPPORT = "Bereavement Support"
 BEREAVEMENT_PERCENT = 70.0
 BEREAVEMENT_RELATIONS = ("Mother", "Father", "Child")
+# a parent's loss is paid once for each parent, so for two at most (Luuka, 5 Nov
+# 2026: "the system shouldn't allow more than two parents for bereavement benefits")
+PARENTS = ("Mother", "Father")
+MOST_PARENTS = 2
 # whose loss a bereavement claim can be for
 RELATIONS = ("Mother", "Father", "Child", "Spouse", "Sibling", "Other")
 
@@ -70,7 +77,10 @@ def claim_errors(facts):
     what the claim type may also set: "percent_of_gross" with the
     employee's "gross_pay"; "max_times" with "times_before"; "for_gender"
     with the employee's "gender"; "relations" (comma-separated) with the
-    claim's "relation".
+    claim's "relation" and the parents already paid for, "parents_before";
+    "counts_children", where "max_times" counts children and "times_before"
+    the children already paid for, with the claim's "born_on" and "children"
+    and the employee's "date_of_joining".
     """
     errors = []
     if not _text(facts.get("claim_details")):
@@ -82,9 +92,15 @@ def claim_errors(facts):
         errors.append("A claim needs an amount.")
     if facts.get("is_standard"):
         standard = _num(facts.get("standard_amount"))
-        if standard and round(amount, 2) > round(standard, 2):
-            errors.append("%s is a standard claim of %s; %s is being claimed."
-                          % (facts.get("claim_type") or "This", _money(standard), _money(amount)))
+        children = _children(facts)
+        if standard and round(amount, 2) > round(standard * children, 2):
+            if children > 1:
+                errors.append("%s is a standard claim of %s a child: %s for %d, not %s."
+                              % (facts.get("claim_type") or "This", _money(standard),
+                                 _money(standard * children), children, _money(amount)))
+            else:
+                errors.append("%s is a standard claim of %s; %s is being claimed."
+                              % (facts.get("claim_type") or "This", _money(standard), _money(amount)))
     if facts.get("requires_evidence") and not facts.get("evidence"):
         errors.append("%s is paid on evidence: attach it." % (facts.get("claim_type") or "This claim"))
     return errors + policy_errors(facts)
@@ -107,17 +123,55 @@ def policy_errors(facts):
                           % (what, percent, _money(gross), _money(gross * percent / 100.0), _money(amount)))
     most = int(_num(facts.get("max_times")))
     before = int(_num(facts.get("times_before")))
-    if most and before >= most:
+    if facts.get("counts_children"):
+        errors += _children_errors(facts, what, most, before)
+    elif most and before >= most:
         errors.append("%s is paid at most %d time(s) in an employment; this employee has had it %d."
                       % (what, most, before))
     wanted = _text(facts.get("for_gender"))
     if wanted and _text(facts.get("gender")) != wanted:
         errors.append("%s is for %s employees." % (what, wanted.lower()))
     relations = [name.strip() for name in _text(facts.get("relations")).split(",") if name.strip()]
-    if relations and _text(facts.get("relation")) not in relations:
+    relation = _text(facts.get("relation"))
+    if relations and relation not in relations:
         errors.append("%s is paid for the loss of a %s: say whose it was."
                       % (what, _either(relations).lower()))
+    elif relation in PARENTS:
+        parents = [_text(name) for name in facts.get("parents_before") or ()]
+        if relation in parents:
+            errors.append("%s for the loss of a %s has been paid already: it is paid once for each parent."
+                          % (what, relation.lower()))
+        elif len(parents) >= MOST_PARENTS:
+            errors.append("%s has been paid for %d parents already, the most it is paid for."
+                          % (what, MOST_PARENTS))
     return errors
+
+
+def _children_errors(facts, what, most, before):
+    """A benefit paid by the child: when the child was born, how many, and how
+    many have been paid for since the employee joined."""
+    errors = []
+    born, joined = _date(facts.get("born_on")), _date(facts.get("date_of_joining"))
+    children = int(_num(facts.get("children")))
+    if not born:
+        errors.append("Say when the child was born.")
+    elif joined and born < joined:
+        errors.append("%s is for children born since the employee joined on %s; this child was born on %s."
+                      % (what, joined.strftime("%d %b %Y"), born.strftime("%d %b %Y")))
+    if children < 1:
+        errors.append("Say how many children were born: twins are two.")
+    elif most and before + children > most:
+        errors.append("%s is paid for at most %d children born in an employment; this employee has been "
+                      "paid for %d, and this claim is for %d." % (what, most, before, children))
+    return errors
+
+
+def _children(facts):
+    """How many children a claim is for: one, unless its type pays by the
+    child, where the claim says (twins are two)."""
+    if not facts.get("counts_children"):
+        return 1
+    return max(int(_num(facts.get("children"))), 1)
 
 
 def ceiling(facts):
@@ -126,7 +180,7 @@ def ceiling(facts):
     if percent and _num(facts.get("gross_pay")):
         return round(_num(facts.get("gross_pay")) * percent / 100.0, 2)
     if facts.get("is_standard") and _num(facts.get("standard_amount")):
-        return round(_num(facts.get("standard_amount")), 2)
+        return round(_num(facts.get("standard_amount")) * _children(facts), 2)
     return None
 
 

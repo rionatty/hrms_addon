@@ -10,41 +10,7 @@
 
 frappe.ui.form.on("Expense Claim", {
 	refresh(frm) {
-		frm.trigger("show_standard");
-	},
-	// "Wedding gifts and claims that are standard especially for
-	// production can be updated on the system": say what Luuka pay for
-	// this kind of claim, so nobody has to remember it.
-	show_standard(frm) {
-		frm.dashboard.clear_headline();
-		const first = (frm.doc.expenses || [])[0];
-		if (!first || !first.expense_type) return;
-		frappe.db
-			.get_value("Expense Claim Type", first.expense_type, [
-				"custom_is_standard",
-				"custom_standard_amount",
-				"custom_requires_evidence",
-			])
-			.then((result) => {
-				const row = (result && result.message) || {};
-				if (!row.custom_is_standard && !row.custom_requires_evidence) return;
-				const parts = [];
-				if (row.custom_is_standard) {
-					parts.push(
-						`${__("Standard claim")}: <b>${frappe.format(row.custom_standard_amount || 0, {
-							fieldtype: "Currency",
-						})}</b>`
-					);
-				}
-				if (row.custom_requires_evidence) {
-					parts.push(
-						`<span class="indicator-pill ${frm.doc.custom_evidence ? "green" : "orange"}">${
-							frm.doc.custom_evidence ? __("Evidence attached") : __("Paid on evidence")
-						}</span>`
-					);
-				}
-				frm.dashboard.set_headline(parts.join(" &nbsp;|&nbsp; "));
-			});
+		ha_claim_show_standard(frm, false);
 	},
 	custom_genuine(frm) {
 		if (!frm.doc.custom_genuine && !frm.doc.custom_supervisor_remarks) {
@@ -58,6 +24,49 @@ frappe.ui.form.on("Expense Claim", {
 
 frappe.ui.form.on("Expense Claim Detail", {
 	expense_type(frm) {
-		frm.trigger("show_standard");
+		ha_claim_show_standard(frm, true);
 	},
 });
+
+// "Wedding gifts and claims that are standard especially for production
+// can be updated on the system": say what Luuka pay for this kind of
+// claim, so nobody has to remember it. A type picked also says what the
+// claim is for, which shows the fields it needs: whose loss, when the
+// child was born and how many.
+function ha_claim_show_standard(frm, picked) {
+	frm.dashboard.clear_headline();
+	const first = (frm.doc.expenses || [])[0];
+	if (!first || !first.expense_type) return;
+	frappe.db
+		.get_value("Expense Claim Type", first.expense_type, [
+			"custom_is_standard",
+			"custom_standard_amount",
+			"custom_requires_evidence",
+			"custom_occasion",
+			"custom_counts_children",
+		])
+		.then((result) => {
+			const row = (result && result.message) || {};
+			if (picked && frm.doc.docstatus === 0 && row.custom_occasion && !frm.doc.custom_occasion) {
+				frm.set_value("custom_occasion", row.custom_occasion);
+			}
+			if (!row.custom_is_standard && !row.custom_requires_evidence) return;
+			const parts = [];
+			if (row.custom_is_standard) {
+				const amount = frappe.format(row.custom_standard_amount || 0, { fieldtype: "Currency" });
+				parts.push(
+					`${__("Standard claim")}: <b>${amount}</b>${
+						row.custom_counts_children ? " " + __("a child") : ""
+					}`
+				);
+			}
+			if (row.custom_requires_evidence) {
+				parts.push(
+					`<span class="indicator-pill ${frm.doc.custom_evidence ? "green" : "orange"}">${
+						frm.doc.custom_evidence ? __("Evidence attached") : __("Paid on evidence")
+					}</span>`
+				);
+			}
+			frm.dashboard.set_headline(parts.join(" &nbsp;|&nbsp; "));
+		});
+}

@@ -50,36 +50,59 @@ def _facts(doc):
         "requires_evidence": settings.get("requires_evidence"), "evidence": doc.get("custom_evidence"),
         "percent_of_gross": settings.get("percent_of_gross"), "max_times": settings.get("max_times"),
         "for_gender": settings.get("for_gender"), "relations": settings.get("relations"),
-        "relation": doc.get("custom_relation"),
+        "relation": doc.get("custom_relation"), "counts_children": settings.get("counts_children"),
+        "born_on": doc.get("custom_child_born_on"), "children": doc.get("custom_children_born"),
     }
     if employee and settings.get("percent_of_gross"):
         facts["gross_pay"] = pay.monthly_gross(employee)
+    if employee and settings.get("counts_children"):
+        facts["date_of_joining"] = frappe.db.get_value("Employee", employee, "date_of_joining")
     if employee and settings.get("max_times"):
-        facts["times_before"] = _times_before(employee, claim_type, doc.name)
+        facts["times_before"] = _times_before(employee, claim_type, doc.name, settings.get("counts_children"),
+                                              facts.get("date_of_joining"))
     if employee and settings.get("for_gender"):
         facts["gender"] = frappe.db.get_value("Employee", employee, "gender")
+    if employee and (doc.get("custom_relation") or "").strip() in rules.PARENTS:
+        facts["parents_before"] = [row.custom_relation for row in _paid_claims(
+            employee, claim_type, doc.name, ("name", "custom_relation")) if row.custom_relation in rules.PARENTS]
     return facts
 
 
-def _times_before(employee, claim_type, exclude):
-    """How many of this benefit the employee has already been paid. A claim
-    that was refused or cancelled was not paid."""
-    claims = frappe.get_all(DOCTYPE, filters={"employee": employee, "docstatus": 1,
+def _times_before(employee, claim_type, exclude, by_child=False, joined=None):
+    """How many of this benefit the employee has already been paid, or for a
+    benefit paid by the child, for how many children born since they joined:
+    the claim says how many, and one from before the claim said so is one."""
+    if not by_child:
+        return len(_paid_claims(employee, claim_type, exclude))
+    claims = _paid_claims(employee, claim_type, exclude,
+                          ("name", "posting_date", "custom_child_born_on", "custom_children_born"))
+    joined = getdate(joined) if joined else None
+    return sum(max(int(row.custom_children_born or 0), 1) for row in claims
+               if not joined or getdate(row.custom_child_born_on or row.posting_date) >= joined)
+
+
+def _paid_claims(employee, claim_type, exclude, fields=("name",)):
+    """The employee's claims of this type that were paid. A claim refused is
+    submitted too, as Rejected, and one cancelled was never paid: only an
+    approved one counts."""
+    claims = frappe.get_all(DOCTYPE, filters={"employee": employee, "docstatus": 1, "approval_status": "Approved",
                                               "name": ["!=", exclude or ""]},
-                            pluck="name", limit_page_length=0)
+                            fields=list(fields), limit_page_length=0)
     if not claims:
-        return 0
-    return len(set(frappe.get_all("Expense Claim Detail",
-                                  filters={"parenttype": DOCTYPE, "parent": ["in", claims],
-                                           "expense_type": claim_type},
-                                  pluck="parent", limit_page_length=0)))
+        return []
+    of_type = set(frappe.get_all("Expense Claim Detail",
+                                 filters={"parenttype": DOCTYPE, "parent": ["in", [row.name for row in claims]],
+                                          "expense_type": claim_type},
+                                 pluck="parent", limit_page_length=0))
+    return [row for row in claims if row.name in of_type]
 
 
 def _type_settings(claim_type):
     if not claim_type:
         return {}
     wanted = ["custom_is_standard", "custom_standard_amount", "custom_requires_evidence"]
-    newer = ["custom_percent_of_gross", "custom_max_times", "custom_for_gender", "custom_relations"]
+    newer = ["custom_percent_of_gross", "custom_max_times", "custom_for_gender", "custom_relations",
+             "custom_counts_children"]
     meta = frappe.get_meta("Expense Claim Type")
     wanted += [field for field in newer if meta.has_field(field)]
     row = frappe.db.get_value("Expense Claim Type", claim_type, wanted, as_dict=True) or {}
@@ -89,7 +112,8 @@ def _type_settings(claim_type):
             "percent_of_gross": row.get("custom_percent_of_gross"),
             "max_times": row.get("custom_max_times"),
             "for_gender": row.get("custom_for_gender"),
-            "relations": row.get("custom_relations")}
+            "relations": row.get("custom_relations"),
+            "counts_children": row.get("custom_counts_children")}
 
 
 def _check_step(doc):
@@ -241,11 +265,13 @@ def minutes_values(name):
     """What the minutes set a benefit's claim type to (§4.8)."""
     if name == rules.MATERNITY_BENEFIT:
         return {"custom_is_standard": 1, "custom_standard_amount": rules.MATERNITY_AMOUNT,
-                "custom_max_times": rules.MATERNITY_TIMES, "custom_for_gender": rules.FEMALE,
-                "custom_requires_evidence": 1,
-                "description": _("UGX 350,000 for female employees, up to three times.")}
+                "custom_max_times": rules.MATERNITY_TIMES, "custom_counts_children": 1,
+                "custom_for_gender": rules.FEMALE, "custom_requires_evidence": 1,
+                "description": _("UGX 350,000 a child for female employees, for up to three children born "
+                                 "since joining; twins are two.")}
     if name == rules.BEREAVEMENT_SUPPORT:
         return {"custom_is_standard": 0, "custom_percent_of_gross": rules.BEREAVEMENT_PERCENT,
                 "custom_relations": ", ".join(rules.BEREAVEMENT_RELATIONS),
-                "description": _("70% of gross, for the loss of a mother, father or child.")}
+                "description": _("70% of gross, for the loss of a mother, father or child; once for each "
+                                 "parent.")}
     return {}

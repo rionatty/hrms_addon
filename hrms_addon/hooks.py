@@ -1286,6 +1286,9 @@ fixtures = [
                     "Expense Claim-custom_branch",
                     "Expense Claim-custom_occasion",
                     "Expense Claim-custom_relation",
+                    # a benefit paid by the child: when, and how many (benefits.py)
+                    "Expense Claim-custom_child_born_on",
+                    "Expense Claim-custom_children_born",
                     "Expense Claim-custom_lpl_cb",
                     "Expense Claim-custom_claim_details",
                     "Expense Claim-custom_reason",
@@ -1320,6 +1323,7 @@ fixtures = [
                     "Expense Claim Type-custom_standard_amount",
                     "Expense Claim Type-custom_percent_of_gross",
                     "Expense Claim Type-custom_max_times",
+                    "Expense Claim Type-custom_counts_children",
                     "Expense Claim Type-custom_lpl_cb",
                     "Expense Claim Type-custom_occasion",
                     "Expense Claim Type-custom_requires_evidence",
