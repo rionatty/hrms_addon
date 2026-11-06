@@ -165,8 +165,9 @@ TABS = (
         "key": "payroll", "title": "Payroll", "icon": "payroll", "roles": MONEY_ROLES,
         "anchors": ("Salary Slip", "Payroll Entry"), "workspaces": ("Payroll", "Tax & Benefits"), "opens": "Payroll",
         "cards": ("gross_pay", "net_pay", "paid_people", "slips_draft"),
-        "panels": ("attention", "payroll", "payroll_trend", "output", "gross_by_department"),
-        "reports": ("Salary Register", "Bank Remittance", "Salary Payments Based On Payment Mode"),
+        # the overtime of the period, by plant, and the Overtime Register to filter it (review item 19)
+        "panels": ("attention", "payroll", "payroll_trend", "output", "gross_by_department", "overtime_by_plant"),
+        "reports": ("Salary Register", "Overtime Register", "Bank Remittance", "Salary Payments Based On Payment Mode"),
         "pages": (),
     },
     {
@@ -250,6 +251,7 @@ REPORT_DOCTYPES = {
     "Leave Plan Adherence": "Annual Leave Plan",
     "Leave Accrual": "Leave Application",
     "Salary Register": "Salary Slip",
+    "Overtime Register": "Overtime Request",
     "Bank Remittance": "Payroll Entry",
     "Salary Payments Based On Payment Mode": "Salary Slip",
     "Loan Register": "Employee Loan",

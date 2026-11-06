@@ -1106,6 +1106,75 @@ if "Overtime Request" not in nav:
     fail.append("the request has no way in")
 print("wiring: no type made on migrate, the seeded ones gone where unused, both buttons on the form")
 
+# ── The Overtime Register (review item 19) ────────────────────────────
+# Luuka, 5 Nov 2026: "Provide a provision for overtime filtering on the payroll dashboard"
+LINES = [
+    {"request": "R2", "overtime_date": "2026-10-10", "status": "Sent to Payroll", "branch": "Kawempe",
+     "department": "Extrusion", "employee": "E2", "employee_name": "Ben", "hours": 3, "worked_hours": 2.5, "clocked": 1,
+     "payable_hours": 2, "hourly_rate": 2500, "multiplier": 1.5, "amount": 11250, "day_kind": "Weekday",
+     "overtime_type": "OT 1.5"},
+    {"request": "R1", "overtime_date": "2026-10-09", "status": "Costed", "branch": "Kawempe", "department": "Stores",
+     "employee": "E1", "employee_name": "Zed", "hours": 2, "worked_hours": 0, "clocked": 0, "payable_hours": 0,
+     "hourly_rate": 4000, "multiplier": 2, "amount": 16000, "day_kind": "Public Holiday", "overtime_type": "OT 1.5"},
+    {"request": "R3", "overtime_date": "2026-10-10", "status": "Sent to Payroll", "branch": "Kawempe",
+     "department": "Extrusion", "employee": "E2", "employee_name": "Ben", "hours": 2, "worked_hours": 2, "clocked": 1,
+     "payable_hours": 1, "hourly_rate": 2500, "multiplier": 1.5, "amount": 7500, "day_kind": "Weekday",
+     "overtime_type": "OT 1.5"},
+]
+listed = R.register_rows(LINES)
+if [(row["request"], row["payable_hours"], row["paid_amount"], row["worked_hours"]) for row in listed] != [
+        ("R1", None, None, None), ("R2", 2.0, 7500.0, 2.5), ("R3", 1.0, 3750.0, 2.0)]:
+    fail.append("the register lists by date, says what was paid only of a request sent to payroll and what the clock "
+                "showed only of a day it measured: %s" % listed)
+if [(one["label"], one["value"]) for one in R.register_summary(listed, "UGX")] != [
+        ("Employees", 2), ("Hours Asked", 7.0), ("Hours Paid", 3.0), ("Paid", 11250.0)] \
+        or R.register_summary(listed, "UGX")[3].get("currency") != "UGX":
+    fail.append("the register's figures: who, the hours asked and paid, and what was paid: %s"
+                % R.register_summary(listed, "UGX"))
+if R.register_chart(listed) != {"type": "bar", "colors": ["#1f3a5f"], "data": {
+        "labels": ["Extrusion"], "datasets": [{"name": "Hours Paid", "values": [3.0]}]}} \
+        or R.register_chart(listed[:1]) is not None or R.register_summary([])[0]["value"] != 0:
+    fail.append("the hours paid by department are drawn, and nothing where nothing was paid")
+if R.LEFT_OUT != ("Rejected", "Cancelled") or R.SENT != "Sent to Payroll":
+    fail.append("a request refused or cancelled is left out of the register until its status is asked for")
+REGISTER = os.path.join(APP, "report", "overtime_register")
+spec = json.load(open(os.path.join(REGISTER, "overtime_register.json"), encoding="utf-8"))
+if (spec.get("report_type"), spec.get("ref_doctype"), spec.get("is_standard"), spec.get("module")) != (
+        "Script Report", "Overtime Request", "Yes", "HRMS Addon") \
+        or {row["role"] for row in spec.get("roles") or []} != {"System Manager", "HR Manager", "HR User", "Payroll Officer"}:
+    fail.append("the Overtime Register is a script report on the overtime requests, for HR and the payroll: %s"
+                % {key: spec.get(key) for key in ("report_type", "ref_doctype", "roles")})
+reporting = open(os.path.join(REGISTER, "overtime_register.py"), encoding="utf-8").read()
+for needle, why in (
+    ("requests = {row.name: row for row in frappe.get_list(", "the requests read as the user may read them"),
+    ('conditions["status"] = filters.status if filters.get("status") else ["not in", list(rules.LEFT_OUT)]',
+     "refused and cancelled left out unless asked for"),
+    ('for key in ("employee", "overtime_type", "day_kind"):', "filtered by employee, type and day"),
+    ('if filters.get("department") and department != filters.department:', "and by the employee's own department"),
+    ("start, end = attendance_rules.cycle_window(*attendance_rules.cycle_of(today()))",
+     "the attendance cycle when no dates are picked"),
+    ("return columns(), rows, None, rules.register_chart(rows), rules.register_summary(rows, currency)",
+     "the rules' rows, chart and figures"),
+):
+    if needle not in reporting:
+        fail.append("overtime_register.py: %s (%r not found)" % (why, needle))
+filtering = open(os.path.join(REGISTER, "overtime_register.js"), encoding="utf-8").read()
+if re.findall(r'fieldname: "(\w+)"', filtering) != ["company", "from_date", "to_date", "branch", "department",
+                                                     "overtime_type", "day_kind", "status", "employee"]:
+    fail.append("the register filters by company, dates, plant, department, type, day, status and employee: %s"
+                % re.findall(r'fieldname: "(\w+)"', filtering))
+officer = [row for row in json.load(open(os.path.join(APP, "doctype", "overtime_request", "overtime_request.json"),
+                                         encoding="utf-8"))["permissions"] if row["role"] == "Payroll Officer"]
+if len(officer) != 1 or not all(officer[0].get(key) for key in ("read", "report", "export", "print")) \
+        or any(officer[0].get(key) for key in ("write", "create", "submit", "cancel", "delete")):
+    fail.append("the Payroll Officer reads the overtime requests, to report on them, and changes none: %s" % officer)
+payroll_tab = read("hrms_addon", "hrms_addon", "dashboards_rules.py")
+if '"reports": ("Salary Register", "Overtime Register", "Bank Remittance",' not in payroll_tab \
+        or '"panels": ("attention", "payroll", "payroll_trend", "output", "gross_by_department", "overtime_by_plant"),' \
+        not in payroll_tab or '"Overtime Register": "Overtime Request",' not in payroll_tab:
+    fail.append("the Payroll tab offers the Overtime Register and shows the period's overtime by plant")
+print("the Overtime Register: by date, paid only once sent, the filters, on the Payroll tab")
+
 if fail:
     print("\nFAILURES:")
     for message in fail:

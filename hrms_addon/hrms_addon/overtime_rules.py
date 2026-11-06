@@ -474,6 +474,71 @@ def payable_hours(authorised, worked=None, most=0):
     return whole_hours(hours)
 
 
+# ── The Overtime Register (review item 19) ─────────────────────────────
+# Luuka, 5 Nov 2026: "Provide a provision for overtime filtering on the payroll
+# dashboard". One row for each employee on a request; a request refused or
+# cancelled is left out unless asked for by its status.
+SENT = "Sent to Payroll"
+LEFT_OUT = ("Rejected", "Cancelled")
+
+
+def register_rows(lines):
+    """The register's rows, by date then name.
+
+    lines: each a request's line with its request's "request", "overtime_date",
+    "status", "branch" and the employee's "department". What was paid is said
+    only of a request sent to payroll; what the clock showed only of a day it
+    measured."""
+    out = []
+    for line in sorted(lines or [], key=lambda one: (str(one.get("overtime_date") or ""),
+                                                     one.get("employee_name") or "", one.get("request") or "")):
+        sent = line.get("status") == SENT
+        rate, times = _number(line.get("hourly_rate")), _number(line.get("multiplier"))
+        paid = _number(line.get("payable_hours")) if sent else None
+        out.append({
+            "overtime_date": line.get("overtime_date"), "request": line.get("request"), "status": line.get("status"),
+            "employee": line.get("employee"), "employee_name": line.get("employee_name"),
+            "branch": line.get("branch"), "department": line.get("department"),
+            "day_kind": line.get("day_kind"), "overtime_type": line.get("overtime_type"), "multiplier": times,
+            "hours": _number(line.get("hours")),
+            "worked_hours": _number(line.get("worked_hours")) if _number(line.get("clocked")) else None,
+            "payable_hours": paid, "hourly_rate": rate, "amount": _number(line.get("amount")),
+            "paid_amount": round(paid * rate * times, 2) if sent else None,
+        })
+    return out
+
+
+def register_summary(rows, currency=None):
+    """The figures over the register: who, the hours asked and paid, and what
+    was paid."""
+    rows = rows or []
+    people = len({row.get("employee") for row in rows if row.get("employee")})
+    asked = round(sum(_number(row.get("hours")) for row in rows), 2)
+    paid = round(sum(_number(row.get("payable_hours")) for row in rows), 2)
+    money = round(sum(_number(row.get("paid_amount")) for row in rows), 2)
+    return [
+        {"label": "Employees", "value": people, "datatype": "Int", "indicator": "Blue"},
+        {"label": "Hours Asked", "value": asked, "datatype": "Float", "indicator": "Blue"},
+        {"label": "Hours Paid", "value": paid, "datatype": "Float", "indicator": "Green"},
+        dict({"label": "Paid", "value": money, "datatype": "Currency", "indicator": "Green"},
+             **({"currency": currency} if currency else {})),
+    ]
+
+
+def register_chart(rows, top=12):
+    """The hours paid by department, the most first; nothing to draw, none."""
+    by = {}
+    for row in rows or []:
+        if row.get("payable_hours"):
+            name = row.get("department") or "No department"
+            by[name] = by.get(name, 0.0) + _number(row.get("payable_hours"))
+    if not by:
+        return None
+    names = sorted(by, key=lambda name: (-by[name], name))[:top]
+    return {"type": "bar", "colors": ["#1f3a5f"],
+            "data": {"labels": names, "datasets": [{"name": "Hours Paid", "values": [round(by[name], 2) for name in names]}]}}
+
+
 def reject_errors(status, reason):
     """An overtime sheet is refused while it is still being decided, and
     with the reason. One already with the payroll is on the attendance and

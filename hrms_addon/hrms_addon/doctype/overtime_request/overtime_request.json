@@ -321,7 +321,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-13 14:00:00.000000",
+ "modified": "2026-11-06 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Overtime Request",
@@ -405,6 +405,13 @@
    "role": "Production Manager",
    "write": 1,
    "submit": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "role": "Payroll Officer"
   }
  ],
  "sort_field": "modified",
