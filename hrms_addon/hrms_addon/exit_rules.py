@@ -57,6 +57,73 @@ REASONS = {
     INVOLUNTARY: (DISMISSAL, REDUNDANCY, DESERTION, MEDICAL, END_OF_CONTRACT, DEATH),
 }
 
+# ── The Exit Interview Form (LPL/HR/10) ────────────────────────────────
+# Luuka, 5 Nov 2026: "Under employee exit, exit questionnaire is missing".
+# The type of exit the paper ticks, and the reason for leaving each one stands
+# for; the paper's own "Others (Specify)" for the rest
+OTHERS = "Others"
+EXIT_KINDS = ("Resignation", "Termination", "Abscondment / Desertion", "Retirement", "Dismissal", OTHERS)
+KIND_OF_REASON = {RESIGNATION: "Resignation", RETIREMENT: "Retirement", DISMISSAL: "Dismissal",
+                  DESERTION: "Abscondment / Desertion", REDUNDANCY: "Termination", MEDICAL: "Termination",
+                  END_OF_CONTRACT: OTHERS}
+YES, NO = "Yes", "No"
+# the questions answered Yes or No, each with the field that says why, and when
+# the paper asks why: (number, answer field, explanation field, asked when)
+YES_NO_QUESTIONS = (
+    ("3", "custom_position_as_expected", "custom_position_not_why", (NO,)),
+    ("4", "custom_training_adequate", "custom_training_not_why", (NO,)),
+    ("6", "custom_supervisor_expectations", "custom_supervisor_advice", (NO,)),
+    ("9", "custom_would_recommend", "custom_not_recommend_why", (NO,)),
+    ("11", "custom_would_return", "custom_return_reason", (YES, NO)),
+)
+
+
+def exit_kind(reason):
+    """The type of exit LPL/HR/10 ticks for the separation's reason, and
+    what Others specifies: (kind, other) or (None, None)."""
+    kind = KIND_OF_REASON.get(reason)
+    if not kind:
+        return None, None
+    return kind, (reason if kind == OTHERS else None)
+
+
+def questionnaire_errors(answers):
+    """What the Exit Interview Form still lacks before it goes for approval,
+    as user-facing messages. answers: the interview's custom fields by name."""
+    answers = answers or {}
+    errors = []
+    kind = _text(answers.get("custom_exit_kind"))
+    if kind not in EXIT_KINDS:
+        errors.append("Tick the type of exit.")
+    elif kind == OTHERS and not _text(answers.get("custom_exit_kind_other")):
+        errors.append("Say what the other type of exit is.")
+    if not _text(answers.get("custom_leaving_reasons")):
+        errors.append("Write the reasons for leaving the company (question 5).")
+    for number, answer, why, asked in YES_NO_QUESTIONS:
+        given = _text(answers.get(answer))
+        if given in asked and not _text(answers.get(why)):
+            errors.append("Question %s is answered %s: give the reason." % (number, given))
+    return errors
+
+
+def positions_held(history, current=None, joined=None):
+    """Question 2, the positions held since joining, from the employee's own
+    history in the company, the earliest first, with the one held now last
+    where the history does not end on it. history: [{"designation",
+    "department", "from_date", "to_date"}]; current: {"designation",
+    "department"}."""
+    rows = [{"designation": row.get("designation"), "department": row.get("department"),
+             "from_date": row.get("from_date"), "to_date": row.get("to_date")}
+            for row in history or () if row.get("designation")]
+    rows.sort(key=lambda row: str(row.get("from_date") or ""))
+    current = current or {}
+    if current.get("designation") and (not rows or rows[-1]["designation"] != current["designation"]):
+        rows.append({"designation": current["designation"], "department": current.get("department"),
+                     "from_date": rows[-1]["to_date"] if rows and rows[-1].get("to_date") else joined,
+                     "to_date": None})
+    return rows
+
+
 # minutes §4.13: months served -> days of notice
 NOTICE_PERIODS = ((120, 90), (60, 60), (12, 30), (6, 14), (0, 7))
 

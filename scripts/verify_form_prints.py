@@ -142,8 +142,46 @@ ADVANCE = {
     "accounts_manager_by": "am@luuka", "accounts_manager_on": "2026-10-12", "accounts_manager_remarks": None,
     "paid_on": "2026-10-12"}
 
+EXIT = {
+    "name": "HR-EXIT-INT-0007", "employee": "E1", "employee_name": "John <Okello>", "reports_to": "E2",
+    "department": "Production - LPL", "custom_branch": "Kawempe", "date_of_joining": "2023-01-09",
+    "relieving_date": "2026-10-30", "custom_exit_kind": "Others", "custom_exit_kind_other": "End of Contract",
+    "custom_joined_for": "A steady job near home.",
+    "custom_positions_held": [{"designation": "Helper", "from_date": "2023-01-09", "to_date": "2024-01-31"},
+                              {"designation": "Machine Operator", "from_date": "2024-02-01", "to_date": None}],
+    "custom_position_as_expected": "No", "custom_position_not_why": "More night shifts than I was told.",
+    "custom_training_adequate": "Yes", "custom_leaving_reasons": "Better pay elsewhere.",
+    "custom_supervisor_expectations": "Yes", "custom_liked_most": "The team.", "custom_disliked_most": "The shifts.",
+    "custom_would_recommend": "Yes", "custom_would_return": "Yes", "custom_return_reason": "If the shifts change.",
+    "custom_improvements": "Shift rotas a month ahead.", "custom_employee_signed_on": "2026-10-05",
+    "custom_supervisor_by": "sup@luuka", "custom_supervisor_on": "2026-10-06",
+    "custom_supervisor_remarks": "A good operator.", "custom_hod_by": "hod@luuka", "custom_hod_on": "2026-10-07",
+    "custom_hr_by": "hro@luuka", "custom_hr_on": "2026-10-08", "custom_hr_remarks": "Filed."}
+
 # name: (document, its tables, what the paper says, a document, what the print of it reads)
 PRINTS = {
+    "Exit Interview Form": ("Exit Interview", ("Exit Interview Position",), [
+        "Reference: LPL/HR/10", "Revision: 1", "Issue Date: 14/03/2017", "Revised: 10/04/2021", "EXIT INTERVIEW FORM",
+        "will be kept confidential and used for improving", "Supervisor's Name &amp; Job Title:", "ID No.",
+        "Date of Joining:", "Section/Department/Plant:", "Last Day of Work:", "Type of separation or exit:",
+        "Abscondment / Desertion", "1. What reasons motivated you to join the company?",
+        "2. What position(s) have you held since joining the company?", "Designation / Job Title",
+        "3. Was your position in the Company what you expected it to be?",
+        "4. Were you given adequate training / clear job descriptions",
+        "5. Briefly state your reasons for leaving the company.", "6. Do you feel that your Supervisor / Manager",
+        "7. What did you like most about working with Luuka Plastics Ltd?",
+        "8. What did you dislike about working with Luuka Plastics Ltd?",
+        "9. Would you recommend Luuka Plastics to a friend as a place to work?",
+        "11. Would you work for Luuka Plastics in future?",
+        "12. What areas would you recommend to management or the company for improvement?", "Signature Section",
+        "Head of Department", "HR Officer"], EXIT, [
+        "Name: John &lt;Okello&gt;", "Supervisor's Name &amp; Job Title: Sam Wafula", "ID No. E1",
+        "Section/Department/Plant: Production - LPL / Kawempe", "Last Day of Work: 2026-10-30",
+        "&#10003; Others (End of Contract)", "A steady job near home.", "Helper 2023-01-09 2024-01-31",
+        "Machine Operator 2024-02-01", "More night shifts than I was told.", "Better pay elsewhere.",
+        "Shift rotas a month ahead.", "John &lt;Okello&gt; Employee &nbsp; 2026-10-05",
+        "Denis Wanyama Supervisor &nbsp; 2026-10-06 A good operator.", "Agnes Nanyonga Head of Department",
+        "Harriet Ojok HR Officer &nbsp; 2026-10-08 Filed."]),
     "Off Duty Request Form": ("Off Duty Request", (), [
         "Reference: LPL/HR/25", "Issue Date: 24/4/2017", "EMPLOYEES OFF-DUTY REQUEST FORM", "Badge No.",
         "Absent Date on:", "Paid/Ungranted/Compensation/Annual leave/Compassionate:", "Supervisor",
@@ -188,7 +226,17 @@ PRINTS = {
         "2 month(s), from 2026-11-25", "1 2026-11-25 300,000 Yes", "2 2026-12-25 300,000", "Outstanding 300,000",
         "Ruth Namara Accounts Manager", "Paid on 2026-10-12."]),
 }
-MACROS = ("v(", "day(", "clock(", "who(", "person(", "num(", "zero(", "money(")
+MACROS = ("v(", "day(", "clock(", "who(", "person(", "num(", "zero(", "money(",
+          # the Exit Interview Form's own, which print what was typed through v() (checked below)
+          "answer(", "yes_no(")
+exit_page = json.load(io.open(os.path.join(APP, "print_format", "exit_interview_form", "exit_interview_form.json"),
+                              encoding="utf-8"))["html"]
+for macro in ("answer", "yes_no"):
+    body = exit_page.split("{%%- macro %s(" % macro)[1].split("{%- endmacro -%}")[0]
+    printed_there = [expression.strip() for expression in re.findall(r"\{\{-?(.*?)-?\}\}", body, flags=re.S)]
+    if not printed_there or any(not (expression.startswith("v(") or expression.startswith('"&#10003;"'))
+                                for expression in printed_there):
+        fail.append("the Exit Interview Form's %s() prints what was typed only through v(): %s" % (macro, printed_there))
 NUMERIC = {"Int", "Float", "Percent", "Currency", "Check", "Table"}
 STANDARD = {"name", "docstatus", "doctype", "idx", "parent"}
 hooks = hooks_dict()

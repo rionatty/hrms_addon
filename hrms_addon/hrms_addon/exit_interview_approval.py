@@ -114,8 +114,10 @@ def step_errors(old_state, new_state, facts):
         if not _text(facts.get("return_remarks")):
             errors.append("Write in Return Remarks what must be put right before returning the interview.")
         return errors
-    if new_state == PENDING_SUPERVISOR and not _text(facts.get("interview_summary")):
-        errors.append("The employee fills the exit interview in before it goes for approval.")
+    # the Exit Interview Form (LPL/HR/10), answered: exit_rules.questionnaire_errors
+    if new_state == PENDING_SUPERVISOR and facts.get("questionnaire"):
+        errors.append("The employee fills the exit interview in before it goes for approval: %s"
+                      % " ".join(facts["questionnaire"]))
     return errors
 
 

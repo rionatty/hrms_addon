@@ -393,6 +393,51 @@ for fieldname in ("custom_exit_status", "custom_separation", "custom_supervisor_
                   "custom_hr_by", "custom_return_remarks"):
     if fieldname not in interview:
         fail.append("Exit Interview has no %s, which 4.5 step 4 asks for" % fieldname)
+# the Exit Interview Form (LPL/HR/10), review item 18: a tab of its own, after the signatures, in the paper's order
+asked = ["custom_exit_kind", "custom_exit_kind_other", "custom_joined_for", "custom_positions_held",
+         "custom_leaving_reasons", "custom_liked_most", "custom_disliked_most", "custom_improvements",
+         "custom_employee_signed_on"]
+for _number, answer, why, _asked in E.YES_NO_QUESTIONS:
+    asked += [answer, why]
+for fieldname in asked:
+    if fieldname not in interview:
+        fail.append("Exit Interview has no %s, which LPL/HR/10 asks" % fieldname)
+    elif ('"Exit Interview-%s"' % fieldname) not in read("hrms_addon", "hooks.py"):
+        fail.append("hooks fixtures list Exit Interview-%s" % fieldname)
+if (interview.get("custom_questionnaire_tab") or {}).get("fieldtype") != "Tab Break" \
+        or (interview.get("custom_questionnaire_tab") or {}).get("insert_after") != "custom_return_remarks":
+    fail.append("the questionnaire is a tab of its own, after the signatures")
+if [option for option in (interview.get("custom_exit_kind", {}).get("options") or "").split("\n") if option] \
+        != list(E.EXIT_KINDS):
+    fail.append("the type of exit offers the paper's: %s" % interview.get("custom_exit_kind", {}).get("options"))
+for _number, answer, why, when in E.YES_NO_QUESTIONS:
+    if (interview.get(answer) or {}).get("options") != "\nYes\nNo":
+        fail.append("Exit Interview.%s is Yes or No, blank until answered" % answer)
+    if E.NO in when and "'No'" not in ((interview.get(why) or {}).get("depends_on") or "") and E.YES not in when:
+        fail.append("Exit Interview.%s shows when the answer is No" % why)
+positions = (interview.get("custom_positions_held") or {})
+held = os.path.join(APP, "doctype", "exit_interview_position", "exit_interview_position.json")
+if positions.get("options") != "Exit Interview Position" or not os.path.exists(held) \
+        or not json.load(open(held, encoding="utf-8")).get("istable") \
+        or [f["fieldname"] for f in json.load(open(held, encoding="utf-8"))["fields"]] != [
+            "designation", "department", "from_date", "to_date"]:
+    fail.append("question 2 is a table of the positions held: designation, department, from, to")
+glue_exits = read("hrms_addon", "hrms_addon", "exits.py")
+for needle, where, why in (
+    ("    _fill_questionnaire(doc)\n    _check_interview_step(doc)\n", "def interview_validate(",
+     "the form is filled before the step is judged"),
+    ('kind, other = rules.exit_kind(frappe.db.get_value(SEPARATION, doc.custom_separation, "custom_reason"))',
+     "def _fill_questionnaire(", "the type of exit from the separation's reason"),
+    ('if doc.get("custom_positions_held") or not doc.get("employee") or doc.docstatus != 0:',
+     "def _fill_questionnaire(", "the positions held never written over"),
+    ('"Employee Internal Work History", limit_page_length=0,', "def _fill_questionnaire(",
+     "from the employee's own history"),
+    ('"questionnaire": rules.questionnaire_errors(_answers(doc)),', "def _check_interview_step(",
+     "and the form judged as the interview goes for approval"),
+    ("for _number, answer, why, _asked in rules.YES_NO_QUESTIONS:", "def _answers(", "every question's answer read"),
+):
+    if needle not in glue_exits.split(where)[1].split("\ndef ")[0]:
+        fail.append("exits.py: %s (%r not found)" % (why, needle))
 
 statement_fields = custom_fields("Full and Final Statement")
 for fieldname in ("custom_settlement_status", "custom_separation", "custom_clearance",
@@ -639,10 +684,52 @@ print("glue: fields that exist upstream, the rules followed, the buttons whiteli
 route = walk(IA, IA.DRAFT, (IA.SUBMIT, IA.APPROVE))
 if route != [IA.DRAFT, IA.PENDING_SUPERVISOR, IA.PENDING_HOD, IA.PENDING_HR, IA.APPROVED]:
     fail.append("the exit interview goes Supervisor, HOD, HR Officer: %s" % route)
-expect("an interview sent up empty", IA.step_errors(IA.DRAFT, IA.PENDING_SUPERVISOR, {}),
-       "fills the exit interview in")
+expect("an interview sent up empty",
+       IA.step_errors(IA.DRAFT, IA.PENDING_SUPERVISOR, {"questionnaire": E.questionnaire_errors({})}),
+       "fills the exit interview in before it goes for approval: Tick the type of exit. Write the reasons for leaving")
+ANSWERED = {"custom_exit_kind": "Resignation", "custom_leaving_reasons": "Better pay elsewhere."}
 expect("an interview filled in",
-       IA.step_errors(IA.DRAFT, IA.PENDING_SUPERVISOR, {"interview_summary": "Better pay elsewhere."}))
+       IA.step_errors(IA.DRAFT, IA.PENDING_SUPERVISOR, {"questionnaire": E.questionnaire_errors(ANSWERED)}))
+
+# the Exit Interview Form (LPL/HR/10), review item 18 (Luuka, 5 Nov 2026: "exit questionnaire is missing")
+if E.EXIT_KINDS != ("Resignation", "Termination", "Abscondment / Desertion", "Retirement", "Dismissal", "Others"):
+    fail.append("the types of exit are the paper's: %s" % (E.EXIT_KINDS,))
+for reason, want in ((E.RESIGNATION, ("Resignation", None)), (E.DESERTION, ("Abscondment / Desertion", None)),
+                     (E.REDUNDANCY, ("Termination", None)), (E.MEDICAL, ("Termination", None)),
+                     (E.END_OF_CONTRACT, ("Others", "End of Contract")), (E.DEATH, (None, None)), (None, (None, None))):
+    if E.exit_kind(reason) != want:
+        fail.append("the separation's reason %s is ticked %s on the form, not %s" % (reason, want, E.exit_kind(reason)))
+expect("an other type of exit not said", E.questionnaire_errors(dict(ANSWERED, custom_exit_kind="Others")),
+       "Say what the other type of exit is.")
+expect("an other type of exit said",
+       E.questionnaire_errors(dict(ANSWERED, custom_exit_kind="Others", custom_exit_kind_other="End of Contract")))
+expect("a type of exit the paper does not have", E.questionnaire_errors(dict(ANSWERED, custom_exit_kind="Fired")),
+       "Tick the type of exit.")
+expect("no reasons for leaving", E.questionnaire_errors(dict(ANSWERED, custom_leaving_reasons="  ")),
+       "reasons for leaving the company (question 5)")
+expect("question 3 answered No, with no reason",
+       E.questionnaire_errors(dict(ANSWERED, custom_position_as_expected="No")), "Question 3 is answered No")
+expect("question 3 answered No, with its reason",
+       E.questionnaire_errors(dict(ANSWERED, custom_position_as_expected="No", custom_position_not_why="Night shifts")))
+expect("question 4 answered Yes needs no reason", E.questionnaire_errors(dict(ANSWERED, custom_training_adequate="Yes")))
+expect("questions 6 and 9 answered No",
+       E.questionnaire_errors(dict(ANSWERED, custom_supervisor_expectations="No", custom_would_recommend="No")),
+       "Question 6 is answered No", "Question 9 is answered No")
+expect("question 11 asks the reason either way", E.questionnaire_errors(dict(ANSWERED, custom_would_return="Yes")),
+       "Question 11 is answered Yes")
+expect("questions left unanswered are not asked about", E.questionnaire_errors(ANSWERED))
+HISTORY = [{"designation": "Machine Operator", "department": "PE", "from_date": "2024-02-01", "to_date": "2025-06-30"},
+           {"designation": "Helper", "department": "PE", "from_date": "2023-01-09", "to_date": "2024-01-31"}]
+if E.positions_held(HISTORY, {"designation": "Supervisor", "department": "PE"}, "2023-01-09") != [
+        dict(HISTORY[1]), dict(HISTORY[0]),
+        {"designation": "Supervisor", "department": "PE", "from_date": "2025-06-30", "to_date": None}]:
+    fail.append("the positions held, the earliest first, the one held now last: %s"
+                % E.positions_held(HISTORY, {"designation": "Supervisor", "department": "PE"}, "2023-01-09"))
+if E.positions_held([], {"designation": "Helper"}, "2023-01-09") != [
+        {"designation": "Helper", "department": None, "from_date": "2023-01-09", "to_date": None}] \
+        or E.positions_held(HISTORY[:1], {"designation": "Machine Operator"}) != [dict(HISTORY[0])] \
+        or E.positions_held(None, None) != []:
+    fail.append("one position held since joining is the one held now; a history ending on it is not added to")
 expect("returned without a reason", IA.step_errors(IA.PENDING_HOD, IA.DRAFT, {}), "Return Remarks")
 
 for exit_type, wanted in (

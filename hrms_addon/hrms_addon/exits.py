@@ -15,7 +15,9 @@ each chart (clearance_approval.py).
 
   separation_*  the exit itself: the notice the Act asks for, whether it
                 was served, and the letter an involuntary exit carries.
-  interview_*   the exit interview through Supervisor, HOD and HR Officer.
+  interview_*   the exit interview through Supervisor, HOD and HR Officer,
+                its questions those of the Exit Interview Form (LPL/HR/10)
+                and answered before it goes for approval.
   clearance_*   the ten boxes, the tools of work they pull in, and the
                 chain each exit signs them through.
   daily         a notice period running out, and an exit waiting on its
@@ -139,8 +141,37 @@ def separation_on_cancel(doc, method=None):
 def interview_validate(doc, method=None):
     from hrms_addon.hrms_addon import exit_interview_approval as approval
 
+    _fill_questionnaire(doc)
     _check_interview_step(doc)
     doc.custom_exit_status = doc.get("workflow_state") or doc.get("custom_exit_status") or approval.DRAFT
+
+
+def _fill_questionnaire(doc):
+    """What the Exit Interview Form (LPL/HR/10) can be given before anyone
+    answers it: the type of exit the separation's reason stands for, and the
+    positions held since joining from the employee's own history (question
+    2). Neither is written over once there."""
+    if not doc.get("custom_exit_kind") and doc.get("custom_separation"):
+        kind, other = rules.exit_kind(frappe.db.get_value(SEPARATION, doc.custom_separation, "custom_reason"))
+        if kind:
+            doc.custom_exit_kind = kind
+            doc.custom_exit_kind_other = other
+    if doc.get("custom_positions_held") or not doc.get("employee") or doc.docstatus != 0:
+        return
+    history = frappe.get_all("Employee Internal Work History", limit_page_length=0,
+                             filters={"parenttype": "Employee", "parent": doc.employee},
+                             fields=["designation", "department", "from_date", "to_date"])
+    current = frappe.db.get_value("Employee", doc.employee, ["designation", "department", "date_of_joining"],
+                                  as_dict=True) or {}
+    for row in rules.positions_held(history, current, current.get("date_of_joining")):
+        doc.append("custom_positions_held", row)
+
+
+def _answers(doc):
+    fields = ["custom_exit_kind", "custom_exit_kind_other", "custom_leaving_reasons"]
+    for _number, answer, why, _asked in rules.YES_NO_QUESTIONS:
+        fields += [answer, why]
+    return {field: doc.get(field) for field in fields}
 
 
 def _check_interview_step(doc):
@@ -152,7 +183,7 @@ def _check_interview_step(doc):
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, {
             "return_remarks": doc.get("custom_return_remarks"),
-            "interview_summary": doc.get("interview_summary"),
+            "questionnaire": rules.questionnaire_errors(_answers(doc)),
             **{field: doc.get(field) for field, _who in approval.REMARK_FIELDS.values()},
         })
         if errors:
