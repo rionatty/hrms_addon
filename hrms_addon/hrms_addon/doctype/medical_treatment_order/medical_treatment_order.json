@@ -1,0 +1,358 @@
+{
+ "actions": [],
+ "creation": "2026-11-06 23:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "designation",
+  "department",
+  "column_break_1",
+  "branch",
+  "company",
+  "status",
+  "workflow_state",
+  "treatment_section",
+  "hospital",
+  "complaint",
+  "column_break_2",
+  "safety_incident",
+  "valid_until",
+  "ehs_officer",
+  "issued_section",
+  "issued_by",
+  "issued_on",
+  "column_break_3",
+  "return_remarks",
+  "transport_section",
+  "transport_required",
+  "transport_amount",
+  "column_break_4",
+  "transport_entry",
+  "transport_paid_amount",
+  "transport_paid_on",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-MTO-.YYYY.-",
+   "default": "LPL-MTO-.YYYY.-",
+   "reqd": 1,
+   "print_hide": 1,
+   "no_copy": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation",
+   "fetch_from": "employee.designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "fetch_from": "employee.company",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending EHS Officer\nIssued\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "treatment_section",
+   "fieldtype": "Section Break",
+   "label": "Treatment"
+  },
+  {
+   "fieldname": "hospital",
+   "fieldtype": "Link",
+   "label": "Hospital",
+   "options": "Hospital",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "complaint",
+   "fieldtype": "Small Text",
+   "label": "To Be Treated For",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "safety_incident",
+   "fieldtype": "Link",
+   "label": "Safety Incident",
+   "options": "Safety Incident",
+   "description": "The accident the treatment is for, if any."
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Date",
+   "label": "Valid Until"
+  },
+  {
+   "fieldname": "ehs_officer",
+   "fieldtype": "Link",
+   "label": "EHS Officer",
+   "options": "User",
+   "read_only": 1,
+   "description": "The plant's EHS Officer, filled in from who holds the role for the employee's plant."
+  },
+  {
+   "fieldname": "issued_section",
+   "fieldtype": "Section Break",
+   "label": "Issued"
+  },
+  {
+   "fieldname": "issued_by",
+   "fieldtype": "Link",
+   "label": "Issued By (EHS Officer)",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "issued_on",
+   "fieldtype": "Date",
+   "label": "Issued On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "transport_section",
+   "fieldtype": "Section Break",
+   "label": "Transport to the Hospital",
+   "description": "Paid in cash by the plant's accountant once the order is issued."
+  },
+  {
+   "fieldname": "transport_required",
+   "fieldtype": "Check",
+   "label": "Transport Needed"
+  },
+  {
+   "fieldname": "transport_amount",
+   "fieldtype": "Currency",
+   "label": "Transport Amount",
+   "depends_on": "transport_required",
+   "options": "Company:company:default_currency",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "transport_entry",
+   "fieldtype": "Link",
+   "label": "Cash Entry",
+   "options": "Journal Entry",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "depends_on": "transport_required"
+  },
+  {
+   "fieldname": "transport_paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "depends_on": "transport_required"
+  },
+  {
+   "fieldname": "transport_paid_on",
+   "fieldtype": "Date",
+   "label": "Paid On",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "depends_on": "transport_required"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Medical Treatment Order",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-06 23:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Medical Treatment Order",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "is_submittable": 1,
+ "track_changes": 1,
+ "title_field": "employee_name",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1
+  },
+  {
+   "role": "EHS Officer",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  }
+ ],
+ "default_print_format": "Medical Treatment Order"
+}

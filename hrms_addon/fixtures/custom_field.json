@@ -11400,6 +11400,19 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Journal Entry-custom_medical_treatment_order",
+  "dt": "Journal Entry",
+  "fieldname": "custom_medical_treatment_order",
+  "fieldtype": "Link",
+  "insert_after": "custom_loan_purpose",
+  "label": "Medical Treatment Order",
+  "options": "Medical Treatment Order",
+  "read_only": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Training Result Employee-custom_marks",
   "dt": "Training Result Employee",
   "fieldname": "custom_marks",

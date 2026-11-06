@@ -121,8 +121,6 @@ incident = {"employee": "E1", "incident_on": "2026-06-01 14:00:00", "nature": "C
 expect("an incident that stands", R.incident_errors(incident))
 expect("no account of it", R.incident_errors(dict(incident, nature="")), "what happened")
 expect("taken to hospital, unnamed", R.incident_errors(dict(incident, manageable=0)), "which one")
-expect("compensation followed up for nothing", R.incident_errors(dict(incident, compensation_required=1)),
-       "how much compensation")
 print("the incident: what it must say")
 
 # ── 12 and 16. Approved by the plant's EHS Officer, both reports acknowledged ──
@@ -253,13 +251,29 @@ print("the paper: both reports, their signatures, what changes once recorded")
 
 # the glue
 glue = read("hrms_addon", "hrms_addon", "safety.py")
-known = set(fields) | {"doctype", "name", "docstatus", "owner", "flags"}
-for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
-                        | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
-    if fieldname in ("get", "set", "db_set", "get_doc_before_save", "check_permission", "name", "docstatus"):
+# each function's doc is the document it is handed: the treatment order's
+# and the Cash Entry's functions read theirs, the rest the incident
+ORDER_FUNCTIONS = ("order_validate", "order_on_update", "order_on_submit", "order_on_cancel", "_tell_order",
+                   "make_transport_entry")
+JOURNAL_FUNCTIONS = ("journal_on_submit", "journal_on_cancel")
+journal_fields = upstream_fields("Journal Entry") | {f["fieldname"] for f in custom if f["dt"] == "Journal Entry"}
+for node in ast.parse(glue).body:
+    if not isinstance(node, ast.FunctionDef):
         continue
-    if fieldname not in known:
-        fail.append("safety.py reads or writes %s, which the Safety Incident does not have" % fieldname)
+    source = ast.get_source_segment(glue, node)
+    if node.name in ORDER_FUNCTIONS:
+        name, known = "Medical Treatment Order", set(fields_of("Medical Treatment Order"))
+    elif node.name in JOURNAL_FUNCTIONS:
+        name, known = "Journal Entry", set(journal_fields)
+    else:
+        name, known = "Safety Incident", set(fields)
+    known |= {"doctype", "name", "docstatus", "owner", "flags"}
+    for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', source))
+                            | set(re.findall(r"(?<![\w])doc\.(\w+)\b", source))):
+        if fieldname in ("get", "set", "db_set", "get_doc_before_save", "check_permission", "name", "docstatus"):
+            continue
+        if fieldname not in known:
+            fail.append("safety.py %s reads or writes %s, which the %s does not have" % (node.name, fieldname, name))
 for needle, why in (
     ("if approval.officer_fixed(old_state, new_state):\n        doc.ehs_officer = ehs_officer(doc.get(\"branch\"))",
      "the plant's EHS Officer is named by the role, at every step they take"),
@@ -476,6 +490,203 @@ try:
 except Exception as error:  # noqa: BLE001
     fail.append("the Termination on Medical Grounds letter does not compile or render: %s" % error)
 print("the letter: Luuka's own words, the last day of work, the Executive Director from the settings")
+
+
+# ── 11. The medical treatment order ───────────────────────────────────
+# "Under safety, need a provision for medical treatment order, one employee uses to access the hospital treatment."
+T = load("treatment_approval")
+walked, state = [T.DRAFT], T.DRAFT
+for action in (T.SEND, T.ISSUE):
+    nxt = [t["next_state"] for t in T.TRANSITIONS if t["state"] == state and t["action"] == action]
+    if not nxt:
+        break
+    state = nxt[0]
+    walked.append(state)
+if walked != [T.DRAFT, T.PENDING_EHS, T.ISSUED]:
+    fail.append("a treatment order is sent to the plant's EHS Officer, who issues it: %s" % walked)
+order_docstatus = {row["state"]: str(row.get("doc_status", "0")) for row in T.STATES}
+if [order_docstatus[s] for s in (T.DRAFT, T.PENDING_EHS, T.ISSUED, T.CANCELLED)] != ["0", "0", "1", "2"]:
+    fail.append("an issued order is submitted, a cancelled one cancelled: %s" % order_docstatus)
+if any(row["send_email"] for row in T.STATES):
+    fail.append("no state of the order sends Frappe's own email to every EHS Officer")
+if {t["allowed"] for t in T.TRANSITIONS if t["action"] == T.ISSUE} != {"EHS Officer", "HR Manager"}:
+    fail.append("the order is issued by the EHS Officer, or the HR Manager standing in")
+if not {"Supervisor", "Head of Department", "HR User", "EHS Officer"} <= {
+        t["allowed"] for t in T.TRANSITIONS if t["action"] == T.SEND}:
+    fail.append("the supervisor, the head of department, HR and the EHS Officer may ask for an order")
+facts = {"user": "ehs.kawempe@luuka", "ehs_officer": "ehs.kawempe@luuka", "branch": "Kawempe"}
+expect("the plant's officer issues it", T.step_errors(T.PENDING_EHS, T.ISSUED, facts))
+expect("another plant's officer", T.step_errors(T.PENDING_EHS, T.ISSUED, dict(facts, user="ehs.matugga@luuka")),
+       "Kawempe plant's EHS Officer")
+expect("the HR Manager standing in", T.step_errors(T.PENDING_EHS, T.ISSUED, dict(facts, user="hrm@luuka", is_hrm=1)))
+expect("returned with no reason", T.step_errors(T.PENDING_EHS, T.DRAFT, facts), "Return Remarks")
+expect("sent from a plant with no officer", T.step_errors(T.DRAFT, T.PENDING_EHS, dict(facts, ehs_officer=None)),
+       "No EHS Officer serves the Kawempe plant")
+issued = T.compute_stamps(T.PENDING_EHS, T.ISSUED, "ehs.kawempe@luuka", "2026-12-01", {})
+if (issued["issued_by"], issued["issued_on"]) != ("ehs.kawempe@luuka", "2026-12-01"):
+    fail.append("the officer who issues the order signs and dates it: %s" % issued)
+if T.compute_stamps(T.ISSUED, T.ISSUED, "x", "2026-12-02", issued) != issued:
+    fail.append("a later save keeps the signature as it was")
+if any(T.compute_stamps(T.PENDING_EHS, T.DRAFT, "x", "2026-12-01", issued).values()) \
+        or any(T.compute_stamps(None, T.DRAFT, "x", "2026-12-01", {"issued_by": "forged"}).values()):
+    fail.append("an order sent back, or a new one, carries no signature")
+for old, new, wanted in ((T.DRAFT, T.PENDING_EHS, True), (T.PENDING_EHS, T.ISSUED, True), (T.ISSUED, T.ISSUED, False)):
+    if T.officer_fixed(old, new) != wanted:
+        fail.append("the plant's EHS Officer %s named again on the order's %s -> %s"
+                    % ("is" if wanted else "is not", old, new))
+order = {"employee": "E1", "hospital": "Mengo Hospital", "complaint": "Burn to the arm."}
+expect("an order that stands", R.order_errors(order))
+expect("no hospital", R.order_errors(dict(order, hospital="")), "which hospital")
+expect("nothing to treat", R.order_errors(dict(order, complaint=" ")), "to be treated for")
+expect("transport with no amount", R.order_errors(dict(order, transport_required=1)), "how much the transport")
+expect("someone else's incident", R.order_errors(dict(order, incident_employee="E2")), "someone else")
+expect("their own incident", R.order_errors(dict(order, incident_employee="E1")))
+order_spec = doctype("Medical Treatment Order")
+order_fields = fields_of("Medical Treatment Order")
+if not order_spec.get("is_submittable") or "LPL-MTO-" not in (order_fields.get("naming_series") or {}).get("options", ""):
+    fail.append("the order is a submitted document numbered LPL-MTO-YYYY-")
+if (order_fields.get("hospital") or {}).get("options") != "Hospital" or not (order_fields.get("hospital") or {}).get("reqd"):
+    fail.append("the order names its hospital from the list")
+if (order_fields.get("safety_incident") or {}).get("options") != "Safety Incident":
+    fail.append("the order names the incident it is for, where there is one")
+for fieldname in ("ehs_officer", "issued_by", "issued_on", "transport_entry", "transport_paid_amount",
+                  "transport_paid_on", "status"):
+    if not (order_fields.get(fieldname) or {}).get("read_only"):
+        fail.append("Medical Treatment Order.%s is filled in, not typed" % fieldname)
+for fieldname in ("transport_entry", "transport_paid_amount", "transport_paid_on"):
+    if not (order_fields.get(fieldname) or {}).get("allow_on_submit"):
+        fail.append("Medical Treatment Order.%s is written once the order is issued: allow it on submit" % fieldname)
+if {row["status"] for row in T.STATES} - set((order_fields.get("status") or {}).get("options", "").split("\n")):
+    fail.append("the order's Status must offer every state")
+for role in ("Supervisor", "Head of Department", "HR User", "EHS Officer"):
+    if role not in roles_with(order_spec, "create"):
+        fail.append("%s may ask for a treatment order" % role)
+if "Accounts User" not in roles_with(order_spec, "read"):
+    fail.append("the plant's accountant reads the order whose transport they pay")
+if order_spec.get("default_print_format") != "Medical Treatment Order":
+    fail.append("the order prints as the Medical Treatment Order")
+order_print_path = os.path.join(APP, "print_format", "medical_treatment_order", "medical_treatment_order.json")
+order_print = json.load(io.open(order_print_path, encoding="utf-8")) if os.path.exists(order_print_path) else {}
+html = order_print.get("html") or ""
+if (order_print.get("doc_type"), order_print.get("print_format_type"), order_print.get("standard")) \
+        != ("Medical Treatment Order", "Jinja", "Yes") or not html.startswith("{{ print_control(doc) }}\n"):
+    fail.append("the Medical Treatment Order is a standard Jinja print with its control line first")
+for needle in ("MEDICAL TREATMENT ORDER", "The Doctor in Charge", "To be treated for", "For the hospital",
+               "Diagnosis", "Treatment given", "Light duty", "Unfit for work", "Hospital stamp", "EHS Officer"):
+    if needle not in html:
+        fail.append("the Medical Treatment Order does not say %r" % needle)
+for fieldname in sorted(set(re.findall(r"\bdoc\.(\w+)", html)) - {"name"}):
+    if fieldname not in order_fields:
+        fail.append("the order's print reads doc.%s, which the order does not have" % fieldname)
+order_frappe = type("frappe", (), {
+    "utils": type("utils", (), {"format_date": staticmethod(lambda value: str(value))}),
+    "db": type("db", (), {"get_value": staticmethod(lambda doctype, name, field: "Ed " + name),
+                          "get_single_value": staticmethod(lambda doctype, field: None)}),
+    "get_doc": staticmethod(lambda doctype, name: jinja_subset.wrap({"employee_number": "LPL1834"}))})
+try:
+    render = jinja_subset.compile_template(html)
+    page = render({"doc": jinja_subset.wrap({
+        "name": "LPL-MTO-2026-00001", "employee": "E1", "employee_name": "Grace <Nakato>", "branch": "Kawempe",
+        "department": "Production", "designation": "Operator", "company": "Luuka Plastics Limited",
+        "hospital": "Mengo Hospital", "complaint": "Burn to the arm.", "issued_on": "2026-12-01",
+        "issued_by": "ehs@luuka", "valid_until": None, "safety_incident": "LPL-EHS-2026-00009"}),
+        "frappe": order_frappe})
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S)))
+    for needle in ("LPL-MTO-2026-00001", "Mengo Hospital", "Grace &lt;Nakato&gt;", "Burn to the arm.",
+                   "LPL-EHS-2026-00009", "Ed ehs@luuka, EHS Officer"):
+        if needle not in text:
+            fail.append("the Medical Treatment Order should read %r: %s" % (needle, text))
+except Exception as error:  # noqa: BLE001
+    fail.append("the Medical Treatment Order does not compile or render: %s" % error)
+print("11: the treatment order, issued by the plant's EHS Officer, printed for the hospital")
+
+# ── 15. The transport in cash, the compensation on the insurance ──────
+# "If compensation is required, it should be linked to insurance. Branch accountant makes the employee transport
+# to the hospital payment-normall cash payment." The user: "insuranecy pays the employee not the company."
+transport = {"docstatus": 1, "transport_required": 1, "transport_amount": 15000, "account": "Staff Transport - LPL",
+             "cash_account": "Cash - LPL", "roles": ["Accounts User"]}
+expect("the plant's accountant pays it", R.transport_errors(transport))
+expect("someone else pays it", R.transport_errors(dict(transport, roles=["HR User"])), "accountant pays")
+expect("paid before the order is issued", R.transport_errors(dict(transport, docstatus=0)), "once the order is issued")
+expect("an order needing none", R.transport_errors(dict(transport, transport_required=0)), "needs no transport")
+expect("paid twice", R.transport_errors(dict(transport, transport_entry="ACC-JV-2026-00001")), "paid already")
+expect("no transport account", R.transport_errors(dict(transport, account=None)), "Safety Settings")
+expect("no cash account", R.transport_errors(dict(transport, cash_account=None)), "Default Cash Account")
+paid_rows = [{"account": "Staff Transport - LPL", "debit_in_account_currency": 15000},
+             {"account": "Cash - LPL", "credit_in_account_currency": 15000}]
+if R.transport_paid(paid_rows, "Staff Transport - LPL") != 15000 or R.transport_paid(paid_rows, None) != 0 \
+        or R.transport_paid(paid_rows, "Cash - LPL") != -15000:
+    fail.append("what an entry pays toward the transport is its debit on the transport account")
+claim = {"compensation_required": 1, "compensation_amount": 2000000, "incident_on": "2026-11-02 14:00:00",
+         "claim_status": "Not Lodged"}
+expect("a claim not yet lodged", R.compensation_errors(claim))
+expect("no amount claimed", R.compensation_errors(dict(claim, compensation_amount=0)), "how much compensation")
+expect("lodged with nothing said", R.compensation_errors(dict(claim, claim_status="Lodged")),
+       "which insurance policy", "claim number", "when the claim was lodged")
+lodged = dict(claim, claim_status="Lodged", insurance_policy="Workmen's Compensation 2026", claim_number="CLM-1",
+              claim_lodged_on="2026-11-05", policy_from="2026-01-01", policy_to="2026-12-31")
+expect("lodged on a policy in force", R.compensation_errors(lodged))
+expect("paid with nothing said", R.compensation_errors(dict(lodged, claim_status="Paid")),
+       "how much the insurer paid the employee", "when the insurer paid the employee")
+expect("on a policy that had lapsed", R.compensation_errors(dict(lodged, policy_to="2026-10-31")), "does not cover")
+expect("no compensation, nothing asked", R.compensation_errors({"claim_status": "Lodged"}))
+for fieldname in ("compensation_required", "compensation_amount", "insurance_policy", "insurer", "claim_status",
+                  "claim_number", "claim_lodged_on", "insurer_paid_amount", "insurer_paid_on"):
+    if not (fields.get(fieldname) or {}).get("allow_on_submit"):
+        fail.append("Safety Incident.%s is followed after the incident is recorded: allow it on submit" % fieldname)
+if (fields.get("insurance_policy") or {}).get("options") != "Insurance Policy" \
+        or (fields.get("insurer") or {}).get("fetch_from") != "insurance_policy.insurer":
+    fail.append("the claim is made on an Insurance Policy, its insurer read from it")
+if (fields.get("claim_status") or {}).get("options", "").split("\n") != list(R.CLAIM_STATUSES):
+    fail.append("the claim's status offers %s" % (R.CLAIM_STATUSES,))
+if "insurer pays the employee" not in (fields.get("compensation_section") or {}).get("description", ""):
+    fail.append("the form says the insurer pays the employee, and nothing is booked")
+policy = fields_of("Insurance Policy")
+if not {"policy_name", "insurer", "policy_number", "cover", "valid_from", "valid_to", "enabled"} <= set(policy) \
+        or doctype("Insurance Policy").get("autoname") != "field:policy_name":
+    fail.append("an Insurance Policy has its name, insurer, number, cover and dates")
+settings = doctype("Safety Settings")
+if not settings.get("issingle") or (fields_of("Safety Settings").get("transport_account") or {}).get("options") != "Account":
+    fail.append("Safety Settings says which account the transport cash is booked to")
+for needle, why in (
+    ('@frappe.whitelist(methods=["POST"])\ndef make_transport_entry(order):', "the accountant's entry is drafted on request"),
+    ('"voucher_type": "Cash Entry"', "as a cash payment"),
+    ('"custom_medical_treatment_order": doc.name', "knowing the order it pays for"),
+    ("rules.transport_errors(", "only when the order may be paid"),
+    ('frappe.get_cached_value("Company", doc.company, "default_cash_account")', "out of the company's cash"),
+    ('{"transport_entry": doc.name, "transport_paid_amount": paid,', "the order says it is paid, by what, how much"),
+    ('{"transport_entry": None, "transport_paid_amount": 0,', "and lets go of a cancelled entry"),
+    ("rules.compensation_errors(_claim_facts(doc))", "the claim is checked on every save"),
+    ("workflows.setup_on_migrate(treatment,", "the order's workflow is built on migrate"),
+    ("rules.order_errors(", "the order is judged by its own rules"),
+):
+    if needle not in glue:
+        fail.append("safety.py: %s (%r not found)" % (why, needle[:60]))
+journal_hooks = ((hooks.get("doc_events") or {}).get("Journal Entry") or {})
+if "hrms_addon.hrms_addon.safety.journal_on_submit" not in (journal_hooks.get("on_submit") or []) \
+        or "hrms_addon.hrms_addon.safety.journal_on_cancel" not in (journal_hooks.get("on_cancel") or []):
+    fail.append("a Cash Entry's submit and cancel reach the order it pays for")
+link = next((f for f in custom if f["name"] == "Journal Entry-custom_medical_treatment_order"), {})
+if (link.get("fieldtype"), link.get("options"), link.get("read_only")) != ("Link", "Medical Treatment Order", 1):
+    fail.append("the Cash Entry names its order, read-only")
+if "Journal Entry-custom_medical_treatment_order" not in read("hrms_addon", "hooks.py"):
+    fail.append("the Journal Entry field ships with the fixtures")
+order_form = read("hrms_addon", "hrms_addon", "doctype", "medical_treatment_order", "medical_treatment_order.js")
+if "hrms_addon.hrms_addon.safety.make_transport_entry" not in order_form or 'has_role("Accounts User")' not in order_form:
+    fail.append("the order offers the plant's accountant Pay Transport")
+if 'frappe.new_doc("Medical Treatment Order"' not in read("hrms_addon", "hrms_addon", "doctype", "safety_incident",
+                                                         "safety_incident.js"):
+    fail.append("the incident makes the treatment order the employee takes to hospital")
+controller = read("hrms_addon", "hrms_addon", "doctype", "medical_treatment_order", "medical_treatment_order.py")
+for method in ("validate", "on_update", "on_submit", "on_cancel"):
+    if "    def %s(self):\n        safety.order_%s(self)" % (method, method) not in controller:
+        fail.append("the Medical Treatment Order controller must hand %s to safety.order_%s" % (method, method))
+for name in ("Medical Treatment Order", "Insurance Policy", "Safety Settings"):
+    if carded.get(name) != "Tenure" or sidebarred.get(name) != "Tenure":
+        fail.append("%s belongs on the Tenure page with the safety incident" % name)
+if ("Medical Treatment Order", "back:safety_incident") not in steps:
+    fail.append("Next Steps open the treatment orders an incident gave")
+print("15: the transport paid in cash by the plant's accountant, the claim followed on the insurance")
 
 print()
 if fail:

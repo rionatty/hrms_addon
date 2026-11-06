@@ -1,0 +1,65 @@
+{
+ "actions": [],
+ "creation": "2026-11-06 23:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "transport_account"
+ ],
+ "fields": [
+  {
+   "fieldname": "transport_account",
+   "fieldtype": "Link",
+   "label": "Transport to Hospital Account",
+   "options": "Account",
+   "description": "The expense the plant's accountant books the cash for an employee's transport to hospital to. The cash comes out of the company's default cash account."
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-06 23:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Safety Settings",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1,
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1
+  }
+ ]
+}

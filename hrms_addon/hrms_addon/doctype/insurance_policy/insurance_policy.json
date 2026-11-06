@@ -1,0 +1,129 @@
+{
+ "actions": [],
+ "creation": "2026-11-06 23:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "policy_name",
+  "insurer",
+  "policy_number",
+  "cover",
+  "column_break_1",
+  "valid_from",
+  "valid_to",
+  "enabled",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "policy_name",
+   "fieldtype": "Data",
+   "label": "Policy",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "insurer",
+   "fieldtype": "Data",
+   "label": "Insurer",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "policy_number",
+   "fieldtype": "Data",
+   "label": "Policy Number"
+  },
+  {
+   "fieldname": "cover",
+   "fieldtype": "Select",
+   "label": "Cover",
+   "in_list_view": 1,
+   "options": "\nWorkmen's Compensation\nGroup Personal Accident\nMedical"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From"
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Date",
+   "label": "Valid To"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "In Force",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-06 23:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Insurance Policy",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "field:policy_name",
+ "naming_rule": "By fieldname",
+ "allow_rename": 1,
+ "quick_entry": 1,
+ "search_fields": "insurer",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1
+  },
+  {
+   "role": "EHS Officer",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1
+  }
+ ]
+}

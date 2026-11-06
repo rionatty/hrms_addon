@@ -38,6 +38,13 @@ function ha_safety_separate(frm) {
 frappe.ui.form.on("Safety Incident", {
 	refresh(frm) {
 		const latest = ha_safety_latest_report(frm);
+		if (!frm.is_new() && frm.doc.docstatus < 2) {
+			// the order the employee takes to the hospital (medical_treatment_order.js)
+			frm.add_custom_button(__("Treatment Order"), () => frappe.new_doc("Medical Treatment Order", {
+				employee: frm.doc.employee, safety_incident: frm.doc.name, hospital: frm.doc.hospital,
+				complaint: frm.doc.nature,
+			}), __("Create"));
+		}
 		if (frm.doc.docstatus === 0 && frm.doc.return_remarks) {
 			frm.set_intro(__("Returned: {0}", [frappe.utils.escape_html(frm.doc.return_remarks)]), "orange");
 		} else if (frm.doc.docstatus === 1 && !frm.doc.separation && latest && latest.recommendation === "Unfit for Work") {

@@ -143,6 +143,10 @@ CARDS = {
             ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE),
             # where the injured and the sick are sent (safety.py, review item 13)
             ("Hospital", "Hospital", DOCTYPE),
+            # the order they take there, its transport, and the claim (items 11 and 15)
+            ("Medical Treatment Order", "Medical Treatment Order", DOCTYPE),
+            ("Insurance Policy", "Insurance Policy", DOCTYPE),
+            ("Safety Settings", "Safety Settings", DOCTYPE),
         ]),
         # Frappe HR's Tenure page carries onboarding, grievances and
         # training but nothing about leaving, though their sidebar lists
@@ -617,6 +621,9 @@ SIDEBAR = {
         ("Misconduct Type", "Misconduct Type", DOCTYPE, "Setup", None),
         ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE, "Setup", None),
         ("Hospital", "Hospital", DOCTYPE, "Setup", None),
+        ("Medical Treatment Order", "Medical Treatment Order", DOCTYPE, None, "Safety Incident"),
+        ("Insurance Policy", "Insurance Policy", DOCTYPE, "Setup", None),
+        ("Safety Settings", "Safety Settings", DOCTYPE, "Setup", None),
         ("Onboarding Settings", "Onboarding Settings", DOCTYPE, "Setup", None),
         ("Tool of Work", "Tool of Work", DOCTYPE, "Setup", None),
         ("Tool Provider", "Tool Provider", DOCTYPE, "Setup", None),
@@ -688,7 +695,7 @@ GROUPS = {
         ("Training", "graduation-cap", ["Training Requisition", "Training Needs Assessment", "Training Calendar",
                                         "Monthly Training Schedule"]),
         ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
-                                         "Safety Incident"]),
+                                         "Safety Incident", "Medical Treatment Order"]),
         ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement",
                              "Gratuity", "Serving Notice"]),
     ],

@@ -56,8 +56,6 @@ def incident_errors(facts):
         errors.append("Write what happened; the EHS Officer's report is the record of it.")
     if not facts.get("manageable") and not _text(facts.get("hospital")):
         errors.append("The employee was taken to hospital: say which one.")
-    if facts.get("compensation_required") and not _num(facts.get("compensation_amount")):
-        errors.append("Say how much compensation is being followed up.")
     return errors
 
 
@@ -184,6 +182,100 @@ def last_day_of_work(rows, today):
         days.append(_date(latest.get("report_date")))
     days = [day for day in days if day]
     return max(days) if days else _date(today)
+
+
+# ── the medical treatment order (item 11) ─────────────────────────────
+def order_errors(facts):
+    """Problems with a treatment order, as user-facing messages. facts:
+    "employee", "hospital", "complaint", "transport_required",
+    "transport_amount", "incident_employee" (the employee of the incident
+    it names, if it names one)."""
+    errors = []
+    if not facts.get("employee"):
+        errors.append("Say who the order is for.")
+    if not _text(facts.get("hospital")):
+        errors.append("Say which hospital the order is for.")
+    if not _text(facts.get("complaint")):
+        errors.append("Say what the employee is to be treated for.")
+    if facts.get("transport_required") and _num(facts.get("transport_amount")) <= 0:
+        errors.append("Say how much the transport to the hospital costs.")
+    if facts.get("incident_employee") and facts.get("incident_employee") != facts.get("employee"):
+        errors.append("The safety incident it names happened to someone else.")
+    return errors
+
+
+# ── the transport, paid in cash by the plant's accountant (item 15) ───
+ACCOUNTANTS = ("Accounts User", "Accounts Manager")
+
+
+def transport_errors(facts):
+    """Whether the transport to the hospital may be paid now. facts:
+    "docstatus", "transport_required", "transport_amount", "transport_entry",
+    "account" (Safety Settings' transport account, if it is the order's
+    company's), "cash_account" (the company's default), "roles"."""
+    errors = []
+    if not set(facts.get("roles") or ()) & set(ACCOUNTANTS):
+        errors.append("The plant's accountant pays the transport.")
+    if facts.get("docstatus") != 1:
+        errors.append("The transport is paid once the order is issued.")
+    if not facts.get("transport_required"):
+        errors.append("The order needs no transport.")
+    elif _num(facts.get("transport_amount")) <= 0:
+        errors.append("Say how much the transport is.")
+    if facts.get("transport_entry"):
+        errors.append("The transport is paid already: %s." % facts["transport_entry"])
+    if not facts.get("account"):
+        errors.append("Set the Transport to Hospital Account in Safety Settings, an account of the order's company.")
+    if not facts.get("cash_account"):
+        errors.append("Set the company's Default Cash Account.")
+    return errors
+
+
+def transport_paid(rows, account):
+    """What an entry pays toward the transport: its debits on the transport
+    account, less its credits there."""
+    if not account:
+        return 0.0
+    return round(sum(_num(row.get("debit_in_account_currency")) - _num(row.get("credit_in_account_currency"))
+                     for row in rows or () if row.get("account") == account), 2)
+
+
+# ── the compensation, claimed on the insurance (item 15) ──────────────
+NOT_LODGED, LODGED, APPROVED, REJECTED, PAID = "Not Lodged", "Lodged", "Approved", "Rejected", "Paid"
+CLAIM_STATUSES = (NOT_LODGED, LODGED, APPROVED, REJECTED, PAID)
+
+
+def compensation_errors(facts):
+    """The compensation claimed on the insurance, which the insurer pays to
+    the employee (the user, 5 Nov 2026: "insuranecy pays the employee not
+    the company"): Luuka follow the claim and book nothing. facts:
+    "compensation_required", "compensation_amount", "insurance_policy",
+    "policy_from", "policy_to", "incident_on", "claim_status",
+    "claim_number", "claim_lodged_on", "insurer_paid_amount",
+    "insurer_paid_on"."""
+    if not facts.get("compensation_required"):
+        return []
+    errors = []
+    if _num(facts.get("compensation_amount")) <= 0:
+        errors.append("Say how much compensation is being claimed.")
+    status = facts.get("claim_status") or NOT_LODGED
+    if status != NOT_LODGED:
+        if not facts.get("insurance_policy"):
+            errors.append("Say which insurance policy the claim is made on.")
+        if not _text(facts.get("claim_number")):
+            errors.append("Give the insurer's claim number.")
+        if not _date(facts.get("claim_lodged_on")):
+            errors.append("Say when the claim was lodged.")
+    if status == PAID:
+        if _num(facts.get("insurer_paid_amount")) <= 0:
+            errors.append("Say how much the insurer paid the employee.")
+        if not _date(facts.get("insurer_paid_on")):
+            errors.append("Say when the insurer paid the employee.")
+    day, start, end = _date(facts.get("incident_on")), _date(facts.get("policy_from")), _date(facts.get("policy_to"))
+    if facts.get("insurance_policy") and day and ((start and day < start) or (end and day > end)):
+        errors.append("The policy %s does not cover the accident of %s: it runs from %s to %s."
+                      % (facts["insurance_policy"], day, start or "its start", end or "its end"))
+    return errors
 
 
 def _kept(field, value):

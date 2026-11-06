@@ -54,9 +54,17 @@
   "after_section",
   "sickness_persists",
   "separation",
-  "column_break_4",
+  "compensation_section",
   "compensation_required",
   "compensation_amount",
+  "insurance_policy",
+  "insurer",
+  "column_break_7",
+  "claim_status",
+  "claim_number",
+  "claim_lodged_on",
+  "insurer_paid_amount",
+  "insurer_paid_on",
   "compensation_status",
   "amended_from"
  ],
@@ -411,25 +419,90 @@
    "description": "On the doctor's recommendation only: Separate on Medical Grounds, once the latest report finds the employee unfit for work."
   },
   {
-   "fieldname": "column_break_4",
-   "fieldtype": "Column Break"
+   "fieldname": "compensation_section",
+   "fieldtype": "Section Break",
+   "label": "Compensation and Insurance",
+   "description": "The insurer pays the employee directly: the claim is followed here, and nothing is booked."
   },
   {
    "fieldname": "compensation_required",
    "fieldtype": "Check",
-   "label": "Compensation Required"
+   "label": "Compensation Required",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "compensation_amount",
    "fieldtype": "Currency",
-   "label": "Amount",
+   "label": "Amount Claimed",
+   "depends_on": "compensation_required",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "insurance_policy",
+   "fieldtype": "Link",
+   "label": "Insurance Policy",
+   "options": "Insurance Policy",
+   "depends_on": "compensation_required",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "insurer",
+   "fieldtype": "Data",
+   "label": "Insurer",
+   "fetch_from": "insurance_policy.insurer",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "depends_on": "compensation_required"
+  },
+  {
+   "fieldname": "column_break_7",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "claim_status",
+   "fieldtype": "Select",
+   "label": "Claim Status",
+   "options": "Not Lodged\nLodged\nApproved\nRejected\nPaid",
+   "default": "Not Lodged",
+   "allow_on_submit": 1,
+   "depends_on": "compensation_required",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "claim_number",
+   "fieldtype": "Data",
+   "label": "Claim Number",
+   "allow_on_submit": 1,
+   "depends_on": "compensation_required"
+  },
+  {
+   "fieldname": "claim_lodged_on",
+   "fieldtype": "Date",
+   "label": "Lodged On",
+   "allow_on_submit": 1,
+   "depends_on": "compensation_required"
+  },
+  {
+   "fieldname": "insurer_paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid to the Employee",
+   "allow_on_submit": 1,
+   "depends_on": "compensation_required",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "insurer_paid_on",
+   "fieldtype": "Date",
+   "label": "Paid On",
+   "allow_on_submit": 1,
    "depends_on": "compensation_required"
   },
   {
    "fieldname": "compensation_status",
    "fieldtype": "Data",
-   "label": "Compensation Status",
-   "depends_on": "compensation_required"
+   "label": "Compensation Notes",
+   "depends_on": "compensation_required",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "amended_from",
@@ -443,7 +516,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 22:00:00.000000",
+ "modified": "2026-11-06 23:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Safety Incident",

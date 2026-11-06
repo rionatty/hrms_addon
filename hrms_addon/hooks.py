@@ -1252,6 +1252,7 @@ fixtures = [
                     "Employee Advance-custom_bank_reference",
                     "Journal Entry-custom_employee_loan",
                     "Journal Entry-custom_loan_purpose",
+                    "Journal Entry-custom_medical_treatment_order",
                     # the employee's monthly allowances, managed on their
                     # assignment (standing_allowances.py)
                     "Salary Structure Assignment-custom_allowances_section",
@@ -1931,10 +1932,13 @@ doc_events = {
     "Journal Entry": {
         "on_submit": ["hrms_addon.hrms_addon.advances.payment_on_submit",
                       "hrms_addon.hrms_addon.loans.journal_on_submit",
+                      # the transport to hospital a treatment order paid for (safety.py)
+                      "hrms_addon.hrms_addon.safety.journal_on_submit",
                       # the Leave Advance Processing's bank entry (leave_advances.py)
                       "hrms_addon.hrms_addon.leave_advances.payment_on_submit"],
         "on_cancel": ["hrms_addon.hrms_addon.advances.payment_on_cancel",
                       "hrms_addon.hrms_addon.loans.journal_on_cancel",
+                      "hrms_addon.hrms_addon.safety.journal_on_cancel",
                       "hrms_addon.hrms_addon.leave_advances.payment_on_cancel",
                       # the run that names a bank entry stays when Finance cancel it
                       "hrms_addon.hrms_addon.advance_runs.journal_on_cancel"],

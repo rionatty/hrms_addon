@@ -20,18 +20,28 @@ site.
                 (item 17), with Luuka's letter on the separation
   daily         a rest that ended yesterday with no report since: the
                 doctor's next word is asked for
+  order_*       the Medical Treatment Order an employee takes to the
+                hospital (item 11), issued by the plant's EHS Officer
+  make_transport_entry, journal_on_*
+                the transport to the hospital, paid in cash by the plant's
+                accountant as a Cash Entry (item 15)
 """
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, format_date, getdate, today
+from frappe.utils import add_days, cint, flt, format_date, getdate, today
 
 from hrms_addon.hrms_addon import people, safety_approval as approval, safety_rules as rules
+from hrms_addon.hrms_addon import treatment_approval as treatment
 
 DOCTYPE = approval.DOCTYPE
+ORDER = treatment.DOCTYPE
+JOURNAL = "Journal Entry"
+SETTINGS = "Safety Settings"
 REPORTS = "medical_reports"
-INCIDENT_FIELDS = ("employee", "incident_on", "nature", "manageable", "hospital", "compensation_required",
-                   "compensation_amount")
+INCIDENT_FIELDS = ("employee", "incident_on", "nature", "manageable", "hospital")
+CLAIM_FIELDS = ("compensation_required", "compensation_amount", "insurance_policy", "incident_on", "claim_status",
+                "claim_number", "claim_lodged_on", "insurer_paid_amount", "insurer_paid_on")
 
 
 # ── 1. Each save ──────────────────────────────────────────────────────
@@ -63,6 +73,7 @@ def _take_step(doc):
     if new_state != approval.DRAFT:
         errors += rules.incident_errors({field: doc.get(field) for field in INCIDENT_FIELDS})
         errors += rules.report_errors(rows, doc.get("incident_on"))
+        errors += rules.compensation_errors(_claim_facts(doc))
     if before is not None:
         errors += rules.fixed_row_errors(_rows(before), rows)
     errors += approval.step_errors(old_state, new_state, _step_facts(doc))
@@ -79,6 +90,14 @@ def ehs_officer(branch):
     who serves every plant (people.people_for)."""
     officers = people.people_for(approval.EHS, branch)
     return officers[0] if officers else None
+
+
+def _claim_facts(doc):
+    facts = {field: doc.get(field) for field in CLAIM_FIELDS}
+    if doc.get("insurance_policy"):
+        cover = frappe.db.get_value("Insurance Policy", doc.insurance_policy, ["valid_from", "valid_to"], as_dict=True)
+        facts.update(policy_from=(cover or {}).get("valid_from"), policy_to=(cover or {}).get("valid_to"))
+    return facts
 
 
 def _rows(doc):
@@ -304,9 +323,151 @@ def daily():
                 "unfit for work).").format(doc.get("employee_name") or doc.employee, format_date(ended)))
 
 
-# ── 5. Wiring ─────────────────────────────────────────────────────────
+# ── 5. The medical treatment order (item 11) ──────────────────────────
+def order_validate(doc, method=None):
+    """A treatment order's save: the plant's EHS Officer named, the step
+    checked, the officer's signature from what is saved."""
+    before = doc.get_doc_before_save()
+    old_state = before.get(treatment.STATE_FIELD) if before else None
+    new_state = doc.get(treatment.STATE_FIELD) or treatment.DRAFT
+    if treatment.officer_fixed(old_state, new_state):
+        doc.ehs_officer = ehs_officer(doc.get("branch"))
+    incident_employee = frappe.db.get_value(DOCTYPE, doc.get("safety_incident"), "employee") \
+        if doc.get("safety_incident") else None
+    errors = rules.order_errors({
+        "employee": doc.get("employee"), "hospital": doc.get("hospital"), "complaint": doc.get("complaint"),
+        "transport_required": doc.get("transport_required"), "transport_amount": doc.get("transport_amount"),
+        "incident_employee": incident_employee}) if new_state != treatment.DRAFT else []
+    user = frappe.session.user
+    errors += treatment.step_errors(old_state, new_state, {
+        "user": user, "is_hrm": treatment.HRM in frappe.get_roles(user), "ehs_officer": doc.get("ehs_officer"),
+        "branch": doc.get("branch"), "return_remarks": doc.get("return_remarks")})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(ORDER))
+    current = {field: before.get(field) for field in treatment.ALL_STAMP_FIELDS} if before else {}
+    for field, value in treatment.compute_stamps(old_state, new_state, user, today(), current).items():
+        doc.set(field, value)
+
+
+def order_on_update(doc, method=None):
+    # the save that issues the order is told in order_on_submit
+    if doc.docstatus == 0:
+        _tell_order(doc)
+
+
+def order_on_submit(doc, method=None):
+    _tell_order(doc)
+
+
+def order_on_cancel(doc, method=None):
+    people.withdraw(ORDER, doc.name, [doc.get("ehs_officer")])
+
+
+def _tell_order(doc):
+    """The plant's EHS Officer, the reporter and the plant's accountant, told
+    by name what waits for them."""
+    before = doc.get_doc_before_save()
+    old_state = before.get(treatment.STATE_FIELD) if before else None
+    new_state = doc.get(treatment.STATE_FIELD)
+    if old_state == new_state:
+        return
+    officer, earlier = doc.get("ehs_officer"), before.get("ehs_officer") if before else None
+    who = doc.get("employee_name") or doc.get("employee")
+    if new_state == treatment.PENDING_EHS:
+        message = _("Issue the treatment order for {0} to {1}.").format(who, doc.get("hospital"))
+        users = _unique([officer])
+        people.notify(users, ORDER, doc.name, message)
+        people.assign(ORDER, doc.name, users, message)
+    elif new_state == treatment.ISSUED:
+        people.withdraw(ORDER, doc.name, [earlier, officer])
+        people.notify(_unique([doc.get("owner")]), ORDER, doc.name,
+                      _("The treatment order for {0} to {1} is issued: print it for them to take.").format(
+                          who, doc.get("hospital")))
+        if doc.get("transport_required"):
+            people.notify(_unique(people.people_for(rules.ACCOUNTANTS[0], doc.get("branch"))), ORDER, doc.name,
+                          _("Pay {0}'s transport to {1} in cash, {2}: treatment order {3}.").format(
+                              who, doc.get("hospital"), frappe.utils.fmt_money(doc.get("transport_amount")), doc.name))
+    elif new_state == treatment.DRAFT:
+        people.withdraw(ORDER, doc.name, [earlier, officer])
+        people.notify(_unique([doc.get("owner")]), ORDER, doc.name,
+                      _("The treatment order for {0} was returned: {1}").format(who, doc.get("return_remarks") or ""))
+
+
+# ── 6. The transport, paid in cash by the plant's accountant (item 15) ──
+@frappe.whitelist(methods=["POST"])
+def make_transport_entry(order):
+    """The Cash Entry the plant's accountant pays the employee's transport to
+    the hospital with (item 15: "Branch accountant makes the employee
+    transport to the hospital payment-normall cash payment"), drafted for
+    them to check and submit. The order follows when it is
+    (journal_on_submit)."""
+    doc = frappe.get_doc(ORDER, order)
+    doc.check_permission("read")
+    account = transport_account(doc.company)
+    cash = frappe.get_cached_value("Company", doc.company, "default_cash_account")
+    errors = rules.transport_errors({
+        "docstatus": doc.docstatus, "transport_required": doc.get("transport_required"),
+        "transport_amount": doc.get("transport_amount"), "transport_entry": doc.get("transport_entry"),
+        "account": account, "cash_account": cash, "roles": frappe.get_roles()})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(ORDER))
+    amount = flt(doc.get("transport_amount"))
+    je = frappe.new_doc(JOURNAL)
+    je.update({
+        "voucher_type": "Cash Entry", "company": doc.company, "posting_date": today(),
+        "custom_medical_treatment_order": doc.name,
+        "user_remark": _("Transport to {0} for {1}: medical treatment order {2}").format(
+            doc.get("hospital"), doc.get("employee_name") or doc.employee, doc.name),
+    })
+    je.append("accounts", {"account": account, "debit_in_account_currency": amount, "credit_in_account_currency": 0,
+                           "cost_center": frappe.get_cached_value("Company", doc.company, "cost_center")})
+    je.append("accounts", {"account": cash, "debit_in_account_currency": 0, "credit_in_account_currency": amount})
+    return je.as_dict()
+
+
+def transport_account(company):
+    """Safety Settings' transport account, where it is the company's."""
+    stored = dict(frappe.db.get_singles_dict(SETTINGS) or {}) if frappe.db.exists("DocType", SETTINGS) else {}
+    account = stored.get("transport_account")
+    if account and frappe.db.get_value("Account", account, "company") == company:
+        return account
+    return None
+
+
+def journal_on_submit(doc, method=None):
+    """A Cash Entry for an order's transport, submitted: the order says it
+    is paid, by which entry, how much and when."""
+    order = doc.get("custom_medical_treatment_order")
+    if not order:
+        return
+    target = frappe.get_doc(ORDER, order)
+    account = transport_account(target.company)
+    paid = rules.transport_paid([row.as_dict() for row in doc.get("accounts") or []], account)
+    if paid <= 0:
+        frappe.throw(_("The entry pays nothing to the transport account {0}.").format(account or ""), title=_(ORDER))
+    if target.get("transport_entry") and target.transport_entry != doc.name:
+        frappe.throw(_("The transport for {0} is paid already: {1}.").format(order, target.transport_entry),
+                     title=_(ORDER))
+    frappe.db.set_value(ORDER, order, {"transport_entry": doc.name, "transport_paid_amount": paid,
+                                       "transport_paid_on": doc.posting_date}, update_modified=False)
+
+
+def journal_on_cancel(doc, method=None):
+    """Cancelled: the order lets go of the entry before Frappe looks for
+    documents still linked to it (on_cancel runs first)."""
+    order = doc.get("custom_medical_treatment_order")
+    if not order or not frappe.db.exists(ORDER, order):
+        return
+    if frappe.db.get_value(ORDER, order, "transport_entry") == doc.name:
+        frappe.db.set_value(ORDER, order, {"transport_entry": None, "transport_paid_amount": 0,
+                                           "transport_paid_on": None}, update_modified=False)
+
+
+# ── 7. Wiring ─────────────────────────────────────────────────────────
 def setup_workflows_on_migrate():
-    """after_migrate: the incident's approval by the plant's EHS Officer."""
+    """after_migrate: the incident's and the treatment order's approval by
+    the plant's EHS Officer."""
     from hrms_addon.hrms_addon import workflows
 
     workflows.setup_on_migrate(approval, "Safety Incident workflow")
+    workflows.setup_on_migrate(treatment, "Medical Treatment Order workflow")

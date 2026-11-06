@@ -251,7 +251,11 @@ STEPS = {
     ),
     "Safety Incident": (
         ("Leave Application", "rows:medical_reports.leave_application", "Sick Leave"),
+        ("Medical Treatment Order", "back:safety_incident"),
         ("Employee Separation", "field:separation"),
+    ),
+    "Medical Treatment Order": (
+        ("Journal Entry", "field:transport_entry", "Transport Paid"),
     ),
     # ── attendance ────────────────────────────────────────────────────
     "Attendance Request": (
