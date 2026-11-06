@@ -81,6 +81,8 @@ CARDS = {
         ("Shortlisting", [
             ("Interview Shortlist", "Interview Shortlist", DOCTYPE),
             ("Interview Report", "Interview Report", DOCTYPE),
+            # applications saved to finish later, by email (careers.save_draft)
+            ("Saved Applications", "Job Application Draft", DOCTYPE),
         ]),
         ("Score Sheet Setup", [
             ("Interview Criterion", "Interview Criterion", DOCTYPE),
@@ -349,6 +351,10 @@ CARDS = {
             ("Gratuity", "Gratuity", DOCTYPE),
             ("Gratuity Rule", "Gratuity Rule", DOCTYPE),
         ]),
+        # the overtime asked, measured and paid, filtered (review item 19)
+        ("Overtime", [
+            ("Overtime Register", "Overtime Register", REPORT),
+        ]),
     ],
     "HR Setup": [
         # Frappe HR's own lists an employee is described by, which their
@@ -471,6 +477,7 @@ def report_facts(name):
 SIDEBAR = {
     "Recruitment": [
         ("Interview Shortlist", "Interview Shortlist", DOCTYPE, None, "Job Applicant"),
+        ("Saved Applications", "Job Application Draft", DOCTYPE, None, "Interview Shortlist"),
         ("Interview Report", "Interview Report", DOCTYPE, None, "Interview"),
         ("Interview Criterion", "Interview Criterion", DOCTYPE, "Setup", None),
         ("Interview Criteria Group", "Interview Criteria Group", DOCTYPE, "Setup", None),
@@ -568,6 +575,7 @@ SIDEBAR = {
         ("Sizes and Work Units", "Output Rate", DOCTYPE, "Setup", None),
         ("Output Pay Settings", "Output Pay Settings", DOCTYPE, "Setup", None),
         ("Gratuity Rule", "Gratuity Rule", DOCTYPE, "Setup", None),
+        ("Overtime Register", "Overtime Register", REPORT, "Reports", None),
     ],
     "Tenure": [
         ("Onboarding Review", "Onboarding Review", DOCTYPE, None, "Employee Onboarding"),
@@ -629,8 +637,8 @@ SIDEBAR = {
 GROUPS = {
     "Recruitment": [
         ("Planning", "clipboard-list", ["Job Requisition", "Staffing Plan", "Employee Referral"]),
-        ("Hiring", "briefcase", ["Job Opening", "Job Applicant", "Interview Shortlist", "Interview",
-                                 "Interview Report"]),
+        ("Hiring", "briefcase", ["Job Opening", "Job Applicant", "Job Application Draft", "Interview Shortlist",
+                                 "Interview", "Interview Report"]),
         ("Offers", "handshake", ["Job Offer", "Appointment Letter"]),
     ],
     "Performance": [
