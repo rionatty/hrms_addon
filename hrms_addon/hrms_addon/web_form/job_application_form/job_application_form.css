@@ -24,3 +24,10 @@
 	font-weight: 600;
 	text-decoration: underline;
 }
+
+/* Save for later: where the link is emailed */
+.lpl-save-later-mail { margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--border-color, #d1d8dd);
+  border-radius: 6px; }
+.lpl-save-later-mail p { margin: 0 0 8px; }
+.lpl-save-later-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.lpl-save-later-row input { flex: 1 1 220px; min-width: 0; }

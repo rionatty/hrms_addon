@@ -1764,8 +1764,12 @@ doc_events = {
         # its own number, APP-2026-0001: Frappe HR names an applicant after
         # their email (careers.py)
         "before_insert": "hrms_addon.hrms_addon.careers.number_application",
-        # the CV sent from the website, attached to the applicant (uploads.py)
-        "after_insert": "hrms_addon.hrms_addon.uploads.attach_cv",
+        # the CV sent from the website, attached to the applicant (uploads.py);
+        # applied, the application saved for later goes (careers.py)
+        "after_insert": [
+            "hrms_addon.hrms_addon.uploads.attach_cv",
+            "hrms_addon.hrms_addon.careers.drop_drafts",
+        ],
     },
     "Interview Feedback": {
         # Score sheet (LPL/HR/17): totals, rating and result from the scores
@@ -2119,6 +2123,8 @@ doc_events = {
 # a month before it ends (contracts.py, Onboarding Settings)
 scheduler_events = {
     "daily": [
+        # an application saved for later and not finished in 30 days goes (careers.py)
+        "hrms_addon.hrms_addon.careers.purge_drafts",
         # an employee whose System Status was set without a save gets the
         # Status that goes with it (employee_status.py)
         "hrms_addon.hrms_addon.employee_status.reconcile",

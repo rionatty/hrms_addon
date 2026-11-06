@@ -16,10 +16,13 @@
 //
 // A candidate can leave an application half done and finish it another
 // time. What they have typed, and the CV they attached, is kept on their own
-// device (localStorage, per opening), as they type and when they press Save
-// for later, and comes back when they open the form again. Nothing is sent
-// anywhere until they apply, so no account, code or emailed link is needed;
-// applying, or Discard, clears it.
+// device (localStorage, per opening) as they type, and comes back when they
+// open the form again there. Save for later also emails them a link that
+// brings it back on any phone or computer, screening answers included, for
+// 30 days (careers.save_draft; Luuka, 5 Nov 2026: "an option for temporary
+// saving so that someone can start from there anytime"). The link's key goes
+// only in that email. Applying, or Discard, clears the device's copy; applying
+// removes the saved one.
 
 const HA_APPLY_DRAFT = "hrms_addon:apply:";
 const HA_APPLY_SKIP = ["job_title", "custom_screening_answers"];
@@ -28,9 +31,12 @@ window.hrms_addon_apply = {
 	init() {
 		this.private_uploads();
 		this.save_for_later();
-		const job_opening = frappe.utils.get_query_params().job_title;
+		const params = frappe.utils.get_query_params();
+		const job_opening = params.job_title;
+		// the emailed link first, else what this device kept
+		const restore = () => (params.draft ? this.restore_emailed(params.draft) : this.restore_draft());
 		if (!job_opening) {
-			this.restore_draft();
+			restore();
 			return;
 		}
 		// Most candidates are not logged in, and a guest may not read Job
@@ -42,7 +48,7 @@ window.hrms_addon_apply = {
 			callback: (r) => {
 				this.show_opening(r.message);
 				this.show_questions(r.message);
-				this.restore_draft();
+				restore();
 			},
 		});
 	},
@@ -60,12 +66,8 @@ window.hrms_addon_apply = {
 				.text(__("Save for later"))
 				.on("click", (event) => {
 					event.preventDefault();
-					if (this.save_draft()) {
-						frappe.show_alert({
-							message: __("Saved on this device. Come back to this page any time to finish."),
-							indicator: "green",
-						});
-					}
+					this.save_draft();
+					this.email_panel();
 				})
 				.insertBefore(submit);
 		});
@@ -89,6 +91,91 @@ window.hrms_addon_apply = {
 		}
 	},
 
+	// what is sent to be kept: the form's values, and the screening answers
+	// by question
+	draft_values() {
+		const values = frappe.web_form.get_values(true) || {};
+		const answers = {};
+		(values.custom_screening_answers || []).forEach((row) => {
+			if (row.question_id && row.answer) answers[row.question_id] = row.answer;
+		});
+		HA_APPLY_SKIP.forEach((fieldname) => delete values[fieldname]);
+		values.custom_screening_answers = answers;
+		return values;
+	},
+
+	// where to send the link: the email typed on the form, and a button
+	email_panel() {
+		const shown = $(".lpl-save-later-mail");
+		if (shown.length) {
+			shown.find("input").trigger("focus");
+			return;
+		}
+		const panel = $(
+			'<div class="lpl-save-later-mail"><p></p><div class="lpl-save-later-row">' +
+				'<input type="email" class="form-control input-sm">' +
+				'<button type="button" class="btn btn-primary btn-sm"></button></div></div>'
+		);
+		panel
+			.find("p")
+			.text(__("We will email you a link that opens your application on any phone or computer, for 30 days."));
+		panel
+			.find("input")
+			.val((frappe.web_form.get_values(true) || {}).email_id || "")
+			.attr("placeholder", __("Your email"));
+		panel
+			.find("button")
+			.text(__("Email me the link"))
+			.on("click", () => this.email_link(panel));
+		panel.insertAfter($(".web-form-actions").first());
+		panel.find("input").trigger("focus");
+	},
+
+	email_link(panel) {
+		const email = (panel.find("input").val() || "").trim();
+		if (!email) {
+			frappe.show_alert({ message: __("Give the email address to send the link to."), indicator: "orange" });
+			return;
+		}
+		frappe.call({
+			method: "hrms_addon.hrms_addon.careers.save_draft",
+			type: "POST",
+			args: {
+				email: email,
+				job_opening: frappe.utils.get_query_params().job_title || null,
+				values: JSON.stringify(this.draft_values()),
+			},
+			btn: panel.find("button"),
+			callback: (r) => {
+				panel.remove();
+				frappe.show_alert({
+					message: __("Saved. The link is on its way to {0}.", [(r.message || {}).sent_to || email]),
+					indicator: "green",
+				});
+			},
+		});
+	},
+
+	// the emailed link: the application as it was saved, while it is kept
+	restore_emailed(key) {
+		frappe.call({
+			method: "hrms_addon.hrms_addon.careers.load_draft",
+			args: { key: key },
+			callback: (r) => {
+				const found = r.message || {};
+				if (!found.values) {
+					frappe.show_alert({
+						message: __("That link has expired. Anything kept on this device is shown."),
+						indicator: "orange",
+					});
+					this.restore_draft();
+					return;
+				}
+				this.apply_values(found.values);
+			},
+		});
+	},
+
 	restore_draft() {
 		let draft = null;
 		try {
@@ -96,14 +183,26 @@ window.hrms_addon_apply = {
 		} catch (error) {
 			draft = null;
 		}
-		const values = (draft && draft.values) || {};
+		this.apply_values((draft && draft.values) || {});
+	},
+
+	// values kept, back on the form, and the screening answers on their questions
+	apply_values(values) {
+		const answers = values.custom_screening_answers || {};
 		const fieldnames = Object.keys(values).filter(
 			(fieldname) => !HA_APPLY_SKIP.includes(fieldname) && frappe.web_form.fields_dict[fieldname]
 		);
-		if (!fieldnames.length) return;
+		const grid = (frappe.web_form.fields_dict.custom_screening_answers || {}).grid;
+		const rows = (grid && grid.df.data) || [];
+		const answered = rows.filter((row) => answers[row.question_id]);
+		if (!fieldnames.length && !answered.length) return;
 		const wanted = {};
 		fieldnames.forEach((fieldname) => (wanted[fieldname] = values[fieldname]));
 		frappe.web_form.set_values(wanted);
+		if (answered.length) {
+			answered.forEach((row) => (row.answer = answers[row.question_id]));
+			grid.refresh();
+		}
 		const note = $('<div class="lpl-apply-draft"></div>')
 			.text(__("Your saved application is back. "))
 			.append(

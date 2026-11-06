@@ -6,14 +6,28 @@
 The page itself is templates/generators/job_opening.html; the form is the
 Web Form job_application_form. This supplies them with data, and makes the
 job list the site's home for a visitor who is not signed in (home_page).
+
+  save_draft / load_draft  Save for later: the application kept against the
+                    candidate's email, and a link emailed that brings it back
+                    on any device for 30 days (application_draft_rules.py)
+  drop_drafts       Job Applicant after_insert: applied, the saved one goes
+  purge_drafts      daily: one kept past its days goes
 """
 
-import frappe
-from frappe.model.naming import make_autoname
-from frappe.utils import format_date, get_url, getdate
+import json
 
+import frappe
+from frappe import _
+from frappe.model.naming import make_autoname
+from frappe.rate_limiter import rate_limit
+from frappe.utils import format_date, get_url, getdate, now_datetime, today
+
+from hrms_addon.hrms_addon import application_draft_rules as drafts
 from hrms_addon.hrms_addon import jd_rules
 from hrms_addon.hrms_addon import opening_rules
+
+DRAFT = "Job Application Draft"
+APPLY_FORM = "job-application-form"
 
 
 # the job list, www/jobs
@@ -108,6 +122,75 @@ def posting_details_of(designation):
         specification_order=frappe.get_all("JD Specification Type", order_by="creation asc", pluck="name"),
         category_order=frappe.get_all("JD Competency Category", order_by="creation asc", pluck="name"),
     )
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+@rate_limit(limit=10, seconds=60 * 60)
+def save_draft(email=None, job_opening=None, values=None):
+    """Save for later (Luuka, 5 Nov 2026: "an option for temporary saving so
+    that someone can start from there anytime"): what the candidate has typed
+    is kept against their email and the opening, and a link that brings it
+    back is emailed to them. The key travels only in that email: the answer
+    here never carries it."""
+    email = str(email or "").strip().lower()
+    if job_opening and not frappe.db.exists("Job Opening", {"name": job_opening, "publish": 1}):
+        frappe.throw(_("This opening is not on the careers page."))
+    kept = drafts.kept_values(values, _form_fields())
+    errors = drafts.draft_errors(email, kept)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_("Save for later"))
+    name = frappe.db.get_value(DRAFT, {"email": email, "job_opening": job_opening or ["is", "not set"]}, "name")
+    doc = frappe.get_doc(DRAFT, name) if name else frappe.new_doc(DRAFT)
+    doc.update({"email": email, "job_opening": job_opening or None, "saved_values": json.dumps(kept),
+                "expires_on": drafts.expires_on(today()), "sent_on": now_datetime()})
+    if not doc.get("draft_key"):
+        doc.draft_key = frappe.generate_hash(length=drafts.KEY_LENGTH)
+    doc.flags.ignore_permissions = True
+    doc.save() if name else doc.insert()
+    title = frappe.db.get_value("Job Opening", job_opening, "job_title") if job_opening else None
+    frappe.sendmail(
+        recipients=[email], subject=_("Finish your application{0}").format(" for %s" % title if title else ""),
+        message=_("<p>Your application is saved. Open this link on any phone or computer to finish it, until "
+                  "{0}:</p><p><a href=\"{1}\">{1}</a></p><p>If you did not ask for this, you can ignore this "
+                  "email.</p>").format(format_date(doc.expires_on, "d MMM, YYYY"),
+                                       drafts.link(get_url(), job_opening, doc.draft_key)))
+    return {"sent_to": email, "kept_until": str(doc.expires_on)}
+
+
+@frappe.whitelist(allow_guest=True)
+@rate_limit(limit=30, seconds=60 * 60)
+def load_draft(key=None):
+    """What a saved application's link brings back: the opening and the
+    answers, while it is kept; nothing for a key that is not there."""
+    if not drafts.usable_key(key):
+        return {}
+    found = frappe.db.get_value(DRAFT, {"draft_key": key}, ["job_opening", "saved_values", "expires_on"], as_dict=True)
+    if not found or drafts.expired(found.expires_on, today()):
+        return {}
+    try:
+        values = json.loads(found.saved_values or "{}")
+    except ValueError:
+        values = {}
+    return {"job_opening": found.job_opening, "values": values}
+
+
+def drop_drafts(doc, method=None):
+    """Job Applicant after_insert: applied, the application saved for later
+    goes."""
+    if doc.get("email_id"):
+        frappe.db.delete(DRAFT, {"email": str(doc.email_id).strip().lower(),
+                                 "job_opening": doc.get("job_title") or ["is", "not set"]})
+
+
+def purge_drafts():
+    """Daily: an application saved and not finished in its days goes."""
+    frappe.db.delete(DRAFT, {"expires_on": ["<", today()]})
+
+
+def _form_fields():
+    """The fields the Job Application Form asks for."""
+    return [row.fieldname for row in frappe.get_all("Web Form Field", filters={
+        "parenttype": "Web Form", "parent": APPLY_FORM}, fields=["fieldname"], limit_page_length=0) if row.fieldname]
 
 
 @frappe.whitelist(allow_guest=True)

@@ -465,9 +465,11 @@ for needle, why in (
 ):
     if needle not in uploads:
         fail.append("uploads.py %s" % why)
-if (ast.literal_eval(hooks["doc_events"]) if "doc_events" in hooks else {}).get("Job Applicant", {}).get(
-        "after_insert") != "hrms_addon.hrms_addon.uploads.attach_cv":
-    fail.append("a Job Applicant made from the website must have its CV attached (uploads.attach_cv after_insert)")
+after_insert = (ast.literal_eval(hooks["doc_events"]) if "doc_events" in hooks else {}).get("Job Applicant", {}).get(
+    "after_insert")
+if after_insert != ["hrms_addon.hrms_addon.uploads.attach_cv", "hrms_addon.hrms_addon.careers.drop_drafts"]:
+    fail.append("a Job Applicant made from the website must have its CV attached (uploads.attach_cv after_insert), "
+                "and the application saved for later go (careers.drop_drafts): %s" % (after_insert,))
 for needle, why in (
         ('$(\'<button type="button" class="lpl-save-later btn btn-default btn-sm ml-2"></button>\')',
          "a Save for later button beside Submit"),
@@ -558,6 +560,95 @@ if len(versions) != 1:
 print("the top bar: Home opens the job list for a visitor, Login hidden by Website Settings, one careers.css version")
 
 print()
+# ── Save for later, by email (review item 2) ──────────────────────────
+# Luuka, 5 Nov 2026: "When applying for JOB, there need be an option for temporary saving so that someone can start
+# from there anytime": the application kept against the candidate's email, and a link that brings it back anywhere
+D = load("application_draft_rules", os.path.join(APP, "application_draft_rules.py"))
+FORM = ["job_title", "applicant_name", "email_id", "phone_number", "cover_letter", "custom_screening_answers"]
+for label, got, want in (
+    ("the form's fields kept, the opening and empties not",
+     D.kept_values({"job_title": "HR-OPN-1", "applicant_name": "Ann", "phone_number": "", "unknown": "x",
+                    "email_id": "ann@example.com"}, FORM),
+     {"applicant_name": "Ann", "email_id": "ann@example.com"}),
+    ("the screening answers by question, as the form's rows send them",
+     D.kept_values({"applicant_name": "Ann", "custom_screening_answers": [
+         {"question_id": "Q1", "answer": "Yes"}, {"question_id": "Q2", "answer": ""}, {"answer": "No"}]}, FORM),
+     {"applicant_name": "Ann", "custom_screening_answers": {"Q1": "Yes"}}),
+    ("or as the script gathers them", D.kept_values('{"custom_screening_answers": {"Q1": "4"}}', FORM),
+     {"custom_screening_answers": {"Q1": "4"}}),
+    ("no answers, no answers kept", D.kept_values({"custom_screening_answers": []}, FORM), {}),
+    ("nothing readable, nothing kept", D.kept_values("not json", FORM), {}),
+    ("nor from a list", D.kept_values([1, 2], FORM), {}),
+):
+    if got != want:
+        fail.append("what is kept for later: %s: %s, not %s" % (label, got, want))
+for label, got, want in (
+    ("an email and something typed", D.draft_errors("ann@example.com", {"applicant_name": "Ann"}), []),
+    ("no email", D.draft_errors("", {"applicant_name": "Ann"}), ["Give the email address to send the link to."]),
+    ("not an email", D.draft_errors("ann.example.com", {"applicant_name": "Ann"}),
+     ["Give the email address to send the link to."]),
+    ("nothing typed", D.draft_errors("ann@example.com", {}), ["Nothing has been filled in yet."]),
+    ("too long to keep", D.draft_errors("ann@example.com", {"cover_letter": "x" * (D.MOST_CHARS + 1)}),
+     ["The application is too long to save. Shorten the longest answers."]),
+):
+    if got != want:
+        fail.append("saving for later: %s: %s, not %s" % (label, got, want))
+if (str(D.expires_on("2026-11-06")), D.KEEP_DAYS, D.KEY_LENGTH) != ("2026-12-06", 30, 32):
+    fail.append("a saved application is kept 30 days, under a key of 32")
+if not D.expired("2026-11-05", "2026-11-06") or D.expired("2026-11-06", "2026-11-06") or not D.expired(None, "2026-11-06"):
+    fail.append("a saved application lasts to the end of its last day")
+if not D.usable_key("a" * 32) or D.usable_key("a" * 31) or D.usable_key("a" * 31 + "/") or D.usable_key(None):
+    fail.append("only a key of the shape sent is looked up")
+if D.link("https://careers.example.com/", "HR-OPN-2026-0001", "k" * 32) \
+        != "https://careers.example.com/apply/new?job_title=HR-OPN-2026-0001&draft=" + "k" * 32 \
+        or D.link("https://x.com", "A&B C", "k") != "https://x.com/apply/new?job_title=A%26B%20C&draft=k" \
+        or D.link("https://x.com", None, "k") != "https://x.com/apply/new?draft=k":
+    fail.append("the emailed link opens the form for the opening, with the key")
+careers = read(os.path.join(APP, "careers.py"))
+for needle, where, why in (
+    ('@frappe.whitelist(allow_guest=True, methods=["POST"])\n@rate_limit(limit=10, seconds=60 * 60)\ndef save_draft(',
+     None, "a candidate saves without signing in, by POST, ten times an hour at most"),
+    ('if job_opening and not frappe.db.exists("Job Opening", {"name": job_opening, "publish": 1}):',
+     "def save_draft(", "only for an opening on the careers page"),
+    ("kept = drafts.kept_values(values, _form_fields())", "def save_draft(", "only the form's own fields kept"),
+    ("doc.draft_key = frappe.generate_hash(length=drafts.KEY_LENGTH)", "def save_draft(", "under a key of its own"),
+    ("drafts.link(get_url(), job_opening, doc.draft_key)", "def save_draft(", "which only the email carries"),
+    ('return {"sent_to": email, "kept_until": str(doc.expires_on)}', "def save_draft(", "never in the answer"),
+    ("@frappe.whitelist(allow_guest=True)\n@rate_limit(limit=30, seconds=60 * 60)\ndef load_draft(", None,
+     "the link brings it back, thirty times an hour at most"),
+    ("if not drafts.usable_key(key):", "def load_draft(", "a key of the shape sent"),
+    ("if not found or drafts.expired(found.expires_on, today()):", "def load_draft(", "while it is kept"),
+    ('frappe.db.delete(DRAFT, {"expires_on": ["<", today()]})', "def purge_drafts(", "then it goes"),
+    ('frappe.db.delete(DRAFT, {"email": str(doc.email_id).strip().lower(),', "def drop_drafts(", "and once applied"),
+):
+    body = careers if where is None else careers.split(where)[1].split("\ndef ")[0]
+    if needle not in body:
+        fail.append("careers.py: %s (%r not found)" % (why, needle))
+scheduled = ast.literal_eval(hooks["scheduler_events"]) if "scheduler_events" in hooks else {}
+if "hrms_addon.hrms_addon.careers.purge_drafts" not in scheduled.get("daily", []):
+    fail.append("a saved application past its days is cleared daily")
+draft_spec = json.load(open(os.path.join(APP, "doctype", "job_application_draft", "job_application_draft.json"),
+                            encoding="utf-8"))
+draft_fields = {f["fieldname"]: f for f in draft_spec["fields"]}
+if {p["role"] for p in draft_spec["permissions"]} != {"System Manager", "HR Manager", "HR User"} \
+        or any(p.get(key) for p in draft_spec["permissions"] for key in ("write", "create")) \
+        or not draft_fields["draft_key"].get("unique") or not draft_fields["draft_key"].get("hidden"):
+    fail.append("a saved application is read by HR only, made only by the careers page, its key hidden and its own")
+for needle, why in (
+    ("this.email_panel();", "Save for later asks where to email the link"),
+    ('method: "hrms_addon.hrms_addon.careers.save_draft",', "and saves it there"),
+    ("values: JSON.stringify(this.draft_values()),", "with the screening answers"),
+    ('const restore = () => (params.draft ? this.restore_emailed(params.draft) : this.restore_draft());',
+     "the emailed link first, else what the device kept"),
+    ('method: "hrms_addon.hrms_addon.careers.load_draft",', "the link read back"),
+    ("answered.forEach((row) => (row.answer = answers[row.question_id]));", "the answers back on their questions"),
+):
+    if needle not in script:
+        fail.append("job_application_form.js: %s (%r not found)" % (why, needle))
+if ".lpl-save-later-mail" not in style:
+    fail.append("job_application_form.css must style where the link is emailed")
+print("save for later: kept against the email, a link of its own, the answers back, cleared once applied or expired")
+
 if fail:
     print("FAILURES:")
     for f in fail:
