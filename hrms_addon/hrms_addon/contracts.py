@@ -8,7 +8,9 @@ scripts/verify_contracts.py):
 
   validate          the end from the Employment Type's usual length, the
                     duration, no two live contracts at once, and the signed
-                    copy before it is submitted
+                    copy before it is submitted, unless it was signed before
+                    the system: an existing contract, recorded (imported) so
+                    its end is watched like any other's
   on_submit         the Employee's Contract End Date; a renewal marks the
                     contract it renews Renewed
   on_cancel         both undone
@@ -61,6 +63,7 @@ def validate(doc):
         "submitting": doc.docstatus == 1,
         "signed_on": doc.get("signed_on"),
         "signed_contract": doc.get("signed_contract"),
+        "signed_before_system": doc.get("signed_before_system"),
         "overlaps": rules.overlaps(doc.start_date, doc.get("end_date"), others) if doc.get("start_date") else [],
     }, today())
     if errors:
@@ -114,8 +117,9 @@ def _update_employee(doc):
 def _assign_salary(doc):
     """A new base on a signed contract is a new assignment from its start
     date, on whatever structure the employee is already on. Nothing is
-    assumed where they are on none."""
-    if not doc.get("base_salary"):
+    assumed where they are on none, and nothing changed by a contract signed
+    before the system: what they are paid is what their assignments say."""
+    if not doc.get("base_salary") or doc.get("signed_before_system"):
         return
     latest = frappe.get_all("Salary Structure Assignment",
                             filters={"employee": doc.employee, "docstatus": 1},
@@ -165,7 +169,7 @@ def make_renewal(contract):
     start, end = rules.renewal_dates(old.end_date, _usual_months(old.employment_type))
     renewal = frappe.copy_doc(old)
     renewal.update({"start_date": start, "end_date": end, "renewal_of": old.name, "signed_on": None,
-                    "signed_contract": None, "decision_remarks": None, "alerts_sent": None,
+                    "signed_contract": None, "signed_before_system": 0, "decision_remarks": None, "alerts_sent": None,
                     "evaluated_on": None, "evaluated_by": None, "last_appraisal": None,
                     "last_appraisal_score": None, "last_appraisal_band": None,
                     "recommendation": None, "engaged_on": None, "engaged_by": None,

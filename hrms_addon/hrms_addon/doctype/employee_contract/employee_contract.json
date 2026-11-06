@@ -24,6 +24,7 @@
   "contract_template",
   "terms",
   "signing_section",
+  "signed_before_system",
   "signed_on",
   "column_break_3",
   "signed_contract",
@@ -183,6 +184,13 @@
    "fieldname": "signing_section",
    "fieldtype": "Section Break",
    "label": "Signed Contract"
+  },
+  {
+   "fieldname": "signed_before_system",
+   "fieldtype": "Check",
+   "label": "Signed Before the System",
+   "description": "An existing contract, recorded so its end is watched. It is submitted without the signed copy.",
+   "in_standard_filter": 1
   },
   {
    "fieldname": "signed_on",
@@ -374,7 +382,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-20 16:00:00.000000",
+ "modified": "2026-11-06 14:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Contract",

@@ -125,7 +125,17 @@ expect("submitted unsigned", C.contract_errors(dict(FACTS, submitting=True), TOD
 expect("signed tomorrow", C.contract_errors(dict(FACTS, submitting=True, signed_on="2026-10-02", signed_contract="/private/files/c.pdf"), TODAY),
        "The date signed cannot be in the future.")
 expect("submitted signed", C.contract_errors(dict(FACTS, submitting=True, signed_on=TODAY, signed_contract="/private/files/c.pdf"), TODAY))
-print("dates and checks: usual lengths, renewal dates, overlaps, the signed copy before submitting")
+# Luuka, 5 Nov 2026 (review item 1): an existing contract is recorded, signed before the system, so its end is watched
+EXISTING = dict(FACTS, submitting=True, signed_before_system=1)
+expect("an existing contract recorded without its copy or date", C.contract_errors(EXISTING, TODAY))
+expect("with the date it was signed", C.contract_errors(dict(EXISTING, signed_on="2025-10-01"), TODAY))
+expect("signed tomorrow all the same", C.contract_errors(dict(EXISTING, signed_on="2026-10-02"), TODAY),
+       "The date signed cannot be in the future.")
+expect("an existing contract still needs its end", C.contract_errors(dict(EXISTING, end_date=None), TODAY), "Set the End Date")
+expect("nor two at once", C.contract_errors(dict(EXISTING, overlaps=["HR-CON-1"]), TODAY), "HR-CON-1")
+expect("a draft of one signed before the system", C.contract_errors(dict(EXISTING, submitting=False), TODAY))
+print("dates and checks: usual lengths, renewal dates, overlaps, the signed copy before submitting, unless signed "
+      "before the system")
 
 # ── 3. The DocType ────────────────────────────────────────────────────
 folder = os.path.join(APP, "doctype", "employee_contract")
@@ -146,6 +156,19 @@ for name, (fieldtype, options) in {"employee": ("Link", "Employee"), "employment
                                    "branch": ("Link", "Branch")}.items():
     if (ec.get(name, {}).get("fieldtype"), ec.get(name, {}).get("options") or None) != (fieldtype, options):
         fail.append("Employee Contract.%s must be %s %s" % (name, fieldtype, options or ""))
+existing = ec.get("signed_before_system") or {}
+if (existing.get("fieldtype"), existing.get("label")) != ("Check", "Signed Before the System") \
+        or EC["field_order"].index("signed_before_system") != EC["field_order"].index("signing_section") + 1:
+    fail.append("the contract says, first in its Signed Contract section, whether it was signed before the system: %s"
+                % existing)
+for needle, where, why in (
+    ('"signed_before_system": doc.get("signed_before_system"),', "def validate(", "the contract is judged knowing it"),
+    ('if not doc.get("base_salary") or doc.get("signed_before_system"):', "def _assign_salary(",
+     "a contract recorded from before the system changes no one's pay"),
+    ('"signed_contract": None, "signed_before_system": 0,', "def make_renewal(", "and its renewal is signed afresh"),
+):
+    if needle not in read("hrms_addon", "hrms_addon", "contracts.py").split(where)[1].split("\ndef ")[0]:
+        fail.append("contracts.py: %s (%r not found)" % (why, needle))
 if ec.get("terms", {}).get("fetch_from") != "contract_template.contract_terms" or ec.get("branch", {}).get("fetch_from") != "employee.branch":
     fail.append("the terms come from the Contract Template, the branch from the Employee (Branch permissions apply)")
 perms = {p["role"]: p for p in EC["permissions"]}

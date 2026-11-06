@@ -106,8 +106,9 @@ def contract_errors(facts, today):
 
     facts: "start_date", "end_date", "open_ended" (the Employment Type has
     no usual length), "submitting", "signed_on", "signed_contract",
-    "overlaps" ([names of the employee's other live contracts covering these
-    dates]).
+    "signed_before_system" (an existing contract, recorded so its end is
+    watched: there may be no copy to attach), "overlaps" ([names of the
+    employee's other live contracts covering these dates]).
     """
     errors = []
     start, end = facts.get("start_date"), facts.get("end_date")
@@ -119,11 +120,13 @@ def contract_errors(facts, today):
         errors.append("The employee already has a contract for these dates: %s. Renew it instead, or cancel it first."
                       % ", ".join(facts["overlaps"]))
     if facts.get("submitting"):
+        existing = facts.get("signed_before_system")
         if not facts.get("signed_on"):
-            errors.append("Record the date the employee signed the contract before submitting it.")
+            if not existing:
+                errors.append("Record the date the employee signed the contract before submitting it.")
         elif _date(facts["signed_on"]) > _date(today):
             errors.append("The date signed cannot be in the future.")
-        if not facts.get("signed_contract"):
+        if not facts.get("signed_contract") and not existing:
             errors.append("Attach the signed contract before submitting it.")
     return errors
 
