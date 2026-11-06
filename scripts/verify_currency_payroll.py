@@ -151,7 +151,19 @@ check(len({(row["dt"], row.get("insert_after")) for row in fields.values()
            if row["dt"] in ("Salary Slip", "Salary Structure Assignment")}) ==
       len([row for row in fields.values() if row["dt"] in ("Salary Slip", "Salary Structure Assignment")]),
       "each of the fields under its own field, so none moves another")
-print("wiring: the hooks and the two fields")
+# the house rent and transport the USD Net Pay formulas read come with the
+# app, never from a Custom Field import (the user, 6 Nov 2026: "everything
+# should be on the app not manual definition of fields"); the labels are the
+# ones the assignment import files head their columns with
+for name, label, after in (
+        ("Salary Structure Assignment-custom_house_rent_allowance", "House Rent Allowance", "variable"),
+        ("Salary Structure Assignment-custom_transport_allowance", "Transport Allowance",
+         "custom_house_rent_allowance")):
+    row = fields.get(name) or {}
+    check((row.get("fieldtype"), row.get("options"), row.get("label"), row.get("insert_after"), row.get("non_negative"))
+          == ("Currency", "currency", label, after, 1) and ('"%s",' % name) in hooks,
+          "%s: an amount in the assignment's currency, never below 0, under Variable, and in the fixtures" % name)
+print("wiring: the hooks, the two rate fields, the two allowances")
 
 print()
 if fail:

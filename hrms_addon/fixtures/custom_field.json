@@ -12487,6 +12487,32 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Salary Structure Assignment-custom_house_rent_allowance",
+  "dt": "Salary Structure Assignment",
+  "fieldname": "custom_house_rent_allowance",
+  "fieldtype": "Currency",
+  "insert_after": "variable",
+  "label": "House Rent Allowance",
+  "options": "currency",
+  "non_negative": 1,
+  "description": "In the assignment's currency, for a structure whose formulas read it, such as USD Net Pay.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Structure Assignment-custom_transport_allowance",
+  "dt": "Salary Structure Assignment",
+  "fieldname": "custom_transport_allowance",
+  "fieldtype": "Currency",
+  "insert_after": "custom_house_rent_allowance",
+  "label": "Transport Allowance",
+  "options": "currency",
+  "non_negative": 1,
+  "description": "In the assignment's currency, for a structure whose formulas read it, such as USD Net Pay.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Employee",
   "fieldname": "custom_employee_status",
   "fieldtype": "Link",
