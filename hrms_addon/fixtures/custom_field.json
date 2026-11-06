@@ -2587,7 +2587,7 @@
   "fieldtype": "Section Break",
   "insert_after": "custom_salary_structure_assignment",
   "label": "Training",
-  "description": "Each training is booked on approval; its marks show here once the result is in.",
+  "description": "Each training is booked once every onboarding task is done and the HR Manager has approved. Its marks show here once the result is in.",
   "module": "HRMS Addon"
  },
  {

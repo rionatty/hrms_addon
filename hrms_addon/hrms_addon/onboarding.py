@@ -23,6 +23,9 @@ into Frappe HR's Employee Onboarding:
   add_placement               Create Employee: branch, employment type, offer date
   link_onboarding             Employee on_update: the candidate's onboarding
                               learns its Employee (see WHY THE EMPLOYEE IS LINKED)
+  task_on_update              Task and Project on_update: once every task of an
+  project_on_update           approved onboarding is done, its training is
+                              booked (see WHEN THE TRAINING IS BOOKED)
   seed_onboarding             Luuka's templates and Workplace Rules, once
 
 WHY THE ROLE IS CLEARED
@@ -42,6 +45,20 @@ boarding_status != Completed). An Employee created after they are stayed
 unknown to its onboarding, which then could not go to the HR Manager. So the
 Employee links itself (link_onboarding), and a step finds one not linked by
 the candidate (_link_employee).
+
+WHEN THE TRAINING IS BOOKED
+
+Training is not a must, and a required one comes after the full onboarding,
+every task done (Luuka, 5 Nov 2026: "training should be after full onboarding
+if it is required"; "it can happen or not"). So it is booked at the HR
+Manager's approval only when every task is done by then, else as the last task
+closes. Frappe HR says an onboarding is Completed as its project's tasks are
+all done (hrms/controllers/employee_boarding_controller.py), writing it
+straight to the database from its own Task on_update: ERPNext updates the
+project with db_update, which runs no Project hook. So the training is booked
+from Task on_update, which runs after Frappe HR's, and from Project on_update
+for a project saved itself. A training whose day has come by then is booked
+from the next day (onboarding_rules.training_start).
 """
 
 import frappe
@@ -54,6 +71,7 @@ from hrms_addon.hrms_addon import onboarding_rules as rules
 from hrms_addon.hrms_addon import probation_rules
 from hrms_addon.hrms_addon import training_rules
 
+DOCTYPE = "Employee Onboarding"
 # {onboarding: {activity idx: [users]}} for after_tasks, within one request
 _ASSIGNEES = "hrms_addon_onboarding_assignees"
 # What onboarding_defaults may fill in on save. The template is left to the
@@ -91,7 +109,7 @@ def before_update_after_submit(doc, method=None):
         _sync_salary(doc)
     if new_state != old_state and new_state == approval.APPROVED:
         _approve(doc)
-    elif new_state == approval.APPROVED and doc.get("custom_training_required"):
+    elif new_state == approval.APPROVED and _training_due(doc):
         _schedule_training(doc)  # a training added once approved is booked too
     _request_tools(doc)
     _resolve_assignees(doc)
@@ -382,8 +400,11 @@ def _approve(doc):
         assignment.submit()
     probation_end = probation_rules.probation_end(doc.date_of_joining, probation.settings().probation_months)
     _update_employee(doc, probation_end)
-    if doc.get("custom_training_required"):
+    if _training_due(doc, approved=True):
         _schedule_training(doc)
+    elif doc.get("custom_training_required"):
+        frappe.msgprint(_("The training is booked once every onboarding task is done."), indicator="blue",
+                        alert=True)
     reviews.create_reviews(doc.employee, doc.date_of_joining, doc.name, doc.custom_hr_officer)
     if not frappe.db.exists("Probation Evaluation", {"employee": doc.employee, "docstatus": ["!=", 2]}):
         probation.create_evaluation(doc.employee, probation_end, onboarding=doc.name, hr_officer=doc.custom_hr_officer)
@@ -411,23 +432,91 @@ def _update_employee(doc, probation_end):
     employee.save()
 
 
-def _schedule_training(doc):
+def _training_due(doc, approved=None):
+    """Whether the onboarding's training is booked now (rules.training_due):
+    required, approved (the step being taken, else the one it stands at) and
+    every task done."""
+    if approved is None:
+        approved = doc.get(approval.STATE_FIELD) == approval.APPROVED
+    return rules.training_due(doc.get("custom_training_required"), approved, _boarding_status(doc))
+
+
+def _boarding_status(doc):
+    """Frappe HR writes Completed straight to the database as the last task
+    closes, so the onboarding in hand may not have it yet."""
+    stored = frappe.db.get_value(DOCTYPE, doc.name, "boarding_status") if doc.get("name") else None
+    return stored or doc.get("boarding_status")
+
+
+def task_on_update(task, method=None):
+    """Task on_update, after Frappe HR's own has said whether the task's
+    onboarding is Completed: its training is booked once it is."""
+    if task.get("project") and not task.flags.get("from_project"):
+        _book_when_onboarded(task.project)
+
+
+def project_on_update(project, method=None):
+    """Project on_update, for a project saved itself: Frappe HR has read the
+    onboarding's status off it in its validate."""
+    _book_when_onboarded(project.name)
+
+
+def _book_when_onboarded(project):
+    name = frappe.db.get_value(DOCTYPE, {"project": project, "docstatus": 1}, "name")
+    if not name:
+        return
+    doc = frappe.get_doc(DOCTYPE, name)
+    if _training_due(doc):
+        _schedule_training(doc, keep=True)
+
+
+def _schedule_training(doc, keep=False):
     """"Training Required?" Yes: a Training Event for each training listed and
-    not yet booked. The training comes after the onboarding, so nothing on the
-    onboarding waits for it: the supervisor's evaluation of it is a task on
-    the Training Event, due as it ends (_ask_evaluation). Made an onboarding
-    activity, as it was until Oct 2026, it held the onboarding open until the
-    training was over (Frappe HR counts every task)."""
+    not yet booked, once every onboarding task is done (WHEN THE TRAINING IS
+    BOOKED). Nothing on the onboarding waits for it: the supervisor's
+    evaluation of it is a task on the Training Event, due as it ends
+    (_ask_evaluation). Made an onboarding activity, as it was until Oct 2026,
+    it held the onboarding open until the training was over (Frappe HR counts
+    every task).
+
+    `keep`: booked as a task closes, not as the onboarding is saved, so the
+    rows are written here and HR are told; a table left half filled is said
+    to them rather than stopping the task."""
     rows = [row for row in doc.get("custom_trainings") or [] if not row.get("training_event")]
     if not rows:
         return
     missing = rules.training_missing([row.as_dict() for row in rows])
     if missing:
-        frappe.throw(_("Complete the Trainings table before it is booked: {0}.").format("; ".join(missing)),
-                     title=_("Trainings"))
+        message = _("Complete the Trainings table before it is booked: {0}.").format("; ".join(missing))
+        if keep:
+            _tell_hr(doc, _("Every onboarding task of {0} is done. {1}").format(doc.get("employee_name"), message))
+            return
+        frappe.throw(message, title=_("Trainings"))
+    moved = []
     for row in rows:
+        start = rules.training_start(row.start, today())
+        if start != getdate(row.start):
+            moved.append(_("{0} from {1}").format(row.training_program, frappe.utils.format_date(start)))
+            row.start = start
         row.training_event = _book_training(doc, row)
+        if keep:
+            row.db_set({"start": row.start, "training_event": row.training_event}, update_modified=False)
         _ask_evaluation(doc, row)
+    note = _("Its date had come, so it starts the next day: {0}.").format(", ".join(moved)) if moved else ""
+    if keep:
+        _tell_hr(doc, " ".join(part for part in (
+            _("Every onboarding task of {0} is done: the training is booked.").format(doc.get("employee_name")),
+            note) if part))
+    elif note:
+        frappe.msgprint(note, indicator="orange", alert=True)
+
+
+def _tell_hr(doc, subject):
+    """The onboarding's HR Officer, else the branch's."""
+    users = [doc.custom_hr_officer] if doc.get("custom_hr_officer") else \
+        people.hr_officers(doc.get("custom_branch"), doc.get("department"))
+    if users:
+        people.notify(list(users), DOCTYPE, doc.name, subject)
 
 
 def _ask_evaluation(doc, row):

@@ -68,6 +68,9 @@ TRAINING_DETAILS = (
     ("days", "Days"),
     ("location", "Location"),
 )
+# Frappe HR's boarding status once every task of an onboarding is done (a
+# task cancelled counts as done)
+BOARDING_COMPLETED = "Completed"
 # The supervisor's evaluation task is named after its training; Frappe HR
 # puts the employee's name after it in the task's subject (140 characters)
 ACTIVITY_NAME_MAX = 70
@@ -254,6 +257,24 @@ def training_window(start, days):
     start = _date(start)
     end = start + datetime.timedelta(days=max(int(days or 1), 1) - 1)
     return datetime.datetime.combine(start, TRAINING_DAY_STARTS), datetime.datetime.combine(end, TRAINING_DAY_ENDS)
+
+
+def training_due(required, approved, boarding_status):
+    """Whether an onboarding's training is booked now. Training is not a must
+    (Luuka, 5 Nov 2026: "it can happen or not"); where it is required it comes
+    after the full onboarding, every task done ("training should be after
+    full onboarding if it is required"), once the HR Manager has approved."""
+    return bool(required) and bool(approved) and boarding_status == BOARDING_COMPLETED
+
+
+def training_start(planned, today):
+    """The day a training is booked from: the day planned, unless that day
+    has come already, when it is the next one. It follows the onboarding,
+    which was done today at the latest, and is never booked in the past."""
+    planned, today = (_date(planned) if planned else None), _date(today)
+    if not planned or planned <= today:
+        return today + datetime.timedelta(days=1)
+    return planned
 
 
 def training_evaluation_task(employee_name, program=None):

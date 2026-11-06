@@ -1990,6 +1990,14 @@ doc_events = {
     "Overtime Type": {
         "validate": "hrms_addon.hrms_addon.overtime.type_validate",
     },
+    # An onboarding's training is booked once every task is done (onboarding.py,
+    # WHEN THE TRAINING IS BOOKED): after Frappe HR's own Task on_update has said so
+    "Task": {
+        "on_update": "hrms_addon.hrms_addon.onboarding.task_on_update",
+    },
+    "Project": {
+        "on_update": "hrms_addon.hrms_addon.onboarding.project_on_update",
+    },
     # The non-disciplinary grievance on their Employee Grievance: each
     # step's checks, who is told and given it to do (grievances.py)
     "Employee Grievance": {

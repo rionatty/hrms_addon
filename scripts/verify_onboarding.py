@@ -717,9 +717,10 @@ for needle, why in (
      "the probation evaluation"),
     ("contracts.draft_for_new_employee(doc.employee, doc.custom_hr_officer, flt(doc.get(\"custom_base_salary\")), doc.name)",
      "the contract, drafted"),
-    ("if doc.get(\"custom_training_required\"):\n        _schedule_training(doc)", "the training, when required"),
-    ("elif new_state == approval.APPROVED and doc.get(\"custom_training_required\"):\n        _schedule_training(doc)",
-     "a training added once the onboarding is approved is booked too"),
+    ("if _training_due(doc, approved=True):\n        _schedule_training(doc)",
+     "the training, when required, once every onboarding task is done"),
+    ("elif new_state == approval.APPROVED and _training_due(doc):\n        _schedule_training(doc)",
+     "a training added once the onboarding is approved is booked too, once every task is done"),
     ('rows = [row for row in doc.get("custom_trainings") or [] if not row.get("training_event")]',
      "each training is booked once"),
     ("row.training_event = _book_training(doc, row)", "and remembers its Training Event"),
@@ -999,7 +1000,7 @@ print("print format: LPL/HR/05 from the rules HR keeps, the acceptance to sign, 
 # ── The training comes after the onboarding (Oct 2026) ────────────────
 # As an onboarding activity, the supervisor's evaluation held the onboarding
 # open until the training was over: it is a task on the Training Event now
-schedule = glue.split("def _schedule_training(doc):")[1].split("\ndef ")[0]
+schedule = glue.split("def _schedule_training(doc, keep=False):")[1].split("\ndef ")[0]
 if 'doc.append("activities"' in schedule:
     fail.append("_schedule_training must not add an onboarding activity: the onboarding would wait for the training")
 if "_ask_evaluation(doc, row)" not in schedule:
@@ -1017,6 +1018,59 @@ for needle, why in (
 if "hrms_addon.patches.v1_0.training_after_onboarding" not in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]:
     fail.append("training_after_onboarding must be in patches.txt")
 print("training after the onboarding: the evaluation a task on the Training Event, the onboardings waiting released")
+
+# ── The training comes after the FULL onboarding (5 Nov 2026) ─────────
+# "training should be after full onboarding if it is required"; "training shouldnt be manadary beacuse it can happen
+# or not": booked once every task is done and the HR Manager has approved, never in the past
+import datetime  # noqa: E402
+
+for label, got, want in (
+    ("required, approved, every task done", R.training_due(1, True, "Completed"), True),
+    ("not required: never booked", R.training_due(0, True, "Completed"), False),
+    ("not approved yet", R.training_due(1, False, "Completed"), False),
+    ("a task still open", R.training_due(1, True, "In Process"), False),
+    ("no task done yet", R.training_due(1, True, "Pending"), False),
+    ("planned after today: as planned", R.training_start("2026-11-20", "2026-11-06"), datetime.date(2026, 11, 20)),
+    ("planned for today: the next day", R.training_start("2026-11-06", "2026-11-06"), datetime.date(2026, 11, 7)),
+    ("planned in the past: the next day", R.training_start("2026-10-05", "2026-11-06"), datetime.date(2026, 11, 7)),
+    ("no day planned: the next day", R.training_start(None, "2026-11-06"), datetime.date(2026, 11, 7)),
+):
+    if got != want:
+        fail.append("the training after the full onboarding: %s: %s, not %s" % (label, got, want))
+if R.BOARDING_COMPLETED != "Completed":
+    fail.append("the full onboarding is Frappe HR's Completed, every task done")
+if field("custom_training_required").get("default") not in (None, "", "0", 0):
+    fail.append("training is not a must: Training Required starts unticked")
+for where, needle, why in (
+    ("_approve", "if _training_due(doc, approved=True):\n        _schedule_training(doc)",
+     "at the HR Manager's approval only once every task is done"),
+    ("_approve", 'frappe.msgprint(_("The training is booked once every onboarding task is done.")',
+     "and the HR Manager is told it waits"),
+    ("before_update_after_submit", "elif new_state == approval.APPROVED and _training_due(doc):",
+     "a training added once approved waits for the onboarding too"),
+    ("_boarding_status", 'frappe.db.get_value(DOCTYPE, doc.name, "boarding_status")',
+     "the status as Frappe HR wrote it to the database"),
+    ("task_on_update", 'if task.get("project") and not task.flags.get("from_project"):',
+     "a task of a project, closed by itself"),
+    ("_book_when_onboarded", 'frappe.db.get_value(DOCTYPE, {"project": project, "docstatus": 1}, "name")',
+     "the onboarding the project is for"),
+    ("_book_when_onboarded", "if _training_due(doc):\n        _schedule_training(doc, keep=True)",
+     "booked as the last task closes"),
+    ("_schedule_training", "start = rules.training_start(row.start, today())", "never booked in the past"),
+    ("_schedule_training", 'row.db_set({"start": row.start, "training_event": row.training_event}, update_modified=False)',
+     "the rows written when booked as a task closes"),
+    ("_schedule_training", "        if keep:\n            _tell_hr(",
+     "a half-filled table told to HR rather than stopping the task"),
+):
+    if needle not in glue.split("def %s(" % where)[1].split("\ndef ")[0]:
+        fail.append("onboarding.%s: %s (%r not found)" % (where, why, needle))
+if ((hooks.get("doc_events") or {}).get("Task") or {}).get("on_update") != "hrms_addon.hrms_addon.onboarding.task_on_update" \
+        or ((hooks.get("doc_events") or {}).get("Project") or {}).get("on_update") \
+        != "hrms_addon.hrms_addon.onboarding.project_on_update":
+    fail.append("the training is booked from Task and Project on_update, after Frappe HR has said the onboarding is done")
+if "once every onboarding task is done" not in (field("custom_training_section").get("description") or ""):
+    fail.append("the Training section says when it is booked")
+print("training after the full onboarding: booked once every task is done and approved, never in the past")
 
 print()
 if fail:
