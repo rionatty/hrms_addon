@@ -13,6 +13,8 @@
   "branch",
   "company",
   "status",
+  "approval_status",
+  "workflow_state",
   "incident_section",
   "incident_on",
   "location",
@@ -20,7 +22,14 @@
   "column_break_2",
   "first_aid_by",
   "ehs_officer",
+  "incident_report_section",
   "ehs_report",
+  "incident_report_by",
+  "incident_report_on",
+  "column_break_5",
+  "incident_acknowledged_by",
+  "incident_acknowledged_on",
+  "return_remarks",
   "care_section",
   "manageable",
   "hospital",
@@ -30,6 +39,16 @@
   "sick_leave",
   "sick_from",
   "sick_days",
+  "investigation_section",
+  "investigation_report",
+  "root_cause",
+  "findings",
+  "column_break_6",
+  "investigated_by",
+  "investigated_on",
+  "investigation_acknowledged_by",
+  "investigation_acknowledged_on",
+  "investigation_remarks",
   "after_section",
   "sickness_persists",
   "separation",
@@ -105,7 +124,31 @@
    "default": "Draft",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "no_copy": 1
+   "no_copy": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "approval_status",
+   "fieldtype": "Select",
+   "label": "Approval Status",
+   "options": "Draft\nPending EHS Officer\nPending HR\nRecorded\nInvestigated\nClosed\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "in_standard_filter": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "print_hide": 1
   },
   {
    "fieldname": "incident_section",
@@ -144,12 +187,61 @@
    "fieldname": "ehs_officer",
    "fieldtype": "Link",
    "label": "EHS Officer",
-   "options": "User"
+   "options": "User",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "description": "The plant's EHS Officer, filled in from who holds the role for the employee's plant."
+  },
+  {
+   "fieldname": "incident_report_section",
+   "fieldtype": "Section Break",
+   "label": "Incident Report"
   },
   {
    "fieldname": "ehs_report",
    "fieldtype": "Attach",
-   "label": "EHS Report"
+   "label": "Incident Report",
+   "description": "The EHS Officer's report of the accident, signed and scanned."
+  },
+  {
+   "fieldname": "incident_report_by",
+   "fieldtype": "Link",
+   "label": "Approved By (EHS Officer)",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "incident_report_on",
+   "fieldtype": "Date",
+   "label": "Approved On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "incident_acknowledged_by",
+   "fieldtype": "Link",
+   "label": "Acknowledged By (HR)",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "incident_acknowledged_on",
+   "fieldtype": "Date",
+   "label": "Acknowledged On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
   },
   {
    "fieldname": "care_section",
@@ -206,6 +298,79 @@
    "depends_on": "day_off_required"
   },
   {
+   "fieldname": "investigation_section",
+   "fieldtype": "Section Break",
+   "label": "Investigation",
+   "depends_on": "eval:doc.docstatus==1"
+  },
+  {
+   "fieldname": "investigation_report",
+   "fieldtype": "Attach",
+   "label": "Investigation Report",
+   "allow_on_submit": 1,
+   "no_copy": 1,
+   "description": "The EHS Officer's investigation of the accident, signed and scanned: not the incident report."
+  },
+  {
+   "fieldname": "root_cause",
+   "fieldtype": "Small Text",
+   "label": "Root Cause",
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "findings",
+   "fieldtype": "Text",
+   "label": "Findings and Corrective Action",
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_6",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "investigated_by",
+   "fieldtype": "Link",
+   "label": "Submitted By (EHS Officer)",
+   "options": "User",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "investigated_on",
+   "fieldtype": "Date",
+   "label": "Submitted On",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "investigation_acknowledged_by",
+   "fieldtype": "Link",
+   "label": "Investigation Acknowledged By (HR)",
+   "options": "User",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "investigation_acknowledged_on",
+   "fieldtype": "Date",
+   "label": "Investigation Acknowledged On",
+   "read_only": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "investigation_remarks",
+   "fieldtype": "Small Text",
+   "label": "Investigation Remarks",
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
    "fieldname": "after_section",
    "fieldtype": "Section Break",
    "label": "After the sick leave"
@@ -257,7 +422,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 19:00:00.000000",
+ "modified": "2026-11-06 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Safety Incident",
@@ -326,7 +491,9 @@
    "print": 1,
    "email": 1,
    "share": 1,
-   "role": "Head of Department"
+   "role": "Head of Department",
+   "write": 1,
+   "create": 1
   },
   {
    "read": 1,
@@ -335,7 +502,9 @@
    "print": 1,
    "email": 1,
    "share": 1,
-   "role": "Supervisor"
+   "role": "Supervisor",
+   "write": 1,
+   "create": 1
   }
  ],
  "sort_field": "modified",

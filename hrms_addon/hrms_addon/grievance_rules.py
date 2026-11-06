@@ -1,7 +1,7 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Non-disciplinary grievances (5.4) and safety incidents.
+"""Non-disciplinary grievances (5.4).
 
 No Frappe import, like the other *_rules.py modules, so
 scripts/verify_grievances.py and scripts/verify_discipline.py exercise them
@@ -13,15 +13,9 @@ once routed, a grievance is due back within its Grievance Type's days; as
 the date nears it is at risk and goes one level up the chain, from the
 handler to the head of the employee's department, and once it is past HR
 are told as well. An appeal goes from who hears it straight to HR.
-
-The safety chart ends in two places this module has to name: a sick leave
-for the day off, and a separation on medical grounds where the sickness
-outlasts it.
 """
 
 import datetime
-
-SICK_LEAVE = "Sick Leave"
 
 # how long a grievance has once routed, unless its Grievance Type says
 # otherwise, and how near its date it is at risk
@@ -61,11 +55,6 @@ MISCONDUCT = (
     ("Falsification of Records", "Gross"),
     ("Poor Workmanship", "Minor"),
 )
-
-# where a safety incident stands
-DRAFT, RECORDED, ON_SICK_LEAVE, BACK, SEPARATED, CANCELLED = (
-    "Draft", "Recorded", "On Sick Leave", "Back at Work", "Separated", "Cancelled")
-
 
 # ── the grievance ─────────────────────────────────────────────────────
 def due_on(start, days=DEFAULT_TIMELINE_DAYS):
@@ -139,41 +128,6 @@ def appeal_authority(candidates, involved):
     return None
 
 
-# ── the safety incident ───────────────────────────────────────────────
-def incident_errors(facts):
-    """Problems with a safety incident, as user-facing messages."""
-    errors = []
-    if not facts.get("employee"):
-        errors.append("Say who the accident happened to.")
-    if not facts.get("incident_on"):
-        errors.append("Say when it happened.")
-    if not _text(facts.get("nature")):
-        errors.append("Write what happened; the EHS Officer's report is the record of it.")
-    if not facts.get("manageable") and not _text(facts.get("hospital")):
-        errors.append("The employee was taken to hospital: say which one.")
-    if facts.get("day_off_required"):
-        if not facts.get("sick_from"):
-            errors.append("Say when the sick leave starts.")
-        if not int(facts.get("sick_days") or 0):
-            errors.append("Say how many days of sick leave the doctor gave.")
-    if facts.get("compensation_required") and not _num(facts.get("compensation_amount")):
-        errors.append("Say how much compensation is being followed up.")
-    return errors
-
-
-def incident_status(docstatus, day_off, sick_leave, persists, separation):
-    """Where the incident stands, from what has followed it."""
-    if docstatus == 2:
-        return CANCELLED
-    if docstatus == 0:
-        return DRAFT
-    if separation or persists:
-        return SEPARATED if separation else ON_SICK_LEAVE
-    if day_off and sick_leave:
-        return ON_SICK_LEAVE
-    return RECORDED if day_off else BACK
-
-
 def _date(value):
     if isinstance(value, datetime.datetime):
         return value.date()
@@ -186,13 +140,6 @@ def _date(value):
         return datetime.date(*(int(part) for part in text.split("-")))
     except (ValueError, TypeError):
         return None
-
-
-def _num(value):
-    try:
-        return float(value or 0)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def _text(value):

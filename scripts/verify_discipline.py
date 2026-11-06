@@ -2,14 +2,14 @@
 
     python scripts/verify_discipline.py
 
-Luuka's revised flow charts 5.3 (Disciplinary Grievances) and Safety, and
-the paper they run on: LPL/HR/30 the warning letter and LPL/HR/03 the
-hearing registration form. 5.4, the non-disciplinary grievance, is checked
-by verify_grievances.py.
+Luuka's revised flow chart 5.3 (Disciplinary Grievances), and the paper it
+runs on: LPL/HR/30 the warning letter and LPL/HR/03 the hearing
+registration form. 5.4, the non-disciplinary grievance, is checked by
+verify_grievances.py, and the safety incident by verify_safety.py.
 
   1  the ladder: the rungs, what escalates, what is spent
   2  the case: who may be investigated, heard and sanctioned, and by whom
-  3  the incident
+  3  the masters: the misconduct and the ladder seeded
   4  the DocTypes carry the paper
   5  the glue reads and writes fields that exist
   6  the signatures: the chain walked end to end, every desk stamped
@@ -209,25 +209,12 @@ if D.ends_in_termination(D.PARDONED, D.VERBAL):
     fail.append("a pardon is not a termination")
 print("the case: opened, investigated, heard before a fresh panel, decided, appealed")
 
-# ── 3. The incident ───────────────────────────────────────────────────
-incident = {"employee": "E1", "incident_on": "2026-06-01 14:00:00", "nature": "Cut on the extruder.",
-            "manageable": 1}
-expect("an incident that stands", G.incident_errors(incident))
-expect("no account of it", G.incident_errors(dict(incident, nature="")), "what happened")
-expect("taken to hospital, unnamed", G.incident_errors(dict(incident, manageable=0)), "which one")
-expect("a day off with no dates", G.incident_errors(dict(incident, day_off_required=1)),
-       "when the sick leave starts", "how many days")
-if G.incident_status(1, 1, "HR-LAP-1", 0, None) != G.ON_SICK_LEAVE:
-    fail.append("an incident with sick leave running says so")
-if G.incident_status(1, 0, None, 0, None) != G.BACK:
-    fail.append("one needing no day off ends with the employee at work")
-if G.incident_status(1, 1, "x", 1, "HR-EMP-SEP-1") != G.SEPARATED:
-    fail.append("one where the sickness persisted ends in separation")
+# ── 3. The masters ────────────────────────────────────────────────────
 if not [row for row in G.MISCONDUCT if row[1] == "Gross"]:
     fail.append("the seeded misconduct must include the gross kinds")
 if not [row for row in G.ACTION_TYPES if row[1] == D.DISMISSAL]:
     fail.append("and the ladder must reach dismissal")
-print("the incident's course")
+print("the masters: gross misconduct seeded, the ladder reaching dismissal")
 
 # ── 4. The paper ──────────────────────────────────────────────────────
 for name, wanted in (
@@ -243,10 +230,6 @@ for name, wanted in (
     ("Disciplinary Panel Member", ("member", "employee", "job_title", "panel_role", "attended")),
     ("Misconduct Type", ("misconduct_name", "severity", "default_action")),
     ("Disciplinary Action Type", ("action_name", "rung", "validity_months", "suspension_days")),
-    ("Safety Incident", ("employee", "incident_on", "nature", "ehs_officer", "ehs_report",
-                         "manageable", "hospital", "doctor_report", "day_off_required",
-                         "sick_leave", "sick_from", "sick_days", "sickness_persists", "separation",
-                         "compensation_required", "compensation_amount", "status")),
 ):
     fields = fields_of(doctype(name))
     if not fields:
@@ -270,11 +253,11 @@ if not doctype("Disciplinary Case").get("is_submittable"):
 if "LPL-DISC-" not in (case.get("naming_series") or {}).get("options", ""):
     fail.append("the test script asks for LPL-DISC-YYYY-#### as the case's name")
 
-print("the paper: the case and LPL/HR/03, the masters, the incident")
+print("the paper: the case and LPL/HR/03, the masters")
 
 # ── 5. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "discipline.py")
-known = set(fields_of(doctype("Disciplinary Case"))) | set(fields_of(doctype("Safety Incident")))
+known = set(fields_of(doctype("Disciplinary Case")))
 known |= {"doctype", "name", "docstatus", "employee", "company", "flags"}
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
@@ -294,9 +277,6 @@ for needle, why in (
     ("rules.suspension_dates(", "and the dates a suspension runs"),
     ("rules.ends_in_termination(", "and whether the case ends in one"),
     ('"custom_exit_type": "Involuntary"', "a dismissal raises the involuntary exit (exits.py)"),
-    ('"custom_reason": "Medical Grounds"', "and a persisting sickness a separation on medical grounds"),
-    ("grievance_rules.incident_errors(", "the incident is judged by its own rules"),
-    ("Leave Application", "a day off becomes a real sick leave"),
 ):
     if needle not in glue:
         fail.append("discipline.py: %s (%r not found)" % (why, needle))
@@ -304,13 +284,13 @@ if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef file_appeal\(',
     fail.append("discipline.file_appeal changes something: a whitelisted POST method")
 if "check_permission(" not in glue:
     fail.append("discipline.py: a whitelisted method must check the caller may act")
-for name, prefix in (("disciplinary_case", "case"), ("safety_incident", "incident")):
+for name, prefix in (("disciplinary_case", "case"),):
     controller = read("hrms_addon", "hrms_addon", "doctype", name, name + ".py")
     for method in ("validate", "on_submit", "on_cancel"):
         if "    def %s(self):\n        discipline.%s_%s(self)" % (method, prefix, method) not in controller:
             fail.append("the %s controller must hand %s to discipline.%s_%s"
                         % (name, method, prefix, method))
-print("glue: the rules followed, the exit raised, the sick leave real, the button whitelisted")
+print("glue: the rules followed, the exit raised, the button whitelisted")
 
 # ── 6. The signatures ─────────────────────────────────────────────────
 walked, state, seen = [W.DRAFT], W.DRAFT, set()
@@ -358,7 +338,7 @@ navigation = load("navigation_rules")
 carded = {link[1]: page for page, cards in navigation.CARDS.items()
           for _card, links in cards for link in links}
 sidebarred = {entry[1]: page for page, entries in navigation.SIDEBAR.items() for entry in entries}
-for name in ("Disciplinary Case", "Safety Incident", "Misconduct Type", "Disciplinary Action Type"):
+for name in ("Disciplinary Case", "Misconduct Type", "Disciplinary Action Type"):
     if carded.get(name) != "Tenure":
         fail.append("%s belongs on the Tenure page with the rest of employee relations; it is on %r"
                     % (name, carded.get(name)))

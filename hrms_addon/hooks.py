@@ -496,6 +496,7 @@ after_migrate = [
     # The disciplinary case: investigated by one person, decided by another
     # (5.3). See discipline_approval.py.
     "hrms_addon.hrms_addon.discipline.setup_workflows_on_migrate",
+    "hrms_addon.hrms_addon.safety.setup_workflows_on_migrate",
     "hrms_addon.hrms_addon.suspensions.setup_workflows_on_migrate",
     # Each branch's attendance, signed off by its General Manager before payroll
     # pays it. See attendance_verification_approval.py.

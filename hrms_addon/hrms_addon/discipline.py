@@ -1,8 +1,9 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""Employee Relations and Welfare on the site: disciplinary cases (5.3) and
-safety incidents. The non-disciplinary grievance (5.4) is in grievances.py.
+"""Employee Relations and Welfare on the site: disciplinary cases (5.3). The
+non-disciplinary grievance (5.4) is in grievances.py, and the safety
+incident in safety.py.
 
 The rules are in discipline_rules.py and grievance_rules.py, without a
 Frappe import (scripts/verify_discipline.py). This reads and writes the
@@ -13,20 +14,17 @@ site.
               the evidence, and the sanction. A dismissal raises the
               involuntary exit (exits.py), so the termination process
               really follows.
-  incident_*  a safety incident: the EHS report, the sick leave it becomes
-              and the separation on medical grounds where it persists.
   daily       the case's timeline: an appeal window that lapses, a
               sanction that is spent, a suspension that ends.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, flt, get_datetime, getdate, now_datetime, today
+from frappe.utils import cint, flt, get_datetime, getdate, now_datetime, today
 
 from hrms_addon.hrms_addon import discipline_rules as rules, grievance_rules, people
 
 CASE = "Disciplinary Case"
-INCIDENT = "Safety Incident"
 
 
 # ── 1. The disciplinary case ──────────────────────────────────────────
@@ -256,102 +254,7 @@ def file_appeal(case, grounds, authority):
     return doc.name
 
 
-# ── 2. The safety incident ────────────────────────────────────────────
-def incident_validate(doc, method=None):
-    errors = grievance_rules.incident_errors({
-        "employee": doc.get("employee"), "incident_on": doc.get("incident_on"),
-        "nature": doc.get("nature"), "manageable": doc.get("manageable"),
-        "hospital": doc.get("hospital"), "day_off_required": doc.get("day_off_required"),
-        "sick_from": doc.get("sick_from"), "sick_days": doc.get("sick_days"),
-        "compensation_required": doc.get("compensation_required"),
-        "compensation_amount": doc.get("compensation_amount")})
-    if errors and doc.docstatus == 1:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Safety Incident"))
-    doc.status = grievance_rules.incident_status(
-        doc.docstatus, doc.get("day_off_required"), doc.get("sick_leave"),
-        doc.get("sickness_persists"), doc.get("separation"))
-
-
-def incident_on_submit(doc, method=None):
-    """Recorded. Where a day off is needed the sick leave is raised, and
-    where the sickness persists the separation on medical grounds."""
-    if doc.get("day_off_required") and not doc.get("sick_leave"):
-        _raise_sick_leave(doc)
-    if doc.get("sickness_persists") and not doc.get("separation"):
-        _separate_on_medical_grounds(doc)
-    # the leave and the separation are raised after this save validated,
-    # so where the incident stands is said again now that they exist
-    status = grievance_rules.incident_status(
-        doc.docstatus, doc.get("day_off_required"), doc.get("sick_leave"),
-        doc.get("sickness_persists"), doc.get("separation"))
-    if status != doc.get("status"):
-        doc.db_set("status", status, update_modified=False)
-    users = people.hr_officers(doc.get("branch"), doc.get("department"))
-    if users:
-        people.notify(users, doc.doctype, doc.name,
-                      _("Safety incident for {0} on {1}.").format(
-                          doc.get("employee_name") or doc.employee,
-                          frappe.utils.format_date(getdate(doc.get("incident_on")))))
-
-
-def incident_on_cancel(doc, method=None):
-    doc.status = "Cancelled"
-
-
-def _raise_sick_leave(doc):
-    """Step 6: the HR Officer creates the employee's sick leave."""
-    leave_type = grievance_rules.SICK_LEAVE
-    if not frappe.db.exists("Leave Type", leave_type):
-        return None
-    start = getdate(doc.get("sick_from") or getdate(doc.get("incident_on")))
-    days = cint(doc.get("sick_days")) or 1
-    try:
-        leave = frappe.get_doc({
-            "doctype": "Leave Application", "employee": doc.employee, "company": doc.company,
-            "leave_type": leave_type, "from_date": start,
-            "to_date": add_days(start, days - 1), "total_leave_days": days,
-            "description": _("Sick leave from safety incident {0}: {1}").format(doc.name,
-                                                                                doc.get("nature") or ""),
-            "custom_medical_certificate": doc.get("doctor_report") or doc.get("ehs_report"),
-        })
-        leave.flags.ignore_permissions = True
-        leave.flags.ignore_mandatory = True
-        leave.insert()
-    except Exception:
-        frappe.log_error(title="HRMS Addon: sick leave from a safety incident")
-        return None
-    doc.db_set("sick_leave", leave.name, update_modified=False)
-    return leave.name
-
-
-def _separate_on_medical_grounds(doc):
-    """The chart's last box: the sickness persists past the sick leave, so
-    the separation is on medical grounds."""
-    existing = frappe.db.get_value("Employee Separation",
-                                   {"employee": doc.employee, "docstatus": ["<", 2]}, "name")
-    if existing:
-        doc.db_set("separation", existing, update_modified=False)
-        return existing
-    try:
-        exit_doc = frappe.get_doc({
-            "doctype": "Employee Separation", "employee": doc.employee, "company": doc.company,
-            "department": doc.get("department"), "boarding_status": "Pending",
-            "custom_exit_type": "Involuntary", "custom_reason": "Medical Grounds",
-            "custom_relieving_date": today(), "custom_termination_date": today(),
-            "custom_termination_reason": _("Safety incident {0}: {1}").format(doc.name,
-                                                                              doc.get("nature") or ""),
-        })
-        exit_doc.flags.ignore_permissions = True
-        exit_doc.flags.ignore_mandatory = True
-        exit_doc.insert()
-    except Exception:
-        frappe.log_error(title="HRMS Addon: separation on medical grounds")
-        return None
-    doc.db_set("separation", exit_doc.name, update_modified=False)
-    return exit_doc.name
-
-
-# ── 3. The case's timeline ────────────────────────────────────────────
+# ── 2. The case's timeline ────────────────────────────────────────────
 def daily():
     _close_appeal_windows()
     _end_suspensions()
@@ -389,7 +292,7 @@ def _end_suspensions():
     frappe.db.commit()
 
 
-# ── 4. Wiring ─────────────────────────────────────────────────────────
+# ── 3. Wiring ─────────────────────────────────────────────────────────
 def setup_workflows_on_migrate():
     """after_migrate: the disciplinary case's four desks."""
     from hrms_addon.hrms_addon import discipline_approval, workflows
