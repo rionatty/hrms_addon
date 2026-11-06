@@ -849,7 +849,7 @@ for node in ast.parse(hooks_source).body:
             pass
 extended, events = hooks["extend_doctype_class"], hooks["doc_events"]
 METHOD = "hrms_addon.hrms_addon.weekly_pay."
-check(METHOD + "SalarySlipWeekly" in extended["Salary Slip"] and extended["Payroll Entry"] == [METHOD + "PayrollEntryWeekly"]
+check(METHOD + "SalarySlipWeekly" in extended["Salary Slip"] and METHOD + "PayrollEntryWeekly" in extended["Payroll Entry"]
       and METHOD + "SalaryStructureAssignmentWeekly" in extended["Salary Structure Assignment"],
       "the slip, the payroll and the assignment take weekly pay's methods")
 check(events["Salary Slip"]["before_validate"][-1] == METHOD + "slip_before_validate"

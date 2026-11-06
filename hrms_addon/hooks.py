@@ -219,6 +219,8 @@ doctype_js = {
     # position change off the Cancel All list; a submitted structure takes
     # new rows but keeps its own (salary_structures.py)
     "Salary Structure Assignment": "public/js/salary_structure_assignment.js",
+    # a component's Cost Account picks an expense of its row's company (employer_costs.py)
+    "Salary Component": "public/js/salary_component.js",
     # a slip that finds nothing names the overtime requests still on their
     # way to payroll (overtime.waiting)
     "Overtime Slip": "public/js/overtime_slip.js",
@@ -1266,6 +1268,8 @@ fixtures = [
                     "Salary Slip-custom_weekly_hours",
                     "Salary Slip-custom_weekly_rate",
                     "Salary Slip-custom_weekly_days",
+                    # the expense the employer's share is booked to (employer_costs.py)
+                    "Salary Component Account-custom_cost_account",
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
                     "Payroll Settings-custom_nssf_age_limit",
                     "Employee-custom_nssf_voluntary",
@@ -1669,14 +1673,16 @@ override_doctype_class = {
 # A machine's punch is not asked for coordinates, a phone's still is (devices.py).
 # A weekly payroll's Get Employees finds those paid by the week with days to pay,
 # each slip's one line reads its hours at the rate, and no tax is added
-# (weekly_pay.py).
+# (weekly_pay.py). And its accrual entry books the employer's own share, NSSF
+# 10%, which Frappe HR does not (employer_costs.py).
 extend_doctype_class = {
     "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
     "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays",
                     "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge",
                     "hrms_addon.hrms_addon.weekly_pay.SalarySlipWeekly"],
-    "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly"],
+    "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly",
+                      "hrms_addon.hrms_addon.employer_costs.PayrollEntryEmployerCosts"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
     "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],
     "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge",
@@ -1882,6 +1888,10 @@ doc_events = {
         "before_cancel": "hrms_addon.hrms_addon.payroll_months.refuse_closed",
         "on_cancel": "hrms_addon.hrms_addon.recoveries.slip_on_cancel",
         "on_trash": "hrms_addon.hrms_addon.payroll_months.refuse_closed",
+    },
+    # a component's Cost Account is an expense of its row's company (employer_costs.py)
+    "Salary Component": {
+        "validate": "hrms_addon.hrms_addon.employer_costs.component_validate",
     },
     # a payroll year's months are made from its dates (payroll_months.py)
     "Payroll Period": {
