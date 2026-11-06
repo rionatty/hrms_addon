@@ -977,7 +977,9 @@ for needle in ("attendance_deletions.deletion_onload(self)", "attendance_deletio
                "def on_doctype_update():\n    attendance_deletions.add_indexes()"):
     check(needle in controller, "the controller: %s" % needle)
 hooks_src = open(os.path.join(PACKAGE, "hooks.py"), encoding="utf-8").read().replace("\r\n", "\n")
-check('"Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted"]' in hooks_src, "auto attendance goes through the mixin")
+check('"Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted",' in hooks_src
+      or '"Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted"]' in hooks_src,
+      "auto attendance goes through the mixin")
 navigation = open(os.path.join(APP, "navigation_rules.py"), encoding="utf-8").read()
 check(navigation.count('"Attendance Deletion"') >= 4, "it is on the menus beside Upload Attendance", navigation.count('"Attendance Deletion"'))
 attendance_src = open(os.path.join(APP, "attendance.py"), encoding="utf-8").read().replace("\r\n", "\n")

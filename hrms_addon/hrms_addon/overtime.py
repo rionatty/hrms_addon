@@ -559,6 +559,13 @@ def send(doc, quiet=False):
     errors = rules.payroll_errors({"status": doc.get("status"), "rows": rows})
     if errors:
         return stopped([_(message) for message in errors])
+    # a day its branch has verified changes no more, its overtime included (attendance_verification.py)
+    from hrms_addon.hrms_addon import attendance_verification
+
+    locked = attendance_verification.verified_messages(
+        [(row["employee"], row.get("employee_name"), doc.overtime_date) for row in rows])
+    if locked:
+        return stopped(locked)
     kind = doc.get("day_kind") or rules.WEEKDAY
     grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
     standards = _standard_hours([row["employee"] for row in rows], doc.overtime_date)
@@ -625,6 +632,14 @@ def take_back(doc):
     if paid:
         frappe.throw(_("These hours are paid on {0}. Cancel that Overtime Slip first.").format(", ".join(paid)),
                      title=_("Overtime Request"))
+    # nor are they taken off a day its branch has verified (attendance_verification.py)
+    from hrms_addon.hrms_addon import attendance_verification
+
+    locked = attendance_verification.verified_messages(
+        [(row.employee, row.get("employee_name"), doc.overtime_date) for row in doc.get("employees") or []
+         if row.get("attendance") in names])
+    if locked:
+        frappe.throw("<br>".join(locked), title=_("Overtime Request"))
     for name in slips:
         if stands[name] != 0:
             continue

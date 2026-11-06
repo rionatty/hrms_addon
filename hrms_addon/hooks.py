@@ -497,6 +497,9 @@ after_migrate = [
     # (5.3). See discipline_approval.py.
     "hrms_addon.hrms_addon.discipline.setup_workflows_on_migrate",
     "hrms_addon.hrms_addon.suspensions.setup_workflows_on_migrate",
+    # Each branch's attendance, signed off by its General Manager before payroll
+    # pays it. See attendance_verification_approval.py.
+    "hrms_addon.hrms_addon.attendance_verification.setup_workflows_on_migrate",
     # The nine-box placement, the development programme, the succession
     # position and the graduate trainee. See talent_approval.py,
     # talent_program_approval.py, succession_approval.py, trainee_approval.py.
@@ -1280,6 +1283,9 @@ fixtures = [
                     "Employee-custom_nssf_voluntary",
                     # the most overtime paid on a working day (overtime.working_day_most)
                     "Payroll Settings-custom_working_day_overtime",
+                    # whether payroll waits for each branch's verified attendance
+                    # (attendance_verification.py)
+                    "Payroll Settings-custom_branches_verify_attendance",
                     # the Salary Register tab on a payroll (payroll_register.py)
                     "Payroll Entry-custom_salary_register_tab",
                     "Payroll Entry-custom_salary_register",
@@ -1707,7 +1713,9 @@ override_doctype_class = {
 # A weekly payroll's Get Employees finds those paid by the week with days to pay,
 # each slip's one line reads its hours at the rate, and no tax is added
 # (weekly_pay.py). And its accrual entry books the employer's own share, NSSF
-# 10%, which Frappe HR does not (employer_costs.py).
+# 10%, which Frappe HR does not (employer_costs.py). And it makes and submits
+# no slip until each branch has verified the days it pays; auto attendance
+# marks no absence on a verified day (attendance_verification.py).
 extend_doctype_class = {
     "Report": ["hrms_addon.hrms_addon.report_extensions.LeaveReportColumns",
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
@@ -1715,12 +1723,14 @@ extend_doctype_class = {
                     "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge",
                     "hrms_addon.hrms_addon.weekly_pay.SalarySlipWeekly"],
     "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly",
-                      "hrms_addon.hrms_addon.employer_costs.PayrollEntryEmployerCosts"],
+                      "hrms_addon.hrms_addon.employer_costs.PayrollEntryEmployerCosts",
+                      "hrms_addon.hrms_addon.attendance_verification.PayrollEntryVerified"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
     "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],
     "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge",
                                     "hrms_addon.hrms_addon.weekly_pay.SalaryStructureAssignmentWeekly"],
-    "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted"],
+    "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted",
+                   "hrms_addon.hrms_addon.attendance_verification.ShiftTypeVerified"],
 }
 
 # Document Events
@@ -1830,8 +1840,26 @@ doc_events = {
     # (leave.py)
     "Leave Application": {
         "validate": "hrms_addon.hrms_addon.leave.application_validate",
+        # approved, or cancelled once approved, it rewrites its days on the
+        # attendance: never a verified day (attendance_verification.py)
+        "before_submit": "hrms_addon.hrms_addon.attendance_verification.refuse_leave",
+        "before_cancel": "hrms_addon.hrms_addon.attendance_verification.refuse_leave",
         "on_submit": "hrms_addon.hrms_addon.leave.application_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.leave.application_on_cancel",
+    },
+    # an attendance request, an off-duty day and a late arrival notified in
+    # advance change a marked day without saving it: never a verified one
+    # (attendance_verification.py)
+    "Attendance Request": {
+        "before_submit": "hrms_addon.hrms_addon.attendance_verification.refuse_attendance_request",
+        "before_cancel": "hrms_addon.hrms_addon.attendance_verification.refuse_attendance_request",
+    },
+    "Off Duty Request": {
+        "before_submit": "hrms_addon.hrms_addon.attendance_verification.refuse_off_duty",
+        "before_cancel": "hrms_addon.hrms_addon.attendance_verification.refuse_off_duty",
+    },
+    "Late Arrival Notice": {
+        "before_submit": "hrms_addon.hrms_addon.attendance_verification.refuse_late_notice",
     },
     # Leave worked through, paid instead (minutes §4.5): after Frappe HR's
     # own validate has read the balance, the chain's checks and the days
@@ -1839,7 +1867,14 @@ doc_events = {
     # However the day is marked, a late arrival acknowledged in advance
     # makes it a full day, not a late one (attendance.py)
     "Attendance": {
+        # a day its branch has verified is not marked, changed, cancelled or
+        # deleted until the sheet is reopened (attendance_verification.py).
+        # before_validate runs even when the validation is skipped
+        "before_validate": "hrms_addon.hrms_addon.attendance_verification.refuse_attendance",
         "validate": "hrms_addon.hrms_addon.attendance.attendance_validate",
+        "before_cancel": "hrms_addon.hrms_addon.attendance_verification.refuse_attendance",
+        "before_update_after_submit": "hrms_addon.hrms_addon.attendance_verification.refuse_attendance",
+        "on_trash": "hrms_addon.hrms_addon.attendance_verification.refuse_attendance",
     },
     "Leave Encashment": {
         "validate": "hrms_addon.hrms_addon.encashments.encashment_validate",
@@ -1920,6 +1955,9 @@ doc_events = {
             "hrms_addon.hrms_addon.payroll_months.refuse_closed",
             "hrms_addon.hrms_addon.weekly_pay.slip_validate",
         ],
+        # a slip submitted on its own pays no day its branch has not verified
+        # (attendance_verification.py)
+        "before_submit": "hrms_addon.hrms_addon.attendance_verification.slip_before_submit",
         "on_submit": "hrms_addon.hrms_addon.recoveries.slip_on_submit",
         # nothing moves in a closed month (payroll_months.py)
         "before_cancel": "hrms_addon.hrms_addon.payroll_months.refuse_closed",

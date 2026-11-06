@@ -82,8 +82,8 @@ class Run:
 
 
 class Site:
-    def __init__(self, run_kwargs=None, slips=None, journals=0, create_fails=False, closed=False):
-        self.log, self.create_fails, self.closed = [], create_fails, closed
+    def __init__(self, run_kwargs=None, slips=None, journals=0, create_fails=False, closed=False, unverified=False):
+        self.log, self.create_fails, self.closed, self.unverified = [], create_fails, closed, unverified
         self.slips = slips if slips is not None else {"S1": 0, "S2": 0, "S3": 0}
         self.journals = journals
         self.run = Run(self, **(run_kwargs or {}))
@@ -127,10 +127,18 @@ class Site:
                 raise Thrown("closed")
 
         hrms.payroll_months = types.SimpleNamespace(refuse_closed=refuse_closed)
+
+        # each branch verifies the days first (attendance_verification.py)
+        def refuse_payroll(run):
+            if site.unverified:
+                raise Thrown("not verified")
+
+        hrms.attendance_verification = types.SimpleNamespace(refuse_payroll=refuse_payroll)
         sys.modules.update({"frappe": frappe, "hrms.payroll.doctype.payroll_entry.payroll_entry": payroll_entry,
                             "hrms_addon": types.ModuleType("hrms_addon"), "hrms_addon.hrms_addon": hrms,
                             "hrms_addon.hrms_addon.payroll_entry_rules": rules,
-                            "hrms_addon.hrms_addon.payroll_months": hrms.payroll_months})
+                            "hrms_addon.hrms_addon.payroll_months": hrms.payroll_months,
+                            "hrms_addon.hrms_addon.attendance_verification": hrms.attendance_verification})
         return load("payroll_entries", os.path.join(APP, "payroll_entries.py"))
 
 
@@ -138,7 +146,8 @@ for label, site in (("a draft payroll", Site({"docstatus": 0, "status": "Draft"}
                     ("a payroll making its slips", Site({"status": "Queued"})),
                     ("a payroll with a submitted slip", Site(slips={"S1": 0, "S2": 1})),
                     ("a posted payroll", Site(journals=1)),
-                    ("a payroll of a closed month", Site(closed=True))):
+                    ("a payroll of a closed month", Site(closed=True)),
+                    ("a payroll whose branches have not verified its days", Site(unverified=True))):
     glue = site.frappe()
     try:
         glue.recreate_salary_slips(site.run.name)

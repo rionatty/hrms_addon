@@ -1,0 +1,91 @@
+{
+ "actions": [],
+ "creation": "2026-11-06 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee_name",
+  "from_date",
+  "to_date",
+  "issue",
+  "reference_name",
+  "employee",
+  "days",
+  "reference_doctype"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "in_list_view": 1,
+   "columns": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "issue",
+   "fieldtype": "Data",
+   "label": "To Put Right",
+   "in_list_view": 1,
+   "columns": 3,
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference",
+   "options": "reference_doctype",
+   "in_list_view": 1,
+   "columns": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "days",
+   "fieldtype": "Int",
+   "label": "Days",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference Type",
+   "options": "DocType",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-06 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Attendance Verification Issue",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

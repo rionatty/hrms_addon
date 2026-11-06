@@ -315,6 +315,8 @@ CARDS = {
         # card: their Upload Attendance was deleted in v16 (attendance_upload.py)
         ("Attendance", [
             ("Upload Attendance", "Upload Attendance", DOCTYPE),
+            # each branch signs its month off before payroll pays it (attendance_verification.py)
+            ("Attendance Verification", "Attendance Verification", DOCTYPE),
             ("Attendance Deletion", "Attendance Deletion", DOCTYPE),
         ]),
         ("Attendance Forms", [
@@ -554,6 +556,7 @@ SIDEBAR = {
         ("Attendance Board", "attendance-board", PAGE, None, None),
         ("Upload Attendance", "Upload Attendance", DOCTYPE, None, "Employee Attendance Tool"),
         ("Attendance Deletion", "Attendance Deletion", DOCTYPE, None, "Upload Attendance"),
+        ("Attendance Verification", "Attendance Verification", DOCTYPE, None, "Attendance Deletion"),
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
@@ -663,7 +666,8 @@ GROUPS = {
     ],
     "Shift & Attendance": [
         ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Upload Attendance", "Attendance Deletion",
-                                 "Attendance Request", "Late Arrival Notice", "Gate Pass", "Off Duty Request"]),
+                                 "Attendance Verification", "Attendance Request", "Late Arrival Notice", "Gate Pass",
+                                 "Off Duty Request"]),
         ("Shifts", "repeat", ["Shift Request", "Shift Rotation", "Shift Allowance"]),
         ("Overtime", "calendar-clock", ["Overtime Request", "Overtime Slip"]),
     ],

@@ -46,6 +46,7 @@ ATTENDANCE = "Attendance"
 CHECKIN = "Employee Checkin"
 SLIP = "Salary Slip"
 WEEKLY_DAY = "Weekly Pay Day"
+VERIFICATION = "Attendance Verification"
 # what a record's own links do not hold it back for: these are let go of with it
 LET_GO = {(ATTENDANCE, "amended_from"), (CHECKIN, "attendance")}
 BACKUP, KEPT = "deleted attendance", "attendance kept"
@@ -167,8 +168,8 @@ def count(doc):
     """{count field: how many}, and the draft slips the deletion would leave out of date."""
     links = _links()
     counts = dict.fromkeys(rules.COUNTS, 0)
-    for _day, records, on_slips in _slices(doc, rules.COUNT_FIELDS):
-        reasons = _reasons(records, on_slips, links)
+    for day, records, on_slips in _slices(doc, rules.COUNT_FIELDS):
+        reasons = _reasons(records, on_slips, links, day)
         for record in records:
             counts[rules.counted_as(reasons.get(record.name))] += 1
     counts["draft_slips"] = _draft_slips(doc)
@@ -203,6 +204,15 @@ def _slices(doc, fields, first=None, after=None):
                 break
             yield day, records, on_slips
             past = records[-1].name
+
+
+def _verified_on(day):
+    """The people a verified attendance sheet holds on the day."""
+    if not day or not frappe.db.table_exists(VERIFICATION):
+        return set()
+    from hrms_addon.hrms_addon import attendance_verification
+
+    return {employee for sheet in attendance_verification.verified_sheets(day, day) for employee in sheet["employees"]}
 
 
 def _link_fields():
@@ -244,7 +254,7 @@ def _links():
     return {"table": tables, "single": single}
 
 
-def _reasons(records, on_slips, links):
+def _reasons(records, on_slips, links, day=None):
     """{name: why it stays}, for those of these records that stay."""
     names = [record.name for record in records]
     used = dict(links["single"])
@@ -257,6 +267,11 @@ def _reasons(records, on_slips, links):
             used.setdefault(row[link["field"]], row.parenttype if link["parent"] else link["doctype"])
     attached = set(frappe.get_all("File", filters={"attached_to_doctype": ATTENDANCE, "attached_to_name": ["in", names]},
                                   pluck="attached_to_name", limit_page_length=0))
+    # a day its branch has verified stays as it is, until the sheet is reopened (attendance_verification.py)
+    verified = _verified_on(day)
+    for record in records:
+        if record.get("employee") in verified:
+            used.setdefault(record.name, VERIFICATION)
     reasons = {}
     for record in records:
         reason = rules.why_kept(record, on_slips, used, attached)
@@ -295,7 +310,7 @@ def _delete_slices(doc):
     links = _links()
     for day, records, on_slips in _slices(doc, rules.RECORD_FIELDS, doc.get("cursor_date"), doc.get("cursor_name")):
         began = time.monotonic()
-        reasons = _reasons(records, on_slips, links)
+        reasons = _reasons(records, on_slips, links, day)
         going = [record for record in records if record.name not in reasons]
         staying = [record for record in records if record.name in reasons]
         state = {

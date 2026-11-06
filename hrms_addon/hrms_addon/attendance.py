@@ -624,7 +624,7 @@ def daily():
 def _mark_automatic(day):
     """"Top management officials should be given automatic attendance" —
     both minutes ask for it."""
-    from hrms_addon.hrms_addon import attendance_deletions
+    from hrms_addon.hrms_addon import attendance_deletions, attendance_verification
 
     kept, company_lists = {}, {}
     for employee in frappe.get_all("Employee", filters={"status": "Active", "custom_automatic_attendance": 1},
@@ -635,6 +635,9 @@ def _mark_automatic(day):
                                            "docstatus": ["!=", 2]}):
             continue
         if attendance_deletions.held(employee.name, day):
+            continue
+        # a day its branch has verified changes no more (attendance_verification.py)
+        if attendance_verification.verified(employee.name, day):
             continue
         # their own holiday list, else the company's: nobody is marked
         # present on a day off, whoever on the list was looked at first

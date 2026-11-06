@@ -12225,6 +12225,18 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Settings-custom_branches_verify_attendance",
+  "dt": "Payroll Settings",
+  "fieldname": "custom_branches_verify_attendance",
+  "fieldtype": "Check",
+  "insert_after": "custom_working_day_overtime",
+  "label": "Each Branch Verifies Its Attendance Before Payroll",
+  "default": "1",
+  "description": "Payroll makes and submits no salary slip until the branch's General Manager has verified the days it pays (Attendance Verification).",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Payroll Entry-custom_pay_period",
   "dt": "Payroll Entry",
   "fieldname": "custom_pay_period",

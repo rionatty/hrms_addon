@@ -8,6 +8,10 @@
 // opened, not with the form, and again once the payroll changes or Refresh
 // is pressed.
 //
+// Attendance: each branch of the people on the payroll, and whether its General
+// Manager has verified the days the payroll pays (attendance_verification.py).
+// Payroll makes and submits no slip until every branch has.
+//
 // The Period of a monthly payroll: picked from its company's open months, and the
 // dates follow it (payroll_months.py). Should the list not come, the dates stay
 // open to type and the server still checks them. Frappe HR fills the dates from
@@ -31,6 +35,8 @@ let ha_weekly_fill = false;
 // what the End says under it, set only when it changes
 let ha_weekly_hint = "";
 
+const HA_PAYROLL_ATTENDANCE_METHOD = "hrms_addon.hrms_addon.attendance_verification.payroll_branches";
+
 const HA_PAYROLL_REGISTER_TAB = "custom_salary_register_tab";
 const HA_PAYROLL_REGISTER_FIELD = "custom_salary_register";
 const HA_PAYROLL_REGISTER_METHOD = "hrms_addon.hrms_addon.payroll_register.salary_register";
@@ -42,6 +48,7 @@ frappe.ui.form.on("Payroll Entry", {
 		ha_payroll_register(frm);
 		ha_payroll_period(frm);
 		ha_weekly(frm);
+		ha_payroll_attendance(frm);
 	},
 	on_tab_change(frm) {
 		ha_payroll_register(frm);
@@ -245,6 +252,57 @@ function ha_weekly_put(frm, field, value) {
 	frm.doc[field] = value || "";
 	frm.refresh_field(field);
 	frm.dirty();
+}
+
+// what each branch's sheet says, under the form's dashboard; nothing at all if it cannot be had
+function ha_payroll_attendance(frm) {
+	if (frm.is_new() || frm.doc.docstatus === 2 || !(frm.doc.employees || []).length) return;
+	const asked = frm.doc.name + "|" + frm.doc.modified;
+	frm.ha_attendance_asked = asked;
+	fetch("/api/method/" + HA_PAYROLL_ATTENDANCE_METHOD + "?payroll_entry=" + encodeURIComponent(frm.doc.name), {
+		credentials: "same-origin",
+		cache: "no-store",
+		headers: { Accept: "application/json" },
+	})
+		.then((response) => (response.ok ? response.json() : null))
+		.catch(() => null)
+		.then((body) => {
+			const answer = body && body.message;
+			// a later refresh asked again: the later answer counts
+			if (frm.ha_attendance_asked !== asked || !answer || !answer.on || !(answer.lines || []).length) return;
+			frm.dashboard.parent.find(".ha-attendance-verification").remove();
+			frm.dashboard.add_section(
+				ha_payroll_attendance_lines(answer.lines),
+				__("Attendance"),
+				"custom ha-attendance-verification"
+			);
+			frm.dashboard.show();
+		});
+}
+
+function ha_payroll_attendance_lines(lines) {
+	const escape = frappe.utils.escape_html;
+	return lines
+		.map((line) => {
+			const name = escape(line.branch || __("No branch"));
+			let said;
+			let colour;
+			if (!line.missing) {
+				const sheet = (line.sheets || [])[0] || {};
+				said = sheet.verified_by
+					? __("verified by {0} on {1}", [escape(sheet.verified_by), frappe.datetime.str_to_user(sheet.verified_on)])
+					: __("verified");
+				colour = "green";
+			} else {
+				said = __("{0}: {1} of {2} not verified", [escape(__(line.state || "")), line.missing, line.people]);
+				colour = "orange";
+			}
+			return (
+				`<div style="padding:4px 0;border-bottom:1px solid var(--border-color)">` +
+				`<span class="indicator-pill ${colour}">${name}</span> <span class="text-muted">${said}</span></div>`
+			);
+		})
+		.join("");
 }
 
 function ha_payroll_recreate_button(frm) {

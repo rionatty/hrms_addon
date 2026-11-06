@@ -1,0 +1,398 @@
+# Copyright (c) 2026, CyveTech and contributors
+# For license information, please see license.txt
+
+"""Each branch's attendance, verified before payroll pays it.
+
+No Frappe import (scripts/verify_attendance_verification.py); the site's side
+is attendance_verification.py, the steps attendance_verification_approval.py.
+
+  THE SHEET      one per branch per payroll: a Monthly one for a payroll month
+                 (the 26th to the 25th), a Weekly one for the casuals' days.
+                 Everyone of the branch the payroll pays that way, each with
+                 the Attendance Board's letters counted (person_figures)
+  WHAT STOPS IT  a day nobody marked, a day the clock saw and nobody marked,
+                 and a request still on its way that would change a day:
+                 leave, an attendance request, overtime, off duty, a late
+                 arrival notice (person_issues, the glue's requests)
+  THE PAYROLL    pays nobody for a day that no verified sheet of theirs
+                 covers (payroll_gaps): a monthly payroll every day of its
+                 month, a weekly one each day it pays
+  THE LOCK       a verified day of somebody on the sheet changes no more
+                 until the sheet is reopened (held)
+"""
+
+import datetime
+
+MONTHLY, WEEKLY = "Monthly", "Weekly"
+KINDS = (MONTHLY, WEEKLY)
+# Employee custom_pay_category of those paid by the week (weekly_pay_rules.WEEKLY)
+WEEKLY_CATEGORY = "Weekly"
+MAX_WEEKLY_DAYS = 31
+INACTIVE = "Inactive"
+
+# the Attendance Board's letters (attendance_rules.py)
+DAY_SHIFT, NIGHT_SHIFT, ABSENT, SICK, WEEKLY_OFF, LEAVE, OFF_DUTY = "M", "N", "A", "S", "WO", "L", "O"
+WORKED_CODES = (DAY_SHIFT, NIGHT_SHIFT)
+LEAVE_CODES = (LEAVE, SICK)
+OFF_CODES = (WEEKLY_OFF, OFF_DUTY)
+HALF_DAY = "Half Day"
+
+# a line of the sheet, in the order the table shows it
+FIGURES = ("worked", "half_day", "absent", "leave", "off", "not_marked", "overtime_hours")
+
+NOT_MARKED = "Not marked"
+CLOCKED = "Clocked in, not marked"
+LEAVE_WAITING = "Leave waiting for approval"
+ATTENDANCE_REQUEST_WAITING = "Attendance request waiting for approval"
+OVERTIME_WAITING = "Overtime waiting for approval"
+OVERTIME_NOT_SENT = "Overtime approved, not yet on the attendance"
+OFF_DUTY_WAITING = "Off-duty request waiting for approval"
+LATE_NOTICE_WAITING = "Late arrival notice waiting for the supervisor"
+# a sheet keeps this many lines of what to put right, and counts the rest
+ISSUE_ROWS = 500
+
+# Payroll Settings: whether payroll waits for each branch's sheet (on until it is unticked)
+SETTING = "custom_branches_verify_attendance"
+
+VERIFIED_STATE = "Verified"
+WAITING_TEXT = {None: "not started", "": "not started", "Draft": "with HR",
+                "Pending General Manager": "waiting for the General Manager"}
+NAMES_SHOWN = 5
+
+
+# ── The sheet ─────────────────────────────────────────────────────────
+def sheet_errors(sheet):
+    """What a sheet lacks to be saved. sheet: company, branch, pay_kind, from_date, to_date, period_name (the payroll
+    month its dates make, if they make one) and clashes (other live sheets of the branch on these days)."""
+    errors = []
+    if not sheet.get("company"):
+        errors.append("Pick the company.")
+    if not sheet.get("branch"):
+        errors.append("Pick the branch.")
+    kind = sheet.get("pay_kind")
+    if kind not in KINDS:
+        errors.append("Payroll is Monthly or Weekly.")
+    first, last = _date(sheet.get("from_date")), _date(sheet.get("to_date"))
+    if not first or not last:
+        errors.append("Give the From and To dates.")
+    elif last < first:
+        errors.append("To comes before From.")
+    elif kind == MONTHLY and not sheet.get("period_name"):
+        errors.append("A monthly sheet is one payroll month, the 26th to the 25th.")
+    elif kind == WEEKLY and (last - first).days + 1 > MAX_WEEKLY_DAYS:
+        errors.append("A weekly sheet is at most %d days." % MAX_WEEKLY_DAYS)
+    clashes = [name for name in sheet.get("clashes") or () if name]
+    if clashes:
+        errors.append("These days of the branch are on %s already." % ", ".join(clashes))
+    return errors
+
+
+def ready_errors(to_date, today):
+    """A sheet is sent and verified once its last day is over."""
+    last, today = _date(to_date), _date(today)
+    if last and today and last >= today:
+        return ["The sheet runs to %s. Send it once that day is over." % show(last)]
+    return []
+
+
+def title_for(branch, kind, period_name, from_date, to_date):
+    if kind == MONTHLY and period_name:
+        return "%s, %s" % (branch or "", period_name)
+    return "%s, casuals %s to %s" % (branch or "", show(from_date), show(to_date))
+
+
+def on_sheet(person, kind, from_date, to_date):
+    """Whether somebody is on a branch's sheet: on the books for some of its days, and paid the way it pays.
+    person: status, date_of_joining, relieving_date, custom_pay_category."""
+    if (person.get("status") or "") == INACTIVE:
+        return False
+    joined, left = _date(person.get("date_of_joining")), _date(person.get("relieving_date"))
+    first, last = _date(from_date), _date(to_date)
+    if joined and last and joined > last:
+        return False
+    if left and first and left < first:
+        return False
+    weekly = (person.get("custom_pay_category") or "") == WEEKLY_CATEGORY
+    return weekly if kind == WEEKLY else not weekly
+
+
+def employed(person, day):
+    """Whether the day is one the person was on the books for."""
+    day = _date(day)
+    joined, left = _date(person.get("date_of_joining")), _date(person.get("relieving_date"))
+    return bool(day) and not (joined and day < joined) and not (left and day > left)
+
+
+def person_figures(person, codes, clock, statuses, overtime_hours, days):
+    """A person's line: the Board's letters, counted over the days they were on the books.
+
+    codes: {date: letter} (attendance_rules.register_code); clock: the dates the clock saw them and nobody has marked
+    (the Board shows those as worked, drawn lighter); statuses: {date: Attendance status}, for the half days;
+    overtime_hours: what the attendance carries."""
+    row = dict.fromkeys(FIGURES, 0)
+    codes = {_date(day): code for day, code in (codes or {}).items()}
+    clock = {_date(day) for day in clock or ()}
+    statuses = {_date(day): status for day, status in (statuses or {}).items()}
+    for day in days or ():
+        day = _date(day)
+        if not employed(person, day):
+            continue
+        code = codes.get(day) or ""
+        if day in clock or not code:
+            row["not_marked"] += 1
+        elif code in WORKED_CODES:
+            row["worked"] += 1
+            if statuses.get(day) == HALF_DAY:
+                row["half_day"] += 1
+        elif code == ABSENT:
+            row["absent"] += 1
+        elif code in LEAVE_CODES:
+            row["leave"] += 1
+        elif code in OFF_CODES:
+            row["off"] += 1
+    row["overtime_hours"] = round(_num(overtime_hours), 2)
+    return row
+
+
+def person_issues(person, codes, clock, days):
+    """The days on a person's line that stop the sheet, a run of days at a time: not marked, or seen by the clock and
+    not marked. [{"employee", "employee_name", "from_date", "to_date", "days", "issue"}]"""
+    codes = {_date(day): code for day, code in (codes or {}).items()}
+    clock = {_date(day) for day in clock or ()}
+    found = {CLOCKED: [], NOT_MARKED: []}
+    for day in days or ():
+        day = _date(day)
+        if not employed(person, day):
+            continue
+        if day in clock:
+            found[CLOCKED].append(day)
+        elif not codes.get(day):
+            found[NOT_MARKED].append(day)
+    out = []
+    for issue, dates in found.items():
+        for first, last in runs(dates):
+            out.append(issue_row(person, first, last, issue))
+    out.sort(key=lambda row: row["from_date"])
+    return out
+
+
+def issue_row(person, first, last, issue, reference_doctype=None, reference_name=None):
+    first, last = _date(first), _date(last or first)
+    return {"employee": person.get("employee") or person.get("name"),
+            "employee_name": person.get("employee_name"),
+            "from_date": first, "to_date": last, "days": (last - first).days + 1 if first and last else 0,
+            "issue": issue, "reference_doctype": reference_doctype, "reference_name": reference_name}
+
+
+def request_issue(person, request, issue, reference_doctype):
+    """A request still on its way, as a line of what to put right: its own days, within the sheet's."""
+    return issue_row(person, request.get("from_date"), request.get("to_date") or request.get("from_date"), issue,
+                     reference_doctype, request.get("name"))
+
+
+def issue_text(row):
+    """One line of what to put right, as a sentence."""
+    first, last = _date(row.get("from_date")), _date(row.get("to_date"))
+    when = show(first) if first == last or not last else "%s to %s" % (show(first), show(last))
+    who = row.get("employee_name") or row.get("employee") or ""
+    text = "%s, %s: %s" % (who, when, row.get("issue") or "")
+    if row.get("reference_name"):
+        text += " (%s)" % row["reference_name"]
+    return text
+
+
+def changed_people(stored, fresh):
+    """Who is on one list of lines and not the other, or on both with other figures: the names."""
+    def keyed(rows):
+        return {row.get("employee"): tuple(round(_num(row.get(field)), 2) for field in FIGURES) for row in rows or ()}
+
+    before, now = keyed(stored), keyed(fresh)
+    names = {row.get("employee"): row.get("employee_name") or row.get("employee")
+             for row in list(stored or ()) + list(fresh or ())}
+    return [names.get(employee) or employee for employee in sorted(set(before) | set(now), key=lambda e: e or "")
+            if before.get(employee) != now.get(employee)]
+
+
+def totals(rows):
+    return {field: round(sum(_num(row.get(field)) for row in rows or ()), 2) for field in FIGURES}
+
+
+# ── What a verified sheet holds ───────────────────────────────────────
+def spans_by_employee(sheets):
+    """{employee: [(first day, last day, sheet, branch)]} of the sheets given (verified ones).
+    sheets: [{"name", "branch", "from_date", "to_date", "employees": [employee]}]"""
+    spans = {}
+    for sheet in sheets or ():
+        first, last = _date(sheet.get("from_date")), _date(sheet.get("to_date"))
+        if not first or not last:
+            continue
+        for employee in sheet.get("employees") or ():
+            spans.setdefault(employee, []).append((first, last, sheet.get("name"), sheet.get("branch")))
+    return spans
+
+
+def held(spans, days):
+    """[(day, sheet, branch)] of the days a verified sheet of the person holds, earliest first."""
+    out = []
+    for day in sorted({_date(day) for day in days or () if _date(day)}):
+        for first, last, sheet, branch in spans or ():
+            if first <= day <= last:
+                out.append((day, sheet, branch))
+                break
+    return out
+
+
+def unverified(spans, days):
+    """The days no verified sheet of the person covers."""
+    return [day for day in sorted({_date(day) for day in days or () if _date(day)})
+            if not any(first <= day <= last for first, last, _sheet, _branch in spans or ())]
+
+
+def lock_message(who, holding):
+    """Why a verified day cannot change. holding: held(...), not empty."""
+    days = [day for day, _sheet, _branch in holding]
+    sheets = sorted({(branch or "", sheet) for _day, sheet, branch in holding})
+    whose = ", ".join("%s (%s)" % (sheet, branch) if branch else sheet for branch, sheet in sheets)
+    return ("The attendance of %s on %s is verified on %s and cannot change. The General Manager reopens it first."
+            % (who, days_text(days), whose))
+
+
+# ── The payroll ───────────────────────────────────────────────────────
+def gate_on(values):
+    """Payroll Settings: on unless it is unticked (a site that never saved the setting has it on)."""
+    value = (values or {}).get(SETTING)
+    return True if value is None or value == "" else bool(int(_num(value)))
+
+
+def payroll_gaps(people, sheets, start, end, days_by_employee=None):
+    """Who a payroll would pay for days no verified sheet covers, by branch ("" for those with none).
+
+    people: [{"employee", "employee_name", "branch"}]; sheets: the verified sheets (spans_by_employee);
+    days_by_employee: the days a weekly payroll pays each person, else every day from start to end.
+    Returns {branch: [{"employee", "employee_name", "days"}]}"""
+    spans = spans_by_employee(sheets)
+    period = days_between(start, end)
+    gaps = {}
+    for person in people or ():
+        employee = person.get("employee")
+        wanted = (days_by_employee or {}).get(employee, []) if days_by_employee is not None else period
+        missing = unverified(spans.get(employee), wanted)
+        if missing:
+            gaps.setdefault(person.get("branch") or "", []).append(
+                {"employee": employee, "employee_name": person.get("employee_name") or employee, "days": missing})
+    return gaps
+
+
+def gaps_message(gaps, waiting, verified_branches):
+    """What stops a payroll, a branch to a line. waiting: {branch: the state of its sheet not yet verified};
+    verified_branches: the branches with a verified sheet for these days."""
+    lines = []
+    for branch in sorted(gaps, key=lambda name: (name == "", name)):
+        people = gaps[branch]
+        if not branch:
+            lines.append("No branch: %s. Set their branch, then verify their attendance there." % names_text(people))
+        elif branch in (verified_branches or ()):
+            lines.append("%s: %s not on its verified sheet. The General Manager reopens it, and it is verified "
+                         "again." % (branch, names_text(people)))
+        else:
+            lines.append("%s: attendance not verified yet (%s)." % (branch, WAITING_TEXT.get(
+                (waiting or {}).get(branch), (waiting or {}).get(branch))))
+    return lines
+
+
+def branch_lines(people, sheets, waiting, start, end, days_by_employee=None):
+    """The payroll's branches as its form shows them: [{"branch", "people", "missing", "state", "sheets"}].
+    state: "Verified" when nobody is missing, else what the branch's sheet waits for."""
+    gaps = payroll_gaps(people, sheets, start, end, days_by_employee)
+    counted = {}
+    for person in people or ():
+        branch = person.get("branch") or ""
+        counted[branch] = counted.get(branch, 0) + 1
+    out = []
+    for branch in sorted(counted, key=lambda name: (name == "", name)):
+        missing = len(gaps.get(branch) or [])
+        mine = [{"name": sheet.get("name"), "verified_by": sheet.get("verified_by"), "verified_on": sheet.get("verified_on")}
+                for sheet in sheets or () if (sheet.get("branch") or "") == branch]
+        if not missing:
+            state = VERIFIED_STATE
+        elif not branch:
+            state = "No branch"
+        elif mine:
+            state = "Not all on the verified sheet"
+        else:
+            state = WAITING_TEXT.get((waiting or {}).get(branch), (waiting or {}).get(branch))
+        out.append({"branch": branch, "people": counted[branch], "missing": missing, "state": state, "sheets": mine})
+    return out
+
+
+# ── A new sheet's days ────────────────────────────────────────────────
+def weekly_dates(last_sheet_to, last_paid_to, today):
+    """A new weekly sheet's days: from the day after the branch's last weekly sheet (else after the last weekly
+    payroll, else a week back) to yesterday."""
+    today = _date(today)
+    yesterday = today - datetime.timedelta(days=1)
+    after = _date(last_sheet_to) or _date(last_paid_to)
+    first = after + datetime.timedelta(days=1) if after else yesterday - datetime.timedelta(days=6)
+    return min(first, yesterday), yesterday
+
+
+# ── Small helpers ─────────────────────────────────────────────────────
+def days_between(first, last):
+    first, last = _date(first), _date(last)
+    if not first or not last or last < first:
+        return []
+    return [first + datetime.timedelta(days=n) for n in range((last - first).days + 1)]
+
+
+def runs(dates):
+    """Dates gathered into runs of consecutive days: [(first, last)]."""
+    out = []
+    for day in sorted({_date(day) for day in dates or () if _date(day)}):
+        if out and day == out[-1][1] + datetime.timedelta(days=1):
+            out[-1] = (out[-1][0], day)
+        else:
+            out.append((day, day))
+    return out
+
+
+def days_text(days):
+    """"3 Oct 2026", "3 Oct 2026 to 5 Oct 2026", or several runs joined."""
+    parts = []
+    for first, last in runs(days):
+        parts.append(show(first) if first == last else "%s to %s" % (show(first), show(last)))
+    return ", ".join(parts)
+
+
+def names_text(people, shown=NAMES_SHOWN):
+    names = [person.get("employee_name") or person.get("employee") for person in people or ()]
+    if len(names) <= shown:
+        return ", ".join(names)
+    return "%s and %d more" % (", ".join(names[:shown]), len(names) - shown)
+
+
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def show(day):
+    day = _date(day)
+    return "%d %s %d" % (day.day, MONTHS[day.month - 1], day.year) if day else ""
+
+
+def _date(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date):
+        return value
+    try:
+        return datetime.date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
+def _num(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0

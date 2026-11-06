@@ -1,0 +1,403 @@
+{
+ "actions": [],
+ "autoname": "HR-ATV-.YYYY.-.#####",
+ "creation": "2026-11-06 12:00:00.000000",
+ "description": "A branch's attendance for a payroll, signed off by its General Manager before payroll pays it.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "company",
+  "branch",
+  "pay_kind",
+  "pay_period",
+  "column_break_dates",
+  "from_date",
+  "to_date",
+  "column_break_status",
+  "status",
+  "read_on",
+  "figures_section",
+  "people",
+  "total_worked",
+  "total_half_day",
+  "column_break_totals",
+  "total_absent",
+  "total_leave",
+  "total_off",
+  "column_break_totals_2",
+  "total_not_marked",
+  "total_overtime_hours",
+  "employees_section",
+  "employees",
+  "issues_section",
+  "issues_count",
+  "issues",
+  "approval_section",
+  "prepared_by",
+  "prepared_on",
+  "column_break_verified",
+  "verified_by",
+  "verified_on",
+  "column_break_reopened",
+  "reopened_by",
+  "reopened_on",
+  "return_section",
+  "return_remarks",
+  "amended_from",
+  "workflow_state"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "remember_last_selected_value": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Branch",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "pay_kind",
+   "fieldtype": "Select",
+   "label": "Payroll",
+   "options": "Monthly\nWeekly",
+   "default": "Monthly",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Monthly: a payroll month, the 26th to the 25th. Weekly: the casuals' days."
+  },
+  {
+   "fieldname": "pay_period",
+   "fieldtype": "Select",
+   "label": "Month",
+   "depends_on": "eval:doc.pay_kind=='Monthly'",
+   "description": "The company's open payroll months. The dates follow it."
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nPending General Manager\nVerified\nReopened",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "read_on",
+   "fieldtype": "Datetime",
+   "label": "Figures Read On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "figures_section",
+   "fieldtype": "Section Break",
+   "label": "Figures"
+  },
+  {
+   "fieldname": "people",
+   "fieldtype": "Int",
+   "label": "People",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "total_worked",
+   "fieldtype": "Int",
+   "label": "Days Worked",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "total_half_day",
+   "fieldtype": "Int",
+   "label": "Half Days",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_absent",
+   "fieldtype": "Int",
+   "label": "Days Absent",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "total_leave",
+   "fieldtype": "Int",
+   "label": "Days on Leave",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "total_off",
+   "fieldtype": "Int",
+   "label": "Days Off",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_totals_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_not_marked",
+   "fieldtype": "Int",
+   "label": "Days Not Marked",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "total_overtime_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Hours",
+   "read_only": 1,
+   "no_copy": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "employees_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "employees",
+   "fieldtype": "Table",
+   "label": "People",
+   "options": "Attendance Verification Employee",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "issues_section",
+   "fieldtype": "Section Break",
+   "label": "To Put Right"
+  },
+  {
+   "fieldname": "issues_count",
+   "fieldtype": "Int",
+   "label": "Items to Put Right",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "issues",
+   "fieldtype": "Table",
+   "label": "To Put Right",
+   "options": "Attendance Verification Issue",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "approval_section",
+   "fieldtype": "Section Break",
+   "label": "Signatures"
+  },
+  {
+   "fieldname": "prepared_by",
+   "fieldtype": "Link",
+   "label": "Prepared By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "prepared_on",
+   "fieldtype": "Datetime",
+   "label": "Prepared On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_verified",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "verified_by",
+   "fieldtype": "Link",
+   "label": "Verified By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "verified_on",
+   "fieldtype": "Datetime",
+   "label": "Verified On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_reopened",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reopened_by",
+   "fieldtype": "Link",
+   "label": "Reopened By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reopened_on",
+   "fieldtype": "Datetime",
+   "label": "Reopened On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_section",
+   "fieldtype": "Section Break",
+   "label": "Return"
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Attendance Verification",
+   "read_only": 1,
+   "print_hide": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "label": "Workflow State",
+   "options": "Workflow State",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-11-06 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Attendance Verification",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "role": "HR Manager"
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Payroll Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  }
+ ],
+ "search_fields": "branch,pay_kind,from_date",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title",
+ "track_changes": 1
+}

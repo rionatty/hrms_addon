@@ -41,6 +41,10 @@ def recreate_salary_slips(payroll_entry):
     why = rules.why_not_recreate(run.docstatus, run.status, run.salary_slips_submitted, submitted, posted)
     if why:
         frappe.throw(_(why), title=_("Recreate Salary Slips"))
+    # each branch's days verified first, as when the slips were first made (attendance_verification.py)
+    from hrms_addon.hrms_addon import attendance_verification
+
+    attendance_verification.refuse_payroll(run)
     drafts = frappe.db.count(SLIP, {"payroll_entry": run.name, "docstatus": 0})
     run.db_set({"status": rules.RUNNING, "salary_slips_created": 0, "error_message": ""})
     frappe.enqueue(REMAKE, queue="long", timeout=TIMEOUT, payroll_entry=run.name, enqueue_after_commit=True)
