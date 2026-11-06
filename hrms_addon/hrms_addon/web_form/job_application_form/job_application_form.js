@@ -31,6 +31,7 @@ window.hrms_addon_apply = {
 	init() {
 		this.private_uploads();
 		this.save_for_later();
+		this.place_table_dropdowns();
 		const params = frappe.utils.get_query_params();
 		const job_opening = params.job_title;
 		// the emailed link first, else what this device kept
@@ -55,6 +56,31 @@ window.hrms_addon_apply = {
 
 	draft_key() {
 		return HA_APPLY_DRAFT + (frappe.utils.get_query_params().job_title || "any");
+	},
+
+	// A table cell's drop-down (Qualification Type and the like) opens under the cell. Frappe moves it beside the table
+	// as the cell takes focus and places it by the cell's place in the window less the table's place in the page
+	// (grid_row.js): the two agree only at the top of the page, so once the candidate has scrolled down to the tables
+	// it opened that far above the cell. This runs after Frappe's own, and places it again, by the window alone.
+	place_table_dropdowns() {
+		$(document)
+			.off("focusin.lpl-dropdown")
+			.on("focusin.lpl-dropdown", ".web-form .grid-field .grid-static-col", (event) => {
+				const input = event.target;
+				const $grid_field = $(event.currentTarget).closest(".grid-field");
+				const $wrapper = $grid_field
+					.children("div.awesomplete")
+					.filter((index, wrapper) => wrapper.style.position === "absolute")
+					.last();
+				if (!$wrapper.length || !input || !input.getBoundingClientRect) return;
+				const box = $wrapper[0].offsetParent || $grid_field[0];
+				const cell = input.getBoundingClientRect();
+				const around = box.getBoundingClientRect();
+				$wrapper.css({
+					top: `${cell.bottom - around.top + box.scrollTop + 4}px`,
+					left: `${cell.left - around.left + box.scrollLeft}px`,
+				});
+			});
 	},
 
 	// the Save for later button beside Submit, saving as the candidate types,

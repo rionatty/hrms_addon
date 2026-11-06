@@ -478,7 +478,12 @@ for needle, why in (
         ("frappe.web_form.after_save = () => this.clear_draft();", "and cleared once they apply"),
         ('$(".discard-btn").on("click", () => this.clear_draft());', "or discard"),
         ('const HA_APPLY_SKIP = ["job_title", "custom_screening_answers"];',
-         "the opening applied for and its questions always come from the page, never the saved copy")):
+         "the opening applied for and its questions always come from the page, never the saved copy"),
+        ("\t\tthis.place_table_dropdowns();\n\t\tconst params = frappe.utils.get_query_params();",
+         "a table cell's drop-down placed again, before init can return"),
+        ('.on("focusin.lpl-dropdown", ".web-form .grid-field .grid-static-col", (event) => {',
+         "after Frappe's own placement, which goes wrong once the page has scrolled (smoke_apply_dropdown.py)"),
+        ("top: `${cell.bottom - around.top + box.scrollTop + 4}px`,", "under the cell, by the window alone")):
     if needle not in script:
         fail.append("job_application_form.js: %s (%r not found)" % (why, needle))
 if ".lpl-apply-draft" not in style:
