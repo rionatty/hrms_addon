@@ -190,7 +190,8 @@ TABS = (
     {
         "key": "performance", "title": "Performance", "icon": "performance", "roles": PEOPLE_ROLES,
         "anchors": ("Appraisal",), "workspaces": ("Performance",), "opens": "Performance",
-        "cards": ("appraisals_open", "appraisals_done", "average_score", "pips_open"),
+        # the quarter under way, as the supervisors have rated it (review item 7)
+        "cards": ("appraisals_open", "quarter_appraised", "quarter_score", "pips_open"),
         "panels": ("attention", "appraisal_steps", "rating_bands", "score_by_department", "nine_box", "pips_due"),
         "reports": ("Appraisal Results", "Performance Analytics", "Nine-Box Distribution", "Succession Coverage",
                     "Top Talent and Flight Risk", "Appraisal Overview"),
@@ -417,16 +418,11 @@ FIGURES = {
         "late": {"end_date": ["between", [EVER, "{yesterday}"]]}, "late_words": "past their cycle's end",
         "note": "None past their cycle's end",
     },
-    "appraisals_done": {
-        "label": "Completed This Year", "kind": COUNT, "icon": "done", "doctype": "Appraisal", "function": "COUNT",
-        "filters": {"docstatus": 1, "end_date": [">=", "{year}"]}, "company": True, "note": "Signed off",
-        "tone": "green",
-    },
     "pips_open": {
         "label": "On an Improvement Plan", "kind": COUNT, "icon": "performance",
         "doctype": "Performance Improvement Plan", "function": "COUNT",
         "filters": {"docstatus": 0, "status": ["in", list(PIP_OPEN)]}, "note": "Plans not yet closed",
-        "tone": "amber", "quiet": "green",
+        "tone": "rose", "quiet": "green",
     },
     # training
     "trainings_month": {
@@ -490,7 +486,8 @@ CARDS = {
     "gross_pay": ("Gross Pay", MONEY, ("Salary Slip",), "payroll", True),
     "net_pay": ("Net Pay", MONEY, ("Salary Slip",), "money", True),
     "paid_people": ("Employees Paid", COUNT, ("Salary Slip",), "employees", False),
-    "average_score": ("Average Score This Year", PERCENT, ("Appraisal",), "performance", False),
+    "quarter_appraised": ("Appraised This Quarter", PERCENT, ("Appraisal",), "done", False),
+    "quarter_score": ("Average This Quarter", PERCENT, ("Appraisal",), "performance", False),
     "evaluation_score": ("Average Evaluation", PERCENT, ("Training Event",), "training", False),
     "probations_due": ("Probations Ending", COUNT, ("Employee",), "deadlines", False),
 }
@@ -1196,6 +1193,26 @@ def change(now, before):
 
 
 # ── The panels' rows ──────────────────────────────────────────────────
+def quarter_figures(appraisals, rated_states):
+    """The quarter under way on the Performance tab (Luuka, 5 Nov 2026: "At Quarter every, the system should show
+    the current cycle percentage"): of the cycle's appraisals, how many the supervisor has rated, as a share, and
+    their average score. Only the supervisor's appraisal counts; the self-appraisal is for information.
+
+    appraisals: [{"workflow_state", "custom_total_score"}] of the cycles in force. Returns {"total", "rated",
+    "percent", "average"}."""
+    appraisals = list(appraisals or ())
+    rated = [row for row in appraisals if row.get("workflow_state") in rated_states]
+    return {"total": len(appraisals), "rated": len(rated),
+            "percent": round(100.0 * len(rated) / len(appraisals), 1) if appraisals else 0.0,
+            "average": round(sum(_number(row.get("custom_total_score")) for row in rated) / len(rated), 1)
+            if rated else 0.0}
+
+
+def quarter_tone(found):
+    """Green once every appraisal of the quarter is rated, blue until then."""
+    return "green" if found.get("total") and found.get("rated") == found.get("total") else "blue"
+
+
 def card(key, value, note="", tone="navy", change_=None, route=None, filters=None, options=None, currency=None):
     """A figure, read: {"key", "label", "kind", "icon", "value", "note", "tone", "change", "route", "filters",
     "options", "currency"}."""

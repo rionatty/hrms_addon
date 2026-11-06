@@ -127,6 +127,10 @@ OPENING = {True: (SEND_SELF, PENDING_SELF), False: (SEND_SUPERVISOR, PENDING_SUP
 # where an appraisal stands before the supervisor has it: these follow
 # Appraisal Settings as they are now
 BEFORE_SUPERVISOR = (DRAFT, PENDING_SELF)
+# where it stands once the supervisor has rated it: only their appraisal
+# counts, the self-appraisal is for information (Luuka, 5 Nov 2026)
+SUPERVISOR_RATED = tuple(state for state in PENDING_STATES
+                         if state not in BEFORE_SUPERVISOR + (PENDING_SUPERVISOR,)) + (COMPLETED,)
 
 STATES = (
     *({"state": DRAFT, "allow_edit": role, "status": DRAFT, "style": "", "send_email": 0}

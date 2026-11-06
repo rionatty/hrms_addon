@@ -109,9 +109,11 @@ def open_plan(employee):
 
 
 def mark_appraisals(employee):
-    """Every appraisal of the employee says whether they are on an open
-    plan, and which: the lists show them in red. Written straight in, so a
-    completed appraisal shows it too."""
+    """Every appraisal of the employee, and the employee themself, say
+    whether they are on an open plan, and which: the lists show them in red
+    (Luuka, 5 Nov 2026: "System should have pip employees populate in
+    red/highlighted"). Written straight in, so a completed appraisal shows
+    it too, and the Employee is not saved for it."""
     if not employee:
         return
     plan = open_plan(employee)
@@ -120,6 +122,16 @@ def mark_appraisals(employee):
         if (row.custom_improvement_plan or None) != plan or bool(row.custom_on_pip) != bool(plan):
             frappe.db.set_value("Appraisal", row.name, {"custom_on_pip": 1 if plan else 0,
                                                         "custom_improvement_plan": plan}, update_modified=False)
+    _mark_employee(employee, plan)
+
+
+def _mark_employee(employee, plan):
+    if not frappe.get_meta("Employee").has_field("custom_on_pip"):
+        return  # before the migrate has made the field
+    current = frappe.db.get_value("Employee", employee, ["custom_on_pip", "custom_improvement_plan"], as_dict=True)
+    if current and ((current.custom_improvement_plan or None) != plan or bool(current.custom_on_pip) != bool(plan)):
+        frappe.db.set_value("Employee", employee, {"custom_on_pip": 1 if plan else 0, "custom_improvement_plan": plan},
+                            update_modified=False)
 
 
 @frappe.whitelist()

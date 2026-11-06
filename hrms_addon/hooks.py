@@ -931,6 +931,9 @@ fixtures = [
                     "Employee-custom_bank_account_name",
                     "Employee-custom_bank_code",
                     "Employee-custom_employee_status",
+                    # on an improvement plan, in red on the Employee list (pips.mark_appraisals)
+                    "Employee-custom_on_pip",
+                    "Employee-custom_improvement_plan",
                     "Employee-custom_salary_from_month",
                     "Employee-custom_wages_phone_section",
                     "Employee-custom_wages_phone",

@@ -24,6 +24,22 @@ function ha_employee_counts_as(status) {
 	return frappe.db.get_value("Employee Status", status, "counts_as").then((r) => (r.message || {}).counts_as);
 }
 
+// An employee on an improvement plan, said in red at the top (Luuka, 5 Nov
+// 2026: "System should have pip employees populate in red/highlighted")
+function ha_employee_improvement_plan(frm) {
+	if (!frm.doc.custom_on_pip || !frm.doc.custom_improvement_plan) return;
+	const link = `<a href="/app/performance-improvement-plan/${encodeURIComponent(
+		frm.doc.custom_improvement_plan
+	)}">${frappe.utils.escape_html(frm.doc.custom_improvement_plan)}</a>`;
+	frm.set_intro(
+		__("{0} is on an improvement plan: {1}.", [
+			frappe.utils.escape_html(frm.doc.employee_name || frm.doc.name),
+			link,
+		]),
+		"red"
+	);
+}
+
 frappe.ui.form.on("Employee", {
 	custom_employee_status(frm) {
 		const chosen = frm.doc.custom_employee_status;
@@ -43,6 +59,7 @@ frappe.ui.form.on("Employee", {
 			frm.set_value("custom_employee_status", frm.doc.status);
 		}
 		if (hrms_addon.talent_card) hrms_addon.talent_card.attach(frm, frm.doc.name);
+		ha_employee_improvement_plan(frm);
 		if (frm.doc.status !== "Left" || !frappe.user.has_role("Executive Director")) return;
 		frm.add_custom_button(__("Reinstate"), () => {
 			frappe.prompt(

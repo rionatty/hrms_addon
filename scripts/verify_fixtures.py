@@ -678,6 +678,9 @@ if by_dt.get(EM):
                  # the Status as Luuka names it, just before Frappe's own, the
                  # System Status (employee_status.py)
                  "custom_employee_status": ("Overview", "image"),
+                 # on an improvement plan, under it: in red on the Employee list (pips.py)
+                 "custom_on_pip": ("Overview", "custom_employee_status"),
+                 "custom_improvement_plan": ("Overview", "custom_on_pip"),
                  "custom_professional_section": ("Profile", "education"),
                  "custom_professional_qualifications": ("Profile", "custom_professional_section"),
                  # beside the Offer Date on the Joining tab

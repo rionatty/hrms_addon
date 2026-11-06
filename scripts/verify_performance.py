@@ -2422,6 +2422,58 @@ if appraisal_group[appraisal_group.index("Performance Review") + 1:][:1] != ["Ap
 print("Oct 2026: the appraisal results, filtered by outcome and stage, prepared for management, approved by the "
       "General Manager and the Executive Director, printed by decision; increase rates by score")
 
+# ── Employees on a plan, in red; the quarter as the supervisors rate it (review item 7) ──
+# Luuka, 5 Nov 2026: "System should have pip employees populate in red/highlighted. At Quarter every, the system
+# should show the current cycle percentage"; only the supervisor's appraisal counts, the self-appraisal is for
+# information
+if A.SUPERVISOR_RATED != (A.PENDING_EMPLOYEE, A.PENDING_HOD, A.PENDING_HRM, A.PENDING_PRODUCTION, A.PENDING_GM,
+                          A.PENDING_ED, A.COMPLETED):
+    fail.append("an appraisal counts as rated once past the supervisor, on either form: %s" % (A.SUPERVISOR_RATED,))
+if set(A.SUPERVISOR_RATED) & (set(A.BEFORE_SUPERVISOR) | {A.PENDING_SUPERVISOR, A.CANCELLED}):
+    fail.append("nothing before the supervisor has rated counts, nor a cancelled appraisal")
+for route in A.ROUTES.values():
+    after = route[route.index(A.PENDING_SUPERVISOR) + 1:]
+    if not set(after) <= set(A.SUPERVISOR_RATED):
+        fail.append("every step a form takes after the supervisor counts as rated: %s" % (after,))
+employee_fields = {row["fieldname"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))
+                   if row["dt"] == "Employee"}
+on_pip, plan_field = employee_fields.get("custom_on_pip") or {}, employee_fields.get("custom_improvement_plan") or {}
+if (on_pip.get("fieldtype"), on_pip.get("read_only"), on_pip.get("in_list_view"), on_pip.get("in_standard_filter"),
+        on_pip.get("no_copy"), on_pip.get("insert_after")) != ("Check", 1, 1, 1, 1, "custom_employee_status") \
+        or (plan_field.get("fieldtype"), plan_field.get("options"), plan_field.get("read_only"),
+            plan_field.get("insert_after")) != ("Link", "Performance Improvement Plan", 1, "custom_on_pip"):
+    fail.append("the Employee says, read only, whether they are on a plan and which, in the list and its filters: %s %s"
+                % (on_pip, plan_field))
+hooks_text = read("hrms_addon", "hooks.py")
+for name in ("Employee-custom_on_pip", "Employee-custom_improvement_plan"):
+    if '"%s"' % name not in hooks_text:
+        fail.append("hooks fixtures list %s" % name)
+marking = read("hrms_addon", "hrms_addon", "pips.py")
+for needle, where, why in (
+    ("    _mark_employee(employee, plan)\n", "def mark_appraisals(", "the employee is marked with their appraisals"),
+    ('if not frappe.get_meta("Employee").has_field("custom_on_pip"):', "def _mark_employee(",
+     "not before the migrate has made the field"),
+    ('frappe.db.set_value("Employee", employee, {"custom_on_pip": 1 if plan else 0, "custom_improvement_plan": plan},',
+     "def _mark_employee(", "written straight in, the Employee not saved for it"),
+    ("bool(current.custom_on_pip) != bool(plan)", "def _mark_employee(", "and only when it changed"),
+):
+    if needle not in marking.split(where)[1].split("\ndef ")[0]:
+        fail.append("pips.py: %s (%r not found)" % (why, needle))
+listing = read("hrms_addon", "public", "js", "employee_list.js")
+if 'settings.add_fields.push("custom_on_pip", "custom_improvement_plan");' not in listing \
+        or "custom_on_pip(value, df, doc) {" not in listing or 'indicator-pill red' not in listing:
+    fail.append("the Employee list shows a red PIP for someone on a plan")
+form = read("hrms_addon", "public", "js", "employee.js")
+if "function ha_employee_improvement_plan(frm) {" not in form or "ha_employee_improvement_plan(frm);" not in form \
+        or '"red"' not in form.split("function ha_employee_improvement_plan(frm) {")[1].split("\n}\n")[0]:
+    fail.append("the Employee form says in red that they are on a plan")
+patching = read("hrms_addon", "patches", "v1_0", "employees_on_improvement_plans.py")
+if "hrms_addon.patches.v1_0.employees_on_improvement_plans" not in read("hrms_addon", "patches.txt") \
+        or 'sync_fixtures("hrms_addon")' not in patching or "pips.mark_appraisals(employee)" not in patching \
+        or 'filters={"custom_on_pip": 1}' not in patching:
+    fail.append("a patch marks those on a plan when the field comes, and anyone marked who is on none")
+print("on a plan: the Employee in red, in the list and on the form; rated once past the supervisor")
+
 print()
 if fail:
     print("FAILURES:")

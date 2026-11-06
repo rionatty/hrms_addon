@@ -34,6 +34,7 @@ from frappe.utils import cint, getdate, now_datetime, nowdate
 
 from hrms_addon.hrms_addon import alerts_rules, attendance_rules, home, home_panels, home_rules
 from hrms_addon.hrms_addon import dashboards_rules as rules
+from hrms_addon.hrms_addon import appraisal_approval as approval
 from hrms_addon.hrms_addon.queries import aggregate
 
 SETTINGS = "HRMS Addon Theme Settings"
@@ -268,12 +269,41 @@ class Reader:
         return rules.card("paid_people", now, note=rules.period_note(end), change_=rules.change(now, then),
                           route=["List", "Salary Slip"], filters=window)
 
-    def card_average_score(self):
-        done = self.mine(docstatus=1, end_date=[">=", self.days["{year}"]])
-        how_many = count("Appraisal", done)
-        score = round(total("Appraisal", "final_score", done) / how_many, 1) if how_many else 0
-        return rules.card("average_score", score, tone="blue", route=["List", "Appraisal"], filters=done,
-                          note="Of %d completed this year" % how_many if how_many else "None completed this year")
+    def quarter(self):
+        """The appraisal cycles in force today, else the latest begun, and their appraisals: the quarter the
+        Performance tab shows (review item 7). Each plant has its own cycle for a quarter."""
+        return self.once("quarter", self._quarter)
+
+    def _quarter(self):
+        today = str(self.today)
+        cycles = frappe.get_list("Appraisal Cycle", filters=self.mine(start_date=["<=", today], end_date=[">=", today]),
+                                 pluck="name", limit_page_length=0)
+        if not cycles:
+            latest = frappe.get_list("Appraisal Cycle", filters=self.mine(start_date=["<=", today]), pluck="start_date",
+                                     order_by="start_date desc", limit_page_length=1)
+            cycles = frappe.get_list("Appraisal Cycle", filters=self.mine(start_date=str(latest[0])), pluck="name",
+                                     limit_page_length=0) if latest else []
+        if not cycles:
+            return [], []
+        return cycles, frappe.get_list("Appraisal", filters={"docstatus": ["!=", 2], "appraisal_cycle": ["in", cycles]},
+                                       fields=["workflow_state", "custom_total_score"], limit_page_length=0)
+
+    def card_quarter_appraised(self):
+        cycles, appraisals = self.quarter()
+        found = rules.quarter_figures(appraisals, approval.SUPERVISOR_RATED)
+        note = "%d of %d rated by their supervisor" % (found["rated"], found["total"]) if found["total"] \
+            else "No appraisal this quarter yet"
+        return rules.card("quarter_appraised", found["percent"], note=note,
+                          tone=rules.quarter_tone(found),
+                          route=["List", "Appraisal"], filters={"appraisal_cycle": ["in", cycles]} if cycles else None)
+
+    def card_quarter_score(self):
+        cycles, appraisals = self.quarter()
+        found = rules.quarter_figures(appraisals, approval.SUPERVISOR_RATED)
+        note = "Of %d rated this quarter" % found["rated"] if found["rated"] else "None rated this quarter yet"
+        return rules.card("quarter_score", found["average"], note=note, tone="blue", route=["List", "Appraisal"],
+                          filters={"appraisal_cycle": ["in", cycles], "workflow_state": ["in", list(approval.SUPERVISOR_RATED)]}
+                          if cycles else None)
 
     def card_evaluation_score(self):
         held = self.mine(docstatus=1, start_time=[">=", self.days["{year}"]], custom_evaluation_score=[">", 0])

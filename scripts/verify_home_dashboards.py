@@ -616,6 +616,47 @@ check('frappe.route_options = { dashboard: board };' in pages_js and 'frappe.set
       "a module page's Dashboard button opens the desk on its tab, shown only where the user has it")
 print("page: a row of tabs, each read as it is opened, every kind drawn, every value escaped, the Dashboard button")
 
+# ── The quarter on the Performance tab, the plans in red (review item 7) ──
+RATED = ("Pending Employee", "Completed")
+for label, got, want in (
+    ("two of four rated, scoring 70 and 80", DR.quarter_figures([
+        {"workflow_state": "Draft", "custom_total_score": 0}, {"workflow_state": "Pending Supervisor", "custom_total_score": 55},
+        {"workflow_state": "Pending Employee", "custom_total_score": 70}, {"workflow_state": "Completed", "custom_total_score": 80}],
+        RATED), {"total": 4, "rated": 2, "percent": 50.0, "average": 75.0}),
+    ("a score typed before the supervisor rated it is not counted", DR.quarter_figures([
+        {"workflow_state": "Pending Supervisor", "custom_total_score": 90}], RATED),
+     {"total": 1, "rated": 0, "percent": 0.0, "average": 0.0}),
+    ("one of three: a third", DR.quarter_figures([{"workflow_state": "Completed", "custom_total_score": 66}, {}, {}], RATED),
+     {"total": 3, "rated": 1, "percent": 33.3, "average": 66.0}),
+    ("no appraisal, nothing", DR.quarter_figures([], RATED), {"total": 0, "rated": 0, "percent": 0.0, "average": 0.0}),
+    ("none given at all", DR.quarter_figures(None, RATED), {"total": 0, "rated": 0, "percent": 0.0, "average": 0.0}),
+):
+    check(got == want, "the quarter's figures: %s: %s, not %s" % (label, got, want))
+check([DR.quarter_tone(found) for found in ({"total": 3, "rated": 3}, {"total": 3, "rated": 2}, {"total": 0, "rated": 0})]
+      == ["green", "blue", "blue"], "a quarter fully rated is green, one under way blue, none blue")
+check("tone=rules.quarter_tone(found)," in read("hrms_addon", "hrms_addon", "dashboards.py"),
+      "the Appraised This Quarter card takes its colour from the rules")
+performance_tab = {tab["key"]: tab for tab in DR.TABS}["performance"]
+check(performance_tab["cards"] == ("appraisals_open", "quarter_appraised", "quarter_score", "pips_open"),
+      "the Performance tab shows the quarter: appraised and its average, beside those under way and on a plan: %s"
+      % (performance_tab["cards"],))
+check(DR.CARDS["quarter_appraised"][:2] == ("Appraised This Quarter", DR.PERCENT)
+      and DR.CARDS["quarter_score"][:2] == ("Average This Quarter", DR.PERCENT),
+      "the quarter's cards say what they are, as percentages")
+check(DR.FIGURES["pips_open"]["tone"] == "rose" and DR.FIGURES["pips_open"].get("quiet") == "green",
+      "those on a plan in red, green when there are none")
+reader = read("hrms_addon", "hrms_addon", "dashboards.py")
+quartering = reader.split("    def _quarter(self):")[1].split("\n    def ")[0]
+check('frappe.get_list("Appraisal Cycle", filters=self.mine(start_date=["<=", today], end_date=[">=", today]),'
+      in quartering and 'order_by="start_date desc", limit_page_length=1)' in quartering
+      and 'frappe.get_list("Appraisal", filters={"docstatus": ["!=", 2], "appraisal_cycle": ["in", cycles]},' in quartering,
+      "the quarter is the cycles in force today, else the latest begun, and their appraisals as the user may read them")
+check("rules.quarter_figures(appraisals, approval.SUPERVISOR_RATED)" in reader.split("def card_quarter_appraised(")[1]
+      .split("\n    def ")[0] and "rules.quarter_figures(appraisals, approval.SUPERVISOR_RATED)"
+      in reader.split("def card_quarter_score(")[1].split("\n    def ")[0],
+      "both cards count only what the supervisors have rated")
+print("the quarter: rated by the supervisors, as a share and an average, on the Performance tab; the plans in red")
+
 print()
 if fail:
     print("FAILURES:")
