@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "creation": "2026-11-06 22:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "report_date",
+  "hospital",
+  "doctor",
+  "report",
+  "recommendation",
+  "column_break_1",
+  "rest_from",
+  "rest_days",
+  "rest_to",
+  "light_duties",
+  "leave_application"
+ ],
+ "fields": [
+  {
+   "fieldname": "report_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "hospital",
+   "fieldtype": "Link",
+   "label": "Hospital",
+   "options": "Hospital",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "doctor",
+   "fieldtype": "Data",
+   "label": "Doctor"
+  },
+  {
+   "fieldname": "report",
+   "fieldtype": "Attach",
+   "label": "Doctor's Report",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "label": "Recommendation",
+   "options": "\nRest\nLight Duty\nFit to Work\nUnfit for Work",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rest_from",
+   "fieldtype": "Date",
+   "label": "Rest From",
+   "depends_on": "eval:doc.recommendation=='Rest'",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "rest_days",
+   "fieldtype": "Int",
+   "label": "Rest Days",
+   "depends_on": "eval:doc.recommendation=='Rest'",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "rest_to",
+   "fieldtype": "Date",
+   "label": "Rest To",
+   "depends_on": "eval:doc.recommendation=='Rest'",
+   "read_only": 1
+  },
+  {
+   "fieldname": "light_duties",
+   "fieldtype": "Small Text",
+   "label": "Light Work Allowed",
+   "depends_on": "eval:doc.recommendation=='Light Duty'"
+  },
+  {
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Sick Leave",
+   "options": "Leave Application",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1,
+   "columns": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-06 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Safety Medical Report",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

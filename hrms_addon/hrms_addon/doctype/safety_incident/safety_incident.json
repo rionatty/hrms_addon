@@ -22,6 +22,8 @@
   "column_break_2",
   "first_aid_by",
   "ehs_officer",
+  "medical_reports_section",
+  "medical_reports",
   "incident_report_section",
   "ehs_report",
   "incident_report_by",
@@ -119,7 +121,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nRecorded\nOn Sick Leave\nBack at Work\nSeparated\nCancelled",
+   "options": "Draft\nRecorded\nOn Sick Leave\nOn Light Duty\nBack at Work\nUnfit for Work\nSeparated\nCancelled",
    "read_only": 1,
    "default": "Draft",
    "in_list_view": 1,
@@ -191,6 +193,19 @@
    "read_only": 1,
    "allow_on_submit": 1,
    "description": "The plant's EHS Officer, filled in from who holds the role for the employee's plant."
+  },
+  {
+   "fieldname": "medical_reports_section",
+   "fieldtype": "Section Break",
+   "label": "Doctor's Reports",
+   "description": "One row for each report the doctor gives: rest, light duty, fit to work or unfit for work. Each rest becomes a sick leave."
+  },
+  {
+   "fieldname": "medical_reports",
+   "fieldtype": "Table",
+   "label": "Doctor's Reports",
+   "options": "Safety Medical Report",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "incident_report_section",
@@ -266,7 +281,8 @@
    "fieldname": "doctor_report",
    "fieldtype": "Attach",
    "label": "Doctor's Report",
-   "depends_on": "eval:!doc.manageable"
+   "depends_on": "eval:!doc.manageable",
+   "hidden": 1
   },
   {
    "fieldname": "column_break_3",
@@ -275,12 +291,13 @@
   {
    "fieldname": "day_off_required",
    "fieldtype": "Check",
-   "label": "Day Off Required"
+   "label": "Day Off Required",
+   "hidden": 1
   },
   {
    "fieldname": "sick_leave",
    "fieldtype": "Link",
-   "label": "Sick Leave",
+   "label": "Latest Sick Leave",
    "options": "Leave Application",
    "read_only": 1,
    "no_copy": 1
@@ -289,13 +306,15 @@
    "fieldname": "sick_from",
    "fieldtype": "Date",
    "label": "Sick Leave From",
-   "depends_on": "day_off_required"
+   "depends_on": "day_off_required",
+   "hidden": 1
   },
   {
    "fieldname": "sick_days",
    "fieldtype": "Int",
    "label": "Days",
-   "depends_on": "day_off_required"
+   "depends_on": "day_off_required",
+   "hidden": 1
   },
   {
    "fieldname": "investigation_section",
@@ -373,13 +392,14 @@
   {
    "fieldname": "after_section",
    "fieldtype": "Section Break",
-   "label": "After the sick leave"
+   "label": "After the Accident"
   },
   {
    "fieldname": "sickness_persists",
    "fieldtype": "Check",
    "label": "Sickness Persists",
-   "no_copy": 1
+   "no_copy": 1,
+   "hidden": 1
   },
   {
    "fieldname": "separation",
@@ -387,7 +407,8 @@
    "label": "Employee Separation",
    "options": "Employee Separation",
    "read_only": 1,
-   "no_copy": 1
+   "no_copy": 1,
+   "description": "On the doctor's recommendation only: Separate on Medical Grounds, once the latest report finds the employee unfit for work."
   },
   {
    "fieldname": "column_break_4",
@@ -422,7 +443,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 21:00:00.000000",
+ "modified": "2026-11-06 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Safety Incident",

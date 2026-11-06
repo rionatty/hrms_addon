@@ -10,6 +10,7 @@ DocTypes, fixtures and hooks are read as files.
     python scripts/verify_safety.py
 """
 import ast
+import glob
 import importlib.util
 import io
 import json
@@ -19,6 +20,7 @@ import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP = os.path.join(REPO, "hrms_addon", "hrms_addon")
+APPS_ROOT = os.environ.get("FRAPPE_APPS_ROOT", os.path.join(os.path.dirname(REPO), "ERPNext"))
 fail = []
 
 
@@ -53,6 +55,19 @@ def hooks_dict():
             except ValueError:
                 pass
     return out
+
+
+def upstream_fields(name):
+    """The fields of Frappe's, ERPNext's or Frappe HR's own doctype."""
+    folder = name.lower().replace(" ", "_")
+    for app in ("frappe", "erpnext", "hrms"):
+        hits = glob.glob(os.path.join(APPS_ROOT, app, app, "**", "doctype", folder, folder + ".json"), recursive=True)
+        if hits:
+            return {f["fieldname"] for f in json.load(io.open(hits[0], encoding="utf-8"))["fields"]}
+    return set()
+
+
+custom = json.load(io.open(os.path.join(REPO, "hrms_addon", "fixtures", "custom_field.json"), encoding="utf-8"))
 
 
 def roles_with(spec, right):
@@ -106,15 +121,9 @@ incident = {"employee": "E1", "incident_on": "2026-06-01 14:00:00", "nature": "C
 expect("an incident that stands", R.incident_errors(incident))
 expect("no account of it", R.incident_errors(dict(incident, nature="")), "what happened")
 expect("taken to hospital, unnamed", R.incident_errors(dict(incident, manageable=0)), "which one")
-expect("a day off with no dates", R.incident_errors(dict(incident, day_off_required=1)),
-       "when the sick leave starts", "how many days")
-if R.incident_status(1, 1, "HR-LAP-1", 0, None) != R.ON_SICK_LEAVE:
-    fail.append("an incident with sick leave running says so")
-if R.incident_status(1, 0, None, 0, None) != R.BACK:
-    fail.append("one needing no day off ends with the employee at work")
-if R.incident_status(1, 1, "x", 1, "HR-EMP-SEP-1") != R.SEPARATED:
-    fail.append("one where the sickness persisted ends in separation")
-print("the incident: what it must say, where the employee stands after it")
+expect("compensation followed up for nothing", R.incident_errors(dict(incident, compensation_required=1)),
+       "how much compensation")
+print("the incident: what it must say")
 
 # ── 12 and 16. Approved by the plant's EHS Officer, both reports acknowledged ──
 # "On safety, the EHS officers are 3 i.e one per plant. Need make their approval fixed."
@@ -247,7 +256,7 @@ glue = read("hrms_addon", "hrms_addon", "safety.py")
 known = set(fields) | {"doctype", "name", "docstatus", "owner", "flags"}
 for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
                         | set(re.findall(r"(?<![\w])doc\.(\w+)\b", glue))):
-    if fieldname in ("get", "set", "db_set", "get_doc_before_save", "name", "docstatus"):
+    if fieldname in ("get", "set", "db_set", "get_doc_before_save", "check_permission", "name", "docstatus"):
         continue
     if fieldname not in known:
         fail.append("safety.py reads or writes %s, which the Safety Incident does not have" % fieldname)
@@ -288,6 +297,185 @@ for name in ("Safety Incident", "Hospital"):
     if carded.get(name) != "Tenure" or sidebarred.get(name) != "Tenure":
         fail.append("%s belongs on the Tenure page with the rest of employee relations" % name)
 print("wiring: the workflow on migrate, the incidents already recorded, the way in")
+
+# ── 14 and 17. The doctor's reports, light duty, and the doctor's word ──
+# "the doctor's report is more than one. Need a provision for multiple reports and rest days"
+# "light work is sometimes recommended if sickness persists. Termination comes on doctor's recommendation"
+if str(R.rest_to("2026-11-03", 3)) != "2026-11-05" or R.rest_to("2026-11-03", 0) is not None \
+        or R.rest_to(None, 3) is not None:
+    fail.append("a rest runs from its first day, both ends counted: %s" % R.rest_to("2026-11-03", 3))
+first = {"name": "r1", "idx": 1, "report_date": "2026-11-02", "recommendation": R.REST, "rest_from": "2026-11-03",
+         "rest_days": 3}
+second = {"name": "r2", "idx": 2, "report_date": "2026-11-06", "recommendation": R.LIGHT_DUTY,
+          "light_duties": "Sorting at the bench, no lifting."}
+same_day = {"name": "r3", "idx": 3, "report_date": "2026-11-06", "recommendation": R.FIT}
+if (R.latest_report([first, second]) or {}).get("name") != "r2" \
+        or (R.latest_report([second, first]) or {}).get("name") != "r2" \
+        or (R.latest_report([first, second, same_day]) or {}).get("name") != "r3":
+    fail.append("the latest report is the last dated, and of two on one day the later row")
+for rows, manageable, separation, wanted in (([first], 1, None, R.ON_SICK_LEAVE), ([first, second], 1, None,
+                                             R.ON_LIGHT_DUTY), ([first, second, same_day], 1, None, R.BACK),
+                                            ([dict(first, recommendation=R.UNFIT)], 1, None, R.UNFIT_FOR_WORK),
+                                            ([], 0, None, R.RECORDED), ([], 1, None, R.BACK),
+                                            ([dict(first, recommendation=R.UNFIT)], 1, "SEP-1", R.SEPARATED)):
+    got = R.incident_status(1, rows, manageable, separation)
+    if got != wanted:
+        fail.append("the employee stands where the latest report puts them: %s, not %s" % (wanted, got))
+if R.incident_status(0, [first], 1, None) != R.DRAFT or R.incident_status(2, [first], 1, None) != R.CANCELLED:
+    fail.append("a draft or a cancelled incident says so, whatever its reports")
+expect("two reports that stand", R.report_errors([first, second], "2026-11-02 14:00:00"))
+expect("a report the doctor gave on no day", R.report_errors([dict(first, report_date=None)], "2026-11-02"),
+       "say when the doctor gave it")
+expect("a report dated before the accident", R.report_errors([dict(first, report_date="2026-11-01")],
+                                                             "2026-11-02"), "dated before the accident")
+expect("a report recommending nothing", R.report_errors([dict(first, recommendation="")], "2026-11-02"),
+       "say what the doctor recommends")
+expect("rest with no days", R.report_errors([dict(first, rest_days=0)], "2026-11-02"), "for how many days")
+expect("rest from before the accident", R.report_errors([dict(first, rest_from="2026-10-30")], "2026-11-02"),
+       "starts before the accident")
+expect("light duty with the work unsaid", R.report_errors([dict(second, light_duties=" ")], "2026-11-02"),
+       "what light work the doctor allows")
+expect("two rests at once", R.report_errors([first, dict(first, name="r4", idx=4, report_date="2026-11-04",
+                                                         rest_from="2026-11-05", rest_days=2)], "2026-11-02"),
+       "one sick leave at a time")
+expect("a rest after the last one ended", R.report_errors([first, dict(first, name="r4", idx=4,
+                                                                       report_date="2026-11-06",
+                                                                       rest_from="2026-11-06", rest_days=5)],
+                                                          "2026-11-02"))
+given = dict(first, leave_application="HR-LAP-2026-00001")
+expect("a report that gave a sick leave, kept", R.fixed_row_errors([given], [dict(given)]))
+expect("one that gave none, changed freely", R.fixed_row_errors([first], [dict(first, rest_days=9)]))
+expect("one that gave a sick leave, removed", R.fixed_row_errors([given], []), "it stays on the incident")
+expect("its days changed", R.fixed_row_errors([given], [dict(given, rest_days=5)]), "change the leave itself")
+expect("its first day changed", R.fixed_row_errors([given], [dict(given, rest_from="2026-11-04")]),
+       "change the leave itself")
+expect("its leave unlinked", R.fixed_row_errors([given], [dict(given, leave_application=None)]),
+       "change the leave itself")
+if str(R.rest_ended([first], "2026-11-06")) != "2026-11-05" or R.rest_ended([first], "2026-11-07") \
+        or R.rest_ended([first, second], "2026-11-06") or R.rest_ended([first], "2026-11-05"):
+    fail.append("the doctor's next word is asked for the day after a rest ends, once, and not once they report")
+unfit = dict(same_day, name="r5", idx=5, report_date="2026-11-20", recommendation=R.UNFIT)
+expect("the HR Manager, on the doctor's word", R.separation_errors(1, [first, unfit], None, ["HR Manager"]))
+expect("anyone else", R.separation_errors(1, [first, unfit], None, ["HR User"]), "Only the HR Manager")
+expect("before the incident is recorded", R.separation_errors(0, [first, unfit], None, ["HR Manager"]),
+       "Record the incident first")
+expect("twice", R.separation_errors(1, [first, unfit], "HR-EMP-SEP-1", ["HR Manager"]), "already being separated")
+expect("with no doctor's finding", R.separation_errors(1, [first, second], None, ["HR Manager"]),
+       "only on the doctor's recommendation")
+expect("on an older finding the doctor has since revised",
+       R.separation_errors(1, [unfit, dict(second, report_date="2026-11-25")], None, ["HR Manager"]),
+       "only on the doctor's recommendation")
+long_rest = dict(first, name="r6", idx=6, report_date="2026-11-10", rest_from="2026-11-10", rest_days=30)
+if str(R.last_day_of_work([first, unfit], "2026-11-21")) != "2026-11-20" \
+        or str(R.last_day_of_work([first, long_rest, unfit], "2026-11-21")) != "2026-12-09":
+    fail.append("the last day of work is the end of the last rest or the doctor's finding, whichever is later")
+print("14, 17: the doctor's reports, each rest its own sick leave, light duty, the separation on the doctor's word")
+
+row_spec = doctype("Safety Medical Report")
+row_fields = fields_of("Safety Medical Report")
+if not row_spec.get("istable") or (fields.get("medical_reports") or {}).get("options") != "Safety Medical Report" \
+        or not (fields.get("medical_reports") or {}).get("allow_on_submit"):
+    fail.append("the doctor's reports are a table on the incident, added to once it is recorded")
+recommendation = row_fields.get("recommendation") or {}
+if recommendation.get("options", "").split("\n") != [""] + list(R.RECOMMENDATIONS) or not recommendation.get("reqd"):
+    fail.append("each report says what the doctor recommends, starting blank: %r" % recommendation.get("options"))
+for fieldname in ("report_date", "hospital", "doctor", "report", "rest_from", "rest_days", "rest_to", "light_duties",
+                  "leave_application"):
+    if fieldname not in row_fields:
+        fail.append("a doctor's report has no %s" % fieldname)
+for fieldname in ("rest_to", "leave_application"):
+    if not (row_fields.get(fieldname) or {}).get("read_only"):
+        fail.append("Safety Medical Report.%s is worked out, not typed" % fieldname)
+if (row_fields.get("hospital") or {}).get("options") != "Hospital":
+    fail.append("the report's hospital is picked from the list")
+if set(R.STATUSES) - set((fields.get("status") or {}).get("options", "").split("\n")):
+    fail.append("the incident's Status must offer every place the employee may stand")
+for legacy in ("doctor_report", "day_off_required", "sick_from", "sick_days", "sickness_persists"):
+    if not (fields.get(legacy) or {}).get("hidden"):
+        fail.append("Safety Incident.%s is the single report the table replaces: hidden, kept for the record" % legacy)
+for needle, why in (
+    ("rules.report_errors(rows, doc.get(\"incident_on\"))", "the doctor's reports are judged by their own rules"),
+    ("rules.fixed_row_errors(_rows(before), rows)", "a report that gave a sick leave stays as it was"),
+    ('if row.get("recommendation") == rules.REST and not row.get("leave_application"):\n            _raise_sick_leave(doc, row)',
+     "each rest becomes a sick leave, once"),
+    ('row.db_set("leave_application", leave.name, update_modified=False)', "and the report says which"),
+    ("_tell(_line_managers(doc), doc,", "light duty is told to whoever the employee works under"),
+    ('frappe.db.get_value("Employee", doc.employee, "reports_to")', "who they report to among them"),
+    ('@frappe.whitelist(methods=["POST"])\ndef separate_on_medical_grounds(incident, last_day=None):',
+     "the separation is the HR Manager's own step"),
+    ("rules.separation_errors(doc.docstatus, rows, doc.get(\"separation\"), frappe.get_roles())",
+     "taken only on the doctor's recommendation"),
+    ('doc.check_permission("write")', "by someone who may change the incident"),
+):
+    if needle not in glue:
+        fail.append("safety.py: %s (%r not found)" % (why, needle[:60]))
+if "sickness_persists" in glue:
+    fail.append("a sickness that persists no longer separates anyone by itself: the doctor's word does (item 17)")
+if "hrms_addon.hrms_addon.safety.daily" not in ((hooks.get("scheduler_events") or {}).get("daily") or []):
+    fail.append("the doctor's next report is asked for daily")
+if "hrms_addon.patches.v1_0.medical_reports_from_incidents" not in patches:
+    fail.append("the single doctor's report already recorded becomes the first row")
+legacy_patch = read("hrms_addon", "patches", "v1_0", "medical_reports_from_incidents.py")
+for needle in ('"recommendation": "Rest" if rest else "Fit to Work"', '"leave_application": row.sick_leave if rest else None',
+               'if frappe.db.exists("Safety Medical Report", {"parent": row.name, "parenttype": "Safety Incident"}):'):
+    if needle not in legacy_patch:
+        fail.append("medical_reports_from_incidents: %r" % needle)
+form = read("hrms_addon", "hrms_addon", "doctype", "safety_incident", "safety_incident.js")
+if 'frappe.user.has_role("HR Manager")' not in form or "hrms_addon.hrms_addon.safety.separate_on_medical_grounds" not in form:
+    fail.append("the form offers the HR Manager Separate on Medical Grounds once the doctor finds the employee unfit")
+steps = load("next_steps_rules").STEPS.get("Safety Incident") or ()
+if ("Leave Application", "rows:medical_reports.leave_application", "Sick Leave") not in steps:
+    fail.append("Next Steps open every sick leave the doctor's reports gave")
+print("the paper and the glue: the table, the rest to sick leave, the separation the HR Manager's own")
+
+# Luuka's letter, on the separation
+_spec = importlib.util.spec_from_file_location("jinja_subset", os.path.join(REPO, "scripts", "jinja_subset.py"))
+jinja_subset = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(jinja_subset)
+letter_path = os.path.join(APP, "print_format", "termination_on_medical_grounds", "termination_on_medical_grounds.json")
+letter = json.load(io.open(letter_path, encoding="utf-8")) if os.path.exists(letter_path) else {}
+if (letter.get("doc_type"), letter.get("print_format_type"), letter.get("standard"), letter.get("module"),
+        letter.get("name")) != ("Employee Separation", "Jinja", "Yes", "HRMS Addon", "Termination on Medical Grounds"):
+    fail.append("Termination on Medical Grounds is a standard Jinja print of the Employee Separation")
+html = letter.get("html") or ""
+for needle in ("RE: TERMINATION ON MEDICAL GROUNDS", "decision to retire you on medical grounds",
+               "your last day of work was", "Salary to the last day of work", "Outstanding leave if any.",
+               "Less any monies owing to the company.", "Hand in to your head of department all company property",
+               "EXECUTIVE DIRECTOR", "have read and understood the terms and conditions", "Witness HRM",
+               "Witness Legal Manager", 'frappe.db.get_single_value("Onboarding Settings", "executive_director")'):
+    if needle not in html:
+        fail.append("the Termination on Medical Grounds letter does not say %r, which Luuka's does" % needle)
+signer = re.search(r'<p class="who">([^<]*)</p>\s*<p class="who">EXECUTIVE DIRECTOR</p>', html)
+if not signer or not signer.group(1).strip().startswith("{{"):
+    fail.append("the letter names its signer from Onboarding Settings, never by name typed into it: the repository "
+                "is public")
+separation = upstream_fields("Employee Separation") | {f["fieldname"] for f in custom if f["dt"] == "Employee Separation"}
+for fieldname in sorted(set(re.findall(r"\bdoc\.(\w+)", html)) - {"name", "creation"}):
+    if fieldname not in separation:
+        fail.append("the letter prints doc.%s, which the Employee Separation does not have" % fieldname)
+try:
+    render = jinja_subset.compile_template(html)
+    employee = jinja_subset.wrap({"salutation": "Mr", "first_name": "John", "employee_name": "John <Okello>",
+                                  "employee_number": "LPL1834", "department": "Production", "branch": "Kawempe"})
+    utils = type("utils", (), {"format_date": staticmethod(lambda value: str(value))})
+    db = type("db", (), {"get_value": staticmethod(lambda doctype, name, field: "Ed " + name),
+                         "get_single_value": staticmethod(lambda doctype, field: "HR-EMP-0001"
+                                                          if field == "executive_director" else None)})
+    frappe_stub = type("frappe", (), {"utils": utils, "db": db, "get_doc": staticmethod(lambda doctype, name: employee)})
+    sample = {"employee": "HR-EMP-0002", "custom_reason": "Medical Grounds", "custom_relieving_date": "2026-12-09",
+              "custom_termination_date": "2026-11-21", "creation": "2026-11-21"}
+    page = render({"doc": jinja_subset.wrap(sample), "frappe": frappe_stub})
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S)))
+    for needle in ("2026-11-21", "Mr John &lt;Okello&gt;", "LPL1834", "Division &ndash; Production", "Plant, Kawempe",
+                   "Dear John,", "your last day of work was 2026-12-09", "ED HR-EMP-0001 EXECUTIVE DIRECTOR"):
+        if needle not in text:
+            fail.append("the Termination on Medical Grounds letter should read %r: %s" % (needle, text))
+    other = render({"doc": jinja_subset.wrap(dict(sample, custom_reason="Resignation")), "frappe": frappe_stub})
+    if "RE: TERMINATION ON MEDICAL GROUNDS" in other or "for a separation on medical grounds" not in other:
+        fail.append("the letter is for a separation on medical grounds only, and says so on any other")
+except Exception as error:  # noqa: BLE001
+    fail.append("the Termination on Medical Grounds letter does not compile or render: %s" % error)
+print("the letter: Luuka's own words, the last day of work, the Executive Director from the settings")
 
 print()
 if fail:

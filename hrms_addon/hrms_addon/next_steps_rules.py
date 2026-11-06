@@ -250,7 +250,7 @@ STEPS = {
         ("Training Needs Form", "field:training_need"),
     ),
     "Safety Incident": (
-        ("Leave Application", "field:sick_leave", "Sick Leave"),
+        ("Leave Application", "rows:medical_reports.leave_application", "Sick Leave"),
         ("Employee Separation", "field:separation"),
     ),
     # ── attendance ────────────────────────────────────────────────────

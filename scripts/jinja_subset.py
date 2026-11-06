@@ -91,6 +91,8 @@ FILTERS = {
     "length": _length,
     "list": lambda value: list(value or []),
     "selectattr": lambda seq, name: [item for item in seq or [] if _attr(item, name)],
+    # Jinja's own: the letters print their signer's name in capitals
+    "upper": lambda value: str(value).upper(),
 }
 
 

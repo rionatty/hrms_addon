@@ -2230,6 +2230,7 @@ scheduler_events = {
         # Employee relations: an appeal window that lapses, a suspension
         # that ends today (discipline.py)
         "hrms_addon.hrms_addon.discipline.daily",
+        "hrms_addon.hrms_addon.safety.daily",
         # a grievance at risk goes to the head of the department, one past
         # its date to HR (grievances.py)
         "hrms_addon.hrms_addon.grievances.daily",
