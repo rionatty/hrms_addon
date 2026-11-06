@@ -54,6 +54,8 @@ from hrms_addon.hrms_addon import attendance, attendance_rules, overtime_approva
 REQUEST = "Overtime Request"
 TYPE = "Overtime Type"
 SLIP = "Overtime Slip"
+# Payroll Settings' most overtime paid on a working day (overtime_rules.WORKING_DAY_MOST)
+WORKING_DAY_FIELD = "custom_working_day_overtime"
 
 
 # ── 1. What sort of day it is ─────────────────────────────────────────
@@ -109,12 +111,39 @@ def fill_day_and_rate(doc):
     kinds = {employee: day_kind(employee, doc.overtime_date) for employee in people_on_it}
     rated = rules.priced([_plain(row) for row in rows], {}, kind, _types_for(),
                          _monthly_gross(people_on_it, doc.overtime_date), None, kinds,
-                         _departments(people_on_it))["rows"]
+                         _departments(people_on_it), categories=_categories(people_on_it))["rows"]
     for row, found in zip(rows, rated):
         row.day_kind = found["day_kind"] if row.employee else None
         row.overtime_type = found["overtime_type"] if row.employee else None
         row.multiplier = found["multiplier"] if row.employee else 0
     return rules.eligibility_errors(rated)
+
+
+def over_the_day(doc):
+    """Called from attendance.overtime_validate once fill_day_and_rate has
+    said each line's day: the lines asking more than a working day's most,
+    which stop the request being raised."""
+    return rules.working_day_errors([_plain(row) for row in doc.get("employees") or []], working_day_most())
+
+
+def working_day_most():
+    """Payroll Settings' Most Overtime Hours on a Working Day: 2, Luuka's,
+    until HR say otherwise. A Single's field reads 0 until the settings are
+    saved with it, so a value never saved is the default; 0 saved is no
+    limit."""
+    stored = frappe.db.get_singles_dict(pay_days.SETTINGS).get(WORKING_DAY_FIELD)
+    if stored in (None, ""):
+        return rules.WORKING_DAY_MOST
+    return max(flt(stored), 0)
+
+
+def type_validate(overtime_type, method=None):
+    """Overtime Type validate. A type for public holidays only pays at its
+    public holiday rate, which Frappe HR's slip uses only where the type
+    applies to public holidays."""
+    if cint(overtime_type.get(rules.HOLIDAYS_ONLY)) and not cint(overtime_type.get("applicable_for_public_holiday")):
+        frappe.throw(_("A type for public holidays only is paid at its public holiday rate: tick Apply for Public "
+                       "Holiday and give the multiplier."), title=_(TYPE))
 
 
 def _plain(row):
@@ -129,7 +158,8 @@ def _type_row(name):
         ["standard_multiplier", "weekend_multiplier", "public_holiday_multiplier",
          "applicable_for_weekend", "applicable_for_public_holiday",
          "maximum_overtime_hours_allowed", "overtime_salary_component", "custom_gross_above",
-         "custom_from_clock", "custom_clock_minimum", "custom_clock_step", "custom_clock_requester"], as_dict=True)
+         "custom_from_clock", "custom_clock_minimum", "custom_clock_step", "custom_clock_requester",
+         rules.HOLIDAYS_ONLY], as_dict=True)
 
 
 def _types_for():
@@ -186,6 +216,19 @@ def _departments(employees):
         return {}
     return {row.name: row.department for row in frappe.get_all(
         "Employee", filters={"name": ["in", names]}, fields=["name", "department"], limit_page_length=0)}
+
+
+def _categories(employees):
+    """{employee: their department's Position Category}: administrative
+    staff are paid overtime only on a public holiday (overtime_rules)."""
+    departments = _departments(employees)
+    names = sorted(set(filter(None, departments.values())))
+    if not names:
+        return {}
+    category = {row.name: row.custom_position_category for row in frappe.get_all(
+        "Department", filters={"name": ["in", names]}, fields=["name", "custom_position_category"],
+        limit_page_length=0)}
+    return {employee: category.get(department) for employee, department in departments.items()}
 
 
 def _day_kinds(doc):
@@ -267,6 +310,7 @@ def _cost(doc, standing):
     costed = rules.priced(rows, _monthly_bases(people_on_it), kind, types,
                           _monthly_gross(people_on_it, doc.overtime_date),
                           _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),
+                          categories=_categories(people_on_it),
                           days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())
     errors = rules.cost_check_errors({
         "status": standing, "rows": costed["rows"], "unpriced": costed["unpriced"],
@@ -421,18 +465,20 @@ def raise_from_clock(day=None):
         "Employee", filters={"name": ["in", names]},
         fields=["name", "reports_to", "branch", "department", "company"], limit_page_length=0)}
     grosses, standards = _monthly_gross(names, day), _standard_hours(names, day)
+    categories, most = _categories(names), working_day_most()
     lines, nobody = [], []
     for row in marked:
         seat = seats.get(row.employee) or frappe._dict()
         kind = day_kind(row.employee, day)
-        named = rules.person_type(grosses.get(row.employee), types, row.employee, seat.get("department"))[0]
+        named = rules.person_type(grosses.get(row.employee), types, row.employee, seat.get("department"), kind,
+                                  categories.get(row.employee))[0]
         theirs = types.get(named) if named else None
         if not theirs or not cint(theirs.get("custom_from_clock")):
             continue
         worked = rules.worked_overtime(kind, row.working_hours,
                                        standards.get(row.employee) or attendance_rules.STANDARD_HOURS)
         hours = rules.clock_hours(worked, theirs.get("custom_clock_minimum"), theirs.get("custom_clock_step"),
-                                  theirs.get("maximum_overtime_hours_allowed"))
+                                  rules.day_most(kind, theirs.get("maximum_overtime_hours_allowed"), most))
         if hours <= 0:
             continue
         requester = seat.get("reports_to") or theirs.get("custom_clock_requester")
@@ -517,12 +563,13 @@ def send(doc, quiet=False):
     grosses = _monthly_gross([row["employee"] for row in rows], doc.overtime_date)
     standards = _standard_hours([row["employee"] for row in rows], doc.overtime_date)
     departments = _departments([row["employee"] for row in rows])
+    categories, most = _categories([row["employee"] for row in rows]), working_day_most()
     types = _types_for()
     plans, closed = [], []
     for row in rows:
         theirs = kinds.get(row["employee"]) or kind
         named, why = rules.person_type(grosses.get(row["employee"]), types, row["employee"],
-                                       departments.get(row["employee"]))
+                                       departments.get(row["employee"]), theirs, categories.get(row["employee"]))
         if why:
             closed.append(_("{0} is not eligible for this overtime: {1}").format(
                 row.get("employee_name") or row["employee"], _(why)))
@@ -531,7 +578,7 @@ def send(doc, quiet=False):
         # the clock measured the day when it has both ends of it
         worked = rules.worked_overtime(theirs, found.working_hours, standard) \
             if (found.in_time and found.out_time) else None
-        paid = rules.payable_hours(row.get("hours"), worked)
+        paid = rules.payable_hours(row.get("hours"), worked, rules.day_most(theirs, None, most))
         plans.append((theirs, worked, paid, rules.attendance_update(row, named, standard, hours=paid)))
     if closed:
         return stopped(closed)
@@ -634,7 +681,9 @@ def stamp_untyped():
         if types is None:
             types = _types_for()
         name = rules.person_type(pay.monthly_gross(found.employee, found.attendance_date), types, found.employee,
-                                 _departments([found.employee]).get(found.employee))[0]
+                                 _departments([found.employee]).get(found.employee),
+                                 day_kind(found.employee, found.attendance_date),
+                                 _categories([found.employee]).get(found.employee))[0]
         if name:
             frappe.db.set_value("Attendance", found.name, "overtime_type", name, update_modified=False)
             stamped.append(found.name)

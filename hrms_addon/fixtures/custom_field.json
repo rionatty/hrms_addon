@@ -11006,6 +11006,17 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Overtime Type-custom_holidays_only",
+  "dt": "Overtime Type",
+  "fieldname": "custom_holidays_only",
+  "fieldtype": "Check",
+  "insert_after": "public_holiday_multiplier",
+  "label": "For Public Holidays Only",
+  "module": "HRMS Addon",
+  "description": "Pays only work on a public holiday, at the public holiday rate. Administrative staff are paid overtime only under such a type."
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Journal Entry-custom_employee_loan",
   "dt": "Journal Entry",
   "fieldname": "custom_employee_loan",
@@ -11838,6 +11849,19 @@
   "default": "55",
   "non_negative": 1,
   "description": "NSSF stops at this age unless the employee has NSSF Voluntary ticked. 0 means no limit.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Payroll Settings-custom_working_day_overtime",
+  "dt": "Payroll Settings",
+  "fieldname": "custom_working_day_overtime",
+  "fieldtype": "Float",
+  "insert_after": "custom_nssf_age_limit",
+  "label": "Most Overtime Hours on a Working Day",
+  "default": "2",
+  "non_negative": 1,
+  "description": "Overtime on a normal working day is paid up to this. Every hour worked on a weekly off or a public holiday is paid. 0 means no limit.",
   "module": "HRMS Addon"
  },
  {

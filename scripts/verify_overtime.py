@@ -294,7 +294,99 @@ expect("costing somebody no type is open to", R.cost_check_errors(
 if R.attendance_update({"hours": 2}, "Special Overtime", 10, hours=1.5) != {
         "overtime_type": "Special Overtime", "actual_overtime_duration": 1.5, "standard_working_hours": 10.0}:
     fail.append("the attendance carries the type chosen for the person, so the Overtime Slip pays under it")
-print("eligibility: a type's own employees, the departments it leaves out, and its gross line")
+
+# Luuka, 5 Nov 2026: "For overtime, admin does not qualify but qualifies for holiday allowances"; "admin
+# qualify for *2 when they work on holiday not weekend and it is special overtime"
+DAYS = {"Overtime 1.5": {"standard_multiplier": 1.5, "applicable_for_weekend": 1, "weekend_multiplier": 2,
+                         "applicable_for_public_holiday": 1, "public_holiday_multiplier": 2,
+                         "employees": ["P1", "P2", "A2"]},
+        "Special Overtime": {"standard_multiplier": 1, "applicable_for_public_holiday": 1,
+                             "public_holiday_multiplier": 2, "custom_holidays_only": 1,
+                             "employees": ["A1", "P2", "P3"]}}
+ADMIN = R.ADMINISTRATIVE
+for label, got, want in (
+    ("production staff on a working day: their ordinary type", R.person_type(300000, DAYS, "P1", None, R.WEEKDAY),
+     ("Overtime 1.5", None)),
+    ("on their weekly off", R.person_type(300000, DAYS, "P1", None, R.REST_DAY), ("Overtime 1.5", None)),
+    ("on a public holiday", R.person_type(300000, DAYS, "P1", None, R.PUBLIC_HOLIDAY), ("Overtime 1.5", None)),
+    ("an administrator on a public holiday: the special overtime",
+     R.person_type(900000, DAYS, "A1", None, R.PUBLIC_HOLIDAY, ADMIN), ("Special Overtime", None)),
+    ("not on a working day", R.person_type(900000, DAYS, "A1", None, R.WEEKDAY, ADMIN),
+     (None, "Special Overtime pays only work on a public holiday.")),
+    ("nor on a weekly off", R.person_type(900000, DAYS, "A1", None, R.REST_DAY, ADMIN),
+     (None, "Special Overtime pays only work on a public holiday.")),
+    ("nor on a day of leave", R.person_type(900000, DAYS, "A1", None, R.LEAVE_DAY, ADMIN),
+     (None, "Special Overtime pays only work on a public holiday.")),
+    ("an administrator an ordinary type lists is paid no ordinary overtime",
+     R.person_type(900000, DAYS, "A2", None, R.WEEKDAY, ADMIN), (None, R.ADMIN_ON_HOLIDAYS)),
+    ("not even on a public holiday, until a type for public holidays lists them",
+     R.person_type(900000, DAYS, "A2", None, R.PUBLIC_HOLIDAY, ADMIN), (None, R.ADMIN_ON_HOLIDAYS)),
+    ("whatever the day", R.person_type(900000, DAYS, "A2", None, None, ADMIN), (None, R.ADMIN_ON_HOLIDAYS)),
+    ("somebody on both types: the ordinary one on a working day",
+     R.person_type(300000, DAYS, "P2", None, R.WEEKDAY), ("Overtime 1.5", None)),
+    ("and the one for public holidays on a public holiday",
+     R.person_type(300000, DAYS, "P2", None, R.PUBLIC_HOLIDAY), ("Special Overtime", None)),
+    ("with the day not known, both are weighed, as before",
+     R.person_type(300000, DAYS, "P2", None), (None, "Overtime 1.5 and Special Overtime list them. Keep them on one.")),
+    ("production staff only the holiday type lists: nothing on their weekly off",
+     R.person_type(300000, DAYS, "P3", None, R.REST_DAY), (None, "Special Overtime pays only work on a public holiday.")),
+    ("a category other than administrative is not held to holidays",
+     R.person_type(300000, DAYS, "P1", None, R.WEEKDAY, "Non-Administrative"), ("Overtime 1.5", None)),
+):
+    if got != want:
+        fail.append("overtime by the day: %s: %s, not %s" % (label, got, want))
+if (R.ADMINISTRATIVE, R.HOLIDAYS_ONLY) != ("Administrative", "custom_holidays_only"):
+    fail.append("administrative staff are told apart by their department's Position Category")
+if R.holidays_only({"custom_holidays_only": "1"}) is not True or R.holidays_only({}) or R.holidays_only(None):
+    fail.append("a type is for public holidays only when it is ticked so")
+held = R.priced([{"employee": "A1", "hours": 8}, {"employee": "A2", "hours": 8}, {"employee": "P1", "hours": 8}],
+                {"A1": 1040000, "A2": 1040000, "P1": 520000}, R.PUBLIC_HOLIDAY, DAYS,
+                {"A1": 900000, "A2": 900000, "P1": 300000}, None, None, None, days=26, day_hours=8,
+                categories={"A1": ADMIN, "A2": ADMIN, "P1": "Non-Administrative"})
+seen = [(row["employee"], row["overtime_type"], row["multiplier"], row["amount"]) for row in held["rows"]]
+if seen != [("A1", "Special Overtime", 2.0, 80000.0), ("A2", None, 0.0, 0.0), ("P1", "Overtime 1.5", 2.0, 40000.0)]:
+    fail.append("a public holiday is priced twice the hour of basic / 26 / 8, administrators under the special "
+                "overtime only: %s" % seen)
+weekday = R.priced([{"employee": "A1", "hours": 2}], {"A1": 1040000}, R.WEEKDAY, DAYS, {"A1": 900000},
+                   categories={"A1": ADMIN})["rows"][0]
+if (weekday["overtime_type"], weekday["amount"], weekday["not_eligible"]) != (
+        None, 0.0, "Special Overtime pays only work on a public holiday."):
+    fail.append("an administrator's working day is not priced: %s" % weekday)
+
+# a working day's overtime is two hours at most (Luuka, 5 Nov 2026: "overtime for normal working hours maximum is
+# 2hr"); every hour of a weekly off or a public holiday worked is paid
+if R.WORKING_DAY_MOST != 2.0:
+    fail.append("a working day's overtime is two hours at most until HR say otherwise")
+for label, got, want in (
+    ("a working day: two", R.day_most(R.WEEKDAY), 2.0),
+    ("a working day under a type with a lower ceiling: the type's", R.day_most(R.WEEKDAY, 1.5, 2), 1.5),
+    ("a working day under a type with a higher one: two", R.day_most(R.WEEKDAY, 4, 2), 2.0),
+    ("a working day with the most at 0: the type's ceiling", R.day_most(R.WEEKDAY, 4, 0), 4.0),
+    ("and with neither, no limit", R.day_most(R.WEEKDAY, 0, 0), 0.0),
+    ("a weekly off: no working-day limit", R.day_most(R.REST_DAY, 0, 2), 0.0),
+    ("a weekly off under a type with a ceiling: the type's", R.day_most(R.REST_DAY, 6, 2), 6.0),
+    ("a public holiday: no working-day limit", R.day_most(R.PUBLIC_HOLIDAY, None, 2), 0.0),
+    ("a day of leave: none either", R.day_most(R.LEAVE_DAY, None, 2), 0.0),
+    ("three hours on a working day pay two", R.payable_hours(3, None, 2), 2.0),
+    ("and with the clock at two and a half, two", R.payable_hours(3, 2.5, 2), 2.0),
+    ("an hour on a working day is an hour", R.payable_hours(1, None, 2), 1.0),
+    ("eight on a public holiday are eight", R.payable_hours(8, 8, R.day_most(R.PUBLIC_HOLIDAY, 0, 2)), 8.0),
+    ("no limit given, none", R.payable_hours(3, None, 0), 3.0),
+):
+    if got != want:
+        fail.append("the most a day is paid: %s: %s, not %s" % (label, got, want))
+over = R.working_day_errors([
+    {"employee": "P1", "employee_name": "Peter", "hours": 3, "day_kind": R.WEEKDAY},
+    {"employee": "P2", "hours": 2, "day_kind": R.WEEKDAY},
+    {"employee": "P3", "employee_name": "Paul", "hours": 8, "day_kind": R.REST_DAY},
+    {"employee": "P4", "employee_name": "Pam", "hours": 9, "day_kind": R.PUBLIC_HOLIDAY},
+    {"employee": "P5", "employee_name": "Pat", "hours": 2.5, "day_kind": R.WEEKDAY}], 2)
+if over != ["Overtime on a working day is paid up to 2 hours: Peter has 3.",
+            "Overtime on a working day is paid up to 2 hours: Pat has 2.5."]:
+    fail.append("a request asking more than a working day's most is stopped, line by line: %s" % over)
+if R.working_day_errors([{"employee": "P1", "hours": 3, "day_kind": R.WEEKDAY}], 0) != []:
+    fail.append("with the most at 0 there is no limit")
+print("eligibility: a type's own employees, the departments it leaves out, and its gross line; by the day")
 
 # ── 2. Pricing a request, and the two gates ───────────────────────────
 rows = [{"employee": "HR-EMP-1", "employee_name": "A", "hours": 3},
@@ -702,11 +794,12 @@ if 'frappe.get_all(TYPE, pluck="name", limit_page_length=0)' not in reading \
         or '("Overtime Type Department", "excluded_departments", "department")' not in reading:
     fail.append("every Overtime Type is read with the employees it lists and the departments it leaves out")
 rated_by = glue.split("def fill_day_and_rate(")[1].split(chr(10) + "def ")[0]
-if "return rules.eligibility_errors(rated)" not in rated_by or "_departments(people_on_it))[\"rows\"]" not in rated_by:
+if "return rules.eligibility_errors(rated)" not in rated_by \
+        or "_departments(people_on_it), categories=_categories(people_on_it))[\"rows\"]" not in rated_by:
     fail.append("a request's lines are rated by who each type is for, and those no type is open to are reported")
 raising = read("hrms_addon", "hrms_addon", "attendance.py").split("def overtime_validate(")[1].split(chr(10) + "def ")[0]
 if "closed = overtime.fill_day_and_rate(doc) or []" not in raising \
-        or "overtime.check_step(doc, errors + closed, notes=closed)" not in raising:
+        or "overtime.check_step(doc, errors + closed + capped, notes=closed)" not in raising:
     fail.append("somebody no Overtime Type is open to is refused when the request is raised, and said as the "
                 "draft is saved")
 stepping_notes = glue.split("def check_step(")[1].split(chr(10) + "def ")[0]
@@ -764,19 +857,54 @@ if (request.get("from_clock") or {}).get("fieldtype") != "Check" or not request[
 for fieldname in ("custom_from_clock", "custom_clock_minimum", "custom_clock_step", "custom_clock_requester"):
     if '"%s"' % fieldname not in glue.split("def _type_row(")[1].split(chr(10) + "def ")[0]:
         fail.append("a type is read with %s" % fieldname)
+# a type for public holidays only, and the most a working day pays (review items 3 and 4)
+only = custom.get("Overtime Type-custom_holidays_only") or {}
+if (only.get("fieldtype"), only.get("insert_after"), only.get("fieldname")) != (
+        "Check", "public_holiday_multiplier", R.HOLIDAYS_ONLY):
+    fail.append("the Overtime Type says, under its public holiday rate, whether it pays only public holidays: %s" % only)
+most = custom.get("Payroll Settings-custom_working_day_overtime") or {}
+if (most.get("fieldtype"), most.get("default"), most.get("non_negative"), most.get("fieldname")) != (
+        "Float", "2", 1, "custom_working_day_overtime") or 'WORKING_DAY_FIELD = "custom_working_day_overtime"' not in glue:
+    fail.append("Payroll Settings say the most overtime a working day pays, 2 until HR say otherwise, where the code "
+                "reads it: %s" % most)
+if [row["name"] for row in custom.values() if row.get("dt") == "Payroll Settings"
+        and row.get("insert_after") == "custom_nssf_age_limit"] != ["Payroll Settings-custom_working_day_overtime"]:
+    fail.append("one field after the NSSF age limit, the working day's most")
+for name in ("Overtime Type-custom_holidays_only", "Payroll Settings-custom_working_day_overtime"):
+    if '"%s"' % name not in read("hrms_addon", "hooks.py"):
+        fail.append("hooks fixtures list %s" % name)
+if "rules.HOLIDAYS_ONLY]" not in glue.split("def _type_row(")[1].split(chr(10) + "def ")[0]:
+    fail.append("a type is read with whether it pays only public holidays")
+if ((hooks.get("doc_events") or {}).get("Overtime Type") or {}).get("validate") != "hrms_addon.hrms_addon.overtime.type_validate":
+    fail.append("an Overtime Type is checked as it is saved")
+checking = glue.split("def type_validate(")[1].split(chr(10) + "def ")[0]
+if 'not cint(overtime_type.get("applicable_for_public_holiday"))' not in checking or "frappe.throw(" not in checking:
+    fail.append("a type for public holidays only is refused unless it applies to public holidays")
+categories_of = glue.split("def _categories(")[1].split(chr(10) + "def ")[0]
+if '"Department", filters={"name": ["in", names]}, fields=["name", "custom_position_category"],' not in categories_of:
+    fail.append("administrative staff are those whose department's Position Category says so")
+for where, needle in (("fill_day_and_rate", "categories=_categories(people_on_it))"),
+                      ("_cost", "categories=_categories(people_on_it),"),
+                      ("stamp_untyped", "_categories([found.employee]).get(found.employee))[0]")):
+    if needle not in glue.split("def %s(" % where)[1].split(chr(10) + "def ")[0]:
+        fail.append("overtime.%s weighs whether the person is administrative staff (%r)" % (where, needle))
+if "day_kind(found.employee, found.attendance_date)," not in glue.split("def stamp_untyped(")[1].split(chr(10) + "def ")[0]:
+    fail.append("hours put under a type after the fact are put under the one for their day")
 rising = glue.split("def raise_from_clock(")[1].split(chr(10) + "def ")[0]
 for needle, why in (
     ('if not any(cint((row or {}).get("custom_from_clock")) for row in types.values()):', "nothing is read until a type is ticked"),
     ('"docstatus": 1, "status": rules.PAID_ON, "in_time": ["is", "set"],', "only a day the clock measured, and worked"),
     ('"out_time": ["is", "set"]}', "at both ends"),
     ("marked = [row for row in marked if row.employee not in asked]", "somebody already on a request for the day is left to it"),
-    ("rules.person_type(grosses.get(row.employee), types, row.employee, seat.get(\"department\"))[0]",
-     "the type is the person's own, by who each type is for"),
+    ("rules.person_type(grosses.get(row.employee), types, row.employee, seat.get(\"department\"), kind,",
+     "the type is the person's own, by who each type is for, on the day"),
+    ("categories.get(row.employee))[0]", "and whether they are administrative staff"),
     ('if not theirs or not cint(theirs.get("custom_from_clock")):', "and only a type that says so raises it"),
     ("rules.worked_overtime(kind, row.working_hours,", "what the clock shows past the shift"),
     ('rules.clock_hours(worked, theirs.get("custom_clock_minimum"), theirs.get("custom_clock_step"),',
      "counted by the type's own rules"),
-    ('theirs.get("maximum_overtime_hours_allowed"))', "up to its ceiling"),
+    ('rules.day_most(kind, theirs.get("maximum_overtime_hours_allowed"), most))',
+     "up to its ceiling, and a working day's most"),
     ('requester = seat.get("reports_to") or theirs.get("custom_clock_requester")',
      "the employee's supervisor requests it, else whoever the type names"),
     ("rules.clock_sheets(lines)", "one request for each requester and section"),
@@ -808,7 +936,10 @@ for needle, why in (
     ('row.multiplier = found["multiplier"] if row.employee else 0', "and its rate, before anybody signs"),
     ("rules.worked_overtime(theirs, found.working_hours, standard)", "the overtime the clock shows is worked out"),
     ("if (found.in_time and found.out_time) else None", "only for a day the clock measured at both ends"),
-    ("paid = rules.payable_hours(row.get(\"hours\"), worked)", "what is paid is the rules' answer"),
+    ("paid = rules.payable_hours(row.get(\"hours\"), worked, rules.day_most(theirs, None, most))",
+     "what is paid is the rules' answer, up to a working day's most"),
+    ("departments.get(row[\"employee\"]), theirs, categories.get(row[\"employee\"]))",
+     "the type paid is the one for the person's own day, and their category"),
     ("rules.attendance_update(row, named, standard, hours=paid)",
      "and that, not what was authorised, goes onto the attendance"),
     ('line.db_set({"day_kind": theirs, "worked_hours": flt(worked), "clocked": 0 if worked is None else 1,',
@@ -925,8 +1056,9 @@ for needle, why in (
     if needle not in stepping:
         fail.append("overtime.check_step: %s" % why)
 raised = read("hrms_addon", "hrms_addon", "attendance.py")
-if "overtime.check_step(doc, errors + closed, notes=closed)" not in \
-        raised.split("def overtime_validate(")[1].split(chr(10) + "def ")[0]:
+if "overtime.check_step(doc, errors + closed + capped, notes=closed)" not in \
+        raised.split("def overtime_validate(")[1].split(chr(10) + "def ")[0] \
+        or "capped = overtime.over_the_day(doc)" not in raised.split("def overtime_validate(")[1].split(chr(10) + "def ")[0]:
     fail.append("the request's validate hands the step to overtime.check_step, with what would stop it being raised")
 if "overtime.approved(doc)" not in raised.split("def overtime_on_submit(")[1].split(chr(10) + "def ")[0]:
     fail.append("HR's approval submits the request, and its hours go to payroll from there")

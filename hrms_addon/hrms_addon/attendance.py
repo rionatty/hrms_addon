@@ -258,6 +258,8 @@ def overtime_validate(doc, method=None):
     from hrms_addon.hrms_addon import overtime
 
     closed = overtime.fill_day_and_rate(doc) or []
+    # a working day's overtime is two hours at most; the day is the line's own, just filled in
+    capped = overtime.over_the_day(doc)
     counted = rules.coupons([row.as_dict() for row in doc.get("employees") or []])
     doc.coupons_permanent = counted.get("Permanent", 0)
     doc.coupons_casual = counted.get("Casual", 0)
@@ -270,7 +272,7 @@ def overtime_validate(doc, method=None):
     # somebody no Overtime Type is open to: said as the draft is saved, and refused when the request is
     # raised, not when it is costed. A draft is somewhere to prepare it; the step that raises it is what
     # has to be right (overtime.check_step)
-    overtime.check_step(doc, errors + closed, notes=closed)
+    overtime.check_step(doc, errors + closed + capped, notes=closed)
 
 
 def _employment(employee):

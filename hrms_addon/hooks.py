@@ -649,6 +649,9 @@ fixtures = [
                     "Overtime Type-custom_clock_cb",
                     "Overtime Type-custom_clock_step",
                     "Overtime Type-custom_clock_requester",
+                    # a type that pays only work on a public holiday: the special
+                    # overtime administrative staff are paid (overtime_rules)
+                    "Overtime Type-custom_holidays_only",
                     "Job Opening-custom_screening_section",
                     "Job Opening-custom_pass_mark",
                     "Job Opening-custom_screening_questions",
@@ -1266,6 +1269,8 @@ fixtures = [
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
                     "Payroll Settings-custom_nssf_age_limit",
                     "Employee-custom_nssf_voluntary",
+                    # the most overtime paid on a working day (overtime.working_day_most)
+                    "Payroll Settings-custom_working_day_overtime",
                     # the Salary Register tab on a payroll (payroll_register.py)
                     "Payroll Entry-custom_salary_register_tab",
                     "Payroll Entry-custom_salary_register",
@@ -1980,6 +1985,10 @@ doc_events = {
     # A shift's own hours, and how many of them are overtime (shifts.py)
     "Shift Type": {
         "validate": "hrms_addon.hrms_addon.shifts.shift_type_validate",
+    },
+    # A type for public holidays only is paid at its public holiday rate (overtime.py)
+    "Overtime Type": {
+        "validate": "hrms_addon.hrms_addon.overtime.type_validate",
     },
     # The non-disciplinary grievance on their Employee Grievance: each
     # step's checks, who is told and given it to do (grievances.py)

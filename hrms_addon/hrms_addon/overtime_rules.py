@@ -99,8 +99,32 @@ def _listed(row, key):
 # why somebody no Overtime Type lists is paid none
 NOT_LISTED = "no Overtime Type lists them. Add them on a type's Eligibility tab."
 
+# Administrative staff are paid no ordinary overtime, only work on a public
+# holiday, and that is special overtime (Luuka, 5 Nov 2026: "For overtime,
+# admin does not qualify but qualifies for holiday allowances"; "admin qualify
+# for *2 when they work on holiday not weekend and it is special overtime").
+# Their department's Position Category says who they are; a type ticked For
+# Public Holidays Only is the special overtime.
+ADMINISTRATIVE = "Administrative"
+HOLIDAYS_ONLY = "custom_holidays_only"
+ADMIN_ON_HOLIDAYS = ("administrative staff are paid overtime only for work on a public holiday, under a type for "
+                     "public holidays only.")
 
-def person_type(gross, types, employee=None, department=None):
+# A working day's overtime is two hours at most (Luuka, 5 Nov 2026: "overtime
+# for normal working hours maximum is 2hr"). Every hour worked on a weekly
+# off, a public holiday or a day of leave is paid. Payroll Settings' Most
+# Overtime Hours on a Working Day says how many; the Overtime Type's own
+# ceiling is not it, as Frappe HR's slip holds every day to that one,
+# holidays too.
+WORKING_DAY_MOST = 2.0
+
+
+def holidays_only(row):
+    """Whether an Overtime Type pays only work on a public holiday."""
+    return bool(_number((row or {}).get(HOLIDAYS_ONLY)))
+
+
+def person_type(gross, types, employee=None, department=None, kind=None, category=None):
     """The Overtime Type a person's overtime falls under, and why none
     where none does: (name, None) or (None, why).
 
@@ -113,11 +137,19 @@ def person_type(gross, types, employee=None, department=None):
     one assigned").
 
       - somebody no type lists is paid under none, and is told so;
+      - a type for public holidays only pays no other day; on a public
+        holiday it is theirs over one that pays every day;
+      - administrative staff are paid only under a type for public
+        holidays only;
       - a type is not paid to the departments it leaves out, even to
         somebody it lists;
       - nor to somebody whose gross is not above its gross line;
       - of the types left, the one with the highest line their gross is
         above. Two left with nothing between them are said, not guessed.
+
+    `kind` is the sort of day (kind_of_day); with none, every type that
+    lists them is weighed. `category` is their department's Position
+    Category.
 
     With no types given at all (None, not a site with none), nobody's
     eligibility is being judged, and the day is priced at the Act's floor."""
@@ -126,6 +158,18 @@ def person_type(gross, types, employee=None, department=None):
     listed = sorted(name for name, row in types.items() if employee and employee in _listed(row, "employees"))
     if not listed:
         return None, NOT_LISTED
+    if category == ADMINISTRATIVE:
+        listed = [name for name in listed if holidays_only(types[name])]
+        if not listed:
+            return None, ADMIN_ON_HOLIDAYS
+    if kind is not None:
+        holiday = [name for name in listed if holidays_only(types[name])]
+        if kind == PUBLIC_HOLIDAY and holiday:
+            listed = holiday
+        else:
+            listed = [name for name in listed if name not in holiday]
+            if not listed:
+                return None, "%s pays only work on a public holiday." % holiday[0]
     paid = [name for name in listed if not (department and department in _listed(types[name], "excluded_departments"))]
     if not paid:
         return None, "%s is not paid to %s." % (listed[0], department)
@@ -209,7 +253,7 @@ def amount(hours, rate, multiplier):
 
 
 def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=None, departments=None, days=None,
-           day_hours=None):
+           day_hours=None, categories=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
     gross}, which a type's gross line is compared with; standards:
@@ -222,7 +266,8 @@ def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=No
 
     types: {Overtime Type name: its row}. Each person is priced under the
     type that lists them (person_type), at its rate for their day, with
-    departments: {employee: department} saying which types leave them out.
+    departments: {employee: department} saying which types leave them out,
+    and categories: {employee: their department's Position Category}.
     Somebody no type is open to is priced at nothing, and the row says why
     ("not_eligible"). With no types given, every day is priced at the Act's
     floor.
@@ -236,7 +281,8 @@ def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=No
         base = rates.get(row.get("employee"))
         day = (kinds or {}).get(row.get("employee")) or kind
         named, why = person_type((grosses or {}).get(row.get("employee")), types, row.get("employee"),
-                                 (departments or {}).get(row.get("employee")))
+                                 (departments or {}).get(row.get("employee")), day,
+                                 (categories or {}).get(row.get("employee")))
         own = 0.0 if why else multiplier_for(day, (types or {}).get(named) if named else None)
         rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee")), days, day_hours))
         cost = amount(row.get("hours"), rate, own)
@@ -246,6 +292,26 @@ def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=No
                         not_eligible=why))
         total += cost
     return {"rows": out, "total": round(total, 2), "unpriced": unpriced}
+
+
+def day_most(kind, type_most=0, working_day_most=WORKING_DAY_MOST):
+    """The most overtime a day of this kind is paid for, 0 for no limit:
+    the working day's most on a working day, and the type's own ceiling
+    for a day where it is less."""
+    caps = [cap for cap in (_number(type_most), _number(working_day_most) if kind == WEEKDAY else 0) if cap > 0]
+    return min(caps) if caps else 0.0
+
+
+def working_day_errors(rows, most=WORKING_DAY_MOST):
+    """The lines asking more overtime on a working day than is paid on one.
+    rows: as priced gives them, with "day_kind"."""
+    most = _number(most)
+    if most <= 0:
+        return []
+    return ["Overtime on a working day is paid up to %g hours: %s has %g." % (
+        most, row.get("employee_name") or row.get("employee"), _number(row.get("hours")))
+        for row in rows or []
+        if row.get("employee") and row.get("day_kind") == WEEKDAY and _number(row.get("hours")) > most + 1e-6]
 
 
 def over_the_cap(hours, cap):
@@ -393,16 +459,18 @@ def clock_sheets(lines):
             for key in order]
 
 
-def payable_hours(authorised, worked=None):
-    """What is paid: the hours authorised, up to the hours the clock shows,
-    in whole hours rounded down. Nobody is paid for overtime the clock says
-    they did not work, and nobody for more than was authorised. `worked` is
-    None for a day the clock did not measure (marked by hand, or no
-    clock-out): then what was authorised stands, and the row says the clock
-    was not asked."""
+def payable_hours(authorised, worked=None, most=0):
+    """What is paid: the hours authorised, up to the hours the clock shows
+    and the most the day is paid for (day_most, 0 for no limit), in whole
+    hours rounded down. Nobody is paid for overtime the clock says they did
+    not work, and nobody for more than was authorised. `worked` is None for
+    a day the clock did not measure (marked by hand, or no clock-out): then
+    what was authorised stands, and the row says the clock was not asked."""
     hours = max(float(authorised or 0), 0.0)
     if worked is not None:
         hours = min(hours, max(float(worked), 0.0))
+    if _number(most) > 0:
+        hours = min(hours, _number(most))
     return whole_hours(hours)
 
 
