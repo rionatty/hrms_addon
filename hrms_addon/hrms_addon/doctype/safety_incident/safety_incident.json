@@ -165,9 +165,10 @@
   },
   {
    "fieldname": "hospital",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "label": "Hospital",
-   "depends_on": "eval:!doc.manageable"
+   "depends_on": "eval:!doc.manageable",
+   "options": "Hospital"
   },
   {
    "fieldname": "doctor_report",
@@ -256,7 +257,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 22:00:00.000000",
+ "modified": "2026-11-06 19:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Safety Incident",

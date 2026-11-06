@@ -141,6 +141,8 @@ CARDS = {
             ("Safety Incident", "Safety Incident", DOCTYPE),
             ("Misconduct Type", "Misconduct Type", DOCTYPE),
             ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE),
+            # where the injured and the sick are sent (safety.py, review item 13)
+            ("Hospital", "Hospital", DOCTYPE),
         ]),
         # Frappe HR's Tenure page carries onboarding, grievances and
         # training but nothing about leaving, though their sidebar lists
@@ -614,6 +616,7 @@ SIDEBAR = {
         ("Safety Incident", "Safety Incident", DOCTYPE, None, "Employee Suspension"),
         ("Misconduct Type", "Misconduct Type", DOCTYPE, "Setup", None),
         ("Disciplinary Action Type", "Disciplinary Action Type", DOCTYPE, "Setup", None),
+        ("Hospital", "Hospital", DOCTYPE, "Setup", None),
         ("Onboarding Settings", "Onboarding Settings", DOCTYPE, "Setup", None),
         ("Tool of Work", "Tool of Work", DOCTYPE, "Setup", None),
         ("Tool Provider", "Tool Provider", DOCTYPE, "Setup", None),
