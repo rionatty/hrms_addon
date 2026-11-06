@@ -301,6 +301,8 @@ get_website_user_home_page = "hrms_addon.hrms_addon.careers.home_page"
 # Description through it. See hrms_addon/careers.py.
 jinja = {
     "methods": [
+        # the control line at the top of every form printed (print_control.py)
+        "hrms_addon.hrms_addon.print_control.print_control",
         "hrms_addon.hrms_addon.careers.job_posting_details",
         # the job page's Share card and the preview the networks show of it
         "hrms_addon.hrms_addon.careers.job_share_links",

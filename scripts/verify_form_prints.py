@@ -248,10 +248,21 @@ def text_of(page):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S))).strip()
 
 
+_control = importlib.util.spec_from_file_location("print_control_rules", os.path.join(APP, "print_control_rules.py"))
+PC = importlib.util.module_from_spec(_control)
+_control.loader.exec_module(PC)
+
+
+def print_control(doc):
+    """The Jinja method as the site runs it, by Harriet at ten."""
+    return PC.control_line(doc.name, PC.status_of(doc), "Harriet Ojok", "06-11-2026 10:00")
+
+
 def printed(name, values):
     folder = name.lower().replace(" ", "_")
     html = json.load(io.open(os.path.join(APP, "print_format", folder, folder + ".json"), encoding="utf-8"))["html"]
-    return jinja_subset.compile_template(html)({"doc": jinja_subset.wrap(values), "frappe": frappe})
+    return jinja_subset.compile_template(html)({"doc": jinja_subset.wrap(values), "frappe": frappe,
+                                                "print_control": print_control})
 
 
 for name, (doc_type, tables, needles, sample, reads) in PRINTS.items():
@@ -333,7 +344,51 @@ for name, (doc_type, tables, needles, sample, reads) in PRINTS.items():
     for needle in reads:
         if needle not in text:
             fail.append("%s should read %r: %s" % (name, needle, text))
-print("the five forms: each a standard print its document opens with, in the paper's words, on fields that exist, "
+# ── The control number on every print (review item 6) ────────────────
+# Luuka, 5 Nov 2026: "For all print out documents, the forms should have control numbers up there for audit purposes"
+for name, (doc_type, tables, needles, sample, reads) in PRINTS.items():
+    try:
+        text = text_of(printed(name, sample))
+    except Exception:  # noqa: BLE001
+        continue  # said above
+    if not text.startswith("Control No. %s" % sample["name"]) or "Printed by Harriet Ojok on 06-11-2026 10:00" not in text:
+        fail.append("%s carries its control number at the top, with who printed it, when: %s" % (name, text[:120]))
+every = sorted(os.listdir(os.path.join(APP, "print_format")))
+for folder in every:
+    own = os.path.join(APP, "print_format", folder, folder + ".json")
+    if not os.path.exists(own):
+        continue
+    spec = json.load(io.open(own, encoding="utf-8"))
+    carries = (spec.get("html") or "").startswith("{{ print_control(doc) }}\n")
+    if spec["name"] in PC.WITHOUT and carries:
+        fail.append("%s is printed on a page of its own size: it carries no control line" % spec["name"])
+    elif spec["name"] not in PC.WITHOUT and not carries:
+        fail.append("%s must start with its control line, {{ print_control(doc) }}" % spec["name"])
+for label, got, want in (
+    ("a workflow's state first", PC.status_of(jinja_subset.wrap({"workflow_state": "Approved", "status": "Open",
+                                                                "docstatus": 1})), "Approved"),
+    ("else the status", PC.status_of(jinja_subset.wrap({"status": "Open", "docstatus": 0})), "Open"),
+    ("else submitted", PC.status_of(jinja_subset.wrap({"docstatus": 1})), "Submitted"),
+    ("or cancelled", PC.status_of(jinja_subset.wrap({"docstatus": 2})), "Cancelled"),
+    ("a new one a draft", PC.status_of(jinja_subset.wrap({})), "Draft"),
+    ("the line", PC.control_line("HR-LAP-1", "Approved", "Harriet <Ojok>", "06-11-2026 10:00").split(">", 1)[1],
+     "Control No. <b>HR-LAP-1</b> &middot; Approved &middot; Printed by Harriet &lt;Ojok&gt; on 06-11-2026 10:00</div>"),
+):
+    if got != want:
+        fail.append("the control line: %s: %r, not %r" % (label, got, want))
+if "Control No. <b>HR&lt;1&gt;</b>" not in PC.control_line("HR<1>", None, "A", "B")         or "&middot; A" in PC.control_line("HR-1", None, "A", "B"):
+    fail.append("the number goes out escaped, and a document with no status says none")
+if PC.WITHOUT != ("Pay Slip",):
+    fail.append("only the Pay Slip, on its own page size, goes without the control line")
+control_glue = io.open(os.path.join(APP, "print_control.py"), encoding="utf-8").read()
+if "rules.control_line(doc.get(\"name\"), rules.status_of(doc), get_fullname(user) or user," not in control_glue \
+        or 'format_datetime(now_datetime(), "dd-MM-yyyy HH:mm")' not in control_glue:
+    fail.append("print_control.py prints the rules' line, by the user printing, now")
+if "hrms_addon.hrms_addon.print_control.print_control" not in (hooks.get("jinja") or {}).get("methods", []):
+    fail.append("print_control is a Jinja method every print can call (hooks.jinja)")
+print("the control number: on every print at the top but the Pay Slip, with its state and who printed it, when")
+
+print("the six forms: each a standard print its document opens with, in the paper's words, on fields that exist, "
       "escaped, rendered")
 
 # ── the overtime form is the floor's paper ────────────────────────────

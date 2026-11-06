@@ -270,8 +270,9 @@ def _scan(src):
 
 
 def compile_template(src):
-    lines = ["def _render(_ctx):", "    globals().update(_ctx)", "    loop = None", "    _out = []",
-             "    _w = _out.append"]
+    # print_control is a Jinja method every print starts with (hooks.jinja): blank here unless a check gives its own
+    lines = ["def _render(_ctx):", "    globals().update(dict({'print_control': lambda doc: ''}, **_ctx))",
+             "    loop = None", "    _out = []", "    _w = _out.append"]
     depth = 1
     stack = []
     serial = [0]
