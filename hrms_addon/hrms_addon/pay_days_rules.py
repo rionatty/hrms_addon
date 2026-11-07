@@ -39,19 +39,36 @@ Correction it gave back.
 
 WHAT THE SLIP SHOWS
 
-Luuka's register and Pay Slip count their days on the calendar, Sundays and
-holidays included (Luuka, 1 Nov 2026: "then you should include holiday
-sunday"): 31 days in the cycle of 26 August, 30 Paid Days with a day absent,
-and that day still a 26th of the pay. So a slip keeps both. Frappe HR's Working
-Days and Payment Days stay on the 26, because they are what it divides by,
-here and in a Payroll Correction, and are hidden on the form. The Working Days
-and Payment Days shown are the calendar's (calendar_days), and pay nobody.
+A slip shows its Working Days and Payment Days on the month of 26 its pay is
+divided by (Luuka, 8 Nov 2026: "revert Working days to be considered need be
+as 26"). On 1 Nov they had asked for the calendar's ("then you should include
+holiday sunday"): 31 days in the cycle of 26 August, 30 Paid Days with a day
+absent, and that day still a 26th of the pay. Payroll Settings' Days Shown on
+Slips keeps both: Days in a Pay Month, the default, or Calendar Days
+(calendar_days). Frappe HR's own Working Days and Payment Days stay on the 26
+either way, hidden on the form: they are what it divides by, here and in a
+Payroll Correction.
+
+PER METER
+
+Per meter staff are paid a basic that does not move and their output (Luuka,
+8 Nov 2026: "For per metre, basic pay is untouched regardless of absence ...
+Attendance is based on their output which is going uploaded as per meter").
+Their slip loses no day to an absence or a leave: its Payment Days are the
+days they are on the payroll, up to the month, so a part month is still a
+part month.
 """
 
 # Luuka's month, and its day; Payroll Settings' Days in a Pay Month and
 # Hours in a Pay Day say otherwise
 DAYS_IN_MONTH = 26
 HOURS_IN_DAY = 8
+# the days a slip shows: Payroll Settings' Days Shown on Slips
+PAY_MONTH, CALENDAR = "Days in a Pay Month", "Calendar Days"
+SHOWN = (PAY_MONTH, CALENDAR)
+# the pay categories whose attendance is their output: no day of theirs is
+# taken off for an absence
+OUTPUT_PAID = ("Per Meter",)
 
 
 def _num(value):
@@ -61,7 +78,12 @@ def _num(value):
         return 0.0
 
 
-def slip_days(days, on_payroll, counted_from, paid, without_pay, preview=False):
+def is_output_paid(category):
+    """Whether a pay category's slip is paid whole, whatever the attendance."""
+    return (category or "") in OUTPUT_PAID
+
+
+def slip_days(days, on_payroll, counted_from, paid, without_pay, preview=False, output_paid=False):
     """(Working Days, Payment Days) on a month of `days` days, or None to
     leave Frappe HR's own count (`days` 0 or less).
 
@@ -73,12 +95,16 @@ def slip_days(days, on_payroll, counted_from, paid, without_pay, preview=False):
     paid           the Payment Days Frappe HR came to
     without_pay    the leave without pay Frappe HR counted
     preview        a slip worked out for a whole month (a preview): all of it
+    output_paid    a per meter slip (is_output_paid): no absence or leave is
+                   taken off, only the days off the payroll
     """
     days = _num(days)
     if days <= 0:
         return None
     if preview:
         return days, days
+    if output_paid:
+        return days, max(0.0, min(_num(on_payroll), days))
     counted_from, paid = _num(counted_from), _num(paid)
     if counted_from <= _num(without_pay):
         # leave without pay took every day: Frappe HR pays none, and what
@@ -88,7 +114,7 @@ def slip_days(days, on_payroll, counted_from, paid, without_pay, preview=False):
     return days, max(0.0, min(_num(on_payroll), days) - taken)
 
 
-def calendar_days(period, on_payroll, counted_from, paid, without_pay):
+def calendar_days(period, on_payroll, counted_from, paid, without_pay, output_paid=False):
     """(Working Days, Payment Days) as the slip shows them: every day of the
     period, Sundays and holidays included, and the days on the payroll less
     every day Frappe HR took off.
@@ -97,11 +123,22 @@ def calendar_days(period, on_payroll, counted_from, paid, without_pay):
     the rest       as slip_days has them
     """
     on_payroll, counted_from, paid = _num(on_payroll), _num(counted_from), _num(paid)
+    if output_paid:
+        return _num(period), max(0.0, min(on_payroll, _num(period)))
     if counted_from <= _num(without_pay):
         # as slip_days: leave without pay took every day, and what is paid
         # all the same is a Payroll Correction it gave back
         return _num(period), max(paid, 0.0)
     return _num(period), max(0.0, min(on_payroll, on_payroll - (counted_from - paid)))
+
+
+def shown_days(choice, period, month, facts, output_paid=False):
+    """(Working Days, Payment Days) as the slip shows them: `month`, the days
+    its pay is divided by (slip_days), or the calendar's where Payroll Settings
+    choose CALENDAR. facts: on_payroll, counted_from, paid, without_pay."""
+    if choice == CALENDAR:
+        return calendar_days(period, output_paid=output_paid, **facts)
+    return month
 
 
 def hourly_rate(monthly, days, standard_hours):

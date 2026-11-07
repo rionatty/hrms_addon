@@ -12186,11 +12186,24 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Settings-custom_days_shown",
+  "dt": "Payroll Settings",
+  "fieldname": "custom_days_shown",
+  "fieldtype": "Select",
+  "insert_after": "custom_days_in_month",
+  "label": "Days Shown on Slips",
+  "options": "Days in a Pay Month\nCalendar Days",
+  "default": "Days in a Pay Month",
+  "description": "The Working Days and Payment Days a slip shows. Pay is divided by the Days in a Pay Month either way.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Payroll Settings-custom_hours_in_day",
   "dt": "Payroll Settings",
   "fieldname": "custom_hours_in_day",
   "fieldtype": "Float",
-  "insert_after": "custom_days_in_month",
+  "insert_after": "custom_days_shown",
   "label": "Hours in a Pay Day",
   "default": "8",
   "non_negative": 1,
@@ -12392,7 +12405,7 @@
   "label": "Working Days",
   "read_only": 1,
   "no_copy": 1,
-  "description": "Every day of the period, Sundays and holidays included.",
+  "description": "The days in a pay month, or every day of the period where Payroll Settings' Days Shown on Slips is Calendar Days.",
   "module": "HRMS Addon"
  },
  {
@@ -12405,7 +12418,7 @@
   "label": "Payment Days",
   "read_only": 1,
   "no_copy": 1,
-  "description": "The days on the payroll, Sundays and holidays included, less the days not paid.",
+  "description": "The days paid, counted as the Working Days are (Payroll Settings' Days Shown on Slips).",
   "module": "HRMS Addon"
  },
  {

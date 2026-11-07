@@ -274,7 +274,7 @@ def matches(row, filters):
 
 
 class Site:
-    META = {"Employee": {"grade", "department", "date_of_joining", "relieving_date"},
+    META = {"Employee": {"grade", "department", "date_of_joining", "relieving_date", "custom_pay_category"},
             "Salary Structure Assignment": {"custom_rate", "base", "variable", "employee", "salary_structure"}}
 
     def __init__(self, tables=None, settings=None):
@@ -465,12 +465,12 @@ def figure(working, paid, absent, amount, basic):
 
 
 site, shown = expected()
-check(shown["E1"] == figure(31, 30.0, 1.0, 30769.23, 800000.0),
+check(shown["E1"] == figure(26, 25.0, 1.0, 30769.23, 800000.0),
       "the latest assignment by the period's end on a structure of this frequency, submitted and active; a submitted "
       "absence inside the period; none on their holiday, in draft or cancelled, or outside the period", shown["E1"])
-check(shown["E2"] == figure(31, 11.0, 0.0, 288461.54, 500000.0),
-      "a hire of the 15th: 11 days on the calendar, 11 of 26 paid, as a part month is", shown["E2"])
-check(shown["E3"]["custom_working_days"] == 31 and shown["E3"]["custom_paid_days"] == 29.5 and shown["E3"]["custom_absent_days"] == 0.5,
+check(shown["E2"] == figure(26, 11.0, 0.0, 288461.54, 500000.0),
+      "a hire of the 15th: 11 of 26 paid, as a part month is", shown["E2"])
+check(shown["E3"]["custom_working_days"] == 26 and shown["E3"]["custom_paid_days"] == 24.5 and shown["E3"]["custom_absent_days"] == 0.5,
       "their own holiday list, so the 2nd is a holiday and the 1st is a half day; a day of leave without pay; paid leave takes nothing", shown["E3"])
 check(shown["E3"]["custom_basic_salary"] == 312000.0, "the Basic with an Additional Salary on it whole", shown["E3"])
 # E3: 26 less 1.5 taken is 24.5 of 26, on Basic 260,000 + 52,000 and House 26,000
@@ -478,7 +478,22 @@ check(shown["E3"]["custom_absent_amount"] == round((260000 - round(260000 * 24.5
                                                    + (26000 - round(26000 * 24.5 / 26, 2)), 2),
       "the absent amount off everything that follows the days; overtime, and what is cancelled, disabled, of another "
       "period, a deduction, statistical or out of the totals is none of it", shown["E3"])
-check(shown["E4"] == figure(31, 31.0, 0.0, 0.0, 0.0), "someone with no assignment still has their days", shown["E4"])
+check(shown["E4"] == figure(26, 26.0, 0.0, 0.0, 0.0), "someone with no assignment still has their days", shown["E4"])
+# the calendar's days, where Payroll Settings choose them (Luuka, 1 Nov 2026), the pay the same
+_site, calendar = expected(settings={"custom_days_shown": "Calendar Days"})
+check(calendar["E1"] == figure(31, 30.0, 1.0, 30769.23, 800000.0) and calendar["E2"] == figure(31, 11.0, 0.0, 288461.54, 500000.0)
+      and calendar["E4"] == figure(31, 31.0, 0.0, 0.0, 0.0) and calendar["E3"]["custom_paid_days"] == 29.5,
+      "on Calendar Days: 31 days shown, 30 with a day absent, the hire's 11, and the same absent amounts", calendar)
+# a per meter employee's basic is untouched, absent or not (Luuka, 8 Nov 2026)
+per_meter = [dict(row, custom_pay_category="Per Meter") if row["name"] == "E1" else row for row in TABLES["Employee"]]
+_site, output_paid = expected(tables={"Employee": per_meter}, employees=("E1", "E2"))
+check(output_paid["E1"] == figure(26, 26.0, 0.0, 0.0, 800000.0),
+      "a per meter employee absent a day: the whole 26 paid, no day absent, nothing taken off their basic", output_paid["E1"])
+check(output_paid["E2"] == figure(26, 11.0, 0.0, 288461.54, 500000.0), "and the regular hire beside them as before", output_paid["E2"])
+_site, output_calendar = expected(tables={"Employee": per_meter}, employees=("E1",), settings={"custom_days_shown": "Calendar Days"})
+check(output_calendar["E1"]["custom_working_days"] == 31 and output_calendar["E1"]["custom_paid_days"] == 31.0
+      and output_calendar["E1"]["custom_absent_amount"] == 0.0,
+      "and on the calendar: every day of the 31", output_calendar["E1"])
 check(set(shown) == {"E1", "E2", "E3", "E4"}, "only those asked about", set(shown))
 _site, some = expected(employees=("E1",))
 check(set(some) == {"E1"}, "those with a slip are not worked out", set(some))
@@ -518,12 +533,12 @@ reordered = {"Salary Detail": [dict(line("House", "HR", "BS * 0.1"), parent=ACTI
 _site, in_order = expected(tables=reordered, employees=("E1",))
 check(in_order["E1"]["custom_absent_amount"] == 33846.15, "a structure's lines are worked out in its own order", in_order["E1"])
 _site, none = expected(tables={"Holiday List Assignment": []}, employees=("E1",))
-check(none["E1"]["custom_paid_days"] == 29.0, "no holiday list at all: every absence counts", none["E1"])
+check(none["E1"]["custom_paid_days"] == 24.0, "no holiday list at all: every absence counts", none["E1"])
 _site, company_only = expected(tables={"Additional Salary": [], "Salary Component": []}, employees=("E3",))
 check(company_only["E3"]["custom_basic_salary"] == 260000.0, "no components to read Additional Salaries of: none are", company_only)
 check(not [call for call in _site.calls if call[0] == "Additional Salary"], "and none are asked for", _site.calls)
 _site, nothing = expected(tables={"Salary Structure": []}, employees=("E1",))
-check(nothing["E1"]["custom_basic_salary"] == 0 and nothing["E1"]["custom_paid_days"] == 30.0, "no structure at all: the days alone", nothing)
+check(nothing["E1"]["custom_basic_salary"] == 0 and nothing["E1"]["custom_paid_days"] == 25.0, "no structure at all: the days alone", nothing)
 
 for run, why in ((Run(MONTHLY, docstatus=2), "a cancelled payroll"), (Run(MONTHLY, salary_slip_based_on_timesheet=1), "one worked out from timesheets"),
                  (Run(MONTHLY, start_date=None), "one with no start date"), (Run(MONTHLY, end_date=None), "or no end date")):
@@ -651,6 +666,8 @@ if os.path.exists(utils_path):
         asked.setdefault(doctype, set()).update(fields, filters)
     asked["Leave Type"].update({"is_ppl", "is_lwp"})
     asked["Salary Structure"].add("name")
+    # the app's own fields on a doctype upstream count as its fields: a migrate adds them
+    ours = json.load(open(os.path.join(REPO, "hrms_addon", "fixtures", "custom_field.json"), encoding="utf-8"))
     for doctype, fields in sorted(asked.items()):
         scrubbed = doctype.lower().replace(" ", "_")
         found = glob.glob(os.path.join(APPS_ROOT, "*", "*", "*", "doctype", scrubbed, scrubbed + ".json"))
@@ -658,6 +675,7 @@ if os.path.exists(utils_path):
         if found:
             standard = {"name", "docstatus", "parent", "parenttype", "parentfield", "idx"}
             known = {field["fieldname"] for field in json.load(open(found[0], encoding="utf-8"))["fields"]} | standard
+            known |= {field["fieldname"] for field in ours if field["dt"] == doctype}
             check(fields <= known, "%s has the fields read of it: %s" % (doctype, sorted(fields - known)))
     run_src = open(os.path.join(APPS_ROOT, "frappe", "frappe", "desk", "form", "save.py"), encoding="utf-8").read()
     check("run_onload(doc)" in run_src, "the save Get Employees ends with runs onload, so the figures come back with it")

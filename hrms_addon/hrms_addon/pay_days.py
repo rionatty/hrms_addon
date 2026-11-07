@@ -8,9 +8,11 @@
                      (hooks.extend_doctype_class): once Frappe HR has counted
                      the days, the month is 26 Working Days and the Payment
                      Days are the days on the payroll, up to 26, less the
-                     days Frappe HR took off; the slip also keeps the days it
-                     shows, the calendar's, for the form, the Pay Slip, the
-                     Salary Register and the payroll's Employees tab
+                     days Frappe HR took off, and none taken off a per meter
+                     slip; the slip also keeps the days it shows, the same
+                     26 unless Payroll Settings ask for the calendar's, for
+                     the form, the Pay Slip, the Salary Register and the
+                     payroll's Employees tab
   OvertimeSlipDays  mixed in ahead of Frappe HR's Overtime Slip: an hour of
                      overtime priced from salary components is their monthly
                      amount / 26 / 8, where Frappe HR divides by the slip's
@@ -26,6 +28,8 @@
   hours_in_day       and its Hours in a Pay Day: 8 until HR say otherwise,
                      and 0 divides an hour out of each shift's own standard
                      day instead
+  days_shown         and its Days Shown on Slips: the month's 26 until HR
+                     choose the calendar's
 
 Only a monthly slip that is not worked out from timesheets is touched. A
 slip already submitted keeps the figures it was submitted with.
@@ -43,6 +47,8 @@ DAYS_FIELD = "custom_days_in_month"
 HOURS_FIELD = "custom_hours_in_day"
 ABSENT_FIELD = "custom_absent_amount"
 PAID_FIELD = "custom_days_paid"
+SHOWN_FIELD = "custom_days_shown"
+CATEGORY_FIELD = "custom_pay_category"
 MONTHLY = "Monthly"
 REGISTER = "Salary Register"
 
@@ -67,6 +73,21 @@ def hours_in_day():
     return max(flt(stored), 0)
 
 
+def days_shown():
+    """Which days a slip shows as its Working Days and Payment Days: the
+    month's 26 (Luuka, 8 Nov 2026: "revert Working days to be considered need
+    be as 26"), until Payroll Settings ask for the calendar's."""
+    stored = frappe.db.get_singles_dict(SETTINGS).get(SHOWN_FIELD)
+    return stored if stored in rules.SHOWN else rules.PAY_MONTH
+
+
+def pay_category(employee):
+    """The employee's Pay Category: Regular, Per Meter, Per Piece or Weekly."""
+    if not employee or not frappe.get_meta("Employee").has_field(CATEGORY_FIELD):
+        return None
+    return frappe.get_cached_value("Employee", employee, CATEGORY_FIELD)
+
+
 def on_luuka_month(slip):
     """Whether a slip is paid on the month of days_in_month(): a monthly slip
     not worked out from timesheets."""
@@ -83,16 +104,20 @@ class SalarySlipDays:
 
 def set_month(slip, for_preview=0):
     """The slip's Working Days and Payment Days on Luuka's month, from what
-    Frappe HR has just counted, and the days it shows beside them: the
-    calendar's on that month, and otherwise Frappe HR's own count."""
+    Frappe HR has just counted, and the days it shows beside them: the same,
+    or the calendar's where Payroll Settings ask for them. A per meter slip
+    loses no day to an absence or a leave: their output is their attendance,
+    and their basic is paid whole (Luuka, 8 Nov 2026)."""
     slip.custom_days_in_period, slip.custom_days_paid = slip.total_working_days, slip.payment_days
     days = days_in_month()
     if not days or not on_luuka_month(slip):
         return
     period = date_diff(slip.end_date, slip.start_date) + 1
+    shown = days_shown()
     if cint(for_preview):
         slip.total_working_days, slip.payment_days = rules.slip_days(days, 0, 0, 0, 0, preview=True)
-        slip.custom_days_in_period, slip.custom_days_paid = period, period
+        slip.custom_days_in_period, slip.custom_days_paid = (period, period) if shown == rules.CALENDAR \
+            else (slip.total_working_days, slip.payment_days)
         return
     holidays_counted = frappe.db.get_single_value(SETTINGS, "include_holidays_in_total_working_days")
     facts = dict(
@@ -101,10 +126,15 @@ def set_month(slip, for_preview=0):
         paid=slip.payment_days,
         without_pay=slip.leave_without_pay,
     )
-    counted = rules.slip_days(days, **facts)
+    output_paid = rules.is_output_paid(pay_category(slip.get("employee")))
+    counted = rules.slip_days(days, output_paid=output_paid, **facts)
     if counted:
         slip.total_working_days, slip.payment_days = counted
-    slip.custom_days_in_period, slip.custom_days_paid = rules.calendar_days(period, **facts)
+    if output_paid:
+        # their attendance is their output: no day is counted against them
+        slip.absent_days, slip.leave_without_pay = 0, 0
+    slip.custom_days_in_period, slip.custom_days_paid = rules.shown_days(
+        shown, period, (slip.total_working_days, slip.payment_days), facts, output_paid)
 
 
 def slip_validate(doc, method=None):

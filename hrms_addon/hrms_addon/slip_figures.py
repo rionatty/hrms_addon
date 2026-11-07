@@ -61,6 +61,7 @@ def expected(doc, employees):
     additional = _additional(start, end, components)
     rounded = {name for name, row in components.items() if cint(row.round_to_the_nearest_integer)}
     days = pay_days.days_in_month() if pay_days.on_luuka_month(doc) else 0
+    shown_choice = pay_days.days_shown()
 
     # what a formula may read, as Frappe HR seeds it for a whole month with nothing taken off
     shared = {**get_component_abbr_map(), **SALARY_SLIP_EVAL_DEFAULTS, "start_date": start, "end_date": end,
@@ -76,9 +77,11 @@ def expected(doc, employees):
                               marked.get(employee))
         facts = {"on_payroll": count["on_payroll"], "counted_from": count["counted_from"], "paid": count["paid"],
                  "without_pay": count["without_pay"]}
-        month = pay_days_rules.slip_days(days, **facts) if days else None
+        output_paid = pay_days_rules.is_output_paid(person.get(pay_days.CATEGORY_FIELD))
+        month = pay_days_rules.slip_days(days, output_paid=output_paid, **facts) if days else None
         working, paid = month or (count["working"], count["paid"])
-        shown = pay_days_rules.calendar_days(period, **facts) if month else (count["working"], count["paid"])
+        shown = pay_days_rules.shown_days(shown_choice, period, (working, paid), facts, output_paid) if month \
+            else (count["working"], count["paid"])
         assignment = assignments.get(employee)
         structure = []
         if assignment:
@@ -88,7 +91,7 @@ def expected(doc, employees):
         figures[employee] = {
             "custom_working_days": shown[0],
             "custom_paid_days": shown[1],
-            "custom_absent_days": count["absent"],
+            "custom_absent_days": 0 if output_paid and month else count["absent"],
             "custom_absent_amount": payslip_rules.absent_amount(rules.paid_rows(rows, paid, working, rounded)),
             "custom_basic_salary": sum(pay_days_rules.full_amount(row) for row in rows
                                        if row["salary_component"] == BASIC),
@@ -158,10 +161,13 @@ def _assignments(end, lines, read):
 
 
 def _people(company, read):
-    """{employee: when they joined and left, and whatever else a formula reads of them}."""
+    """{employee: when they joined and left, their pay category, and whatever else a formula reads of them}."""
+    fields = ["name", "date_of_joining", "relieving_date"]
+    if frappe.get_meta("Employee").has_field(pay_days.CATEGORY_FIELD):
+        fields.append(pay_days.CATEGORY_FIELD)
     return {row.name: row for row in frappe.get_all(
         "Employee", filters={"company": company}, limit_page_length=0,
-        fields=_fields_read("Employee", read, "name", "date_of_joining", "relieving_date"))}
+        fields=_fields_read("Employee", read, *fields))}
 
 
 def _holidays(company, employees, start, end):

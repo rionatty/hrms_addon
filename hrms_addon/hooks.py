@@ -1270,6 +1270,8 @@ fixtures = [
                     # Luuka's month of 26 days and day of 8 hours, and what
                     # the days not paid took off a slip (pay_days.py)
                     "Payroll Settings-custom_days_in_month",
+                    # which days a slip shows: the 26 or the calendar's (pay_days.py)
+                    "Payroll Settings-custom_days_shown",
                     "Payroll Settings-custom_hours_in_day",
                     "Salary Slip-custom_absent_amount",
                     # the days a slip shows, the calendar's (pay_days.py)
