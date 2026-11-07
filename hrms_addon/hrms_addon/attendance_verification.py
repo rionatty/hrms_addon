@@ -233,10 +233,10 @@ PERSON_FIELDS = ("name", "employee_name", "branch", "department", "designation",
 
 
 def _people(doc):
-    """{employee: row} of the branch's people the sheet is for, by name (rules.on_sheet)."""
+    """{employee: row} of the branch's active people the sheet is for, by name (rules.on_sheet)."""
     found = frappe.get_all("Employee", filters={
         "company": doc.company, "branch": doc.branch, "date_of_joining": ["<=", doc.to_date],
-        "status": ["!=", rules.INACTIVE]}, fields=list(PERSON_FIELDS), order_by="employee_name asc",
+        "status": rules.ACTIVE}, fields=list(PERSON_FIELDS), order_by="employee_name asc",
         limit_page_length=0)
     return {row.name: row for row in found if rules.on_sheet(row, doc.pay_kind, doc.from_date, doc.to_date)}
 
@@ -518,8 +518,11 @@ def slip_before_submit(doc, method=None):
         if not days[doc.employee]:
             return
     first, last = _range(doc, days)
-    found = [{"employee": doc.employee, "employee_name": doc.get("employee_name") or doc.employee,
-              "branch": frappe.db.get_value("Employee", doc.employee, "branch")}]
+    person = frappe.db.get_value("Employee", doc.employee, ["branch", "status"], as_dict=True) or {}
+    found = rules.payroll_people([{"employee": doc.employee, "employee_name": doc.get("employee_name") or doc.employee,
+                                   "branch": person.get("branch"), "status": person.get("status")}])
+    if not found:
+        return
     sheets = verified_sheets(first, last, employees=[doc.employee])
     gaps = rules.payroll_gaps(found, sheets, doc.start_date, doc.end_date, days)
     if gaps:
@@ -552,13 +555,17 @@ def payroll_branches(payroll_entry):
 
 
 def _payroll_people(doc):
+    """The payroll's people its branches verify: the active ones (rules.payroll_people)."""
     employees = list(dict.fromkeys(row.employee for row in doc.get("employees") or [] if row.get("employee")))
     if not employees:
         return []
     found = {row.name: row for row in frappe.get_all("Employee", filters={"name": ["in", employees]},
-                                                     fields=["name", "employee_name", "branch"], limit_page_length=0)}
-    return [{"employee": employee, "employee_name": (found.get(employee) or {}).get("employee_name") or employee,
-             "branch": (found.get(employee) or {}).get("branch")} for employee in employees]
+                                                     fields=["name", "employee_name", "branch", "status"],
+                                                     limit_page_length=0)}
+    return rules.payroll_people([
+        {"employee": employee, "employee_name": (found.get(employee) or {}).get("employee_name") or employee,
+         "branch": (found.get(employee) or {}).get("branch"), "status": (found.get(employee) or {}).get("status")}
+        for employee in employees])
 
 
 def _days_paid(doc, found):

@@ -22,6 +22,7 @@ frappe.ui.form.on("Attendance Verification", {
 		ha_verify_months_load(frm);
 		ha_verify_header(frm);
 		ha_verify_intro(frm);
+		ha_verify_pages(frm);
 		// whoever may save it now: HR while it is a draft, the General Manager while it waits
 		if (frm.doc.docstatus === 0 && !frappe.workflow.is_read_only(frm.doctype, frm.docname)) {
 			frm.add_custom_button(__("Get Attendance"), () => frm.save());
@@ -41,6 +42,26 @@ frappe.ui.form.on("Attendance Verification", {
 		ha_verify_month_dates(frm, false);
 	},
 });
+
+// The page buttons of both tables. Frappe draws them in a table's footer, and hides the footer of a read-only table
+// drawn with less than a page of rows, as a new sheet's are, then never shows it again (grid.js setup_toolbar): once
+// Get Attendance filled the tables, only their first 50 rows could be seen. Each time a table is drawn (Frappe's grid
+// says "change" when it is), its footer shows while it has more than one page.
+const HA_VERIFY_TABLES = ["employees", "issues"];
+
+function ha_verify_pages(frm) {
+	HA_VERIFY_TABLES.forEach((fieldname) => {
+		const grid = frm.fields_dict[fieldname] && frm.fields_dict[fieldname].grid;
+		if (!grid || !grid.wrapper) return;
+		const show = () => {
+			const pages = grid.grid_pagination;
+			if (!pages || grid.is_editable()) return;
+			grid.wrapper.find(".grid-footer").toggleClass("hidden", (grid.data || []).length <= pages.page_length);
+		};
+		grid.wrapper.off("change.ha_verify_pages").on("change.ha_verify_pages", show);
+		show();
+	});
+}
 
 function ha_verify_get(method, args) {
 	// fetch, not frappe.call: a list that cannot be had leaves the dates to type, with no dialog

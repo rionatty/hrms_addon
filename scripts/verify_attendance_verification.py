@@ -99,19 +99,25 @@ check(R.on_sheet(dict(staff, custom_pay_category="Per Meter"), "Monthly", "2026-
 check(not R.on_sheet(casual, "Monthly", "2026-09-26", "2026-10-25"), "a casual paid weekly is not on the monthly one")
 check(R.on_sheet(casual, "Weekly", "2026-10-30", "2026-11-05"), "but on the weekly one")
 check(not R.on_sheet(staff, "Weekly", "2026-10-30", "2026-11-05"), "where a monthly person is not")
-check(not R.on_sheet(dict(staff, status="Inactive"), "Monthly", "2026-09-26", "2026-10-25"), "nobody inactive")
-check(R.on_sheet(dict(staff, status="Suspended"), "Monthly", "2026-09-26", "2026-10-25"), "a suspended person is on it")
+for status in ("Inactive", "Suspended", "Left", "", None):
+    check(not R.on_sheet(dict(staff, status=status), "Monthly", "2026-09-26", "2026-10-25"),
+          "only the active are on it, not one whose status is %r" % status)
+check(not R.on_sheet(dict(staff, status="Left", relieving_date="2026-10-10"), "Monthly", "2026-09-26", "2026-10-25"),
+      "not even one who left during it")
 check(not R.on_sheet(dict(staff, date_of_joining="2026-10-26"), "Monthly", "2026-09-26", "2026-10-25"),
       "nobody who joins after its last day")
 check(R.on_sheet(dict(staff, date_of_joining="2026-10-25"), "Monthly", "2026-09-26", "2026-10-25"),
       "one who joins on its last day is")
-check(not R.on_sheet(dict(staff, status="Left", relieving_date="2026-09-25"), "Monthly", "2026-09-26", "2026-10-25"),
-      "nobody who left before its first day")
-check(R.on_sheet(dict(staff, status="Left", relieving_date="2026-10-10"), "Monthly", "2026-09-26", "2026-10-25"),
-      "one who left during it is")
-check(R.on_sheet(dict(staff, status="Left", relieving_date="2026-09-26"), "Monthly", "2026-09-26", "2026-10-25"),
+check(not R.on_sheet(dict(staff, relieving_date="2026-09-25"), "Monthly", "2026-09-26", "2026-10-25"),
+      "nobody whose last day was before its first day")
+check(R.on_sheet(dict(staff, relieving_date="2026-10-10"), "Monthly", "2026-09-26", "2026-10-25"),
+      "one still active, serving notice to a day within it, is")
+check(R.on_sheet(dict(staff, relieving_date="2026-09-26"), "Monthly", "2026-09-26", "2026-10-25"),
       "and one whose last day is its first day")
-print("who is on it: the branch's people on the books for any of its days, paid the way the sheet pays")
+mixed = [{"employee": "A", "status": "Active"}, {"employee": "L", "status": "Left"}, {"employee": "S", "status": "Suspended"},
+         {"employee": "I", "status": "Inactive"}, {"employee": "N", "status": None}]
+check([row["employee"] for row in R.payroll_people(mixed)] == ["A"], "a payroll waits only for its active people")
+print("who is on it: the branch's active people on the books for any of its days, paid the way the sheet pays")
 
 # ── 3. A person's line ────────────────────────────────────────────────
 week = days("2026-10-19", "2026-10-25")  # Mon..Sun
@@ -386,6 +392,9 @@ check('"hrms_addon.hrms_addon.attendance_verification.weekly_dates"' in js
 check('frm.add_custom_button(__("Get Attendance"), () => frm.save())' in js
       and "!frappe.workflow.is_read_only(frm.doctype, frm.docname)" in js,
       "Get Attendance reads the figures again, for whoever may save the sheet now")
+check('const HA_VERIFY_TABLES = ["employees", "issues"];' in js and "		ha_verify_pages(frm);\n" in js
+      and '.on("change.ha_verify_pages", show)' in js,
+      "both tables keep their page buttons each time they are drawn (smoke_verification_pages.py)")
 payroll_js = read("hrms_addon", "public", "js", "payroll_entry.js")
 check('"hrms_addon.hrms_addon.attendance_verification.payroll_branches"' in payroll_js
       and "ha_payroll_attendance(frm);" in payroll_js and '"custom ha-attendance-verification"' in payroll_js,

@@ -8,7 +8,7 @@ is attendance_verification.py, the steps attendance_verification_approval.py.
 
   THE SHEET      one per branch per payroll: a Monthly one for a payroll month
                  (the 26th to the 25th), a Weekly one for the casuals' days.
-                 Everyone of the branch the payroll pays that way, each with
+                 Everyone active in the branch paid that way, each with
                  the Attendance Board's letters counted (person_figures)
   WHAT STOPS IT  a day nobody marked, a day the clock saw and nobody marked,
                  and a request still on its way that would change a day:
@@ -28,7 +28,8 @@ KINDS = (MONTHLY, WEEKLY)
 # Employee custom_pay_category of those paid by the week (weekly_pay_rules.WEEKLY)
 WEEKLY_CATEGORY = "Weekly"
 MAX_WEEKLY_DAYS = 31
-INACTIVE = "Inactive"
+# the system status of those verified; Luuka's own statuses each count as one of the four
+ACTIVE = "Active"
 
 # the Attendance Board's letters (attendance_rules.py)
 DAY_SHIFT, NIGHT_SHIFT, ABSENT, SICK, WEEKLY_OFF, LEAVE, OFF_DUTY = "M", "N", "A", "S", "WO", "L", "O"
@@ -102,9 +103,11 @@ def title_for(branch, kind, period_name, from_date, to_date):
 
 
 def on_sheet(person, kind, from_date, to_date):
-    """Whether somebody is on a branch's sheet: on the books for some of its days, and paid the way it pays.
-    person: status, date_of_joining, relieving_date, custom_pay_category."""
-    if (person.get("status") or "") == INACTIVE:
+    """Whether somebody is on a branch's sheet: active, on the books for some of its days, and paid the way it pays.
+    Only the active are verified (Luuka, 8 Nov 2026): somebody who has left, is suspended or inactive is not on it,
+    and no payroll waits for them (payroll_people). person: status (the system status, which each of Luuka's
+    statuses counts as), date_of_joining, relieving_date, custom_pay_category."""
+    if (person.get("status") or "") != ACTIVE:
         return False
     joined, left = _date(person.get("date_of_joining")), _date(person.get("relieving_date"))
     first, last = _date(from_date), _date(to_date)
@@ -262,6 +265,12 @@ def gate_on(values):
     """Payroll Settings: on unless it is unticked (a site that never saved the setting has it on)."""
     value = (values or {}).get(SETTING)
     return True if value is None or value == "" else bool(int(_num(value)))
+
+
+def payroll_people(people):
+    """Those of a payroll its branches verify: the active (on_sheet). people: [{"employee", "employee_name",
+    "branch", "status"}]."""
+    return [person for person in people or () if (person.get("status") or "") == ACTIVE]
 
 
 def payroll_gaps(people, sheets, start, end, days_by_employee=None):
