@@ -12423,6 +12423,33 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Salary Slip-custom_shared_on",
+  "dt": "Salary Slip",
+  "fieldname": "custom_shared_on",
+  "fieldtype": "Datetime",
+  "insert_after": "posting_date",
+  "label": "Sent to the Employee",
+  "read_only": 1,
+  "no_copy": 1,
+  "description": "When the draft slip was emailed to the employee to check (Send to Employees on the payroll).",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Slip-custom_shared_to",
+  "dt": "Salary Slip",
+  "fieldname": "custom_shared_to",
+  "fieldtype": "Data",
+  "insert_after": "custom_shared_on",
+  "label": "Sent To",
+  "options": "Email",
+  "read_only": 1,
+  "no_copy": 1,
+  "depends_on": "custom_shared_on",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Salary Slip-custom_weekly_section",
   "dt": "Salary Slip",
   "fieldname": "custom_weekly_section",

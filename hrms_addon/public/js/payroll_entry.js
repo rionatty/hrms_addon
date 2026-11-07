@@ -45,6 +45,7 @@ const HA_PAYROLL_REGISTER_DOWNLOAD = "hrms_addon.hrms_addon.payroll_register.dow
 frappe.ui.form.on("Payroll Entry", {
 	refresh(frm) {
 		ha_payroll_recreate_button(frm);
+		ha_payroll_share_buttons(frm);
 		ha_payroll_register(frm);
 		ha_payroll_period(frm);
 		ha_weekly(frm);
@@ -325,6 +326,106 @@ function ha_payroll_recreate_button(frm) {
 				});
 		});
 	});
+}
+
+// Luuka, 8 Nov 2026: the slips are shared with the employees to check before the
+// payroll is run, by email in bulk, and printed in bulk (slip_share.py)
+const HA_PAYROLL_SHARE = "hrms_addon.hrms_addon.slip_share.";
+
+function ha_payroll_share_buttons(frm) {
+	const doc = frm.doc;
+	if (doc.docstatus !== 1 || !cint(doc.salary_slips_created)) return;
+	const may_write = frm.perm && frm.perm[0] && frm.perm[0].write;
+	if (may_write && !cint(doc.salary_slips_submitted)) {
+		frm.add_custom_button(__("Send to Employees"), () => ha_payroll_share(frm), __("Slips"));
+	}
+	frm.add_custom_button(__("Print Slips"), () => ha_payroll_print(frm), __("Slips"));
+}
+
+function ha_payroll_share(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Send the Slips to the Employees"),
+		fields: [
+			{
+				fieldtype: "HTML",
+				fieldname: "about",
+				options: `<p>${__("Each employee gets their own draft slip by email, to check before the payroll is run.")}</p>`,
+			},
+			{ fieldtype: "Check", fieldname: "again", label: __("Send again to those who have theirs already") },
+		],
+		primary_action_label: __("Send"),
+		primary_action(values) {
+			dialog.hide();
+			frappe
+				.call({
+					method: HA_PAYROLL_SHARE + "share_slips",
+					args: { payroll_entry: frm.doc.name, again: values.again ? 1 : 0 },
+					freeze: true,
+				})
+				.then((r) => {
+					frappe.show_alert({
+						message: __("Sending {0} slips. You will be told when it is done.", [r.message || 0]),
+						indicator: "blue",
+					});
+				});
+		},
+	});
+	dialog.show();
+}
+
+function ha_payroll_print(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Print the Slips"),
+		fields: [
+			{
+				fieldtype: "Select",
+				fieldname: "which",
+				label: __("Slips"),
+				options: [
+					{ value: "all", label: __("All slips") },
+					{ value: "not sent", label: __("Only those not sent by email") },
+				],
+				default: "all",
+			},
+		],
+		primary_action_label: __("Print"),
+		primary_action(values) {
+			dialog.hide();
+			frappe
+				.call({ method: HA_PAYROLL_SHARE + "slips_to_print", args: { payroll_entry: frm.doc.name, which: values.which } })
+				.then((r) => ha_payroll_print_pdf((r && r.message) || {}));
+		},
+	});
+	dialog.show();
+}
+
+// Frappe's own background PDF, as the list view's Print uses it for many documents
+function ha_payroll_print_pdf(found) {
+	const names = found.names || [];
+	if (!names.length) {
+		frappe.msgprint(__("There are no slips to print."));
+		return;
+	}
+	frappe
+		.call("frappe.utils.print_format.download_multi_pdf_async", {
+			doctype: "Salary Slip",
+			name: JSON.stringify(names),
+			format: found.format,
+			no_letterhead: "1",
+		})
+		.then((response) => {
+			const task_id = response.message.task_id;
+			frappe.realtime.task_subscribe(task_id);
+			frappe.realtime.on(`task_complete:${task_id}`, (data) => {
+				frappe.msgprint({
+					title: __("Slips"),
+					message: __("{0} slips are ready to print.", [names.length]),
+					primary_action: { label: __("Download PDF"), client_action: "window.open", args: data.file_url },
+				});
+				frappe.realtime.task_unsubscribe(task_id);
+				frappe.realtime.off(`task_complete:${task_id}`);
+			});
+		});
 }
 
 function ha_payroll_register(frm, again) {

@@ -1277,6 +1277,9 @@ fixtures = [
                     # the days a slip shows, the calendar's (pay_days.py)
                     "Salary Slip-custom_days_in_period",
                     "Salary Slip-custom_days_paid",
+                    # when and where a draft slip was emailed to be checked (slip_share.py)
+                    "Salary Slip-custom_shared_on",
+                    "Salary Slip-custom_shared_to",
                     # the hours and days a weekly slip pays (weekly_pay.py)
                     "Salary Slip-custom_weekly_section",
                     "Salary Slip-custom_weekly_hours",
