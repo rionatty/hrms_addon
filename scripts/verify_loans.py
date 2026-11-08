@@ -111,73 +111,123 @@ if R.limit_for(1000000) != 3000000:
 if R.months_served("2026-01-15", "2026-07-14") != 5:
     fail.append("a month is not served until the day of the month comes round")
 
-ok = {"status": "Active", "date_of_joining": "2024-01-01", "today": "2026-09-21", "gross_pay": 1000000,
-      "amount": 2000000, "outstanding": 0, "instalments": 6, "purpose": "School fees",
-      "category": "Administrative"}
-expect("an employee who qualifies", R.eligibility_errors(ok))
-expect("someone who left", R.eligibility_errors(dict(ok, status="Left")), "active employee")
-expect("someone just joined", R.eligibility_errors(dict(ok, date_of_joining="2026-08-01")), "month(s) of service")
-expect("more than three months' gross", R.eligibility_errors(dict(ok, amount=5000000)), "most that may be lent")
-expect("an earlier loan still owed", R.eligibility_errors(dict(ok, outstanding=120000)), "still owed")
-expect("another request waiting", R.eligibility_errors(dict(ok, waiting="HR-LOAN-2026-00001")),
-       "HR-LOAN-2026-00001, is waiting for approval")
-expect("recovered over too long", R.eligibility_errors(dict(ok, instalments=24)), "at most 12")
-expect("no purpose", R.eligibility_errors(dict(ok, purpose="")), "what the loan is for")
-expect("nothing asked for", R.eligibility_errors(dict(ok, amount=0)), "how much")
-expect("somebody from production", R.eligibility_errors(dict(ok, category="Non-Administrative")),
-       "administration team")
-expect("somebody whose department says nothing", R.eligibility_errors(dict(ok, category=None)),
-       "not marked Administrative")
-car = dict(ok, loan_type="Car Loan", amount=30000000, instalments=12)
-expect("a car loan of UGX 30 million, whatever the gross", R.eligibility_errors(car))
-expect("a car loan over it", R.eligibility_errors(dict(car, amount=30000001)), "at most UGX 30,000,000")
-study = dict(ok, loan_type="Study Loan", amount=9000000, fee_structure="/files/fees.pdf", course_fee=9000000)
-expect("a study loan with its fees, over three months' gross", R.eligibility_errors(study))
-expect("a study loan with no fee structure", R.eligibility_errors(dict(study, fee_structure=None)), "fee structure")
-expect("a study loan with no course fees typed", R.eligibility_errors(dict(study, course_fee=0)),
-       "Enter the Course Fees")
-expect("a study loan above its course fees", R.eligibility_errors(dict(study, amount=9000001)),
-       "at most the course fees, UGX 9,000,000")
-expect("a study loan below its course fees", R.eligibility_errors(dict(study, amount=4500000)))
-expect("a loan Luuka do not offer", R.eligibility_errors(dict(ok, loan_type="Holiday Loan")), "not a valid loan type")
-expect("no pay on record, for a loan worked out from it", R.eligibility_errors(dict(ok, gross_pay=0)),
-       "no gross pay on record")
-expect("a car loan's ceiling needs no gross", R.eligibility_errors(dict(car, gross_pay=0)))
-if R.limit_for_type("Car Loan", 500000) != 30000000 or R.limit_for_type("Study Loan", 500000) is not None \
-        or R.limit_for_type("Study Loan", 500000, course_fee=7200000) != 7200000 \
-        or R.limit_for_type("Other", 500000) != 1500000:
-    fail.append("the ceiling follows the kind of loan: 30 million, the course fees, or three months' gross")
-if R.limit_for_type("Car Loan", 500000, settings={"car_loan_max": 20000000}) != 20000000:
-    fail.append("the car loan's ceiling the form shows is the one Luuka set")
+# the kinds of loan a site starts with, as the patch makes them
+TYPES = {row["loan_type_name"]: row for row in R.seed_types({})}
+CAR, STUDY, OTHER, SACCO, BANK = (TYPES[name] for name in ("Car Loan", "Study Loan", "Other", "SACCO Loan",
+                                                           "Bank Loan"))
+if [(row["processed_by"], row.get("admin_only"), row.get("max_instalments")) for row in TYPES.values()] != [
+        ("Company", 1, 12), ("Company", 1, 12), ("Company", 1, 12), ("SACCO", 0, 12), ("Bank", 0, 0)]:
+    fail.append("the company's three kinds for the administration team, a SACCO loan and a bank loan for anybody, "
+                "the bank's over as many months as it gives: %s" % TYPES)
+if any(R.type_from(row)["share_of_net"] != 50 for row in TYPES.values()):
+    fail.append("every kind holds the instalments to half the net pay (Luuka, 5 Nov 2026)")
 
-# the settings: every figure a policy decides
-if R.settings_from({}) != R.DEFAULTS or R.settings_from({"admin_only": 0, "car_loan_max": "20000000"})["admin_only"] != 0:
-    fail.append("Loan Settings merge over the defaults, a stored nought staying a nought")
-tight = {"car_loan_max": 20000000, "admin_only": 0, "min_months": 12, "other_allowed": 0,
-         "car_max_instalments": 48, "other_max_instalments": 6, "other_months_of_gross": 1}
-expect("the car loan's ceiling from the settings", R.eligibility_errors(dict(car, amount=25000000), tight),
+ok = {"status": "Active", "date_of_joining": "2024-01-01", "today": "2026-09-21", "gross_pay": 1000000,
+      "net_pay": 800000, "monthly": 333334, "amount": 2000000, "outstanding": 0, "instalments": 6,
+      "purpose": "School fees", "category": "Administrative", "loan_type": "Other"}
+expect("an employee who qualifies", R.eligibility_errors(ok, OTHER))
+expect("someone who left", R.eligibility_errors(dict(ok, status="Left"), OTHER), "active employee")
+expect("someone just joined", R.eligibility_errors(dict(ok, date_of_joining="2026-08-01"), OTHER),
+       "month(s) of service")
+expect("more than three months' gross", R.eligibility_errors(dict(ok, amount=5000000), OTHER), "most that may be lent")
+expect("an earlier loan still owed", R.eligibility_errors(dict(ok, outstanding=120000), OTHER), "still owed")
+expect("another request waiting", R.eligibility_errors(dict(ok, waiting="HR-LOAN-2026-00001"), OTHER),
+       "HR-LOAN-2026-00001, is waiting for approval")
+expect("recovered over too long", R.eligibility_errors(dict(ok, instalments=24), OTHER), "at most 12")
+expect("no purpose", R.eligibility_errors(dict(ok, purpose=""), OTHER), "what the loan is for")
+expect("nothing asked for", R.eligibility_errors(dict(ok, amount=0), OTHER), "how much")
+expect("somebody from production", R.eligibility_errors(dict(ok, category="Non-Administrative"), OTHER),
+       "administration team")
+expect("somebody whose department says nothing", R.eligibility_errors(dict(ok, category=None), OTHER),
+       "not marked Administrative")
+car = dict(ok, loan_type="Car Loan", amount=30000000, instalments=12, monthly=2500000, net_pay=6000000)
+expect("a car loan of UGX 30 million, whatever the gross", R.eligibility_errors(car, CAR))
+expect("a car loan over it", R.eligibility_errors(dict(car, amount=30000001), CAR), "at most UGX 30,000,000")
+study = dict(ok, loan_type="Study Loan", amount=9000000, instalments=12, monthly=750000, net_pay=1600000,
+             fee_structure="/files/fees.pdf", course_fee=9000000)
+expect("a study loan with its fees, over three months' gross", R.eligibility_errors(study, STUDY))
+expect("a study loan with no fee structure", R.eligibility_errors(dict(study, fee_structure=None), STUDY),
+       "fee structure")
+expect("a study loan with no course fees typed", R.eligibility_errors(dict(study, course_fee=0), STUDY),
+       "Enter the Course Fees")
+expect("a study loan above its course fees", R.eligibility_errors(dict(study, amount=9000001), STUDY),
+       "at most the course fees, UGX 9,000,000")
+expect("a study loan below its course fees", R.eligibility_errors(dict(study, amount=4500000), STUDY))
+expect("a loan Luuka do not offer", R.eligibility_errors(dict(ok, loan_type="Holiday Loan"), None),
+       "Holiday Loan is not a kind of loan Luuka give")
+expect("no kind chosen", R.eligibility_errors(dict(ok, loan_type=None), None), "Choose the kind of loan")
+expect("a kind no longer given", R.eligibility_errors(ok, dict(OTHER, disabled=1)), "Other loans are no longer given")
+expect("no pay on record, for a loan worked out from it", R.eligibility_errors(dict(ok, gross_pay=0), OTHER),
+       "no gross pay on record")
+expect("a car loan's ceiling needs no gross", R.eligibility_errors(dict(car, gross_pay=0), CAR))
+if R.limit_for_type(CAR, 500000) != 30000000 or R.limit_for_type(STUDY, 500000) is not None \
+        or R.limit_for_type(STUDY, 500000, course_fee=7200000) != 7200000 \
+        or R.limit_for_type(OTHER, 500000) != 1500000 or R.limit_for_type(BANK, 500000) is not None:
+    fail.append("the ceiling follows the type: 30 million, the course fees, three months' gross, or none for a bank")
+if R.limit_for_type(dict(CAR, max_amount=20000000), 500000) != 20000000 \
+        or R.limit_for_type(dict(OTHER, max_amount=1000000), 500000) != 1000000:
+    fail.append("the ceiling the form shows is the one Luuka set on the type, the lower of the two where both are")
+
+# what one earns: the instalments at most half the net pay (item 24)
+expect("an instalment of half the net pay", R.eligibility_errors(dict(ok, monthly=400000), OTHER))
+expect("one shilling over it", R.eligibility_errors(dict(ok, monthly=400001), OTHER),
+       "more than 50% of the net pay of UGX 800,000")
+expect("what goes to the banks taken off first", R.eligibility_errors(dict(ok, monthly=300001, committed=100000), OTHER),
+       "once the UGX 100,000 a month going to bank loans is taken off")
+expect("within it, the banks' part taken off", R.eligibility_errors(dict(ok, monthly=300000, committed=100000), OTHER))
+expect("no salary slip to measure it against", R.eligibility_errors(dict(ok, net_pay=None), OTHER), "no salary slip")
+expect("a type with no cap needs no slip", R.eligibility_errors(dict(ok, net_pay=None), dict(OTHER, share_of_net=0)))
+expect("the share Luuka set on the type", R.eligibility_errors(dict(ok, monthly=300000), dict(OTHER, share_of_net=30)),
+       "more than 30% of the net pay")
+expect("nothing to measure before the months are set", R.eligibility_errors(dict(ok, monthly=0, net_pay=None), OTHER))
+
+# the types: what the minutes' Loan Settings held becomes each type's own
+seeded = {row["loan_type_name"]: row for row in R.seed_types({
+    "car_loan_max": "20000000", "admin_only": 0, "min_months": 12, "other_allowed": 0, "car_max_instalments": 48,
+    "other_max_instalments": 6, "other_months_of_gross": 1, "default_rate": "5"})}
+if (seeded["Car Loan"]["max_amount"], seeded["Car Loan"]["max_instalments"], seeded["Other"]["disabled"],
+        seeded["Other"]["months_of_gross"], seeded["Other"]["max_instalments"], seeded["Study Loan"]["course_fees"],
+        seeded["Car Loan"]["admin_only"], seeded["Study Loan"]["min_months"], seeded["Car Loan"]["default_rate"],
+        seeded["SACCO Loan"]["default_rate"], seeded["Bank Loan"]["min_months"]) != (
+        20000000, 48, 1, 1, 6, 1, 0, 12, 5, 0, 12):
+    fail.append("the types take what Loan Settings held for each kind, so nothing a site set is lost: %s" % seeded)
+tight_car = seeded["Car Loan"]
+expect("the car loan's ceiling from the settings", R.eligibility_errors(dict(car, amount=25000000), tight_car),
        "at most UGX 20,000,000")
 expect("a car loan over four years when the settings allow it",
-       R.eligibility_errors(dict(car, amount=18000000, instalments=48), tight))
+       R.eligibility_errors(dict(car, amount=18000000, instalments=48, monthly=375000), tight_car))
 expect("everybody may borrow when the settings open it",
-       R.eligibility_errors(dict(car, amount=18000000, category="Non-Administrative"), tight))
+       R.eligibility_errors(dict(car, amount=18000000, category="Non-Administrative"), tight_car))
 expect("the months of service the settings ask",
-       R.eligibility_errors(dict(car, amount=100, date_of_joining="2026-01-01"), tight),
+       R.eligibility_errors(dict(car, amount=100, date_of_joining="2026-01-01"), tight_car),
        "after 12 month(s) of service")
-expect("no other loans when the settings say so", R.eligibility_errors(dict(ok, amount=1500000), tight),
-       "Only car and study loans", "most that may be lent")
-expect("an instalment over the share of the gross the settings allow",
-       R.eligibility_errors(dict(ok, amount=2000000, instalments=6), {"max_share_of_gross": 25}),
-       "more than 25% of the gross pay")
-expect("an instalment within it", R.eligibility_errors(dict(ok, amount=1200000, instalments=6),
-                                                       {"max_share_of_gross": 25}))
-if R.max_instalments("Car Loan", tight) != 48 or R.max_instalments("Other", tight) != 6 \
-        or R.max_instalments("Study Loan", tight) != 12:
+expect("no other loans when the settings said so", R.eligibility_errors(dict(ok, amount=1000000), seeded["Other"]),
+       "Other loans are no longer given")
+expect("a bank loan: anybody, the bank's months, no ceiling of Luuka's",
+       R.eligibility_errors(dict(ok, loan_type="Bank Loan", amount=50000000, instalments=60, monthly=400000,
+                                 category="Non-Administrative"), BANK))
+expect("a SACCO loan's months", R.eligibility_errors(dict(ok, loan_type="SACCO Loan", instalments=13,
+                                                          category="Non-Administrative"), SACCO),
+       "A SACCO loan is recovered over at most 12 month(s)")
+if R.max_instalments(tight_car) != 48 or R.max_instalments(OTHER) != 12 or R.max_instalments(BANK) != 0:
     fail.append("each kind of loan is recovered within its own months")
+expect("types that stand", [error for row in TYPES.values() for error in R.type_errors(row)])
+expect("a type that does not", R.type_errors(dict(OTHER, processed_by="A Friend", max_amount=-1, share_of_net=120,
+                                                  default_rate=-1)),
+       "Say who lends", "cannot be negative", "between 0 and 100%", "A rate cannot be negative")
+expect("a loan the payroll takes back over no set months", R.type_errors(dict(SACCO, max_instalments=0)),
+       "within a set number of months")
+if R._kind("SACCO Loan") != "SACCO loan" or R._kind("Car Loan") != "car loan" or R._kind("Other") != "loan" \
+        or R._kind("Emergency") != "emergency loan":
+    fail.append("a type's name reads as a kind of loan in a sentence")
+
+# the settings: what holds for every loan
+if R.settings_from({}) != R.DEFAULTS or R.settings_from({"payroll_day": "28"})["payroll_day"] != 28 \
+        or set(R.DEFAULTS) != {"payroll_day", "missed_grace_days"}:
+    fail.append("Loan Settings keep the payroll day and the grace before a missed month, over the defaults")
 expect("settings that stand", R.settings_errors(R.DEFAULTS))
-expect("settings that do not", R.settings_errors(dict(R.DEFAULTS, car_max_instalments=0, max_share_of_gross=120,
-                                                      default_rate=-1, car_loan_max=-5)),
-       "at least one month", "between 0 and 100%", "cannot be negative", "A limit cannot be negative")
+expect("settings that do not", R.settings_errors(dict(R.DEFAULTS, payroll_day=40, missed_grace_days=-1)),
+       "1 to 31", "cannot be negative")
 
 # the money
 if R.interest_for(1200000, 0, 6) != 0 or R.interest_for(1200000, 10, 6) != 60000:
@@ -244,6 +294,17 @@ expect("no date", R.consent_errors(dict(consent, effective_from=None)), "first r
 expect("not consented", R.consent_errors(dict(consent, consent=0)), "has not consented")
 expect("paid out and consented, it runs", R.run_errors(dict(consent, paid="2026-10-01")))
 expect("not paid out, it does not", R.run_errors(consent), "Record Payment")
+recorded = {"processed_by": "Bank", "bank": "Stanbic Bank", "account_no": "9030001234567", "amount": 20000000,
+            "instalments": 36, "monthly": 720000, "first_repayment": "2026-12-15"}
+expect("a bank loan put on record: no consent, no payment", R.run_errors(recorded))
+expect("a bank loan with nothing of the bank's", R.run_errors({"processed_by": "Bank"}), "which bank",
+       "account at that bank", "amount the bank lends", "how many months", "monthly instalment", "first repayment")
+if str(R.runs_until("2026-12-15", 36)) != "2029-11-15" or R.runs_until("2026-12-15", 0) is not None \
+        or R.runs_until(None, 12) is not None:
+    fail.append("a bank loan runs until its last instalment's month")
+if R.bank_loan_ended("2029-11-15", "2029-11-15") or not R.bank_loan_ended("2029-11-15", "2029-11-16") \
+        or R.bank_loan_ended(None, "2030-01-01"):
+    fail.append("a bank loan ends the day after its last instalment, not before")
 if [message for message in R.run_errors({}) if "LPL/" in message or "(" in message]:
     fail.append("what stops a loan running is said in plain words, not form numbers: %s" % R.run_errors({}))
 
@@ -259,10 +320,13 @@ expect("no first repayment", R.terms_errors(dict(terms, first_repayment=None)), 
 expect("a first repayment in a month already paid", R.terms_errors(dict(terms, paid_through="2026-10-31")),
        "already paid up to 31 Oct 2026")
 expect("one after it", R.terms_errors(dict(terms, first_repayment="2026-11-30", paid_through="2026-10-31")))
-capped = dict(terms, amount=900000, approved_amount=900000, rate=10, gross_pay=900000, max_share=25)
-expect("terms within the cap on the instalment, the interest counted", R.terms_errors(capped))
-expect("terms over it", R.terms_errors(dict(capped, instalments=3)), "more than 25% of the gross pay")
-expect("over it only by the interest", R.terms_errors(dict(capped, instalments=4)), "more than 25% of the gross pay")
+capped = dict(terms, monthly=225000, net_pay=900000, share=25)
+expect("terms within the cap on the instalment", R.terms_errors(capped))
+expect("terms over it", R.terms_errors(dict(capped, monthly=225001)), "more than 25% of the net pay")
+expect("over it once the banks' part is off", R.terms_errors(dict(capped, monthly=200000, committed=25001)),
+       "going to bank loans")
+expect("a bank's first month, whatever the payroll has paid",
+       R.terms_errors(dict(terms, processed_by="Bank", paid_through="2026-11-30")))
 
 lines = [{"payroll_date": "2027-01-30", "recovered": 0}, {"payroll_date": "2027-02-28", "recovered": 0},
          {"payroll_date": "2027-01-30", "recovered": 1}, {"payroll_date": "2026-12-30", "recovered": 0,
@@ -287,11 +351,14 @@ for name, have, wanted in (
                              "effective_from", "consent", "consent_by", "consent_on", "witnessed_by",
                              "disbursed_on", "disbursement_reference", "disbursement_entry", "hod_by", "ed_by",
                              "gm_by", "accounts_by", "return_remarks", "approval_status", "status",
-                             "recovery_component")),
+                             "recovery_component", "processed_by", "lent_up_to_fees", "net_pay", "bank_instalments",
+                             "bank_name", "bank_branch", "bank_account_no", "runs_until")),
     ("Loan Repayment", repayment, ("payroll_date", "principal", "interest", "total", "additional_salary",
                                    "recovered", "reference_type", "reference_name", "months_left", "missed_told",
                                    "remarks")),
     ("Loan Settings", settings, tuple(R.DEFAULTS) + ("loan_account",)),
+    ("Employee Loan Type", fields_of(doctype("Employee Loan Type")),
+     tuple(R.TYPE_DEFAULTS) + ("loan_type_name", "component", "description")),
 ):
     if not have:
         fail.append("%s is not there" % name)
@@ -299,8 +366,8 @@ for name, have, wanted in (
         if have and fieldname not in have:
             fail.append("%s has no %s, which the loan process asks for" % (name, fieldname))
 fee = loan.get("course_fee") or {}
-if fee.get("fieldtype") != "Currency" or "Study Loan" not in (fee.get("depends_on") or "") \
-        or "Study Loan" not in (fee.get("mandatory_depends_on") or "") \
+if fee.get("fieldtype") != "Currency" or fee.get("depends_on") != "eval:doc.lent_up_to_fees" \
+        or fee.get("mandatory_depends_on") != "eval:doc.lent_up_to_fees" \
         or fee.get("read_only_depends_on") != (loan.get("loan_amount") or {}).get("read_only_depends_on"):
     fail.append("a study loan's Course Fees are asked for with it, and locked with the amount once it leaves Draft")
 loans_source = read("hrms_addon", "hrms_addon", "loans.py")
@@ -313,12 +380,16 @@ if not doctype("Loan Settings").get("issingle"):
 for key, value in R.DEFAULTS.items():
     if float((settings.get(key) or {}).get("default") or 0) != float(value):
         fail.append("Loan Settings.%s starts where the rules do, at %s" % (key, value))
-for fieldname in ("gross_pay", "limit", "outstanding_before", "qualifies", "total_interest", "monthly_instalment",
-                  "recovered_amount", "outstanding", "approval_status", "status", "disbursed_on",
+for fieldname in ("gross_pay", "limit", "outstanding_before", "qualifies", "total_interest", "net_pay",
+                  "bank_instalments", "recovered_amount", "outstanding", "approval_status", "status", "disbursed_on",
                   "disbursement_reference", "disbursement_entry", "written_off", "written_off_amount",
-                  "written_off_on", "write_off_entry", "witnessed_by", "consent_by", "consent_on"):
+                  "written_off_on", "write_off_entry", "witnessed_by", "consent_by", "consent_on", "processed_by",
+                  "runs_until"):
     if not (loan.get(fieldname) or {}).get("read_only"):
         fail.append("Employee Loan.%s is worked out or booked, not typed" % fieldname)
+# the instalment is worked out, but for a bank's, which Accounts type from its offer
+if (loan.get("monthly_instalment") or {}).get("read_only_depends_on") != "eval:doc.processed_by!='Bank'":
+    fail.append("Employee Loan.monthly_instalment is worked out, but for a bank loan's")
 for fieldname in ("approved_amount", "interest_rate", "first_repayment", "recovery_component"):
     if "Pending Accounts" not in (loan.get(fieldname) or {}).get("read_only_depends_on", ""):
         fail.append("Employee Loan.%s is Accounts' to set, while the loan is with them" % fieldname)
@@ -360,7 +431,7 @@ print("the loan, its schedule, its settings, and the Journal Entry that carries 
 # ── 3. The glue ───────────────────────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "loans.py")
 je_fields = set(fields_of(upstream_doctype("Journal Entry"))) | set(journal)
-known = (set(loan) | set(repayment) | set(settings) | je_fields
+known = (set(loan) | set(repayment) | set(settings) | je_fields | set(fields_of(doctype("Employee Loan Type")))
          | {"workflow_state", "docstatus", "name", "employee", "company", "doctype"})
 for fieldname in sorted(set(re.findall(r'doc\.get\("(\w+)"\)', glue)) | set(re.findall(r"doc\.(\w+)\b", glue))):
     if fieldname in ("get", "set", "append", "db_set", "flags", "get_doc_before_save", "check_permission", "insert",
@@ -388,7 +459,7 @@ if 'doc.get("status") != rules.RUNNING' not in body(glue, "loan_on_submit"):
 step = body(glue, "_check_step")
 for needle, why in (
     ("approval.is_pending(new_state)", "leaving the request for any desk, the request is judged"),
-    ("_terms_changed(doc, before)", "the terms are Accounts' to set"),
+    ("_terms_changed(doc, before, terms)", "the terms are Accounts' to set"),
     ("doc.witnessed_by = frappe.session.user", "whoever runs the loan witnesses the consent"),
     ("doc.consent_by, doc.consent_on = frappe.session.user, today()", "the consent is stamped by who gives it"),
     ("_tell_back(doc, new_state, old_state)", "the employee is told a request is returned or refused, and why"),
@@ -405,16 +476,17 @@ if "_start(doc, s)" not in body(glue, "_build_schedule") or "_first_month(doc, s
     fail.append("the schedule falls on the payroll day: on what was asked, then on Accounts' month")
 if "@frappe.whitelist()\ndef preview_schedule(" not in glue \
         or "_build_schedule(loan, s)" not in body(glue, "preview_schedule") \
-        or "_request_defaults(loan, s)" not in body(glue, "preview_schedule"):
+        or "_request_defaults(loan, s, t)" not in body(glue, "preview_schedule"):
     fail.append("the form draws the schedule as a save would")
 for name in ("_tell_due", "_tell_missed"):
     if '"parent": ["in", running]' not in body(glue, name):
         fail.append("%s watches the running loans only: every request has a schedule drawn" % name)
-if "_request_defaults(doc, s)" not in body(glue, "loan_validate") \
-        or 'doc.interest_rate = s["default_rate"]' not in body(glue, "_request_defaults"):
-    fail.append("a request starts at the rate Luuka set")
-if '"max_share": s["max_share_of_gross"]' not in body(glue, "_terms_facts"):
-    fail.append("the terms Accounts settle are held to the cap on the instalment")
+if "_request_defaults(doc, s, t)" not in body(glue, "loan_validate") \
+        or 'doc.interest_rate = rules.type_from(t or {})["default_rate"]' not in body(glue, "_request_defaults"):
+    fail.append("a request starts at the rate Luuka set on its type")
+if '"share": rules_of["share_of_net"]' not in body(glue, "_terms_facts") \
+        or '"net_pay": doc.flags.get("net_pay")' not in body(glue, "_terms_facts"):
+    fail.append("the terms Accounts settle are held to the type's share of the net pay")
 if "old_state != approval.PENDING_ACCOUNTS" not in body(glue, "_asked_changed"):
     fail.append("Accounts settle the months at their desk")
 if "Workflow Transition" not in body(glue, "_roles_acting"):
@@ -424,7 +496,7 @@ if "_cancel_untaken(doc)" not in body(glue, "loan_on_cancel") or "already recove
 if "_taken(name)" not in body(glue, "_cancel_untaken"):
     fail.append("a month a slip has taken is left as it is")
 if "ensure_loan_account(company)" not in body(glue, "_component") or \
-        '"Salary Component", DEFAULT_COMPONENT' not in body(glue, "ensure_loan_account"):
+        'frappe.get_doc("Salary Component", component_name)' not in body(glue, "ensure_loan_account"):
     fail.append("the repayment component gets its account, or the payroll stops on it")
 if '@frappe.whitelist(methods=["POST"])\ndef make_journal(' not in glue:
     fail.append("the form drafts the Journal Entry, by POST only")
@@ -577,6 +649,176 @@ for name in ("Employee Loan", "Loan Statement", "Loan Register", "Loan Settings"
 if "Loans" not in [page["label"] for page in navigation.PAGES]:
     fail.append("loan management has a page of its own, which this app makes: Frappe HR has none for lending")
 print("wiring: the workflow and the account on migrate, the jobs, the entries' hooks, the patches, the reports")
+
+# ── 6. The kinds of loan, the accounts, the bank, the letter ─────────
+kind = doctype("Employee Loan Type")
+if (kind.get("autoname"), kind.get("naming_rule")) != ("field:loan_type_name", "By fieldname"):
+    fail.append("a loan type is called by its name, which Luuka type")
+kind_fields = {row["fieldname"]: row for row in kind.get("fields") or []}
+if kind_fields.get("processed_by", {}).get("options") != "Company\nSACCO\nBank" \
+        or kind_fields.get("component", {}).get("options") != "Salary Component":
+    fail.append("a type says who lends, and which deduction takes it back")
+readers = {row.get("role") for row in kind.get("permissions") or [] if row.get("read")}
+writers = {row.get("role") for row in kind.get("permissions") or [] if row.get("write")}
+if not {"Employee", "HR User", "Accounts User"} <= readers or "Employee" in writers or "HR Manager" not in writers:
+    fail.append("anyone asking for a loan may pick a type; HR and Accounts managers keep the list: %s / %s"
+                % (readers, writers))
+controller = read("hrms_addon", "hrms_addon", "doctype", "employee_loan_type", "employee_loan_type.py")
+if "loans.type_validate(self)" not in controller:
+    fail.append("a type is checked as it is saved")
+loan_json = doctype("Employee Loan")
+loan_fields = {row["fieldname"]: row for row in loan_json.get("fields") or []}
+pick = loan_fields.get("loan_type") or {}
+if (pick.get("fieldtype"), pick.get("options")) != ("Link", "Employee Loan Type") \
+        or '"disabled","=",0' not in (pick.get("link_filters") or "").replace(" ", ""):
+    fail.append("a loan picks its type from Luuka's list, the ones still given")
+lender = loan_fields.get("processed_by") or {}
+if lender.get("fetch_from") != "loan_type.processed_by" or not lender.get("read_only"):
+    fail.append("who lends comes with the type, not typed on the loan")
+if loan_fields.get("monthly_instalment", {}).get("read_only_depends_on") != "eval:doc.processed_by!='Bank'" \
+        or loan_fields.get("monthly_instalment", {}).get("read_only"):
+    fail.append("a bank loan's instalment is the bank's, typed; any other is worked out")
+for name in ("schedule_section", "consent_section", "disbursement_section", "recovery_component"):
+    if loan_fields.get(name, {}).get("depends_on") != "eval:doc.processed_by!='Bank'":
+        fail.append("a bank loan shows no %s: nothing is paid out or deducted for it" % name)
+for name in ("bank_name", "bank_account_no"):
+    if loan_fields.get(name, {}).get("mandatory_depends_on") != "eval:doc.processed_by=='Bank'":
+        fail.append("a bank loan names its %s, which the letter of undertaking gives" % name)
+if set(R.LEGACY) & set(settings):
+    fail.append("Loan Settings no longer hold a kind's figures: they are on its type")
+patches = read("hrms_addon", "patches.txt")
+patch = read("hrms_addon", "patches", "v1_0", "loan_types_from_settings.py")
+if "hrms_addon.patches.v1_0.loan_types_from_settings" not in patches.split("[post_model_sync]")[-1] \
+        or "rules.seed_types(stored)" not in patch or 'frappe.db.get_singles_dict("Loan Settings")' not in patch \
+        or '"processed_by": ["is", "not set"]' not in patch or "frappe.db.exists(TYPE, values" not in patch:
+    fail.append("the patch makes the types from Loan Settings after the model is synced, keeps any made, and marks "
+                "every earlier loan the company's")
+if "doc.processed_by = (t or {}).get(\"processed_by\") or rules.COMPANY" not in body(glue, "loan_validate"):
+    fail.append("a loan's lender is its type's")
+if "rules.eligibility_errors(_facts(doc), t)" not in body(glue, "_check_eligibility") \
+        or '"net_pay": doc.flags.get("net_pay")' not in body(glue, "_facts") \
+        or '"committed": doc.get("bank_instalments")' not in body(glue, "_facts"):
+    fail.append("who may borrow is judged by the type's rules, the net pay and what goes to banks")
+net = body(glue, "_net_pay")
+if 'fields=["base_net_pay", "net_pay"], order_by="end_date desc"' not in net or "for docstatus in (1, 0):" not in net:
+    fail.append("the net pay is the last slip's, in the company's currency, a draft's where none is submitted")
+if "if lender == rules.BANK:" not in body(glue, "_owed_elsewhere") \
+        or "(row.processed_by or rules.COMPANY) == lender" not in body(glue, "_owed_elsewhere"):
+    fail.append("what is owed is weighed lender by lender, a loan made before the types the company's")
+if "row.processed_by == rules.BANK" not in body(glue, "_bank_loans_running"):
+    fail.append("the bank instalments are the bank loans' on record")
+if "_is_bank(doc)" not in body(glue, "make_journal") or "account = account_for(doc)" not in body(glue, "make_journal"):
+    fail.append("nothing is booked for a bank loan; any other is booked on its own account")
+if "account = account_for(loan)" not in body(glue, "_on_loan_account"):
+    fail.append("an entry is weighed on the loan's own account")
+submit = body(glue, "loan_on_submit")
+if "_mark_bank_loan(doc.employee)" not in submit or submit.index("_mark_bank_loan(") > submit.index("_make_deductions(doc)"):
+    fail.append("a bank loan put on record marks the employee's Bank Loan, and makes no deduction")
+if "_mark_bank_loan(doc.employee, exclude=doc.name, ended=doc)" not in body(glue, "loan_on_cancel"):
+    fail.append("a bank loan cancelled lets go of the employee's Bank Loan")
+marked = body(glue, "_mark_bank_loan")
+for needle in ('"custom_has_bank_loan": 1', '"custom_has_bank_loan": 0', 'ended.get("runs_until")'):
+    if needle not in marked:
+        fail.append("the employee's Bank Loan follows the bank loans on record, and leaves one HR typed: %s" % needle)
+if "row.processed_by == rules.BANK" not in body(glue, "_close_repaid") or "_end_bank_loans()" not in body(glue, "daily") \
+        or "rules.bank_loan_ended(row.runs_until, today())" not in body(glue, "_end_bank_loans"):
+    fail.append("a bank loan owes Luuka nothing all along: it ends with its last month, not at once")
+if "or _is_bank(doc)" not in body(glue, "_outstanding") or "_is_bank(doc)" not in body(glue, "refresh_recovered"):
+    fail.append("nothing is owed to Luuka on a bank loan, and nothing recovered")
+if 'doc.set("repayments", [])' not in body(glue, "_build_schedule") or "return None" not in body(glue, "preview_schedule"):
+    fail.append("a bank keeps its own schedule: the loan draws none")
+if '"processed_by": _lender(doc)' not in body(glue, "_check_step") \
+        or '"account_no": doc.get("bank_account_no")' not in body(glue, "_check_step") \
+        or "and not bank" not in body(glue, "_check_step"):
+    fail.append("a bank loan runs on the bank's details and terms, on the bank's own day")
+if "_is_bank(doc)" not in body(glue, "_fill_consent") or "_is_bank(doc)" not in body(glue, "_tell_waiting"):
+    fail.append("a bank loan asks no consent: HR are told to give the bank its letter")
+accounts = body(glue, "ensure_loan_account")
+for needle in ("for lender, (component_name, _abbr, _what) in COMPONENTS.items():", "loan_account(name, lender)",
+               "row.account in _chosen_before(name)", "and not _money_out(name)"):
+    if needle not in accounts:
+        fail.append("each lender's deduction books to its own account, moved off Employee Advances only once "
+                    "nothing paid out from there is owed: %s" % needle)
+if '"Employee Loans"' not in glue.split("ACCOUNTS = ")[1].split(chr(10))[0] \
+        or '"SACCO Loans"' not in glue.split("ACCOUNTS = ")[1].split(chr(10))[0]:
+    fail.append("the company's loans sit on Employee Loans, the SACCO's on SACCO Loans (Luuka, 5 Nov 2026)")
+own = body(glue, "_own_account")
+if '"default_employee_advance_account"' not in body(glue, "_chosen_before"):
+    fail.append("the app moves a deduction only off the accounts it chose itself, the advances or its own")
+if '"root_type": "Asset"' not in own or '"Loans and Advances (Assets)", "Current Assets"' not in own \
+        or '== "Asset"' not in own:
+    fail.append("the loan accounts are asset accounts, made beside the advances or under the current assets")
+if "doc.component = None" not in body(glue, "type_validate") or "_component(processed_by=doc.processed_by)" \
+        not in body(glue, "type_validate"):
+    fail.append("a bank's type has no deduction; any other gets its lender's")
+for lender in ('"LR"', '"SLR"'):
+    if lender not in glue.split("COMPONENTS = ")[1].split("ACCOUNTS = ")[0]:
+        fail.append("each lender has its own deduction component: %s" % lender)
+navigation = read("hrms_addon", "hrms_addon", "navigation_rules.py")
+if navigation.count('("Employee Loan Type", "Employee Loan Type", DOCTYPE') != 2:
+    fail.append("the loan types are on the Loans page and in its sidebar")
+register = read("hrms_addon", "hrms_addon", "report", "loan_register", "loan_register.js")
+if 'options: "Employee Loan Type"' not in register:
+    fail.append("the register filters by Luuka's own types")
+form = read("hrms_addon", "hrms_addon", "doctype", "employee_loan", "employee_loan.js")
+if 'const bank = frm.doc.processed_by === "Bank";' not in form or "!bank &&" not in form \
+        or "if (!bank && frm.doc.docstatus === 1" not in form or '__("Letter of Undertaking")' not in form:
+    fail.append("a bank loan's form has the letter, and no payment, repayment, write-off or recovery")
+
+import importlib.util as _util  # noqa: E402
+
+_spec = _util.spec_from_file_location("jinja_subset", os.path.join(REPO, "scripts", "jinja_subset.py"))
+jinja_subset = _util.module_from_spec(_spec)
+_spec.loader.exec_module(jinja_subset)
+letter = json.loads(read("hrms_addon", "hrms_addon", "print_format", "letter_of_undertaking",
+                         "letter_of_undertaking.json"))
+if (letter.get("doc_type"), letter.get("print_format_type"), letter.get("standard"), letter.get("module"),
+        letter.get("name")) != ("Employee Loan", "Jinja", "Yes", "HRMS Addon", "Letter of Undertaking"):
+    fail.append("the Letter of Undertaking is a standard Jinja print of the Employee Loan")
+html = letter.get("html") or ""
+if not html.startswith("{{ print_control(doc) }}"):
+    fail.append("the letter carries the control line every print does")
+for fieldname in sorted(set(re.findall(r"\bdoc\.(\w+)", html)) - {"name"}):
+    if fieldname not in loan_fields and fieldname not in ("company", "posting_date"):
+        fail.append("the letter prints doc.%s, which the Employee Loan does not have" % fieldname)
+signer = re.search(r'<p class="who">([^<]*)</p>\s*<p class="who">EXECUTIVE DIRECTOR</p>', html)
+if not signer or not signer.group(1).strip().startswith("{{"):
+    fail.append("the letter names its signer from Onboarding Settings, never by a name typed into it")
+try:
+    render = jinja_subset.compile_template(html)
+    employee = jinja_subset.wrap({"employee_name": "Amina <Nakato>", "employee_number": "LPL1834",
+                                  "designation": "Accountant", "department": "Finance", "branch": "Kawempe",
+                                  "date_of_joining": "2019-03-01"})
+    utils = type("utils", (), {"format_date": staticmethod(lambda value: str(value))})
+    db = type("db", (), {"get_value": staticmethod(lambda doctype, name, field: "Ed " + name),
+                         "get_single_value": staticmethod(lambda doctype, field: "HR-EMP-0001"
+                                                          if field == "executive_director" else None)})
+    frappe_stub = type("frappe", (), {"utils": utils, "db": db,
+                                      "get_doc": staticmethod(lambda doctype, name: employee)})
+    sample = {"employee": "HR-EMP-0002", "company": "Luuka Test Ltd", "processed_by": "Bank",
+              "bank_name": "Stanbic Bank", "bank_branch": "Kawempe", "bank_account_no": "9030001234567",
+              "gross_pay": 2500000, "net_pay": 1850000, "approved_amount": 20000000, "loan_amount": 25000000,
+              "instalments": 36, "monthly_instalment": 720000, "first_repayment": "2026-12-15",
+              "accounts_on": "2026-11-20", "posting_date": "2026-11-08"}
+    page = render({"doc": jinja_subset.wrap(sample), "frappe": frappe_stub})
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.S)))
+    for needle in ("2026-11-20", "The Branch Manager Stanbic Bank Kawempe Branch",
+                   "LETTER OF UNDERTAKING FOR AMINA &LT;NAKATO&GT;, STAFF NO. LPL1834",
+                   "employed by Luuka Test Ltd since 2019-03-01", "our Accountant in Finance at the Kawempe plant",
+                   "UGX 2,500,000 gross and UGX 1,850,000 net", "lend the employee UGX 20,000,000",
+                   "over 36 months at UGX 720,000 a month", "falling due on 2026-12-15",
+                   "into account number 9030001234567 held with you", "without your written consent",
+                   "within seven days if the employee leaves", "does not make Luuka Test Ltd a guarantor",
+                   "ED HR-EMP-0001 EXECUTIVE DIRECTOR", "HUMAN RESOURCE MANAGER",
+                   "I, Amina &lt;Nakato&gt;, agree to Luuka Test Ltd giving this undertaking"):
+        if needle not in text:
+            fail.append("the Letter of Undertaking should read %r: %s" % (needle, text))
+    other = render({"doc": jinja_subset.wrap(dict(sample, processed_by="Company")), "frappe": frappe_stub})
+    if "LETTER OF UNDERTAKING FOR" in other or "is for a loan from a bank" not in other:
+        fail.append("the letter is for a bank loan only, and says so on any other")
+except Exception as error:  # noqa: BLE001
+    fail.append("the Letter of Undertaking does not compile or render: %s" % error)
+print("the kinds of loan: Luuka's list, who lends, the accounts, the bank kept on record, its letter")
 
 print()
 if fail:

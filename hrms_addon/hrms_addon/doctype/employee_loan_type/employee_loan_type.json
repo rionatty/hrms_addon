@@ -1,0 +1,208 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:loan_type_name",
+ "creation": "2026-11-08 12:00:00.000000",
+ "description": "A kind of loan Luuka give, with its own rules: who lends, who may borrow and how much.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "loan_type_name",
+  "processed_by",
+  "disabled",
+  "column_break_1",
+  "description",
+  "who_section",
+  "admin_only",
+  "column_break_2",
+  "min_months",
+  "limits_section",
+  "max_amount",
+  "months_of_gross",
+  "course_fees",
+  "column_break_3",
+  "max_instalments",
+  "share_of_net",
+  "default_rate",
+  "payroll_section",
+  "component"
+ ],
+ "fields": [
+  {
+   "fieldname": "loan_type_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Loan Type",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Company",
+   "description": "Company: Luuka lend, Accounts pay it out and the payroll takes it back. SACCO: the same, run by Luuka for the SACCO, on its own account. Bank: the bank lends and takes it back; Luuka approve it, keep the record and give the bank a letter of undertaking.",
+   "fieldname": "processed_by",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Lent By",
+   "options": "Company\nSACCO\nBank",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "No longer given: a new request cannot choose it.",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "who_section",
+   "fieldtype": "Section Break",
+   "label": "Who May Borrow"
+  },
+  {
+   "default": "1",
+   "fieldname": "admin_only",
+   "fieldtype": "Check",
+   "label": "Administration Team Only"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "6",
+   "fieldname": "min_months",
+   "fieldtype": "Int",
+   "label": "Months of Service First"
+  },
+  {
+   "fieldname": "limits_section",
+   "fieldtype": "Section Break",
+   "label": "How Much"
+  },
+  {
+   "description": "0: no ceiling of its own.",
+   "fieldname": "max_amount",
+   "fieldtype": "Currency",
+   "label": "Up To (Amount)"
+  },
+  {
+   "description": "0: not tied to the gross pay.",
+   "fieldname": "months_of_gross",
+   "fieldtype": "Float",
+   "label": "Up To (Months of Gross Pay)"
+  },
+  {
+   "default": "0",
+   "description": "At most what the course costs, as its fee structure shows.",
+   "fieldname": "course_fees",
+   "fieldtype": "Check",
+   "label": "Up To the Course Fees"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "12",
+   "description": "0: as many months as the bank gives.",
+   "fieldname": "max_instalments",
+   "fieldtype": "Int",
+   "label": "Repaid Within (Months)"
+  },
+  {
+   "default": "50",
+   "description": "This loan's instalment, with what goes to bank loans each month, at most this share of the last salary slip's net pay. 0: no cap.",
+   "fieldname": "share_of_net",
+   "fieldtype": "Percent",
+   "label": "Instalments up To (% of Net Pay)"
+  },
+  {
+   "fieldname": "default_rate",
+   "fieldtype": "Percent",
+   "label": "Interest Rate (a Year)"
+  },
+  {
+   "depends_on": "eval:doc.processed_by!='Bank'",
+   "fieldname": "payroll_section",
+   "fieldtype": "Section Break",
+   "label": "Payroll"
+  },
+  {
+   "description": "The deduction the payroll takes these loans back under. Its account in each company is where their money sits: Employee Loans, or SACCO Loans for the SACCO's.",
+   "fieldname": "component",
+   "fieldtype": "Link",
+   "label": "Deducted Under",
+   "options": "Salary Component"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-08 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Loan Type",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "HR User"
+  },
+  {
+   "read": 1,
+   "role": "Accounts User"
+  },
+  {
+   "read": 1,
+   "role": "Employee"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

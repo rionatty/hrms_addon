@@ -31,8 +31,8 @@ frappe.query_reports["Loan Register"] = {
 		{
 			fieldname: "loan_type",
 			label: __("Type"),
-			fieldtype: "Select",
-			options: ["", "Car Loan", "Study Loan", "Other"],
+			fieldtype: "Link",
+			options: "Employee Loan Type",
 		},
 	],
 };

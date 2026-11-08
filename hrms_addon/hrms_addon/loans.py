@@ -20,7 +20,15 @@ Journal Entry the loan drafts for Accounts.
   journal_*   the money: paid out, repaid directly, written off
   settle_*    what a leaver's final settlement takes
   daily       step 6: a repayment due, one the payroll missed, a loan
-              fully repaid
+              fully repaid, a bank loan run its course
+  type_*      the kinds of loan Luuka keep (Employee Loan Type)
+
+The money lent sits on an account of its own (review item 21: "we need to
+create an employee loans account in charts of account"): Employee Loans
+for the company's loans and SACCO Loans for the SACCO's, each made once in
+every company and booked to by its lender's deduction component, so the
+payment out and every repayment meet on one account. A bank loan books
+nothing: the bank pays it and takes it back.
 """
 
 import frappe
@@ -33,6 +41,13 @@ DOCTYPE = "Employee Loan"
 ROW = "Loan Repayment"
 SETTINGS = "Loan Settings"
 DEFAULT_COMPONENT = "Loan Repayment"
+TYPE = "Employee Loan Type"
+# per lender: the deduction the payroll takes its loans back under, and the
+# account their money sits on (made once in each company)
+COMPONENTS = {rules.COMPANY: (DEFAULT_COMPONENT, "LR", "Recovery of a staff loan (LPL/HR/39)."),
+              rules.SACCO: ("SACCO Loan Repayment", "SLR", "Recovery of a SACCO loan, for the SACCO.")}
+ACCOUNTS = {rules.COMPANY: "Employee Loans", rules.SACCO: "SACCO Loans"}
+TYPE_FIELDS = tuple(rules.TYPE_DEFAULTS) + ("component",)
 JOURNAL = "Journal Entry"
 SETTLEMENT = "Full and Final Statement"
 PAYMENT, REPAYMENT, WRITE_OFF = "Payment", "Repayment", "Write Off"
@@ -67,14 +82,85 @@ def settings_validate(doc, method=None):
         frappe.throw("<br>".join(_(message) for message in errors), title=_(SETTINGS))
 
 
-def loan_account(company):
-    """Where the money lent sits: Loan Settings' account, else the
-    company's employee advance account."""
-    stored = dict(frappe.db.get_singles_dict(SETTINGS) or {}) if frappe.db.exists("DocType", SETTINGS) else {}
-    account = stored.get("loan_account")
-    if account and frappe.db.get_value("Account", account, "company") == company:
-        return account
-    return frappe.db.get_value("Company", company, "default_employee_advance_account") if company else None
+def loan_account(company, processed_by=rules.COMPANY):
+    """Where a lender's loans sit in a company: for the company's own, Loan
+    Settings' account where one is set for it; else Employee Loans (SACCO
+    Loans for the SACCO's), made once."""
+    if not company or processed_by not in ACCOUNTS:
+        return None
+    if processed_by == rules.COMPANY:
+        stored = dict(frappe.db.get_singles_dict(SETTINGS) or {}) if frappe.db.exists("DocType", SETTINGS) else {}
+        account = stored.get("loan_account")
+        if account and frappe.db.get_value("Account", account, "company") == company:
+            return account
+    return _own_account(company, ACCOUNTS[processed_by])
+
+
+def _own_account(company, account_name):
+    """An asset account of the app's, made once beside the company's
+    employee advances (Loans and Advances in ERPNext's chart), else under
+    its current assets. It has no party type, so the payroll books to it
+    as it books any deduction."""
+    abbr = frappe.get_cached_value("Company", company, "abbr")
+    name = "%s - %s" % (account_name, abbr) if abbr else account_name
+    if frappe.db.exists("Account", name):
+        return name
+    parent = None
+    beside = frappe.get_cached_value("Company", company, "default_employee_advance_account")
+    above = frappe.db.get_value("Account", beside, "parent_account") if beside else None
+    if above and frappe.db.get_value("Account", above, "root_type") == "Asset":
+        parent = above
+    for group in ("Loans and Advances (Assets)", "Current Assets"):
+        if parent:
+            break
+        found = frappe.get_all("Account", filters={"company": company, "is_group": 1, "root_type": "Asset",
+                                                   "account_name": group}, pluck="name", limit=1)
+        parent = found[0] if found else None
+    if not parent:
+        frappe.throw(_("{0} has no current assets group to put {1} under. Make the account, and set it on the "
+                       "deduction component.").format(company, account_name), title=_(DOCTYPE))
+    account = frappe.get_doc({"doctype": "Account", "account_name": account_name, "parent_account": parent,
+                              "company": company, "is_group": 0, "root_type": "Asset"})
+    account.flags.ignore_permissions = True
+    account.insert()
+    return account.name
+
+
+# ── 0b. The kinds of loan ─────────────────────────────────────────────
+def loan_type_of(name):
+    """A type's rules as Luuka set them (Employee Loan Type); None where
+    there is no such type."""
+    if not name or not frappe.db.exists(TYPE, name):
+        return None
+    row = frappe.db.get_value(TYPE, name, list(TYPE_FIELDS), as_dict=True) or {}
+    return dict(row, loan_type_name=name)
+
+
+def type_validate(doc, method=None):
+    """A type as Luuka set it. Its loans are taken back under its lender's
+    deduction, none for a bank's: the bank takes them back."""
+    errors = rules.type_errors({key: doc.get(key) for key in rules.TYPE_DEFAULTS})
+    if doc.get("processed_by") == rules.BANK:
+        doc.component = None
+    elif doc.get("processed_by") in COMPONENTS:
+        if not doc.get("component"):
+            doc.component = _component(processed_by=doc.processed_by)
+        elif frappe.db.get_value("Salary Component", doc.component, "type") != "Deduction":
+            errors.append("The payroll takes a loan back under a deduction component.")
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(TYPE))
+
+
+def _type(doc):
+    return loan_type_of(doc.get("loan_type"))
+
+
+def _lender(doc):
+    return doc.get("processed_by") or rules.COMPANY
+
+
+def _is_bank(doc):
+    return _lender(doc) == rules.BANK
 
 
 # ── 1. The loan ───────────────────────────────────────────────────────
@@ -82,13 +168,17 @@ def loan_validate(doc, method=None):
     from hrms_addon.hrms_addon import loan_approval as approval
 
     s = settings()
+    t = _type(doc)
+    # who lends decides how the loan runs: a bank's is only kept on record
+    doc.processed_by = (t or {}).get("processed_by") or rules.COMPANY
     if doc.is_new():
-        _request_defaults(doc, s)
-    _fill_money(doc, s)
-    _check_eligibility(doc, s)
+        _request_defaults(doc, s, t)
+    _fill_bank(doc)
+    _fill_money(doc, s, t)
+    _check_eligibility(doc, t)
     if doc.docstatus == 0:
         _build_schedule(doc, s)
-    _check_step(doc, s)
+    _check_step(doc, s, t)
     doc.approval_status = doc.get("workflow_state") or doc.get("approval_status") or approval.DRAFT
     doc.status = _status(doc)
     doc.outstanding = _outstanding(doc)
@@ -105,18 +195,47 @@ def _status(doc):
 
 def _outstanding(doc):
     """Owed only on a loan that ran: nothing on a request, a refusal, a
-    cancelled loan or one written off."""
-    if doc.docstatus != 1 or doc.status in (rules.REJECTED, rules.CANCELLED, rules.WRITTEN_OFF):
+    cancelled loan or one written off, and nothing to Luuka on a bank's."""
+    if doc.docstatus != 1 or doc.status in (rules.REJECTED, rules.CANCELLED, rules.WRITTEN_OFF) or _is_bank(doc):
         return 0
     return rules.outstanding(_amount(doc) + flt(doc.get("total_interest")), doc.get("recovered_amount"))
 
 
-def _fill_money(doc, s):
+def _fill_bank(doc):
+    """A bank loan: the bank and the salary account the letter of
+    undertaking names start from the employee's own bank details."""
+    if not _is_bank(doc) or not doc.get("employee") or (doc.get("bank_name") and doc.get("bank_account_no")):
+        return
+    own = frappe.db.get_value("Employee", doc.employee, ["bank_name", "bank_ac_no", "custom_bank_branch"],
+                              as_dict=True) or {}
+    if not doc.get("bank_name"):
+        doc.bank_name = own.get("bank_name")
+    if not doc.get("bank_branch"):
+        doc.bank_branch = own.get("custom_bank_branch")
+    if not doc.get("bank_account_no"):
+        doc.bank_account_no = own.get("bank_ac_no")
+
+
+def _fill_money(doc, s, t=None):
     if doc.get("employee"):
         doc.gross_pay = pay.monthly_gross(doc.employee)
-        doc.outstanding_before = _owed_elsewhere(doc.employee, doc.name)
-    doc.limit = rules.limit_for_type(doc.get("loan_type"), doc.get("gross_pay"), settings=s,
-                                     course_fee=doc.get("course_fee")) or 0
+        doc.outstanding_before = _owed_elsewhere(doc.employee, doc.name, _lender(doc))
+        doc.flags.net_pay = _net_pay(doc.employee)
+        doc.net_pay = doc.flags.net_pay or 0
+        doc.bank_instalments = _bank_instalments(doc.employee, doc.name)
+    doc.limit = rules.limit_for_type(t, doc.get("gross_pay"), course_fee=doc.get("course_fee")) or 0
+    if _is_bank(doc):
+        # the bank's terms: while the request is drafted its instalment is
+        # worked out from it, then it is the bank's, as Accounts type it
+        doc.total_interest = 0
+        if doc.get("workflow_state") in (None, "", "Draft") or not flt(doc.get("monthly_instalment")):
+            doc.monthly_instalment = rules.monthly_instalment(_amount(doc), doc.get("interest_rate"),
+                                                              doc.get("instalments"))
+        doc.recovered_amount = 0
+        doc.runs_until = rules.runs_until(doc.get("first_repayment"), doc.get("instalments"))
+        doc.extent_of_deduction = None
+        return
+    doc.runs_until = None
     doc.total_interest = rules.interest_for(_amount(doc), doc.get("interest_rate"), doc.get("instalments"))
     doc.monthly_instalment = rules.monthly_instalment(_amount(doc), doc.get("interest_rate"), doc.get("instalments"))
     doc.recovered_amount = sum(flt(row.total) for row in doc.get("repayments") or [] if row.recovered)
@@ -128,13 +247,42 @@ def _fill_money(doc, s):
             frappe.utils.fmt_money(doc.monthly_instalment), cint(doc.get("instalments")))
 
 
-def _owed_elsewhere(employee, exclude):
-    """What this employee still owes on loans running now. A request, a
-    refusal, a cancelled loan or one written off owes nothing."""
+def _owed_elsewhere(employee, exclude, lender=rules.COMPANY):
+    """What this employee still owes the same lender on loans running now.
+    A request, a refusal, a cancelled loan or one written off owes nothing,
+    and what is owed to a bank is the bank's to weigh."""
+    if lender == rules.BANK:
+        return 0
     rows = frappe.get_all(DOCTYPE, filters={"employee": employee, "docstatus": 1, "status": rules.RUNNING,
                                             "name": ["!=", exclude or ""]},
-                          fields=["outstanding"])
-    return flt(sum(flt(row.outstanding) for row in rows))
+                          fields=["outstanding", "processed_by"])
+    return flt(sum(flt(row.outstanding) for row in rows if (row.processed_by or rules.COMPANY) == lender))
+
+
+def _bank_loans_running(employee, exclude=None):
+    rows = frappe.get_all(DOCTYPE, filters={"employee": employee, "docstatus": 1, "status": rules.RUNNING,
+                                            "name": ["!=", exclude or ""]},
+                          fields=["name", "processed_by", "bank_name", "runs_until", "monthly_instalment"])
+    return [row for row in rows if row.processed_by == rules.BANK]
+
+
+def _bank_instalments(employee, exclude=None):
+    """What goes to banks each month on the bank loans on record, which the
+    salary slip does not show."""
+    return flt(sum(flt(row.monthly_instalment) for row in _bank_loans_running(employee, exclude)))
+
+
+def _net_pay(employee):
+    """The take-home pay a loan is measured against: the last salary slip's
+    net pay, in the company's currency (a USD slip's too), with what the
+    payroll already takes, loans with it, off it. A draft slip where none
+    is submitted yet; None where there is no slip at all."""
+    for docstatus in (1, 0):
+        rows = frappe.get_all("Salary Slip", filters={"employee": employee, "docstatus": docstatus},
+                              fields=["base_net_pay", "net_pay"], order_by="end_date desc", limit=1)
+        if rows:
+            return flt(rows[0].get("base_net_pay")) or flt(rows[0].get("net_pay"))
+    return None
 
 
 def _waiting_elsewhere(employee, exclude):
@@ -149,8 +297,8 @@ def _waiting_elsewhere(employee, exclude):
     return None
 
 
-def _check_eligibility(doc, s):
-    errors = rules.eligibility_errors(_facts(doc), s)
+def _check_eligibility(doc, t):
+    errors = rules.eligibility_errors(_facts(doc), t)
     doc.qualifies = 0 if errors else 1
     doc.eligibility_remarks = "; ".join(errors) or None
 
@@ -160,7 +308,8 @@ def _facts(doc):
         "status": frappe.db.get_value("Employee", doc.employee, "status") if doc.get("employee") else None,
         "date_of_joining": doc.get("date_of_appointment"), "today": today(),
         "gross_pay": doc.get("gross_pay"), "amount": _amount(doc), "rate": doc.get("interest_rate"),
-        "outstanding": doc.get("outstanding_before"),
+        "net_pay": doc.flags.get("net_pay"), "committed": doc.get("bank_instalments"),
+        "monthly": doc.get("monthly_instalment"), "outstanding": doc.get("outstanding_before"),
         "waiting": _waiting_elsewhere(doc.employee, doc.name) if doc.get("employee") else None,
         "instalments": doc.get("instalments"), "purpose": doc.get("purpose"), "loan_type": doc.get("loan_type"),
         "category": (frappe.db.get_value("Department", doc.department, "custom_position_category")
@@ -169,12 +318,14 @@ def _facts(doc):
     }
 
 
-def _terms_facts(doc, s):
+def _terms_facts(doc, s, t=None):
+    rules_of = rules.type_from(t or {})
     return {"amount": doc.get("loan_amount"), "approved_amount": doc.get("approved_amount"),
             "instalments": doc.get("instalments"), "first_repayment": doc.get("first_repayment"),
-            "rate": doc.get("interest_rate"), "max_instalments": rules.max_instalments(doc.get("loan_type"), s),
-            "paid_through": _paid_through(doc.get("employee")), "gross_pay": doc.get("gross_pay"),
-            "max_share": s["max_share_of_gross"]}
+            "rate": doc.get("interest_rate"), "max_instalments": rules_of["max_instalments"],
+            "paid_through": _paid_through(doc.get("employee")), "monthly": doc.get("monthly_instalment"),
+            "net_pay": doc.flags.get("net_pay"), "committed": doc.get("bank_instalments"),
+            "share": rules_of["share_of_net"], "processed_by": _lender(doc)}
 
 
 def _paid_through(employee):
@@ -186,17 +337,21 @@ def _paid_through(employee):
     return ends[0] if ends else None
 
 
-def _request_defaults(doc, s):
+def _request_defaults(doc, s, t=None):
     """A new request: the terms are Accounts' to set, later; the rate starts
-    at Luuka's."""
+    at its type's."""
     doc.approved_amount, doc.first_repayment = None, None
-    doc.interest_rate = s["default_rate"]
+    doc.interest_rate = rules.type_from(t or {})["default_rate"]
 
 
 def _build_schedule(doc, s):
     """The months the loan comes back in, while it is not yet running, each
     on the payroll day: on the terms once Accounts set them, until then on
     what was asked."""
+    if _is_bank(doc):
+        # the bank keeps its own schedule: the payroll takes nothing
+        doc.set("repayments", [])
+        return
     principal = _amount(doc)
     first = _start(doc, s)
     if not (principal and first):
@@ -232,8 +387,12 @@ def preview_schedule(doc):
     if any(cint(row.get("recovered")) for row in loan.get("repayments") or []):
         return None
     s = settings()
+    t = _type(loan)
+    loan.processed_by = (t or {}).get("processed_by") or rules.COMPANY
+    if _is_bank(loan):
+        return None
     if loan.is_new():
-        _request_defaults(loan, s)
+        _request_defaults(loan, s, t)
     _build_schedule(loan, s)
     amount = _amount(loan)
     return {
@@ -245,20 +404,23 @@ def preview_schedule(doc):
     }
 
 
-def _check_step(doc, s):
+def _check_step(doc, s, t=None):
     from hrms_addon.hrms_addon import loan_approval as approval
 
     before = doc.get_doc_before_save()
     old_state = before.get("workflow_state") if before else None
     new_state = doc.get("workflow_state")
-    if before and doc.docstatus == 0 and old_state != approval.PENDING_ACCOUNTS and _terms_changed(doc, before):
+    bank = _is_bank(doc)
+    # a bank's instalment is one of the terms once the request has gone in
+    terms = TERMS + (("monthly_instalment",) if bank and old_state not in (None, approval.DRAFT) else ())
+    if before and doc.docstatus == 0 and old_state != approval.PENDING_ACCOUNTS and _terms_changed(doc, before, terms):
         frappe.throw(_("The terms (the amount lent, the rate, the first repayment and the deduction) are "
                        "set by Accounts, while the loan is with them."), title=_(DOCTYPE))
     if before and doc.docstatus == 0 and _asked_changed(doc, before, old_state):
         frappe.throw(_("The request (the amount, the kind of loan, the months) is changed only while it is a "
                        "draft. Accounts settle the months."), title=_(DOCTYPE))
-    if doc.docstatus == 0 and doc.get("first_repayment"):
-        # every repayment falls on the payroll day
+    if doc.docstatus == 0 and doc.get("first_repayment") and not bank:
+        # every repayment falls on the payroll day; a bank's on its own
         doc.first_repayment = rules.on_day(doc.first_repayment, s["payroll_day"])
     _fill_consent(doc)
     if old_state != new_state:
@@ -267,15 +429,18 @@ def _check_step(doc, s):
             **{field: doc.get(field) for field, _who in approval.REMARK_FIELDS.values()},
         })
         if old_state in (None, approval.DRAFT) and approval.is_pending(new_state):
-            errors = rules.eligibility_errors(_facts(doc), s) + errors
+            errors = rules.eligibility_errors(_facts(doc), t) + errors
         if new_state == approval.PENDING_CONSENT or (new_state == approval.RUNNING
                                                      and old_state != approval.PENDING_CONSENT):
-            errors += rules.terms_errors(_terms_facts(doc, s))
+            errors += rules.terms_errors(_terms_facts(doc, s, t))
         if new_state == approval.RUNNING:
             errors += rules.run_errors({
-                "liability": doc.get("liability"), "amount": doc.get("approved_amount"),
-                "instalments": doc.get("instalments"), "effective_from": doc.get("effective_from"),
-                "consent": doc.get("consent"), "paid": doc.get("disbursed_on")})
+                "processed_by": _lender(doc), "liability": doc.get("liability"),
+                "amount": doc.get("approved_amount"), "instalments": doc.get("instalments"),
+                "effective_from": doc.get("effective_from"), "consent": doc.get("consent"),
+                "paid": doc.get("disbursed_on"), "bank": doc.get("bank_name"),
+                "account_no": doc.get("bank_account_no"), "monthly": doc.get("monthly_instalment"),
+                "first_repayment": doc.get("first_repayment")})
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(DOCTYPE))
         if new_state not in (approval.DRAFT, approval.REJECTED):
@@ -312,7 +477,10 @@ def _check_step(doc, s):
 
 def _fill_consent(doc):
     """The consent follows the terms: what the deduction is for, and the day
-    it starts, the first repayment. A liability written by hand is kept."""
+    it starts, the first repayment. A liability written by hand is kept. A
+    bank's loan is not deducted, so there is nothing to consent to."""
+    if _is_bank(doc):
+        return
     if flt(doc.get("approved_amount")):
         written = (doc.get("liability") or "").strip()
         if not written or written.startswith(_("Staff loan of ")):
@@ -321,10 +489,10 @@ def _fill_consent(doc):
         doc.effective_from = doc.first_repayment
 
 
-def _terms_changed(doc, before):
-    for field in TERMS:
+def _terms_changed(doc, before, fields=TERMS):
+    for field in fields:
         now, then = doc.get(field), before.get(field)
-        if field in ("approved_amount", "interest_rate"):
+        if field in ("approved_amount", "interest_rate", "monthly_instalment"):
             if flt(now) != flt(then):
                 return True
         elif field == "first_repayment":
@@ -372,6 +540,18 @@ def _employee_user(doc):
 def _tell_waiting(doc, state):
     from hrms_addon.hrms_addon import loan_approval as approval
 
+    if state == approval.PENDING_CONSENT and _is_bank(doc):
+        # nothing is deducted, so there is no consent: HR give the bank the
+        # letter of undertaking, then put the loan on record
+        users = list(dict.fromkeys(people.hr_officers(doc.get("branch"), doc.get("department"))))
+        if users:
+            message = _("{0}'s loan from {1} is approved at {2} a month. Print the letter of undertaking for the "
+                        "bank, then run the loan to put it on record.").format(
+                doc.get("employee_name") or doc.employee, doc.get("bank_name") or _("the bank"),
+                frappe.utils.fmt_money(doc.get("monthly_instalment")))
+            people.notify(users, doc.doctype, doc.name, message)
+            people.assign(doc.doctype, doc.name, users, message)
+        return
     if state == approval.PENDING_CONSENT:
         users = [user for user in (_employee_user(doc),) if user]
     else:
@@ -431,6 +611,17 @@ def loan_on_submit(doc, method=None):
     refusal is submitted too, and takes nothing."""
     if doc.get("status") != rules.RUNNING:
         return
+    if _is_bank(doc):
+        _mark_bank_loan(doc.employee)
+        users = [user for user in (_employee_user(doc),) if user]
+        users += people.hr_officers(doc.get("branch"), doc.get("department"))
+        if users:
+            people.notify(list(dict.fromkeys(users)), doc.doctype, doc.name,
+                          _("{0}'s loan from {1} is on record: {2} a month to the bank until {3}.").format(
+                              doc.get("employee_name") or doc.employee, doc.get("bank_name") or _("the bank"),
+                              frappe.utils.fmt_money(doc.monthly_instalment),
+                              frappe.utils.format_date(doc.get("runs_until"))))
+        return
     _make_deductions(doc)
     users = [user for user in (_employee_user(doc),) if user]
     users += people.hr_officers(doc.get("branch"), doc.get("department"))
@@ -454,12 +645,38 @@ def loan_on_cancel(doc, method=None):
     _cancel_untaken(doc)
     doc.approval_status = "Cancelled"
     doc.status = rules.CANCELLED
+    if _is_bank(doc):
+        _mark_bank_loan(doc.employee, exclude=doc.name, ended=doc)
+
+
+def _mark_bank_loan(employee, exclude=None, ended=None):
+    """The employee's Bank Loan fields, which hold back salary and leave
+    advances, follow the bank loans on record: ticked while one runs, with
+    its bank and its last month. A loan that ends or is cancelled takes off
+    only what it put there; a bank loan HR recorded by hand is left."""
+    if not employee:
+        return
+    running = _bank_loans_running(employee, exclude)
+    if running:
+        last = max(running, key=lambda row: str(row.runs_until or ""))
+        frappe.db.set_value("Employee", employee, {"custom_has_bank_loan": 1, "custom_bank_loan_bank": last.bank_name,
+                                                   "custom_bank_loan_until": last.runs_until}, update_modified=False)
+        return
+    if not ended:
+        return
+    shown = frappe.db.get_value("Employee", employee, ["custom_bank_loan_bank", "custom_bank_loan_until"],
+                                as_dict=True) or {}
+    if (shown.get("custom_bank_loan_bank") or "") == (ended.get("bank_name") or "") \
+            and str(shown.get("custom_bank_loan_until") or "") == str(ended.get("runs_until") or ""):
+        frappe.db.set_value("Employee", employee, {"custom_has_bank_loan": 0, "custom_bank_loan_bank": None,
+                                                   "custom_bank_loan_until": None}, update_modified=False)
 
 
 def _make_deductions(doc, rows=None):
-    component = doc.get("recovery_component") or _component(doc.get("company"))
+    component = _component_for(doc)
     if not component:
         return
+    ensure_loan_account(doc.get("company"))
     for row in rows if rows is not None else doc.get("repayments") or []:
         if row.get("additional_salary") or row.get("recovered") or row.get("cancelled_deduction"):
             continue
@@ -498,38 +715,100 @@ def _cancel_untaken(doc):
     return cancelled
 
 
-def _component(company=None):
-    if not frappe.db.exists("Salary Component", DEFAULT_COMPONENT):
+def _component_for(doc):
+    """The deduction the payroll takes this loan back under: the one
+    Accounts chose, else its type's, else its lender's."""
+    if doc.get("recovery_component"):
+        return doc.recovery_component
+    chosen = (_type(doc) or {}).get("component")
+    return chosen or _component(doc.get("company"), _lender(doc))
+
+
+def _component(company=None, processed_by=rules.COMPANY):
+    """A lender's deduction component, made once; with a company, its
+    account there too."""
+    name, abbr, description = COMPONENTS.get(processed_by) or COMPONENTS[rules.COMPANY]
+    if not frappe.db.exists("Salary Component", name):
         try:
-            doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": DEFAULT_COMPONENT,
-                                  "type": "Deduction", "salary_component_abbr": "LR", "depends_on_payment_days": 0,
-                                  "description": "Recovery of a staff loan (LPL/HR/39)."})
+            doc = frappe.get_doc({"doctype": "Salary Component", "salary_component": name, "type": "Deduction",
+                                  "salary_component_abbr": abbr, "depends_on_payment_days": 0,
+                                  "description": description})
             doc.insert(ignore_permissions=True)
         except Exception:
             frappe.log_error(title="HRMS Addon: loan repayment component")
             return None
-    ensure_loan_account(company)
-    return DEFAULT_COMPONENT
+    if company:
+        ensure_loan_account(company)
+    return name
 
 
 def ensure_loan_account(company=None):
-    """The Loan Repayment component's account for each company, so the
-    payroll can book what it takes back: Frappe HR's Payroll Entry stops
-    on a component with none. One already set is left as it is."""
-    if not frappe.db.exists("Salary Component", DEFAULT_COMPONENT):
-        return []
-    component = frappe.get_doc("Salary Component", DEFAULT_COMPONENT)
-    have = {row.company for row in component.get("accounts") or []}
+    """Each lender's deduction books to its account in every company, so
+    the payroll can book what it takes back (Frappe HR's Payroll Entry
+    stops on a component with none): Employee Loans for the company's
+    loans, SACCO Loans for the SACCO's. A company loan's deduction still on
+    an account the app chose before (the employee advance account, where
+    loans sat before they had their own, or Employee Loans once Loan
+    Settings name another) follows once no loan paid out is owed, so a
+    loan's payment and its repayments always meet on one account. An
+    account set by hand on the component is left as it is."""
     added = []
-    for name in [company] if company else frappe.get_all("Company", pluck="name"):
-        account = loan_account(name) if name else None
-        if account and name not in have:
-            component.append("accounts", {"company": name, "account": account})
-            added.append(name)
-    if added:
-        component.flags.ignore_permissions = True
-        component.save()
+    companies = [company] if company else frappe.get_all("Company", pluck="name")
+    for lender, (component_name, _abbr, _what) in COMPONENTS.items():
+        if not frappe.db.exists("Salary Component", component_name):
+            continue
+        component = frappe.get_doc("Salary Component", component_name)
+        rows = {row.company: row for row in component.get("accounts") or []}
+        changed = False
+        for name in companies:
+            account = loan_account(name, lender) if name else None
+            if not account:
+                continue
+            row = rows.get(name)
+            if not row:
+                component.append("accounts", {"company": name, "account": account})
+                added.append(name)
+                changed = True
+            elif (lender == rules.COMPANY and row.account != account and row.account in _chosen_before(name)
+                  and not _money_out(name)):
+                row.account = account
+                changed = True
+        if changed:
+            component.flags.ignore_permissions = True
+            component.save()
     return added
+
+
+def _chosen_before(company):
+    """The accounts a company loan's deduction was put on by the app rather
+    than by hand: the employee advance account, and its own Employee Loans."""
+    abbr = frappe.get_cached_value("Company", company, "abbr")
+    own = "%s - %s" % (ACCOUNTS[rules.COMPANY], abbr) if abbr else ACCOUNTS[rules.COMPANY]
+    return {account for account in (frappe.get_cached_value("Company", company, "default_employee_advance_account"),
+                                    own) if account}
+
+
+def _money_out(company):
+    """Whether a company loan paid out in this company is still owed: its
+    deduction's account stays where its payment went until it is."""
+    rows = frappe.get_all(DOCTYPE, filters={"company": company, "docstatus": ["<", 2]},
+                          fields=["status", "processed_by", "disbursement_entry"])
+    return any(row.disbursement_entry and (row.processed_by or rules.COMPANY) == rules.COMPANY
+               and row.status not in (rules.REPAID, rules.WRITTEN_OFF, rules.REJECTED, rules.CANCELLED)
+               for row in rows)
+
+
+def account_for(doc):
+    """The account a loan's money sits on: the one its deduction books to
+    in the company, so the payment out and every repayment meet on it."""
+    component = _component_for(doc)
+    if not component or not doc.get("company"):
+        return None
+    ensure_loan_account(doc.company)
+    for row in frappe.get_doc("Salary Component", component).get("accounts") or []:
+        if row.company == doc.company:
+            return row.account
+    return None
 
 
 # ── 2. The money: paid out, repaid directly, written off ──────────────
@@ -546,9 +825,11 @@ def make_journal(loan, purpose):
         frappe.throw(_("You may not book this."), frappe.PermissionError)
     doc = frappe.get_doc(DOCTYPE, loan)
     doc.check_permission("read")
-    account = loan_account(doc.company)
+    if _is_bank(doc):
+        frappe.throw(_("A bank loan is paid out and taken back by the bank: nothing is booked for it here."))
+    account = account_for(doc)
     if not account:
-        frappe.throw(_("Set the staff loans account in Loan Settings, or the company's employee advance account."))
+        frappe.throw(_("Set the account the loan's deduction component books to in {0}.").format(doc.company))
     if purpose == PAYMENT:
         if doc.docstatus != 0 or doc.get("workflow_state") != approval.PENDING_CONSENT or not cint(doc.consent):
             frappe.throw(_("A loan is paid out once the employee has consented to its terms."))
@@ -582,7 +863,7 @@ def make_journal(loan, purpose):
 def _on_loan_account(je, loan):
     """What the entry moves on the loan's own account: debited when paid
     out, credited when repaid or written off."""
-    account = loan_account(je.company)
+    account = account_for(loan)
     debit = sum(flt(row.get("debit_in_account_currency")) for row in je.get("accounts") or [] if row.account == account)
     credit = sum(flt(row.get("credit_in_account_currency")) for row in je.get("accounts") or []
                  if row.account == account)
@@ -593,11 +874,11 @@ def journal_on_submit(doc, method=None):
     loan, purpose = doc.get("custom_employee_loan"), doc.get("custom_loan_purpose")
     if not (loan and purpose in PURPOSES):
         return
-    amount = _on_loan_account(doc, loan)
-    if amount <= 0:
-        frappe.throw(_("The entry does not move the staff loans account {0}.").format(loan_account(doc.company)),
-                     title=_(DOCTYPE))
     target = frappe.get_doc(DOCTYPE, loan)
+    amount = _on_loan_account(doc, target)
+    if amount <= 0:
+        frappe.throw(_("The entry does not move the loan's account {0}.").format(account_for(target)),
+                     title=_(DOCTYPE))
     if purpose == PAYMENT:
         if round(amount, 2) != round(flt(target.approved_amount), 2):
             frappe.throw(_("The payment is {0}; the loan is {1}.").format(
@@ -778,6 +1059,14 @@ def daily():
     _tell_due()
     _tell_missed()
     _close_repaid()
+    _end_bank_loans()
+    try:
+        # the deduction moves to Employee Loans once nothing paid out from
+        # the advance account is owed
+        ensure_loan_account()
+        frappe.db.commit()
+    except Exception:
+        frappe.log_error(title="HRMS Addon: loan accounts")
 
 
 def _running(name):
@@ -846,10 +1135,31 @@ def _close_repaid():
     """A loan whose last instalment has been taken is Repaid, and the
     employee and the HR Officer are told."""
     rows = frappe.get_all(DOCTYPE, filters={"docstatus": 1, "status": rules.RUNNING, "outstanding": ["<=", 0]},
-                          fields=["name", "employee", "employee_name", "branch", "department"], limit=200)
+                          fields=["name", "employee", "employee_name", "branch", "department", "processed_by"],
+                          limit=200)
     for row in rows:
+        if row.processed_by == rules.BANK:
+            continue  # owes Luuka nothing all along: it ends with its last month (_end_bank_loans)
         frappe.db.set_value(DOCTYPE, row.name, "status", rules.REPAID, update_modified=False)
         _tell_repaid(row)
+    frappe.db.commit()
+
+
+def _end_bank_loans():
+    """A bank loan whose last instalment has gone by is over: Repaid as far
+    as Luuka know, and the employee's Bank Loan fields let go of it."""
+    rows = frappe.get_all(DOCTYPE, filters={"docstatus": 1, "status": rules.RUNNING},
+                          fields=["name", "employee", "employee_name", "branch", "department", "processed_by",
+                                  "bank_name", "runs_until"], limit=500)
+    for row in rows:
+        if row.processed_by != rules.BANK or not rules.bank_loan_ended(row.runs_until, today()):
+            continue
+        frappe.db.set_value(DOCTYPE, row.name, "status", rules.REPAID, update_modified=False)
+        _mark_bank_loan(row.employee, ended=row)
+        users = list(people.hr_officers(row.branch, row.department))
+        if users:
+            people.notify(users, DOCTYPE, row.name, _("{0}'s loan from {1} has had its last month.").format(
+                row.employee_name or row.employee, row.bank_name or _("the bank")))
     frappe.db.commit()
 
 
@@ -870,7 +1180,7 @@ def refresh_recovered(name):
     is taken is Repaid, one whose slip was cancelled is Running again, and
     one written off stays so."""
     doc = frappe.get_doc(DOCTYPE, name)
-    if doc.docstatus != 1:
+    if doc.docstatus != 1 or _is_bank(doc):
         return
     was = doc.status
     recovered = sum(flt(child.total) for child in doc.repayments if child.recovered)
@@ -898,6 +1208,8 @@ def setup_workflows_on_migrate():
 
     workflows.setup_on_migrate(loan_approval, "Employee Loan workflow")
     try:
+        for lender in COMPONENTS:
+            _component(None, lender)
         ensure_loan_account()
         frappe.db.commit()
     except Exception:

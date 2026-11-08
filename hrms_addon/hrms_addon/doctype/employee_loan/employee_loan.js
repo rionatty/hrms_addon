@@ -8,8 +8,15 @@ frappe.ui.form.on("Employee Loan", {
 		frm.trigger("show_loan");
 		const roles = (list) => list.some((role) => frappe.user.has_role(role));
 		const accounts = roles(["Accounts User", "Accounts Manager", "System Manager"]);
+		// a bank lends and takes it back: nothing is booked or deducted here,
+		// and the bank is given the letter of undertaking
+		const bank = frm.doc.processed_by === "Bank";
+		if (bank && !frm.is_new() && frm.doc.docstatus < 2) {
+			frm.add_custom_button(__("Letter of Undertaking"), () => ha_loan_letter(frm));
+		}
 		// chart step 3: Accounts pay the loan out once the employee has consented
 		if (
+			!bank &&
 			accounts &&
 			frm.doc.docstatus === 0 &&
 			frm.doc.workflow_state === "Pending Employee Consent" &&
@@ -18,7 +25,7 @@ frappe.ui.form.on("Employee Loan", {
 		) {
 			frm.add_custom_button(__("Record Payment"), () => ha_loan_journal(frm, "Payment"));
 		}
-		if (frm.doc.docstatus === 1 && frm.doc.status === "Running") {
+		if (!bank && frm.doc.docstatus === 1 && frm.doc.status === "Running") {
 			if (accounts) {
 				frm.add_custom_button(__("Record Repayment"), () => ha_loan_journal(frm, "Repayment"));
 			}
@@ -49,12 +56,22 @@ frappe.ui.form.on("Employee Loan", {
 		frm.dashboard.clear_headline();
 		if (frm.is_new() || !frm.doc.employee) return;
 		const ok = frm.doc.qualifies;
-		const parts = [`${__("Limit")} <b>${ha_money(frm.doc.limit)}</b>`];
+		const bank = frm.doc.processed_by === "Bank";
+		const parts = [];
+		if (bank) {
+			parts.push(`${__("Lent by")} <b>${frappe.utils.escape_html(frm.doc.bank_name || __("a bank"))}</b>`);
+		}
+		if (frm.doc.limit) {
+			parts.push(`${__("Limit")} <b>${ha_money(frm.doc.limit)}</b>`);
+		}
 		if (frm.doc.monthly_instalment) {
 			parts.push(`${__("Monthly")} <b>${ha_money(frm.doc.monthly_instalment)}</b>`);
 		}
-		if (frm.doc.docstatus === 1) {
+		if (frm.doc.docstatus === 1 && !bank) {
 			parts.push(`${__("Outstanding")} <b>${ha_money(frm.doc.outstanding)}</b>`);
+		}
+		if (bank && frm.doc.runs_until) {
+			parts.push(`${__("Until")} <b>${frappe.datetime.str_to_user(frm.doc.runs_until)}</b>`);
 		}
 		let pills = "";
 		if (frm.doc.docstatus === 0) {
@@ -62,7 +79,7 @@ frappe.ui.form.on("Employee Loan", {
 				ok ? __("Qualifies") : __("Does not qualify")
 			}</span>`;
 		}
-		if (frm.doc.workflow_state === "Pending Employee Consent") {
+		if (frm.doc.workflow_state === "Pending Employee Consent" && !bank) {
 			pills += frm.doc.disbursement_entry
 				? ` <span class="indicator-pill green">${__("Paid out")}</span>`
 				: ` <span class="indicator-pill orange">${__("Not paid out yet")}</span>`;
@@ -78,6 +95,7 @@ frappe.ui.form.on("Employee Loan", {
 		);
 	},
 	approved_amount: ha_loan_schedule,
+	loan_type: ha_loan_schedule,
 	employee: ha_loan_schedule,
 	posting_date: ha_loan_schedule,
 	loan_amount: ha_loan_schedule,
@@ -94,7 +112,14 @@ function ha_money(value) {
 function ha_loan_schedule(frm) {
 	if (frm.doc.docstatus !== 0 || !frm.doc.loan_amount) return;
 	frappe.xcall(HA_LOANS + "preview_schedule", { doc: frm.doc }).then((drawn) => {
-		if (!drawn) return;
+		if (!drawn) {
+			// a bank keeps its own schedule
+			if (frm.doc.processed_by === "Bank" && (frm.doc.repayments || []).length) {
+				frm.clear_table("repayments");
+				frm.refresh_field("repayments");
+			}
+			return;
+		}
 		frm.clear_table("repayments");
 		drawn.repayments.forEach((row) => frm.add_child("repayments", row));
 		Object.assign(frm.doc, {
@@ -107,6 +132,19 @@ function ha_loan_schedule(frm) {
 		);
 		frm.trigger("show_loan");
 	});
+}
+
+// the letter the bank is given, in its own print
+function ha_loan_letter(frm) {
+	const url =
+		"/printview?doctype=" +
+		encodeURIComponent(frm.doctype) +
+		"&name=" +
+		encodeURIComponent(frm.doc.name) +
+		"&format=" +
+		encodeURIComponent("Letter of Undertaking") +
+		"&no_letterhead=1&trigger_print=1";
+	window.open(frappe.urllib.get_full_url(url));
 }
 
 // the entry is drafted for Accounts; the loan follows when it is submitted

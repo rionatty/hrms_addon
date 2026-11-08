@@ -21,12 +21,16 @@
   "status",
   "request_section",
   "loan_type",
+  "processed_by",
+  "lent_up_to_fees",
   "loan_amount",
   "purpose",
   "fee_structure",
   "course_fee",
   "column_break_2",
   "gross_pay",
+  "net_pay",
+  "bank_instalments",
   "limit",
   "outstanding_before",
   "qualifies",
@@ -40,6 +44,12 @@
   "total_interest",
   "monthly_instalment",
   "recovery_component",
+  "bank_section",
+  "bank_name",
+  "bank_branch",
+  "column_break_bank",
+  "bank_account_no",
+  "runs_until",
   "schedule_section",
   "repayments",
   "recovered_amount",
@@ -203,15 +213,34 @@
   },
   {
    "fieldname": "loan_type",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Loan",
    "reqd": 1,
    "default": "Other",
-   "options": "Car Loan\nStudy Loan\nOther",
+   "options": "Employee Loan Type",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Car loan: up to the limit in Loan Settings. Study loan: the course fees.",
-   "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && doc.workflow_state!=='Draft')"
+   "description": "The kinds of loan, each with its own limits, are kept in Employee Loan Type.",
+   "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && doc.workflow_state!=='Draft')",
+   "link_filters": "[[\"Employee Loan Type\",\"disabled\",\"=\",0]]"
+  },
+  {
+   "default": "Company",
+   "fetch_from": "loan_type.processed_by",
+   "fieldname": "processed_by",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Lent By",
+   "options": "Company\nSACCO\nBank",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "loan_type.course_fees",
+   "fieldname": "lent_up_to_fees",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Lent up to the Course Fees",
+   "read_only": 1
   },
   {
    "fieldname": "loan_amount",
@@ -231,14 +260,14 @@
    "fieldname": "fee_structure",
    "fieldtype": "Attach",
    "label": "Course Fee Structure",
-   "depends_on": "eval:doc.loan_type=='Study Loan'"
+   "depends_on": "eval:doc.lent_up_to_fees"
   },
   {
    "fieldname": "course_fee",
    "fieldtype": "Currency",
    "label": "Course Fees",
-   "depends_on": "eval:doc.loan_type=='Study Loan'",
-   "mandatory_depends_on": "eval:doc.loan_type=='Study Loan'",
+   "depends_on": "eval:doc.lent_up_to_fees",
+   "mandatory_depends_on": "eval:doc.lent_up_to_fees",
    "read_only_depends_on": "eval:doc.docstatus!==0 || !!(doc.workflow_state && doc.workflow_state!=='Draft')",
    "description": "As on the fee structure."
   },
@@ -252,6 +281,21 @@
    "label": "Gross Pay",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "description": "The last salary slip's. The instalments are measured against it, as the loan's type sets.",
+   "fieldname": "net_pay",
+   "fieldtype": "Currency",
+   "label": "Net Pay",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "bank_instalments",
+   "fieldtype": "Currency",
+   "label": "Going to Bank Loans a Month",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "limit",
@@ -328,19 +372,58 @@
    "fieldname": "monthly_instalment",
    "fieldtype": "Currency",
    "label": "Monthly Instalment",
-   "read_only": 1
+   "read_only_depends_on": "eval:doc.processed_by!='Bank'",
+   "description": "A bank loan's instalment is the bank's: Accounts type it from the bank's offer."
   },
   {
    "fieldname": "recovery_component",
    "fieldtype": "Link",
    "label": "Deduction Component",
    "options": "Salary Component",
-   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'"
+   "read_only_depends_on": "eval:doc.docstatus!==0 || doc.workflow_state!=='Pending Accounts'",
+   "depends_on": "eval:doc.processed_by!='Bank'"
+  },
+  {
+   "depends_on": "eval:doc.processed_by=='Bank'",
+   "description": "The bank lends and takes its loan back. Luuka approve it, keep the record and give the bank a letter of undertaking.",
+   "fieldname": "bank_section",
+   "fieldtype": "Section Break",
+   "label": "The Bank"
+  },
+  {
+   "fieldname": "bank_name",
+   "fieldtype": "Data",
+   "label": "Bank",
+   "mandatory_depends_on": "eval:doc.processed_by=='Bank'"
+  },
+  {
+   "fieldname": "bank_branch",
+   "fieldtype": "Data",
+   "label": "Branch"
+  },
+  {
+   "fieldname": "column_break_bank",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The account at this bank the salary is paid into.",
+   "fieldname": "bank_account_no",
+   "fieldtype": "Data",
+   "label": "Salary Account No.",
+   "mandatory_depends_on": "eval:doc.processed_by=='Bank'"
+  },
+  {
+   "fieldname": "runs_until",
+   "fieldtype": "Date",
+   "label": "Runs Until",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "schedule_section",
    "fieldtype": "Section Break",
-   "label": "Repayment schedule"
+   "label": "Repayment schedule",
+   "depends_on": "eval:doc.processed_by!='Bank'"
   },
   {
    "fieldname": "repayments",
@@ -406,7 +489,8 @@
   {
    "fieldname": "consent_section",
    "fieldtype": "Section Break",
-   "label": "Employee Deduction Consent (LPL/HR/39)"
+   "label": "Employee Deduction Consent (LPL/HR/39)",
+   "depends_on": "eval:doc.processed_by!='Bank'"
   },
   {
    "fieldname": "liability",
@@ -466,7 +550,8 @@
   {
    "fieldname": "disbursement_section",
    "fieldtype": "Section Break",
-   "label": "Disbursement"
+   "label": "Disbursement",
+   "depends_on": "eval:doc.processed_by!='Bank'"
   },
   {
    "fieldname": "disbursed_on",
@@ -608,7 +693,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-27 12:00:00.000000",
+ "modified": "2026-11-08 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Employee Loan",
