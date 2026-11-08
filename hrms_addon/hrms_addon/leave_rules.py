@@ -31,6 +31,12 @@ import math
 
 # ── the five kinds LPL/HR/15 offers ───────────────────────────────────
 ANNUAL = "Annual Leave"
+# Review item 22 (5 Nov 2026): "administration leave days can be carried
+# forward but not the case with production". Production is every department
+# not marked Administrative (Luuka, 5 Nov 2026); its unused annual leave is
+# left behind at the year's end unless the employee claims it first (8 Nov
+# 2026), through a Leave Encashment.
+ADMINISTRATIVE = "Administrative"
 MATERNITY = "Maternity Leave"
 PATERNITY = "Paternity Leave"
 SICK = "Sick Leave"
@@ -572,3 +578,10 @@ def _num(value):
 
 def _text(value):
     return (value or "").strip()
+
+
+def carries_forward(category):
+    """Whether unused annual leave goes into the next year, by the
+    employee's department: the administration team's does, production's is
+    left behind (review item 22)."""
+    return (category or "") == ADMINISTRATIVE

@@ -993,6 +993,40 @@ print("the advance and the payroll: scheduled from the recorded payment, booked 
 
 print("wiring: the doc events, the two workflows on migrate, the daily jobs, the seed, the way in")
 
+# ── Review item 22: the administration team carries leave forward ────
+# "administration leave days can be carried forward but not the case with
+# production"; production's unused days are left behind unless claimed
+if not (L.carries_forward("Administrative") and not L.carries_forward("Non-Administrative")
+        and not L.carries_forward(None) and not L.carries_forward("")):
+    fail.append("only an Administrative department's leave goes into the next year; production's, and a department "
+                "that says nothing, is left behind")
+glue = read("hrms_addon", "hrms_addon", "leave.py")
+
+
+def _body(source, name):
+    start = source.index("def %s(" % name)
+    end = source.find("\ndef ", start + 1)
+    return source[start:end if end > 0 else None]
+
+
+before = _body(glue, "allocation_before_validate")
+if 'doc.get("leave_type") == annual_type()' not in before or "not carries_forward(doc.employee)" not in before \
+        or "doc.carry_forward = 0" not in before:
+    fail.append("an annual leave allocation of production staff brings nothing forward, whatever made it")
+if "if not carries_forward(employee):\n        return 0.0" not in _body(glue, "_carried_into"):
+    fail.append("a plan's Brought Forward is nothing for production staff")
+mapped = _body(glue, "carry_forward_map")
+if mapped.count("frappe.get_all(") != 2 or "rules.carries_forward(" not in mapped:
+    fail.append("who carries forward is read in two reads, however many people, by the rule")
+overview = read("hrms_addon", "hrms_addon", "leave_overview.py")
+if "carries = leave.carry_forward_map(names)" not in overview \
+        or '"carries_forward": 1 if cint(kind.is_carry_forward) and carries.get(name) else 0' not in overview:
+    fail.append("the Leave Overview counts production's unused days as lost at the year's end")
+if _handlers((hooks.get("doc_events") or {}).get("Leave Allocation", {}).get("before_validate")) != [
+        "hrms_addon.hrms_addon.leave.allocation_before_validate"]:
+    fail.append("the rule runs before Frappe HR works out an allocation's carried days (before_validate)")
+print("carry forward: the administration team's leave goes into the next year, production's is left behind")
+
 print()
 if fail:
     print("FAILURES:")

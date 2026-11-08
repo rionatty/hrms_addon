@@ -1863,6 +1863,12 @@ doc_events = {
         # template: the weights total 80 and 20 before it goes active (bsc.py)
         "validate": "hrms_addon.hrms_addon.bsc.template_validate",
     },
+    # the administration team carries unused annual leave into the next
+    # year; production's is left behind unless claimed first (review item 22,
+    # leave.py)
+    "Leave Allocation": {
+        "before_validate": "hrms_addon.hrms_addon.leave.allocation_before_validate",
+    },
     # LPL/HR/15 on Frappe HR's own Leave Application: the balances of
     # Part 2, the three signatures of Part 3, and the advance of Part 4
     # (leave.py)

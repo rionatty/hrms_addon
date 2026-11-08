@@ -183,6 +183,9 @@ def year_end(year=None, branch=None, department=None):
     kind = frappe.db.get_value("Leave Type", annual, ["is_carry_forward", "maximum_carry_forwarded_leaves"],
                                as_dict=True) or frappe._dict()
     earned = leave_accrual.earned_for(names, annual, on)
+    # the administration team's unused days go into the next year;
+    # production's are lost unless claimed first (review item 22)
+    carries = leave.carry_forward_map(names)
     rows = []
     for name in names:
         found = earned.get(name)
@@ -194,7 +197,7 @@ def year_end(year=None, branch=None, department=None):
         if days <= 0 and balance <= 0:
             continue
         rows.append({"earned": days, "balance": balance, "gross": pay.monthly_gross(name, on),
-                     "carries_forward": cint(kind.is_carry_forward),
+                     "carries_forward": 1 if cint(kind.is_carry_forward) and carries.get(name) else 0,
                      "most_carried": flt(kind.maximum_carry_forwarded_leaves)})
     return dict(rules.year_end(rows), year=year, as_of=str(on), leave_type=annual,
                 working_days=rules.WORKING_DAYS_A_MONTH)

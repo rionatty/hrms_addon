@@ -577,7 +577,10 @@ def plan_years(year=None):
 
 def _carried_into(employee, start):
     """What the employee's annual leave balance carries into the year, when
-    annual leave carries forward, up to the most it allows."""
+    annual leave carries forward and the employee is one whose leave does
+    (the administration team, review item 22), up to the most it allows."""
+    if not carries_forward(employee):
+        return 0.0
     carries = frappe.db.get_value("Leave Type", annual_type(), ["is_carry_forward", "maximum_carry_forwarded_leaves"],
                                   as_dict=True)
     if not carries or not cint(carries.is_carry_forward):
@@ -588,6 +591,36 @@ def _carried_into(employee, start):
                                            consider_all_leaves_in_the_allocation_period=True)), 0.0)
     return min(balance, flt(carries.maximum_carry_forwarded_leaves)) if flt(carries.maximum_carry_forwarded_leaves) \
         else balance
+
+
+def carry_forward_map(employees):
+    """{employee: whether their unused annual leave is carried into the next
+    year}, in two reads: the administration team's is, production's is
+    left behind unless they claim it first (review item 22)."""
+    names = [name for name in dict.fromkeys(employees or ()) if name]
+    if not names:
+        return {}
+    departments = {row.name: row.department for row in frappe.get_all(
+        "Employee", filters={"name": ["in", names]}, fields=["name", "department"])}
+    wanted = [name for name in dict.fromkeys(departments.values()) if name]
+    category = {row.name: row.custom_position_category for row in frappe.get_all(
+        "Department", filters={"name": ["in", wanted]}, fields=["name", "custom_position_category"])} if wanted else {}
+    return {name: rules.carries_forward(category.get(departments.get(name))) for name in names}
+
+
+def carries_forward(employee):
+    return bool(carry_forward_map([employee]).get(employee))
+
+
+def allocation_before_validate(doc, method=None):
+    """Before Frappe HR works out what a Leave Allocation of annual leave
+    brings forward: production staff bring nothing into the new year (review
+    item 22). Their unused days were theirs to claim, through a Leave
+    Encashment, before the year ended. It holds whatever made the
+    allocation: a policy, the Leave Control Panel or HR by hand."""
+    if cint(doc.get("carry_forward")) and doc.get("employee") and doc.get("leave_type") == annual_type() \
+            and not carries_forward(doc.employee):
+        doc.carry_forward = 0
 
 
 @frappe.whitelist(methods=["POST"])
