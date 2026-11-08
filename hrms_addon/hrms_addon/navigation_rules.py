@@ -321,8 +321,6 @@ CARDS = {
         # card: their Upload Attendance was deleted in v16 (attendance_upload.py)
         ("Attendance", [
             ("Upload Attendance", "Upload Attendance", DOCTYPE),
-            # each branch signs its month off before payroll pays it (attendance_verification.py)
-            ("Attendance Verification", "Attendance Verification", DOCTYPE),
             ("Attendance Deletion", "Attendance Deletion", DOCTYPE),
         ]),
         ("Attendance Forms", [
@@ -349,9 +347,14 @@ CARDS = {
             ("Sizes and Work Units", "Output Rate", DOCTYPE),
             ("Output Pay Settings", "Output Pay Settings", DOCTYPE),
         ]),
-        # pay owed from an earlier month, and a slip put right: Frappe HR
-        # v16's own, in their Payroll card, which never listed them
+        # each branch's attendance, signed off by its General Manager before
+        # the payroll pays it (attendance_verification.py): a step of the
+        # payroll, so on its page rather than Shift & Attendance (Luuka,
+        # 8 Nov 2026). Then pay owed from an earlier month, and a slip put
+        # right: Frappe HR v16's own, in their Payroll card, which never
+        # listed them
         ("Payroll", [
+            ("Attendance Verification", "Attendance Verification", DOCTYPE),
             ("Arrears", "Arrear", DOCTYPE),
             ("Payroll Correction", "Payroll Correction", DOCTYPE),
         ]),
@@ -455,6 +458,16 @@ LEFT_OFF = {
     "Interest": "nothing in Frappe HR links to it",
     "HR Telemetry Milestone": "Frappe HR's own record of what it has reported",
     "PWA Notification": "the mobile app's notifications, read in the app",
+}
+
+# Entries of ours that moved to another page, taken off the one they left,
+# its cards and its sidebar alike. The merges only ever touch the links they
+# are given, so a moved entry would otherwise stay on its old page as well as
+# turning up on the new one.
+#   workspace -> what each entry that left it opens
+MOVED_OUT = {
+    # a step of the payroll, now on the Payroll page (Luuka, 8 Nov 2026)
+    "Shift & Attendance": ("Attendance Verification",),
 }
 
 # The desk routes a Report link by its kind: a Script or Query Report opens
@@ -562,7 +575,6 @@ SIDEBAR = {
         ("Attendance Board", "attendance-board", PAGE, None, None),
         ("Upload Attendance", "Upload Attendance", DOCTYPE, None, "Employee Attendance Tool"),
         ("Attendance Deletion", "Attendance Deletion", DOCTYPE, None, "Upload Attendance"),
-        ("Attendance Verification", "Attendance Verification", DOCTYPE, None, "Attendance Deletion"),
         ("Off Duty Request", "Off Duty Request", DOCTYPE, None, "Attendance"),
         ("Overtime Request", "Overtime Request", DOCTYPE, None, "Off Duty Request"),
         ("Gate Pass", "Gate Pass", DOCTYPE, None, "Overtime Request"),
@@ -576,6 +588,7 @@ SIDEBAR = {
         ("Attendance Device Log", "Attendance Device Log", DOCTYPE, "Setup", None),
     ],
     "Payroll": [
+        ("Attendance Verification", "Attendance Verification", DOCTYPE, None, None),
         ("Daily Production Report", "Daily Production Report", DOCTYPE, None, "Additional Salary"),
         ("Output Pay Run", "Output Pay Run", DOCTYPE, None, "Daily Production Report"),
         ("Arrear", "Arrear", DOCTYPE, None, "Salary Withholding"),
@@ -676,14 +689,14 @@ GROUPS = {
     ],
     "Shift & Attendance": [
         ("Attendance", "clock", ["Employee Checkin", "Employee Attendance Tool", "Upload Attendance", "Attendance Deletion",
-                                 "Attendance Verification", "Attendance Request", "Late Arrival Notice", "Gate Pass",
-                                 "Off Duty Request"]),
+                                 "Attendance Request", "Late Arrival Notice", "Gate Pass", "Off Duty Request"]),
         ("Shifts", "repeat", ["Shift Request", "Shift Rotation", "Shift Allowance"]),
         ("Overtime", "calendar-clock", ["Overtime Request", "Overtime Slip"]),
     ],
     "Payroll": [
-        ("Payroll", "banknote", ["Payroll Entry", "Salary Structure Assignment", "Salary Slip", "Additional Salary",
-                                 "Salary Withholding", "Arrear", "Payroll Correction"]),
+        ("Payroll", "banknote", ["Attendance Verification", "Payroll Entry", "Salary Structure Assignment",
+                                 "Salary Slip", "Additional Salary", "Salary Withholding", "Arrear",
+                                 "Payroll Correction"]),
         ("Output Pay", "factory", ["Daily Production Report", "Output Pay Run"]),
         ("Gratuity", "piggy-bank", ["Gratuity"]),
     ],
@@ -887,6 +900,14 @@ def merge_sidebar(items, entries):
         at = _seat(items, section, after)
         items.insert(at, sidebar_row(label, link_to, kind, child=1 if section else 0))
     return items
+
+
+def without_moved(rows, workspace):
+    """A page's links or a sidebar's items without the entries of ours that
+    moved off it (MOVED_OUT). The card or heading each sat under stays, with
+    whatever else it holds; merge_links counts the card's links again."""
+    gone = set(MOVED_OUT.get(workspace, ()))
+    return [dict(row) for row in rows if not (row.get("type") == LINK and row.get("link_to") in gone)]
 
 
 def arrange_sidebar(items, groups):

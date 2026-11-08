@@ -184,7 +184,7 @@ def _apply_cards(workspace, cards):
         return
     doc = frappe.get_doc("Workspace", workspace)
     current = [row.as_dict() for row in doc.links]
-    links = rules.merge_links(_prune(current), cards)
+    links = rules.merge_links(rules.without_moved(_prune(current), workspace), cards)
     content = rules.merge_content(json.loads(doc.content or "[]"), cards)
     if _same(links, current) and json.loads(doc.content or "[]") == content:
         return  # re-saving would only churn `modified` on every migrate
@@ -199,7 +199,8 @@ def _apply_sidebar(workspace, entries):
         return
     doc = frappe.get_doc("Workspace Sidebar", workspace)
     current = [row.as_dict() for row in doc.items]
-    items = rules.arrange_sidebar(rules.merge_sidebar(_prune(current), entries), rules.GROUPS.get(workspace))
+    items = rules.arrange_sidebar(rules.merge_sidebar(rules.without_moved(_prune(current), workspace), entries),
+                                  rules.GROUPS.get(workspace))
     if _same(items, current, SIDEBAR_LOOK):
         return
     _write(doc, "items", items)

@@ -141,7 +141,47 @@ for workspace, entries in R.SIDEBAR.items():
         seen.append(label)
     if len({entry[1] for entry in entries}) != len(entries):
         fail.append("SIDEBAR[%r]: an entry can be listed once only" % workspace)
+# an entry of ours that moved to another page goes from the one it left,
+# card and sidebar alike, and nothing else goes with it
+LEFT = [
+    {"type": "Card Break", "label": "Attendance", "link_count": 3},
+    {"type": "Link", "label": "Attendance", "link_to": "Attendance", "link_type": "DocType"},
+    {"type": "Link", "label": "Attendance Verification", "link_to": "Attendance Verification", "link_type": "DocType"},
+    {"type": "Link", "label": "Attendance Deletion", "link_to": "Attendance Deletion", "link_type": "DocType"},
+]
+after_move = R.merge_links(R.without_moved(LEFT, "Shift & Attendance"), [])
+if [row["label"] for row in after_move] != ["Attendance", "Attendance", "Attendance Deletion"] \
+        or after_move[0]["link_count"] != 2:
+    fail.append("a moved entry goes from the page it left, its card counting one link fewer: %s" % after_move)
+if R.without_moved(LEFT, "Payroll") != LEFT:
+    fail.append("an entry is taken off the page it moved from, and no other")
+SIDE_LEFT = [R.sidebar_row("Attendance", "Attendance", R.DOCTYPE, child=1),
+             R.sidebar_row("Attendance Verification", "Attendance Verification", R.DOCTYPE, child=1)]
+if [item["label"] for item in R.without_moved(SIDE_LEFT, "Shift & Attendance")] != ["Attendance"]:
+    fail.append("a moved entry goes from the sidebar it left too")
+for workspace, moved in R.MOVED_OUT.items():
+    if workspace not in R.CARDS or workspace not in R.SIDEBAR:
+        fail.append("MOVED_OUT[%r]: the page must stay in CARDS and SIDEBAR, or nothing takes the moved entries off it"
+                    % workspace)
+    here = ({link[1] for _card, links in R.CARDS.get(workspace, ()) for link in links}
+            | {entry[1] for entry in R.SIDEBAR.get(workspace, ())}
+            | {name for _group, _icon, names in R.GROUPS.get(workspace, ()) for name in names})
+    for name in moved:
+        if name in here:
+            fail.append("MOVED_OUT[%r]: %s moved off it, yet the rules still put it there" % (workspace, name))
+        if not [page for page, cards in R.CARDS.items()
+                if page != workspace and name in {link[1] for _card, links in cards for link in links}]:
+            fail.append("MOVED_OUT[%r]: %s moved off it to no other page" % (workspace, name))
+# Luuka, 8 Nov 2026: "attendace verification should be in payroll", the step before the run
+payroll_card = dict(R.CARDS["Payroll"]).get("Payroll") or [("", "", "")]
+payroll_group = next((names for group, _icon, names in R.GROUPS["Payroll"] if group == "Payroll"), [])
+if (payroll_card[0][1] != "Attendance Verification"
+        or "Attendance Verification" not in {entry[1] for entry in R.SIDEBAR["Payroll"]}
+        or payroll_group[:2] != ["Attendance Verification", "Payroll Entry"]):
+    fail.append("Attendance Verification belongs to Payroll: first of ours in its Payroll card, and in its sidebar "
+                "under the Payroll heading, just before Payroll Entry")
 print("merging: cards added to and appended, counts, blocks kept once, sidebar placement, strays put right, rows numbered")
+print("moved: Attendance Verification off Shift & Attendance, on Payroll before Payroll Entry")
 
 # ── 2. Against Frappe HR's own records ────────────────────────────────
 def upstream_workspace(label):
@@ -429,6 +469,8 @@ for needle, why in (('if not frappe.db.exists("Workspace", workspace):', "a work
                     ("doc.flags.ignore_permissions = True", "it writes as the system")):
     if needle not in glue:
         fail.append("navigation.py: %s (%r not found)" % (why, needle))
+if glue.count("rules.without_moved(_prune(current), workspace)") != 2:
+    fail.append("navigation.py: an entry that moved must go from the page it left, its cards and its sidebar both")
 for what in ("links", "items"):
     if not re.search(r"^    if _same\(%s, " % what, glue, re.M):
         fail.append("navigation.py must return early when the %s say the same thing, or every migrate churns the record"
@@ -625,6 +667,13 @@ def _know(site):
             site.known.add((entry[2], entry[1]))
 
 
+# where each MOVED_OUT entry was before it moved: page -> (its card there, the entries)
+PREVIOUSLY = {"Shift & Attendance": ("Attendance", ("Attendance Verification",))}
+if {page: set(names) for page, (_card, names) in PREVIOUSLY.items()} \
+        != {page: set(names) for page, names in R.MOVED_OUT.items()}:
+    fail.append("the stand-in site must start with every MOVED_OUT entry where it was before (PREVIOUSLY)")
+
+
 def fresh_site(newest_first):
     site = Site(newest_first)
     _know(site)
@@ -642,11 +691,22 @@ def fresh_site(newest_first):
         shipped = upstream_sidebar(label)
         if shipped:
             site.put("Workspace Sidebar", label, "items", shipped["items"])
+    # what the release before left there: an entry since moved to another
+    # page, still in its old card and sidebar
+    for label, (card, moved) in PREVIOUSLY.items():
+        if ("Workspace", label) in site.tables:
+            site.put("Workspace", label, "links",
+                     R.merge_links(site.rows("Workspace", label), [(card, [(name, name, R.DOCTYPE) for name in moved])]),
+                     site.content[("Workspace", label)])
+        if ("Workspace Sidebar", label) in site.tables:
+            site.put("Workspace Sidebar", label, "items",
+                     R.merge_sidebar(site.rows("Workspace Sidebar", label),
+                                     [(name, name, R.DOCTYPE, None, None) for name in moved]))
     _know(site)
     return site
 
 
-simulated, reproduced = 0, False
+simulated, reproduced, moved_seen = 0, False, 0
 for newest_first in (False, True):
     for damaged in (False, True):
         site = fresh_site(newest_first)
@@ -677,8 +737,17 @@ for newest_first in (False, True):
                             reproduced = True
         what = "%s site, rows sharing a number read %s first" % ("a spoilt" if damaged else "a fresh",
                                                                  "newest" if newest_first else "oldest")
+        moved_seen += sum(1 for label, moved in R.MOVED_OUT.items() for doctype in ("Workspace", "Workspace Sidebar")
+                          if (doctype, label) in site.tables
+                          for row in site.rows(doctype, label) if row.get("link_to") in moved)
         run_glue(site)
         simulated += 1
+        for label, moved in R.MOVED_OUT.items():
+            for doctype in ("Workspace", "Workspace Sidebar"):
+                if (doctype, label) in site.tables:
+                    still = [row.get("link_to") for row in site.rows(doctype, label) if row.get("link_to") in moved]
+                    if still:
+                        fail.append("%s: %s moved off %s, yet its %s still lists it" % (what, still, label, doctype))
         for label, cards in R.CARDS.items():
             if ("Workspace", label) not in site.tables:
                 continue
@@ -737,6 +806,8 @@ if not simulated:
 else:
     if not reproduced:
         fail.append("the stand-in site no longer reproduces the duplication it is there to catch: check Site.rows and Doc.append")
+    if not moved_seen:
+        fail.append("the stand-in site never had a moved entry on the page it left: check PREVIOUSLY")
     print("as Frappe writes it: fresh and spoilt sites, either read order: every link once in its own card, "
           "theirs untouched, rows numbered, a second migrate writes nothing")
 
