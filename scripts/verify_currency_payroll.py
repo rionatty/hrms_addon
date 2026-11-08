@@ -75,6 +75,19 @@ check(R.latest_rate(ROWS, "USD", "UGX", D(2026, 12, 5)) and abs(R.latest_rate(RO
       "for a figure that only needs a near rate, the latest up to the end of the month; none before the first")
 check(R.rate_message("USD", "UGX", D(2026, 12, 25)) == "Set the USD to UGX rate for December 2026 in Currency Exchange.",
       "a payroll without its month's rate says which rate to set, and where")
+check(R.payroll_rate(4061.72, None) == (4061.72, R.RECORD) and R.payroll_rate(3650, 3720) == (3720, R.MONTHS)
+      and R.payroll_rate(3720, 3720) == (3720, None) and R.payroll_rate(0, 3720) == (3720, R.MONTHS)
+      and R.payroll_rate(0, None) == (None, R.REFUSE) and R.payroll_rate(None, None) == (None, R.REFUSE),
+      "a payroll runs at its month's rate, told so when it showed another; a month with none takes the payroll's "
+      "own, saved as the month's; with a rate on neither it is refused")
+check(R.recorded_message("USD", "UGX", 4061.72, D(2026, 9, 25))
+      == "1 USD = 4,061.72 UGX saved for September 2026 in Currency Exchange."
+      and R.month_message("USD", "UGX", 3700, D(2026, 9, 25))
+      == "Run at the rate set for September 2026 in Currency Exchange: 1 USD = 3,700 UGX. Change it there if it is wrong."
+      and R.payroll_rate_message("USD", "UGX", D(2027, 1, 25)) == "Enter the exchange rate for January 2027: 1 USD in UGX.",
+      "and says which, in plain figures")
+check(R.show_rate(4061.72) == "4,061.72" and R.show_rate(3700) == "3,700" and R.show_rate(1 / 3700.0) == "0.00027",
+      "a rate shown as it is read")
 check(R.month_bounds(D(2028, 2, 10)) == (D(2028, 2, 1), D(2028, 2, 29)) and R.month_bounds("2026-10-25") == (D(2026, 10, 1), D(2026, 10, 31)),
       "a month runs from its first day to its last, February in a leap year included")
 check(R.foreign("USD", "UGX") and not R.foreign("UGX", "UGX") and not R.foreign(None, "UGX") and not R.foreign("USD", None),
@@ -90,9 +103,20 @@ glue = read("hrms_addon", "hrms_addon", "currency_payroll.py")
 entry = function_of(glue, "payroll_entry_before_validate")
 slip = function_of(glue, "salary_slip_before_validate")
 strict = function_of(glue, "_strict_rate")
-check('if not rules.foreign(doc.get("currency"), company_currency(doc.get("company"))):\n        return' in entry
-      and 'doc.exchange_rate = _strict_rate(doc, doc.get("end_date") or doc.get("posting_date"))' in entry,
+check('if not rules.foreign(doc.get("currency"), home):\n        return' in entry
+      and 'day = getdate(doc.get("end_date") or doc.get("posting_date"))' in entry
+      and 'rate, step = rules.payroll_rate(doc.get("exchange_rate"), month_rate(doc.get("currency"), home, day))' in entry
+      and entry.rstrip().endswith("doc.exchange_rate = rate"),
       "a USD Payroll Entry is run at the rate of the month its period ends in; a shilling one is left as it is")
+check("if step == rules.REFUSE:\n        frappe.throw(_(rules.payroll_rate_message(" in entry
+      and "if step == rules.RECORD:\n        _save_rate(" in entry and "rules.recorded_message(" in entry
+      and "elif step == rules.MONTHS:\n        frappe.msgprint(_(rules.month_message(" in entry,
+      "a month with no rate takes the payroll's own, saved in Currency Exchange and said; with none on the payroll "
+      "either it is refused")
+save = function_of(glue, "_save_rate")
+check('"doctype": EXCHANGE, "date": str(day), "from_currency": from_currency,' in save
+      and '"exchange_rate": rate, "for_buying": 1,' in save and '"for_selling": 1}).insert(ignore_permissions=True)' in save,
+      "saved as a Currency Exchange of its own, dated the day the period ends, for whoever runs the payroll")
 check('rate = month_rate(doc.get("currency"), home, day)' in strict and "if not rate:\n        frappe.throw(" in strict
       and "rules.rate_message(" in strict,
       "and without that month's rate it is refused, saying which rate to set")
@@ -108,7 +132,8 @@ check('flt(rate_for(doc.get("currency"), home, doc.get("from_date"))) or 1' in a
       "a USD assignment works its own formulas out at the latest rate there is, 1 before there is any")
 check("rules.latest_rate(" in function_of(glue, "rate_for") and "rules.month_rate(" in function_of(glue, "month_rate"),
       "a near rate for the app's own figures, the month's own for a payroll")
-print("glue: a USD payroll and its slips at the month's rate or refused, a shilling payroll left alone")
+print("glue: a USD payroll at its month's rate, or its own saved as the month's; its slips at the month's or "
+      "refused; a shilling payroll left alone")
 
 # ── 3. The gross the other modules read ─────────────────────────────────
 pay = read("hrms_addon", "hrms_addon", "pay.py")

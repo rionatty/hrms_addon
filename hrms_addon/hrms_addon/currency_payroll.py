@@ -9,7 +9,8 @@ two components it adds are site data (the USD Net Pay import files in
 Luuka's payroll folder); this sets the rate they are worked out at.
 
   payroll_entry_before_validate   a Payroll Entry in USD takes the month's
-                                  rate from Currency Exchange, or is refused
+                                  rate from Currency Exchange; a month with
+                                  none takes the payroll's own, saved there
   salary_slip_before_validate     so does each of its salary slips, and the
                                   slip's formulas are given it
   assignment_validate             a USD assignment's own formulas (its
@@ -80,10 +81,35 @@ def _strict_rate(doc, day):
 
 def payroll_entry_before_validate(doc, method=None):
     """A Payroll Entry in USD is run at the rate set for the month its
-    period ends in. Its accounting entry posts at it."""
-    if not rules.foreign(doc.get("currency"), company_currency(doc.get("company"))):
+    period ends in, and its accounting entry posts at it. A month with none
+    takes the rate on the payroll, saved in Currency Exchange as the
+    month's, so its slips and the month's other payrolls are worked out at
+    it too (rules.payroll_rate)."""
+    home = company_currency(doc.get("company"))
+    if not rules.foreign(doc.get("currency"), home):
         return
-    doc.exchange_rate = _strict_rate(doc, doc.get("end_date") or doc.get("posting_date"))
+    day = getdate(doc.get("end_date") or doc.get("posting_date"))
+    rate, step = rules.payroll_rate(doc.get("exchange_rate"), month_rate(doc.get("currency"), home, day))
+    if step == rules.REFUSE:
+        frappe.throw(_(rules.payroll_rate_message(doc.get("currency"), home, day)), title=_("Exchange Rate"))
+    if step == rules.RECORD:
+        _save_rate(doc.get("currency"), home, rate, day)
+        frappe.msgprint(_(rules.recorded_message(doc.get("currency"), home, rate, day)), title=_("Exchange Rate"),
+                        indicator="green")
+    elif step == rules.MONTHS:
+        frappe.msgprint(_(rules.month_message(doc.get("currency"), home, rate, day)), title=_("Exchange Rate"),
+                        indicator="orange")
+    doc.exchange_rate = rate
+
+
+def _save_rate(from_currency, to_currency, rate, day):
+    """A payroll's rate entered in Currency Exchange as its month's, dated
+    the day its period ends, for buying and selling as a new one starts.
+    Saved for whoever runs the payroll, who may not keep Currency Exchange
+    themselves."""
+    frappe.get_doc({"doctype": EXCHANGE, "date": str(day), "from_currency": from_currency,
+                    "to_currency": to_currency, "exchange_rate": rate, "for_buying": 1,
+                    "for_selling": 1}).insert(ignore_permissions=True)
 
 
 def salary_slip_before_validate(doc, method=None):

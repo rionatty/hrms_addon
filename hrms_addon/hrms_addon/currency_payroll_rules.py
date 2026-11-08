@@ -16,15 +16,20 @@ for that month".
 THE RATE
 
 The rate is the one entered in Currency Exchange in the month the payroll
-period ends, the latest of them where there are several. A month with none
-stops the payroll: the rate is never guessed. A rate entered the other way
-round (UGX to USD) is taken as its inverse.
+period ends, the latest of them where there are several. A rate entered the
+other way round (UGX to USD) is taken as its inverse. A month with none
+takes the rate set on its payroll, saved in Currency Exchange as the
+month's (Luuka, 8 Nov 2026), so every payroll and slip of the month is
+worked out at one rate. A payroll with no rate either is refused, and a
+slip never sets one: the rate is never guessed.
 
   month_rate     the rate set in a day's month, or None
   latest_rate    the latest rate up to the end of a day's month, or None:
                  for what only needs a near figure (the gross the app's
                  other modules compare), never for a payroll
-  rate_message   what the payroll says when the month has no rate
+  payroll_rate   the rate a payroll is run at, and whether it is saved as
+                 its month's
+  rate_message   what a slip says when its month has no rate
   foreign        whether a currency is not the company's own
 """
 
@@ -102,6 +107,52 @@ def rate_message(from_currency, to_currency, day):
     """What a payroll says when its month has no rate."""
     return "Set the %s to %s rate for %s in Currency Exchange." % (
         from_currency, to_currency, _day(day).strftime("%B %Y"))
+
+
+# what a payroll does with the rate it shows (payroll_rate)
+RECORD, MONTHS, REFUSE = "record", "month", "refuse"
+
+
+def payroll_rate(shown, month):
+    """The rate a payroll in another currency is run at, and what that
+    takes: (rate, step).
+
+    shown: the rate on the payroll; month: its month's in Currency
+    Exchange, or None. A month with a rate runs every payroll of the month
+    at it, the step MONTHS when the payroll showed another (Frappe HR fills
+    the field with today's rate when the currency is picked): a month's
+    rate is changed in Currency Exchange. A month with none takes the
+    payroll's own, the step RECORD, which saves it as the month's. With a
+    rate on neither, the step REFUSE."""
+    shown, month = _num(shown), _num(month)
+    if month > 0:
+        return month, (None if round(shown, 9) == round(month, 9) else MONTHS)
+    if shown > 0:
+        return shown, RECORD
+    return None, REFUSE
+
+
+def show_rate(rate):
+    """A rate as it is read: 4,061.72, 3,700, 0.00027."""
+    return "{:,.6f}".format(_num(rate)).rstrip("0").rstrip(".")
+
+
+def recorded_message(from_currency, to_currency, rate, day):
+    """What a payroll says when its rate is saved as its month's."""
+    return "1 %s = %s %s saved for %s in Currency Exchange." % (
+        from_currency, show_rate(rate), to_currency, _day(day).strftime("%B %Y"))
+
+
+def month_message(from_currency, to_currency, rate, day):
+    """What a payroll says when it is run at its month's rate rather than
+    the one it showed."""
+    return "Run at the rate set for %s in Currency Exchange: 1 %s = %s %s. Change it there if it is wrong." % (
+        _day(day).strftime("%B %Y"), from_currency, show_rate(rate), to_currency)
+
+
+def payroll_rate_message(from_currency, to_currency, day):
+    """What a payroll says when neither it nor its month has a rate."""
+    return "Enter the exchange rate for %s: 1 %s in %s." % (_day(day).strftime("%B %Y"), from_currency, to_currency)
 
 
 def in_company_currency(amount, rate):
