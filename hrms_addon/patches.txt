@@ -91,3 +91,4 @@ hrms_addon.patches.v1_0.hospitals_from_incidents
 hrms_addon.patches.v1_0.safety_incident_states
 hrms_addon.patches.v1_0.medical_reports_from_incidents
 hrms_addon.patches.v1_0.secondary_employment_paye
+hrms_addon.patches.v1_0.usd_gross_up

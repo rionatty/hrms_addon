@@ -1272,6 +1272,9 @@ fixtures = [
                     # read by its formulas (currency_payroll.py)
                     "Salary Structure Assignment-custom_house_rent_allowance",
                     "Salary Structure Assignment-custom_transport_allowance",
+                    # the allowance a USD employee is paid in shillings outside the payroll, taxed with the USD pay
+                    # (currency_payroll_rules.gross_up_amounts)
+                    "Salary Structure Assignment-custom_ugx_allowance",
                     # how a component reads on the Pay Slip (payslip.py)
                     "Salary Component-custom_slip_name",
                     "Salary Component-custom_slip_order",

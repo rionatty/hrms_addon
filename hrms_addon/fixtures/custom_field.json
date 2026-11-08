@@ -12602,6 +12602,21 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Salary Structure Assignment-custom_ugx_allowance",
+  "dt": "Salary Structure Assignment",
+  "fieldname": "custom_ugx_allowance",
+  "fieldtype": "Currency",
+  "insert_after": "custom_transport_allowance",
+  "label": "UGX Allowance",
+  "options": "Company:company:default_currency",
+  "depends_on": "eval:doc.currency && doc.currency != \"UGX\"",
+  "allow_on_submit": 1,
+  "non_negative": 1,
+  "description": "Paid in shillings outside the USD payroll. The company pays its tax with the tax on the USD pay.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Employee",
   "fieldname": "custom_employee_status",
   "fieldtype": "Link",

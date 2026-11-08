@@ -31,6 +31,22 @@ slip never sets one: the rate is never guessed.
                  its month's
   rate_message   what a slip says when its month has no rate
   foreign        whether a currency is not the company's own
+
+THE TAX THE COMPANY PAYS
+
+Luuka, 8 Nov 2026, with their own expatriate payroll for September 2026
+beside ours: the tax an employer pays for an employee is the employee's
+income too (Income Tax Act s.19(1)(c), s.58), so it is taxed as well, and
+an allowance is employment income (s.19(1)(a)). The pay is grossed up until
+what PAYE and NSSF 5% leave of it is the net agreed: the USD pay at the
+month's rate, and the allowance paid in shillings outside the payroll (the
+assignment's UGX Allowance). LST is on top, NSSF 5% and 10% on the gross
+and LST. The slip's lines are those amounts in USD to the cent, and Tax
+Paid by Company is their sum, so the employee is left the USD pay. Luuka's
+September figures come out of these formulas to the shilling.
+
+  usd_gross_up_formulas   the USD structure's tax lines, by abbreviation
+                          (patches/v1_0/usd_gross_up.py writes them on)
 """
 
 import calendar
@@ -153,6 +169,89 @@ def month_message(from_currency, to_currency, rate, day):
 def payroll_rate_message(from_currency, to_currency, day):
     """What a payroll says when neither it nor its month has a rate."""
     return "Enter the exchange rate for %s: 1 %s in %s." % (_day(day).strftime("%B %Y"), from_currency, to_currency)
+
+
+# The USD structure's lines, by the abbreviations its import gave them (usd_net_pay.py)
+PAY_ABBR, COVER_ABBR = "USDP", "TPBC"        # the USD pay (statistical), the tax the company pays
+LST_ABBR, PAYE_ABBR, NSSF_ABBR, NSSF_EMPLOYER_ABBR = "LST", "payee", "NSSFE", "NSSFEC"
+ALLOWANCE = "custom_ugx_allowance"           # the assignment's allowance paid in shillings outside the payroll
+# PAYE on a month's chargeable income, the Income Tax (Amendment) Act 2026 bands, each as (up to, rate, less):
+# rate x income - less. Up to 335,000 nil; 20% to 410,000; 15,000 + 25% to 485,000; 33,750 + 30% to
+# 10,000,000; above it a further 10%.
+PAYE_BANDS = ((335000, 0, 0), (410000, 0.2, 67000), (485000, 0.25, 87500), (10000000, 0.3, 111750),
+              (None, 0.4, 1111750))
+# Local Service Tax a month, July to October, by the month's pay (as the shilling structures have it)
+LST_BANDS = ((100000, 0), (200000, 1250), (300000, 2500), (400000, 5000), (500000, 7500), (600000, 10000),
+             (700000, 15000), (800000, 17500), (900000, 20000), (1000000, 22500))
+LST_MOST, LST_MONTHS = 25000, (7, 8, 9, 10)
+NSSF_EMPLOYEE, NSSF_EMPLOYER = 0.05, 0.1
+# no NSSF from Payroll Settings' NSSF Age Limit on, unless NSSF Voluntary is ticked (nssf_age_rules: the
+# formula is given nssf_age_limit and employee_age, and every employee field)
+NSSF_EXEMPT = "nssf_age_limit and employee_age >= nssf_age_limit and not custom_nssf_voluntary"
+
+
+def _figure(value):
+    return "%g" % value
+
+
+def gross_up_formula(net, nssf):
+    """The gross whose PAYE and NSSF (nssf: a rate) leave net, as a formula. Band by band, PAYE is rate x gross
+    - less, so net = (1 - rate - nssf) x gross + less, and gross = (net - less) / (1 - rate - nssf) while net is
+    within what the band's top leaves."""
+    parts = []
+    for upto, rate, less in PAYE_BANDS:
+        keep = "(%s - %s)" % (_figure(1 - rate), nssf)
+        value = "(%s - %d) / %s" % (net, less, keep) if less else "%s / %s" % (net, keep)
+        parts.append(value if upto is None else "%s if %s <= %s * %d + %d" % (value, net, keep, upto, less))
+    return "(" + " else ".join(parts) + ")"
+
+
+def paye_formula(chargeable):
+    """PAYE on a month's chargeable income on the 2026 bands, as a formula: what the checks hold the grossed-up
+    PAYE to."""
+    parts = []
+    for upto, rate, less in PAYE_BANDS:
+        value = "%s * %s - %d" % (_figure(rate), chargeable, less) if rate else "0"
+        parts.append(value if upto is None else "%s if %s <= %d" % (value, chargeable, upto))
+    return "(" + " else ".join(parts) + ")"
+
+
+def lst_formula(pay):
+    """Local Service Tax a month on a pay, July to October, as a formula."""
+    bands = " else ".join("%d if %s <= %d" % (amount, pay, upto) for upto, amount in LST_BANDS)
+    return "((%s else %d) if getdate(end_date).month in %s else 0)" % (bands, LST_MOST, str(LST_MONTHS))
+
+
+def gross_up_amounts(rate="custom_exchange_rate"):
+    """The grossed-up amounts in shillings at the month's rate, as formulas: the net is the USD pay and the UGX
+    Allowance; the gross what PAYE and NSSF 5% leave that net of; PAYE the gross less the net and that NSSF (the
+    2026 bands on the gross, by the gross-up's own sum); LST on the net, on top; NSSF 5% and 10% on the gross and
+    LST, each to the shilling."""
+    net = "(%s * %s + (%s or 0))" % (PAY_ABBR, rate, ALLOWANCE)
+    nssf = "(0 if %s else %s)" % (NSSF_EXEMPT, _figure(NSSF_EMPLOYEE))
+    nssf_employer = "(0 if %s else %s)" % (NSSF_EXEMPT, _figure(NSSF_EMPLOYER))
+    gross = gross_up_formula(net, nssf)
+    lst = lst_formula(net)
+    return {"net": net, "gross": gross, "lst": lst,
+            "paye": "floor(%s * (1 - %s) - %s + 0.500001)" % (gross, nssf, net),
+            "employee": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf),
+            "employer": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf_employer)}
+
+
+def usd_gross_up_formulas(rate="custom_exchange_rate"):
+    """{abbreviation: (table, formula)}: a USD structure's tax lines, grossed up (gross_up_amounts). Each line is
+    its amount in USD to the cent, and Tax Paid by Company the sum of LST, PAYE and NSSF 5%, so the employee is
+    left the USD pay."""
+    amounts = gross_up_amounts(rate)
+
+    def usd(amount):
+        return "round(%s / %s, 2)" % (amount, rate)
+
+    lines = {LST_ABBR: ("deductions", usd(amounts["lst"])), PAYE_ABBR: ("deductions", usd(amounts["paye"])),
+             NSSF_ABBR: ("deductions", usd(amounts["employee"])),
+             NSSF_EMPLOYER_ABBR: ("employer_contributions", usd(amounts["employer"]))}
+    lines[COVER_ABBR] = ("earnings", " + ".join(lines[abbr][1] for abbr in (LST_ABBR, PAYE_ABBR, NSSF_ABBR)))
+    return lines
 
 
 def in_company_currency(amount, rate):
