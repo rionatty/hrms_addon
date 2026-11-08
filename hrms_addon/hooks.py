@@ -1292,6 +1292,9 @@ fixtures = [
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
                     "Payroll Settings-custom_nssf_age_limit",
                     "Employee-custom_nssf_voluntary",
+                    # the flat PAYE of a second job, and who has one (secondary_employment.py)
+                    "Payroll Settings-custom_secondary_employment_rate",
+                    "Employee-custom_secondary_employment",
                     # the most overtime paid on a working day (overtime.working_day_most)
                     "Payroll Settings-custom_working_day_overtime",
                     # whether payroll waits for each branch's verified attendance
@@ -1717,7 +1720,8 @@ override_doctype_class = {
 # counted the days, the slip is paid on 26, and an hour of overtime on the
 # Overtime Slip is the month's pay over 26 days.
 # The salary formulas read the age NSSF stops at, and the employee's age, on
-# the slip and on the assignment alike (nssf_age.py).
+# the slip and on the assignment alike (nssf_age.py), and the flat PAYE rate
+# of a second job (secondary_employment.py).
 # Auto attendance leaves the days a deletion said to keep deleted
 # (attendance_deletions.py).
 # A machine's punch is not asked for coordinates, a phone's still is (devices.py).
@@ -1732,6 +1736,7 @@ extend_doctype_class = {
                "hrms_addon.hrms_addon.report_extensions.SalaryRegisterColumns"],
     "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays",
                     "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge",
+                    "hrms_addon.hrms_addon.secondary_employment.SalarySlipSecondaryEmployment",
                     "hrms_addon.hrms_addon.weekly_pay.SalarySlipWeekly"],
     "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly",
                       "hrms_addon.hrms_addon.employer_costs.PayrollEntryEmployerCosts",
@@ -1739,6 +1744,7 @@ extend_doctype_class = {
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
     "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],
     "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge",
+                                    "hrms_addon.hrms_addon.secondary_employment.SalaryStructureAssignmentSecondaryEmployment",
                                     "hrms_addon.hrms_addon.weekly_pay.SalaryStructureAssignmentWeekly"],
     "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted",
                    "hrms_addon.hrms_addon.attendance_verification.ShiftTypeVerified"],

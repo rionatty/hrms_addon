@@ -1948,6 +1948,17 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Employee-custom_secondary_employment",
+  "dt": "Employee",
+  "fieldname": "custom_secondary_employment",
+  "fieldtype": "Check",
+  "insert_after": "custom_nssf_voluntary",
+  "label": "Secondary Employment",
+  "description": "Their main employer is another. PAYE is the flat rate set in Payroll Settings.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Employee-custom_place_of_birth",
   "dt": "Employee",
   "fieldname": "custom_place_of_birth",
@@ -12259,6 +12270,19 @@
   "label": "Each Branch Verifies Its Attendance Before Payroll",
   "default": "1",
   "description": "Payroll makes and submits no salary slip until the branch's General Manager has verified the days it pays (Attendance Verification).",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Payroll Settings-custom_secondary_employment_rate",
+  "dt": "Payroll Settings",
+  "fieldname": "custom_secondary_employment_rate",
+  "fieldtype": "Percent",
+  "insert_after": "custom_branches_verify_attendance",
+  "label": "Secondary Employment PAYE Rate",
+  "default": "40",
+  "non_negative": 1,
+  "description": "PAYE of an employee with Secondary Employment ticked: this percent of taxable pay less Local Service Tax, with no bands.",
   "module": "HRMS Addon"
  },
  {

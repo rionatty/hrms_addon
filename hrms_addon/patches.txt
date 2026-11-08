@@ -90,3 +90,4 @@ hrms_addon.patches.v1_0.slip_days_on_the_pay_month
 hrms_addon.patches.v1_0.hospitals_from_incidents
 hrms_addon.patches.v1_0.safety_incident_states
 hrms_addon.patches.v1_0.medical_reports_from_incidents
+hrms_addon.patches.v1_0.secondary_employment_paye

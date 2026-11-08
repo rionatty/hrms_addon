@@ -675,6 +675,9 @@ if by_dt.get(EM):
     ELSEWHERE = {"custom_place_of_birth": ("Overview", "date_of_birth"),
                  # under the NSSF No.: pays NSSF on past the NSSF Age Limit (nssf_age.py)
                  "custom_nssf_voluntary": ("Personal Details", "custom_nssf_no"),
+                 # under NSSF Voluntary: their main employer is another, so PAYE is a flat
+                 # rate (secondary_employment.py)
+                 "custom_secondary_employment": ("Personal Details", "custom_nssf_voluntary"),
                  # the Status as Luuka names it, just before Frappe's own, the
                  # System Status (employee_status.py)
                  "custom_employee_status": ("Overview", "image"),
