@@ -27,6 +27,7 @@ frappe.ui.form.on("Attendance Verification", {
 		if (frm.doc.docstatus === 0 && !frappe.workflow.is_read_only(frm.doctype, frm.docname)) {
 			frm.add_custom_button(__("Get Attendance"), () => frm.save());
 		}
+		ha_verify_mark_button(frm);
 	},
 	company(frm) {
 		ha_verify_months_load(frm);
@@ -156,6 +157,133 @@ function ha_verify_weekly(frm) {
 		if (!dates || frm.doc.company + "|" + frm.doc.branch !== asked || frm.doc.pay_kind !== "Weekly") return;
 		frm.set_value({ from_date: dates.from_date, to_date: dates.to_date });
 	});
+}
+
+// Mark Attendance (Luuka, 8 Nov 2026): the days on the sheet nobody marked, of the sheet's own people and on its own
+// days only, marked as picked (attendance_verification.days_to_mark, mark_days). Days already marked stay as they are.
+const HA_VERIFY_MARK = "hrms_addon.hrms_addon.attendance_verification.";
+const HA_VERIFY_LEAVE = ["On Leave", "Half Day"];
+
+function ha_verify_mark_button(frm) {
+	const doc = frm.doc;
+	const with_hr = doc.docstatus === 0 && (doc.workflow_state || "Draft") === "Draft";
+	if (frm.is_new() || !with_hr || !cint(doc.total_not_marked)) return;
+	if (frappe.workflow.is_read_only(frm.doctype, frm.docname)) return;
+	frm.add_custom_button(__("Mark Attendance"), () => ha_verify_mark(frm));
+}
+
+function ha_verify_mark(frm) {
+	// the days are read from the sheet as it is saved
+	if (frm.is_dirty()) {
+		frm.save().then(() => ha_verify_mark(frm));
+		return;
+	}
+	frappe
+		.call({ method: HA_VERIFY_MARK + "days_to_mark", args: { name: frm.doc.name }, freeze: true })
+		.then((r) => {
+			const found = r && r.message;
+			if (!found || !(found.people || []).length) {
+				frappe.msgprint(__("Every day on the sheet is marked. Press Get Attendance to read it again."));
+				return;
+			}
+			ha_verify_mark_dialog(frm, found);
+		});
+}
+
+function ha_verify_mark_dialog(frm, found) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Mark Attendance"),
+		size: "large",
+		fields: [
+			{
+				fieldtype: "HTML",
+				fieldname: "about",
+				options: `<p class="text-muted">${__("Only days nobody marked are marked. Marked days stay as they are.")}</p>`,
+			},
+			{
+				fieldtype: "Select",
+				fieldname: "status",
+				label: __("Status"),
+				options: (found.statuses || ["Present"]).join("\n"),
+				default: "Present",
+				reqd: 1,
+			},
+			{
+				fieldtype: "Link",
+				fieldname: "leave_type",
+				label: __("Leave Type"),
+				options: "Leave Type",
+				depends_on: `eval:${JSON.stringify(HA_VERIFY_LEAVE)}.includes(doc.status)`,
+				mandatory_depends_on: "eval:doc.status === 'On Leave'",
+			},
+			{
+				fieldtype: "MultiCheck",
+				fieldname: "employees",
+				label: __("People"),
+				select_all: 1,
+				columns: 2,
+				sort_options: false,
+				// Frappe's MultiCheck writes a label in as HTML: a name is escaped
+				options: found.people.map((person) => ({
+					label: `${frappe.utils.escape_html(person.employee_name)} (${person.days.length})`,
+					value: person.employee,
+					checked: 1,
+				})),
+			},
+			{
+				fieldtype: "MultiCheck",
+				fieldname: "days",
+				label: __("Days"),
+				select_all: 1,
+				columns: 4,
+				sort_options: false,
+				options: found.days.map((day) => ({
+					label: `${moment(day).format("ddd")} ${frappe.datetime.str_to_user(day)}`,
+					value: day,
+					checked: 1,
+				})),
+			},
+		],
+		primary_action_label: __("Mark"),
+		primary_action(values) {
+			const employees = values.employees || [];
+			const days = values.days || [];
+			if (!employees.length || !days.length) {
+				frappe.msgprint(__("Pick the people and the days to mark."));
+				return;
+			}
+			const args = { name: frm.doc.name, status: values.status, employees: employees, days: days };
+			// an empty value is left out: Frappe refuses an empty string for a typed argument
+			if (values.leave_type && HA_VERIFY_LEAVE.includes(values.status)) args.leave_type = values.leave_type;
+			dialog.hide();
+			frappe
+				.call({
+					method: HA_VERIFY_MARK + "mark_days",
+					args: args,
+					freeze: true,
+					freeze_message: __("Marking the days"),
+				})
+				.then((r) => ha_verify_marked(frm, (r && r.message) || {}));
+		},
+	});
+	dialog.show();
+}
+
+function ha_verify_marked(frm, done) {
+	if (done.queued) {
+		frappe.show_alert({
+			message: __("Marking {0} days. You will be told when it is done.", [done.queued]),
+			indicator: "blue",
+		});
+		return;
+	}
+	const lines = (done.summary || []).map((line) => frappe.utils.escape_html(line));
+	if ((done.problems || []).length) {
+		frappe.msgprint({ title: __("Mark Attendance"), message: lines.join("<br>"), indicator: "orange" });
+	} else {
+		frappe.show_alert({ message: lines[0] || __("Marked."), indicator: "green" });
+	}
+	frm.reload_doc();
 }
 
 function ha_verify_intro(frm) {

@@ -414,6 +414,84 @@ check('"hrms_addon.hrms_addon.attendance_verification.payroll_branches"' in payr
       "the payroll form shows each branch")
 print("the glue, the hooks and the forms are wired")
 
+# ── 9b. Mark Attendance: the days nobody marked, from the sheet ──────
+# Luuka, 8 Nov 2026: "add button to mark attendance and it only filter by those number of employee and those dates"
+SEP = datetime.date(2026, 9, 26)
+issues = [
+    {"employee": "E1", "employee_name": "Amina", "from_date": SEP, "to_date": SEP + datetime.timedelta(days=1),
+     "issue": R.NOT_MARKED},
+    {"employee": "E1", "employee_name": "Amina", "from_date": SEP + datetime.timedelta(days=3),
+     "to_date": SEP + datetime.timedelta(days=3), "issue": R.CLOCKED},
+    {"employee": "E2", "employee_name": "Brian", "from_date": SEP, "to_date": SEP, "issue": R.NOT_MARKED},
+    {"employee": "E2", "employee_name": "Brian", "from_date": SEP, "to_date": SEP + datetime.timedelta(days=4),
+     "issue": R.LEAVE_WAITING, "reference_name": "HR-LAP-1"},
+]
+to_mark = R.days_to_mark(issues)
+check(sorted(to_mark) == ["E1", "E2"] and to_mark["E1"]["days"] == [SEP, SEP + datetime.timedelta(days=1),
+                                                                    SEP + datetime.timedelta(days=3)]
+      and to_mark["E1"]["clocked"] == [SEP + datetime.timedelta(days=3)] and to_mark["E2"]["days"] == [SEP],
+      "the days to mark: each person's days nobody marked, those the clock saw among them; a request waiting is not "
+      "a day to mark", to_mark)
+check(R.chosen_days(to_mark, ["E1", "E2"], [SEP]) == [("E1", SEP), ("E2", SEP)],
+      "the people and the days picked, where the sheet has nothing marked", R.chosen_days(to_mark, ["E1", "E2"], [SEP]))
+check(R.chosen_days(to_mark, ["E1", "E9"], [SEP, SEP + datetime.timedelta(days=2), "2026-09-29"])
+      == [("E1", SEP), ("E1", SEP + datetime.timedelta(days=3))],
+      "nobody off the sheet and no day it does not list, whatever is sent, a day as text or a date")
+check(R.chosen_days(to_mark, [], [SEP]) == [] and R.chosen_days(to_mark, ["E1"], []) == [], "nothing picked, nothing marked")
+check(R.mark_errors("Present", None) == [] and R.mark_errors("Absent", "Casual Leave") == []
+      and R.mark_errors("Half Day", None) == [], "Present, Absent, a Half Day with or without its leave")
+check(R.mark_errors("On Leave", None) == ["Pick the leave type."] and R.mark_errors("On Leave", "Casual Leave") == [],
+      "leave needs its leave type")
+check(R.mark_errors("On Leave", "Nope", False) == ["There is no leave type Nope."], "and one the site has")
+check(R.mark_errors("Holiday", None) and R.MARK_STATUSES == ("Present", "Absent", "Half Day", "On Leave",
+                                                            "Work From Home"),
+      "only what Attendance takes", R.MARK_STATUSES)
+check(R.mark_summary(1, []) == ["1 day marked."] and R.mark_summary(44, []) == ["44 days marked."],
+      "what marking did, in a line")
+said = R.mark_summary(3, [R.mark_problem("Amina", SEP, "Attendance for Amina is already marked")] * 22)
+check(said[:3] == ["3 days marked.", "22 not marked:", "Amina, 26 Sep 2026: Attendance for Amina is already marked"]
+      and said[-1] == "and 2 more." and len(said) == 2 + R.MARK_PROBLEMS_SHOWN + 1,
+      "and the days not marked, why, the first twenty", said[-3:])
+mark = glue[glue.index("\ndef _with_hr("):glue.index("\n# ── 3. A verified day does not change")]
+for needle, why in (
+    ('doc.check_permission("write")', "marking needs the sheet writable"),
+    ("if doc.docstatus != 0 or (doc.get(approval.STATE_FIELD) or approval.DRAFT) != approval.DRAFT:",
+     "and with HR: not while the General Manager has it, nor once verified"),
+    ('frappe.has_permission(ATTENDANCE, "create") and frappe.has_permission(ATTENDANCE, "submit")',
+     "by somebody who may mark attendance"),
+    ('found = sorted(rules.days_to_mark(_read(doc)["issues"]).values(),', "the days offered are the sheet's own, read now"),
+    ('picked = rules.chosen_days(rules.days_to_mark(_read(doc)["issues"]), frappe.parse_json(employees) or [],',
+     "the days marked are read again too, and only those picked are marked"),
+    ("if len(picked) <= MARK_AT_ONCE:\n        return _mark(doc.name, status, leave_type, picked)",
+     "a few at once"),
+    ('job_id="hrms_addon_verification_mark::%s" % doc.name,\n                         deduplicate=True,',
+     "more in the background, one job per sheet"),
+    ("why = _(\"No such employee.\") if not person else attendance_upload._mark_day(",
+     "each day marked as Upload Attendance marks one, a failure taking nothing else with it"),
+    ("if read_again:\n        try:\n            doc.save()", "the sheet reads its figures again once they are marked"),
+):
+    check(needle in mark, "mark: %s" % why)
+check(re.search(r"@frappe\.whitelist\(\)\ndef days_to_mark\(name\):", glue)
+      and re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef mark_days\(name, status, employees=None, days=None, '
+                    r'leave_type=None\):', glue), "the form calls days_to_mark, and mark_days by POST")
+check('MARK_JOB = "hrms_addon.hrms_addon.attendance_verification.mark_job"' in glue and "\ndef mark_job(" in glue,
+      "the background job is the glue's own")
+button = js[js.index("function ha_verify_mark_button(frm) {"):js.index("function ha_verify_mark(frm) {")]
+check("\t\tha_verify_mark_button(frm);" in js.split("refresh(frm) {")[1].split("\n\t},")[0],
+      "the sheet's refresh draws Mark Attendance")
+check('const with_hr = doc.docstatus === 0 && (doc.workflow_state || "Draft") === "Draft";' in button
+      and "if (frm.is_new() || !with_hr || !cint(doc.total_not_marked)) return;" in button
+      and "if (frappe.workflow.is_read_only(frm.doctype, frm.docname)) return;" in button,
+      "the button shows on a saved sheet with HR that has days nobody marked")
+check('HA_VERIFY_MARK + "days_to_mark"' in js and 'HA_VERIFY_MARK + "mark_days"' in js
+      and 'const HA_VERIFY_MARK = "hrms_addon.hrms_addon.attendance_verification.";' in js,
+      "the dialog asks the glue for the days, and marks them through it")
+check("if (values.leave_type && HA_VERIFY_LEAVE.includes(values.status)) args.leave_type = values.leave_type;" in js,
+      "an empty leave type is left out, as Frappe refuses an empty string")
+check("label: `${frappe.utils.escape_html(person.employee_name)} (${person.days.length})`," in js,
+      "a name in the dialog's list is escaped: Frappe's MultiCheck writes a label in as HTML")
+print("Mark Attendance: the sheet's own people and days nobody marked, nothing else")
+
 # ── 10. What else writes attendance ───────────────────────────────────
 overtime = read("hrms_addon", "hrms_addon", "overtime.py")
 send = overtime[overtime.index("\ndef send("):overtime.index("\ndef take_back(")]

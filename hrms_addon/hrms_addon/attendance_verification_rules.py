@@ -339,6 +339,77 @@ def branch_lines(people, sheets, waiting, start, end, days_by_employee=None):
     return out
 
 
+# ── Marking the days nobody marked ────────────────────────────────────
+# Luuka, 8 Nov 2026: "add button to mark attendance and it only filter by those number of employee and those dates".
+# A sheet with HR marks the days on it nobody marked, of its own people, and nothing else.
+MARK_STATUSES = ("Present", "Absent", "Half Day", "On Leave", "Work From Home")
+MARK_NEEDS_LEAVE_TYPE = ("On Leave",)
+MARK_TAKES_LEAVE_TYPE = ("On Leave", "Half Day")
+# the lines of what to put right that marking puts right
+MARKABLE = (NOT_MARKED, CLOCKED)
+MARK_PROBLEMS_SHOWN = 20
+
+
+def days_to_mark(issues):
+    """{employee: {"employee", "employee_name", "days", "clocked"}} from the sheet's lines of what to put right: the
+    days nobody marked, and of those, the days the clock saw. Each list of days sorted."""
+    out = {}
+    for row in issues or ():
+        if row.get("issue") not in MARKABLE or not row.get("employee"):
+            continue
+        person = out.setdefault(row["employee"], {"employee": row["employee"], "days": [], "clocked": [],
+                                                  "employee_name": row.get("employee_name") or row["employee"]})
+        for day in days_between(row.get("from_date"), row.get("to_date") or row.get("from_date")):
+            if day not in person["days"]:
+                person["days"].append(day)
+            if row.get("issue") == CLOCKED and day not in person["clocked"]:
+                person["clocked"].append(day)
+    for person in out.values():
+        person["days"].sort()
+        person["clocked"].sort()
+    return out
+
+
+def mark_errors(status, leave_type, leave_type_found=True):
+    """What stops the days being marked: a status Attendance does not take, or leave with no leave type."""
+    if status not in MARK_STATUSES:
+        return ["Pick what to mark the days: %s." % ", ".join(MARK_STATUSES)]
+    if status in MARK_NEEDS_LEAVE_TYPE and not leave_type:
+        return ["Pick the leave type."]
+    if leave_type and status in MARK_TAKES_LEAVE_TYPE and not leave_type_found:
+        return ["There is no leave type %s." % leave_type]
+    return []
+
+
+def chosen_days(to_mark, employees, days):
+    """[(employee, day)] to mark: the people and days picked, where the sheet still has nothing marked. A person or
+    a day that is not on the sheet's list is never marked, whatever is sent."""
+    people = {str(employee) for employee in employees or () if employee}
+    picked = {_date(day) for day in days or ()} - {None}
+    out = []
+    for employee in sorted(to_mark or {}):
+        if employee not in people:
+            continue
+        out += [(employee, day) for day in to_mark[employee]["days"] if day in picked]
+    return out
+
+
+def mark_problem(who, day, reason):
+    return "%s, %s: %s" % (who, show(day), reason)
+
+
+def mark_summary(marked, problems, shown=MARK_PROBLEMS_SHOWN):
+    """What marking did, in a line or a few: how many days were marked, and those that were not, with why."""
+    lines = ["%d %s marked." % (marked, "day" if marked == 1 else "days")]
+    problems = list(problems or ())
+    if problems:
+        lines.append("%d not marked:" % len(problems))
+        lines += problems[:shown]
+        if len(problems) > shown:
+            lines.append("and %d more." % (len(problems) - shown))
+    return lines
+
+
 # ── A new sheet's days ────────────────────────────────────────────────
 def weekly_dates(last_sheet_to, last_paid_to, today):
     """A new weekly sheet's days: from the day after the branch's last weekly sheet (else after the last weekly

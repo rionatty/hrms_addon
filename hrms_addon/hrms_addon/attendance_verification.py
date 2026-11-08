@@ -12,6 +12,9 @@ attendance_verification_approval.py, both without a Frappe import
                       it, read again on every save while it is a draft; the
                       steps, their signatures, and who is told
   weekly_dates        the days a new weekly sheet covers
+  days_to_mark,       the Mark Attendance button of a sheet with HR: the days
+  mark_days           on it nobody marked, of its own people only, marked
+                      Present or as picked; many go to the background
   refuse_*            a verified day of somebody on the sheet does not
                       change: their Attendance, and what rewrites it without
                       saving it (an approved leave application, an attendance
@@ -360,6 +363,109 @@ def weekly_dates(company=None, branch=None):
     first, last = rules.weekly_dates(last_sheet[0].to_date if last_sheet else None,
                                      last_paid[0].end_date if last_paid else None, today())
     return {"from_date": str(first), "to_date": str(last)}
+
+
+# ── 2b. Marking the days nobody marked ────────────────────────────────
+# Luuka, 8 Nov 2026: "add button to mark attendance and it only filter by those number of employee and those dates".
+# The days are read again from the sheet as it stands, and only those picked that are still not marked are marked:
+# nobody off the sheet, no day off it, and no day already marked. A few are marked at once; more in the background,
+# and the sheet reads its figures again once they are.
+MARK_AT_ONCE = 150
+MARK_JOB = "hrms_addon.hrms_addon.attendance_verification.mark_job"
+
+
+def _with_hr(doc):
+    """Days are marked on a sheet with HR, by somebody who may mark attendance."""
+    doc.check_permission("write")
+    if doc.docstatus != 0 or (doc.get(approval.STATE_FIELD) or approval.DRAFT) != approval.DRAFT:
+        frappe.throw(_("Days are marked while the sheet is with HR."), title=_(DOCTYPE))
+    if not (frappe.has_permission(ATTENDANCE, "create") and frappe.has_permission(ATTENDANCE, "submit")):
+        frappe.throw(_("You may not mark attendance."), frappe.PermissionError, title=_(DOCTYPE))
+
+
+@frappe.whitelist()
+def days_to_mark(name):
+    """The sheet's people with days nobody marked, each with those days, and every such day."""
+    doc = frappe.get_doc(DOCTYPE, name)
+    _with_hr(doc)
+    found = sorted(rules.days_to_mark(_read(doc)["issues"]).values(),
+                   key=lambda person: (person["employee_name"] or "", person["employee"]))
+    return {
+        "people": [dict(person, days=[str(day) for day in person["days"]],
+                        clocked=[str(day) for day in person["clocked"]]) for person in found],
+        "days": [str(day) for day in sorted({day for person in found for day in person["days"]})],
+        "statuses": list(rules.MARK_STATUSES),
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def mark_days(name, status, employees=None, days=None, leave_type=None):
+    """Marks the picked days of the picked people that nobody marked: at once for a few, else in the background."""
+    doc = frappe.get_doc(DOCTYPE, name)
+    _with_hr(doc)
+    leave_type = leave_type if status in rules.MARK_TAKES_LEAVE_TYPE and leave_type else None
+    errors = rules.mark_errors(status, leave_type,
+                               bool(leave_type) and bool(frappe.db.exists("Leave Type", leave_type)))
+    if errors:
+        frappe.throw("<br>".join(_(error) for error in errors), title=_(DOCTYPE))
+    picked = rules.chosen_days(rules.days_to_mark(_read(doc)["issues"]), frappe.parse_json(employees) or [],
+                               frappe.parse_json(days) or [])
+    if not picked:
+        frappe.throw(_("None of the days picked is still not marked. Press Get Attendance to read the sheet again."),
+                     title=_(DOCTYPE))
+    if len(picked) <= MARK_AT_ONCE:
+        return _mark(doc.name, status, leave_type, picked)
+    job = frappe.enqueue(MARK_JOB, queue="long", timeout=7200, job_id="hrms_addon_verification_mark::%s" % doc.name,
+                         deduplicate=True, name=doc.name, status=status, leave_type=leave_type,
+                         picked=[[employee, str(day)] for employee, day in picked], user=frappe.session.user)
+    if job is None:
+        frappe.throw(_("Days of this sheet are being marked already. You will be told when that is done."),
+                     title=_(DOCTYPE))
+    return {"queued": len(picked)}
+
+
+def mark_job(name, status, leave_type, picked, user=None):
+    """The background job: the days marked, the sheet read again, and whoever asked told."""
+    done = _mark(name, status, leave_type, [(employee, getdate(day)) for employee, day in picked], commit=True)
+    title = frappe.db.get_value(DOCTYPE, name, "title") or name
+    people.notify([user] if user else [], DOCTYPE, name,
+                  "%s: %s" % (title, " ".join(_(line) for line in rules.mark_summary(done["marked"], done["problems"]))))
+    return done
+
+
+def _mark(name, status, leave_type, picked, commit=False):
+    """Each day marked and submitted as Upload Attendance marks one, or why not; then the sheet's figures read
+    again, while it is still with HR."""
+    from hrms_addon.hrms_addon import attendance_upload
+
+    found = {row.name: row for row in frappe.get_all(
+        "Employee", filters={"name": ["in", sorted({employee for employee, _day in picked})]},
+        fields=["name", "company", "employee_name"], limit_page_length=0)}
+    marked, problems = 0, []
+    for number, (employee, day) in enumerate(picked, 1):
+        person = found.get(employee)
+        why = _("No such employee.") if not person else attendance_upload._mark_day(
+            {"employee": employee, "attendance_date": day, "status": status, "leave_type": leave_type, "shift": None},
+            found)
+        if why:
+            problems.append(rules.mark_problem((person or {}).get("employee_name") or employee, day, why))
+        else:
+            marked += 1
+        if commit and number % 100 == 0:
+            frappe.db.commit()
+    doc = frappe.get_doc(DOCTYPE, name)
+    read_again = doc.docstatus == 0 and (doc.get(approval.STATE_FIELD) or approval.DRAFT) == approval.DRAFT
+    if read_again:
+        try:
+            doc.save()
+        except Exception:
+            # the days stay marked; the figures come again with Get Attendance
+            frappe.log_error(title="HRMS Addon: %s not read again after marking" % name)
+            read_again = False
+    if commit:
+        frappe.db.commit()
+    return {"marked": marked, "problems": problems, "read_again": read_again,
+            "summary": [_(line) for line in rules.mark_summary(marked, problems)]}
 
 
 # ── 3. A verified day does not change ─────────────────────────────────
