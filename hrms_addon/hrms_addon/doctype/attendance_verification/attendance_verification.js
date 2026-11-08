@@ -43,10 +43,11 @@ frappe.ui.form.on("Attendance Verification", {
 	},
 });
 
-// The page buttons of both tables. Frappe draws them in a table's footer, and hides the footer of a read-only table
-// drawn with less than a page of rows, as a new sheet's are, then never shows it again (grid.js setup_toolbar): once
-// Get Attendance filled the tables, only their first 50 rows could be seen. Each time a table is drawn (Frappe's grid
-// says "change" when it is), its footer shows while it has more than one page.
+// The page buttons of both tables, shown whenever a table has rows, one page or many (Luuka, 8 Nov 2026). Frappe draws
+// them in a table's footer only past one page (grid_pagination.js render_pagination), and hides the footer of a
+// read-only table drawn with less than a page of rows, as a new sheet's are, then never shows it again (grid.js
+// setup_toolbar). Each time a table is drawn (Frappe's grid says "change" when it is), its footer shows while it has
+// rows, and a table of one page gets Frappe's own buttons, 1 of 1.
 const HA_VERIFY_TABLES = ["employees", "issues"];
 
 function ha_verify_pages(frm) {
@@ -56,11 +57,27 @@ function ha_verify_pages(frm) {
 		const show = () => {
 			const pages = grid.grid_pagination;
 			if (!pages || grid.is_editable()) return;
-			grid.wrapper.find(".grid-footer").toggleClass("hidden", (grid.data || []).length <= pages.page_length);
+			const count = (grid.data || []).length;
+			grid.wrapper.find(".grid-footer").toggleClass("hidden", !count);
+			// drawn once: a change from inside the table (the page box) must not draw them again under the cursor
+			if (count && count <= pages.page_length && !grid.wrapper.find(".grid-pagination").children().length) {
+				ha_verify_one_page(pages);
+			}
 		};
 		grid.wrapper.off("change.ha_verify_pages").on("change.ha_verify_pages", show);
 		show();
 	});
+}
+
+// Frappe's page buttons for a table of one page: render_pagination draws them once the rows pass a page
+function ha_verify_one_page(pages) {
+	const length = pages.page_length;
+	pages.page_length = 0;
+	try {
+		pages.render_pagination();
+	} finally {
+		pages.page_length = length;
+	}
 }
 
 function ha_verify_get(method, args) {

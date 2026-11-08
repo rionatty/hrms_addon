@@ -393,8 +393,9 @@ check('frm.add_custom_button(__("Get Attendance"), () => frm.save())' in js
       and "!frappe.workflow.is_read_only(frm.doctype, frm.docname)" in js,
       "Get Attendance reads the figures again, for whoever may save the sheet now")
 check('const HA_VERIFY_TABLES = ["employees", "issues"];' in js and "		ha_verify_pages(frm);\n" in js
-      and '.on("change.ha_verify_pages", show)' in js,
-      "both tables keep their page buttons each time they are drawn (smoke_verification_pages.py)")
+      and '.on("change.ha_verify_pages", show)' in js and "\t\t\t\tha_verify_one_page(pages);\n" in js,
+      "both tables show their page buttons whenever they have rows, 1 of 1 on one page"
+      " (smoke_verification_pages.py)")
 payroll_js = read("hrms_addon", "public", "js", "payroll_entry.js")
 check('"hrms_addon.hrms_addon.attendance_verification.payroll_branches"' in payroll_js
       and "ha_payroll_attendance(frm);" in payroll_js and '"custom ha-attendance-verification"' in payroll_js,
