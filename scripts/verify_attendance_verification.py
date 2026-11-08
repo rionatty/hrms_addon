@@ -89,7 +89,8 @@ check(R.title_for("Matugga", "Weekly", None, "2026-10-30", "2026-11-05") == "Mat
 print("the sheet: one payroll month or a week of at most 31 days, one live sheet a branch, sent once its last day is over")
 
 # ── 2. Who is on it ───────────────────────────────────────────────────
-staff = {"status": "Active", "date_of_joining": "2020-01-01", "relieving_date": None, "custom_pay_category": "Regular"}
+staff = {"status": "Active", "salary_structure": True, "date_of_joining": "2020-01-01", "relieving_date": None,
+         "custom_pay_category": "Regular"}
 casual = dict(staff, custom_pay_category="Weekly")
 check(R.on_sheet(staff, "Monthly", "2026-09-26", "2026-10-25"), "a monthly person is on the monthly sheet")
 check(R.on_sheet(dict(staff, custom_pay_category=None), "Monthly", "2026-09-26", "2026-10-25"),
@@ -102,6 +103,11 @@ check(not R.on_sheet(staff, "Weekly", "2026-10-30", "2026-11-05"), "where a mont
 for status in ("Inactive", "Suspended", "Left", "", None):
     check(not R.on_sheet(dict(staff, status=status), "Monthly", "2026-09-26", "2026-10-25"),
           "only the active are on it, not one whose status is %r" % status)
+for structure in (False, None, ""):
+    check(not R.on_sheet(dict(staff, salary_structure=structure), "Monthly", "2026-09-26", "2026-10-25"),
+          "nobody with no salary structure assigned by its last day (%r): the payroll pays nobody else" % structure)
+check(not R.on_sheet({key: value for key, value in staff.items() if key != "salary_structure"}, "Monthly",
+                     "2026-09-26", "2026-10-25"), "nor one whose structure was never looked up")
 check(not R.on_sheet(dict(staff, status="Left", relieving_date="2026-10-10"), "Monthly", "2026-09-26", "2026-10-25"),
       "not even one who left during it")
 check(not R.on_sheet(dict(staff, date_of_joining="2026-10-26"), "Monthly", "2026-09-26", "2026-10-25"),
@@ -117,7 +123,8 @@ check(R.on_sheet(dict(staff, relieving_date="2026-09-26"), "Monthly", "2026-09-2
 mixed = [{"employee": "A", "status": "Active"}, {"employee": "L", "status": "Left"}, {"employee": "S", "status": "Suspended"},
          {"employee": "I", "status": "Inactive"}, {"employee": "N", "status": None}]
 check([row["employee"] for row in R.payroll_people(mixed)] == ["A"], "a payroll waits only for its active people")
-print("who is on it: the branch's active people on the books for any of its days, paid the way the sheet pays")
+print("who is on it: the branch's active people with a salary structure, on the books for any of its days, paid the "
+      "way the sheet pays")
 
 # ── 3. A person's line ────────────────────────────────────────────────
 week = days("2026-10-19", "2026-10-25")  # Mon..Sun
@@ -383,6 +390,11 @@ for method, whitelisted in (("before_submit", False), ("create_salary_slips", Tr
                       % (method, method), mixin, re.S)
     check(found and "refuse_payroll(self)" in found.group(2), "the payroll's %s waits for the branches" % method)
     check(found and bool(found.group(1)) == whitelisted, "%s stays callable from the form as Frappe HR's is" % method)
+people_fn = glue[glue.index("\ndef _people(doc):"):glue.index("\ndef _holidays(")]
+check('row["salary_structure"] = row.name in assigned' in people_fn
+      and "_assigned([row.name for row in found], doc.company, doc.to_date)" in people_fn
+      and '"docstatus": 1, "company": company, "employee": ["in", employees], "from_date": ["<=", last]}' in people_fn,
+      "the sheet's people are those with a submitted salary structure of its company from its last day or before")
 check("frappe.flags.get(\"via_payroll_entry\")" in glue, "a slip its payroll submits is not checked twice")
 for method in ("weekly_dates", "payroll_branches"):
     check(re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % method, glue), "the form calls %s" % method)
@@ -431,6 +443,12 @@ if os.path.isdir(hrms):
     def upstream(*parts):
         return io.open(os.path.join(hrms, *parts), encoding="utf-8").read().replace("\r\n", "\n")
 
+    entry_py = upstream("payroll", "doctype", "payroll_entry", "payroll_entry.py")
+    picks = entry_py[entry_py.index("def get_filtered_employees("):entry_py.index("def set_filter_conditions(")]
+    check("(SalaryStructureAssignment.docstatus == 1)" in picks
+          and "(filters.end_date >= SalaryStructureAssignment.from_date)" in picks,
+          "Frappe HR's payroll pays those with a submitted salary structure from its end date or before, "
+          "as the sheet lists them")
     leave = upstream("hr", "doctype", "leave_application", "leave_application.py")
     update = leave[leave.index("\tdef create_or_update_attendance("):leave.index("\tdef cancel_attendance(")]
     check(re.search(r'doc\.db_set\(\s*\{\s*"status": status', update)

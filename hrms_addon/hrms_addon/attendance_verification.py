@@ -233,12 +233,26 @@ PERSON_FIELDS = ("name", "employee_name", "branch", "department", "designation",
 
 
 def _people(doc):
-    """{employee: row} of the branch's active people the sheet is for, by name (rules.on_sheet)."""
+    """{employee: row} of the branch's active people the sheet is for, by name (rules.on_sheet): those with a salary
+    structure assigned by its last day."""
     found = frappe.get_all("Employee", filters={
         "company": doc.company, "branch": doc.branch, "date_of_joining": ["<=", doc.to_date],
         "status": rules.ACTIVE}, fields=list(PERSON_FIELDS), order_by="employee_name asc",
         limit_page_length=0)
+    assigned = _assigned([row.name for row in found], doc.company, doc.to_date)
+    for row in found:
+        row["salary_structure"] = row.name in assigned
     return {row.name: row for row in found if rules.on_sheet(row, doc.pay_kind, doc.from_date, doc.to_date)}
+
+
+def _assigned(employees, company, last):
+    """Those of the employees with a salary structure assigned by the day: a submitted Salary Structure Assignment of
+    the company from that day or before, as Frappe HR's payroll picks whom it pays (get_filtered_employees)."""
+    if not employees:
+        return set()
+    return set(frappe.get_all("Salary Structure Assignment", filters={
+        "docstatus": 1, "company": company, "employee": ["in", employees], "from_date": ["<=", last]},
+        pluck="employee", limit_page_length=0))
 
 
 def _holidays(found, start, end, company):

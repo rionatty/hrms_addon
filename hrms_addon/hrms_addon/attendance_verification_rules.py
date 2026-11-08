@@ -103,11 +103,16 @@ def title_for(branch, kind, period_name, from_date, to_date):
 
 
 def on_sheet(person, kind, from_date, to_date):
-    """Whether somebody is on a branch's sheet: active, on the books for some of its days, and paid the way it pays.
+    """Whether somebody is on a branch's sheet: active, with a salary structure, on the books for some of its days,
+    and paid the way it pays.
     Only the active are verified (Luuka, 8 Nov 2026): somebody who has left, is suspended or inactive is not on it,
-    and no payroll waits for them (payroll_people). person: status (the system status, which each of Luuka's
-    statuses counts as), date_of_joining, relieving_date, custom_pay_category."""
+    and no payroll waits for them (payroll_people). Nor is somebody with no salary structure assigned by the sheet's
+    last day (Luuka, 8 Nov 2026): the payroll pays nobody else, so nobody else holds the sheet up. person: status
+    (the system status, which each of Luuka's statuses counts as), salary_structure (whether one is assigned by the
+    sheet's last day), date_of_joining, relieving_date, custom_pay_category."""
     if (person.get("status") or "") != ACTIVE:
+        return False
+    if not person.get("salary_structure"):
         return False
     joined, left = _date(person.get("date_of_joining")), _date(person.get("relieving_date"))
     first, last = _date(from_date), _date(to_date)
