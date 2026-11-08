@@ -471,6 +471,30 @@ def run_on_cancel(doc, method=None):
     doc.db_set("status", rules.RUN_CANCELLED, update_modified=False)
 
 
+def _bank_lines(doc):
+    """The run's lines the bank file pays from: those included, each with its
+    employee's bank branch (bank_file.add_bank_details)."""
+    from hrms_addon.hrms_addon import bank_file as bank
+
+    lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]
+    return bank.add_bank_details(lines)
+
+
+@frappe.whitelist()
+def bank_file_check(name):
+    """Whether the run's bank file can be made: refuses with who is missing
+    what, else says how many it pays. The form asks first, so a refusal
+    shows as a message."""
+    from hrms_addon.hrms_addon import bank_file as bank
+    from hrms_addon.hrms_addon import bank_file_rules
+
+    doc = frappe.get_doc(RUN, name)
+    doc.check_permission("read")
+    lines = _bank_lines(doc)
+    bank.refuse_problems(lines)
+    return {"rows": len(bank_file_rules.to_pay(lines))}
+
+
 @frappe.whitelist()
 def bank_file(name):
     """The Excel file the Payroll Officer sends Finance (§4.4), in the bank's
@@ -483,10 +507,7 @@ def bank_file(name):
 
     doc = frappe.get_doc(RUN, name)
     doc.check_permission("read")
-    lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]
-    branches = bank.employee_details([line.employee for line in lines if line.employee])
-    for line in lines:
-        line["bank_branch"] = (branches.get(line.employee) or frappe._dict()).get(bank.BRANCH)
+    lines = _bank_lines(doc)
     bank.refuse_problems(lines)
     provide_binary_file("%s %s" % (bank.TITLE, doc.name), "xlsx",
                         bank_file_rules.workbook(bank_file_rules.rows(lines)))

@@ -243,6 +243,43 @@ check("bank.refuse_problems(lines)" in run_file and "bank_file_rules.workbook(ba
 check("return bank_file.code_of(employee, bank_name)" in advances and "swift_number" not in advances,
       "a run line's code: the employee's, else their bank's; no SWIFT number in a bank code")
 
+check("lines = _bank_lines(doc)" in run_file, "the run's file pays the lines _bank_lines gives")
+lines_of_run = advances.split("def _bank_lines(doc):")[1].split("\ndef ")[0]
+check('lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]' in lines_of_run
+      and "return bank.add_bank_details(lines)" in lines_of_run,
+      "the leave run's lines: those included, with the employee's bank branch")
+check(re.search(r"@frappe\.whitelist\(\)\ndef bank_file_check\(name\):", advances) is not None
+      and "bank.refuse_problems(lines)" in advances.split("def bank_file_check(name):")[1].split("\ndef ")[0],
+      "the leave run's form asks first, and is refused the same way")
+
+# ── 7b. The salary advance run's file (Luuka, 8 Nov 2026) ─────────────
+salary = read("hrms_addon", "hrms_addon", "salary_advances.py")
+part_of = lambda name: salary.split("def %s(" % name)[1].split("\ndef ")[0] if "def %s(" % name in salary else ""
+check("doc.check_permission(\"read\")" in part_of("_bank_run") and "if doc.docstatus != 1:" in part_of("_bank_run"),
+      "the salary run's file: the run readable, and submitted, since the advances it pays are made then")
+check('lines = [row.as_dict() for row in doc.get("employees") or [] if row.include and row.qualifies]'
+      in part_of("_bank_lines") and "return bank.add_bank_details(lines)" in part_of("_bank_lines"),
+      "each line included that qualifies, as the run pays them, with the employee's branch and code")
+for name in ("bank_file_check", "bank_file"):
+    check(re.search(r"@frappe\.whitelist\(\)\ndef %s\(name\):" % name, salary) is not None
+          and "bank.refuse_problems(lines)" in part_of(name), "salary_advances.%s, refused the same way" % name)
+check("bank_file_rules.workbook(bank_file_rules.rows(lines))" in part_of("bank_file"),
+      "the salary run's file is the same six columns")
+details = glue.split("def add_bank_details(lines):")[1].split("\ndef ")[0] if "def add_bank_details(lines):" in glue \
+    else ""
+check('line["bank_branch"] = person.get(BRANCH)' in details and 'if not rules.compact(line.get("bank_code")):' in details,
+      "a run's line: its employee's bank branch, and a code where the line has none")
+for form_name, method in (("leave_advance_processing", "leave_advances"),
+                          ("salary_advance_processing", "salary_advances")):
+    form_js = read("hrms_addon", "hrms_addon", "doctype", form_name, form_name + ".js")
+    check('frm.add_custom_button(__("Bank File"), () => {' in form_js
+          and 'const method = "hrms_addon.hrms_addon.%s.bank_file";' % method in form_js
+          and 0 < form_js.find('method: method + "_check"') < form_js.find('window.open("/api/method/" + method + "?name="'),
+          "the %s form: Bank File, asked first, then downloaded" % form_name)
+salary_js = read("hrms_addon", "hrms_addon", "doctype", "salary_advance_processing", "salary_advance_processing.js")
+check(salary_js.find("if (frm.doc.docstatus === 1) {") < salary_js.find('frm.add_custom_button(__("Bank File")'),
+      "the salary run's Bank File shows once the run is submitted")
+
 # ── 8. Fixtures and hooks ─────────────────────────────────────────────
 custom = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
 field = custom.get("Bank-custom_bank_code") or {}

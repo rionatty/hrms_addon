@@ -438,6 +438,56 @@ def run_on_trash(doc, method=None):
         frappe.db.set_value(ADVANCE, name, "custom_salary_advance_run", None, update_modified=False)
 
 
+# ── 2b. The bank file ─────────────────────────────────────────────────
+# Luuka, 8 Nov 2026: Finance pays the salary advances from the bank's own
+# file too, the six columns of the payroll's (bank_file_rules.py): a row for
+# each advance the submitted run made and pays by bank, its amount the
+# advance.
+def _bank_run(name):
+    doc = frappe.get_doc(RUN, name)
+    doc.check_permission("read")
+    if doc.docstatus != 1:
+        frappe.throw(_("Submit the run first. The bank file pays the advances it makes."), title=_("Bank File"))
+    return doc
+
+
+def _bank_lines(doc):
+    """The advances the run pays: each line included that qualifies, with
+    its employee's bank branch and bank code (bank_file.add_bank_details)."""
+    from hrms_addon.hrms_addon import bank_file as bank
+
+    lines = [row.as_dict() for row in doc.get("employees") or [] if row.include and row.qualifies]
+    return bank.add_bank_details(lines)
+
+
+@frappe.whitelist()
+def bank_file_check(name):
+    """Whether the run's bank file can be made: refuses with who is missing
+    what, else says how many it pays. The form asks first, so a refusal
+    shows as a message."""
+    from hrms_addon.hrms_addon import bank_file as bank
+    from hrms_addon.hrms_addon import bank_file_rules
+
+    lines = _bank_lines(_bank_run(name))
+    bank.refuse_problems(lines)
+    return {"rows": len(bank_file_rules.to_pay(lines))}
+
+
+@frappe.whitelist()
+def bank_file(name):
+    """The run's bank file, as Excel."""
+    from frappe.desk.utils import provide_binary_file
+
+    from hrms_addon.hrms_addon import bank_file as bank
+    from hrms_addon.hrms_addon import bank_file_rules
+
+    doc = _bank_run(name)
+    lines = _bank_lines(doc)
+    bank.refuse_problems(lines)
+    provide_binary_file("%s %s" % (bank.TITLE, doc.name), "xlsx",
+                        bank_file_rules.workbook(bank_file_rules.rows(lines)))
+
+
 # ── 3. What the system watches ────────────────────────────────────────
 def daily():
     _end_requests()

@@ -150,6 +150,19 @@ def bank_codes(bank_names):
     return {rules.clean(row.name).lower(): row.get(CODE) for row in found if row.get(CODE)}
 
 
+def add_bank_details(lines):
+    """An advance run's lines (leave_advances.py, salary_advances.py), each with its employee's bank branch and,
+    where the line has no bank code, the employee's own, else their bank's. The rest of the line is the run's."""
+    details = employee_details([line.get("employee") for line in lines if line.get("employee")])
+    codes = bank_codes({line.get("bank_name") for line in lines if line.get("bank_name")})
+    for line in lines:
+        person = details.get(line.get("employee")) or frappe._dict()
+        line["bank_branch"] = person.get(BRANCH)
+        if not rules.compact(line.get("bank_code")):
+            line["bank_code"] = rules.bank_code(person.get(CODE), codes.get(rules.clean(line.get("bank_name")).lower()))
+    return lines
+
+
 def code_of(employee, bank_name):
     """One employee's bank code: their own, else their bank's."""
     own = frappe.db.get_value(EMPLOYEE, employee, CODE) if frappe.get_meta(EMPLOYEE).has_field(CODE) else None

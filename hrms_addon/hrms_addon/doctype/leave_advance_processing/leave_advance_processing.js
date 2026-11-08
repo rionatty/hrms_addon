@@ -29,11 +29,15 @@ frappe.ui.form.on("Leave Advance Processing", {
 	},
 	refresh(frm) {
 		if (!frm.is_new() && (frm.doc.employees || []).length) {
-			frm.add_custom_button(__("Download Excel"), () => {
-				window.open(
-					"/api/method/hrms_addon.hrms_addon.leave_advances.bank_file?name=" +
-						encodeURIComponent(frm.doc.name)
-				);
+			// the bank's own file, as the payroll's (leave_advances.bank_file): asked first, so a refusal is a message
+			frm.add_custom_button(__("Bank File"), () => {
+				const method = "hrms_addon.hrms_addon.leave_advances.bank_file";
+				frappe
+					.call({ method: method + "_check", args: { name: frm.doc.name }, freeze: true })
+					.then((r) => {
+						if (!r || !r.message || !r.message.rows) return;
+						window.open("/api/method/" + method + "?name=" + encodeURIComponent(frm.doc.name));
+					});
 			});
 		}
 		if (frm.doc.journal_entry) {
