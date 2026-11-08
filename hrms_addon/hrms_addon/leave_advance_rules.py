@@ -15,7 +15,9 @@ The process, as the minutes give it:
      (for the Per Meter category, of the average gross of the previous two
      months) and records the amount on the form.
   3. The Payroll Officer prepares an Excel file of employee number, name,
-     bank code, account number and amount, and forwards it to Finance.
+     bank code, account number and amount, and forwards it to Finance. It
+     is the bank's own file, as the payroll's is (bank_file_rules.py, Luuka
+     6 Nov 2026), which names the bank too.
   4. Finance pays. The advance is taken back from the payroll in the months
      agreed.
 
@@ -70,8 +72,6 @@ PAYROLL_DAY = 25
 RECOVERY_COMPONENT = "Leave Advance Recovery"
 RECOVERY_ABBR = "LAR"
 ACCOUNT_NAME = "Leave Advances"
-
-BANK_FILE_HEADER = ("Employee No", "Employee Name", "Bank Code", "Account Number", "Amount")
 
 
 def settings_from(stored=None):
@@ -257,18 +257,6 @@ def run_errors(facts):
     if stale:
         errors.append("No longer waiting to be paid: %s. Take them out of the run." % ", ".join(stale))
     return errors
-
-
-def bank_file_rows(lines):
-    """The file the Payroll Officer sends Finance: the minutes' five columns,
-    for each line paid."""
-    rows = [list(BANK_FILE_HEADER)]
-    for line in lines or ():
-        if not int(line.get("include") or 0):
-            continue
-        rows.append([line.get("employee") or "", line.get("employee_name") or "", line.get("bank_code") or "",
-                     line.get("bank_ac_no") or "", round(_num(line.get("amount")), 2)])
-    return rows
 
 
 def add_months(day, months):

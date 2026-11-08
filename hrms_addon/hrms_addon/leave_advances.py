@@ -360,7 +360,7 @@ def _fill_line(row, doc):
     if person.salary_mode == rules.BANK and not person.bank_ac_no:
         notes.append(_("No bank account number on the employee."))
     elif person.salary_mode == rules.BANK and not row.bank_code:
-        notes.append(_("No bank code on the employee."))
+        notes.append(_("No bank code on the employee or their bank."))
     row.remarks = " ".join(notes) or None
 
 
@@ -373,13 +373,11 @@ def _waiting(advance, run):
 
 
 def _bank_code(employee, bank_name):
-    """The employee's Bank Code, else the SWIFT number of the Bank they
-    name, when there is one."""
-    code = frappe.db.get_value("Employee", employee, "custom_bank_code") if frappe.get_meta(
-        "Employee").has_field("custom_bank_code") else None
-    if not code and bank_name and frappe.db.exists("Bank", bank_name):
-        code = frappe.db.get_value("Bank", bank_name, "swift_number")
-    return code or None
+    """The employee's Bank Code, else the one set on their bank in the Bank
+    list, as the payroll's bank file reads it (bank_file.py)."""
+    from hrms_addon.hrms_addon import bank_file
+
+    return bank_file.code_of(employee, bank_name)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -475,16 +473,23 @@ def run_on_cancel(doc, method=None):
 
 @frappe.whitelist()
 def bank_file(name):
-    """The Excel file the Payroll Officer sends Finance: employee number,
-    name, bank code, account number and amount (§4.4)."""
-    from frappe.utils.xlsxutils import make_xlsx
+    """The Excel file the Payroll Officer sends Finance (§4.4), in the bank's
+    own six columns, as the payroll's is (bank_file_rules.py): a row for each
+    advance on the run paid by bank, its amount the advance."""
+    from frappe.desk.utils import provide_binary_file
+
+    from hrms_addon.hrms_addon import bank_file as bank
+    from hrms_addon.hrms_addon import bank_file_rules
 
     doc = frappe.get_doc(RUN, name)
     doc.check_permission("read")
-    rows = rules.bank_file_rows([row.as_dict() for row in doc.get("employees") or []])
-    frappe.response["filename"] = "%s.xlsx" % doc.name
-    frappe.response["filecontent"] = make_xlsx(rows, "Leave Advances").getvalue()
-    frappe.response["type"] = "binary"
+    lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]
+    branches = bank.employee_details([line.employee for line in lines if line.employee])
+    for line in lines:
+        line["bank_branch"] = (branches.get(line.employee) or frappe._dict()).get(bank.BRANCH)
+    bank.refuse_problems(lines)
+    provide_binary_file("%s %s" % (bank.TITLE, doc.name), "xlsx",
+                        bank_file_rules.workbook(bank_file_rules.rows(lines)))
 
 
 # ── 4. Finance pays ───────────────────────────────────────────────────

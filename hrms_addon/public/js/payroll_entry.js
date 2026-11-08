@@ -8,6 +8,9 @@
 // opened, not with the form, and again once the payroll changes or Refresh
 // is pressed.
 //
+// Bank File, once the slips are submitted: the Excel file Finance sends the bank, in the bank's own six columns
+// (bank_file.py).
+//
 // Attendance: each branch of the people on the payroll, and whether its General
 // Manager has verified the days the payroll pays (attendance_verification.py).
 // Payroll makes and submits no slip until every branch has.
@@ -46,6 +49,7 @@ frappe.ui.form.on("Payroll Entry", {
 	refresh(frm) {
 		ha_payroll_recreate_button(frm);
 		ha_payroll_share_buttons(frm);
+		ha_payroll_bank_file_button(frm);
 		ha_payroll_register(frm);
 		ha_payroll_period(frm);
 		ha_weekly(frm);
@@ -340,6 +344,54 @@ function ha_payroll_share_buttons(frm) {
 		frm.add_custom_button(__("Send to Employees"), () => ha_payroll_share(frm), __("Slips"));
 	}
 	frm.add_custom_button(__("Print Slips"), () => ha_payroll_print(frm), __("Slips"));
+}
+
+// Luuka, 6 Nov 2026: the bank file Finance sends the bank once the slips are submitted, in the bank's own six
+// columns (bank_file.py). Asked first, so a refusal shows as a message; then downloaded.
+const HA_PAYROLL_BANK_FILE = "hrms_addon.hrms_addon.bank_file.";
+
+function ha_payroll_bank_file_button(frm) {
+	const doc = frm.doc;
+	if (doc.docstatus !== 1 || !cint(doc.salary_slips_submitted)) return;
+	frm.add_custom_button(__("Bank File"), () => {
+		frappe
+			.call({ method: HA_PAYROLL_BANK_FILE + "check", args: { payroll_entry: doc.name }, freeze: true })
+			.then((r) => {
+				const found = r && r.message;
+				if (!found || !found.rows) return;
+				window.open(
+					"/api/method/" + HA_PAYROLL_BANK_FILE + "download?payroll_entry=" + encodeURIComponent(doc.name)
+				);
+				ha_payroll_bank_file_said(found);
+			});
+	});
+}
+
+// who is in the file, and who is paid another way
+function ha_payroll_bank_file_said(found) {
+	const said = [
+		found.rows === 1 ? __("1 person is in the bank file.") : __("{0} people are in the bank file.", [found.rows]),
+	];
+	if (found.other) {
+		said.push(
+			found.other === 1
+				? __("1 paid in cash or by cheque is not in it.")
+				: __("{0} paid in cash or by cheque are not in it.", [found.other])
+		);
+	}
+	if (found.unknown_count) {
+		said.push(
+			__("{0} with no salary mode and no account number are not in it: {1}", [
+				found.unknown_count,
+				frappe.utils.escape_html(found.unknown),
+			])
+		);
+	}
+	if (said.length === 1) {
+		frappe.show_alert({ message: said[0], indicator: "green" });
+		return;
+	}
+	frappe.msgprint({ title: __("Bank File"), message: said.join("<br>"), indicator: "blue" });
 }
 
 function ha_payroll_share(frm) {

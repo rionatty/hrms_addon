@@ -11474,6 +11474,18 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Bank-custom_bank_code",
+  "dt": "Bank",
+  "fieldname": "custom_bank_code",
+  "fieldtype": "Data",
+  "insert_after": "swift_number",
+  "label": "Bank Code",
+  "description": "In the bank file for staff at this bank who have no code of their own.",
+  "in_list_view": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Appraisal",
   "fieldname": "custom_supervisor_name",
   "fieldtype": "Data",

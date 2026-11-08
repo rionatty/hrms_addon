@@ -520,6 +520,10 @@ after_migrate = [
     # permission level one on Employee's salary and bank fields for HR and
     # Payroll alone. See security_rules.py.
     "hrms_addon.hrms_addon.security.setup_on_migrate",
+    # The Bank list opened to those who run the payroll, to set each bank's
+    # code for the bank file once. After security, whose grant it uses. See
+    # bank_file.py.
+    "hrms_addon.hrms_addon.bank_file.setup_on_migrate",
     # The non-disciplinary grievance: raised, routed, resolved, accepted or
     # appealed, and its decision fields at level one. After security, whose
     # Auditor reads them too. See grievance_approval.py.
@@ -936,6 +940,8 @@ fixtures = [
                     "Employee-custom_bank_branch",
                     "Employee-custom_bank_account_name",
                     "Employee-custom_bank_code",
+                    # the code a bank file carries for a bank's staff with none of their own (bank_file.py)
+                    "Bank-custom_bank_code",
                     "Employee-custom_employee_status",
                     # on an improvement plan, in red on the Employee list (pips.mark_appraisals)
                     "Employee-custom_on_pip",

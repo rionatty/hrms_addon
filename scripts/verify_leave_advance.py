@@ -154,15 +154,11 @@ for label, change, needle in (("nobody paid", {"included": 0}, "Nobody"), ("no a
                               ("paid elsewhere", {"not_approved": ["LPL-LVA-2027-00001"]}, "No longer waiting")):
     expect(label, R.run_errors(dict(RUN, **change)), needle)
 expect("cash needs no reference", R.run_errors(dict(RUN, payment_method="Cash", reference_no="")))
-rows = R.bank_file_rows([{"employee": "HR-EMP-00100", "employee_name": "John Okello", "bank_code": "031",
-                          "bank_ac_no": "9030001", "amount": 600000, "include": 1, "branch": "Kawempe"},
-                         {"employee": "HR-EMP-00101", "employee_name": "Left Out", "amount": 1, "include": 0}])
-if rows != [["Employee No", "Employee Name", "Bank Code", "Account Number", "Amount"],
-            ["HR-EMP-00100", "John Okello", "031", "9030001", 600000.0]]:
-    fail.append("the file for Finance: exactly the minutes' five columns, for each line paid: %s" % rows)
+if hasattr(R, "bank_file_rows") or hasattr(R, "BANK_FILE_HEADER"):
+    fail.append("the run's file is the bank's six columns (bank_file_rules.py), not the old five")
 if R.RECOVERY_COMPONENT != "Leave Advance Recovery" or R.ACCOUNT_NAME != "Leave Advances":
     fail.append("the deduction is Leave Advance Recovery, into Leave Advances")
-print("the months: equal, on the 25th; where it stands; the run's checks; the five columns")
+print("the months: equal, on the 25th; where it stands; the run's checks; the file is the bank's")
 
 # ── 3. The workflow ───────────────────────────────────────────────────
 if (W.DOCTYPE, W.STATE_FIELD, W.STATUS_FIELD) != ("Leave Advance", "workflow_state", "approval_status"):
@@ -273,8 +269,14 @@ for needle, why in (
      "a payment the payroll has taken from stays"),
     ("advance_runs.take_back_bank_entry(doc, RUN)",
      "a cancelled run takes its bank entry back with it (verify_advance_runs.py)"),
-    ("rows = rules.bank_file_rows([row.as_dict() for row in doc.get(\"employees\") or []])", "the file is the rules'"),
-    ('frappe.response["filecontent"] = make_xlsx(rows, "Leave Advances").getvalue()', "as an Excel file"),
+    ('lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]',
+     "the file pays the lines included"),
+    ("bank.refuse_problems(lines)", "no file the bank cannot pay in full (bank_file.py)"),
+    ("bank_file_rules.workbook(bank_file_rules.rows(lines))", "the bank's six columns, as the payroll's file"),
+    ('"""The employee\'s Bank Code, else the one set on their bank in the Bank\n    list, as the payroll\'s bank file '
+     'reads it (bank_file.py)."""\n    from hrms_addon.hrms_addon import bank_file\n\n    return '
+     'bank_file.code_of(employee, bank_name)', "the line's code is the employee's, else their bank's"),
+    ('notes.append(_("No bank code on the employee or their bank."))', "a line with no code says where to set one"),
     ('"depends_on_payment_days": 0,', "a deduction not cut by the days paid"),
     ('beside = frappe.get_cached_value("Company", company, "default_employee_advance_account")',
      "Leave Advances is made beside the employee advance account"),
