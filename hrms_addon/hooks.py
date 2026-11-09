@@ -1309,6 +1309,9 @@ fixtures = [
                     # the Salary Register tab on a payroll (payroll_register.py)
                     "Payroll Entry-custom_salary_register_tab",
                     "Payroll Entry-custom_salary_register",
+                    # the UGX Payroll tab on a payroll in another currency (usd_sheet.py)
+                    "Payroll Entry-custom_ugx_payroll_tab",
+                    "Payroll Entry-custom_ugx_payroll",
                     # the Period a monthly payroll is picked by (payslip.py)
                     "Payroll Entry-custom_pay_period",
                     # a payroll year's months, each open or closed (payroll_months.py)

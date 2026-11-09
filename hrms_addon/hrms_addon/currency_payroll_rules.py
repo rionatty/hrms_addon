@@ -251,7 +251,11 @@ def gross_up_amounts(rate="custom_exchange_rate"):
             "paye": "floor(%s * (1 - %s) - %s + 0.500001)" % (gross, nssf, net),
             "employee": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf),
             "employer": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf_employer),
-            "cover": "floor(%s * %s + 0.500001)" % (gross, nssf)}
+            "cover": "floor(%s * %s + 0.500001)" % (gross, nssf),
+            # the same before they are rounded, as Luuka's sheet adds them up (usd_sheet_rules.py)
+            "paye_exact": "(%s * (1 - %s) - %s)" % (gross, nssf, net),
+            "employee_exact": "((%s + %s) * %s)" % (gross, lst, nssf),
+            "employer_exact": "((%s + %s) * %s)" % (gross, lst, nssf_employer)}
 
 
 def usd_gross_up_formulas(rate="custom_exchange_rate"):

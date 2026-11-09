@@ -45,18 +45,25 @@ const HA_PAYROLL_REGISTER_FIELD = "custom_salary_register";
 const HA_PAYROLL_REGISTER_METHOD = "hrms_addon.hrms_addon.payroll_register.salary_register";
 const HA_PAYROLL_REGISTER_DOWNLOAD = "hrms_addon.hrms_addon.payroll_register.download_salary_register";
 
+const HA_PAYROLL_UGX_TAB = "custom_ugx_payroll_tab";
+const HA_PAYROLL_UGX_FIELD = "custom_ugx_payroll";
+const HA_PAYROLL_UGX_METHOD = "hrms_addon.hrms_addon.usd_sheet.ugx_payroll";
+const HA_PAYROLL_UGX_DOWNLOAD = "hrms_addon.hrms_addon.usd_sheet.download_ugx_payroll";
+
 frappe.ui.form.on("Payroll Entry", {
 	refresh(frm) {
 		ha_payroll_recreate_button(frm);
 		ha_payroll_share_buttons(frm);
 		ha_payroll_bank_file_button(frm);
 		ha_payroll_register(frm);
+		ha_payroll_ugx(frm);
 		ha_payroll_period(frm);
 		ha_weekly(frm);
 		ha_payroll_attendance(frm);
 	},
 	on_tab_change(frm) {
 		ha_payroll_register(frm);
+		ha_payroll_ugx(frm);
 	},
 	company: ha_payroll_dates_changed,
 	payroll_frequency: ha_payroll_dates_changed,
@@ -590,7 +597,7 @@ function ha_payroll_register_note(text) {
 	return `<div class="text-muted" style="padding: 12px 0;">${frappe.utils.escape_html(text)}</div>`;
 }
 
-function ha_payroll_register_error(body) {
+function ha_payroll_register_error(body, fallback) {
 	// the message a refused or failed call came back with, as Frappe sends it
 	try {
 		const messages = JSON.parse((body && body._server_messages) || "[]");
@@ -599,5 +606,111 @@ function ha_payroll_register_error(body) {
 	} catch (e) {
 		// the plain message instead
 	}
-	return __("The Salary Register could not be loaded.");
+	return fallback || __("The Salary Register could not be loaded.");
+}
+
+// the UGX Payroll tab of a payroll in another currency, laid out as Luuka's own sheet (usd_sheet.py)
+function ha_payroll_ugx(frm, again) {
+	const field = frm.get_field(HA_PAYROLL_UGX_FIELD);
+	if (!field || !field.$wrapper) return;
+	const $wrapper = field.$wrapper;
+	const key = frm.doc.name + "|" + frm.doc.modified;
+	if ($wrapper.data("ha-ugx") !== key) {
+		$wrapper.data("ha-ugx", null).empty();
+	}
+	const tab = frm.get_active_tab && frm.get_active_tab();
+	if (!tab || !tab.df || tab.df.fieldname !== HA_PAYROLL_UGX_TAB) return;
+	if (frm.is_new()) {
+		$wrapper.html(ha_payroll_register_note(__("No salary slips yet.")));
+		return;
+	}
+	if ($wrapper.data("ha-ugx") === key && !again) return;
+	$wrapper.data("ha-ugx", key).html(ha_payroll_register_note(__("Loading...")));
+	const failed = __("The UGX Payroll could not be loaded.");
+	fetch("/api/method/" + HA_PAYROLL_UGX_METHOD + "?payroll_entry=" + encodeURIComponent(frm.doc.name), {
+		credentials: "same-origin",
+		cache: "no-store",
+		headers: { Accept: "application/json" },
+	})
+		.then((response) =>
+			response
+				.json()
+				.catch(() => null)
+				.then((body) => {
+					if (!response.ok) throw { ha_message: ha_payroll_register_error(body, failed) };
+					return (body && body.message) || {};
+				})
+		)
+		.then((sheet) => {
+			if ($wrapper.data("ha-ugx") !== key) return;
+			ha_payroll_ugx_draw(frm, $wrapper, sheet);
+		})
+		.catch((error) => {
+			if ($wrapper.data("ha-ugx") !== key) return;
+			$wrapper.data("ha-ugx", null).html(ha_payroll_register_note((error && error.ha_message) || failed));
+		});
+}
+
+function ha_payroll_ugx_draw(frm, $wrapper, sheet) {
+	const rows = sheet.rows || [];
+	if (!sheet.on || !rows.length) {
+		$wrapper.html(ha_payroll_register_note(__("No salary slips yet.")));
+		return;
+	}
+	const count = rows.filter((row) => !row.is_total).length;
+	$wrapper.html(`
+		<div class="ha-payroll-ugx">
+			<style>.ha-payroll-ugx .datatable .dt-scrollable { height: 60vh; }</style>
+			<div class="flex align-center justify-between" style="gap: 8px; margin-bottom: 10px;">
+				<span>
+					<b>${frappe.utils.escape_html(sheet.title || "")}</b>
+					<span class="text-muted" style="margin-left: 8px;">${__("{0} salary slips", [format_number(count, null, 0)])}</span>
+				</span>
+				<span>
+					<button class="btn btn-default btn-sm" data-action="refresh">${__("Refresh")}</button>
+					<button class="btn btn-default btn-sm" data-action="download">${__("Download Excel")}</button>
+				</span>
+			</div>
+			<div class="ha-payroll-ugx-table"></div>
+		</div>`);
+	$wrapper.find('[data-action="refresh"]').on("click", () => ha_payroll_ugx(frm, true));
+	$wrapper.find('[data-action="download"]').on("click", () => {
+		window.open("/api/method/" + HA_PAYROLL_UGX_DOWNLOAD + "?payroll_entry=" + encodeURIComponent(frm.doc.name));
+	});
+	// the total row is the server's, last: the sheet's sums to the shilling, so no sorting or filtering moves it
+	new frappe.DataTable($wrapper.find(".ha-payroll-ugx-table")[0], {
+		columns: (sheet.columns || []).map(ha_payroll_ugx_column),
+		data: rows,
+		layout: "fixed",
+		cellHeight: 33,
+		serialNoColumn: false,
+		language: frappe.boot.lang,
+		translations: frappe.utils.datatable.get_translations(),
+		direction: frappe.utils.is_rtl() ? "rtl" : "ltr",
+	});
+}
+
+function ha_payroll_ugx_column(column) {
+	const numeric = column.fieldtype !== "Data";
+	const width = parseInt(column.width);
+	return {
+		id: column.fieldname,
+		name: column.label,
+		width: width > 0 ? width : 120,
+		editable: false,
+		sortable: false,
+		dropdown: false,
+		align: numeric ? "right" : "left",
+		format: (value, row, df, data) => {
+			let text = "";
+			if (value !== null && value !== undefined && value !== "") {
+				// whole amounts as the sheet shows them; the USD and the rate to the cent only when they have cents
+				const cents = column.precision && Math.round(Number(value)) !== Number(value);
+				text = numeric
+					? format_number(value, null, cents ? column.precision : 0)
+					: frappe.utils.escape_html(String(value));
+			}
+			return data && data.is_total ? `<b>${text}</b>` : text;
+		},
+	};
 }

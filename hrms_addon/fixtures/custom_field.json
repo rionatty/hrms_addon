@@ -12352,6 +12352,27 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Payroll Entry-custom_ugx_payroll_tab",
+  "dt": "Payroll Entry",
+  "fieldname": "custom_ugx_payroll_tab",
+  "fieldtype": "Tab Break",
+  "insert_after": "custom_salary_register",
+  "label": "UGX Payroll",
+  "depends_on": "eval:doc.currency && doc.currency != \"UGX\"",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Payroll Entry-custom_ugx_payroll",
+  "dt": "Payroll Entry",
+  "fieldname": "custom_ugx_payroll",
+  "fieldtype": "HTML",
+  "insert_after": "custom_ugx_payroll_tab",
+  "label": "UGX Payroll",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Payroll Employee Detail-custom_working_days",
   "dt": "Payroll Employee Detail",
   "fieldname": "custom_working_days",
