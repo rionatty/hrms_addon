@@ -314,8 +314,9 @@ check('"foreign": foreign,' in glue and 'salary = pay.monthly_salary(employee) o
       "two currencies shown apart: a USD salary's own month and its shilling allowances, no rate between them; "
       "a shilling salary's monthly gross as before (Luuka, 10 Nov 2026: \"you can split\")")
 check('${__("Salary a month")}: <b>${ha_standing_money(data.salary, data.salary_currency)}</b>' in script
-      and "Allowances are in {0}. The {1} slip pays them at the month's rate, and the company pays their tax." in script,
-      "the panel says so")
+      and "slip pays them at the month's rate" not in script,
+      "the panel shows the two figures, and no line on how a USD slip pays them (Luuka, 10 Nov 2026: \"i dont need "
+      "this funny text\")")
 check('default: foreign ? data.default_component || null : null,' in script
       and '__("Amount a Month in {0}", [data.currency])' in script,
       "and on a USD salary Add Allowance offers UGX Allowance first, the amount asked in shillings")

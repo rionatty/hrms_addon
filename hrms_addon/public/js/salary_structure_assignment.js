@@ -113,23 +113,14 @@ function ha_standing_draw(frm, wrapper, data) {
 	const add = data.can_change && (data.assigned || planning)
 		? `<button type="button" class="btn btn-xs btn-primary" data-ha-standing="add">${__("Add Allowance")}</button>`
 		: "";
-	// a salary in another currency: its allowances are in shillings, paid on its slip at the month's rate, their
-	// tax paid by the company (Luuka, 10 Nov 2026)
-	const foreign_hint = data.foreign
-		? `<p class="text-muted">${__(
-				"Allowances are in {0}. The {1} slip pays them at the month's rate, and the company pays their tax.",
-				[cell(data.currency), cell(data.salary_currency)]
-		  )}</p>`
-		: "";
-	const hint =
-		foreign_hint +
-		(data.assigned
-			? ""
-			: planning
-			? planned.length
-				? `<p class="text-muted">${__("Added when this assignment is submitted.")}</p>`
-				: ""
-			: `<p class="text-muted">${__("Allowances can be added once the employee has a submitted assignment.")}</p>`);
+	// no line on how a USD slip pays them (Luuka, 10 Nov 2026: "i dont need this funny text")
+	const hint = data.assigned
+		? ""
+		: planning
+		? planned.length
+			? `<p class="text-muted">${__("Added when this assignment is submitted.")}</p>`
+			: ""
+		: `<p class="text-muted">${__("Allowances can be added once the employee has a submitted assignment.")}</p>`;
 	// two currencies are shown apart, with no rate between them (Luuka, 10 Nov 2026: "you can split")
 	const totals = data.foreign
 		? `<p>${__("Allowances a month")}: <b>${ha_standing_money(data.running, data.currency)}</b>` +
