@@ -132,6 +132,16 @@ check('flt(rate_for(doc.get("currency"), home, doc.get("from_date"))) or 1' in a
       "a USD assignment works its own formulas out at the latest rate there is, 1 before there is any")
 check("rules.latest_rate(" in function_of(glue, "rate_for") and "rules.month_rate(" in function_of(glue, "month_rate"),
       "a near rate for the app's own figures, the month's own for a payroll")
+method = next(node for node in ast.walk(ast.parse(glue)) if isinstance(node, ast.FunctionDef)
+              and node.name == "_statistical_earnings")
+statistical = "\n".join(glue.splitlines()[method.lineno - 1:method.end_lineno])
+check("if foreign:\n            self._statistical_earnings(data, default_data)" in glue
+      and 'if not (row.get("statistical_component") or row.get("accrual_component")):' in statistical
+      and "amount = self.eval_condition_and_formula(row, data)" in statistical
+      and "default_data[row.abbr] = flt(amount)" in statistical
+      and 'amount = flt(amount) * flt(self.get("payment_days")) / days if days else 0' in statistical,
+      "a USD slip's deductions are given its statistical earnings, the USD pay among them, as its earnings are: "
+      "Frappe HR v16 builds each table's data afresh from the slip's rows (Luuka, 10 Nov 2026)")
 print("glue: a USD payroll at its month's rate, or its own saved as the month's; its slips at the month's or "
       "refused; a shilling payroll left alone")
 

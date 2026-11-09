@@ -163,12 +163,34 @@ class SalarySlipCurrency:
     def get_data_for_eval(self):
         data, default_data = super().get_data_for_eval()
         value = 0.0
-        if rules.foreign(self.get("currency"), company_currency(self.get("company"))):
+        foreign = rules.foreign(self.get("currency"), company_currency(self.get("company")))
+        if foreign:
             value = month_allowances(self.get("employee"), self.get("start_date"), self.get("end_date"),
                                      self.get("company"), self.get(rules.RATE_FIELD) or self.get("exchange_rate"))
         data[rules.ALLOWANCES] = value
         default_data[rules.ALLOWANCES] = value
+        if foreign:
+            self._statistical_earnings(data, default_data)
         return data, default_data
+
+    def _statistical_earnings(self, data, default_data):
+        """The structure's statistical earnings (the USD pay, USDP) put in the formulas' data, worked out as Frappe
+        HR's earnings pass works them out. Frappe HR v16 builds the data afresh for each table from the slip's rows
+        (salary_slip.add_structure_components), and a statistical earning has no row, so a deduction found the USD
+        pay 0: PAYE, NSSF and LST came to the allowances' alone (Luuka, 10 Nov 2026)."""
+        if not getattr(self, "_evaluated_components", None):
+            if not hasattr(self, "_set_evaluated_components"):
+                return
+            self._set_evaluated_components()
+        for row in self._evaluated_components.get("earnings") or ():
+            if not (row.get("statistical_component") or row.get("accrual_component")):
+                continue
+            amount = self.eval_condition_and_formula(row, data)
+            default_data[row.abbr] = flt(amount)
+            if row.get("depends_on_payment_days"):
+                days = flt(self.get("total_working_days"))
+                amount = flt(amount) * flt(self.get("payment_days")) / days if days else 0
+                data[row.abbr] = flt(amount, row.get("precision"))
 
     def update_component_row(self, component_data, amount, component_type, additional_salary=None, *args,
                              **kwargs):
