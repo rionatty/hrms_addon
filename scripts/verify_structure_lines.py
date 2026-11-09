@@ -235,8 +235,13 @@ print("patch: Union Dues and Leave Advance Recovery made, recoveries taken in fu
 # ── 3. The modules, and nobody exempted ───────────────────────────────
 for module, abbr in (("advances", "AR"), ("loans", "LR"), ("penalties", "PEN"), ("settlements", "TB")):
     source = read("hrms_addon", "hrms_addon", module + ".py")
-    check(re.search(r'"salary_component_abbr": "%s", "depends_on_payment_days": 0' % abbr, source),
-          "%s makes its component taken in full, never cut for the days not worked" % module)
+    made = re.search(r'"salary_component_abbr": "%s", "depends_on_payment_days": 0' % abbr, source)
+    if module == "loans":
+        # one deduction per lender, from its COMPONENTS table (LR, and SLR for the SACCO's)
+        lenders = source.split("COMPONENTS = ")[1].split("ACCOUNTS = ")[0] if "COMPONENTS = " in source else ""
+        made = made or ('"%s"' % abbr in lenders
+                        and '"salary_component_abbr": abbr, "depends_on_payment_days": 0' in source)
+    check(made, "%s makes its component taken in full, never cut for the days not worked" % module)
 patches = read("hrms_addon", "patches.txt")
 check("hrms_addon.patches.v1_0.salaried_structure_lines" in patches.split("[post_model_sync]")[1],
       "the patch runs after the doctypes are migrated")
