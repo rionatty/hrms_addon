@@ -3,13 +3,17 @@
     python scripts/verify_weekly_pay.py
 
 Luuka, 5 Nov 2026: casuals are paid weekly on Thursdays; a payroll "should pick
-from attendace and from last executed"; Per Meter and Per Piece stay monthly;
-PAYE, NSSF and LST "not at all"; and the Pay Category says Weekly, not Hourly.
+from attendace and from last executed"; Per Meter stays monthly; PAYE, NSSF and
+LST "not at all"; and the Pay Category says Weekly, not Hourly. 10 Nov 2026:
+the Per Piece casuals are paid on the same weekly payroll, and a casual's
+overtime is paid in the week at their own rate times the multiplier.
 
   1  the rules: a day's hours, the days to pay, the dates, who two payrolls share
   2  the dates a new payroll is given, and its Start held where the last stopped
-  3  Get Employees: the structure and assignments made once, those to pay kept
-  4  the slip: the days it pays, a day marked late, a cancelled slip, a monthly one
+  3  Get Employees: the structure and assignments made once, those to pay kept,
+     the Per Piece casuals with piece pay, and those with overtime only
+  4  the slip: the days it pays, a day marked late, a cancelled slip, a monthly one,
+     and the approved overtime at the person's rate times the multiplier
   5  Frappe HR's own slip and assignment methods, lifted from its source: the
      week's line is hours x rate, never cut by payment days, and no tax is added
   6  the Employees tab, and reads that do not grow with the people
@@ -62,6 +66,7 @@ app.__path__ = []
 sys.modules.update({"hrms_addon": package, "hrms_addon.hrms_addon": app})
 R = load("weekly_pay_rules")  # proves it has no Frappe import
 O = load("output_rules")
+OR = load("overtime_rules")
 print("loaded weekly_pay_rules.py without Frappe")
 
 # ── 1. The rules ─────────────────────────────────────────
@@ -133,6 +138,30 @@ check(R.account_to_copy(ACCOUNTS, EARNINGS, "Basic") == "Salaries - LPT"
       and R.account_to_copy(ACCOUNTS[3:4], EARNINGS, "Basic") is None,
       "a new earning's account: Basic's, else the company's earnings' most used, never a deduction's")
 check(R.structure_name("LPT") == "Weekly Casuals - LPT" and R.shown(D(2026, 10, 29)) == "29 Oct 2026", "the names")
+check(R.weekly_began(D(2026, 10, 26), D(2026, 11, 25)) and R.weekly_began("2026-10-26", "2026-10-26")
+      and not R.weekly_began(D(2026, 10, 26), D(2026, 10, 25)) and not R.weekly_began(None, D(2026, 11, 25)),
+      "a monthly payroll reaches into weekly pay when it ends on or after the first weekly payroll's Start")
+check(R.CATEGORIES == ("Weekly", "Per Piece") and R.PAY == "weekly_pay" and R.OVERTIME == "weekly_overtime",
+      "a weekly payroll pays both kinds of casual, on two lines: the hours, and the overtime")
+OT = [{"attendance_date": "2026-10-30", "status": "Present", "actual_overtime_duration": 2, "overtime_type": "Casual OT"},
+      {"attendance_date": D(2026, 10, 29), "status": "Present", "actual_overtime_duration": 3, "overtime_type": "Casual OT"},
+      {"attendance_date": D(2026, 10, 31), "status": "Present", "actual_overtime_duration": 4, "overtime_type": None},
+      {"attendance_date": D(2026, 11, 2), "status": "Present", "actual_overtime_duration": 1.5, "overtime_type": "Casual OT"}]
+due = R.overtime_to_pay(OT, {"2026-11-02": 1.5, D(2026, 10, 30): 0.5})
+check([(row["attendance_date"], row["hours"]) for row in due] == [(D(2026, 10, 29), 3.0), (D(2026, 10, 30), 1.5)],
+      "the overtime to pay: approved and sent to payroll, less what a slip paid, earliest first; none with no type", due)
+check(R.overtime_amount([{"attendance_date": D(2026, 10, 29), "hours": 2}, {"attendance_date": D(2026, 10, 30), "hours": 3}],
+                        857, {D(2026, 10, 29): 1.5, D(2026, 10, 30): 1.5}) == 6427.5
+      and R.overtime_amount([{"attendance_date": "2026-10-31", "hours": 2}], 1000, {D(2026, 10, 31): 2.0}) == 4000.0
+      and R.overtime_amount([], 1000, {}) == 0.0,
+      "the worksheet's overtime: hours x their own rate x 1.5, or what the type gives a rest day")
+table = R.days_table([{"attendance_date": D(2026, 10, 30), "status": "Present", "hours": 10.0}],
+                     [{"attendance_date": D(2026, 10, 30), "status": "Present", "hours": 2.0},
+                      {"attendance_date": D(2026, 10, 22), "status": "Present", "hours": 3.0}])
+check([(row["attendance_date"], row["hours"], row["overtime_hours"]) for row in table]
+      == [(D(2026, 10, 22), 0.0, 3.0), (D(2026, 10, 30), 10.0, 2.0)] and R.days_paid(table) == 1,
+      "a slip's days: each with its overtime beside it, a day paid before with only its late overtime; the days paid "
+      "are those with hours", table)
 print("rules: the days and their hours, the dates, who two payrolls share")
 
 
@@ -183,6 +212,9 @@ def matches(row, filters):
         elif op == "between":
             if have is None or not as_date(value[0]) <= as_date(have) <= as_date(value[1]):
                 return False
+        elif op == "is":
+            if bool(have) != (value == "set"):
+                return False
         elif op in ("<", "<=", ">", ">="):
             if have is None:
                 return False
@@ -212,8 +244,17 @@ class Doc:
     def get(self, key, default=None):
         return self.values.get(key, default)
 
+    def __getattr__(self, key):
+        if key.startswith("__") or key in ("values", "site", "row"):
+            raise AttributeError(key)
+        return self.__dict__["values"].get(key)
+
     def append(self, table, value):
-        self.values.setdefault(table, []).append(Row(value))
+        line = Child(value)
+        self.values.setdefault(table, []).append(line)
+        if self.row is not None:
+            line["_into"] = self.row.setdefault(table, [])
+        return line
 
     def insert(self):
         self.site.happening("insert", self)
@@ -235,6 +276,13 @@ class Doc:
         self.site.saved.append(self.values.name)
 
 
+class Child(Row):
+    """A row appended to a document already saved, written on its own as Frappe's db_insert writes it."""
+
+    def db_insert(self):
+        self.pop("_into").append(Row(self))
+
+
 class Site:
     def __init__(self):
         self.tables, self.calls, self.messages, self.saved = {}, [], [], []
@@ -243,6 +291,7 @@ class Site:
         self.settings = Row(standard_hours=10, standard_hourly_rate=2000)
         self.companies = {"LPL": Row(abbr="LPT", default_currency="UGX")}
         self.components = []
+        self.day_kinds, self.pieces_waiting, self.cache_cleared = {}, set(), []
 
     def add(self, doctype, **values):
         row = Row(values)
@@ -251,6 +300,14 @@ class Site:
         return row
 
     def rows(self, doctype):
+        if doctype == "Overtime Details":  # an Overtime Slip's lines, as their own table holds them
+            return [Row(line, parent=row.name, parenttype="Overtime Slip", docstatus=row.docstatus)
+                    for row in self.tables.get("Overtime Slip", []) for line in row.get("overtime_details") or []]
+        if doctype == "Salary Detail":  # a structure's lines, as their own table holds them
+            return [Row(line, name="%s-%s-%d" % (row.name, field, number), parent=row.name, parenttype="Salary Structure",
+                        parentfield=field)
+                    for row in self.tables.get("Salary Structure", []) for field in ("earnings", "deductions")
+                    for number, line in enumerate(row.get(field) or [])]
         return self.tables.get(doctype, [])
 
     def happening(self, what, doc):
@@ -269,6 +326,8 @@ class Site:
         self.calls.append(("get_value", doctype))
         filters = {"name": filters} if isinstance(filters, str) else filters
         found = ordered([row for row in self.rows(doctype) if matches(row, filters)], order_by)
+        if isinstance(fieldname, (list, tuple)):
+            return Row({field: found[0].get(field) for field in fieldname}) if found else None
         return found[0].get(fieldname) if found else None
 
     def exists(self, doctype, filters):
@@ -328,6 +387,9 @@ frappe.clear_last_message = lambda: setattr(site(), "cleared", site().cleared + 
 frappe.get_all = lambda *args, **kwargs: site().get_all(*args, **kwargs)
 frappe.get_doc = lambda *args, **kwargs: site().get_doc(*args, **kwargs)
 frappe.get_cached_value = lambda doctype, name, field: (site().companies.get(name) or {}).get(field)
+frappe.get_cached_doc = lambda doctype, name: types.SimpleNamespace(
+    as_dict=lambda: Row(next(row for row in site().rows(doctype) if row.name == name)))
+frappe.clear_document_cache = lambda doctype, name: site().cache_cleared.append((doctype, name))
 frappe.db = types.SimpleNamespace(
     get_value=lambda *args, **kwargs: site().get_value(*args, **kwargs),
     exists=lambda *args, **kwargs: site().exists(*args, **kwargs),
@@ -352,8 +414,14 @@ def made_component(section):
 
 
 output_pay._component = made_component
+# the overtime module reads the sort of day it is for the person; piece_pay says who has piece pay to be paid
+overtime_glue = types.ModuleType("hrms_addon.hrms_addon.overtime")
+overtime_glue.day_kind = lambda employee, day: site().day_kinds.get((employee, as_date(day)), OR.WEEKDAY)
+piece_glue = types.ModuleType("hrms_addon.hrms_addon.piece_pay")
+piece_glue.waiting = lambda employees, start, end: {name for name in employees if name in site().pieces_waiting}
 sys.modules.update({"frappe": frappe, "frappe.utils": utils, "hrms_addon.hrms_addon.output_pay": output_pay,
-                    "hrms_addon.hrms_addon.output_rules": O})
+                    "hrms_addon.hrms_addon.output_rules": O, "hrms_addon.hrms_addon.overtime": overtime_glue,
+                    "hrms_addon.hrms_addon.piece_pay": piece_glue})
 W = load("weekly_pay")
 
 
@@ -503,10 +571,16 @@ unmarked = entry.fill_employee_details()
 structure = next(row for row in s.rows("Salary Structure"))
 check(structure.name == "Weekly Casuals - LPT" and structure.docstatus == 1 and structure.payroll_frequency == "Weekly"
       and structure.currency == "UGX" and structure.is_active == "Yes" and not structure.get("deductions")
-      and [(line.salary_component, line.amount_based_on_formula, line.formula) for line in structure.earnings] == [("Hourly Earnings", 1, "weekly_pay")],
-      "the company's weekly structure is made: one line, the week's pay, and no PAYE, NSSF or LST", structure)
-check(any(row.parent == "Hourly Earnings" and row.account == "Salaries - LPT" and row.company == "LPL" for row in s.rows("Salary Component Account")),
-      "its earning takes an account for the company, as posting the payroll needs one: Basic's")
+      and [(line.salary_component, line.amount_based_on_formula, line.formula) for line in structure.earnings]
+      == [("Hourly Earnings", 1, "weekly_pay"), ("Casual Overtime", 1, "weekly_overtime")],
+      "the company's weekly structure is made: the week's hours and the overtime, and no PAYE, NSSF or LST", structure)
+check(all(any(row.parent == earning and row.account == "Salaries - LPT" and row.company == "LPL"
+              for row in s.rows("Salary Component Account")) for earning in ("Hourly Earnings", "Casual Overtime")),
+      "each earning takes an account for the company, as posting the payroll needs one: Basic's")
+overtime_component = [row for row in s.rows("Salary Component") if row.name == "Casual Overtime"]
+check(len(overtime_component) == 1 and overtime_component[0].type == "Earning" and overtime_component[0].salary_component_abbr == "COT"
+      and overtime_component[0].depends_on_payment_days == 0 and overtime_component[0].remove_if_zero_valued == 1,
+      "the overtime's earning is made once: not cut by payment days, and off a slip where it is nothing", overtime_component)
 made = {row.employee: row for row in s.rows("Salary Structure Assignment") if row.salary_structure == "Weekly Casuals - LPT"}
 check(sorted(made) == ["W1", "W2", "W4", "W7"] and all(row.docstatus == 1 for row in made.values()),
       "assignments for the plant's weekly people: not Inactive, not gone before the Start, not monthly staff, not another plant's",
@@ -539,7 +613,8 @@ try:
     entry.fill_employee_details()
     check(False, "nobody with days to pay: it says so")
 except Thrown as error:
-    check("Nobody has attendance to pay up to 12 Nov 2026" in str(error), "nobody with days to pay: it says so", str(error))
+    check("Nobody has attendance or piece work to pay up to 12 Nov 2026" in str(error), "nobody with days to pay: it says so",
+          str(error))
 monthly = PayrollEntry(name="PE-M", company="LPL", payroll_frequency="Monthly", salary_slip_based_on_timesheet=0,
                        start_date=D(2026, 10, 26), end_date=D(2026, 11, 25), employees=[])
 made_before = len(s.rows("Salary Structure Assignment"))
@@ -548,6 +623,47 @@ try:
 except Thrown:
     pass
 check(len(s.rows("Salary Structure Assignment")) == made_before, "a monthly payroll is Frappe HR's own: nobody is assigned anything")
+
+# a monthly payroll and the casuals: theirs until weekly pay begins, the weekly payroll's after
+s = populated()
+s.add("Employee", name="P1", company="LPL", custom_pay_category="Per Piece", branch="North", status="Active",
+      date_of_joining=D(2025, 1, 1))
+s.add("Salary Structure", name="Salaried", docstatus=1, payroll_frequency="Monthly", company="LPL")
+for name in ("M1", "W1", "P1"):
+    s.add("Salary Structure Assignment", name="SSA-M-" + name, employee=name, salary_structure="Salaried",
+          from_date=D(2025, 1, 1), docstatus=1)
+
+
+def month(end=D(2026, 11, 25), validate=0):
+    return PayrollEntry(name="PE-M", company="LPL", payroll_frequency="Monthly", salary_slip_based_on_timesheet=0,
+                        start_date=D(2026, 10, 26), end_date=end, employees=[], validate_attendance=validate)
+
+
+before = month()
+before.fill_employee_details()
+check(sorted(row.employee for row in before.employees) == ["M1", "P1", "W1", "W7"],
+      "before weekly pay begins, a monthly payroll pays the casuals as it did", [row.employee for row in before.employees])
+s.add("Payroll Entry", name="PE-FIRST", company="LPL", payroll_frequency="Weekly", salary_slip_based_on_timesheet=0,
+      docstatus=0, start_date=D(2026, 10, 26), end_date=D(2026, 11, 11))
+s.messages.clear()
+after = month(validate=1)
+unmarked = after.fill_employee_details()
+check([row.employee for row in after.employees] == ["M1"] and after.number_of_employees == 1
+      and [row["employee"] for row in unmarked] == ["M1"]
+      and any("Left out, paid by the week: 3 casual(s)." in message for message in s.messages),
+      "once the first weekly payroll is made, a monthly payroll reaching into its days leaves the casuals out, and says "
+      "so: their slips would pay the piece work again", ([row.employee for row in after.employees], s.messages))
+october = month(end=D(2026, 10, 25))
+october.fill_employee_details()
+check(sorted(row.employee for row in october.employees) == ["M1", "P1", "W1", "W7"],
+      "a month that ended before weekly pay began still pays them", [row.employee for row in october.employees])
+s.rows("Salary Structure Assignment")[-3]["docstatus"] = 2
+try:
+    month().fill_employee_details()
+    check(False, "a monthly payroll of casuals only says why it has nobody")
+except Thrown as error:
+    check("Everyone found is a casual paid by the week" in str(error), "a monthly payroll of casuals only says why it has nobody",
+          str(error))
 crowd = Site()
 SITE[0] = crowd
 for number in range(120):
@@ -565,6 +681,48 @@ try:
 except Thrown as error:
     check("Depends on Payment Days" in str(error) and not cut.rows("Salary Structure"),
           "an earning cut by payment days is refused for the weekly line", str(error))
+cut = Site()
+SITE[0] = cut
+cut.add("Salary Component", name="Hourly Earnings", type="Earning", depends_on_payment_days=0)
+cut.add("Salary Component", name="Casual Overtime", type="Earning", depends_on_payment_days=1)
+try:
+    W.structure_for("LPL")
+    check(False, "and so is an overtime earning cut by payment days")
+except Thrown as error:
+    check("Casual Overtime is cut by payment days" in str(error) and not cut.rows("Salary Structure"),
+          "and so is an overtime earning cut by payment days", str(error))
+old = Site()
+SITE[0] = old
+old.add("Salary Component", name="Hourly Earnings", type="Earning", depends_on_payment_days=0)
+old.add("Salary Structure", name="Weekly Casuals - LPT", docstatus=1, company="LPL", payroll_frequency="Weekly",
+        earnings=[Row(salary_component="Hourly Earnings", abbr="HRE", amount_based_on_formula=1, formula="weekly_pay", docstatus=1)])
+check(W.structure_for("LPL") == "Weekly Casuals - LPT" and W.structure_for("LPL") == "Weekly Casuals - LPT", "an older structure is kept")
+lines = old.rows("Salary Structure")[0].earnings
+check([(line.salary_component, line.formula, line.abbr, line.docstatus, line.depends_on_payment_days) for line in lines]
+      == [("Hourly Earnings", "weekly_pay", "HRE", 1, None), ("Casual Overtime", "weekly_overtime", "COT", 1, 0)]
+      and old.cache_cleared == [("Salary Structure", "Weekly Casuals - LPT")] and len(old.rows("Salary Structure")) == 1,
+      "a structure made before overtime was paid by the week gets the overtime line once, submitted with it", lines)
+
+# both kinds of casual: the Per Piece ones are assigned too, and kept when they have piece pay in the week
+s = populated()
+for name in ("P1", "P2"):
+    s.add("Employee", name=name, company="LPL", custom_pay_category="Per Piece", branch="North", status="Active",
+          date_of_joining=D(2025, 1, 1), custom_hourly_rate=0)
+s.pieces_waiting = {"P1"}
+s.settings.standard_hourly_rate = 0
+s.add("Weekly Pay Day", parent="SS-OLD", employee="W8", attendance_date=D(2026, 10, 30), hours=10, overtime_hours=0, docstatus=1)
+s.add("Attendance", name="A-W8-0", employee="W8", attendance_date=D(2026, 10, 30), status="Present", working_hours=10,
+      actual_overtime_duration=3, overtime_type="Casual OT", docstatus=1)
+entry = PayrollEntry(name="PE-NEW", company="LPL", payroll_frequency="Weekly", salary_slip_based_on_timesheet=0, branch="North",
+                     start_date=D(2026, 10, 29), end_date=D(2026, 11, 4), employees=[])
+entry.fill_employee_details()
+made = {row.employee for row in s.rows("Salary Structure Assignment") if row.salary_structure == "Weekly Casuals - LPT"}
+check({"P1", "P2"} <= made, "the Per Piece casuals are given the weekly structure too", sorted(made))
+check(sorted(row.employee for row in entry.employees) == ["P1", "W1", "W7", "W8"],
+      "kept: the Per Piece casual with piece pay in the week, though no rate; one whose day was paid and whose overtime "
+      "was approved since; not the Per Piece one with nothing, nor those with hours and no rate",
+      sorted(row.employee for row in entry.employees))
+s.settings.standard_hourly_rate = 2000
 print("Get Employees: the structure and assignments made once, those to pay kept")
 
 
@@ -640,7 +798,69 @@ try:
     check(False, "a slip with hours and no rate is refused")
 except Thrown as error:
     check("W4 has hours but no hourly rate" in str(error), "a slip with hours and no rate is refused", str(error))
-print("the slip: each unpaid day once, late days on the next, nothing a monthly slip paid")
+
+# the approved overtime: at their own rate x the multiplier the type gives the day, and none twice
+s = populated()
+s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5, applicable_for_weekend=1, weekend_multiplier=2.0)
+for row in s.rows("Attendance"):
+    if row.name == "A-W1-1":
+        row.update(actual_overtime_duration=2, overtime_type="Casual OT")
+    if row.name == "A-W1-2":
+        row.update(actual_overtime_duration=3, overtime_type="Casual OT")
+    if row.name == "A-W1-6":
+        row.update(actual_overtime_duration=4, overtime_type=None)
+s.day_kinds[("W1", D(2026, 10, 31))] = OR.REST_DAY
+paid_ot = slip()
+W.slip_before_validate(paid_ot)
+W.slip_validate(paid_ot)
+check(paid_ot.custom_weekly_overtime_hours == 5.0 and paid_ot.custom_weekly_overtime == 2 * 2500 * 1.5 + 3 * 2500 * 2.0,
+      "the slip pays the approved overtime: Friday's at 1.5, Saturday's at the weekend's 2; none not yet sent to payroll",
+      (paid_ot.custom_weekly_overtime_hours, paid_ot.custom_weekly_overtime))
+check([(row["attendance_date"], row["overtime_hours"]) for row in paid_ot.custom_weekly_days if row["overtime_hours"]]
+      == [(D(2026, 10, 30), 2.0), (D(2026, 10, 31), 3.0)] and paid_ot.custom_weekly_hours == 53.0 and paid_ot.custom_days_paid == 6,
+      "each day notes its overtime beside its hours; the hours and days are as before", paid_ot.custom_weekly_days)
+submitted(s, paid_ot)
+s.add("Payroll Entry", name="PE-1", company="LPL", payroll_frequency="Weekly", salary_slip_based_on_timesheet=0, docstatus=1,
+      start_date=D(2026, 10, 29), end_date=D(2026, 11, 4))
+for row in s.rows("Attendance"):
+    if row.name == "A-W1-1":
+        row.update(actual_overtime_duration=4)
+later = slip(start=D(2026, 11, 5), end=D(2026, 11, 11))
+W.slip_before_validate(later)
+W.slip_validate(later)
+check(later.custom_weekly_overtime_hours == 2.0 and later.custom_weekly_overtime == 2 * 2500 * 1.5
+      and [(row["attendance_date"], row["hours"], row["overtime_hours"]) for row in later.custom_weekly_days]
+      == [(D(2026, 10, 30), 0.0, 2.0), (D(2026, 11, 5), 4.0, 0.0)] and later.custom_days_paid == 1,
+      "more overtime approved for a day already paid goes on the next slip, the day's hours not paid again",
+      later.custom_weekly_days)
+s = populated()
+s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5)
+for row in s.rows("Attendance"):
+    if row.name in ("A-W1-1", "A-W1-2"):
+        row.update(actual_overtime_duration=2, overtime_type="Casual OT")
+s.add("Overtime Slip", name="OTS-1", employee="W1", docstatus=1,
+      overtime_details=[Row(reference_document="A-W1-1", overtime_duration=2)])
+s.add("Overtime Slip", name="OTS-2", employee="W1", docstatus=2,
+      overtime_details=[Row(reference_document="A-W1-2", overtime_duration=2)])
+before_weekly = slip()
+W.slip_before_validate(before_weekly)
+check(before_weekly.custom_weekly_overtime_hours == 2.0 and before_weekly.custom_weekly_overtime == 2 * 2500 * 1.5,
+      "hours a submitted Overtime Slip paid, before the casual was paid by the week, are not paid again; a cancelled "
+      "one's are", (before_weekly.custom_weekly_overtime_hours, before_weekly.custom_weekly_days))
+nothing = Site()
+SITE[0] = nothing
+nothing.add("Employee", name="W9", company="LPL", custom_pay_category="Weekly", custom_hourly_rate=0)
+nothing.settings.standard_hourly_rate = 0
+nothing.add("Weekly Pay Day", parent="SS-OLD", employee="W9", attendance_date=D(2026, 10, 30), hours=10, overtime_hours=0,
+            docstatus=1)
+nothing.add("Attendance", name="A-W9-0", employee="W9", attendance_date=D(2026, 10, 30), status="Present", working_hours=10,
+            actual_overtime_duration=3, overtime_type="Casual OT", docstatus=1)
+try:
+    W.slip_before_validate(slip("W9"))
+    check(False, "overtime with no rate to pay it at is refused too")
+except Thrown as error:
+    check("W9 has hours but no hourly rate" in str(error), "overtime with no rate to pay it at is refused too", str(error))
+print("the slip: each unpaid day once, late days on the next, nothing a monthly slip paid, the overtime once")
 
 # ── 5. Frappe HR's own methods, lifted from its source ───
 SLIP_SOURCE = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "salary_slip", "salary_slip.py")
@@ -668,6 +888,7 @@ if os.path.exists(SLIP_SOURCE) and os.path.exists(SSA_SOURCE):
         return eval(code, {**GLOBALS, "__builtins__": {}}, eval_locals)
 
     component_flags = {"Hourly Earnings": Row(remove_if_zero_valued=1, round_to_the_nearest_integer=0),
+                       "Casual Overtime": Row(remove_if_zero_valued=1, round_to_the_nearest_integer=0),
                        "PAYE Master": Row(remove_if_zero_valued=0, round_to_the_nearest_integer=0)}
     upstream = types.SimpleNamespace(
         get_cached_value=lambda doctype, name, field: (component_flags.get(name) or {}).get(field),
@@ -686,9 +907,10 @@ if os.path.exists(SLIP_SOURCE) and os.path.exists(SSA_SOURCE):
     exec(slip_class, namespace)
 
     class FrappeSlip(namespace["LiftedSlip"]):
-        def __init__(self, frequency, hours, rate, payment_days, depends):
+        def __init__(self, frequency, hours, rate, payment_days, depends, overtime=0):
             self.payroll_frequency, self.salary_slip_based_on_timesheet = frequency, 0
             self.custom_weekly_hours, self.custom_weekly_rate = hours, rate
+            self.custom_weekly_overtime = overtime
             self.employee, self.salary_structure = "W1", "Weekly Casuals - LPT"
             self.total_working_days, self.payment_days = 7, payment_days
             self.start_date, self.joining_date, self.relieving_date = D(2026, 10, 29), D(2025, 1, 1), None
@@ -698,7 +920,9 @@ if os.path.exists(SLIP_SOURCE) and os.path.exists(SSA_SOURCE):
             self._salary_structure_assignment = Row()
             row = Row(salary_component="Hourly Earnings", abbr="HRE", amount_based_on_formula=1, formula="weekly_pay",
                       condition=None, amount=0, default_amount=0, depends_on_payment_days=depends, precision=2)
-            self._evaluated_components = {"earnings": [row], "deductions": [], "employer_contributions": []}
+            extra = Row(salary_component="Casual Overtime", abbr="COT", amount_based_on_formula=1, formula="weekly_overtime",
+                        condition=None, amount=0, default_amount=0, depends_on_payment_days=0, precision=2)
+            self._evaluated_components = {"earnings": [row, extra], "deductions": [], "employer_contributions": []}
 
         def get(self, key, default=None):
             return getattr(self, key, default)
@@ -735,8 +959,8 @@ if os.path.exists(SLIP_SOURCE) and os.path.exists(SSA_SOURCE):
     class WeeklySlip(W.SalarySlipWeekly, FrappeSlip):
         pass
 
-    def worked(cls, frequency="Weekly", depends=0):
-        doc = cls(frequency, 53.0, 2500, 4, depends)
+    def worked(cls, frequency="Weekly", depends=0, overtime=0):
+        doc = cls(frequency, 53.0, 2500, 4, depends, overtime)
         doc.add_structure_components("earnings")
         doc.add_tax_components()
         return doc, doc.get_component_totals("earnings", depends_on_payment_days=1)
@@ -747,6 +971,13 @@ if os.path.exists(SLIP_SOURCE) and os.path.exists(SSA_SOURCE):
           "Frappe HR's own slip code pays the week's line as hours x rate, though the week had absences", (dict(line), gross))
     check(week.deductions == [] and week._component_based_variable_tax == {} and week.other_deduction_components == [],
           "and adds no tax line to a weekly slip", week.deductions)
+    check([line.salary_component for line in week.earnings] == ["Hourly Earnings"],
+          "a week with no overtime has no overtime line", [line.salary_component for line in week.earnings])
+    ot_week, ot_gross = worked(WeeklySlip, overtime=22500.0)
+    check([(line.salary_component, line.amount) for line in ot_week.earnings]
+          == [("Hourly Earnings", 132500.0), ("Casual Overtime", 22500.0)] and ot_gross == 155000.0,
+          "the overtime line pays what the slip worked out, whole, though the week had absences",
+          [(line.salary_component, line.amount) for line in ot_week.earnings])
     month, _gross = worked(WeeklySlip, frequency="Monthly")
     check([line.salary_component for line in month.deductions] == ["PAYE Master"],
           "while a slip whose structure has no tax line is given the Salary Component master's: the trap the weekly slip is kept from",
@@ -778,8 +1009,12 @@ if os.path.exists(SLIP_SOURCE) and os.path.exists(SSA_SOURCE):
         pass
 
     structure_line = Line(salary_component="Hourly Earnings", abbr="HRE", amount_based_on_formula=1, formula="weekly_pay", amount=0)
-    rows = WeeklyAssignment()._evaluate_component_table([structure_line], WeeklyAssignment()._get_component_eval_context())
-    check(rows and rows[0].default_amount == 0 and not named_error, "the assignment works the line out to nothing, with no error", rows)
+    overtime_line = Line(salary_component="Casual Overtime", abbr="COT", amount_based_on_formula=1, formula="weekly_overtime",
+                         amount=0)
+    rows = WeeklyAssignment()._evaluate_component_table([structure_line, overtime_line],
+                                                        WeeklyAssignment()._get_component_eval_context())
+    check(len(rows) == 2 and all(row.default_amount == 0 for row in rows) and not named_error,
+          "the assignment works both lines out to nothing, with no error", rows)
     try:
         FrappeAssignment()._evaluate_component_table([structure_line], FrappeAssignment()._get_component_eval_context())
     except NameError:
@@ -790,10 +1025,15 @@ else:
 
 # ── 6. The Employees tab, and reads ──────────────────────
 s = populated()
-figures = {"W1": {"custom_working_days": 31, "custom_paid_days": 31}, "W2": {"custom_working_days": 31, "custom_paid_days": 31}}
+s.add("Employee", name="P1", company="LPL", custom_pay_category="Per Piece", branch="North", status="Active")
+s.add("Attendance", name="A-P1-0", employee="P1", attendance_date=D(2026, 10, 30), status="Present", working_hours=10, docstatus=1)
+figures = {"W1": {"custom_working_days": 31, "custom_paid_days": 31}, "W2": {"custom_working_days": 31, "custom_paid_days": 31},
+           "P1": {"custom_working_days": 31, "custom_paid_days": 31}}
 W.show_on_figures(Form(company="LPL", start_date=D(2026, 10, 29), end_date=D(2026, 11, 4)), figures)
-check(figures == {"W1": {"custom_working_days": 7, "custom_paid_days": 6}, "W2": {"custom_working_days": 7, "custom_paid_days": 2}},
-      "a weekly payroll's tab shows the days its slips will pay", figures)
+check(figures == {"W1": {"custom_working_days": 7, "custom_paid_days": 6}, "W2": {"custom_working_days": 7, "custom_paid_days": 2},
+                  "P1": {"custom_working_days": 7, "custom_paid_days": 0}},
+      "a weekly payroll's tab shows the days its slips will pay; a Per Piece casual's none, their pay being their bags",
+      figures)
 
 
 def reads(count):
@@ -807,12 +1047,13 @@ def reads(count):
     many.calls.clear()
     found = W.days_to_pay(names, D(2026, 10, 29), D(2026, 11, 4), "LPL")
     W.rates_of(names)
+    W.overtime_due(names, D(2026, 10, 29), D(2026, 11, 4), "LPL")
     return len(many.calls), found
 
 
 few_reads, _few = reads(3)
 many_reads, many_found = reads(2000)
-check(few_reads == many_reads <= 6 and len(many_found["P1999"]) == 1,
+check(few_reads == many_reads <= 9 and len(many_found["P1999"]) == 1,
       "2,000 people take no more reads than 3: %d and %d" % (many_reads, few_reads))
 print("the Employees tab: the days the slips will pay, read for everyone at once")
 
@@ -826,16 +1067,21 @@ check(custom["Employee-custom_hourly_rate"]["depends_on"] == "eval:doc.custom_pa
 chain = [("Salary Slip-custom_weekly_section", "Section Break", "base_hour_rate"),
          ("Salary Slip-custom_weekly_hours", "Float", "custom_weekly_section"),
          ("Salary Slip-custom_weekly_rate", "Currency", "custom_weekly_hours"),
-         ("Salary Slip-custom_weekly_days", "Table", "custom_weekly_rate")]
+         ("Salary Slip-custom_weekly_days", "Table", "custom_weekly_rate"),
+         ("Salary Slip-custom_weekly_overtime_hours", "Float", "custom_weekly_days"),
+         ("Salary Slip-custom_weekly_overtime", "Currency", "custom_weekly_overtime_hours")]
 check(all(name in custom and custom[name]["fieldtype"] == fieldtype and custom[name]["insert_after"] == after for name, fieldtype, after in chain),
       "the slip's Weekly Pay section, one field after another under Frappe HR's hourly wages")
 check(all(custom[name].get("read_only") == 1 and custom[name].get("no_copy") == 1 for name, _t, _a in chain[1:])
       and custom["Salary Slip-custom_weekly_days"]["options"] == "Weekly Pay Day"
+      and custom["Salary Slip-custom_weekly_overtime"]["options"] == "currency"
       and custom["Salary Slip-custom_weekly_section"]["depends_on"] == "eval:doc.payroll_frequency=='Weekly'",
       "written by the server only, and shown on a weekly slip only")
 meta = json.load(open(os.path.join(APP, "doctype", "weekly_pay_day", "weekly_pay_day.json"), encoding="utf-8"))
 fields = {field["fieldname"]: field for field in meta["fields"]}
-check(meta["istable"] == 1 and meta["name"] == "Weekly Pay Day" and set(fields) == {"attendance_date", "status", "hours", "employee"}
+check(meta["istable"] == 1 and meta["name"] == "Weekly Pay Day"
+      and set(fields) == {"attendance_date", "status", "hours", "overtime_hours", "employee"}
+      and fields["overtime_hours"]["fieldtype"] == "Float"
       and fields["employee"].get("search_index") == 1 and fields["attendance_date"].get("search_index") == 1
       and all(field.get("read_only") == 1 for field in fields.values()),
       "a day a slip paid: its date and its person indexed, as the paid days are read by them")
@@ -882,10 +1128,16 @@ check("@frappe.whitelist()\ndef dates_for(" in read("hrms_addon", "hrms_addon", 
 run_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_run", "output_pay_run.json"), encoding="utf-8"))
 section = next(field for field in run_meta["fields"] if field["fieldname"] == "section")
 check(section["options"].split("\n") == ["Per Meter", "Per Piece"], "an Output Pay Run is for Per Meter or Per Piece: the casuals are paid weekly")
+check('if doc.get("section") == rules.PER_PIECE:' in read("hrms_addon", "hrms_addon", "output_pay.py").split("def run_validate")[1][:300],
+      "and no longer for Per Piece: their weeks are paid on the weekly payroll, which a month's run would pay again")
 glue = read("hrms_addon", "hrms_addon", "output_pay.py")
 check("_fill_hours" not in glue and "_price_hours" not in glue and "custom_pay_category\": rules.HOURLY" not in glue,
       "and it no longer pays anyone by the hour")
 weekly_glue = read("hrms_addon", "hrms_addon", "weekly_pay.py")
+check('OVERTIME_COMPONENT = ("Casual Overtime", "COT")' in weekly_glue
+      and 'WEEKLY_OVERTIME, WEEKLY_OVERTIME_HOURS = "Casual Overtime", "custom_weekly_overtime_hours"'
+      in read("hrms_addon", "hrms_addon", "payslip.py"),
+      "the Pay Slip knows the overtime line by the name it is made under, and prints its hours beside it")
 check("deductions" not in weekly_glue.split("def structure_for")[1].split("def _give_account")[0],
       "the weekly structure is made with no deductions at all")
 print("wiring: the fields, the doctype, the hooks, the patch, the form")

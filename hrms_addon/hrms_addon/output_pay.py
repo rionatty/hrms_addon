@@ -188,6 +188,10 @@ def _paid_run(branch, section, day):
 
 # ── 3. The month ──────────────────────────────────────────────────────
 def run_validate(doc, method=None):
+    # Per Piece casuals are paid by the week now (piece_pay.py): a month's run would pay their weeks again
+    if doc.get("section") == rules.PER_PIECE:
+        frappe.throw(_("Per Piece casuals are paid by the week: upload their sheet on the weekly Payroll Entry."),
+                     title=_(RUN))
     _set_period(doc)
     _one_run_a_month(doc)
     _price_lines(doc)

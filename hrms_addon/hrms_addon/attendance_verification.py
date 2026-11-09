@@ -690,14 +690,19 @@ def _payroll_people(doc):
 
 def _days_paid(doc, found):
     """A weekly payroll pays the days still unpaid, which can lie before its Start (weekly_pay.days_to_pay); any
-    other pays every day of its dates (None)."""
+    other pays every day of its dates (None). A Per Piece casual on it is paid for their bags, not their days:
+    none of their days is paid (piece_pay.py)."""
     if not weekly_pay_rules.on_weekly_pay(doc):
         return None
     from hrms_addon.hrms_addon import weekly_pay
 
-    paid = weekly_pay.days_to_pay([row["employee"] for row in found], doc.get("start_date"), doc.get("end_date"),
-                                  doc.get("company"))
-    return {employee: [getdate(day["attendance_date"]) for day in rows] for employee, rows in paid.items()}
+    names = [row["employee"] for row in found]
+    hourly = set(frappe.get_all("Employee", filters={"name": ["in", names],
+                                                     "custom_pay_category": weekly_pay_rules.WEEKLY},
+                                pluck="name", limit_page_length=0)) if names else set()
+    paid = weekly_pay.days_to_pay([name for name in names if name in hourly], doc.get("start_date"),
+                                  doc.get("end_date"), doc.get("company"))
+    return {name: [getdate(day["attendance_date"]) for day in paid.get(name) or []] for name in names}
 
 
 def _range(doc, days):

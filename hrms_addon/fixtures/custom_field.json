@@ -12569,6 +12569,31 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Salary Slip-custom_weekly_overtime_hours",
+  "dt": "Salary Slip",
+  "fieldname": "custom_weekly_overtime_hours",
+  "fieldtype": "Float",
+  "insert_after": "custom_weekly_days",
+  "label": "Overtime Hours",
+  "read_only": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Salary Slip-custom_weekly_overtime",
+  "dt": "Salary Slip",
+  "fieldname": "custom_weekly_overtime",
+  "fieldtype": "Currency",
+  "insert_after": "custom_weekly_overtime_hours",
+  "label": "Overtime",
+  "options": "currency",
+  "read_only": 1,
+  "no_copy": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Salary Component Account-custom_cost_account",
   "dt": "Salary Component Account",
   "fieldname": "custom_cost_account",

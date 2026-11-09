@@ -303,7 +303,7 @@ check("both are in the fixtures the app ships", all('"%s",' % name in hooks_src 
 check("the setting's field name is the one the code reads", 'DAYS_FIELD = "custom_days_in_month"' in glue
       and 'ABSENT_FIELD = "custom_absent_amount"' in glue)
 check("HR's cost check divides by the same days and hours as the Overtime Slip",
-      "days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())" in read("hrms_addon", "hrms_addon",
+      "days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day()," in read("hrms_addon", "hrms_addon",
                                                                                  "overtime.py"))
 
 # ── 6. The days a slip shows ──────────────────────────────────────────

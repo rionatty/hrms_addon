@@ -1293,6 +1293,9 @@ fixtures = [
                     "Salary Slip-custom_weekly_hours",
                     "Salary Slip-custom_weekly_rate",
                     "Salary Slip-custom_weekly_days",
+                    # and the approved overtime it pays (weekly_pay.py)
+                    "Salary Slip-custom_weekly_overtime_hours",
+                    "Salary Slip-custom_weekly_overtime",
                     # the expense the employer's share is booked to (employer_costs.py)
                     "Salary Component Account-custom_cost_account",
                     # the age NSSF stops at, and who pays on past it (nssf_age.py)
@@ -1926,10 +1929,15 @@ doc_events = {
     "Output Rate": {
         "validate": "hrms_addon.hrms_addon.output_pay.size_validate",
     },
+    # a Per Piece report's week is paid on the weekly payroll as Additional
+    # Salary, its arrears with it (piece_pay.py)
     "Daily Production Report": {
-        "validate": "hrms_addon.hrms_addon.output_pay.report_validate",
-        "on_submit": "hrms_addon.hrms_addon.output_pay.report_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.output_pay.report_on_cancel",
+        "validate": ["hrms_addon.hrms_addon.output_pay.report_validate",
+                     "hrms_addon.hrms_addon.piece_pay.report_validate"],
+        "on_submit": ["hrms_addon.hrms_addon.output_pay.report_on_submit",
+                      "hrms_addon.hrms_addon.piece_pay.report_on_submit"],
+        "on_cancel": ["hrms_addon.hrms_addon.piece_pay.report_on_cancel",
+                      "hrms_addon.hrms_addon.output_pay.report_on_cancel"],
     },
     "Output Pay Run": {
         # new, copied or amended, it names no Additional Salary of another run

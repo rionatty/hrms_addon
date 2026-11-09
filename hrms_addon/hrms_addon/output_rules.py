@@ -56,6 +56,7 @@ too; they come back as they were and stay the supervisors'.
 """
 
 import datetime
+import difflib
 import re
 
 PER_METER, PER_PIECE, HOURLY = "Per Meter", "Per Piece", "Hourly"
@@ -327,8 +328,9 @@ def _seat(who):
 # ── The month's sheet, uploaded ───────────────────────────────────────
 def employee_key(value):
     """An Employee Id as written on the sheet, for matching: " lpl12261. "
-    is LPL12261."""
-    return re.sub(r"[\s.]+$", "", str(value or "").strip()).upper()
+    is LPL12261, and so is the "LPL12261_x000D_" Excel leaves of a line
+    break typed into the cell."""
+    return re.sub(r"[\s.]+$", "", str(value or "").replace("_x000D_", "").strip()).upper()
 
 
 def take_sheet(lines, ids, categories, sizes, rates, period, names=None):
@@ -533,6 +535,182 @@ def keep_reported_days(taken, work, overtime, shown=None):
                if figures(sheet_work.get(key)) != figures(work.get(key))
                or round(_num(sheet_overtime.get(key)), 2) != round(_num(overtime.get(key)), 2)]
     return sorted(changed, key=lambda key: (key[1], str(key[0])))
+
+
+# ── Luuka's Per Piece workbook (piece_sheet.py) ───────────────────────
+def piece_key(name):
+    """A name as written on the workbook, for matching: case, spaces, dots
+    and the order of its words aside, "Jane  Doe" and "DOE JANE." are
+    one name."""
+    return " ".join(sorted(re.findall(r"[A-Z0-9]+", str(name or "").upper())))
+
+
+def piece_pay_day(first, last, joined=None, left=None, status=None):
+    """The day a person's week of piece pay is dated, or why it cannot be paid on this payroll: (day, None) or
+    (None, why). Frappe HR takes no Additional Salary dated before someone joined or after they left, nor any for
+    one who is Inactive. first: the first day of the week this payroll pays; last: the week's last day. One who
+    left during the week is paid on their last day, which the slip still holds."""
+    first, last, joined, left = _date(first), _date(last), _date(joined), _date(left)
+    if status == "Inactive":
+        return None, "they are Inactive"
+    if joined and last and joined > last:
+        return None, "they joined on %s, after the week" % _day(joined)
+    if left and first and left < first:
+        return None, "they left on %s, before the days this payroll pays" % _day(left)
+    return (left if left and last and left < last else last), None
+
+
+def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
+    """What Luuka's Per Piece workbook gives for a payroll's days, checked row by row.
+
+    weeks: piece_sheet.read's weeks [{"sheet", "start", "end", "prices",
+    "rows"}]; people: [{"employee", "employee_name", "employee_number",
+    "category", "branch"}], every employee; sizes: the Per Piece categories
+    in use; rates: {category: [{"work_unit", "valid_from"}]}; period:
+    (from, to); branch: the payroll's plant; unread: the sheets dated by nothing.
+
+    A week is the payroll's when its last day is in it, so each week is
+    paid once. A bag column's price names its category: the one whose Work
+    Unit that week is that price. A person is found by the Employee Id
+    where the sheet has one, else by name, its words in any order; a name
+    that is nobody's, or more than one person's, is said and left out, never
+    guessed. The ARREARS beside a person are paid with their week (Luuka's
+    casual payroll adds them to the gross).
+
+    Returns {"work": {(employee, the week's last day, category): (bags,
+    price, where)}, "arrears": {(employee, the week's last day): (amount,
+    where)}, "overtime": {}, "weeks": [the weeks taken], "problems",
+    "notes"}, as take_sheet does, so the same reports are made of it."""
+    start, end = _date(period[0]), _date(period[1])
+    work, problems, notes, taken = {}, [], [], []
+    by_name, by_id, called, piece_names = {}, {}, {}, {}
+    for person in people or []:
+        employee = person["employee"]
+        called[employee] = person.get("employee_name") or employee
+        by_name.setdefault(piece_key(person.get("employee_name")), []).append(person)
+        if (person.get("category") or REGULAR) == PER_PIECE:
+            piece_names.setdefault(piece_key(person.get("employee_name")), []).append(person)
+        for value in (employee, person.get("employee_number")):
+            if value:
+                by_id.setdefault(employee_key(value), person)
+
+    def who(employee):
+        return "%s (%s)" % (called[employee], employee)
+
+    weeks_in = {}
+    for week in weeks or []:
+        last = _date(week.get("end"))
+        if last and start and end and start <= last <= end:
+            weeks_in.setdefault((_date(week.get("start")), last), []).append(week)
+    if not weeks_in:
+        problems.append("No weekly sheet ends between %s and %s: there is nothing to pay."
+                        % (_day(start), _day(end)))
+    arrears = {}
+    for (first, last), copies in sorted(weeks_in.items()):
+        if len(copies) > 1:
+            problems.append("%s to %s is on %d sheets (%s): none of them is taken. Keep one and upload again."
+                            % (_day(first), _day(last), len(copies), _joined("'%s'" % week["sheet"] for week in copies)))
+            continue
+        week = copies[0]
+        sheet = "'%s'" % week["sheet"]
+        categories = {}
+        for price in week.get("prices") or []:
+            fitting = sorted(size for size in sizes or ()
+                             if work_unit_on(rates.get(size), last) is not None
+                             and abs(work_unit_on(rates.get(size), last) - _num(price)) < 0.005)
+            if len(fitting) == 1:
+                categories[price] = fitting[0]
+            elif fitting:
+                problems.append("On %s, %s are all priced %s, so the bags at %s are left out: give each category "
+                                "its own Work Unit." % (_day(last), _joined(fitting), _figure(price), _figure(price)))
+            else:
+                problems.append("No Per Piece category is priced %s on %s, so the bags at %s on %s are left out: "
+                                "set it in Sizes and Work Units." % (_figure(price), _day(last), _figure(price), sheet))
+        found = {}
+        for row in week.get("rows") or []:
+            bags = {price: value for price, value in (row.get("bags") or {}).items() if _text(value)}
+            owed = _num(row.get("arrears")) if _positive(row.get("arrears")) else 0.0
+            # bags that are no number or less than nothing, and arrears less than nothing, are said, never passed over
+            odd = [value for value in bags.values() if not _is_number(value) or _num(value) < 0]
+            owes_back = _is_number(row.get("arrears")) and _num(row.get("arrears")) < 0
+            if not owed and not odd and not owes_back and not any(_positive(value) for value in bags.values()):
+                continue
+            worth = sum(_num(value) * _num(price) for price, value in bags.items() if _positive(value))
+            what = "bags and arrears" if owed and worth else "arrears" if owed else "bags"
+            due = _amount(worth + owed)
+            if row.get("employee_id"):
+                person = by_id.get(employee_key(row["employee_id"]))
+                if not person:
+                    problems.append("%s, row %s: the Employee Id %s is nobody here, so %s's %s, worth %s, are "
+                                    "left out." % (sheet, row["row"], _text(row["employee_id"]),
+                                                   row.get("name") or "the row", what, due))
+                    continue
+            else:
+                matches = by_name.get(piece_key(row.get("name")), [])
+                if len(matches) > 1:
+                    problems.append("%s, row %s: %s is the name of %s, so the %s, worth %s, are left out: add an "
+                                    "Employee Id column." % (sheet, row["row"], row.get("name"),
+                                                             _joined(who(p["employee"]) for p in matches), what, due))
+                    continue
+                if not matches:
+                    # the nearest Per Piece casual's name is said, never taken: the spelling is put right first
+                    near = difflib.get_close_matches(piece_key(row.get("name")), list(piece_names), n=1, cutoff=0.8)
+                    problems.append("%s, row %s: no employee is called %s, so the %s, worth %s, are left out: "
+                                    "correct the name on the sheet or on the employee.%s"
+                                    % (sheet, row["row"], row.get("name"), what, due,
+                                       " Closest: %s." % _joined(who(p["employee"]) for p in piece_names[near[0]])
+                                       if near else ""))
+                    continue
+                person = matches[0]
+            found.setdefault(person["employee"], []).append((row, bags, worth, person, owed))
+        for employee, rows in found.items():
+            if len(rows) > 1:
+                problems.append("%s is on %s twice (rows %s), so neither is taken: keep one row."
+                                % (who(employee), sheet, _joined(str(row[0]["row"]) for row in rows)))
+                continue
+            row, bags, worth, person, owed = rows[0]
+            if (person.get("category") or REGULAR) != PER_PIECE:
+                problems.append("%s is paid %s, not Per Piece, so their bags on %s are left out."
+                                % (who(employee), person.get("category") or REGULAR, sheet))
+                continue
+            if branch and person.get("branch") != branch:
+                problems.append("%s works at %s, not %s, so their bags on %s are left out."
+                                % (who(employee), person.get("branch") or "no plant", branch, sheet))
+                continue
+            if _is_number(row.get("arrears")) and _num(row.get("arrears")) < 0:
+                problems.append("%s, row %s: arrears of %s are less than nothing, so they are left out."
+                                % (sheet, row["row"], _amount(row["arrears"])))
+            if owed:
+                arrears[(employee, last)] = (round(owed, 2), "%s, row %s" % (sheet, row["row"]))
+            for price, value in bags.items():
+                if not _is_number(value) or _num(value) < 0:
+                    problems.append("%s, row %s: %r bags at %s is not a number of bags, so it is left out."
+                                    % (sheet, row["row"], value, _figure(price)))
+                    continue
+                if _num(value) and price in categories:
+                    work[(employee, last, categories[price])] = (round(_num(value), 3), _num(price),
+                                                                 "%s, row %s" % (sheet, row["row"]))
+            if row.get("total") is not None and abs(_num(row["total"]) - worth) > 0.5:
+                notes.append("%s, row %s: %s's total is %s, but the bags at their prices come to %s, which is "
+                             "what is paid." % (sheet, row["row"], row.get("name") or called[employee],
+                                                _amount(row["total"]), _amount(worth)))
+        taken.append(week)
+    if taken:
+        notes.insert(0, "Weeks taken: %s." % _joined("%s to %s" % (_day(week["start"]), _day(week["end"]))
+                                                      for week in taken))
+    if arrears:
+        owed_by = len({employee for employee, _week in arrears})
+        notes.append("Arrears paid with their week: %d %s, %s in all."
+                     % (owed_by, "person" if owed_by == 1 else "people",
+                        _amount(sum(amount for amount, _where in arrears.values()))))
+    if unread:
+        notes.append("Sheets with no week in their name or title, not read: %s." % _joined(unread))
+    return {"work": work, "arrears": arrears, "overtime": {}, "weeks": taken, "problems": problems, "notes": notes}
+
+
+def _amount(value):
+    value = round(_num(value), 2)
+    return "{:,.0f}".format(value) if value == int(value) else "{:,.2f}".format(value)
 
 
 def run_errors(section, employees):

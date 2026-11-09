@@ -24,6 +24,8 @@ SHOWN = ("custom_slip_name", "custom_slip_order")
 PERIOD_FIELD = "custom_pay_period"
 WEEKLY = "Weekly"
 WEEKLY_HOURS = "custom_weekly_hours"
+# a week's approved overtime, its own line on the weekly structure (weekly_pay.py)
+WEEKLY_OVERTIME, WEEKLY_OVERTIME_HOURS = "Casual Overtime", "custom_weekly_overtime_hours"
 
 
 def pay_slip(doc):
@@ -149,11 +151,15 @@ def _holidays(doc):
 
 
 def _hours(doc, earnings):
-    """The hours beside the payments: overtime's, and a week's on the structure's own line."""
+    """The hours beside the payments: overtime's, and a week's: its hours on the structure's own line, its
+    approved overtime on the overtime line."""
     hours = _overtime_hours(earnings)
-    if flt(doc.get(WEEKLY_HOURS)):
-        hours.update({row.get("salary_component"): flt(doc.get(WEEKLY_HOURS))
-                      for row in earnings if not row.get("additional_salary")})
+    for row in earnings:
+        if row.get("additional_salary"):
+            continue
+        field = WEEKLY_OVERTIME_HOURS if row.get("salary_component") == WEEKLY_OVERTIME else WEEKLY_HOURS
+        if flt(doc.get(field)):
+            hours[row.get("salary_component")] = flt(doc.get(field))
     return hours
 
 

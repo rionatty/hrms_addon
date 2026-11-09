@@ -253,7 +253,7 @@ def amount(hours, rate, multiplier):
 
 
 def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=None, departments=None, days=None,
-           day_hours=None, categories=None):
+           day_hours=None, categories=None, hourly=None):
     """Price a request's rows. rates: {employee: monthly base}, which an
     hour of ordinary pay is worked out of; grosses: {employee: monthly
     gross}, which a type's gross line is compared with; standards:
@@ -272,6 +272,10 @@ def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=No
     ("not_eligible"). With no types given, every day is priced at the Act's
     floor.
 
+    hourly: {employee: their own hourly rate}, for the casuals paid by the
+    hour (Luuka, 10 Nov 2026): their overtime is their hour times the
+    multiplier, not a month's base worked down to an hour.
+
     A row whose employee has no base yet is priced at nothing and says so,
     rather than being dropped: HR are checking the cost, and a line they
     cannot see is worse than a line that reads zero.
@@ -284,7 +288,8 @@ def priced(rows, rates, kind, types=None, grosses=None, standards=None, kinds=No
                                  (departments or {}).get(row.get("employee")), day,
                                  (categories or {}).get(row.get("employee")))
         own = 0.0 if why else multiplier_for(day, (types or {}).get(named) if named else None)
-        rate = hourly_rate(base, hours_per_month((standards or {}).get(row.get("employee")), days, day_hours))
+        rate = _number((hourly or {}).get(row.get("employee"))) or hourly_rate(
+            base, hours_per_month((standards or {}).get(row.get("employee")), days, day_hours))
         cost = amount(row.get("hours"), rate, own)
         if not rate:
             unpriced.append(row.get("employee_name") or row.get("employee"))

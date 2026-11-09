@@ -347,6 +347,13 @@ seen = [(row["employee"], row["overtime_type"], row["multiplier"], row["amount"]
 if seen != [("A1", "Special Overtime", 2.0, 80000.0), ("A2", None, 0.0, 0.0), ("P1", "Overtime 1.5", 2.0, 40000.0)]:
     fail.append("a public holiday is priced twice the hour of basic / 26 / 8, administrators under the special "
                 "overtime only: %s" % seen)
+# a casual paid by the hour: their own rate x the multiplier (Luuka, 10 Nov 2026: OT = hours x their rate x 1.5)
+casual = R.priced([{"employee": "C1", "hours": 2}, {"employee": "S1", "hours": 2}, {"employee": "C2", "hours": 3}],
+                  {"S1": 1040000}, R.WEEKDAY, days=26, day_hours=8, kinds={"C2": R.REST_DAY}, hourly={"C1": 857, "C2": 1000})
+seen = [(row["employee"], row["hourly_rate"], row["multiplier"], row["amount"]) for row in casual["rows"]]
+if seen != [("C1", 857.0, 1.5, 2571.0), ("S1", 5000.0, 1.5, 15000.0), ("C2", 1000.0, 2.0, 6000.0)] or casual["unpriced"]:
+    fail.append("a casual's overtime is their own hour x the multiplier, a salaried person's their base / 26 / 8: %s"
+                % seen)
 weekday = R.priced([{"employee": "A1", "hours": 2}], {"A1": 1040000}, R.WEEKDAY, DAYS, {"A1": 900000},
                    categories={"A1": ADMIN})["rows"][0]
 if (weekday["overtime_type"], weekday["amount"], weekday["not_eligible"]) != (
@@ -928,8 +935,17 @@ for needle, why in (
      "the standard day is the one of the shift worked that day"),
     ("_standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),",
      "HR's cost check prices each person on their own shift, and their own kind of day"),
-    ("days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())",
+    ("days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day(),",
      "over the month's days and the day's hours the Overtime Slip divides by too (Payroll Settings)"),
+    ("hourly=_casual_rates(people_on_it))",
+     "a casual paid by the hour is costed at their own hourly rate (Luuka's casual worksheet)"),
+    ("custom_pay_category\": \"Weekly\"}", "the casuals paid by the hour are those on the weekly payroll"),
+    ("        if row.employee in casuals:\n            continue\n",
+     "no Overtime Slip is drawn for them: their weekly slip pays the hours, and both would pay them twice"),
+    ('    if weekly:\n        frappe.throw(_("These hours are paid on {0}. Cancel that salary slip first.")',
+     "and says which slip paid them"),
+    ('frappe.get_all("Weekly Pay Day", filters={\n        "docstatus": 1, "overtime_hours": [">", 0],',
+     "a cancelled request whose hours a weekly slip paid is refused"),
     ('row.day_kind = found["day_kind"] if row.employee else None', "each line reads the day for its own employee"),
     ('row.overtime_type = found["overtime_type"] if row.employee else None',
      "and carries the Overtime Type that person falls under"),
@@ -987,7 +1003,8 @@ for needle, why in (
 ):
     if needle not in back:
         fail.append("overtime.take_back: %s" % why)
-if back.index("frappe.throw(") > back.index("slip.save()"):
+if back.index("frappe.throw(") > back.index("slip.save()") \
+        or back.index("Cancel that salary slip first.") > back.index("slip.save()"):
     fail.append("overtime.take_back refuses before it takes anything back")
 cancelled = read("hrms_addon", "hrms_addon", "attendance.py").split("def overtime_on_cancel(")[1].split(chr(10) + "def ")[0]
 if "overtime.take_back(doc)" not in cancelled:

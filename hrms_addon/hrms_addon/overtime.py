@@ -251,6 +251,24 @@ def _standard_hours(employees, day):
             for employee in employees}
 
 
+def _weekly_casuals(employees):
+    """Those of these employees paid by the hour on the weekly payroll (weekly_pay.py)."""
+    employees = [employee for employee in employees or () if employee]
+    return set(frappe.get_all("Employee", filters={"name": ["in", employees], "custom_pay_category": "Weekly"},
+                              pluck="name", limit_page_length=0)) if employees else set()
+
+
+def _casual_rates(employees):
+    """{employee: their own hourly rate} for the casuals paid by the hour: their overtime is their hour times the
+    multiplier (Luuka's casual worksheet: OT at the casual's rate times 1.5), as their weekly slip pays it."""
+    casuals = _weekly_casuals(employees)
+    if not casuals:
+        return {}
+    from hrms_addon.hrms_addon import weekly_pay
+
+    return weekly_pay.rates_of(casuals)
+
+
 def _monthly_bases(employees):
     """Each employee's monthly base, from their Salary Structure
     Assignment. The one in force, not the newest ever written."""
@@ -311,7 +329,8 @@ def _cost(doc, standing):
                           _monthly_gross(people_on_it, doc.overtime_date),
                           _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),
                           categories=_categories(people_on_it),
-                          days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day())
+                          days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day(),
+                          hourly=_casual_rates(people_on_it))
     errors = rules.cost_check_errors({
         "status": standing, "rows": costed["rows"], "unpriced": costed["unpriced"],
         "not_eligible": rules.eligibility_errors(costed["rows"])})
@@ -632,6 +651,15 @@ def take_back(doc):
     if paid:
         frappe.throw(_("These hours are paid on {0}. Cancel that Overtime Slip first.").format(", ".join(paid)),
                      title=_("Overtime Request"))
+    # a casual's overtime is paid on their weekly salary slip, which notes the hours beside the day (weekly_pay.py)
+    weekly = sorted({row.parent for row in frappe.get_all("Weekly Pay Day", filters={
+        "docstatus": 1, "overtime_hours": [">", 0],
+        "attendance_date": getdate(doc.overtime_date),
+        "employee": ["in", [row.employee for row in doc.get("employees") or [] if row.get("attendance") in names]]},
+        fields=["parent"], limit_page_length=0)})
+    if weekly:
+        frappe.throw(_("These hours are paid on {0}. Cancel that salary slip first.").format(", ".join(weekly)),
+                     title=_("Overtime Request"))
     # nor are they taken off a day its branch has verified (attendance_verification.py)
     from hrms_addon.hrms_addon import attendance_verification
 
@@ -715,7 +743,12 @@ def _draw_slips(doc):
     start, end = attendance_rules.cycle_window(*attendance_rules.cycle_of(doc.overtime_date))
     window = rules.slip_window(start, end)
     made = []
+    # a casual paid by the hour has their overtime paid on their weekly slip, from the attendance (weekly_pay.py):
+    # an Overtime Slip as well would pay it twice
+    casuals = _weekly_casuals([row.employee for row in doc.get("employees") or []])
     for row in doc.get("employees") or []:
+        if row.employee in casuals:
+            continue
         existing = frappe.db.get_value(SLIP, {
             "employee": row.employee, "docstatus": ["<", 2],
             "start_date": ["<=", getdate(doc.overtime_date)],

@@ -19,11 +19,14 @@
   "lines",
   "looms_ot_section",
   "looms_ot",
+  "arrears_section",
+  "arrears",
   "totals_section",
   "total_output",
   "column_break_2",
   "total_amount",
   "total_overtime",
+  "total_arrears",
   "output_pay_run",
   "remarks",
   "amended_from"
@@ -138,6 +141,19 @@
    "options": "Daily Production Overtime"
   },
   {
+   "fieldname": "arrears_section",
+   "fieldtype": "Section Break",
+   "label": "Arrears",
+   "depends_on": "eval:doc.section == 'Per Piece'"
+  },
+  {
+   "fieldname": "arrears",
+   "fieldtype": "Table",
+   "label": "Arrears",
+   "options": "Daily Production Overtime",
+   "description": "What a Per Piece casual is owed from an earlier week, paid with this one."
+  },
+  {
    "fieldname": "totals_section",
    "fieldtype": "Section Break"
   },
@@ -165,6 +181,13 @@
    "depends_on": "eval:doc.section == 'Per Meter'"
   },
   {
+   "fieldname": "total_arrears",
+   "fieldtype": "Currency",
+   "label": "Total Arrears",
+   "read_only": 1,
+   "depends_on": "eval:doc.section == 'Per Piece'"
+  },
+  {
    "fieldname": "output_pay_run",
    "fieldtype": "Link",
    "label": "Paid In",
@@ -188,7 +211,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-30 12:00:00.000000",
+ "modified": "2026-11-10 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Daily Production Report",
