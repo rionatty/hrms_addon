@@ -38,13 +38,19 @@ def allowances(employee):
     _may("read", employee)
     records = _records(employee)
     rows = rules.view(records, getdate(today()), _paid([record.name for record in records]))
+    currency, home = _currency(employee), _home_currency(employee)
     return {
         "rows": rows,
         "running": rules.total_running(rows),
+        # pay.monthly_gross is in the company's currency, whatever the assignment's
         "gross": pay.monthly_gross(employee),
+        "gross_currency": home or currency,
         "assigned": bool(_assigned_from(employee)),
         "can_change": bool(frappe.has_permission(RECORD, "create") and frappe.has_permission(RECORD, "write")),
-        "currency": _currency(employee),
+        "currency": currency,
+        # a salary in another currency takes its allowance as a line of its structure, its tax grossed up
+        # (currency_payroll_rules.ALLOWANCE_ABBR), not as an Additional Salary (Luuka, 9 Nov 2026)
+        "on_structure": bool(currency and home and currency != home),
     }
 
 
@@ -84,10 +90,12 @@ def _assigned_from(employee):
 def _currency(employee):
     assignment = pay.assignment_on(employee)
     currency = frappe.db.get_value(ASSIGNMENT, assignment, "currency") if assignment else None
-    if not currency:
-        company = frappe.db.get_value("Employee", employee, "company")
-        currency = frappe.db.get_value("Company", company, "default_currency") if company else None
-    return currency
+    return currency or _home_currency(employee)
+
+
+def _home_currency(employee):
+    company = frappe.db.get_value("Employee", employee, "company")
+    return frappe.db.get_value("Company", company, "default_currency") if company else None
 
 
 # ── changing them ───────────────────────────────────────────────────────

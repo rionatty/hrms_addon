@@ -110,10 +110,16 @@ function ha_standing_draw(frm, wrapper, data) {
 		.join("");
 	const to_add = planned.reduce((sum, row) => sum + flt(row.amount), 0);
 	const none = `<tr><td colspan="5" class="text-muted">${__("No allowances.")}</td></tr>`;
-	const add = data.can_change && (data.assigned || planning)
+	// a salary in another currency takes its allowance as a line of its structure, not here (Luuka, 9 Nov 2026)
+	const add = data.can_change && !data.on_structure && (data.assigned || planning)
 		? `<button type="button" class="btn btn-xs btn-primary" data-ha-standing="add">${__("Add Allowance")}</button>`
 		: "";
-	const hint = data.assigned
+	const hint = data.on_structure
+		? `<p class="text-muted">${__(
+				"On a {0} salary the allowance is a line of the salary structure. Fill in UGX Allowance below.",
+				[cell(data.currency)]
+		  )}</p>`
+		: data.assigned
 		? ""
 		: planning
 		? planned.length
@@ -134,7 +140,8 @@ function ha_standing_draw(frm, wrapper, data) {
 					? `<p>${__("To be added")}: <b>${ha_standing_money(to_add, data.currency)}</b></p>`
 					: ""
 				: `<p>${__("Allowances a month")}: <b>${ha_standing_money(data.running, data.currency)}</b>` +
-				  ` &nbsp; ${__("Monthly gross")}: <b>${ha_standing_money(data.gross, data.currency)}</b></p>`) +
+				  ` &nbsp; ${__("Monthly gross")}: <b>${ha_standing_money(data.gross, data.gross_currency || data.currency)}` +
+				  `</b></p>`) +
 			hint +
 			`<p>${add}${toggle}</p>`
 	);

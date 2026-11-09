@@ -138,15 +138,16 @@ for basic, allowance, advance, gross, total, paye, employee, employer, deducted,
     if abs(deducted_got - deducted) > 1 or abs(total_got - deducted_got - netpay) > 1:
         totals_off.append((basic, allowance, deducted_got, total_got - deducted_got))
     line = {abbr: usd(abbr, usd=basic, allowance=allowance) for abbr in LINES}
-    slip_net = round(basic + line["TPBC"] - line["LST"] - line["payee"] - line["NSSFE"]
+    # the allowance is a line of the structure (Luuka, 9 Nov 2026), so the slip pays it with the USD pay
+    slip_net = round(basic + line["UGXA"] + line["TPBC"] - line["LST"] - line["payee"] - line["NSSFE"]
                      - R.additional_amount(advance, "UGX", "USD", "UGX", 3920), 2)
-    if abs(slip_net * 3920 + allowance - netpay) > 40:
-        slips_off.append((basic, allowance, slip_net, slip_net * 3920 + allowance - netpay))
+    if abs(slip_net * 3920 - netpay) > 40:
+        slips_off.append((basic, allowance, slip_net, slip_net * 3920 - netpay))
 check("the sheet's GROSS, TOTAL GROSS, PAYE, NSSF 5% and NSSF 10% come out of the formulas to the shilling, for all "
       "eleven", not columns_off, columns_off)
 check("its T.D and NETPAY to the shilling: the advance off, and the NSSF 5% on LST the employee's (1,250)",
       not totals_off, totals_off)
-check("and each USD slip's net, back in shillings with the allowance paid outside it, within the cents' rounding",
+check("and each USD slip's net, the allowance a line on it, back in shillings within the cents' rounding",
       not slips_off, slips_off)
 print("Luuka's sheet of 9 Nov: every column")
 
@@ -184,10 +185,18 @@ print("NSSF's age, LST's months, an empty allowance")
 
 # ── 4. The slip's lines, in USD ───────────────────────────────────────
 tables = {abbr: table for abbr, (table, _formula) in LINES.items()}
-check("the lines by their tables: Tax Paid by Company an earning, LST, PAYE and NSSF Employee deductions, the "
-      "employer's 10% an employer contribution",
-      tables == {"TPBC": "earnings", "LST": "deductions", "payee": "deductions", "NSSFE": "deductions",
-                 "NSSFEC": "employer_contributions"}, tables)
+check("the lines by their tables: Tax Paid by Company and the UGX Allowance earnings, LST, PAYE and NSSF Employee "
+      "deductions, the employer's 10% an employer contribution",
+      tables == {"TPBC": "earnings", "UGXA": "earnings", "LST": "deductions", "payee": "deductions",
+                 "NSSFE": "deductions", "NSSFEC": "employer_contributions"}, tables)
+# Luuka, 9 Nov 2026: "allowances should be on the salary structure"
+check("the UGX Allowance is a line of the structure: the assignment's shillings in USD at the month's rate, to the "
+      "cent", (usd("UGXA", usd=1300, allowance=400000), usd("UGXA", usd=1300, allowance=760000),
+               usd("UGXA", usd=1300, allowance=0), usd("UGXA", usd=1300, allowance=None)) == (102.04, 193.88, 0, 0))
+check("its component: an earning, not cut by the days paid as the gross-up takes the month's allowance whole, taxed",
+      (R.ALLOWANCE_COMPONENT, R.ALLOWANCE_ABBR, R.ALLOWANCE_FLAGS["type"], R.ALLOWANCE_FLAGS["depends_on_payment_days"],
+       R.ALLOWANCE_FLAGS["is_tax_applicable"], R.ALLOWANCE_FLAGS["statistical_component"])
+      == ("UGX Allowance", "UGXA", "Earning", 0, 1, 0))
 nets = []
 for basic, allowance, *_figures in SEPTEMBER:
     line = {abbr: usd(abbr, usd=basic, allowance=allowance) for abbr in LINES}
@@ -368,6 +377,57 @@ check("a line no component is abbreviated for is named, not guessed",
       "still has no line abbreviated payee" in said.getvalue()
       and not [d for d in SITE["details"] if d.abbr == "payee" and d.parent == "Luuka USD Net Pay 2026-27"],
       said.getvalue())
+# the UGX Allowance line (Luuka, 9 Nov 2026: "allowances should be on the salary structure")
+fresh_site()
+SITE["components"]["UGX Allowance"] = Row(name="UGX Allowance", salary_component_abbr="UGXA", statistical_component=0,
+                                          is_tax_applicable=1, is_flexible_benefit=0, variable_based_on_taxable_salary=0,
+                                          depends_on_payment_days=0, do_not_include_in_total=0,
+                                          exempted_from_income_tax=0, do_not_include_in_accounts=0, accrual_component=0)
+with contextlib.redirect_stdout(io.StringIO()):
+    P.execute()
+line = next((d for d in SITE["details"] if d.parent == "Luuka USD Net Pay 2026-27" and d.abbr == "UGXA"), Row())
+check("the USD structure gets the UGX Allowance line, an earning, from its component, not cut by the days paid",
+      (line.salary_component, line.parentfield, line.formula, line.depends_on_payment_days, line.docstatus)
+      == ("UGX Allowance", "earnings", LINES["UGXA"][1], 0, 1), line)
+check("the shilling structure gets none", not [d for d in SITE["details"] if d.parent == "Luuka Salaried 2026-27"
+                                               and d.abbr == "UGXA"])
+# the component, made by the patch where the site has none
+MADE = []
+
+
+class Made(dict):
+    __getattr__ = dict.get
+
+    def insert(self, ignore_permissions=False):
+        MADE.append(dict(self))
+
+
+def accounts_of(doctype, filters=None, fields=None, **kwargs):
+    assert doctype == "Salary Component Account", doctype
+    return [Row(company="LUUKA PAYROLL TESTING", account="5231 - Allowances - LPT")] \
+        if filters.get("parent") == "House Rent Allowance" and SITE.get("hra_accounts") else []
+
+
+real = (frappe.db.exists, frappe.db.get_value, frappe.get_all, frappe.get_doc)
+frappe.db.exists = lambda doctype, name=None: doctype == "DocType"
+frappe.db.get_value = lambda doctype, filters, fields, as_dict=False: None
+frappe.get_all, frappe.get_doc = accounts_of, lambda values: Made(values)
+SITE["hra_accounts"] = True
+P.ensure_allowance_component()
+SITE["hra_accounts"] = False
+said = io.StringIO()
+with contextlib.redirect_stdout(said):
+    P.ensure_allowance_component()
+frappe.db.exists, frappe.db.get_value, frappe.get_all, frappe.get_doc = real
+made = MADE[0] if MADE else {}
+check("a site with no UGX Allowance gets one: an earning abbreviated UGXA, not cut by the days paid, taxed",
+      (made.get("salary_component"), made.get("salary_component_abbr"), made.get("type"),
+       made.get("depends_on_payment_days"), made.get("is_tax_applicable")) == ("UGX Allowance", "UGXA", "Earning", 0, 1),
+      made)
+check("its accounts those of House Rent Allowance, so the payroll can post it",
+      made.get("accounts") == [{"company": "LUUKA PAYROLL TESTING", "account": "5231 - Allowances - LPT"}], made)
+check("with no allowance's accounts to copy, the migrate says to set one",
+      len(MADE) == 2 and "UGX Allowance has no account" in said.getvalue(), said.getvalue())
 print("the patch: the USD structure's lines, a missing one added, the rest untouched")
 
 # ── 7. The wiring ─────────────────────────────────────────────────────
@@ -387,6 +447,16 @@ check("it ships in the app's fixtures", '"Salary Structure Assignment-custom_ugx
 patches = read("hrms_addon", "patches.txt")
 check("the patch runs after the doctypes are migrated",
       "hrms_addon.patches.v1_0.usd_gross_up" in patches.split("[post_model_sync]")[1])
+after = patches.split("[post_model_sync]")[1]
+check("the patch makes the UGX Allowance component before it writes the lines",
+      "    ensure_allowance_component()\n    lines = rules.usd_gross_up_formulas()"
+      in read("hrms_addon", "patches", "v1_0", "usd_gross_up.py").replace("\r\n", "\n"))
+check("and again where it has run already, for the UGX Allowance line",
+      0 < after.find("hrms_addon.patches.v1_0.usd_gross_up") < after.find("hrms_addon.patches.v1_0.usd_allowance_line")
+      and "usd_gross_up.execute()" in read("hrms_addon", "patches", "v1_0", "usd_allowance_line.py"))
+check("the field says the allowance is a line of the USD salary structure, its tax paid by the company",
+      allowance.get("description") == "Shillings a month, a line of the USD salary structure paid at the month's rate. "
+                                       "The company pays its tax.", allowance.get("description"))
 print("the wiring: the field, its fixture, the patch")
 
 print()

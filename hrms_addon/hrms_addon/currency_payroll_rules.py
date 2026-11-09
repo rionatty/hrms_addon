@@ -174,7 +174,15 @@ def payroll_rate_message(from_currency, to_currency, day):
 # The USD structure's lines, by the abbreviations its import gave them (usd_net_pay.py)
 PAY_ABBR, COVER_ABBR = "USDP", "TPBC"        # the USD pay (statistical), the tax the company pays
 LST_ABBR, PAYE_ABBR, NSSF_ABBR, NSSF_EMPLOYER_ABBR = "LST", "payee", "NSSFE", "NSSFEC"
-ALLOWANCE = "custom_ugx_allowance"           # the assignment's allowance paid in shillings outside the payroll
+ALLOWANCE = "custom_ugx_allowance"           # the assignment's allowance in shillings a month
+# the allowance as a line of the USD structure (Luuka, 9 Nov 2026: "allowances should be on the salary
+# structure"): an earning in USD at the month's rate, paid with the USD pay; not cut by the days paid, as the gross-up
+# takes the month's allowance whole
+ALLOWANCE_COMPONENT, ALLOWANCE_ABBR = "UGX Allowance", "UGXA"
+ALLOWANCE_FLAGS = {"type": "Earning", "depends_on_payment_days": 0, "is_tax_applicable": 1,
+                   "statistical_component": 0, "do_not_include_in_total": 0}
+# the component whose accounts the allowance's are copied from, the first the site has
+ALLOWANCE_ACCOUNTS_FROM = ("House Rent Allowance", "Transport Allowance")
 # PAYE on a month's chargeable income, the Income Tax (Amendment) Act 2026 bands, each as (up to, rate, less):
 # rate x income - less. Up to 335,000 nil; 20% to 410,000; 15,000 + 25% to 485,000; 33,750 + 30% to
 # 10,000,000; above it a further 10%.
@@ -254,6 +262,7 @@ def usd_gross_up_formulas(rate="custom_exchange_rate"):
              NSSF_ABBR: ("deductions", usd(amounts["employee"])),
              NSSF_EMPLOYER_ABBR: ("employer_contributions", usd(amounts["employer"]))}
     lines[COVER_ABBR] = ("earnings", " + ".join((lines[LST_ABBR][1], lines[PAYE_ABBR][1], usd(amounts["cover"]))))
+    lines[ALLOWANCE_ABBR] = ("earnings", usd("(%s or 0)" % ALLOWANCE))
     return lines
 
 

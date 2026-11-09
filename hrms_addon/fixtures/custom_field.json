@@ -12612,7 +12612,7 @@
   "depends_on": "eval:doc.currency && doc.currency != \"UGX\"",
   "allow_on_submit": 1,
   "non_negative": 1,
-  "description": "Paid in shillings outside the USD payroll. The company pays its tax with the tax on the USD pay.",
+  "description": "Shillings a month, a line of the USD salary structure paid at the month's rate. The company pays its tax.",
   "module": "HRMS Addon"
  },
  {

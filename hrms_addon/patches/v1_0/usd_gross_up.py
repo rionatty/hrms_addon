@@ -8,9 +8,12 @@ does (currency_payroll_rules.usd_gross_up_formulas).
 
 Every structure with a USD Pay line has its Tax Paid by Company, LST, PAYE,
 NSSF Employee and NSSF employer lines written over, found by abbreviation
-whatever the site calls the components. A line the structure lacks is added
-from its component, as the desk adds one, and named in the migrate's output;
-so is a line no component is abbreviated for. Safe to run twice.
+whatever the site calls the components, and its UGX Allowance line (Luuka,
+9 Nov 2026: "allowances should be on the salary structure"). A line the
+structure lacks is added from its component, as the desk adds one, and named
+in the migrate's output; so is a line no component is abbreviated for. The
+UGX Allowance component is made here when the site has none, its accounts
+those of House Rent Allowance. Safe to run twice.
 """
 
 import frappe
@@ -23,9 +26,34 @@ FETCHED = ("statistical_component", "is_tax_applicable", "is_flexible_benefit", 
            "do_not_include_in_accounts", "accrual_component")
 
 
+def ensure_allowance_component():
+    """The UGX Allowance earning, made when the site has none by name or abbreviation, with the accounts of
+    the first allowance the site has (rules.ALLOWANCE_ACCOUNTS_FROM), so the payroll can post it."""
+    if frappe.db.exists("Salary Component", rules.ALLOWANCE_COMPONENT) or frappe.db.get_value(
+            "Salary Component", {"salary_component_abbr": rules.ALLOWANCE_ABBR}, ["name"], as_dict=True):
+        return
+    accounts = []
+    for source in rules.ALLOWANCE_ACCOUNTS_FROM:
+        accounts = frappe.get_all("Salary Component Account", filters={"parent": source,
+                                                                       "parenttype": "Salary Component"},
+                                  fields=["company", "account"])
+        if accounts:
+            break
+    component = frappe.get_doc(dict(rules.ALLOWANCE_FLAGS, doctype="Salary Component",
+                                    salary_component=rules.ALLOWANCE_COMPONENT,
+                                    salary_component_abbr=rules.ALLOWANCE_ABBR,
+                                    description="Shillings a month on a USD salary, paid with it at the month's rate.",
+                                    accounts=[{"company": row.company, "account": row.account} for row in accounts]))
+    component.insert(ignore_permissions=True)
+    if not accounts:
+        print("HRMS Addon: %s has no account: set one under its Accounts before the payroll posts it"
+              % rules.ALLOWANCE_COMPONENT)
+
+
 def execute():
     if not frappe.db.exists("DocType", "Salary Structure"):
         return
+    ensure_allowance_component()
     lines = rules.usd_gross_up_formulas()
     structures = sorted({row.parent for row in frappe.get_all("Salary Detail", filters={
         "parenttype": "Salary Structure", "abbr": rules.PAY_ABBR}, fields=["parent"])})

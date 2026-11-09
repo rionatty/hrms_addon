@@ -300,7 +300,17 @@ check('`<p>${__("To be added")}: <b>${ha_standing_money(to_add, data.currency)}<
       "a first assignment shows what is to be added, and no gross it has no assignment to work out")
 check('const planning = frm.doc.docstatus === 0 && !data.assigned;' in script,
       "the form lists them only on a draft for an employee with no assignment yet")
-check('data.can_change && (data.assigned || planning)' in script, "where Add Allowance now shows as well")
+check('data.can_change && !data.on_structure && (data.assigned || planning)' in script,
+      "where Add Allowance now shows as well, and never on a salary in another currency")
+# Luuka, 9 Nov 2026: "allowances should be on the salary structure". On a USD assignment the allowance is the
+# structure's UGX Allowance line, its tax grossed up (currency_payroll_rules.ALLOWANCE_ABBR), not an Additional Salary
+glue = read("hrms_addon", "hrms_addon", "standing_allowances.py")
+check('"on_structure": bool(currency and home and currency != home),' in glue
+      and "On a {0} salary the allowance is a line of the salary structure. Fill in UGX Allowance below." in script,
+      "a salary in another currency is pointed to its structure's UGX Allowance line")
+check('"gross_currency": home or currency,' in glue
+      and "ha_standing_money(data.gross, data.gross_currency || data.currency)" in script,
+      "the monthly gross shown in the company's currency it is worked out in, not under a USD assignment's sign")
 plan = script.split("function ha_standing_plan(")[1].split("\nfunction ")[0]
 check('frm.add_child("custom_planned_allowances")' in plan and "frm.dirty();" in plan and "frappe.call" not in plan
       and "ha_standing_send" not in plan, "listing one writes a row on the draft and calls nothing")
