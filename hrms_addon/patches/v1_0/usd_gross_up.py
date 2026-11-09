@@ -8,12 +8,11 @@ does (currency_payroll_rules.usd_gross_up_formulas).
 
 Every structure with a USD Pay line has its Tax Paid by Company, LST, PAYE,
 NSSF Employee and NSSF employer lines written over, found by abbreviation
-whatever the site calls the components, and its UGX Allowance line (Luuka,
-9 Nov 2026: "allowances should be on the salary structure"). A line the
-structure lacks is added from its component, as the desk adds one, and named
-in the migrate's output; so is a line no component is abbreviated for. The
-UGX Allowance component is made here when the site has none, its accounts
-those of House Rent Allowance. Safe to run twice.
+whatever the site calls the components. A line the structure lacks is added
+from its component, as the desk adds one, and named in the migrate's output;
+so is a line no component is abbreviated for. The UGX Allowance component,
+which Add Allowance offers first on a USD salary, is made here when the site
+has none, its accounts those of House Rent Allowance. Safe to run twice.
 """
 
 import frappe
@@ -28,10 +27,14 @@ FETCHED = ("statistical_component", "is_tax_applicable", "is_flexible_benefit", 
 
 def ensure_allowance_component():
     """The UGX Allowance earning, made when the site has none by name or abbreviation, with the accounts of
-    the first allowance the site has (rules.ALLOWANCE_ACCOUNTS_FROM), so the payroll can post it."""
-    if frappe.db.exists("Salary Component", rules.ALLOWANCE_COMPONENT) or frappe.db.get_value(
-            "Salary Component", {"salary_component_abbr": rules.ALLOWANCE_ABBR}, ["name"], as_dict=True):
-        return
+    the first allowance the site has (rules.ALLOWANCE_ACCOUNTS_FROM), so the payroll can post it. Returns its
+    name."""
+    if frappe.db.exists("Salary Component", rules.ALLOWANCE_COMPONENT):
+        return rules.ALLOWANCE_COMPONENT
+    found = frappe.db.get_value("Salary Component", {"salary_component_abbr": rules.ALLOWANCE_ABBR}, ["name"],
+                                as_dict=True)
+    if found:
+        return found.name
     accounts = []
     for source in rules.ALLOWANCE_ACCOUNTS_FROM:
         accounts = frappe.get_all("Salary Component Account", filters={"parent": source,
@@ -48,6 +51,7 @@ def ensure_allowance_component():
     if not accounts:
         print("HRMS Addon: %s has no account: set one under its Accounts before the payroll posts it"
               % rules.ALLOWANCE_COMPONENT)
+    return component.name
 
 
 def execute():

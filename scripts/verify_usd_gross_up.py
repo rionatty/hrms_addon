@@ -67,7 +67,7 @@ LINES = R.usd_gross_up_formulas()
 
 
 def context(usd, allowance, rate=3920, end="2026-09-25", age=40, limit=55, voluntary=0):
-    return {"USDP": usd, "custom_exchange_rate": rate, R.ALLOWANCE: allowance, "end_date": end,
+    return {"USDP": usd, "custom_exchange_rate": rate, R.ALLOWANCES: allowance, "end_date": end,
             "nssf_age_limit": limit, "employee_age": age, "custom_nssf_voluntary": voluntary}
 
 
@@ -138,9 +138,9 @@ for basic, allowance, advance, gross, total, paye, employee, employer, deducted,
     if abs(deducted_got - deducted) > 1 or abs(total_got - deducted_got - netpay) > 1:
         totals_off.append((basic, allowance, deducted_got, total_got - deducted_got))
     line = {abbr: usd(abbr, usd=basic, allowance=allowance) for abbr in LINES}
-    # the allowance is a line of the structure (Luuka, 9 Nov 2026), so the slip pays it with the USD pay
-    slip_net = round(basic + line["UGXA"] + line["TPBC"] - line["LST"] - line["payee"] - line["NSSFE"]
-                     - R.additional_amount(advance, "UGX", "USD", "UGX", 3920), 2)
+    # the allowance is on Add Allowance, in shillings (Luuka, 10 Nov 2026): the slip pays it in USD at the rate
+    slip_net = round(basic + R.additional_amount(allowance, "UGX", "USD", "UGX", 3920) + line["TPBC"] - line["LST"]
+                     - line["payee"] - line["NSSFE"] - R.additional_amount(advance, "UGX", "USD", "UGX", 3920), 2)
     if abs(slip_net * 3920 - netpay) > 40:
         slips_off.append((basic, allowance, slip_net, slip_net * 3920 - netpay))
 check("the sheet's GROSS, TOTAL GROSS, PAYE, NSSF 5% and NSSF 10% come out of the formulas to the shilling, for all "
@@ -185,15 +185,18 @@ print("NSSF's age, LST's months, an empty allowance")
 
 # ── 4. The slip's lines, in USD ───────────────────────────────────────
 tables = {abbr: table for abbr, (table, _formula) in LINES.items()}
-check("the lines by their tables: Tax Paid by Company and the UGX Allowance earnings, LST, PAYE and NSSF Employee "
-      "deductions, the employer's 10% an employer contribution",
-      tables == {"TPBC": "earnings", "UGXA": "earnings", "LST": "deductions", "payee": "deductions",
+check("the lines by their tables: Tax Paid by Company an earning, LST, PAYE and NSSF Employee deductions, the "
+      "employer's 10% an employer contribution; no allowance line, the allowance being on Add Allowance",
+      tables == {"TPBC": "earnings", "LST": "deductions", "payee": "deductions",
                  "NSSFE": "deductions", "NSSFEC": "employer_contributions"}, tables)
-# Luuka, 9 Nov 2026: "allowances should be on the salary structure"
-check("the UGX Allowance is a line of the structure: the assignment's shillings in USD at the month's rate, to the "
-      "cent", (usd("UGXA", usd=1300, allowance=400000), usd("UGXA", usd=1300, allowance=760000),
-               usd("UGXA", usd=1300, allowance=0), usd("UGXA", usd=1300, allowance=None)) == (102.04, 193.88, 0, 0))
-check("its component: an earning, not cut by the days paid as the gross-up takes the month's allowance whole, taxed",
+# Luuka, 10 Nov 2026: "you have removed the button add allowances?" The formulas take the month's allowances in
+# shillings (allowances_ugx), which the slip gives them from the employee's Additional Salary earnings
+check("the month's allowances in shillings: those in shillings as they are, one in USD at the slip's rate",
+      R.allowances_in_company_currency([{"amount": 400000, "currency": "UGX"}, {"amount": 10, "currency": "USD"},
+                                        {"amount": 5000, "currency": None}], "UGX", 3920) == 444200.0
+      and R.allowances_in_company_currency([], "UGX", 3920) == 0)
+check("the component Add Allowance offers first on a USD salary: an earning, not cut by the days paid as the "
+      "gross-up takes the month's allowance whole, taxed",
       (R.ALLOWANCE_COMPONENT, R.ALLOWANCE_ABBR, R.ALLOWANCE_FLAGS["type"], R.ALLOWANCE_FLAGS["depends_on_payment_days"],
        R.ALLOWANCE_FLAGS["is_tax_applicable"], R.ALLOWANCE_FLAGS["statistical_component"])
       == ("UGX Allowance", "UGXA", "Earning", 0, 1, 0))
@@ -231,6 +234,24 @@ check("the slip's mixin converts an Additional Salary's amount before Frappe HR 
       in mixin)
 check("and is the Salary Slip's", '"hrms_addon.hrms_addon.currency_payroll.SalarySlipCurrency"' in read("hrms_addon",
                                                                                                          "hooks.py"))
+check("the slip gives its formulas the month's allowances in shillings, 0 on a shilling slip",
+      "data[rules.ALLOWANCES] = value" in mixin and "default_data[rules.ALLOWANCES] = value" in mixin
+      and "value = month_allowances(self.get(\"employee\"), self.get(\"start_date\"), self.get(\"end_date\")," in mixin)
+assignment_mixin = glue.split("class SalaryStructureAssignmentCurrency:")[1] \
+    if "class SalaryStructureAssignmentCurrency:" in glue else ""
+check("and so does the assignment, for its own working out (else a USD formula would find no such name), over the "
+      "pay period Frappe HR gives it",
+      "data[rules.ALLOWANCES] = value" in assignment_mixin
+      and 'data.get("start_date") or self.get("from_date")' in assignment_mixin
+      and '"hrms_addon.hrms_addon.currency_payroll.SalaryStructureAssignmentCurrency"' in read("hrms_addon", "hooks.py"))
+month = glue.split("def month_allowances(")[1].split("\nclass ")[0] if "def month_allowances(" in glue else ""
+check("the month's allowances are the employee's Additional Salary earnings Frappe HR puts on such a slip: a one-off "
+      "dated in its days, a recurring one running on any of them",
+      'common = {"employee": employee, "docstatus": 1, "disabled": 0, "type": "Earning"}' in month
+      and 'is_recurring=0,\n                                                               payroll_date=["between", '
+          '[start, end]]' in month
+      and 'is_recurring=1, from_date=["<=", end],\n                                                                '
+          'to_date=[">=", start]' in month, month[:600])
 salary_slip = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "salary_slip", "salary_slip.py")
 if os.path.exists(salary_slip):
     source = open(salary_slip, encoding="utf-8").read()
@@ -244,7 +265,7 @@ else:
 print("an Additional Salary in shillings: in USD on a USD slip")
 
 # ── 5. What the formulas name ─────────────────────────────────────────
-GIVEN = {"USDP", "custom_exchange_rate", R.ALLOWANCE, "end_date", NSSF.LIMIT, NSSF.AGE, NSSF.VOLUNTARY,
+GIVEN = {"USDP", "custom_exchange_rate", R.ALLOWANCES, "end_date", NSSF.LIMIT, NSSF.AGE, NSSF.VOLUNTARY,
          "floor", "round", "getdate"}
 named = set()
 for _table, formula in LINES.values():
@@ -377,7 +398,7 @@ check("a line no component is abbreviated for is named, not guessed",
       "still has no line abbreviated payee" in said.getvalue()
       and not [d for d in SITE["details"] if d.abbr == "payee" and d.parent == "Luuka USD Net Pay 2026-27"],
       said.getvalue())
-# the UGX Allowance line (Luuka, 9 Nov 2026: "allowances should be on the salary structure")
+# no UGX Allowance line: the allowance is on Add Allowance (Luuka, 10 Nov 2026)
 fresh_site()
 SITE["components"]["UGX Allowance"] = Row(name="UGX Allowance", salary_component_abbr="UGXA", statistical_component=0,
                                           is_tax_applicable=1, is_flexible_benefit=0, variable_based_on_taxable_salary=0,
@@ -385,12 +406,8 @@ SITE["components"]["UGX Allowance"] = Row(name="UGX Allowance", salary_component
                                           exempted_from_income_tax=0, do_not_include_in_accounts=0, accrual_component=0)
 with contextlib.redirect_stdout(io.StringIO()):
     P.execute()
-line = next((d for d in SITE["details"] if d.parent == "Luuka USD Net Pay 2026-27" and d.abbr == "UGXA"), Row())
-check("the USD structure gets the UGX Allowance line, an earning, from its component, not cut by the days paid",
-      (line.salary_component, line.parentfield, line.formula, line.depends_on_payment_days, line.docstatus)
-      == ("UGX Allowance", "earnings", LINES["UGXA"][1], 0, 1), line)
-check("the shilling structure gets none", not [d for d in SITE["details"] if d.parent == "Luuka Salaried 2026-27"
-                                               and d.abbr == "UGXA"])
+check("no UGX Allowance line is written on a structure, even where its component exists: the allowance is on Add "
+      "Allowance", not [d for d in SITE["details"] if d.abbr == "UGXA"])
 # the component, made by the patch where the site has none
 MADE = []
 
@@ -430,20 +447,114 @@ check("with no allowance's accounts to copy, the migrate says to set one",
       len(MADE) == 2 and "UGX Allowance has no account" in said.getvalue(), said.getvalue())
 print("the patch: the USD structure's lines, a missing one added, the rest untouched")
 
+# ── 6b. Patch usd_allowances_on_panel: what stood in Add Allowance's place goes ──
+STEPS, MADE_ALLOWANCES, DELETED = [], [], []
+PANEL_SITE = {"field": True, "running": {"LPE7": "HR-ADS-OLD"}, "details": [
+    Row(name="L1", parent="Luuka USD Net Pay 2026-27", parenttype="Salary Structure", abbr="USDP"),
+    Row(name="L2", parent="Luuka USD Net Pay 2026-27", parenttype="Salary Structure", abbr="UGXA"),
+    Row(name="L3", parent="Luuka Salaried 2026-27", parenttype="Salary Structure", abbr="UGXA"),
+    Row(name="L4", parent="Luuka Salaried 2026-27", parenttype="Salary Structure", abbr="BS")],
+    "assignments": [
+        Row(name="SSA-1", employee="LPE25", company="LPT", currency="USD", from_date="2026-08-26",
+            custom_ugx_allowance=760000),
+        Row(name="SSA-2", employee="LPE7", company="LPT", currency="USD", from_date="2026-08-26",
+            custom_ugx_allowance=200000),
+        Row(name="SSA-3", employee="UGX1", company="LPT", currency="UGX", from_date="2026-08-26",
+            custom_ugx_allowance=50000)]}
+
+
+def panel_get_all(doctype, filters=None, fields=None, pluck=None, **kwargs):
+    if doctype == "Salary Structure Assignment":
+        return list(PANEL_SITE["assignments"])
+    assert doctype == "Salary Detail", doctype
+    rows = [d for d in PANEL_SITE["details"] if all(d.get(k) == v for k, v in (filters or {}).items())]
+    return [d.name for d in rows] if pluck else [Row(d) for d in rows]
+
+
+def panel_exists(doctype, filters=None):
+    if doctype == "DocType":
+        return True
+    if doctype == "Custom Field":
+        return PANEL_SITE["field"]
+    if doctype == "Additional Salary":
+        return PANEL_SITE["running"].get(filters.get("employee"))
+    raise AssertionError(doctype)
+
+
+def panel_new(employee, component, amount, from_date, to_date=None):
+    STEPS.append("allowance %s" % employee)
+    MADE_ALLOWANCES.append((employee, component, amount, str(from_date)))
+    PANEL_SITE["running"][employee] = "HR-ADS-%d" % len(MADE_ALLOWANCES)
+    return Row(name=PANEL_SITE["running"][employee])
+
+
+def panel_delete_doc(doctype, name, **kwargs):
+    STEPS.append("field deleted")
+    DELETED.append((doctype, name))
+    PANEL_SITE["field"] = False
+
+
+def panel_delete(doctype, filters):
+    PANEL_SITE["details"] = [d for d in PANEL_SITE["details"] if d.name != filters.get("name")]
+
+
+utils = types.ModuleType("frappe.utils")
+utils.flt = lambda value, precision=None: float(value or 0)
+utils.getdate = lambda value: datetime.date.fromisoformat(str(value)[:10])
+gross_up_stub = types.ModuleType("hrms_addon.patches.v1_0.usd_gross_up")
+gross_up_stub.ensure_allowance_component = lambda: STEPS.append("component") or "UGX Allowance"
+gross_up_stub.execute = lambda: STEPS.append("lines written")
+currency_stub = types.ModuleType("hrms_addon.hrms_addon.currency_payroll")
+currency_stub.company_currency = lambda company: "UGX"
+standing_stub = types.ModuleType("hrms_addon.hrms_addon.standing_allowances")
+standing_stub._new = panel_new
+patches_package = types.ModuleType("hrms_addon.patches")
+patches_package.__path__ = []
+v1 = types.ModuleType("hrms_addon.patches.v1_0")
+v1.__path__ = []
+v1.usd_gross_up = gross_up_stub
+app.currency_payroll, app.standing_allowances = currency_stub, standing_stub
+sys.modules.update({"frappe.utils": utils, "hrms_addon.patches": patches_package, "hrms_addon.patches.v1_0": v1,
+                    "hrms_addon.patches.v1_0.usd_gross_up": gross_up_stub,
+                    "hrms_addon.hrms_addon.currency_payroll": currency_stub,
+                    "hrms_addon.hrms_addon.standing_allowances": standing_stub})
+real = (frappe.db.exists, frappe.get_all, getattr(frappe, "delete_doc", None))
+frappe.db.exists, frappe.get_all, frappe.delete_doc = panel_exists, panel_get_all, panel_delete_doc
+frappe.db.has_column = lambda doctype, column: column == R.OLD_ALLOWANCE_FIELD
+frappe.db.delete = panel_delete
+frappe.clear_document_cache = lambda doctype, name: STEPS.append("cache %s" % name)
+PANEL = load("usd_allowances_on_panel", os.path.join(REPO, "hrms_addon", "patches", "v1_0", "usd_allowances_on_panel.py"))
+said = io.StringIO()
+with contextlib.redirect_stdout(said):
+    PANEL.execute()
+check("an amount typed in a USD assignment's UGX Allowance becomes an allowance on Add Allowance, from the "
+      "assignment's first day, under UGX Allowance",
+      MADE_ALLOWANCES == [("LPE25", "UGX Allowance", 760000.0, "2026-08-26")], MADE_ALLOWANCES)
+check("unless one is running already, which is said; a shilling assignment's is not touched",
+      "LPE7 has a UGX Allowance running already (HR-ADS-OLD)" in said.getvalue()
+      and not [row for row in MADE_ALLOWANCES if row[0] in ("LPE7", "UGX1")], said.getvalue())
+check("the UGX Allowance line comes off the USD structure, and only there",
+      [d.name for d in PANEL_SITE["details"]] == ["L1", "L3", "L4"]
+      and "Luuka USD Net Pay 2026-27's UGX Allowance line taken off" in said.getvalue())
+check("in that order: the component, the allowances, the line off, the lines written again, the field removed",
+      STEPS == ["component", "allowance LPE25", "cache Luuka USD Net Pay 2026-27", "lines written", "field deleted"],
+      STEPS)
+check("the field removed is the UGX Allowance's, and the migrate says why",
+      DELETED == [("Custom Field", "Salary Structure Assignment-custom_ugx_allowance")]
+      and "the UGX Allowance field is gone" in said.getvalue(), DELETED)
+STEPS.clear()
+with contextlib.redirect_stdout(io.StringIO()):
+    PANEL.execute()
+check("run twice, it is the same as once", len(MADE_ALLOWANCES) == 1 and STEPS == ["component", "lines written"],
+      STEPS)
+frappe.db.exists, frappe.get_all = real[0], real[1]
+print("patch usd_allowances_on_panel: the typed allowances moved, the line off, the field gone")
+
 # ── 7. The wiring ─────────────────────────────────────────────────────
 fields = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
-allowance = fields.get("Salary Structure Assignment-custom_ugx_allowance") or {}
-check("the assignment's UGX Allowance: shillings (the company's currency), filled in after submit, never below "
-      "nought, under Transport Allowance, by the name the formulas read",
-      (allowance.get("fieldname"), allowance.get("fieldtype"), allowance.get("options"), allowance.get("allow_on_submit"),
-       allowance.get("non_negative"), allowance.get("insert_after"), allowance.get("label"))
-      == (R.ALLOWANCE, "Currency", "Company:company:default_currency", 1, 1, "custom_transport_allowance", "UGX Allowance"),
-      allowance)
-check("shown on a USD assignment only", allowance.get("depends_on") == 'eval:doc.currency && doc.currency != "UGX"')
-anchors = [(row["dt"], row.get("insert_after")) for row in fields.values()]
-check("nothing else sits under Transport Allowance",
-      anchors.count(("Salary Structure Assignment", "custom_transport_allowance")) == 1)
-check("it ships in the app's fixtures", '"Salary Structure Assignment-custom_ugx_allowance",' in read("hrms_addon", "hooks.py"))
+check("the assignment has no UGX Allowance field any more, in the fixtures or the hooks: the allowance is on Add "
+      "Allowance", "Salary Structure Assignment-custom_ugx_allowance" not in fields
+      and "custom_ugx_allowance" not in read("hrms_addon", "hooks.py"))
 patches = read("hrms_addon", "patches.txt")
 check("the patch runs after the doctypes are migrated",
       "hrms_addon.patches.v1_0.usd_gross_up" in patches.split("[post_model_sync]")[1])
@@ -451,13 +562,10 @@ after = patches.split("[post_model_sync]")[1]
 check("the patch makes the UGX Allowance component before it writes the lines",
       "    ensure_allowance_component()\n    lines = rules.usd_gross_up_formulas()"
       in read("hrms_addon", "patches", "v1_0", "usd_gross_up.py").replace("\r\n", "\n"))
-check("and again where it has run already, for the UGX Allowance line",
+check("then the allowances onto Add Allowance, after the two before it",
       0 < after.find("hrms_addon.patches.v1_0.usd_gross_up") < after.find("hrms_addon.patches.v1_0.usd_allowance_line")
-      and "usd_gross_up.execute()" in read("hrms_addon", "patches", "v1_0", "usd_allowance_line.py"))
-check("the field says the allowance is a line of the USD salary structure, its tax paid by the company",
-      allowance.get("description") == "Shillings a month, a line of the USD salary structure paid at the month's rate. "
-                                       "The company pays its tax.", allowance.get("description"))
-print("the wiring: the field, its fixture, the patch")
+      < after.find("hrms_addon.patches.v1_0.usd_allowances_on_panel"))
+print("the wiring: no field, the patches in order")
 
 print()
 if fail:

@@ -53,23 +53,57 @@ def monthly_gross(employee, on=None):
     if not name:
         return 0
     assignment = frappe.get_doc(ASSIGNMENT, name)
+    frequency, structure = _structure_gross(assignment, on)
+    foreign = _is_foreign(assignment)
+    allowances = standing_allowances(employee, on)
+    if foreign:
+        # a USD salary's allowances are in shillings (Add Allowance; Luuka, 10 Nov 2026): the structure and any
+        # allowance in the assignment's own currency are converted, the shillings added as they are
+        home = _company_currency(assignment)
+        own = [row for row in allowances if (row.get("currency") or home) != home]
+        shillings = [row for row in allowances if (row.get("currency") or home) == home]
+        replacing = any(int(flt(row.get("overwrite"))) for row in own)
+        period = rules.gross_per_period(structure, own, _structure_amounts(assignment) if replacing else {})
+        month = _in_company_currency(flt(rules.per_month(period, frequency), 2), assignment, on)
+        return flt(month + rules.per_month(rules.gross_per_period(0, shillings), frequency), 2)
+    # what the structure pays per component matters only to an allowance that
+    # takes a component's place
+    replacing = any(int(flt(row.get("overwrite"))) for row in allowances)
+    period = rules.gross_per_period(structure, allowances, _structure_amounts(assignment) if replacing else {})
+    return flt(rules.per_month(period, frequency), 2)
+
+
+def monthly_salary(employee, on=None):
+    """{amount, currency}: the monthly gross of the employee's salary structure alone, in the assignment's own
+    currency, without the tax the company pays on a USD salary and without any allowance: what the assignment's
+    allowance panel shows beside the allowances when the two are in different currencies (Luuka, 10 Nov 2026: "you
+    can split since those are two currencies"). None when the employee has no assignment."""
+    name = assignment_on(employee, on) if employee else None
+    if not name:
+        return None
+    assignment = frappe.get_doc(ASSIGNMENT, name)
+    frequency, structure = _structure_gross(assignment, on)
+    return {"amount": flt(rules.per_month(structure, frequency), 2), "currency": assignment.get("currency")}
+
+
+def _structure_gross(assignment, on=None):
+    """(payroll frequency, the structure's gross a pay period) for an assignment, without the tax the company pays
+    on a USD salary, which is no salary."""
     frequency = frappe.db.get_value("Salary Structure", assignment.get("salary_structure"), "payroll_frequency")
     if hasattr(type(assignment), "calculate_ctc_and_gross"):
         assignment.calculate_ctc_and_gross()
         structure = flt(assignment.annual_gross_earning) / rules.periods_in_year(frequency)
     else:
         structure = _previewed_gross(assignment, on)
-    foreign = _is_foreign(assignment)
-    if foreign:
-        # the tax the company pays on top of a USD salary is no salary
+    if _is_foreign(assignment):
         structure -= flt(_structure_amounts(assignment).get(currency_payroll_rules.TAX_COVER))
-    allowances = standing_allowances(employee, on)
-    # what the structure pays per component matters only to an allowance that
-    # takes a component's place
-    replacing = any(int(flt(row.get("overwrite"))) for row in allowances)
-    period = rules.gross_per_period(structure, allowances, _structure_amounts(assignment) if replacing else {})
-    month = flt(rules.per_month(period, frequency), 2)
-    return _in_company_currency(month, assignment, on) if foreign else month
+    return frequency, structure
+
+
+def _company_currency(assignment):
+    from hrms_addon.hrms_addon import currency_payroll
+
+    return currency_payroll.company_currency(assignment.get("company"))
 
 
 def _is_foreign(assignment):
@@ -97,10 +131,11 @@ def standing_allowances(employee, on=None):
     found = frappe.get_all(ADDITIONAL, filters={"employee": employee, "docstatus": 1, "is_recurring": 1,
                                                 "from_date": ["<=", str(day)]},
                            fields=["salary_component", "amount", "type", "is_recurring", "disabled", "from_date",
-                                   "to_date", "overwrite_salary_structure_amount"], limit_page_length=0)
+                                   "to_date", "overwrite_salary_structure_amount", "currency"], limit_page_length=0)
     rows = [{"salary_component": row.salary_component, "amount": row.amount, "type": row.type,
              "is_recurring": row.is_recurring, "disabled": row.disabled, "from_date": row.from_date,
-             "to_date": row.to_date, "overwrite": row.overwrite_salary_structure_amount} for row in found]
+             "to_date": row.to_date, "overwrite": row.overwrite_salary_structure_amount, "currency": row.currency}
+            for row in found]
     components = {row["salary_component"] for row in rows if row["salary_component"]}
     return rules.standing(rows, day, {name for name in components if _not_counted(name)})
 

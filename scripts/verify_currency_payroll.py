@@ -138,11 +138,16 @@ print("glue: a USD payroll at its month's rate, or its own saved as the month's;
 # ── 3. The gross the other modules read ─────────────────────────────────
 pay = read("hrms_addon", "hrms_addon", "pay.py")
 gross = function_of(pay, "monthly_gross")
+structure_gross = function_of(pay, "_structure_gross")
 check("foreign = _is_foreign(assignment)" in gross
-      and "structure -= flt(_structure_amounts(assignment).get(currency_payroll_rules.TAX_COVER))" in gross
-      and "return _in_company_currency(month, assignment, on) if foreign else month" in gross,
+      and "structure -= flt(_structure_amounts(assignment).get(currency_payroll_rules.TAX_COVER))" in structure_gross
+      and "month = _in_company_currency(flt(rules.per_month(period, frequency), 2), assignment, on)" in gross,
       "an employee paid in USD has a gross in shillings, without the tax the company pays on top; anybody else's "
       "is as before")
+check('own = [row for row in allowances if (row.get("currency") or home) != home]' in gross
+      and "return flt(month + rules.per_month(rules.gross_per_period(0, shillings), frequency), 2)" in gross,
+      "a USD salary's shilling allowances are added as they are, never put through the rate again "
+      "(Luuka, 10 Nov 2026)")
 converted = function_of(pay, "_in_company_currency")
 check("currency_payroll.rate_for(" in converted and "if rate else 0" in converted,
       "put into shillings at the month's rate, else the latest before it; with no rate at all, no gross")

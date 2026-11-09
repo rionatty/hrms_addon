@@ -38,20 +38,34 @@ def allowances(employee):
     _may("read", employee)
     records = _records(employee)
     rows = rules.view(records, getdate(today()), _paid([record.name for record in records]))
-    currency, home = _currency(employee), _home_currency(employee)
-    return {
+    salary_currency, home = _currency(employee), _home_currency(employee)
+    foreign = bool(salary_currency and home and salary_currency != home)
+    found = {
         "rows": rows,
         "running": rules.total_running(rows),
-        # pay.monthly_gross is in the company's currency, whatever the assignment's
-        "gross": pay.monthly_gross(employee),
-        "gross_currency": home or currency,
         "assigned": bool(_assigned_from(employee)),
         "can_change": bool(frappe.has_permission(RECORD, "create") and frappe.has_permission(RECORD, "write")),
-        "currency": currency,
-        # a salary in another currency takes its allowance as a line of its structure, its tax grossed up
-        # (currency_payroll_rules.ALLOWANCE_ABBR), not as an Additional Salary (Luuka, 9 Nov 2026)
-        "on_structure": bool(currency and home and currency != home),
+        # allowances are in the company's currency, whatever the salary's (Luuka, 10 Nov 2026)
+        "currency": home or salary_currency,
+        "foreign": foreign,
     }
+    if foreign:
+        # two currencies, shown apart: the USD salary and the shilling allowances, no rate between them (Luuka,
+        # 10 Nov 2026: "you can split since those are two currencies involved")
+        salary = pay.monthly_salary(employee) or {}
+        found.update({"salary": salary.get("amount") or 0, "salary_currency": salary.get("currency") or salary_currency,
+                      "default_component": _allowance_component()})
+    else:
+        found["gross"] = pay.monthly_gross(employee)
+    return found
+
+
+def _allowance_component():
+    """The component Add Allowance offers first on a USD salary, when the site has it."""
+    from hrms_addon.hrms_addon import currency_payroll_rules
+
+    return currency_payroll_rules.ALLOWANCE_COMPONENT \
+        if frappe.db.exists("Salary Component", currency_payroll_rules.ALLOWANCE_COMPONENT) else None
 
 
 def _may(ptype, employee):
@@ -221,7 +235,9 @@ def _new(employee, salary_component, amount, from_date, to_date=None):
     doc = frappe.get_doc({
         "doctype": RECORD, "employee": employee, "company": company, "salary_component": salary_component,
         "amount": flt(amount), "is_recurring": 1, "disabled": 0, "from_date": getdate(from_date),
-        "to_date": rules.last_day(to_date, relieving), "currency": _currency(employee),
+        # in the company's currency on any salary: a USD slip pays it at the month's rate, and the gross-up takes it
+        # with the USD pay (currency_payroll.SalarySlipCurrency; Luuka, 10 Nov 2026)
+        "to_date": rules.last_day(to_date, relieving), "currency": _home_currency(employee) or _currency(employee),
         # paid beside whatever the structure pays, never in its place
         "overwrite_salary_structure_amount": 0,
     })

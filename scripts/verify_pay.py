@@ -103,7 +103,9 @@ check(R.periods_in_year("Monthly") == 12 and R.periods_in_year("Weekly") == 52 a
 # ── 4. wiring ───────────────────────────────────────────────────────────
 pay = read("pay.py")
 gross = pay.split("def monthly_gross(")[1].split("\ndef ")[0]
-check("assignment.calculate_ctc_and_gross()" in gross and "annual_gross_earning" in gross,
+structure_gross = pay.split("def _structure_gross(")[1].split("\ndef ")[0]
+check("frequency, structure = _structure_gross(assignment, on)" in gross
+      and "assignment.calculate_ctc_and_gross()" in structure_gross and "annual_gross_earning" in structure_gross,
       "the structure's part is still Frappe HR's own figure")
 check("rules.gross_per_period(" in gross and "standing_allowances(employee, on)" in gross and "rules.per_month(" in gross,
       "monthly_gross adds the standing allowances in force on the day asked")

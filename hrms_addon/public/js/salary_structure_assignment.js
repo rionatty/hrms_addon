@@ -110,22 +110,32 @@ function ha_standing_draw(frm, wrapper, data) {
 		.join("");
 	const to_add = planned.reduce((sum, row) => sum + flt(row.amount), 0);
 	const none = `<tr><td colspan="5" class="text-muted">${__("No allowances.")}</td></tr>`;
-	// a salary in another currency takes its allowance as a line of its structure, not here (Luuka, 9 Nov 2026)
-	const add = data.can_change && !data.on_structure && (data.assigned || planning)
+	const add = data.can_change && (data.assigned || planning)
 		? `<button type="button" class="btn btn-xs btn-primary" data-ha-standing="add">${__("Add Allowance")}</button>`
 		: "";
-	const hint = data.on_structure
+	// a salary in another currency: its allowances are in shillings, paid on its slip at the month's rate, their
+	// tax paid by the company (Luuka, 10 Nov 2026)
+	const foreign_hint = data.foreign
 		? `<p class="text-muted">${__(
-				"On a {0} salary the allowance is a line of the salary structure. Fill in UGX Allowance below.",
-				[cell(data.currency)]
+				"Allowances are in {0}. The {1} slip pays them at the month's rate, and the company pays their tax.",
+				[cell(data.currency), cell(data.salary_currency)]
 		  )}</p>`
-		: data.assigned
-		? ""
-		: planning
-		? planned.length
-			? `<p class="text-muted">${__("Added when this assignment is submitted.")}</p>`
-			: ""
-		: `<p class="text-muted">${__("Allowances can be added once the employee has a submitted assignment.")}</p>`;
+		: "";
+	const hint =
+		foreign_hint +
+		(data.assigned
+			? ""
+			: planning
+			? planned.length
+				? `<p class="text-muted">${__("Added when this assignment is submitted.")}</p>`
+				: ""
+			: `<p class="text-muted">${__("Allowances can be added once the employee has a submitted assignment.")}</p>`);
+	// two currencies are shown apart, with no rate between them (Luuka, 10 Nov 2026: "you can split")
+	const totals = data.foreign
+		? `<p>${__("Allowances a month")}: <b>${ha_standing_money(data.running, data.currency)}</b>` +
+		  ` &nbsp; ${__("Salary a month")}: <b>${ha_standing_money(data.salary, data.salary_currency)}</b></p>`
+		: `<p>${__("Allowances a month")}: <b>${ha_standing_money(data.running, data.currency)}</b>` +
+		  ` &nbsp; ${__("Monthly gross")}: <b>${ha_standing_money(data.gross, data.currency)}</b></p>`;
 	const toggle = ended
 		? ` <button type="button" class="btn btn-xs btn-default" data-ha-standing="ended">` +
 		  `${frm.ha_standing_ended ? __("Hide Ended") : __("Show Ended ({0})", [ended])}</button>`
@@ -139,9 +149,7 @@ function ha_standing_draw(frm, wrapper, data) {
 				? planned.length
 					? `<p>${__("To be added")}: <b>${ha_standing_money(to_add, data.currency)}</b></p>`
 					: ""
-				: `<p>${__("Allowances a month")}: <b>${ha_standing_money(data.running, data.currency)}</b>` +
-				  ` &nbsp; ${__("Monthly gross")}: <b>${ha_standing_money(data.gross, data.gross_currency || data.currency)}` +
-				  `</b></p>`) +
+				: totals) +
 			hint +
 			`<p>${add}${toggle}</p>`
 	);
@@ -149,7 +157,7 @@ function ha_standing_draw(frm, wrapper, data) {
 		const what = $(this).attr("data-ha-standing");
 		const row = rows.find((one) => one.name === $(this).attr("data-name"));
 		if (what === "add") {
-			if (planning) ha_standing_plan(frm);
+			if (planning) ha_standing_plan(frm, data);
 			else ha_standing_add(frm, data);
 		} else if (what === "unplan") ha_standing_unplan(frm, $(this).attr("data-name"));
 		else if (what === "ended") {
@@ -175,8 +183,10 @@ function ha_standing_send(frm, method, values, done) {
 	});
 }
 
-// what an allowance is asked for, added now or listed on a draft
-function ha_standing_fields(frm, planning) {
+// what an allowance is asked for, added now or listed on a draft. On a salary in another currency the amount is
+// asked in shillings, the allowance's currency, and UGX Allowance is offered first (Luuka, 10 Nov 2026)
+function ha_standing_fields(frm, planning, data) {
+	const foreign = data && data.foreign;
 	return [
 		{
 			fieldname: "salary_component",
@@ -184,9 +194,15 @@ function ha_standing_fields(frm, planning) {
 			options: "Salary Component",
 			label: __("Allowance"),
 			reqd: 1,
+			default: foreign ? data.default_component || null : null,
 			get_query: () => ({ filters: { type: "Earning", disabled: 0 } }),
 		},
-		{ fieldname: "amount", fieldtype: "Currency", label: __("Amount a Month"), reqd: 1 },
+		{
+			fieldname: "amount",
+			fieldtype: "Currency",
+			label: foreign ? __("Amount a Month in {0}", [data.currency]) : __("Amount a Month"),
+			reqd: 1,
+		},
 		{
 			fieldname: "from_date",
 			fieldtype: "Date",
@@ -205,10 +221,10 @@ function ha_standing_fields(frm, planning) {
 
 // an employee's first assignment: the allowance is listed on the draft, and
 // becomes theirs when the assignment is submitted
-function ha_standing_plan(frm) {
+function ha_standing_plan(frm, data) {
 	const dialog = new frappe.ui.Dialog({
 		title: __("Add Allowance"),
-		fields: ha_standing_fields(frm, true),
+		fields: ha_standing_fields(frm, true, data),
 		primary_action_label: __("Add"),
 		primary_action(values) {
 			const row = frm.add_child("custom_planned_allowances");
@@ -237,7 +253,7 @@ function ha_standing_unplan(frm, name) {
 function ha_standing_add(frm, data) {
 	const dialog = new frappe.ui.Dialog({
 		title: __("Add Allowance"),
-		fields: ha_standing_fields(frm, false),
+		fields: ha_standing_fields(frm, false, data),
 		primary_action_label: __("Add"),
 		primary_action(values) {
 			ha_standing_send(frm, "add", Object.assign({ employee: frm.doc.employee }, values), () => dialog.hide());

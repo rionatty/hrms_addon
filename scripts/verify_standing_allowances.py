@@ -300,24 +300,32 @@ check('`<p>${__("To be added")}: <b>${ha_standing_money(to_add, data.currency)}<
       "a first assignment shows what is to be added, and no gross it has no assignment to work out")
 check('const planning = frm.doc.docstatus === 0 && !data.assigned;' in script,
       "the form lists them only on a draft for an employee with no assignment yet")
-check('data.can_change && !data.on_structure && (data.assigned || planning)' in script,
-      "where Add Allowance now shows as well, and never on a salary in another currency")
-# Luuka, 9 Nov 2026: "allowances should be on the salary structure". On a USD assignment the allowance is the
-# structure's UGX Allowance line, its tax grossed up (currency_payroll_rules.ALLOWANCE_ABBR), not an Additional Salary
+check('const add = data.can_change && (data.assigned || planning)' in script,
+      "where Add Allowance now shows as well, on any salary (Luuka, 10 Nov 2026: \"you have removed the button add "
+      "allowances?\")")
+# a USD salary's allowances are in shillings, paid on its slip at the month's rate, their tax grossed up
+# (currency_payroll.SalarySlipCurrency, currency_payroll_rules.ALLOWANCES)
 glue = read("hrms_addon", "hrms_addon", "standing_allowances.py")
-check('"on_structure": bool(currency and home and currency != home),' in glue
-      and "On a {0} salary the allowance is a line of the salary structure. Fill in UGX Allowance below." in script,
-      "a salary in another currency is pointed to its structure's UGX Allowance line")
-check('"gross_currency": home or currency,' in glue
-      and "ha_standing_money(data.gross, data.gross_currency || data.currency)" in script,
-      "the monthly gross shown in the company's currency it is worked out in, not under a USD assignment's sign")
+check('"currency": _home_currency(employee) or _currency(employee),' in glue
+      and '"currency": home or salary_currency,' in glue,
+      "an allowance is in the company's currency whatever the salary's, and the panel shows it so")
+check('"foreign": foreign,' in glue and 'salary = pay.monthly_salary(employee) or {}' in glue
+      and "found[\"gross\"] = pay.monthly_gross(employee)" in glue,
+      "two currencies shown apart: a USD salary's own month and its shilling allowances, no rate between them; "
+      "a shilling salary's monthly gross as before (Luuka, 10 Nov 2026: \"you can split\")")
+check('${__("Salary a month")}: <b>${ha_standing_money(data.salary, data.salary_currency)}</b>' in script
+      and "Allowances are in {0}. The {1} slip pays them at the month's rate, and the company pays their tax." in script,
+      "the panel says so")
+check('default: foreign ? data.default_component || null : null,' in script
+      and '__("Amount a Month in {0}", [data.currency])' in script,
+      "and on a USD salary Add Allowance offers UGX Allowance first, the amount asked in shillings")
 plan = script.split("function ha_standing_plan(")[1].split("\nfunction ")[0]
 check('frm.add_child("custom_planned_allowances")' in plan and "frm.dirty();" in plan and "frappe.call" not in plan
       and "ha_standing_send" not in plan, "listing one writes a row on the draft and calls nothing")
 unplan = script.split("function ha_standing_unplan(")[1].split("\nfunction ")[0]
 check("frappe.model.clear_doc(row.doctype, row.name)" in unplan and "frm.dirty();" in unplan and "frappe.call" not in unplan,
       "and taking one off the list takes its row off")
-check('if (planning) ha_standing_plan(frm);' in script and 'else ha_standing_add(frm, data);' in script,
+check('if (planning) ha_standing_plan(frm, data);' in script and 'else ha_standing_add(frm, data);' in script,
       "an employee who has an assignment is still given theirs at once")
 check('__("Added when this assignment is submitted.")' in script, "and the form says when they are added")
 check(re.search(r"\n\tfrom_date\(frm\) \{\n\t\tha_standing_allowances\(frm\);", script),

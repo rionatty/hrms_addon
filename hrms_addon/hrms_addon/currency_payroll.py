@@ -135,10 +135,40 @@ def assignment_validate(doc, method=None):
     doc.set(rules.RATE_FIELD, flt(rate_for(doc.get("currency"), home, doc.get("from_date"))) or 1)
 
 
+def month_allowances(employee, start, end, company, rate):
+    """The employee's Additional Salary earnings a slip of these days pays (Add Allowance's, and any other), in the
+    company's currency: what the USD gross-up takes with the USD pay (rules.ALLOWANCES). As Frappe HR picks them for a
+    slip: submitted, not disabled, a one-off dated in the days, a recurring one running on any of them."""
+    if not (employee and start and end):
+        return 0.0
+    fields = ["amount", "currency"]
+    common = {"employee": employee, "docstatus": 1, "disabled": 0, "type": "Earning"}
+    records = frappe.get_all("Additional Salary", filters=dict(common, is_recurring=0,
+                                                               payroll_date=["between", [start, end]]),
+                             fields=fields, limit_page_length=0)
+    records += frappe.get_all("Additional Salary", filters=dict(common, is_recurring=1, from_date=["<=", end],
+                                                                to_date=[">=", start]),
+                              fields=fields, limit_page_length=0)
+    return rules.allowances_in_company_currency(records, company_currency(company), rate)
+
+
 class SalarySlipCurrency:
     """An Additional Salary in shillings on a slip in USD, in USD at the slip's rate (rules.additional_amount).
     Frappe HR adds an Additional Salary's amount as it stands (salary_slip.add_additional_salary_components), and
-    the app's advance, loan and penalty recoveries are recorded in the company's currency."""
+    the app's advance, loan and penalty recoveries are recorded in the company's currency.
+
+    Its formulas are given the month's allowances in shillings (rules.ALLOWANCES), which Frappe HR never shows a
+    formula, so the USD gross-up takes them with the USD pay; 0 on a slip in shillings."""
+
+    def get_data_for_eval(self):
+        data, default_data = super().get_data_for_eval()
+        value = 0.0
+        if rules.foreign(self.get("currency"), company_currency(self.get("company"))):
+            value = month_allowances(self.get("employee"), self.get("start_date"), self.get("end_date"),
+                                     self.get("company"), self.get(rules.RATE_FIELD) or self.get("exchange_rate"))
+        data[rules.ALLOWANCES] = value
+        default_data[rules.ALLOWANCES] = value
+        return data, default_data
 
     def update_component_row(self, component_data, amount, component_type, additional_salary=None, *args,
                              **kwargs):
@@ -150,3 +180,20 @@ class SalarySlipCurrency:
                                                  self.get(rules.RATE_FIELD) or self.get("exchange_rate"))
         return super().update_component_row(component_data, amount, component_type, additional_salary, *args,
                                             **kwargs)
+
+
+class SalaryStructureAssignmentCurrency:
+    """The assignment's own working out of its formulas (its preview, its Annual Gross Earning, pay.monthly_gross)
+    is given the allowances of the pay period Frappe HR works it out for (the one its first day falls in), in
+    shillings, under the name the slip gives them; 0 on an assignment in shillings. Without it a USD formula would
+    find no such name."""
+
+    def _get_component_eval_context(self):
+        data = super()._get_component_eval_context()
+        value = 0.0
+        if rules.foreign(self.get("currency"), company_currency(self.get("company"))):
+            value = month_allowances(self.get("employee"), data.get("start_date") or self.get("from_date"),
+                                     data.get("end_date") or self.get("from_date"), self.get("company"),
+                                     self.get(rules.RATE_FIELD))
+        data[rules.ALLOWANCES] = value
+        return data

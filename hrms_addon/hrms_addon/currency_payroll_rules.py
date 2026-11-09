@@ -174,10 +174,16 @@ def payroll_rate_message(from_currency, to_currency, day):
 # The USD structure's lines, by the abbreviations its import gave them (usd_net_pay.py)
 PAY_ABBR, COVER_ABBR = "USDP", "TPBC"        # the USD pay (statistical), the tax the company pays
 LST_ABBR, PAYE_ABBR, NSSF_ABBR, NSSF_EMPLOYER_ABBR = "LST", "payee", "NSSFE", "NSSFEC"
-ALLOWANCE = "custom_ugx_allowance"           # the assignment's allowance in shillings a month
-# the allowance as a line of the USD structure (Luuka, 9 Nov 2026: "allowances should be on the salary
-# structure"): an earning in USD at the month's rate, paid with the USD pay; not cut by the days paid, as the gross-up
-# takes the month's allowance whole
+# The allowances of a USD salary are added with the assignment's Add Allowance, in shillings, as any employee's
+# are (standing_allowances.py; Luuka, 10 Nov 2026: "you have removed the button add allowances?"). The slip pays each
+# in USD at the month's rate (SalarySlipCurrency), and the formulas are given their month's total in shillings under
+# this name, so the gross-up takes them with the USD pay. Frappe HR never shows a formula an Additional Salary.
+ALLOWANCES = "allowances_ugx"
+# the assignment field that held the allowance before (28a839f to be1a403), moved onto Add Allowance and removed by
+# patch usd_allowances_on_panel; and the structure line be1a403 made of it
+OLD_ALLOWANCE_FIELD = "custom_ugx_allowance"
+# the component Add Allowance offers first on a USD salary: not cut by the days paid, as the gross-up takes the
+# month's allowance whole
 ALLOWANCE_COMPONENT, ALLOWANCE_ABBR = "UGX Allowance", "UGXA"
 ALLOWANCE_FLAGS = {"type": "Earning", "depends_on_payment_days": 0, "is_tax_applicable": 1,
                    "statistical_component": 0, "do_not_include_in_total": 0}
@@ -231,12 +237,12 @@ def lst_formula(pay):
 
 
 def gross_up_amounts(rate="custom_exchange_rate"):
-    """The grossed-up amounts in shillings at the month's rate, as formulas: the net is the USD pay and the UGX
-    Allowance; the gross what PAYE and NSSF 5% leave that net of; PAYE the gross less the net and that NSSF (the
+    """The grossed-up amounts in shillings at the month's rate, as formulas: the net is the USD pay and the month's
+    allowances; the gross what PAYE and NSSF 5% leave that net of; PAYE the gross less the net and that NSSF (the
     2026 bands on the gross, by the gross-up's own sum); LST on the net, on top; NSSF 5% and 10% on the gross and
     LST, each to the shilling. cover is the NSSF 5% on the gross alone, which the company pays: the 5% on LST is
     the employee's, as Luuka's own expatriate payroll leaves it (1,250 a month on 25,000 of LST)."""
-    net = "(%s * %s + (%s or 0))" % (PAY_ABBR, rate, ALLOWANCE)
+    net = "(%s * %s + (%s or 0))" % (PAY_ABBR, rate, ALLOWANCES)
     nssf = "(0 if %s else %s)" % (NSSF_EXEMPT, _figure(NSSF_EMPLOYEE))
     nssf_employer = "(0 if %s else %s)" % (NSSF_EXEMPT, _figure(NSSF_EMPLOYER))
     gross = gross_up_formula(net, nssf)
@@ -262,8 +268,20 @@ def usd_gross_up_formulas(rate="custom_exchange_rate"):
              NSSF_ABBR: ("deductions", usd(amounts["employee"])),
              NSSF_EMPLOYER_ABBR: ("employer_contributions", usd(amounts["employer"]))}
     lines[COVER_ABBR] = ("earnings", " + ".join((lines[LST_ABBR][1], lines[PAYE_ABBR][1], usd(amounts["cover"]))))
-    lines[ALLOWANCE_ABBR] = ("earnings", usd("(%s or 0)" % ALLOWANCE))
     return lines
+
+
+def allowances_in_company_currency(records, company_currency, rate):
+    """What a month's allowances come to in the company's currency, for the gross-up: each recorded in it as it
+    stands, one recorded in the slip's currency at the slip's rate. records: [{amount, currency}], the employee's
+    Additional Salary earnings the slip pays."""
+    total = 0.0
+    for record in records or ():
+        amount = _num(record.get("amount"))
+        if (record.get("currency") or company_currency) != company_currency:
+            amount *= _num(rate)
+        total += amount
+    return round(total, 2)
 
 
 def additional_amount(amount, additional_currency, slip_currency, company_currency, rate):

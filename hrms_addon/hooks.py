@@ -1272,9 +1272,6 @@ fixtures = [
                     # read by its formulas (currency_payroll.py)
                     "Salary Structure Assignment-custom_house_rent_allowance",
                     "Salary Structure Assignment-custom_transport_allowance",
-                    # the allowance a USD employee is paid in shillings outside the payroll, taxed with the USD pay
-                    # (currency_payroll_rules.gross_up_amounts)
-                    "Salary Structure Assignment-custom_ugx_allowance",
                     # how a component reads on the Pay Slip (payslip.py)
                     "Salary Component-custom_slip_name",
                     "Salary Component-custom_slip_order",
@@ -1756,7 +1753,10 @@ extend_doctype_class = {
     "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],
     "Salary Structure Assignment": ["hrms_addon.hrms_addon.nssf_age.SalaryStructureAssignmentNssfAge",
                                     "hrms_addon.hrms_addon.secondary_employment.SalaryStructureAssignmentSecondaryEmployment",
-                                    "hrms_addon.hrms_addon.weekly_pay.SalaryStructureAssignmentWeekly"],
+                                    "hrms_addon.hrms_addon.weekly_pay.SalaryStructureAssignmentWeekly",
+                                    # the allowances a USD formula takes, on the assignment too
+                                    # (currency_payroll.py)
+                                    "hrms_addon.hrms_addon.currency_payroll.SalaryStructureAssignmentCurrency"],
     "Shift Type": ["hrms_addon.hrms_addon.attendance_deletions.ShiftTypeKeepDeleted",
                    "hrms_addon.hrms_addon.attendance_verification.ShiftTypeVerified"],
 }
