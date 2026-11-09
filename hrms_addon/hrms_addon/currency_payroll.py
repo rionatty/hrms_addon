@@ -133,3 +133,20 @@ def assignment_validate(doc, method=None):
         doc.set(rules.RATE_FIELD, 1)
         return
     doc.set(rules.RATE_FIELD, flt(rate_for(doc.get("currency"), home, doc.get("from_date"))) or 1)
+
+
+class SalarySlipCurrency:
+    """An Additional Salary in shillings on a slip in USD, in USD at the slip's rate (rules.additional_amount).
+    Frappe HR adds an Additional Salary's amount as it stands (salary_slip.add_additional_salary_components), and
+    the app's advance, loan and penalty recoveries are recorded in the company's currency."""
+
+    def update_component_row(self, component_data, amount, component_type, additional_salary=None, *args,
+                             **kwargs):
+        if additional_salary and additional_salary.get("name"):
+            home = company_currency(self.get("company"))
+            if rules.foreign(self.get("currency"), home):
+                recorded = frappe.db.get_value("Additional Salary", additional_salary.name, "currency")
+                amount = rules.additional_amount(amount, recorded, self.get("currency"), home,
+                                                 self.get(rules.RATE_FIELD) or self.get("exchange_rate"))
+        return super().update_component_row(component_data, amount, component_type, additional_salary, *args,
+                                            **kwargs)

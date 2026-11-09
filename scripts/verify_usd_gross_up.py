@@ -79,6 +79,11 @@ def usd(abbr, **values):
     return eval(LINES[abbr][1], dict(GLOBALS), context(**values))
 
 
+def usd_of(name, **values):
+    """A shilling amount (gross_up_amounts) in USD to the cent, as a line has it."""
+    return round(ugx(name, **values) / 3920, 2)
+
+
 def bands(chargeable):
     return eval(R.paye_formula("x"), dict(GLOBALS), {"x": chargeable})
 
@@ -106,6 +111,44 @@ for basic, allowance, gross, paye, employee, employer in SEPTEMBER:
 check("Luuka's own September payroll comes out of the formulas: the gross to the cent, PAYE and NSSF 5% and 10% "
       "to the shilling, LST 25,000, for each of its ten pays", not off, off)
 print("Luuka's September: reproduced")
+
+# ── 1b. Luuka's sheet of 9 Nov 2026, column by column ─────────────────
+# "please make sure the payroll matches this one": by pay (basic USD, allowance and advance in shillings, at
+# 3,920): GROSS, TOTAL GROSS, PAYE, NSSF 5%, NSSF 10%, T.D and NETPAY as the sheet has them
+SHEET = [
+    (1300, 400000, 0, 8283462, 8308462, 2373288, 415423, 830846, 2813712, 5494750),
+    (1300, 200000, 0, 7975769, 8000769, 2280981, 400038, 800077, 2706019, 5294750),
+    (1400, 200000, 0, 8578846, 8603846, 2461904, 430192, 860385, 2917096, 5686750),
+    (2000, 200000, 0, 12596818, 12621818, 3926977, 631091, 1262182, 4583068, 8038750),
+    (4255, 0, 0, 28305182, 28330182, 10210323, 1416509, 2833018, 11651832, 16678350),
+    (2200, 400000, 0, 14385909, 14410909, 4642614, 720545, 1441091, 5388159, 9022750),
+    (2000, 400000, 0, 12960455, 12985455, 4072432, 649273, 1298545, 4746705, 8238750),
+    (6000, 0, 0, 40742273, 40767273, 15185159, 2038364, 4076727, 17248523, 23518750),
+    (1500, 760000, 360000, 10051364, 10076364, 2908795, 503818, 1007636, 3797614, 6278750),
+    (3000, 0, 3528000, 19360455, 19385455, 6632432, 969273, 1938545, 11154705, 8230750),
+]
+columns_off, totals_off, slips_off = [], [], []
+for basic, allowance, advance, gross, total, paye, employee, employer, deducted, netpay in SHEET:
+    got = {name: ugx(name, usd=basic, allowance=allowance) for name in ("gross", "lst", "paye", "employee", "employer")}
+    total_got = round(got["gross"] + got["lst"])
+    if [round(got["gross"]), total_got, got["paye"], got["employee"], got["employer"]] \
+            != [gross, total, paye, employee, employer]:
+        columns_off.append((basic, allowance, got))
+    deducted_got = got["paye"] + got["employee"] + got["lst"] + advance
+    if abs(deducted_got - deducted) > 1 or abs(total_got - deducted_got - netpay) > 1:
+        totals_off.append((basic, allowance, deducted_got, total_got - deducted_got))
+    line = {abbr: usd(abbr, usd=basic, allowance=allowance) for abbr in LINES}
+    slip_net = round(basic + line["TPBC"] - line["LST"] - line["payee"] - line["NSSFE"]
+                     - R.additional_amount(advance, "UGX", "USD", "UGX", 3920), 2)
+    if abs(slip_net * 3920 + allowance - netpay) > 40:
+        slips_off.append((basic, allowance, slip_net, slip_net * 3920 + allowance - netpay))
+check("the sheet's GROSS, TOTAL GROSS, PAYE, NSSF 5% and NSSF 10% come out of the formulas to the shilling, for all "
+      "eleven", not columns_off, columns_off)
+check("its T.D and NETPAY to the shilling: the advance off, and the NSSF 5% on LST the employee's (1,250)",
+      not totals_off, totals_off)
+check("and each USD slip's net, back in shillings with the allowance paid outside it, within the cents' rounding",
+      not slips_off, slips_off)
+print("Luuka's sheet of 9 Nov: every column")
 
 # ── 2. The gross-up undoes itself ─────────────────────────────────────
 bad = []
@@ -148,12 +191,48 @@ check("the lines by their tables: Tax Paid by Company an earning, LST, PAYE and 
 nets = []
 for basic, allowance, *_figures in SEPTEMBER:
     line = {abbr: usd(abbr, usd=basic, allowance=allowance) for abbr in LINES}
-    nets.append(round(basic + line["TPBC"] - line["LST"] - line["payee"] - line["NSSFE"], 2) == basic)
-check("Tax Paid by Company is LST, PAYE and NSSF 5% to the cent, so each employee is left the USD pay", all(nets))
+    covered = round(line["LST"] + line["payee"] + usd_of("cover", usd=basic, allowance=allowance), 2)
+    left = round(basic + line["TPBC"] - line["LST"] - line["payee"] - line["NSSFE"], 2)
+    nets.append(round(line["TPBC"], 2) == covered and abs(round(basic - left, 2) - 1250 / 3920.0) <= 0.015)
+check("Tax Paid by Company is LST, PAYE and the NSSF 5% on the gross, to the cent: each employee is left the USD "
+      "pay less the NSSF 5% on LST, 1,250 shillings, as Luuka's sheet", all(nets))
+check("past the NSSF age limit there is no NSSF, so the USD pay is left whole",
+      round(1300 + usd("TPBC", usd=1300, allowance=0, age=60) - usd("LST", usd=1300, allowance=0, age=60)
+            - usd("payee", usd=1300, allowance=0, age=60) - usd("NSSFE", usd=1300, allowance=0, age=60), 2) == 1300)
 line = {abbr: usd(abbr, usd=1300, allowance=400000) for abbr in LINES}
 check("each line is its shillings at the month's rate, to the cent: PAYE 605.43, NSSF 105.98, LST 6.38",
       (line["payee"], line["NSSFE"], line["LST"]) == (605.43, 105.98, 6.38), line)
-print("the slip: in USD to the cent, the net the USD pay")
+print("the slip: in USD to the cent, the net the USD pay less the NSSF on LST")
+
+# ── 4b. A shilling Additional Salary on a USD slip ────────────────────
+check("an advance recovered in shillings comes off a USD slip in USD at the slip's rate, to the cent",
+      R.additional_amount(360000, "UGX", "USD", "UGX", 3920) == 91.84
+      and R.additional_amount(3528000, None, "USD", "UGX", 3920) == 900.0)
+check("one recorded in USD, or on a shilling slip, stays as it is",
+      R.additional_amount(91.84, "USD", "USD", "UGX", 3920) == 91.84
+      and R.additional_amount(360000, "UGX", "UGX", "UGX", 1) == 360000.0)
+check("and with no rate it is not divided by nothing", R.additional_amount(360000, "UGX", "USD", "UGX", 0) == 360000.0)
+glue = read("hrms_addon", "hrms_addon", "currency_payroll.py")
+mixin = glue.split("class SalarySlipCurrency:")[1] if "class SalarySlipCurrency:" in glue else ""
+check("the slip's mixin converts an Additional Salary's amount before Frappe HR puts it on the slip",
+      "def update_component_row(self, component_data, amount, component_type, additional_salary=None, *args," in mixin
+      and 'frappe.db.get_value("Additional Salary", additional_salary.name, "currency")' in mixin
+      and 'amount = rules.additional_amount(amount, recorded, self.get("currency"), home,' in mixin
+      and "return super().update_component_row(component_data, amount, component_type, additional_salary, *args,"
+      in mixin)
+check("and is the Salary Slip's", '"hrms_addon.hrms_addon.currency_payroll.SalarySlipCurrency"' in read("hrms_addon",
+                                                                                                         "hooks.py"))
+salary_slip = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "salary_slip", "salary_slip.py")
+if os.path.exists(salary_slip):
+    source = open(salary_slip, encoding="utf-8").read()
+    body = source[source.index("\tdef add_additional_salary_components(self, component_type):"):]
+    body = body[:body.index("\n\tdef ", 10)]
+    check("Frappe HR puts an Additional Salary's amount on the slip as it stands, through update_component_row",
+          "self.update_component_row(\n\t\t\t\tcomponent_data,\n\t\t\t\tadditional_salary.amount,\n\t\t\t\t"
+          "component_type,\n\t\t\t\tadditional_salary," in body, body[:400])
+else:
+    print("Frappe HR's salary slip: NOT CHECKED, not found under %s" % APPS_ROOT)
+print("an Additional Salary in shillings: in USD on a USD slip")
 
 # ── 5. What the formulas name ─────────────────────────────────────────
 GIVEN = {"USDP", "custom_exchange_rate", R.ALLOWANCE, "end_date", NSSF.LIMIT, NSSF.AGE, NSSF.VOLUNTARY,

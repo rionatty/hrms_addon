@@ -226,7 +226,8 @@ def gross_up_amounts(rate="custom_exchange_rate"):
     """The grossed-up amounts in shillings at the month's rate, as formulas: the net is the USD pay and the UGX
     Allowance; the gross what PAYE and NSSF 5% leave that net of; PAYE the gross less the net and that NSSF (the
     2026 bands on the gross, by the gross-up's own sum); LST on the net, on top; NSSF 5% and 10% on the gross and
-    LST, each to the shilling."""
+    LST, each to the shilling. cover is the NSSF 5% on the gross alone, which the company pays: the 5% on LST is
+    the employee's, as Luuka's own expatriate payroll leaves it (1,250 a month on 25,000 of LST)."""
     net = "(%s * %s + (%s or 0))" % (PAY_ABBR, rate, ALLOWANCE)
     nssf = "(0 if %s else %s)" % (NSSF_EXEMPT, _figure(NSSF_EMPLOYEE))
     nssf_employer = "(0 if %s else %s)" % (NSSF_EXEMPT, _figure(NSSF_EMPLOYER))
@@ -235,13 +236,15 @@ def gross_up_amounts(rate="custom_exchange_rate"):
     return {"net": net, "gross": gross, "lst": lst,
             "paye": "floor(%s * (1 - %s) - %s + 0.500001)" % (gross, nssf, net),
             "employee": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf),
-            "employer": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf_employer)}
+            "employer": "floor((%s + %s) * %s + 0.500001)" % (gross, lst, nssf_employer),
+            "cover": "floor(%s * %s + 0.500001)" % (gross, nssf)}
 
 
 def usd_gross_up_formulas(rate="custom_exchange_rate"):
     """{abbreviation: (table, formula)}: a USD structure's tax lines, grossed up (gross_up_amounts). Each line is
-    its amount in USD to the cent, and Tax Paid by Company the sum of LST, PAYE and NSSF 5%, so the employee is
-    left the USD pay."""
+    its amount in USD to the cent, and Tax Paid by Company the sum of LST, PAYE and the NSSF 5% on the gross, so the
+    employee is left the USD pay less the NSSF 5% on LST, as Luuka's own expatriate payroll (Luuka, 9 Nov 2026:
+    "please make sure the payroll matches this one")."""
     amounts = gross_up_amounts(rate)
 
     def usd(amount):
@@ -250,8 +253,21 @@ def usd_gross_up_formulas(rate="custom_exchange_rate"):
     lines = {LST_ABBR: ("deductions", usd(amounts["lst"])), PAYE_ABBR: ("deductions", usd(amounts["paye"])),
              NSSF_ABBR: ("deductions", usd(amounts["employee"])),
              NSSF_EMPLOYER_ABBR: ("employer_contributions", usd(amounts["employer"]))}
-    lines[COVER_ABBR] = ("earnings", " + ".join(lines[abbr][1] for abbr in (LST_ABBR, PAYE_ABBR, NSSF_ABBR)))
+    lines[COVER_ABBR] = ("earnings", " + ".join((lines[LST_ABBR][1], lines[PAYE_ABBR][1], usd(amounts["cover"]))))
     return lines
+
+
+def additional_amount(amount, additional_currency, slip_currency, company_currency, rate):
+    """An Additional Salary's amount on a slip, in the slip's currency: one recorded in the company's currency
+    (an advance's recovery, a loan's, a penalty) is divided by the slip's rate on a slip in another currency, to the
+    cent. Frappe HR puts the amount on the slip as it stands, whatever its currency, so a 360,000 shilling
+    recovery would otherwise come off a USD slip as 360,000 dollars."""
+    amount = _num(amount)
+    if not foreign(slip_currency, company_currency):
+        return amount
+    if (additional_currency or company_currency) != company_currency or _num(rate) <= 0:
+        return amount
+    return round(amount / _num(rate), 2)
 
 
 def in_company_currency(amount, rate):

@@ -1746,7 +1746,9 @@ extend_doctype_class = {
     "Salary Slip": ["hrms_addon.hrms_addon.pay_days.SalarySlipDays",
                     "hrms_addon.hrms_addon.nssf_age.SalarySlipNssfAge",
                     "hrms_addon.hrms_addon.secondary_employment.SalarySlipSecondaryEmployment",
-                    "hrms_addon.hrms_addon.weekly_pay.SalarySlipWeekly"],
+                    "hrms_addon.hrms_addon.weekly_pay.SalarySlipWeekly",
+                    # a shilling Additional Salary on a USD slip, in USD (currency_payroll.py)
+                    "hrms_addon.hrms_addon.currency_payroll.SalarySlipCurrency"],
     "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly",
                       "hrms_addon.hrms_addon.employer_costs.PayrollEntryEmployerCosts",
                       "hrms_addon.hrms_addon.attendance_verification.PayrollEntryVerified"],
