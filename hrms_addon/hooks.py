@@ -1753,6 +1753,8 @@ extend_doctype_class = {
                     "hrms_addon.hrms_addon.currency_payroll.SalarySlipCurrency"],
     "Payroll Entry": ["hrms_addon.hrms_addon.weekly_pay.PayrollEntryWeekly",
                       "hrms_addon.hrms_addon.employer_costs.PayrollEntryEmployerCosts",
+                      # a USD payroll's accrual entry in shillings to the shilling (usd_posting.py)
+                      "hrms_addon.hrms_addon.usd_posting.PayrollEntryUsdPosting",
                       "hrms_addon.hrms_addon.attendance_verification.PayrollEntryVerified"],
     "Overtime Slip": ["hrms_addon.hrms_addon.pay_days.OvertimeSlipDays"],
     "Employee Checkin": ["hrms_addon.hrms_addon.devices.EmployeeCheckinFromMachine"],

@@ -38,6 +38,16 @@ def pay_slip(doc):
     employee = frappe.db.get_value("Employee", doc.employee, _employee_fields(), as_dict=True) or frappe._dict()
     earnings = [row.as_dict() for row in doc.get("earnings") or []]
     deductions = [row.as_dict() for row in doc.get("deductions") or []]
+    currency = _currency(doc)
+    ugx = None
+    if currency:
+        # a slip in another currency prints as two (Luuka, 10 Nov 2026: "the salary slip should be in two" and "on
+        # USD one only show the basic alone"): its pay in that currency alone, then the sheet's shilling figures
+        from hrms_addon.hrms_addon import usd_sheet
+
+        earnings = own_pay(earnings)
+        deductions = []
+        ugx = usd_sheet.slip_sheet(doc)
     leave, absent = rules.day_counts(_attendance(doc))
     shown = _shown({row.get("salary_component") for row in earnings + deductions if row.get("salary_component")})
     net = flt(doc.get("net_pay"))
@@ -52,9 +62,9 @@ def pay_slip(doc):
         "category": employee.get("custom_pay_category") or employee.get("employment_type"),
         "section": _section(doc.get("designation")),
         "payments": rules.lines(earnings, _hours(doc, earnings), shown),
-        "gross": flt(doc.get("gross_pay")),
+        "gross": flt(sum(flt(row.get("amount")) for row in earnings), 2) if ugx else flt(doc.get("gross_pay")),
         "deductions": rules.lines(deductions, None, shown),
-        "total_deductions": flt(doc.get("total_deduction")),
+        "total_deductions": 0 if ugx else flt(doc.get("total_deduction")),
         "net": net,
         "rounded": flt(doc.get("rounded_total")) or flt(round(net)),
         "payment_by": _payment_by(doc, employee),
@@ -64,8 +74,18 @@ def pay_slip(doc):
         "absent_amount": rules.absent_amount(earnings),
         "leave_taken": leave,
         "absent_days": flt(doc.get("absent_days")) or absent,
-        "currency": _currency(doc),
+        "currency": currency,
+        "ugx": ugx,
     })
+
+
+def own_pay(earnings):
+    """A USD slip's pay in USD: its structure's own lines, without the tax the company pays on top (Tax Paid by
+    Company) or an Additional Salary (the allowances, in shillings). The rest is on its UGX pay slip."""
+    from hrms_addon.hrms_addon import currency_payroll_rules
+
+    return [row for row in earnings or [] if not row.get("additional_salary")
+            and row.get("abbr") != currency_payroll_rules.COVER_ABBR]
 
 
 def _currency(doc):

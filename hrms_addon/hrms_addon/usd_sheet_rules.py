@@ -114,6 +114,13 @@ def shown(rows):
     return body + [dict(totals(rows), is_total=1)] if body else []
 
 
+def basic_label(currency, usd, rate):
+    """The UGX pay slip's first line: BASIC USD 1,500.00 x 3,920, the rate to the cent only when it has cents."""
+    rate = _num(rate)
+    shown = "{:,.2f}".format(rate) if round(rate, 2) != int(rate) else "{:,.0f}".format(rate)
+    return "BASIC %s %s x %s" % (currency or "", "{:,.2f}".format(_num(usd)), shown)
+
+
 def sheet_title(end_date):
     """USD PAYROLL FOR THE MONTH OF SEPTEMBER 2026: the month the payroll's period ends in."""
     day = _date(end_date)

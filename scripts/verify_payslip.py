@@ -277,7 +277,8 @@ for typed in re.findall(r"\{\{\s*(p\.(?:company|employee_name|department|payroll
     check(False, "%s is printed without v(), unescaped" % typed)
 
 # ── 5. Luuka's August slip for LPL1834 ──────────────────────────────────
-def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None, shown=None, currency=None):
+def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None, shown=None, currency=None,
+            ugx=None):
     # the fields a slip's print is handed
     """What payslip.pay_slip hands the print, from the same rules."""
     leave, absent = R.day_counts(attendance)
@@ -293,7 +294,7 @@ def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None,
                                                      slip.get("bank_account_no")) if part) or None,
             "paid_days": slip["payment_days"], "working_days": slip["total_working_days"], "holidays": holidays,
             "absent_amount": R.absent_amount(slip["earnings"]), "leave_taken": leave,
-            "absent_days": slip.get("absent_days") or absent, "currency": currency}
+            "absent_days": slip.get("absent_days") or absent, "currency": currency, "ugx": ugx}
 
 
 AUGUST = {"company": "Luuka Plastics Limited", "employee": "LPL1834", "employee_name": "SARAH AMUGE", "department": "PP DEPARTMENT",
@@ -330,17 +331,45 @@ for said in ("Luuka Plastics Limited PAY SLIP AUGUST 2026 NAME SARAH AMUGE DEPT 
     check(said in text, "the August slip reads: %s" % said)
 check("USD" not in text and text.count("AMOUNT") == 2 and "HOURS" not in text,
       "a slip in shillings names no currency, as Luuka's never has; with no overtime hours, no Hours column")
-dollars = text_of(page_of(AUGUST, {"custom_pay_category": "Regular"}, section="Human Resource", shown=SHOWN,
-                          currency="USD"))
-check("PAYMENTS AMOUNT USD BASIC" in dollars and "DEDUCTIONS AMOUNT USD NSSF" in dollars
-      and dollars.count("USD") == 2,
-      "a slip in another currency says it over both columns of figures, and nowhere else")
+# a USD slip prints as two (Luuka, 10 Nov 2026: "the salary slip should be in two", "on USD one only show the
+# basic alone"): its USD pay, then the sheet's shilling figures. One expatriate's September.
+PERSON = dict(AUGUST, employee="E10", employee_name="EXPATRIATE TEN", earnings=[
+    {"salary_component": "Basic", "abbr": "BS", "amount": 1500.0, "default_amount": 1500.0}], deductions=[],
+    gross_pay=1500.0, total_deduction=0, net_pay=1500.0, rounded_total=1500.0, end_date="2026-09-25")
+UGX = {"basic_label": "BASIC USD 1,500.00 x 3,920", "currency": "USD", "basic_usd": 1500.0, "rate": 3920.0,
+       "net": 5880000, "allowance": 760000, "total_net": 6640000, "gross": 10051364, "lst": 25000,
+       "total_gross": 10076364, "paye": 2908795, "nssf_5": 503818, "nssf_10": 1007636, "nssf_15": 1511455,
+       "advance": 360000, "deductions": 3797614, "net_pay": 6278750, "paid": 1601.72}
+two = page_of(PERSON, {"custom_pay_category": "Expatriate"}, currency="USD", ugx=UGX)
+usd_page, _break, ugx_page = two.partition('<div class="page-break"')
+usd_text, ugx_text = text_of(usd_page), text_of(ugx_page)
+check(_break and two.count('class="lpl-slip"') == 2,
+      "a USD slip prints as two slips, the second on a page of its own")
+check("PAYMENTS AMOUNT USD BASIC 1,500.00 TOTAL 1,500.00" in usd_text and "DEDUCTIONS" not in usd_text
+      and "NET PAY" not in usd_text and "PAYMENT BY" not in usd_text and "Paid Days" in usd_text,
+      "the USD one: the basic alone, its total, no deductions or net pay, the days: %s" % usd_text)
+check("EXPATRIATE TEN" in ugx_text and "SEPTEMBER 2026" in ugx_text
+      and "PAYMENTS AMOUNT UGX BASIC USD 1,500.00 x 3,920 5,880,000 ALLOWANCE 760,000 TOTAL NET 6,640,000 "
+          "GROSS 10,051,364 LST 25,000 TOTAL GROSS 10,076,364" in ugx_text
+      and "DEDUCTIONS AMOUNT UGX PAYE 2,908,795 NSSF 5% 503,818 LST 25,000 ADVANCE 360,000 T.D 3,797,614" in ugx_text
+      and "NET PAY UGX 6,278,750 PAID USD 1,601.72" in ugx_text and "PAYMENT BY Bank Stanbic 9030001" in ugx_text,
+      "the UGX one: the sheet's figures for the person, the net in shillings and what is paid in USD: %s" % ugx_text)
+check(text_of(page_of(AUGUST, {"custom_pay_category": "Regular"}, currency=None)).count("PAY SLIP") == 1,
+      "a slip in shillings prints as one, as it always has")
+handed_ugx = set(re.findall(r"\bu\.(\w+)", html))
+sheet_keys = {name for name, *_rest in load("usd_sheet_rules", APP).COLUMNS} | {"currency", "paid", "basic_label"}
+check(handed_ugx and handed_ugx <= sheet_keys, "the UGX slip reads only what usd_sheet.slip_sheet hands it: %s"
+      % sorted(handed_ugx - sheet_keys))
 glue = io.open(os.path.join(REPO, "hrms_addon", "hrms_addon", "payslip.py"), encoding="utf-8").read()
 said = glue.split("def _currency(")[1].split("\ndef ")[0]
-check('"currency": _currency(doc),' in glue
+check('"currency": currency,' in glue and "currency = _currency(doc)" in glue
       and "return currency if currency_payroll_rules.foreign(currency, home) else None" in said
       and "currency_payroll.company_currency(doc.get(\"company\"))" in said,
       "the slip's currency is named only where it is not the company's own, by the USD payroll's own rule")
+own = glue.split("def own_pay(")[1].split("\ndef ")[0]
+check("earnings = own_pay(earnings)" in glue and "deductions = []" in glue and "ugx = usd_sheet.slip_sheet(doc)" in glue
+      and 'not row.get("additional_salary")' in own and 'row.get("abbr") != currency_payroll_rules.COVER_ABBR' in own,
+      "a USD slip's own page has its USD pay alone: not the tax cover, not an allowance in shillings, no deductions")
 for hidden in ("Taxable", "Cash Gross Pay", "NSSF Employer", "Penalty Recovery"):
     check(hidden not in text, "%s is not on the slip" % hidden)
 check('<img src="/files/luuka.png">' in page, "the company's logo is on it")
