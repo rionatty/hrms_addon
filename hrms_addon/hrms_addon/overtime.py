@@ -258,15 +258,16 @@ def _weekly_casuals(employees):
                               pluck="name", limit_page_length=0)) if employees else set()
 
 
-def _casual_rates(employees):
-    """{employee: their own hourly rate} for the casuals paid by the hour: their overtime is their hour times the
-    multiplier (Luuka's casual worksheet: OT at the casual's rate times 1.5), as their weekly slip pays it."""
+def _casual_rates(employees, day):
+    """{employee: their own hourly rate on the day} for the casuals paid by the hour: their overtime is their hour
+    times the multiplier (Luuka's casual worksheet: OT at the casual's rate times 1.5), as their weekly slip pays
+    it."""
     casuals = _weekly_casuals(employees)
     if not casuals:
         return {}
     from hrms_addon.hrms_addon import weekly_pay
 
-    return weekly_pay.rates_of(casuals)
+    return weekly_pay.rates_of(casuals, on=day)
 
 
 def _monthly_bases(employees):
@@ -330,7 +331,7 @@ def _cost(doc, standing):
                           _standard_hours(people_on_it, doc.overtime_date), kinds, _departments(people_on_it),
                           categories=_categories(people_on_it),
                           days=pay_days.days_in_month(), day_hours=pay_days.hours_in_day(),
-                          hourly=_casual_rates(people_on_it))
+                          hourly=_casual_rates(people_on_it, doc.overtime_date))
     errors = rules.cost_check_errors({
         "status": standing, "rows": costed["rows"], "unpriced": costed["unpriced"],
         "not_eligible": rules.eligibility_errors(costed["rows"])})

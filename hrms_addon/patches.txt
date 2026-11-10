@@ -95,3 +95,5 @@ hrms_addon.patches.v1_0.usd_gross_up
 hrms_addon.patches.v1_0.usd_allowance_line
 hrms_addon.patches.v1_0.usd_allowances_on_panel
 hrms_addon.patches.v1_0.loan_types_from_settings
+hrms_addon.patches.v1_0.hourly_rates_off_employee
+hrms_addon.patches.v1_0.output_rate_import

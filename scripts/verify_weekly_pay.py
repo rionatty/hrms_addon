@@ -13,7 +13,9 @@ overtime is paid in the week at their own rate times the multiplier.
   3  Get Employees: the structure and assignments made once, those to pay kept,
      the Per Piece casuals with piece pay, and those with overtime only
   4  the slip: the days it pays, a day marked late, a cancelled slip, a monthly one,
-     and the approved overtime at the person's rate times the multiplier
+     and the approved overtime at the person's rate times the multiplier; each
+     day at the Hourly Rate in force that day (10 Nov 2026: the rate is its own
+     record, for HR alone, not a field on the employee)
   5  Frappe HR's own slip and assignment methods, lifted from its source: the
      week's line is hours x rate, never cut by payment days, and no tax is added
   6  the Employees tab, and reads that do not grow with the people
@@ -155,6 +157,27 @@ check(R.overtime_amount([{"attendance_date": D(2026, 10, 29), "hours": 2}, {"att
       and R.overtime_amount([{"attendance_date": "2026-10-31", "hours": 2}], 1000, {D(2026, 10, 31): 2.0}) == 4000.0
       and R.overtime_amount([], 1000, {}) == 0.0,
       "the worksheet's overtime: hours x their own rate x 1.5, or what the type gives a rest day")
+RATES = [{"rate": 857, "from_date": D(2026, 1, 1)}, {"rate": 1000, "from_date": "2026-11-02"},
+         {"rate": 0, "from_date": D(2026, 11, 10)}]
+check(R.rate_on(RATES, D(2026, 11, 1)) == 857 and R.rate_on(RATES, "2026-11-02") == 1000
+      and R.rate_on(RATES, D(2026, 11, 20)) == 1000 and R.rate_on(RATES, D(2025, 12, 31)) is None and R.rate_on([], TODAY) is None,
+      "a rate is in force from its day until the next; none before the first; a rate of nothing is no rate")
+check(R.day_rates([D(2025, 12, 31), D(2026, 11, 1), D(2026, 11, 3)], RATES, 0) == {D(2026, 11, 1): 857, D(2026, 11, 3): 1000}
+      and R.day_rates([D(2025, 12, 31)], RATES, 2000) == {D(2025, 12, 31): 2000},
+      "each day at the rate in force that day; one before any takes the standard rate, or none")
+check(R.unrated([{"attendance_date": D(2026, 11, 1), "hours": 10}, {"attendance_date": D(2026, 10, 1), "hours": 0,
+                 "overtime_hours": 2}, {"attendance_date": D(2026, 10, 2), "hours": 0}], {D(2026, 11, 1): 857})
+      == [D(2026, 10, 1)], "a day that pays hours or overtime with no rate is said; one that pays nothing is not")
+check(R.week_pay([{"hours": 10, "rate": 857}, {"hours": 5, "rate": 1000}, {"hours": 0, "overtime_hours": 2}]) == 13570
+      and R.week_pay([{"hours": 10}], 10, 857) == 8570 and R.week_pay(None, 3, 1000) == 3000,
+      "a week's pay is each day's hours at its own rate; a slip written before the days carried rates, its one rate")
+check(R.overtime_amount([{"attendance_date": D(2026, 11, 1), "hours": 2}, {"attendance_date": D(2026, 11, 3), "hours": 2}],
+                        {D(2026, 11, 1): 857, D(2026, 11, 3): 1000}, {D(2026, 11, 1): 1.5, D(2026, 11, 3): 1.5}) == 5571.0,
+      "and each day's overtime at that day's rate")
+check(R.rate_errors(857, D(2026, 1, 1)) == [] and "more than nothing" in " ".join(R.rate_errors(0, D(2026, 1, 1)))
+      and "the day the rate starts" in " ".join(R.rate_errors(857, None))
+      and "already have a rate from that day (HRATE-1)" in " ".join(R.rate_errors(857, D(2026, 1, 1), "HRATE-1")),
+      "an Hourly Rate is more than nothing, from a day, one a day for each person")
 table = R.days_table([{"attendance_date": D(2026, 10, 30), "status": "Present", "hours": 10.0}],
                      [{"attendance_date": D(2026, 10, 30), "status": "Present", "hours": 2.0},
                       {"attendance_date": D(2026, 10, 22), "status": "Present", "hours": 3.0}])
@@ -455,7 +478,9 @@ def populated():
     )
     for name, category, branch, status, joined, left, rate in people:
         s.add("Employee", name=name, company="LPL", custom_pay_category=category, branch=branch, status=status,
-              date_of_joining=joined, relieving_date=left, custom_hourly_rate=rate)
+              date_of_joining=joined, relieving_date=left)
+        if rate:
+            s.add("Hourly Rate", name="HRATE-" + name, employee=name, rate=rate, from_date=D(2025, 1, 1))
     s.add("Salary Component", name="Hourly Earnings", type="Earning", depends_on_payment_days=0)
     s.add("Salary Component", name="Basic", type="Earning", depends_on_payment_days=1)
     s.add("Salary Component", name="PAYE", type="Deduction", depends_on_payment_days=0)
@@ -707,7 +732,7 @@ check([(line.salary_component, line.formula, line.abbr, line.docstatus, line.dep
 s = populated()
 for name in ("P1", "P2"):
     s.add("Employee", name=name, company="LPL", custom_pay_category="Per Piece", branch="North", status="Active",
-          date_of_joining=D(2025, 1, 1), custom_hourly_rate=0)
+          date_of_joining=D(2025, 1, 1))
 s.pieces_waiting = {"P1"}
 s.settings.standard_hourly_rate = 0
 s.add("Weekly Pay Day", parent="SS-OLD", employee="W8", attendance_date=D(2026, 10, 30), hours=10, overtime_hours=0, docstatus=1)
@@ -849,7 +874,7 @@ check(before_weekly.custom_weekly_overtime_hours == 2.0 and before_weekly.custom
       "one's are", (before_weekly.custom_weekly_overtime_hours, before_weekly.custom_weekly_days))
 nothing = Site()
 SITE[0] = nothing
-nothing.add("Employee", name="W9", company="LPL", custom_pay_category="Weekly", custom_hourly_rate=0)
+nothing.add("Employee", name="W9", company="LPL", custom_pay_category="Weekly")
 nothing.settings.standard_hourly_rate = 0
 nothing.add("Weekly Pay Day", parent="SS-OLD", employee="W9", attendance_date=D(2026, 10, 30), hours=10, overtime_hours=0,
             docstatus=1)
@@ -860,6 +885,63 @@ try:
     check(False, "overtime with no rate to pay it at is refused too")
 except Thrown as error:
     check("W9 has hours but no hourly rate" in str(error), "overtime with no rate to pay it at is refused too", str(error))
+
+# a raise in the middle of the week: each day at the rate in force that day
+s = populated()
+s.add("Hourly Rate", name="HRATE-W1-NOV", employee="W1", rate=3000, from_date=D(2026, 11, 2))
+s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5)
+for row in s.rows("Attendance"):
+    if row.name in ("A-W1-1", "A-W1-5"):
+        row.update(actual_overtime_duration=2, overtime_type="Casual OT")
+raised = slip()
+W.slip_before_validate(raised)
+check([(row["attendance_date"], row["hours"], row["rate"]) for row in raised.custom_weekly_days]
+      == [(D(2026, 10, 29), 10.0, 2500), (D(2026, 10, 30), 10.0, 2500), (D(2026, 10, 31), 8.0, 2500),
+          (D(2026, 11, 2), 5.0, 3000), (D(2026, 11, 3), 10.0, 3000), (D(2026, 11, 4), 10.0, 3000)]
+      and raised.custom_weekly_rate == 3000,
+      "each day the slip pays shows the rate it is paid at: the old one before the raise, the new from its day",
+      raised.custom_weekly_days)
+check(raised.custom_weekly_overtime == 2 * 2500 * 1.5 + 2 * 3000 * 1.5,
+      "and each day's overtime is at that day's rate", raised.custom_weekly_overtime)
+
+
+class EvalBase:
+    def get_data_for_eval(self):
+        return {}, {}
+
+
+class EvalSlip(W.SalarySlipWeekly, EvalBase, Form):
+    pass
+
+
+evaluated = EvalSlip(**{key: value for key, value in raised.__dict__.items() if key != "flags"})
+data, _defaults = evaluated.get_data_for_eval()
+check(data["weekly_pay"] == 28 * 2500 + 25 * 3000 and data["weekly_overtime"] == raised.custom_weekly_overtime,
+      "the week's line is the days' hours each at its own rate, not all at the newest", data)
+check(W.rates_of(["W1", "W2"], on=D(2026, 11, 1)) == {"W1": 2500, "W2": 2000.0}
+      and W.rates_of(["W1"], on=D(2026, 11, 2)) == {"W1": 3000},
+      "a casual's rate on a day: their own in force that day, else the standard rate", W.rates_of(["W1", "W2"], on=D(2026, 11, 1)))
+s = populated()
+s.settings.standard_hourly_rate = 0
+for row in s.rows("Hourly Rate"):
+    if row.employee == "W1":
+        row["from_date"] = D(2026, 11, 2)
+try:
+    W.slip_before_validate(slip())
+    check(False, "a day before the casual's first rate, with no standard rate, refuses the slip and says which day")
+except Thrown as error:
+    check("W1 has hours but no hourly rate on 29 Oct 2026" in str(error),
+          "a day before the casual's first rate, with no standard rate, refuses the slip and says which day", str(error))
+for values, needle, why in (({"rate": 900, "from_date": D(2025, 1, 1)}, "already have a rate from that day (HRATE-W3)",
+                             "a second rate from the same day"),
+                            ({"rate": 0, "from_date": D(2026, 12, 1)}, "more than nothing", "a rate of nothing")):
+    try:
+        W.rate_validate(Form(name="NEW", employee="W3", **values))
+        check(False, "an Hourly Rate is refused: %s" % why)
+    except Thrown as error:
+        check(needle in str(error), "an Hourly Rate is refused: %s" % why, str(error))
+W.rate_validate(Form(name="HRATE-W3", employee="W3", rate=3100, from_date=D(2025, 1, 1)))
+check(True, "and a rate saved again is not taken for a second one")
 print("the slip: each unpaid day once, late days on the next, nothing a monthly slip paid, the overtime once")
 
 # ── 5. Frappe HR's own methods, lifted from its source ───
@@ -1041,7 +1123,8 @@ def reads(count):
     SITE[0] = many
     for number in range(count):
         name = "P%04d" % number
-        many.add("Employee", name=name, company="LPL", custom_pay_category="Weekly", custom_hourly_rate=2500)
+        many.add("Employee", name=name, company="LPL", custom_pay_category="Weekly")
+        many.add("Hourly Rate", name="HRATE-" + name, employee=name, rate=2500, from_date=D(2025, 1, 1))
         many.add("Attendance", employee=name, attendance_date=D(2026, 10, 30), status="Present", working_hours=10, docstatus=1)
     names = ["P%04d" % number for number in range(count)]
     many.calls.clear()
@@ -1062,8 +1145,72 @@ custom = {row["name"]: row for row in json.load(open(os.path.join(PACKAGE, "fixt
 category = custom["Employee-custom_pay_category"]
 check(category["options"].split("\n") == ["Regular", "Per Meter", "Per Piece", "Weekly"],
       "the Pay Category says Weekly, not Hourly, and Regular, not Monthly", category["options"])
-check(custom["Employee-custom_hourly_rate"]["depends_on"] == "eval:doc.custom_pay_category=='Weekly'",
-      "and a weekly casual's own rate shows beside it")
+check("Employee-custom_hourly_rate" not in custom and not [row for row in custom.values() if row["dt"] == "Employee"
+                                                        and "hourly" in row["fieldname"]],
+      "the hourly rate is not on the employee's record, where its holder could change it")
+rate_meta = json.load(open(os.path.join(APP, "doctype", "hourly_rate", "hourly_rate.json"), encoding="utf-8"))
+rate_fields = {field["fieldname"]: field for field in rate_meta["fields"]}
+check(rate_meta["name"] == "Hourly Rate" and not rate_meta.get("istable") and rate_meta.get("track_changes") == 1
+      and rate_meta.get("allow_import") == 1
+      and all(rate_fields[name].get("reqd") == 1 for name in ("employee", "rate", "from_date"))
+      and rate_fields["employee"]["options"] == "Employee" and rate_fields["branch"].get("fetch_from") == "employee.branch",
+      "an Hourly Rate is its own record: who, the rate, from when; every change kept; its plant, so a user held to a "
+      "plant sees only that plant's")
+check({perm["role"] for perm in rate_meta["permissions"]} == {"System Manager", "HR Manager", "HR User"}
+      and not next(perm for perm in rate_meta["permissions"] if perm["role"] == "HR User").get("delete"),
+      "and only HR open it: the HR Manager, and the HR officer (HR User), who may not delete one")
+sys.modules.pop("hrms_addon.hrms_addon.security_rules", None)
+SECURITY = load("security_rules", register=False)
+check("Hourly Rate" in SECURITY.HR_ONLY and "Hourly Rate" not in SECURITY.read_only_grants(["Hourly Rate", "Output Rate"])
+      and "Output Rate" in SECURITY.read_only_grants(["Hourly Rate", "Output Rate"]),
+      "nor do the read-only roles: an auditor reads the rates on the slips, not the rates themselves")
+day_meta = json.load(open(os.path.join(APP, "doctype", "weekly_pay_day", "weekly_pay_day.json"), encoding="utf-8"))
+check(any(field["fieldname"] == "rate" and field.get("read_only") == 1 and field.get("in_list_view") == 1
+          for field in day_meta["fields"])
+      and sum(field.get("columns") or 0 for field in day_meta["fields"] if field.get("in_list_view")) <= 10,
+      "each day on a slip shows the rate it was paid at, within the grid's ten columns")
+output_meta = json.load(open(os.path.join(APP, "doctype", "output_rate", "output_rate.json"), encoding="utf-8"))
+check(output_meta.get("allow_import") == 1 and all(perm.get("import") for perm in output_meta["permissions"]
+                                                  if perm.get("write") and perm.get("create")),
+      "Sizes and Work Units may be imported, by those who keep them")
+navigation = read("hrms_addon", "hrms_addon", "navigation_rules.py")
+check('("Hourly Rates", "Hourly Rate", DOCTYPE),' in navigation
+      and '("Hourly Rates", "Hourly Rate", DOCTYPE, "Setup", None),' in navigation,
+      "the rates are on the Payroll page, beside the Sizes and Work Units: a link only those who may open them see")
+check("hrms_addon.patches.v1_0.hourly_rates_off_employee" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1]
+      and "hrms_addon.patches.v1_0.output_rate_import" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1],
+      "the patches run after the doctypes are synced, so the Hourly Rate is there to move the rates to")
+
+# the patch: each rate on an employee becomes their Hourly Rate from the day they joined, and the field goes
+moved_site = Site()
+moved_site.add("Employee", name="C1", custom_hourly_rate=857, date_of_joining=D(2026, 3, 2))
+moved_site.add("Employee", name="C2", custom_hourly_rate=1700, date_of_joining=None)
+moved_site.add("Employee", name="C3", custom_hourly_rate=0, date_of_joining=D(2026, 3, 2))
+moved_site.add("Employee", name="C4", custom_hourly_rate=1000, date_of_joining=D(2026, 3, 2))
+moved_site.add("Hourly Rate", name="HRATE-C4", employee="C4", rate=1000, from_date=D(2026, 3, 2))
+moved_site.add("Custom Field", name="Employee-custom_hourly_rate")
+moved_site.add("DocType", name="Hourly Rate")
+deleted = []
+patch_site = types.SimpleNamespace(
+    db=types.SimpleNamespace(exists=moved_site.exists, has_column=lambda doctype, column: True),
+    get_all=moved_site.get_all, get_doc=moved_site.get_doc,
+    delete_doc=lambda doctype, name, **kwargs: deleted.append((doctype, name)) or moved_site.tables[doctype].clear())
+patch_utils = types.ModuleType("frappe.utils")
+patch_utils.getdate = as_date
+sys.modules["frappe"], sys.modules["frappe.utils"] = patch_site, patch_utils
+spec = importlib.util.spec_from_file_location("hourly_rates_off_employee",
+                                              os.path.join(PACKAGE, "patches", "v1_0", "hourly_rates_off_employee.py"))
+rate_patch = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(rate_patch)
+rate_patch.execute()
+rate_patch.execute()
+sys.modules["frappe"], sys.modules["frappe.utils"] = frappe, utils
+check(sorted((row.employee, row.rate, row.from_date) for row in moved_site.rows("Hourly Rate"))
+      == [("C1", 857, D(2026, 3, 2)), ("C2", 1700, D(2025, 1, 1)), ("C4", 1000, D(2026, 3, 2))]
+      and deleted == [("Custom Field", "Employee-custom_hourly_rate")],
+      "the patch moves each rate on an employee to an Hourly Rate from the day they joined, once, and takes the "
+      "field off the employee", (sorted((row.employee, row.rate, row.from_date) for row in moved_site.rows("Hourly Rate")),
+                                  deleted))
 chain = [("Salary Slip-custom_weekly_section", "Section Break", "base_hour_rate"),
          ("Salary Slip-custom_weekly_hours", "Float", "custom_weekly_section"),
          ("Salary Slip-custom_weekly_rate", "Currency", "custom_weekly_hours"),
@@ -1080,7 +1227,7 @@ check(all(custom[name].get("read_only") == 1 and custom[name].get("no_copy") == 
 meta = json.load(open(os.path.join(APP, "doctype", "weekly_pay_day", "weekly_pay_day.json"), encoding="utf-8"))
 fields = {field["fieldname"]: field for field in meta["fields"]}
 check(meta["istable"] == 1 and meta["name"] == "Weekly Pay Day"
-      and set(fields) == {"attendance_date", "status", "hours", "overtime_hours", "employee"}
+      and set(fields) == {"attendance_date", "status", "hours", "rate", "overtime_hours", "employee"}
       and fields["overtime_hours"]["fieldtype"] == "Float"
       and fields["employee"].get("search_index") == 1 and fields["attendance_date"].get("search_index") == 1
       and all(field.get("read_only") == 1 for field in fields.values()),

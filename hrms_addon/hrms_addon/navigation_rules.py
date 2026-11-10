@@ -346,6 +346,8 @@ CARDS = {
             ("Daily Production Report", "Daily Production Report", DOCTYPE),
             ("Output Pay Run", "Output Pay Run", DOCTYPE),
             ("Sizes and Work Units", "Output Rate", DOCTYPE),
+            # each casual's rate, from a day: HR alone open it (Luuka, 10 Nov 2026)
+            ("Hourly Rates", "Hourly Rate", DOCTYPE),
             ("Output Pay Settings", "Output Pay Settings", DOCTYPE),
         ]),
         # each branch's attendance, signed off by its General Manager before
@@ -597,6 +599,7 @@ SIDEBAR = {
         ("Payroll Correction", "Payroll Correction", DOCTYPE, None, "Arrear"),
         ("Gratuity", "Gratuity", DOCTYPE, None, "Payroll Correction"),
         ("Sizes and Work Units", "Output Rate", DOCTYPE, "Setup", None),
+        ("Hourly Rates", "Hourly Rate", DOCTYPE, "Setup", None),
         ("Output Pay Settings", "Output Pay Settings", DOCTYPE, "Setup", None),
         ("Gratuity Rule", "Gratuity Rule", DOCTYPE, "Setup", None),
         ("Overtime Register", "Overtime Register", REPORT, "Reports", None),

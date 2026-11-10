@@ -29,6 +29,14 @@ The hours of those days at their rate: what the clock shows up to the standard
 day. A day marked with nothing from the clock, as an uploaded one is, pays the
 standard day, or half of it for a Half Day.
 
+THE RATE (Luuka, 10 Nov 2026: "the hourly rate should be independent doctype it
+shouldnt be on employee what if the employee updates his her personal rate?")
+
+A casual's rate is an Hourly Rate of their own, from a day, which only HR can
+open; a raise is a new one from the day it starts, so the days before it keep
+the rate they were worked at. Each day on a slip is paid at the rate in force
+that day, and shows it; one with none takes Output Pay Settings' standard rate.
+
 TWO KINDS OF CASUAL (Luuka, 10 Nov 2026, with their casual worksheet)
 
 "casual is divided into two, one that is paid per piece and the one they are
@@ -146,10 +154,62 @@ def overtime_to_pay(attendance, paid):
 
 
 def overtime_amount(rows, rate, multipliers):
-    """What the overtime comes to: each day's hours x the person's own hourly rate x the multiplier its
-    Overtime Type gives that day. multipliers: {date: multiplier}."""
-    return round(sum(_num(row.get("hours")) * _num(rate) * _num((multipliers or {}).get(_date(row.get("attendance_date"))))
-                     for row in rows or []), 2)
+    """What the overtime comes to: each day's hours x the person's own hourly rate that day x the multiplier its
+    Overtime Type gives that day. rate: one rate, or {date: rate}; multipliers: {date: multiplier}."""
+    def rate_on_day(day):
+        return _num(rate.get(day)) if isinstance(rate, dict) else _num(rate)
+
+    return round(sum(_num(row.get("hours")) * rate_on_day(_date(row.get("attendance_date")))
+                     * _num((multipliers or {}).get(_date(row.get("attendance_date")))) for row in rows or []), 2)
+
+
+def rate_on(rates, day):
+    """The hourly rate in force on a day: the one with the latest From on or before it; None before the first.
+    rates: [{"rate", "from_date"}], a person's Hourly Rates."""
+    day = _date(day)
+    found = [row for row in rates or [] if day and _date(row.get("from_date")) and _date(row.get("from_date")) <= day
+             and _num(row.get("rate")) > 0]
+    return _num(max(found, key=lambda row: _date(row["from_date"]))["rate"]) if found else None
+
+
+def day_rates(days, rates, standard=0):
+    """{date: the rate each of these days is paid at}: the person's rate in force that day, else the standard
+    rate. A day with neither is left out."""
+    out = {}
+    for day in days or []:
+        rate = rate_on(rates, day) or _num(standard)
+        if rate > 0:
+            out[_date(day)] = rate
+    return out
+
+
+def unrated(table, rates_by_day):
+    """The days of a slip's Days Paid that pay something, hours or overtime, and have no rate: [date]."""
+    return [_date(row["attendance_date"]) for row in table or []
+            if (_num(row.get("hours")) > 0 or _num(row.get("overtime_hours")) > 0)
+            and _date(row["attendance_date"]) not in (rates_by_day or {})]
+
+
+def week_pay(rows, hours=None, rate=None):
+    """What a week's hours come to: each day's hours at the rate it carries (a slip's Days Paid). A slip written
+    before its days carried their rates pays its hours at its one rate."""
+    worked = [row for row in rows or [] if _num(row.get("hours")) > 0]
+    if worked and all(_num(row.get("rate")) > 0 for row in worked):
+        return round(sum(_num(row.get("hours")) * _num(row.get("rate")) for row in worked), 2)
+    return amount(hours, rate)
+
+
+def rate_errors(rate, from_date, clash=None):
+    """What is wrong with an Hourly Rate, as messages. clash: the Hourly Rate the person already has from that
+    day, if any."""
+    errors = []
+    if _num(rate) <= 0:
+        errors.append("The hourly rate is more than nothing.")
+    if not _date(from_date):
+        errors.append("Say the day the rate starts.")
+    if clash:
+        errors.append("They already have a rate from that day (%s): change that one." % clash)
+    return errors
 
 
 def days_table(days, overtime):

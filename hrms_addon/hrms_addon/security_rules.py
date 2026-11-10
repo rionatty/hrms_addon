@@ -52,6 +52,9 @@ MANAGEMENT = "Management Viewer"
 READ_ONLY_ROLES = (AUDITOR, MANAGEMENT)
 READ_ONLY_PTYPES = ("read", "report", "export", "print", "email", "share")
 FORBIDDEN_PTYPES = ("write", "create", "delete", "submit", "cancel", "amend")
+# what only HR open, the read-only roles never: a casual's hourly rate (Luuka, 10 Nov 2026: "accessed by only
+# HR manager and officer"). A Custom DocPerm on it would also stop the doctype's own permissions applying.
+HR_ONLY = ("Hourly Rate",)
 
 # ── The branch a user is held to ──────────────────────────────────────
 BRANCH_FIELD = "branch"
@@ -63,6 +66,8 @@ def read_only_grants(doctypes):
     granted write here, which is the whole point of the role."""
     grants = {}
     for doctype in doctypes or ():
+        if doctype in HR_ONLY:
+            continue
         grants[doctype] = {role: READ_ONLY_PTYPES for role in READ_ONLY_ROLES}
     return grants
 

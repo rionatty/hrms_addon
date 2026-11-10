@@ -19,6 +19,8 @@ are in weekly_pay_rules.py (scripts/verify_weekly_pay.py).
   show_on_figures       and the same days on the payroll's Employees tab
   assign_people         the weekly structure for those who have none, as Get
                         Employees gives it (piece_pay.py writes their pay first)
+  rates_of              each casual's rate on a day, from their Hourly Rates
+  rate_validate         an Hourly Rate: more than nothing, one a day a person
 
 A Per Piece casual's week is Additional Salary their Per Piece reports wrote
 (piece_pay.py), which the slip reads as it reads every other.
@@ -26,7 +28,7 @@ A Per Piece casual's week is Additional Salary their Per Piece reports wrote
 
 import frappe
 from frappe import _
-from frappe.utils import cint, date_diff, flt, strip_html, today
+from frappe.utils import cint, date_diff, flt, getdate, strip_html, today
 
 from hrms_addon.hrms_addon import output_pay, output_rules
 from hrms_addon.hrms_addon import weekly_pay_rules as rules
@@ -48,6 +50,8 @@ OVERTIME_PAY = "custom_weekly_overtime"
 # the earning a casual's overtime is paid under on the weekly structure, made once where the site has none
 OVERTIME_COMPONENT = ("Casual Overtime", "COT")
 OVERTIME_TYPE = "Overtime Type"
+# a casual's rate, from a day: its own record, for HR alone (doctype/hourly_rate)
+RATE_DOCTYPE = "Hourly Rate"
 OVERTIME_SLIP = "Overtime Slip"
 OVERTIME_DETAIL = "Overtime Details"
 BASIC = "Basic"
@@ -185,12 +189,43 @@ def multipliers(employee, rows):
             for row in rows or []}
 
 
-def rates_of(employees):
-    """{employee: their hourly rate}: their own, else Output Pay Settings' standard one."""
-    standard = flt(output_pay.settings().get("standard_hourly_rate"))
-    return {row.name: flt(row.custom_hourly_rate) or standard
-            for row in frappe.get_all("Employee", filters={"name": ["in", list(employees or ())]},
-                                      fields=["name", "custom_hourly_rate"], limit_page_length=0)}
+def rate_history(employees, until=None):
+    """{employee: [{"rate", "from_date"}]}: their Hourly Rates from on or before `until`, read for them all at
+    once."""
+    employees = [employee for employee in employees or () if employee]
+    if not employees:
+        return {}
+    filters = {"employee": ["in", employees]}
+    if until:
+        filters["from_date"] = ["<=", getdate(until)]
+    found = {}
+    for row in frappe.get_all(RATE_DOCTYPE, filters=filters, fields=["employee", "rate", "from_date"],
+                              order_by="from_date asc", limit_page_length=0):
+        found.setdefault(row.employee, []).append({"rate": row.rate, "from_date": row.from_date})
+    return found
+
+
+def standard_rate():
+    """Output Pay Settings' Standard Hourly Rate, for a casual with no rate of their own."""
+    return flt(output_pay.settings().get("standard_hourly_rate"))
+
+
+def rates_of(employees, on=None):
+    """{employee: their hourly rate in force on `on`, today where none is given}: their own Hourly Rate, else
+    Output Pay Settings' standard one."""
+    employees = [employee for employee in employees or () if employee]
+    day = getdate(on or today())
+    standard, history = standard_rate(), rate_history(employees, day)
+    return {employee: rules.rate_on(history.get(employee), day) or standard for employee in employees}
+
+
+def rate_validate(doc, method=None):
+    """An Hourly Rate: more than nothing, from a day, and one a day for each person (rules.rate_errors)."""
+    clash = frappe.db.get_value(RATE_DOCTYPE, {"employee": doc.get("employee"), "from_date": doc.get("from_date"),
+                                               "name": ["!=", doc.name or ""]}, "name") if doc.get("employee") else None
+    errors = rules.rate_errors(doc.get("rate"), doc.get("from_date"), clash)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(RATE_DOCTYPE))
 
 
 def show_on_figures(doc, figures):
@@ -217,15 +252,20 @@ def slip_before_validate(doc, method=None):
     days = days_to_pay([doc.employee], doc.get("start_date"), doc.get("end_date"), doc.get("company")).get(doc.employee)
     overtime = overtime_due([doc.employee], doc.get("start_date"), doc.get("end_date"),
                             doc.get("company")).get(doc.employee) or []
-    hours, rate = rules.total_hours(days), rates_of([doc.employee]).get(doc.employee)
-    if (hours or overtime) and not rate:
-        frappe.throw(_("{0} has hours but no hourly rate: set one on the employee or the Standard Hourly Rate on "
-                       "Output Pay Settings.").format(doc.employee), title=_(TITLE))
-    doc.set(TABLE, [dict(day, employee=doc.employee) for day in rules.days_table(days, overtime)])
-    doc.set(HOURS, hours)
-    doc.set(RATE, rate)
+    # each day at the rate in force that day: a raise from a day leaves the days before it at the old rate
+    standard, history = standard_rate(), rate_history([doc.employee], doc.get("end_date")).get(doc.employee)
+    table = rules.days_table(days, overtime)
+    rates = rules.day_rates([row["attendance_date"] for row in table], history, standard)
+    missing = rules.unrated(table, rates)
+    if missing:
+        frappe.throw(_("{0} has hours but no hourly rate on {1}: give them an Hourly Rate from that day, or set the "
+                       "Standard Hourly Rate on Output Pay Settings.").format(doc.employee, rules.shown(missing[0])),
+                     title=_(TITLE))
+    doc.set(TABLE, [dict(row, employee=doc.employee, rate=rates.get(row["attendance_date"])) for row in table])
+    doc.set(HOURS, rules.total_hours(days))
+    doc.set(RATE, rules.rate_on(history, doc.get("end_date")) or standard)
     doc.set(OVERTIME_HOURS, round(sum(flt(row["hours"]) for row in overtime), 2))
-    doc.set(OVERTIME_PAY, rules.overtime_amount(overtime, rate, multipliers(doc.employee, overtime)))
+    doc.set(OVERTIME_PAY, rules.overtime_amount(overtime, rates, multipliers(doc.employee, overtime)))
 
 
 def slip_validate(doc, method=None):
@@ -238,7 +278,7 @@ def slip_validate(doc, method=None):
 class SalarySlipWeekly:
     def get_data_for_eval(self):
         data, default_data = super().get_data_for_eval()
-        pay = rules.amount(self.get(HOURS), self.get(RATE))
+        pay = rules.week_pay(self.get(TABLE), self.get(HOURS), self.get(RATE))
         overtime = flt(self.get(OVERTIME_PAY))
         data[rules.PAY], data[rules.OVERTIME] = pay, overtime
         default_data[rules.PAY], default_data[rules.OVERTIME] = pay, overtime
@@ -291,16 +331,19 @@ def _keep_those_to_pay(doc):
     pieces = [name for name in names if categories.get(name) == rules.PER_PIECE]
     days = days_to_pay(weekly, doc.get("start_date"), doc.get("end_date"), doc.get("company"))
     due = overtime_due(weekly, doc.get("start_date"), doc.get("end_date"), doc.get("company"))
-    rates = rates_of(weekly)
-    no_rate = sorted(name for name in weekly
-                     if (rules.total_hours(days.get(name)) or due.get(name)) and not rates.get(name))
+    standard, history = standard_rate(), rate_history(weekly, doc.get("end_date"))
+    no_rate = []
+    for name in weekly:
+        table = rules.days_table(days.get(name), due.get(name))
+        if rules.unrated(table, rules.day_rates([row["attendance_date"] for row in table], history.get(name), standard)):
+            no_rate.append(name)
     keep = {name for name in weekly if (days.get(name) or due.get(name)) and name not in no_rate}
     keep |= piece_pay.waiting(pieces, doc.get("start_date"), doc.get("end_date"))
     doc.set("employees", [row for row in doc.get("employees") if row.employee in keep])
     doc.number_of_employees = len(doc.employees)
     if no_rate:
-        frappe.msgprint(_("Left out, no hourly rate: {0}. Set one on the employee or the Standard Hourly Rate on "
-                          "Output Pay Settings.").format(", ".join(no_rate)), title=_(TITLE), indicator="orange")
+        frappe.msgprint(_("Left out, no hourly rate: {0}. Give them an Hourly Rate, or set the Standard Hourly Rate "
+                          "on Output Pay Settings.").format(", ".join(no_rate)), title=_(TITLE), indicator="orange")
     if not doc.employees:
         frappe.throw(_("Nobody has attendance or piece work to pay up to {0}.").format(rules.shown(doc.get("end_date"))),
                      title=_(TITLE))

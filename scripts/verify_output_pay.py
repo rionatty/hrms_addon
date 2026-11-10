@@ -800,10 +800,13 @@ for needle, why in (
     if needle not in moved:
         fail.append("output_rates_by_size: %s" % why)
 rows = json.loads(read("hrms_addon", "fixtures", "custom_field.json"))
-if not [row for row in rows if row["dt"] == "Employee" and row["fieldname"] == "custom_hourly_rate"]:
-    fail.append("an hourly casual can carry their own rate")
-if '"Employee-custom_hourly_rate"' not in hooks:
-    fail.append("and that field is in the fixtures hooks.py syncs")
+# an hourly casual's own rate is an Hourly Rate, for HR alone, not a field on the employee (Luuka, 10 Nov 2026)
+if [row for row in rows if row["dt"] == "Employee" and row["fieldname"] == "custom_hourly_rate"]:
+    fail.append("an hourly casual's rate is not on the employee's record")
+if '"Employee-custom_hourly_rate"' in hooks:
+    fail.append("and the fixtures hooks.py syncs no longer name that field")
+if not os.path.exists(os.path.join(REPO, "hrms_addon", "hrms_addon", "doctype", "hourly_rate", "hourly_rate.json")):
+    fail.append("an hourly casual's rate is an Hourly Rate of its own")
 nav = read("hrms_addon", "hrms_addon", "navigation_rules.py")
 for name in ("Daily Production Report", "Output Pay Run", "Output Rate", "Output Pay Settings",
              "Sizes and Work Units"):

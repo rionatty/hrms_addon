@@ -962,7 +962,6 @@ fixtures = [
                     "Employee-custom_bank_loan_cb",
                     "Employee-custom_bank_loan_until",
                     "Employee-custom_pay_category",
-                    "Employee-custom_hourly_rate",
                     "Appraisal-custom_round_section",
                     "Appraisal-custom_plan",
                     "Appraisal-custom_quarter",
