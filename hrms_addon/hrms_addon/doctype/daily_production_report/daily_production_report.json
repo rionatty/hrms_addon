@@ -144,7 +144,7 @@
    "fieldname": "arrears_section",
    "fieldtype": "Section Break",
    "label": "Arrears",
-   "depends_on": "eval:doc.section == 'Per Piece'"
+   "depends_on": "eval:doc.section == 'Per Piece' && (doc.arrears || []).length"
   },
   {
    "fieldname": "arrears",
@@ -185,7 +185,7 @@
    "fieldtype": "Currency",
    "label": "Total Arrears",
    "read_only": 1,
-   "depends_on": "eval:doc.section == 'Per Piece'"
+   "depends_on": "eval:doc.section == 'Per Piece' && (doc.arrears || []).length"
   },
   {
    "fieldname": "output_pay_run",
@@ -211,7 +211,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-10 09:00:00.000000",
+ "modified": "2026-11-11 22:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Daily Production Report",

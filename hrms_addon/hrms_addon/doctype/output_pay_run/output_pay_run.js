@@ -72,6 +72,15 @@ frappe.ui.form.on("Output Pay Run", {
 		);
 		if (frm.doc.section === "Per Piece") {
 			if (frm.doc.from_date && frm.doc.to_date) {
+				// the week's template: each Per Piece casual of the plant, their employee number in NO.
+				frm.add_custom_button(__("Download Per Piece Sheet"), () =>
+					window.open(
+						frappe.urllib.get_full_url(
+							"/api/method/hrms_addon.hrms_addon.piece_pay.download_pieces?run=" +
+								encodeURIComponent(frm.doc.name)
+						)
+					)
+				);
 				frm.add_custom_button(__("Upload Per Piece Sheet"), () => ha_upload_piece_sheet(frm));
 			}
 			return;
@@ -127,7 +136,7 @@ function ha_piece_sheet_summary(found) {
 	let html =
 		"<p>" +
 		esc(
-			__("{0} week(s), {1} people, {2} bags: {3}, and {4} arrears.", [
+			__("{0} week(s), {1} people, {2} bags: {3}.", [
 				found.weeks,
 				found.people,
 				found.bags,

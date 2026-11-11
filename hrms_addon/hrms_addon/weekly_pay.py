@@ -319,9 +319,9 @@ class PayrollEntryWeekly:
 
 
 def _keep_those_to_pay(doc):
-    """Only those with something to pay: the casuals by the hour with days or approved overtime to pay, and those by
-    the piece with piece pay dated in the payroll's days (piece_pay.waiting). One with hours and no rate is left out
-    and named: their days wait for the next payroll."""
+    """Only those with something to pay: the casuals by the hour with days or approved overtime to pay, and anyone
+    with pay as Additional Salary in the payroll's days: a Per Piece casual's piece pay, anyone's arrears
+    (piece_pay.waiting). One with hours and no rate is left out and named: their days wait for the next payroll."""
     from hrms_addon.hrms_addon import piece_pay
 
     names = [row.employee for row in doc.get("employees") or []]
@@ -340,14 +340,17 @@ def _keep_those_to_pay(doc):
             no_rate.append(name)
     keep = {name for name in weekly if (days.get(name) or due.get(name)) and name not in no_rate}
     keep |= piece_pay.waiting(pieces, doc.get("start_date"), doc.get("end_date"))
+    # arrears and anything else owed a casual by the hour, entered as Additional Salary (Luuka, 11 Nov 2026)
+    keep |= piece_pay.waiting([name for name in weekly if name not in no_rate], doc.get("start_date"),
+                              doc.get("end_date"))
     doc.set("employees", [row for row in doc.get("employees") if row.employee in keep])
     doc.number_of_employees = len(doc.employees)
     if no_rate:
         frappe.msgprint(_("Left out, no hourly rate: {0}. Give them an Hourly Rate, or set the Standard Hourly Rate "
                           "on Output Pay Settings.").format(", ".join(no_rate)), title=_(TITLE), indicator="orange")
     if not doc.employees:
-        frappe.throw(_("Nobody has attendance or piece work to pay up to {0}.").format(rules.shown(doc.get("end_date"))),
-                     title=_(TITLE))
+        frappe.throw(_("Nobody has attendance, piece work or Additional Salary to pay up to {0}.").format(
+            rules.shown(doc.get("end_date"))), title=_(TITLE))
 
 
 def _leave_out_casuals(doc, unmarked):
@@ -388,6 +391,26 @@ def assign_missing(doc):
                                             fields=["name", "date_of_joining", "relieving_date"])
               if rules.still_here(row.relieving_date, doc.get("start_date"))]
     return _assign_all(people, structure, doc)
+
+
+# the Additional Salary Frappe HR leaves whole whatever its component (salary_slip.update_component_row)
+WHOLE = ("Arrear", "Payroll Correction", "Employee Benefit Claim")
+
+
+def additional_validate(doc, method=None):
+    """A casual's Additional Salary: their arrears and anything else owed beside the pieces and the hours (Luuka,
+    11 Nov 2026: "arrears and additional salary should be done on the additional salary"). Frappe HR cuts it by the
+    days paid where its component is cut by payment days, and a Per Piece casual is paid no days, so it would come to
+    nothing; a casual by the hour's would come to a part. Such a component is refused, saying what to do."""
+    if not doc.get("employee") or not doc.get("salary_component") or doc.get("ref_doctype") in WHOLE:
+        return
+    category = frappe.db.get_value("Employee", doc.employee, "custom_pay_category")
+    if category not in (rules.WEEKLY, rules.PER_PIECE):
+        return
+    if frappe.db.get_value("Salary Component", doc.salary_component, "depends_on_payment_days"):
+        frappe.throw(_("{0} is cut by the days paid, and {1} is a casual paid by the week, so it would come to less "
+                       "than is owed. Untick Depends on Payment Days on {0}, or use a component that is not cut, such "
+                       "as Arrears.").format(doc.salary_component, doc.employee), title=_("Additional Salary"))
 
 
 def assign_people(employees, company, start):

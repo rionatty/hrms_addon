@@ -572,13 +572,17 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
     A week is the payroll's when its last day is in it, so each week is
     paid once. A bag column's price names its category: the one whose Work
     Unit that week is that price. A person is found by their employee number
-    alone, in the sheet's PAYROLL NO column (Luuka, 11 Nov 2026: "use
-    employee number not employee name"). A row with none is left out, and
-    the employee its name fits is said, for the number to be put in; a name
-    is never taken. A number whose employee's name has no word of the
-    sheet's is taken and said, to be checked before the run is paid. The
-    ARREARS beside a person are paid with their week (Luuka's casual
-    payroll adds them to the gross).
+    alone, in the template's NO. column, or a PAYROLL NO one (Luuka, 11 Nov
+    2026: "use employee number not employee name"). A plain 1, 2, 3 in NO.
+    is no employee number. A row with none is left out, and the employee its
+    name fits is said, for the number to be put in; a name is never taken. A
+    number whose employee's name has no word of the sheet's is taken and
+    said, to be checked before the run is paid.
+
+    The ARREARS column is not paid here: arrears, and anything else owed
+    beside the pieces, are entered as Additional Salary, which the weekly
+    payroll pays (Luuka, 11 Nov 2026). What the column holds is said, for
+    them to be entered.
 
     Returns {"work": {(employee, the week's last day, category): (bags,
     price, where)}, "arrears": {(employee, the week's last day): (amount,
@@ -586,6 +590,8 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
     "notes"}, as take_sheet does, so the same reports are made of it."""
     start, end = _date(period[0]), _date(period[1])
     work, problems, notes, taken = {}, [], [], []
+    # the ARREARS column's figures, for Additional Salary (never paid here)
+    unpaid, owed_total = [], [0.0]
     by_name, by_id, called, piece_names = {}, {}, {}, {}
     for person in people or []:
         employee = person["employee"]
@@ -630,20 +636,30 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
                 problems.append("No Per Piece category is priced %s on %s, so the bags at %s on %s are left out: "
                                 "set it in Sizes and Work Units." % (_figure(price), _day(last), _figure(price), sheet))
         found = {}
-        if (week.get("rows") or []) and not any(row.get("employee_id") for row in week.get("rows") or []):
-            problems.append("%s has no PAYROLL NO column, so nobody on it is paid: add one with each person's "
-                            "employee number." % sheet)
+
+        def number_of(row):
+            """The row's employee number: a 1, 2, 3 in the NO. column is a count, nobody's number."""
+            key = employee_key(row.get("employee_id"))
+            return None if not key or (key.isdigit() and key not in by_id) else row.get("employee_id")
+
+        if (week.get("rows") or []) and not any(number_of(row) for row in week.get("rows") or []):
+            problems.append("%s has no employee numbers, so nobody on it is paid: put each person's employee number "
+                            "in the NO. column." % sheet)
         for row in week.get("rows") or []:
             bags = {price: value for price, value in (row.get("bags") or {}).items() if _text(value)}
-            owed = _num(row.get("arrears")) if _positive(row.get("arrears")) else 0.0
-            # bags that are no number or less than nothing, and arrears less than nothing, are said, never passed over
+            if _positive(row.get("arrears")):
+                someone = by_id.get(employee_key(number_of(row))) if number_of(row) else None
+                unpaid.append("%s %s" % (who(someone["employee"]) if someone else row.get("name") or "row %s"
+                                         % row["row"], _amount(row.get("arrears"))))
+                owed_total[0] += _num(row.get("arrears"))
+            # bags that are no number or less than nothing are said, never passed over
             odd = [value for value in bags.values() if not _is_number(value) or _num(value) < 0]
-            owes_back = _is_number(row.get("arrears")) and _num(row.get("arrears")) < 0
-            if not owed and not odd and not owes_back and not any(_positive(value) for value in bags.values()):
+            if not odd and not any(_positive(value) for value in bags.values()):
                 continue
             worth = sum(_num(value) * _num(price) for price, value in bags.items() if _positive(value))
-            what = "bags and arrears" if owed and worth else "arrears" if owed else "bags"
-            due = _amount(worth + owed)
+            what, owed = "bags", 0.0
+            due = _amount(worth)
+            row = dict(row, employee_id=number_of(row))
             if not row.get("employee_id"):
                 # paid by the number alone: the employee the name fits is said, for the number to be put in
                 fits = by_name.get(piece_key(row.get("name")), [])
@@ -653,8 +669,8 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
                         " Closest by name: %s." % _joined(who(p["employee"]) for p in piece_names[near[0]])
                         if near else "")
                 problems.append("%s, row %s: %s has no employee number, so the %s, worth %s, are left out: put it "
-                                "in the PAYROLL NO column.%s" % (sheet, row["row"], row.get("name") or "the row", what,
-                                                                 due, hint))
+                                "in the NO. column.%s" % (sheet, row["row"], row.get("name") or "the row", what,
+                                                          due, hint))
                 continue
             person = by_id.get(employee_key(row["employee_id"]))
             if not person:
@@ -682,11 +698,6 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
                 problems.append("%s works at %s, not %s, so their bags on %s are left out."
                                 % (who(employee), person.get("branch") or "no plant", branch, sheet))
                 continue
-            if _is_number(row.get("arrears")) and _num(row.get("arrears")) < 0:
-                problems.append("%s, row %s: arrears of %s are less than nothing, so they are left out."
-                                % (sheet, row["row"], _amount(row["arrears"])))
-            if owed:
-                arrears[(employee, last)] = (round(owed, 2), "%s, row %s" % (sheet, row["row"]))
             for price, value in bags.items():
                 if not _is_number(value) or _num(value) < 0:
                     problems.append("%s, row %s: %r bags at %s is not a number of bags, so it is left out."
@@ -703,11 +714,10 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
     if taken:
         notes.insert(0, "Weeks taken: %s." % _joined("%s to %s" % (_day(week["start"]), _day(week["end"]))
                                                       for week in taken))
-    if arrears:
-        owed_by = len({employee for employee, _week in arrears})
-        notes.append("Arrears paid with their week: %d %s, %s in all."
-                     % (owed_by, "person" if owed_by == 1 else "people",
-                        _amount(sum(amount for amount, _where in arrears.values()))))
+    if unpaid:
+        notes.append("Arrears on the sheet are not paid by this upload: enter them as Additional Salary, which the "
+                     "weekly payroll pays. %d, %s in all: %s." % (len(unpaid), _amount(owed_total[0]),
+                                                                   _joined(unpaid)))
     if unread:
         notes.append("Sheets with no week in their name or title, not read: %s." % _joined(unread))
     return {"work": work, "arrears": arrears, "overtime": {}, "weeks": taken, "problems": problems, "notes": notes}

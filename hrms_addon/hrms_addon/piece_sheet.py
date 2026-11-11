@@ -34,7 +34,9 @@ import io
 import re
 import zipfile
 
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Border, Font, Side
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.exceptions import InvalidFileException
 
 MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10,
@@ -43,6 +45,9 @@ MONTHS = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, 
 NAME = ("name", "names", "emp names", "employee name")
 # Luuka's casual worksheet heads its Employee Id column PAYROLL NO
 EMPLOYEE_ID = ("employee id", "emp id", "emp no", "emp. no", "employee no", "employee number", "id no", "payroll no")
+# Luuka's Per Piece template has no such column: its NO. holds the employee number (Luuka, 11 Nov 2026: "this is the
+# client template", the number "in the NO. column"). It is headed on the NAME row or on the prices' row below it
+NUMBER = ("no.", "no", "s/no", "s.no", "sn")
 BAGS = ("bag", "piece")
 AMOUNT = ("amount per",)
 TOTAL = ("total amount", "total")
@@ -50,6 +55,91 @@ ARREARS = ("arrear",)
 # a week runs Thursday to Wednesday; a span outside this is a misread name
 WEEK_DAYS = (5, 9)
 HEADER_ROWS = 10
+
+
+MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+               "November", "December")
+
+
+def week_title(start, end):
+    """A week as Luuka's template titles it, and as week_of reads it back: 03rd-09th-September-2026, or
+    29th-October-04th-November-2026 across two months, or 28th-December-2026-03rd-January-2027 across two years."""
+    def day(value):
+        suffix = "th" if 11 <= value.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(value.day % 10, "th")
+        return "%02d%s" % (value.day, suffix)
+
+    if start.year != end.year:
+        return "%s-%s-%d-%s-%s-%d" % (day(start), MONTH_NAMES[start.month - 1], start.year, day(end),
+                                      MONTH_NAMES[end.month - 1], end.year)
+    if start.month != end.month:
+        return "%s-%s-%s-%s-%d" % (day(start), MONTH_NAMES[start.month - 1], day(end), MONTH_NAMES[end.month - 1],
+                                   end.year)
+    return "%s-%s-%s-%d" % (day(start), day(end), MONTH_NAMES[end.month - 1], end.year)
+
+
+def template(start, end, prices, people):
+    """The week's sheet to fill in, as .xlsx bytes, in Luuka's own layout (their "Casuals 03 sept"): the week in C1;
+    NAME, the bags packed at each price, the amount at each price, TOTAL AMOUNT and ARREARS; NO. above the people,
+    holding each one's employee number, which is what pays them; then TOTAL. The amounts and totals are formulas, so
+    the sheet adds up as the bags are typed in. prices: the Per Piece categories' prices that week, highest first;
+    people: [{"employee", "employee_name"}]."""
+    prices = list(prices or ())
+    width = len(prices)
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Sheet1"
+    bold = Font(bold=True)
+    side = Side(style="thin", color="000000")
+    box = Border(left=side, right=side, top=side, bottom=side)
+    bags_at, amount_at = 3, 3 + width
+    total_at, arrears_at = amount_at + width, amount_at + width + 1
+    sheet.cell(row=1, column=3, value=week_title(start, end)).font = bold
+    heads = {2: "NAME", bags_at: "NUMBER OF BAGS PACKED", amount_at: "AMOUNT PER BAG PACKED", total_at: "TOTAL AMOUNT",
+             arrears_at: "ARREARS"}
+    for column, title in heads.items():
+        cell = sheet.cell(row=2, column=column, value=title)
+        cell.font, cell.alignment = bold, Alignment(horizontal="center", wrap_text=True)
+    for first in (bags_at, amount_at):
+        if width > 1:
+            sheet.merge_cells(start_row=2, start_column=first, end_row=2, end_column=first + width - 1)
+    sheet.cell(row=3, column=1, value="NO.").font = bold
+    for at, price in enumerate(prices):
+        for first in (bags_at, amount_at):
+            cell = sheet.cell(row=3, column=first + at, value=price)
+            cell.font, cell.number_format = bold, "#,##0"
+    row = 3
+    for row, person in enumerate(people or (), start=4):
+        number = sheet.cell(row=row, column=1, value=str(person.get("employee") or ""))
+        number.data_type = "s"
+        name = sheet.cell(row=row, column=2, value=str(person.get("employee_name") or ""))
+        name.data_type = "s"
+        for at in range(width):
+            bags, amount = get_column_letter(bags_at + at), get_column_letter(amount_at + at)
+            sheet["%s%d" % (amount, row)] = "=IF(%s%d=\"\",0,%s%d*%s$3)" % (bags, row, bags, row, bags)
+        sheet.cell(row=row, column=total_at, value="=SUM(%s%d:%s%d)" % (
+            get_column_letter(amount_at), row, get_column_letter(amount_at + width - 1), row))
+    last = row
+    end_row = last + 1
+    sheet.cell(row=end_row, column=2, value="TOTAL").font = bold
+    if last >= 4:
+        for column in (total_at, arrears_at):
+            letter = get_column_letter(column)
+            cell = sheet.cell(row=end_row, column=column, value="=SUM(%s4:%s%d)" % (letter, letter, last))
+            cell.font = bold
+    for line in range(2, end_row + 1):
+        for column in range(1, arrears_at + 1):
+            cell = sheet.cell(row=line, column=column)
+            cell.border = box
+            if line >= 4 and column >= bags_at:
+                cell.number_format = "#,##0"
+    for column, size in ((1, 12), (2, 32)):
+        sheet.column_dimensions[get_column_letter(column)].width = size
+    for column in range(bags_at, arrears_at + 1):
+        sheet.column_dimensions[get_column_letter(column)].width = 12 if column < total_at else 14
+    sheet.freeze_panes = "C4"
+    out = io.BytesIO()
+    book.save(out)
+    return out.getvalue()
 
 
 def read(content, wanted=None):
@@ -171,6 +261,12 @@ def _read_sheet(sheet, head):
     if bags_col is None or amount_col is None or amount_col <= bags_col or index + 1 >= len(head):
         return None
     id_col = next((col for col, label in enumerate(labels) if label in EMPLOYEE_ID), None)
+    if id_col is None:
+        below = [_text(value).lower() for value in head[index + 1]]
+        for row_labels in (labels, below):
+            id_col = next((col for col, label in enumerate(row_labels) if label in NUMBER), None)
+            if id_col is not None:
+                break
     total_col = next((col for col, label in enumerate(labels) if label in TOTAL), None)
     arrears_col = next((col for col, label in enumerate(labels) if any(word in label for word in ARREARS)), None)
     price_row = head[index + 1]

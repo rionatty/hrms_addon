@@ -638,7 +638,8 @@ try:
     entry.fill_employee_details()
     check(False, "nobody with days to pay: it says so")
 except Thrown as error:
-    check("Nobody has attendance or piece work to pay up to 12 Nov 2026" in str(error), "nobody with days to pay: it says so",
+    check("Nobody has attendance, piece work or Additional Salary to pay up to 12 Nov 2026" in str(error),
+          "nobody with days or anything else to pay: it says so",
           str(error))
 monthly = PayrollEntry(name="PE-M", company="LPL", payroll_frequency="Monthly", salary_slip_based_on_timesheet=0,
                        start_date=D(2026, 10, 26), end_date=D(2026, 11, 25), employees=[])
@@ -748,7 +749,49 @@ check(sorted(row.employee for row in entry.employees) == ["P1", "W1", "W7", "W8"
       "was approved since; not the Per Piece one with nothing, nor those with hours and no rate",
       sorted(row.employee for row in entry.employees))
 s.settings.standard_hourly_rate = 2000
+# arrears and anything else owed a casual, entered as Additional Salary, keep them though they have no days (Luuka,
+# 11 Nov 2026: "arrears and additional salary should be done on the additional salary which is going be included when
+# running payroll")
+s = populated()
+s.add("Employee", name="W9", company="LPL", custom_pay_category="Weekly", branch="North", status="Active",
+      date_of_joining=D(2025, 1, 1))
+s.pieces_waiting = {"W9"}
+entry = PayrollEntry(name="PE-NEW", company="LPL", payroll_frequency="Weekly", salary_slip_based_on_timesheet=0, branch="North",
+                     start_date=D(2026, 10, 29), end_date=D(2026, 11, 4), employees=[])
+entry.fill_employee_details()
+check("W9" in [row.employee for row in entry.employees],
+      "a casual by the hour with no days but arrears entered as Additional Salary in the week is kept, to be paid them",
+      sorted(row.employee for row in entry.employees))
 print("Get Employees: the structure and assignments made once, those to pay kept")
+
+
+# a casual's Additional Salary is never cut by the days paid (Frappe HR cuts it where its component is cut by payment
+# days, and a Per Piece casual is paid no days)
+def additional(employee, component, ref=None):
+    return Row(employee=employee, salary_component=component, ref_doctype=ref)
+
+
+s = populated()
+s.add("Employee", name="P9", company="LPL", custom_pay_category="Per Piece", branch="North", status="Active",
+      date_of_joining=D(2025, 1, 1))
+s.add("Employee", name="M9", company="LPL", custom_pay_category="Monthly", branch="North", status="Active",
+      date_of_joining=D(2025, 1, 1))
+s.add("Salary Component", name="Bonus Cut", depends_on_payment_days=1)
+s.add("Salary Component", name="Arrears", depends_on_payment_days=0)
+for employee in ("P9", "W1"):
+    try:
+        W.additional_validate(additional(employee, "Bonus Cut"))
+        check(False, "a casual's Additional Salary under a component cut by the days paid is refused")
+    except Thrown as error:
+        check("Bonus Cut is cut by the days paid, and %s is a casual paid by the week" % employee in str(error)
+              and "Untick Depends on Payment Days on Bonus Cut, or use a component that is not cut, such as Arrears."
+              in str(error), "a casual's Additional Salary under a component cut by the days paid is refused, saying "
+                             "what to do (%s)" % employee, str(error))
+W.additional_validate(additional("P9", "Arrears"))
+W.additional_validate(additional("M9", "Bonus Cut"))
+W.additional_validate(additional("P9", "Bonus Cut", ref="Arrear"))
+check(True, "under a component not cut it is taken; a monthly employee's is Frappe HR's as ever; an Arrear's is left "
+            "whole by Frappe HR anyway")
 
 
 # ── 4. The slip ──────────────────────────────────────────
@@ -1300,6 +1343,8 @@ check(meta["istable"] == 1 and meta["name"] == "Weekly Pay Day"
       and all(field.get("read_only") == 1 for field in fields.values()),
       "a day a slip paid: its date and its person indexed, as the paid days are read by them")
 hooks_source = read("hrms_addon", "hooks.py")
+check('"validate": "hrms_addon.hrms_addon.weekly_pay.additional_validate",' in hooks_source,
+      "every Additional Salary is checked for a casual's on save")
 hooks = {}
 for node in ast.parse(hooks_source).body:
     if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):

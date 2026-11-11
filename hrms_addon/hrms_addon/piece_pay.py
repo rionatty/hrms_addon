@@ -104,6 +104,42 @@ def upload_pieces(run, file_url):
     }
 
 
+@frappe.whitelist()
+def download_pieces(run):
+    """The run's week as Luuka's Per Piece template, to fill in and upload: every Per Piece casual of the plant on
+    staff that week, their employee number in NO., and the week's prices (Luuka, 11 Nov 2026: "one should be able to
+    also download the template for employee per piece")."""
+    doc = frappe.get_doc(RUN, run)
+    doc.check_permission("read")
+    if doc.get("section") != rules.PER_PIECE or not doc.get("from_date") or not doc.get("to_date"):
+        frappe.throw(_("The Per Piece sheet is for a Per Piece run with its From and To dates."), title=_(TITLE))
+    start, end = getdate(doc.from_date), getdate(doc.to_date)
+    if not piece_sheet.WEEK_DAYS[0] <= (end - start).days + 1 <= piece_sheet.WEEK_DAYS[1]:
+        frappe.throw(_("A Per Piece sheet is for one week: give the run a week's days."), title=_(TITLE))
+    prices = sorted({unit for unit in (rules.work_unit_on(seat["rates"], end)
+                                       for seat in output_pay._sizes(section=rules.PER_PIECE).values() if seat["enabled"])
+                     if unit}, reverse=True)
+    if not prices:
+        frappe.throw(_("No Per Piece category has a Work Unit on {0}: set them in Sizes and Work Units.").format(
+            end.strftime("%d-%b-%Y")), title=_(TITLE))
+    content = piece_sheet.template(start, end, prices, _sheet_people(doc.get("branch"), start, end))
+    frappe.response["filename"] = "Per Piece %s %s.xlsx" % (piece_sheet.week_title(start, end), doc.get("branch") or "")
+    frappe.response["filecontent"] = content
+    frappe.response["type"] = "binary"
+
+
+def _sheet_people(branch, start, end):
+    """The plant's Per Piece casuals on staff in the week, by name: joined by its last day, not gone before its first,
+    not Inactive."""
+    filters = {"custom_pay_category": rules.PER_PIECE, "status": ["!=", "Inactive"], "date_of_joining": ["<=", end]}
+    if branch:
+        filters["branch"] = branch
+    found = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "relieving_date"],
+                           order_by="employee_name asc", limit_page_length=0)
+    return [{"employee": row.name, "employee_name": row.employee_name} for row in found
+            if not row.relieving_date or getdate(row.relieving_date) >= start]
+
+
 def _people():
     """Every employee, by what the workbook finds them by (the name, or the
     Employee Number where a sheet has an Employee Id column), with their pay
@@ -317,14 +353,15 @@ def _make_reports(doc, taken, people):
 
 # ── A Per Piece report ────────────────────────────────────────────────
 def report_validate(doc, method=None):
-    """A Per Piece report's arrears are a Per Piece casual's, each more than
-    nothing, once a person; a Per Piece report has no Looms OT."""
+    """A report has no arrears: they are entered as Additional Salary, which
+    the weekly payroll pays (Luuka, 11 Nov 2026). One submitted before that
+    keeps its own. A Per Piece report has no Looms OT."""
+    if doc.get("arrears") and doc.is_new():
+        frappe.throw(_("Arrears are entered as Additional Salary, which the weekly payroll pays: take them off this report and enter them there."), title=_(REPORT))
     if doc.get("section") != rules.PER_PIECE:
-        if doc.get("arrears"):
-            frappe.throw(_("Arrears go on a Per Piece report."), title=_(REPORT))
         return
     if doc.get("looms_ot"):
-        frappe.throw(_("A Per Piece report has no Looms OT: put what is owed under Arrears."), title=_(REPORT))
+        frappe.throw(_("A Per Piece report has no Looms OT: enter what is owed as Additional Salary."), title=_(REPORT))
     rows = doc.get("arrears") or []
     categories = output_pay._pay_categories([row.get("employee") for row in rows])
     seen, errors = set(), []
@@ -425,16 +462,23 @@ def report_on_cancel(doc, method=None):
 
 # ── The payroll ───────────────────────────────────────────────────────
 def waiting(employees, start, end):
-    """Those of these Per Piece casuals with piece pay dated in a payroll's
-    days and not yet on a submitted slip."""
+    """Those of these casuals with pay as Additional Salary in a payroll's
+    days, not yet on a submitted slip: their piece pay, and their arrears and
+    anything else owed, which HR enter as Additional Salary (Luuka, 11 Nov
+    2026: "arrears and additional salary should be done on the additional
+    salary which is going be included when running payroll"). A one-off
+    dated in the days, a recurring one running on any of them; earnings
+    only, as a deduction alone pays nobody."""
     employees = list(employees or ())
     if not employees or not start or not end:
         return set()
-    owed = frappe.get_all(ADDITIONAL, filters={"employee": ["in", employees], "docstatus": 1,
-                                               # the run's pay, and a report's own from before a run paid
-                                               "ref_doctype": ["in", [RUN, REPORT]],
-                                               "payroll_date": ["between", [getdate(start), getdate(end)]]},
+    first, last = getdate(start), getdate(end)
+    common = {"employee": ["in", employees], "docstatus": 1, "type": "Earning"}
+    owed = frappe.get_all(ADDITIONAL, filters=dict(common, is_recurring=0, payroll_date=["between", [first, last]]),
                           fields=["name", "employee"], limit_page_length=0)
+    owed += frappe.get_all(ADDITIONAL, filters=dict(common, is_recurring=1, from_date=["<=", last],
+                                                    to_date=[">=", first]),
+                           fields=["name", "employee"], limit_page_length=0)
     if not owed:
         return set()
     paid = set(frappe.get_all("Salary Detail", filters={"parenttype": "Salary Slip", "docstatus": 1,

@@ -1983,6 +1983,8 @@ doc_events = {
     # one cancelled after a draft salary slip took it up: the slip keeps
     # the line, so it is named (recoveries.py)
     "Additional Salary": {
+        # a casual's is never cut by the days paid (weekly_pay.py)
+        "validate": "hrms_addon.hrms_addon.weekly_pay.additional_validate",
         "on_cancel": "hrms_addon.hrms_addon.recoveries.addition_on_cancel",
         "on_submit": "hrms_addon.hrms_addon.recoveries.addition_on_submit",
     },
