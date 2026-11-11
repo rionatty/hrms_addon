@@ -1247,6 +1247,29 @@ check(made_for == ["BROKEN", "LPL", "OTHER"] and logged == ["HRMS Addon: the cas
       "once a company; one that cannot be made is logged and undone, and the rest go on", (made_for, logged, rolled))
 check("hrms_addon.patches.v1_0.casual_overtime_ready" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1],
       "after the doctypes are synced")
+
+# HR may import the casuals' Overtime Type: Frappe HR's allows import but gives no role the right
+granted = []
+grant_frappe = types.SimpleNamespace(db=types.SimpleNamespace(exists=lambda doctype, name: True))
+security_stub = types.ModuleType("hrms_addon.hrms_addon.security")
+security_stub.grant = lambda grants, permlevel=0: granted.append(grants)
+saved_security = sys.modules.get("hrms_addon.hrms_addon.security")
+sys.modules["frappe"], sys.modules["hrms_addon.hrms_addon.security"] = grant_frappe, security_stub
+app.security = security_stub
+spec = importlib.util.spec_from_file_location("overtime_type_import",
+                                              os.path.join(PACKAGE, "patches", "v1_0", "overtime_type_import.py"))
+type_patch = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(type_patch)
+type_patch.execute()
+sys.modules["frappe"] = frappe
+if saved_security is None:
+    sys.modules.pop("hrms_addon.hrms_addon.security", None)
+    del app.security
+else:
+    sys.modules["hrms_addon.hrms_addon.security"] = saved_security
+check(granted == [{"Overtime Type": {"System Manager": ("import",), "HR Manager": ("import",)}}]
+      and "hrms_addon.patches.v1_0.overtime_type_import" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1],
+      "the HR Manager and the System Manager may import Overtime Types, as Administrator alone could", granted)
 chain = [("Salary Slip-custom_weekly_section", "Section Break", "base_hour_rate"),
          ("Salary Slip-custom_weekly_hours", "Float", "custom_weekly_section"),
          ("Salary Slip-custom_weekly_rate", "Currency", "custom_weekly_hours"),
