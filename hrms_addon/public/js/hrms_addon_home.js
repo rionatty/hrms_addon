@@ -889,7 +889,7 @@
 	// Data Health: what is missing, and from how many records, each opening those records
 	function health_body(one) {
 		const all = one.rows || [];
-		if (!all.length) return nothing(__("Every record has what payroll and the clock need."));
+		if (!all.length) return nothing(__(one.empty || "Every record has what payroll and the clock need."));
 		return all
 			.map(
 				(row, index) =>
@@ -900,6 +900,43 @@
 					`<b class="ha-home-count">${count(row.value)}</b>${icon("chevron")}</button>`
 			)
 			.join("");
+	}
+
+	// Key Figures: what management reads first, each against its target: green within it, amber near, red
+	// beyond. A tile opens the tab its figure is looked into on, where the viewer has it.
+	function kpis_body(one) {
+		const all = one.rows || [];
+		if (!all.length) return nothing(__("No figure to show yet."));
+		const tones = { good: "green", today: "amber", overdue: "rose", soon: "blue", none: "navy" };
+		// a figure said in words ("From Oct 2026") is written smaller than a number
+		const words = (row) => (row.text != null ? " ha-home-card-words" : "");
+		const written = (row) =>
+			row.text != null
+				? __(row.text)
+				: row.kind === "money"
+				? money(row.value, one.currency || "")
+				: row.kind === "hours"
+				? hours(row.value)
+				: row.kind === "percent"
+				? percent(row.value)
+				: count(row.value);
+		return (
+			`<div class="ha-home-cards ha-home-kpi-tiles${all.length > 5 ? " ha-home-kpi-six" : ""}">` +
+			all
+				.map(
+					(row) =>
+						`<button type="button" class="ha-home-card ha-tone-${esc(tones[row.band] || "navy")}" ` +
+						(row.tab && tab_of(row.tab)
+							? `data-ha-home="open" data-tab="${esc(row.tab)}">`
+							: `disabled>`) +
+						`<span class="ha-home-card-top"><span class="ha-home-card-label">${esc(__(row.label))}</span>` +
+						`<span class="ha-home-card-icon">${icon(row.icon || "trend")}</span></span>` +
+						`<span class="ha-home-card-value${words(row)}">${esc(written(row))}</span>` +
+						`<span class="ha-home-card-note">${esc(__(row.note || ""))}</span></button>`
+				)
+				.join("") +
+			`</div>`
+		);
 	}
 
 	// Needs Attention: what waits for a decision or is late, the most pressing first, each opening its list; on
@@ -1052,6 +1089,7 @@
 		pipeline: pipeline_body,
 		health: health_body,
 		attention: attention_body,
+		kpis: kpis_body,
 		columns: columns_body,
 		bars: bars_body,
 		donut: donut_body,
@@ -1219,7 +1257,7 @@
 		if (!all.length) return "";
 		const line = (width) => `<div class="ha-home-bone" style="width:${width}"></div>`;
 		return (
-			`<div class="ha-home-cards">` +
+			`<div class="ha-home-cards${all.length > 4 ? " ha-home-cards-many" : ""}">` +
 			all
 				.map((figure) => {
 					const top =
@@ -1664,6 +1702,8 @@
 
 /* the figures */
 .ha-home-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 16px; }
+/* a tab with six figures: three and three, never five and one */
+.ha-home-cards.ha-home-cards-many { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ha-home .ha-home-card {
 	display: flex; flex-direction: column; gap: 4px; padding: 16px 18px 15px; border-radius: 14px;
 	background: var(--ha-h-card); border: 1px solid var(--ha-h-line); position: relative; overflow: hidden;
@@ -1767,6 +1807,11 @@
 .ha-home-delta { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; font-weight: 600; color: var(--ha-h-muted); }
 .ha-home-delta .ha-home-icon { width: 13px; height: 13px; }
 .ha-home-card-note .ha-home-delta { margin-right: 6px; }
+.ha-home .ha-home-kpi-tiles { margin: 0; padding: 14px 16px 16px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.ha-home .ha-home-kpi-tiles .ha-home-card:disabled { cursor: default; opacity: 1; }
+/* six key figures: three and three, never five and one */
+.ha-home .ha-home-kpi-tiles.ha-home-kpi-six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ha-home-card-value.ha-home-card-words { font-size: 21px; line-height: 1.3; letter-spacing: -.01em; }
 .ha-home-columns { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; height: 150px; padding: 12px 12px 0; }
 .ha-home-column { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; height: 100%; }
 .ha-home-column-bars { flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px; }
@@ -2000,7 +2045,8 @@ ${TILES} > .desktop-icon > .ha-rail-menu .ha-rail-link:hover, ${TILES} > .deskto
 	${RAIL} { margin: 12px 16px 32px; }
 	.ha-home-hero-side { width: 100%; }
 	.ha-home .ha-home-chip, .ha-home .ha-home-action { flex: 1 1 auto; justify-content: center; }
-	.ha-home-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+	.ha-home-cards, .ha-home-cards.ha-home-cards-many, .ha-home .ha-home-kpi-tiles, .ha-home .ha-home-kpi-tiles.ha-home-kpi-six { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+	.ha-home .ha-home-kpi-tiles { padding: 10px; }
 	.ha-home-card-value { font-size: 24px; }
 }
 `;

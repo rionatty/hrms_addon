@@ -30,9 +30,9 @@ minutes for a user, and read afresh when they press Refresh.
 """
 
 import frappe
-from frappe.utils import cint, getdate, now_datetime, nowdate
+from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
-from hrms_addon.hrms_addon import alerts_rules, attendance_rules, home, home_panels, home_rules
+from hrms_addon.hrms_addon import alerts_rules, attendance_rules, home, home_panels, home_panels_rules, home_rules
 from hrms_addon.hrms_addon import dashboards_rules as rules
 from hrms_addon.hrms_addon import appraisal_approval as approval
 from hrms_addon.hrms_addon.queries import aggregate
@@ -237,20 +237,27 @@ class Reader:
                           note="%d came late" % late if late else "None came late",
                           route=["List", "Attendance"], filters=present)
 
+    def monthly(self, **filters):
+        """The submitted slips of the monthly payroll: a casual's weekly slip is its own week's (panel_casual_week),
+        and the day it ends is no pay period's last."""
+        return self.mine(docstatus=1, payroll_frequency=["!=", "Weekly"], **filters)
+
+    def periods(self):
+        """The last days of the latest three monthly pay periods with submitted slips, the latest first."""
+        return self.once("periods", lambda: frappe.get_list(
+            "Salary Slip", filters=self.monthly(), pluck="end_date", distinct=True, order_by="end_date desc",
+            limit_page_length=3))
+
     def period(self):
         """The latest pay period with submitted slips, its last day and the one before's: (end, before)."""
-        return self.once("period", self._period)
-
-    def _period(self):
-        ends = frappe.get_list("Salary Slip", filters=self.mine(docstatus=1), pluck="end_date", distinct=True,
-                               order_by="end_date desc", limit_page_length=2)
+        ends = self.periods()
         return (ends[0] if ends else None, ends[1] if len(ends) > 1 else None)
 
     def _paid(self, key, field):
         end, before = self.period()
-        window = self.mine(docstatus=1, end_date=str(end)) if end else None
+        window = self.monthly(end_date=str(end)) if end else None
         now = total("Salary Slip", field, window) if end else 0
-        then = total("Salary Slip", field, self.mine(docstatus=1, end_date=str(before))) if before else 0
+        then = total("Salary Slip", field, self.monthly(end_date=str(before))) if before else 0
         return rules.card(key, now, note=rules.period_note(end), tone="green" if key == "net_pay" else "blue",
                           change_=rules.change(now, then), route=["List", "Salary Slip"], filters=window,
                           currency=self.currency)
@@ -263,11 +270,197 @@ class Reader:
 
     def card_paid_people(self):
         end, before = self.period()
-        window = self.mine(docstatus=1, end_date=str(end)) if end else None
+        window = self.monthly(end_date=str(end)) if end else None
         now = count("Salary Slip", window) if end else 0
-        then = count("Salary Slip", self.mine(docstatus=1, end_date=str(before))) if before else 0
+        then = count("Salary Slip", self.monthly(end_date=str(before))) if before else 0
         return rules.card("paid_people", now, note=rules.period_note(end), change_=rules.change(now, then),
                           route=["List", "Salary Slip"], filters=window)
+
+    # ── Attendance ──
+    def marked_month(self):
+        """The month's days marked present and absent, so far: (present, absent)."""
+        return self.once("marked_month", self._marked_month)
+
+    def _marked_month(self):
+        days = ["between", [self.days["{month}"], self.days["{today}"]]]
+        return (count("Attendance", self.mine(docstatus=1, attendance_date=days, status=["in", list(rules.PRESENT)])),
+                count("Attendance", self.mine(docstatus=1, attendance_date=days, status="Absent")))
+
+    def card_absence_month(self):
+        present, absent = self.marked_month()
+        marked = present + absent
+        rate = round(100.0 * absent / marked, 1) if marked else 0
+        target = rules.KPI_TARGETS["absence"]
+        tone = {"good": "green", "today": "amber", "overdue": "rose"}[rules.band_within(rate, *target)] if marked else "navy"
+        return rules.card("absence_month", rate, tone=tone, route=["List", "Attendance"],
+                          filters=self.mine(docstatus=1, status="Absent",
+                                            attendance_date=["between", [self.days["{month}"], self.days["{today}"]]]),
+                          note="%s of %s days marked" % (format(absent, ","), format(marked, ",")) if marked
+                          else "No attendance marked this month")
+
+    def card_unmarked_today(self):
+        """The active staff nobody has marked today, present, absent or on leave."""
+        staff = count("Employee", self.mine(status="Active"))
+        marked = count("Attendance", self.mine(docstatus=1, attendance_date=str(self.today)))
+        left = max(0, staff - marked)
+        # every morning has some: it is said in no colour of alarm
+        return rules.card("unmarked_today", left, tone="navy" if left else "green", route=["attendance-board"],
+                          note="Of %s on the staff" % format(staff, ","))
+
+    # ── Key figures ──
+    def labour_cost(self):
+        """The gross pay of the latest monthly period, with the casuals' weeks that ended in it, and of the one
+        before: (now, before), None where there is none. A period's days run from the day after the one before
+        ended, a month back where no earlier one is known: no slip is counted in two periods."""
+        ends = self.periods()
+        if not ends:
+            return None, None
+
+        def paid(at):
+            after = ends[at + 1] if len(ends) > at + 1 else rules.month_before(ends[at])
+            return total("Salary Slip", "base_gross_pay", self.mine(
+                docstatus=1, end_date=["between", [str(add_days(after, 1)), str(ends[at])]]))
+
+        return paid(0), (paid(1) if len(ends) > 1 else None)
+
+    def panel_kpis(self):
+        """What management reads first, each against its target (rules.kpis): each fact from what the user may
+        read, and left out where they may not."""
+        facts = {}
+        if "Employee" in self.readable:
+            facts["staff"] = count("Employee", self.mine(status=["in", list(rules.STAFF)]))
+            moved = home._or(None, home_panels.READERS["movement"], self.today, self.money, self.roles)
+            facts["turnover"] = (moved or {}).get("turnover")
+            if "Staffing Plan" in self.readable:
+                facts["planned"], facts["filled"] = home._or((0, None), self._planned)
+        if self.money and "Salary Slip" in self.readable:
+            facts["gross"], facts["gross_before"] = home._or((None, None), self.labour_cost)
+        if "Overtime Request" in self.readable:
+            start = getdate(self.days["{cycle}"])
+            before = home_panels_rules.same_days_before(start, self.today)
+            counted = {"status": ["in", list(rules.OVERTIME_COUNTED)]}
+            facts["overtime"] = total("Overtime Request", "total_hours", dict(
+                counted, overtime_date=["between", [str(start), str(self.today)]]))
+            facts["overtime_before"] = total("Overtime Request", "total_hours", dict(
+                counted, overtime_date=["between", [str(before[0]), str(before[1])]]))
+        if "Attendance" in self.readable:
+            facts["present"], facts["absent"] = self.marked_month()
+        if "Safety Incident" in self.readable:
+            last = frappe.get_list("Safety Incident", filters=self.mine(docstatus=1),
+                                   fields=[aggregate("MAX", "incident_on", "last")], order_by=None)
+            last = getdate(last[0].get("last")) if last and last[0].get("last") else None
+            facts["incident_days"] = (self.today - last).days if last else None
+        rows = rules.kpis(facts, self.money)
+        if not rows:
+            return None
+        return {"kind": "kpis", "rows": rows, "currency": self.currency, "note": "Against their targets"}
+
+    def _planned(self):
+        """The posts of the staffing plans in force today, and the staff in them: (planned, filled). A plan names
+        the designations it is for, and its department where it is one department's: the staff set against it
+        are those, so a plan for some of the posts is not compared with everybody."""
+        today = str(self.today)
+        planned = filled = 0
+        for plan in frappe.get_list("Staffing Plan", filters=self.mine(docstatus=1, from_date=["<=", today],
+                                                                       to_date=[">=", today]),
+                                    fields=["name", "department"], limit_page_length=0):
+            posts = frappe.get_all("Staffing Plan Detail", filters={"parenttype": "Staffing Plan", "parent": plan.name},
+                                   fields=["designation", "number_of_positions"], limit_page_length=0)
+            planned += sum(int(rules._number(post.number_of_positions)) for post in posts)
+            named = sorted({post.designation for post in posts if post.designation})
+            if named:
+                theirs = self.mine(status=["in", list(rules.STAFF)], designation=["in", named])
+                if plan.department:
+                    theirs["department"] = plan.department
+                filled += count("Employee", theirs)
+        return planned, filled
+
+    # ── The casuals' week ──
+    def panel_casual_week(self):
+        """The casuals' weekly payroll before it is run: who has days, overtime or piece pay to be paid, and who
+        would be left out (weekly_pay.py, piece_pay.py; rules.casual_week)."""
+        from hrms_addon.hrms_addon import piece_pay, weekly_pay, weekly_pay_rules
+
+        if not self.company:
+            return None
+        people = frappe.get_list("Employee", filters=self.mine(
+            status="Active", custom_pay_category=["in", list(weekly_pay_rules.CATEGORIES)]),
+            fields=["name", "custom_pay_category"], limit_page_length=0)
+        weekly = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.WEEKLY]
+        pieces = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.PER_PIECE]
+        wanted = {"company": self.company}
+        last = weekly_pay._last_executed(wanted)
+        dates = weekly_pay_rules.dates(last, weekly_pay._latest_attendance(wanted))
+        start, end = dates["start"], dates["end"]
+        runs = self.mine(payroll_frequency=weekly_pay_rules.WEEKLY, salary_slip_based_on_timesheet=0)
+        facts = {"last": last, "end": end, "piece_staff": len(pieces),
+                 "drafts": count("Payroll Entry", dict(runs, docstatus=0))}
+        if end:
+            days = weekly_pay.days_to_pay(weekly, start, end, self.company)
+            due = weekly_pay.overtime_due(weekly, start, end, self.company)
+            history, standard = weekly_pay.rate_history(weekly, end), weekly_pay.standard_rate()
+            no_rate = []
+            for name in weekly:
+                table = weekly_pay_rules.days_table(days.get(name), due.get(name))
+                rates = weekly_pay_rules.day_rates([row["attendance_date"] for row in table], history.get(name), standard)
+                if weekly_pay_rules.unrated(table, rates):
+                    no_rate.append(name)
+            facts.update(
+                with_days=sum(1 for name in weekly if days.get(name)),
+                hours=sum(weekly_pay_rules.total_hours(days.get(name)) for name in weekly),
+                with_overtime=sum(1 for name in weekly if due.get(name)),
+                overtime_hours=sum(flt(row["hours"]) for name in weekly for row in due.get(name) or []),
+                no_rate=no_rate, piece_waiting=len(piece_pay.waiting(pieces, start, end)))
+        rows, note = rules.casual_week(facts)
+        if not people and not rows and not last:
+            # a company with no casuals has no such panel
+            return None
+        between = ["between", [str(start), str(end)]] if end else None
+        opens = {
+            "days": (["List", "Payroll Entry"], runs),
+            "overtime": (["List", "Overtime Request"], {"status": ["in", list(rules.OVERTIME_COUNTED)],
+                                                        "overtime_date": between}),
+            "pieces": (["List", piece_pay.REPORT], {"section": weekly_pay_rules.PER_PIECE, "docstatus": 1,
+                                                    "report_date": between}),
+            "no_sheet": (["List", "Payroll Entry"], runs),
+            "drafts": (["List", "Payroll Entry"], dict(runs, docstatus=0)),
+        }
+        for row in rows:
+            if row.get("names"):
+                row["route"], row["filters"] = ["List", "Employee"], {"name": ["in", row.pop("names")[:rules.OPENED_ON]]}
+            else:
+                row["route"], row["filters"] = opens[row["key"]]
+        return {"kind": "health", "rows": rows, "note": note, "empty": "Nothing to pay the casuals yet this week."}
+
+    def panel_deductions(self):
+        """The latest monthly period's deductions, line by line, in the company's currency: what is owed to the
+        URA, the NSSF and the rest. The employer's own lines are with them; a line worked out only to work
+        another out is not."""
+        end, _before = self.period()
+        empty = {"kind": "bars", "money": 1, "currency": self.currency, "rows": [], "empty": "No period paid yet"}
+        if not end:
+            return empty
+        window = self.monthly(end_date=str(end))
+        # the slips by their rate to the company's currency: each rate's lines are summed by the database
+        rated = {}
+        for slip in frappe.get_list("Salary Slip", filters=window, fields=["name", "exchange_rate"], limit_page_length=0):
+            rated.setdefault(flt(slip.exchange_rate) or 1.0, []).append(slip.name)
+        sums = {}
+        for rate, slips in rated.items():
+            for line in frappe.get_all("Salary Detail", filters={
+                    "parenttype": "Salary Slip", "parentfield": "deductions", "parent": ["in", slips],
+                    "statistical_component": 0},
+                    fields=["salary_component", aggregate("SUM", "amount", "total")], group_by="salary_component",
+                    order_by=None, limit_page_length=0):
+                sums[line.salary_component] = (sums.get(line.salary_component, 0.0)
+                                               + rules._number(line.get("total")) * rate)
+        if not sums:
+            return dict(empty, empty="Nothing was taken off", note=rules.period_note(end))
+        parts = rules.ranked([{"label": name, "value": value, "key": name} for name, value in sums.items()],
+                             "label", "value", shown=rules.DEDUCTIONS_SHOWN)
+        for part in parts:
+            part["route"], part["filters"] = ["List", "Salary Slip"], dict(window)
+        return dict(empty, rows=parts, note=rules.period_note(end))
 
     def quarter(self):
         """The appraisal cycles in force today, else the latest begun, and their appraisals: the quarter the
@@ -412,7 +605,7 @@ class Reader:
         end, _before = self.period()
         if not end:
             return {"kind": "bars", "money": 1, "currency": self.currency, "rows": [], "empty": "No period paid yet"}
-        window = self.mine(docstatus=1, end_date=str(end))
+        window = self.monthly(end_date=str(end))
         rows = grouped("Salary Slip", "department", "base_gross_pay", window)
         parts = rules.ranked([{"label": row.department or "No department", "value": row.total, "key": row.department}
                               for row in rows], "label", "value")

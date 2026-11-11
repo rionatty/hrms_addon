@@ -72,6 +72,10 @@ OVERDUE, TODAY, SOON, LATER, NONE, GOOD = "overdue", "today", "soon", "later", "
 SEVERITY = (OVERDUE, TODAY, SOON, LATER, NONE, GOOD)
 # how many rows a list or a breakdown shows
 SHOWN = 6
+# the lines of a period's deductions shown: PAYE, the two NSSF shares, LST and what else is taken
+DEDUCTIONS_SHOWN = 10
+# the most people a list is opened on by name
+OPENED_ON = 500
 # how long a part's figures are kept for a user before they are read again
 CACHE_SECONDS = 300
 OVERVIEW = "overview"
@@ -130,7 +134,8 @@ TABS = (
         "key": "people", "title": "People", "icon": "employees", "roles": PEOPLE_ROLES,
         "anchors": ("Employee",), "workspaces": ("HR Setup",), "opens": "HR Setup",
         "cards": ("headcount", "joined_month", "left_month", "contracts_ending"),
-        "panels": ("attention", "movement", "departments", "plants_headcount", "employment_types", "data_health"),
+        "panels": ("attention", "movement", "departments", "plants_headcount", "employment_types", "pay_categories",
+                   "data_health"),
         "reports": ("Monthly Manpower and Headcount", "Employee Analytics", "Document Expiry", "Contract Expiry Status"),
         "pages": (),
     },
@@ -147,7 +152,9 @@ TABS = (
     {
         "key": "attendance", "title": "Attendance", "icon": "attendance", "roles": PEOPLE_ROLES,
         "anchors": ("Attendance", "Employee Checkin"), "workspaces": ("Shift & Attendance",), "opens": "Shift & Attendance",
-        "cards": ("present_today", "absent_today", "overtime_hours", "overtime_waiting"),
+        # the month's absence as a rate, and who nobody has marked today (11 Nov 2026)
+        "cards": ("present_today", "absent_today", "unmarked_today", "absence_month", "overtime_hours",
+                  "overtime_waiting"),
         "panels": ("attention", "plants", "attendance_trend", "late_by_department", "overtime_by_plant"),
         "reports": ("Monthly Attendance Sheet", "Shift Attendance", "Employees working on a holiday"),
         "pages": (("attendance-board", "Attendance Board"),),
@@ -166,7 +173,9 @@ TABS = (
         "anchors": ("Salary Slip", "Payroll Entry"), "workspaces": ("Payroll", "Tax & Benefits"), "opens": "Payroll",
         "cards": ("gross_pay", "net_pay", "paid_people", "slips_draft"),
         # the overtime of the period, by plant, and the Overtime Register to filter it (review item 19)
-        "panels": ("attention", "payroll", "payroll_trend", "output", "gross_by_department", "overtime_by_plant"),
+        # the casuals' week beside what the last period took off: the two the payroll acts on next
+        "panels": ("attention", "payroll", "casual_week", "deductions", "payroll_trend", "output", "gross_by_department",
+                   "overtime_by_plant"),
         "reports": ("Salary Register", "Overtime Register", "Bank Remittance", "Salary Payments Based On Payment Mode"),
         "pages": (),
     },
@@ -183,8 +192,8 @@ TABS = (
         "key": "expenses", "title": "Expenses", "icon": "expenses", "roles": PAID_ROLES,
         "anchors": ("Expense Claim", "Allowance Request"), "workspaces": ("Expenses",), "opens": "Expenses",
         "cards": ("claims_waiting", "claimed_month", "allowances_waiting", "allowances_month"),
-        "panels": ("attention", "claims_trend", "claim_occasions", "claims_waiting_list"),
-        "reports": (),
+        "panels": ("attention", "claims_trend", "claim_occasions", "claims_by_department", "claims_waiting_list"),
+        "reports": ("Unpaid Expense Claim",),
         "pages": (),
     },
     {
@@ -211,7 +220,7 @@ TABS = (
         "key": "relations", "title": "Relations", "icon": "relations", "roles": PEOPLE_ROLES,
         "anchors": ("Disciplinary Case", "Employee Grievance"), "workspaces": (), "opens": "Tenure",
         "cards": ("grievances_open", "cases_open", "suspended_now", "incidents_month"),
-        "panels": ("attention", "relations_trend", "case_stages", "grievance_types", "hearings"),
+        "panels": ("attention", "relations_trend", "case_stages", "grievance_types", "incidents_by_plant", "hearings"),
         "reports": (),
         "pages": (),
     },
@@ -219,7 +228,8 @@ TABS = (
         "key": "tenure", "title": "Tenure", "icon": "tenure", "roles": PEOPLE_ROLES,
         "anchors": ("Employee Separation", "Employee Onboarding"), "workspaces": ("Tenure",), "opens": "Tenure",
         "cards": ("onboarding", "probations_due", "leaving", "settlements"),
-        "panels": ("attention", "deadlines", "exits_trend", "exit_reasons", "onboarding_list"),
+        "panels": ("attention", "deadlines", "exits_trend", "exit_reasons", "onboarding_list",
+                   "settlements_waiting_list"),
         "reports": ("Serving Notice", "Contract Expiry Status", "Employee Exits"),
         "pages": (),
     },
@@ -259,6 +269,7 @@ REPORT_DOCTYPES = {
     "Loan Statement": "Employee Loan",
     "Advance Payment Report": "Salary Advance Processing",
     "Employee Advance Summary": "Employee Advance",
+    "Unpaid Expense Claim": "Expense Claim",
     "Appraisal Results": "Performance Review",
     "Performance Analytics": "Appraisal",
     "Nine-Box Distribution": "Talent Placement",
@@ -390,8 +401,9 @@ FIGURES = {
     # expenses
     "claims_waiting": {
         "label": "Claims Waiting", "kind": COUNT, "icon": "waiting", "doctype": "Expense Claim", "function": "COUNT",
-        "filters": {"docstatus": 0, "custom_claim_status": PENDING}, "company": True, "note": "For approval",
-        "tone": "amber", "quiet": "green",
+        "filters": {"docstatus": 0, "custom_claim_status": PENDING}, "company": True,
+        "late": {"posting_date": ["between", [EVER, "{ago7}"]]}, "late_words": "waiting over a week",
+        "note": "None waiting over a week", "tone": "amber", "quiet": "green",
     },
     "claimed_month": {
         "label": "Claimed This Month", "kind": MONEY, "icon": "expenses", "doctype": "Expense Claim",
@@ -490,6 +502,8 @@ CARDS = {
     "quarter_score": ("Average This Quarter", PERCENT, ("Appraisal",), "performance", False),
     "evaluation_score": ("Average Evaluation", PERCENT, ("Training Event",), "training", False),
     "probations_due": ("Probations Ending", COUNT, ("Employee",), "deadlines", False),
+    "absence_month": ("Absence This Month", PERCENT, ("Attendance",), "attendance", False),
+    "unmarked_today": ("Not Marked Today", COUNT, ("Attendance", "Employee"), "waiting", False),
 }
 for _key, _spec in FIGURES.items():
     CARDS[_key] = (_spec["label"], _spec["kind"], (_spec["doctype"],), _spec["icon"], bool(_spec.get("money")))
@@ -512,6 +526,23 @@ GROUPS = {
         "title": "By Employment Type", "icon": "contracts", "doctype": "Employee", "by": "employment_type",
         "function": "COUNT", "filters": {"status": ["in", list(STAFF)]}, "company": True, "draw": "donut",
         "none": "Not set", "empty": "Nobody on the staff", "note": "Active employees",
+    },
+    "pay_categories": {
+        "title": "By Pay Category", "icon": "payroll", "doctype": "Employee", "by": "custom_pay_category",
+        "function": "COUNT", "filters": {"status": ["in", list(STAFF)]}, "company": True, "draw": "donut",
+        "none": "Regular", "empty": "Nobody on the staff", "note": "How each is paid",
+    },
+    "claims_by_department": {
+        "title": "Claimed This Year by Department", "icon": "expenses", "doctype": "Expense Claim", "by": "department",
+        "function": "SUM", "field": "base_total_claimed_amount",
+        "filters": {"docstatus": ["<", 2], "custom_claim_status": ["not in", list(GONE)], "posting_date": [">=", "{year}"]},
+        "company": True, "draw": "bars", "money": 1, "none": "No department", "empty": "No claims this year",
+        "note": "Not rejected",
+    },
+    "incidents_by_plant": {
+        "title": "Safety Incidents This Year by Plant", "icon": "plants", "doctype": "Safety Incident", "by": "branch",
+        "function": "COUNT", "filters": {"docstatus": 1, "incident_on": [">=", "{year}"]}, "company": True,
+        "draw": "bars", "none": "No plant", "empty": "No incident recorded this year", "note": "Recorded",
     },
     "applicant_sources": {
         "title": "Where Applicants Came From", "icon": "ring", "doctype": "Job Applicant", "by": "source",
@@ -729,6 +760,12 @@ LISTS = {
         "fields": ("name", "employee_name", "hearing_on"), "title_field": "employee_name", "due": "hearing_on",
         "empty": "No hearing scheduled",
     },
+    "settlements_waiting_list": {
+        "title": "Settlements Waiting Longest", "icon": "money", "doctype": "Full and Final Statement",
+        "filters": {"docstatus": 0, "custom_settlement_status": SETTLEMENT_WAITING}, "company": True,
+        "fields": ("name", "employee_name", "transaction_date"), "title_field": "employee_name",
+        "opened": "transaction_date", "empty": "No settlement waits for the payroll",
+    },
     "onboarding_list": {
         "title": "Onboarding Under Way", "icon": "employees", "doctype": "Employee Onboarding",
         "filters": {"docstatus": ["<", 2], "boarding_status": ["in", list(ONBOARDING_OPEN)]}, "company": True,
@@ -753,6 +790,14 @@ PANELS = {
     "data_health": ("Data Health", NORMAL, (("Employee",),), "data_health", HR_ROLES, False),
     # worked out here
     "gross_by_department": ("Gross Pay by Department", NORMAL, (("Salary Slip",),), "payroll", MONEY_ROLES, True),
+    # what management reads first, each against its target (KPIS): read from whichever of these the user may read
+    "kpis": ("Key Figures", WIDE, (("Employee",), ("Attendance",), ("Salary Slip",), ("Overtime Request",),
+                                   ("Safety Incident",), ("Staffing Plan",)), "trend", PEOPLE_ROLES, False),
+    # the casuals' weekly payroll, before it is run (weekly_pay.py, piece_pay.py)
+    "casual_week": ("Casual Payroll This Week", NORMAL, (("Payroll Entry", "Employee"),), "payroll", PAYROLL_ROLES,
+                    False),
+    # the latest period's deductions, line by line: what is owed to URA, NSSF and the rest
+    "deductions": ("Deductions Last Period", NORMAL, (("Salary Slip",),), "money", MONEY_ROLES, True),
     "score_by_department": ("Average Score by Department", NORMAL, (("Appraisal",),), "performance", None, False),
 }
 for _key, _spec in GROUPS.items():
@@ -764,10 +809,11 @@ for _key, _spec in LISTS.items():
     PANELS[_key] = (_spec["title"], NORMAL, ((_spec["doctype"],),), _spec["icon"], None, False)
 
 # The overview's panels, where each goes, and the tab it belongs to, whose switch takes it off the overview too:
-# (key, place, tab). Payroll Readiness on top in its week, Plants at a Glance in Today's place on HR's desk, what
-# needs attention across the tabs and the deadlines in the rows.
-OVERVIEW_PANELS = (("payroll", TOP, "payroll"), ("plants", SECTIONS, "attendance"), ("attention", ROW, None),
-                   ("deadlines", ROW, "tenure"))
+# (key, place, tab). Payroll Readiness on top in its week, the key figures under it (first, outside that week and
+# for management), Plants at a Glance in Today's place on HR's desk, what needs attention across the tabs and the
+# deadlines in the rows.
+OVERVIEW_PANELS = (("payroll", TOP, "payroll"), ("kpis", TOP, None), ("plants", SECTIONS, "attendance"),
+                   ("attention", ROW, None), ("deadlines", ROW, "tenure"))
 
 # ── What needs attention ──────────────────────────────────────────────
 # (key, what one is called, what several are, the doctype counted, its tab, band), the most pressing band first and
@@ -982,6 +1028,168 @@ def runs_with_drafts(rows):
     """How many payroll runs have slips in draft. rows: the draft slips counted by their run, [{"payroll_entry",
     "count"}]; a slip made by hand, on no run, is its own."""
     return sum(1 if row.get("payroll_entry") else int(_number(row.get("count"))) for row in rows or ())
+
+
+# ── Key figures, against their targets ────────────────────────────────
+# What management reads first (a quarterly board report's figures: head count, churn, the wage bill, overtime, EHS),
+# each against a target: green within it, amber near it, red beyond. (key, label, kind, the tab it is looked into
+# on, picture)
+KPIS = (
+    ("staff", "Staff Against Plan", COUNT, "people", "employees"),
+    ("labour_cost", "Labour Cost", MONEY, "payroll", "payroll"),
+    ("overtime", "Overtime This Period", HOURS, "attendance", "clock"),
+    ("absence", "Absence This Month", PERCENT, "attendance", "attendance"),
+    ("turnover", "Turnover", PERCENT, "tenure", "movement"),
+    ("safety", "Days Since an Incident", COUNT, "relations", "attention"),
+)
+# the targets: (within, near). Staff: percent away from the staffing plan. Labour cost and overtime: percent up on
+# the period before. Absence: percent of the days marked. Turnover: percent of the staff in twelve months. Safety:
+# days since the last incident, at least.
+KPI_TARGETS = {"staff": (2.0, 5.0), "labour_cost": (5.0, 10.0), "overtime": (10.0, 25.0), "absence": (3.0, 5.0),
+               "turnover": (10.0, 15.0), "safety": (30, 7)}
+
+
+def month_before(day):
+    """The same day a month earlier: the month's last day for a month's last, or where it has no such day."""
+    day = _day(day)
+    year, month = (day.year - 1, 12) if day.month == 1 else (day.year, day.month - 1)
+    last = calendar.monthrange(year, month)[1]
+    ends_month = day.day == calendar.monthrange(day.year, day.month)[1]
+    return day.replace(year=year, month=month, day=last if ends_month else min(day.day, last))
+
+
+def band_within(measure, within, near):
+    """Green within the target, amber near it, red beyond: where less is better."""
+    return GOOD if measure <= within else TODAY if measure <= near else OVERDUE
+
+
+def _percent_up(now, before):
+    """How far up a figure is on the one before, in percent; None where there was nothing before."""
+    now, before = _number(now), _number(before)
+    return round(100.0 * (now - before) / before, 1) if before else None
+
+
+def _figure(value):
+    """A number as a note says it: whole where it is whole, else to a tenth, its thousands apart."""
+    value = round(_number(value), 1)
+    return format(int(value), ",") if value == int(value) else format(value, ",.1f")
+
+
+def _moved_words(up, against, first):
+    """How a figure moved on the one before; `first` is said where there was none before."""
+    if up is None:
+        return first
+    if not up:
+        return "The same as %s" % against
+    return "%s %s%% on %s" % ("Up" if up > 0 else "Down", _figure(abs(up)), against)
+
+
+def kpis(facts, money=False):
+    """The key figures as tiles: [{"key", "label", "kind", "icon", "tab", "value", "note", "band"}, and "text"
+    where words say it better than a number]. facts: {"staff", "planned", "gross", "gross_before", "overtime",
+    "overtime_before", "present", "absent", "turnover" (home_panels_rules.movement's), "incident_days", "filled"
+    (the staff in the plan's posts, all of them where it is not given)}; a fact
+    not given (the user may not read it) leaves its tile out; labour cost only for those shown money."""
+    out = []
+
+    def tile(key, value, note, band, text=None):
+        _key, label, kind, tab, icon = next(one for one in KPIS if one[0] == key)
+        row = {"key": key, "label": label, "kind": kind, "icon": icon, "tab": tab, "value": _number(value), "note": note,
+               "band": band}
+        if text is not None:
+            row["text"] = text
+        out.append(row)
+
+    if facts.get("staff") is not None:
+        staff, planned = int(_number(facts["staff"])), int(_number(facts.get("planned")))
+        if planned > 0:
+            # the staff in the plan's own posts, where the plan is for some of them only
+            filled = staff if facts.get("filled") is None else int(_number(facts["filled"]))
+            gap = filled - planned
+            away = round(100.0 * abs(gap) / planned, 1)
+            if filled != staff:
+                # said of the plan's posts, under a figure of everybody
+                words = "%s of the plan's %s posts filled" % (format(filled, ","), format(planned, ","))
+            else:
+                words = "On plan" if not gap else "%s %s the plan of %s" % (
+                    format(abs(gap), ","), "over" if gap > 0 else "under", format(planned, ","))
+            # over the plan is cost not budgeted for; under it is posts to fill
+            band = GOOD if away <= KPI_TARGETS["staff"][0] else (
+                OVERDUE if gap > 0 and away > KPI_TARGETS["staff"][1] else TODAY)
+            tile("staff", staff, words, band)
+        else:
+            tile("staff", staff, "No staffing plan to compare with", NONE)
+    if money and facts.get("gross") is not None:
+        up = _percent_up(facts["gross"], facts.get("gross_before"))
+        tile("labour_cost", facts["gross"], _moved_words(up, "the period before", "The first period paid"),
+             NONE if up is None else band_within(up, *KPI_TARGETS["labour_cost"]))
+    if facts.get("overtime") is not None:
+        up = _percent_up(facts["overtime"], facts.get("overtime_before"))
+        tile("overtime", facts["overtime"], _moved_words(up, "the same days last period",
+                                                         "None in the same days last period"),
+             NONE if up is None else band_within(up, *KPI_TARGETS["overtime"]))
+    if facts.get("present") is not None:
+        absent, marked = int(_number(facts.get("absent"))), int(_number(facts.get("absent")) + _number(facts["present"]))
+        if marked:
+            rate = round(100.0 * absent / marked, 1)
+            tile("absence", rate, "%s of %s days marked · target %g%% or less" % (
+                format(absent, ","), format(marked, ","), KPI_TARGETS["absence"][0]),
+                band_within(rate, *KPI_TARGETS["absence"]))
+        else:
+            tile("absence", 0, "No attendance marked this month", NONE, text="None marked")
+    turnover = facts.get("turnover")
+    if turnover:
+        leavers, since = int(_number(turnover.get("leavers"))), turnover.get("since")
+        if since and not leavers:
+            tile("turnover", 0, "No leaver recorded yet", NONE, text="From %s" % since)
+        else:
+            rate = _number(turnover.get("rate"))
+            tile("turnover", rate, "%s left %s · target %g%% or less" % (
+                format(leavers, ","), "since %s" % since if since else "in 12 months", KPI_TARGETS["turnover"][0]),
+                band_within(rate, *KPI_TARGETS["turnover"]))
+    if "incident_days" in facts:
+        days = facts["incident_days"]
+        if days is None:
+            tile("safety", 0, "No incident recorded", GOOD, text="None")
+        else:
+            good, near = KPI_TARGETS["safety"]
+            tile("safety", days, "Target %d days or more" % good,
+                 GOOD if days >= good else TODAY if days >= near else OVERDUE)
+    return out
+
+
+# ── The casuals' week ─────────────────────────────────────────────────
+def casual_week(facts):
+    """The weekly casual payroll before it is run, as rows: (rows, note). facts: {"start", "end", "last" (the last
+    weekly payroll's End), "with_days", "hours", "with_overtime", "overtime_hours", "no_rate" [names], "piece_waiting",
+    "piece_staff", "drafts"}. Each row: {"key", "label", "note", "value", "band", and "names" where it opens on
+    people}."""
+    rows = []
+    end = _day(facts.get("end"))
+    if end:
+        days = "Up to %s %s" % (end.day, MONTHS[end.month - 1])
+        if facts.get("with_days"):
+            rows.append({"key": "days", "label": "Casuals with days to pay", "value": int(facts["with_days"]), "band": GOOD,
+                         "note": "%s hours. %s" % (_figure(facts.get("hours")), days)})
+        if facts.get("with_overtime"):
+            rows.append({"key": "overtime", "label": "With approved overtime to pay", "value": int(facts["with_overtime"]),
+                         "band": GOOD, "note": "%s hours" % _figure(facts.get("overtime_hours"))})
+        if facts.get("no_rate"):
+            rows.append({"key": "no_rate", "label": "Left out, no hourly rate", "value": len(facts["no_rate"]),
+                         "band": OVERDUE, "note": "Give each an Hourly Rate", "names": sorted(facts["no_rate"])})
+        if facts.get("piece_waiting"):
+            rows.append({"key": "pieces", "label": "Per Piece casuals with pay uploaded",
+                         "value": int(facts["piece_waiting"]), "band": GOOD, "note": "From their weekly sheet"})
+        elif facts.get("piece_staff"):
+            rows.append({"key": "no_sheet", "label": "Per Piece sheet not uploaded", "value": int(facts["piece_staff"]),
+                         "band": TODAY, "note": "Upload it on the weekly Payroll Entry"})
+    if facts.get("drafts"):
+        rows.append({"key": "drafts", "label": "Weekly payroll in draft" if facts["drafts"] == 1
+                     else "Weekly payrolls in draft", "value": int(facts["drafts"]), "band": TODAY,
+                     "note": "Not submitted yet"})
+    last = _day(facts.get("last"))
+    note = "Last paid up to %s %s" % (last.day, MONTHS[last.month - 1]) if last else "No weekly payroll yet"
+    return rows, note
 
 
 def badges(rows):

@@ -156,15 +156,30 @@ list down the left.
   Performance, Training, Relations and Tenure. Each shows to the roles it
   is for (Payroll only to those who see money), and only where the user may
   read the documents it is drawn from. **Theme Settings → Dashboard Tabs**
-  switches each off for everybody. A module's tab has four figures, Needs
-  Attention, its charts and lists, and the reports and pages for a closer
-  look. Each figure, bar, part of a ring, month and row opens the documents
-  it counts, on the same filters.
+  switches each off for everybody. A module's tab has four figures
+  (Attendance has six, laid three and three), Needs Attention, its charts
+  and lists, and the reports and pages for a closer look. Each figure, bar,
+  part of a ring, month and row opens the documents it counts, on the same
+  filters.
   - *Overview* is the home as it was. Payroll Readiness sits on top from
     the 18th to the 25th, and Plants at a Glance stands where Today stood
     on HR's desk. Needs Attention gathers every tab's checks, each naming
     its module. The count on a tab is how many need attention there, in the
     colour of the most pressing.
+  - *Key Figures* (HR and management) opens the overview, under Payroll
+    Readiness in its week. Six figures, each against a target
+    (`dashboards_rules.KPI_TARGETS`): the staff against the staffing plan
+    in force, the period's labour cost and overtime against the one
+    before, the month's absence, turnover over twelve months, and the days
+    since a safety incident. Green is within the target, amber near it,
+    red beyond. A tile opens the tab its figure is looked into on.
+    - A staffing plan is set against the staff in its own designations,
+      and its own department where it has one, so a plan for some of the
+      posts is not compared with everybody.
+    - The labour cost is every slip that ended in the period, the casuals'
+      weekly slips too. It is shown only to those shown money.
+    - Where a number would mislead, the tile says so in words. Records
+      younger than a year give "From Oct 2026", not a turnover of 0%.
   - *Needs Attention* counts 48 checks: what waits for a decision, what is
     late, and what falls due this week. A document with no date is never
     counted late. For `<` on a date, Frappe v16 reads an empty date as the
@@ -179,6 +194,19 @@ list down the left.
     - *Plants at a Glance* shows each plant's people in, late, absent and
       on leave today, a clock that has sent nothing today, and the approved
       overtime this period.
+    - *Casual Payroll This Week* (Payroll; HR Manager, Payroll Officer)
+      reads the next weekly payroll as the payroll itself will, before it
+      is run: the casuals with days and with approved overtime to pay,
+      those who would be left out for want of an Hourly Rate (the row
+      opens them), whether the Per Piece sheet is uploaded, and a weekly
+      payroll left in draft. A company with no casuals has no such panel.
+    - *Deductions Last Period* (Payroll) sums the lines the latest monthly
+      period took off: PAYE, the NSSF's two shares and the rest, a foreign
+      currency slip's at its exchange rate. A line worked out only to work
+      another out is left out.
+    - *The pay figures read the monthly payroll's slips.* A casual's
+      weekly slip is not a pay period, so it never becomes "the latest
+      period" on Gross Pay, Net Pay, Employees Paid or pay by department.
     - *Output and Labour Cost* (Payroll) shows metres, pieces, output pay
       and overtime by plant, against the same days of the last period.
       Money goes only to the HR Manager, the Payroll Officer, the General

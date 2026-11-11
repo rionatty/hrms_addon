@@ -1189,7 +1189,8 @@ if len(officer) != 1 or not all(officer[0].get(key) for key in ("read", "report"
     fail.append("the Payroll Officer reads the overtime requests, to report on them, and changes none: %s" % officer)
 payroll_tab = read("hrms_addon", "hrms_addon", "dashboards_rules.py")
 if '"reports": ("Salary Register", "Overtime Register", "Bank Remittance",' not in payroll_tab \
-        or '"panels": ("attention", "payroll", "payroll_trend", "output", "gross_by_department", "overtime_by_plant"),' \
+        or '"panels": ("attention", "payroll", "casual_week", "deductions", "payroll_trend", "output", ' \
+        '"gross_by_department",' not in payroll_tab or '                   "overtime_by_plant"),' \
         not in payroll_tab or '"Overtime Register": "Overtime Request",' not in payroll_tab:
     fail.append("the Payroll tab offers the Overtime Register and shows the period's overtime by plant")
 print("the Overtime Register: by date, paid only once sent, the filters, on the Payroll tab")

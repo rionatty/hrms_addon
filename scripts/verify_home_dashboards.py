@@ -144,8 +144,9 @@ check(all(key in DR.CARDS for tab in DR.TABS for key in tab["cards"])
       "every figure and panel a tab names is declared or read")
 check(all(name in DR.REPORT_DOCTYPES for tab in DR.TABS for name in tab["reports"]),
       "every report offered says what it is about")
-check(all(tab["panels"][0] == "attention" for tab in DR.TABS) and all(len(tab["cards"]) == 4 for tab in DR.TABS),
-      "each tab opens with four figures and what needs attention in it")
+check(all(tab["panels"][0] == "attention" for tab in DR.TABS) and all(len(tab["cards"]) in (4, 6) for tab in DR.TABS)
+      and [tab["key"] for tab in DR.TABS if len(tab["cards"]) == 6] == ["attendance"],
+      "each tab opens with four figures and what needs attention in it; Attendance with six, three and three")
 check(all(set(group) <= set(DR.PEOPLE_ROLES) | set(DR.PAYROLL_ROLES) for group in (tab["roles"] for tab in DR.TABS)),
       "a tab is only ever HR's, management's or the payroll's")
 everybody = EVERYTHING
@@ -209,7 +210,7 @@ check(quiet and all("attention" not in panels for _key, panels in quiet),
 own_money = sorted(re.findall(r"def panel_(\w+)\(self\):(?:(?!\n    def ).)*?\"money\": 1", read("hrms_addon", "hrms_addon",
                                                                                               "dashboards.py"), re.S))
 declared_money = sorted(key for key, spec in list(DR.GROUPS.items()) + list(DR.MONTHLY.items()) if spec.get("money"))
-check(own_money == ["gross_by_department"] and declared_money
+check(own_money == ["deductions", "gross_by_department"] and declared_money
       and all(DR.PANELS[key][5] and DR.PANELS[key][4] in (None, DR.MONEY_ROLES) for key in own_money + declared_money)
       and all(DR.PANELS[key][4] == DR.MONEY_ROLES for key in own_money),
       "every panel of money is flagged as money: %s, %s" % (own_money, declared_money))
@@ -300,28 +301,136 @@ print("attention: each check on its tab, the most pressing first, counted on the
 # ── 3. The overview ───────────────────────────────────────────────────
 mine = keys_of(hr)[1:]
 on = DR.overview_places(["HR Manager"], DR.HR_VIEW, D(2026, 10, 20), mine, everybody)
-check([(item["key"], item["place"]) for item in on] == [("payroll", "top"), ("plants", "sections"), ("attention", "row"),
-                                                        ("deadlines", "row")],
-      "HR's overview in the payroll's week: its steps on top, the plants in Today's place, what needs attention and "
-      "the deadlines in the rows: %s" % [(item["key"], item["place"]) for item in on])
+check([(item["key"], item["place"]) for item in on] == [("payroll", "top"), ("kpis", "top"), ("plants", "sections"),
+                                                        ("attention", "row"), ("deadlines", "row")],
+      "HR's overview in the payroll's week: its steps on top, the key figures under them, the plants in "
+      "Today's place, what needs attention and the deadlines in the rows: %s"
+      % [(item["key"], item["place"]) for item in on])
 off = DR.overview_places(["HR Manager"], DR.HR_VIEW, D(2026, 10, 5), mine, everybody)
 check("payroll" not in [item["key"] for item in off], "outside its week Payroll Readiness is on its tab only")
 gm = DR.overview_places(["General Manager"], "staff", D(2026, 10, 20), keys_of(tabs_of(["General Manager"]))[1:], everybody)
-check([(item["key"], item["place"]) for item in gm] == [("plants", "row"), ("attention", "row")],
-      "management's overview: the plants in the rows, what needs attention, no steps, no deadlines: %s"
+check([(item["key"], item["place"]) for item in gm] == [("kpis", "top"), ("plants", "row"), ("attention", "row")],
+      "management's overview: the key figures, the plants in the rows, what needs attention, no steps, no "
+      "deadlines: %s"
       % [(item["key"], item["place"]) for item in gm])
 check(DR.overview_places(["Employee"], "staff", D(2026, 10, 20), [], everybody) == [],
       "an employee's overview has none of them")
 without = DR.overview_places(["HR Manager"], DR.HR_VIEW, D(2026, 10, 20),
                              [key for key in mine if key not in ("attendance", "payroll", "tenure")], everybody)
-check([item["key"] for item in without] == ["attention"],
+check([item["key"] for item in without] == ["kpis", "attention"],
       "a tab switched off takes its panels off the overview too: the plants with Attendance, the steps with Payroll, "
-      "the deadlines with Tenure: %s" % [item["key"] for item in without])
+      "the deadlines with Tenure; the key figures are no tab's: %s" % [item["key"] for item in without])
 check([DR.payroll_on_top(D(2026, 10, day)) for day in (17, 18, 25, 26)] == [False, True, True, False],
       "Payroll Readiness on top from the 18th to the 25th, both days in")
 check(DR.HR_VIEW == H.HR and all(item.get("title") and item.get("icon") for item in on),
       "HR's desk is the home's own HR view, and each panel comes with its name and picture")
 print("overview: the payroll's steps in their week, the plants, what needs attention, the deadlines")
+
+# ── 3b. The key figures and the casuals' week (11 Nov 2026) ───────────
+FACTS = {"staff": 2117, "planned": 2150, "gross": 1300.0, "gross_before": 1000.0, "overtime": 110.0,
+         "overtime_before": 100.0, "present": 970, "absent": 30,
+         "turnover": {"leavers": 0, "rate": 0.0, "headcount": 2117, "since": "Oct 2026"}, "incident_days": 12}
+tiles = {row["key"]: row for row in DR.kpis(FACTS, money=True)}
+check(list(tiles) == [one[0] for one in DR.KPIS] == ["staff", "labour_cost", "overtime", "absence", "turnover", "safety"],
+      "the key figures in the board report's order: the staff, their cost, overtime, absence, turnover, safety")
+check([(tiles[key]["value"], tiles[key]["note"], tiles[key]["band"]) for key in ("staff", "labour_cost", "overtime")] == [
+    (2117, "33 under the plan of 2,150", "good"), (1300.0, "Up 30% on the period before", "overdue"),
+    (110.0, "Up 10% on the same days last period", "good")],
+      "the staff within two in a hundred of the plan are on it; pay up thirty in a hundred is red, overtime up ten is "
+      "within its target: %s" % [(tiles[key]["note"], tiles[key]["band"]) for key in ("staff", "labour_cost", "overtime")])
+check((tiles["absence"]["value"], tiles["absence"]["note"], tiles["absence"]["band"])
+      == (3.0, "30 of 1,000 days marked · target 3% or less", "good")
+      and (tiles["turnover"].get("text"), tiles["turnover"]["note"], tiles["turnover"]["band"])
+      == ("From Oct 2026", "No leaver recorded yet", "none")
+      and (tiles["safety"]["value"], tiles["safety"]["note"], tiles["safety"]["band"]) == (12, "Target 30 days or more", "today"),
+      "absence is of the days marked; records younger than a year say since when, not a turnover of nothing; twelve "
+      "days since an incident is short of thirty")
+check(all(row["tab"] in DR.TAB_KEYS and row["label"] and row["icon"] for row in tiles.values())
+      and [row["kind"] for row in tiles.values()] == ["count", "money", "hours", "percent", "percent", "count"],
+      "each tile names the tab it is looked into on, and what sort of figure it is")
+check("labour_cost" not in [row["key"] for row in DR.kpis(FACTS, money=False)] and DR.kpis({}, True) == []
+      and [row["key"] for row in DR.kpis({"present": 0, "absent": 0, "incident_days": None}, True)] == ["absence", "safety"],
+      "the cost only for those shown money; a fact the user may not read leaves its tile out")
+part = {row["key"]: row for row in DR.kpis({"present": 0, "absent": 0, "incident_days": None, "staff": 5}, True)}
+check((part["absence"]["text"], part["absence"]["band"]) == ("None marked", "none")
+      and (part["safety"]["text"], part["safety"]["note"], part["safety"]["band"]) == ("None", "No incident recorded", "good")
+      and (part["staff"]["note"], part["staff"]["band"]) == ("No staffing plan to compare with", "none"),
+      "a month with nothing marked, a site with no incident and no staffing plan say so, in no colour of alarm")
+plan = lambda filled, planned=150: DR.kpis({"staff": 2117, "planned": planned, "filled": filled}, True)[0]  # noqa: E731
+check([(plan(filled)["value"], plan(filled)["note"], plan(filled)["band"]) for filled in (150, 148, 140, 160)] == [
+    (2117, "150 of the plan's 150 posts filled", "good"), (2117, "148 of the plan's 150 posts filled", "good"),
+    (2117, "140 of the plan's 150 posts filled", "today"), (2117, "160 of the plan's 150 posts filled", "overdue")]
+      and [DR.kpis({"staff": 150, "planned": 150 + gap, "filled": 150}, True)[0]["note"] for gap in (0, 10, -10)]
+      == ["On plan", "10 under the plan of 160", "10 over the plan of 140"],
+      "a plan for some of the posts is set against the staff in those posts, not everybody, and said of those posts; "
+      "under it is posts to fill, amber; over it is cost nobody planned, red; a plan for everybody is said as over or "
+      "under: %s" % [plan(filled)["note"] for filled in (150, 148, 140, 160)])
+first = {row["key"]: row for row in DR.kpis({"gross": 500.0, "gross_before": None, "overtime": 8, "overtime_before": 0}, True)}
+check((first["labour_cost"]["note"], first["labour_cost"]["band"]) == ("The first period paid", "none")
+      and (first["overtime"]["note"], first["overtime"]["band"]) == ("None in the same days last period", "none"),
+      "with nothing before it a figure says so, and is not called up or down")
+down = {row["key"]: row for row in DR.kpis({"gross": 950.0, "gross_before": 1000.0, "overtime": 100, "overtime_before": 100,
+                                           "turnover": {"leavers": 5, "rate": 12.0, "since": None}}, True)}
+check((down["labour_cost"]["note"], down["labour_cost"]["band"]) == ("Down 5% on the period before", "good")
+      and down["overtime"]["note"] == "The same as the same days last period"
+      and (down["turnover"]["value"], down["turnover"]["note"], down["turnover"]["band"])
+      == (12.0, "5 left in 12 months · target 10% or less", "today"),
+      "down is within any target; a turnover over ten in a hundred is amber, over fifteen red")
+check([DR.band_within(measure, 3.0, 5.0) for measure in (3.0, 3.1, 5.0, 5.1)] == ["good", "today", "today", "overdue"]
+      and set(DR.KPI_TARGETS) == {one[0] for one in DR.KPIS},
+      "green up to the target, amber up to the next mark, red beyond; a target for each figure")
+check([DR.month_before(day) for day in (D(2026, 10, 25), D(2026, 1, 25), D(2026, 3, 30), D(2026, 3, 31), D(2026, 2, 28))]
+      == [D(2026, 9, 25), D(2025, 12, 25), D(2026, 2, 28), D(2026, 2, 28), D(2026, 1, 31)],
+      "a month back from a period's last day: the 25th from the 25th, a month's last from a month's last")
+check(DR._figure(20500.5) == "20,500.5" and DR._figure(1234567.0) == "1,234,567" and DR._figure(7.04) == "7",
+      "a number in a note has its thousands apart and a tenth only where it is not whole")
+WEEK = {"start": D(2026, 11, 5), "end": D(2026, 11, 11), "last": D(2026, 11, 4), "with_days": 431, "hours": 20500.5,
+        "with_overtime": 40, "overtime_hours": 120.0, "no_rate": ["C2", "C1"], "piece_waiting": 0, "piece_staff": 28,
+        "drafts": 1}
+week, said = DR.casual_week(WEEK)
+check([(row["key"], row["value"], row["band"]) for row in week] == [
+    ("days", 431, "good"), ("overtime", 40, "good"), ("no_rate", 2, "overdue"), ("no_sheet", 28, "today"),
+    ("drafts", 1, "today")] and said == "Last paid up to 4 Nov",
+      "the casuals' week before it is run: who has days and overtime to pay, who would be left out for want of a "
+      "rate, the piece sheet not yet uploaded, the run in draft: %s" % [(row["key"], row["value"]) for row in week])
+check(week[0]["note"] == "20,500.5 hours. Up to 11 Nov" and week[1]["note"] == "120 hours"
+      and week[2]["names"] == ["C1", "C2"] and all("names" not in row for row in week if row["key"] != "no_rate")
+      and week[4]["label"] == "Weekly payroll in draft",
+      "the hours said, and those with no rate named so that their list can be opened")
+uploaded, _said = DR.casual_week(dict(WEEK, piece_waiting=27, drafts=2, no_rate=[]))
+check([row["key"] for row in uploaded] == ["days", "overtime", "pieces", "drafts"] and uploaded[2]["value"] == 27
+      and uploaded[3]["label"] == "Weekly payrolls in draft",
+      "once the sheet is uploaded the row counts those it pays, and nobody is left out")
+check(DR.casual_week({"end": None, "last": None, "piece_staff": 28, "drafts": 0}) == ([], "No weekly payroll yet")
+      and [row["key"] for row in DR.casual_week({"end": None, "last": D(2026, 11, 4), "drafts": 1})[0]] == ["drafts"],
+      "with no attendance since the last payroll there is nothing to pay yet, and only a run left in draft is said")
+check(DR.OVERVIEW_PANELS[:2] == (("payroll", DR.TOP, "payroll"), ("kpis", DR.TOP, None)) and DR.PANELS["kpis"][1] == DR.WIDE
+      and DR.PANELS["kpis"][4] == DR.PEOPLE_ROLES and not DR.PANELS["kpis"][5]
+      and {needs[0] for needs in DR.PANELS["kpis"][2]} == {"Employee", "Attendance", "Salary Slip", "Overtime Request",
+                                                          "Safety Incident", "Staffing Plan"},
+      "the key figures open the overview, under the payroll's steps in their week, across it, for HR and management, "
+      "whichever of their records one may read")
+payroll_tab = next(tab for tab in DR.TABS if tab["key"] == "payroll")
+check(payroll_tab["panels"][:4] == ("attention", "payroll", "casual_week", "deductions")
+      and DR.PANELS["casual_week"][4] == DR.PAYROLL_ROLES and DR.PANELS["casual_week"][2] == (("Payroll Entry", "Employee"),)
+      and DR.PANELS["deductions"][4] == DR.MONEY_ROLES and DR.PANELS["deductions"][5],
+      "the casuals' week under the payroll's steps, for those who run it, beside the deductions, for those shown money")
+attendance_tab = next(tab for tab in DR.TABS if tab["key"] == "attendance")
+check(attendance_tab["cards"] == ("present_today", "absent_today", "unmarked_today", "absence_month", "overtime_hours",
+                                  "overtime_waiting")
+      and DR.CARDS["absence_month"][1] == DR.PERCENT and DR.CARDS["unmarked_today"][1] == DR.COUNT
+      and DR.CARDS["unmarked_today"][2] == ("Attendance", "Employee"),
+      "Attendance says who nobody has marked today, and the month's absence as a rate")
+check(DR.FIGURES["claims_waiting"]["late"] == {"posting_date": ["between", [DR.EVER, "{ago7}"]]}
+      and DR.FIGURES["claims_waiting"]["late_words"] == "waiting over a week",
+      "a claim waiting over a week is said so on its figure")
+check(DR.GROUPS["pay_categories"]["by"] == "custom_pay_category" and DR.GROUPS["pay_categories"]["none"] == "Regular"
+      and DR.GROUPS["claims_by_department"].get("money") and DR.GROUPS["incidents_by_plant"]["by"] == "branch"
+      and DR.LISTS["settlements_waiting_list"]["filters"]["docstatus"] == 0
+      and "Unpaid Expense Claim" in next(tab for tab in DR.TABS if tab["key"] == "expenses")["reports"],
+      "the staff by how each is paid, the year's claims by department, its incidents by plant, the settlements "
+      "waiting longest, and the unpaid claims' report")
+print("key figures: each against its target, in words where a number would mislead; the casuals' week before it is run")
 
 # ── 4. The days and the rows ──────────────────────────────────────────
 check(DAYS["{today}"] == "2026-10-27" and DAYS["{yesterday}"] == "2026-10-26" and DAYS["{week}"] == "2026-11-03"
@@ -465,9 +574,47 @@ check(len(re.findall(r"@frappe\.whitelist", glue)) == 1 and "@frappe.whitelist()
       "one whitelisted call, of the user's own figures")
 check("ignore_permissions" not in glue and "frappe.db.sql" not in glue, "nothing is read past the user's permissions")
 everything_read = set(re.findall(r"frappe\.get_all\(\s*\"([\w ]+)\"", glue))
-check(everything_read <= {"DocType", "Report", "Employee Document"},
+check(everything_read <= {"DocType", "Report", "Employee Document", "Salary Detail", "Staffing Plan Detail"}
+      and '"parent": ["in", slips]' in glue.split("def panel_deductions(")[1].split("\n    def ")[0]
+      and '"parent": plan.name' in glue.split("def _planned(")[1].split("\n    def ")[0],
       "frappe.get_all reads only the doctypes, the reports and the rows of records read with the user's "
       "permissions: %s" % everything_read)
+method = lambda name: glue.split("    def %s(" % name)[1].split("\n    def ")[0]  # noqa: E731
+check('return self.mine(docstatus=1, payroll_frequency=["!=", "Weekly"], **filters)' in method("monthly")
+      and "filters=self.monthly()" in method("periods") and "limit_page_length=3" in method("periods")
+      and all("self.monthly(end_date=str(end))" in method(name) for name in ("_paid", "card_paid_people",
+                                                                            "panel_gross_by_department", "panel_deductions")),
+      "the pay figures, the people paid, the pay by department and the deductions read the monthly payroll's slips: "
+      "a casual's week is no pay period")
+check("after = ends[at + 1] if len(ends) > at + 1 else rules.month_before(ends[at])" in method("labour_cost")
+      and 'end_date=["between", [str(add_days(after, 1)), str(ends[at])]]' in method("labour_cost")
+      and "self.mine(\n                docstatus=1, end_date=" in method("labour_cost"),
+      "a period's labour cost is every slip that ended in it, the casuals' weeks too, from the day after the one "
+      "before ended")
+check('"statistical_component": 0' in method("panel_deductions") and '"parentfield": "deductions"' in method("panel_deductions")
+      and 'rules._number(line.get("total")) * rate' in method("panel_deductions")
+      and 'frappe.get_list("Salary Slip", filters=window, fields=["name", "exchange_rate"]' in method("panel_deductions"),
+      "the deductions are the lines of slips the user may read, each at its slip's rate, none worked out only to work "
+      "another out")
+week_read = method("panel_casual_week")
+check("if not self.company:\n            return None" in week_read
+      and 'frappe.get_list("Employee", filters=self.mine(' in week_read
+      and "weekly_pay.days_to_pay(weekly, start, end, self.company)" in week_read
+      and "weekly_pay.overtime_due(weekly, start, end, self.company)" in week_read
+      and "piece_pay.waiting(pieces, start, end)" in week_read and "weekly_pay_rules.unrated(table, rates)" in week_read
+      and "if not people and not rows and not last:" in week_read,
+      "the casuals' week is read as the weekly payroll reads it, for the casuals the user may see, and is no panel "
+      "where there are none")
+check('if self.money and "Salary Slip" in self.readable:' in method("panel_kpis")
+      and all('if "%s" in self.readable:' % doctype in method("panel_kpis")
+              for doctype in ("Employee", "Staffing Plan", "Overtime Request", "Attendance", "Safety Incident"))
+      and 'count("Employee", self.mine(status=["in", list(rules.STAFF)]))' in method("panel_kpis")
+      and "home_panels_rules.same_days_before(start, self.today)" in method("panel_kpis"),
+      "each key figure is read only by one who may read its records, the cost only by one shown money; overtime "
+      "against the same days of the last period")
+check('count("Employee", self.mine(status="Active"))' in method("card_unmarked_today")
+      and 'rules.KPI_TARGETS["absence"]' in method("card_absence_month"),
+      "nobody waits at the clock for the suspended; the month's absence is coloured by the key figure's own target")
 figures = glue.split("def figures(")[1].split("\ndef ")[0]
 check("tab = next((one for one in tabs if one[\"key\"] == part), None)" in figures
       and 'return {"part": part, "cards": [], "panels": []}' in figures,
@@ -580,6 +727,18 @@ bare = [expr for expr in values if not (expr.startswith(("esc(", "count(", "icon
 check(len(values) >= 40 and not bare, "every value from the server is escaped, or written as a number, a picture or a "
       "class it names (%d looked at): %s" % (len(values), bare[:4]))
 css = script.split("const CSS = `")[1].split("`;")[0]
+tiles_code = script.split("function kpis_body(")[1].split("\n\t}\n")[0]
+check("kpis: kpis_body," in script and 'row.tab && tab_of(row.tab)' in tiles_code and "`disabled>`" in tiles_code
+      and 'all.length > 5 ? " ha-home-kpi-six" : ""' in tiles_code and 'row.text != null ? " ha-home-card-words" : ""' in tiles_code
+      and 'row.text != null\n\t\t\t\t? __(row.text)' in tiles_code,
+      "the key figures are drawn as tiles: one opens its tab where the viewer has it, six are laid three and three, "
+      "a figure in words is written as words")
+check(".ha-home .ha-home-kpi-tiles.ha-home-kpi-six { grid-template-columns: repeat(3, minmax(0, 1fr)); }" in css
+      and ".ha-home-cards.ha-home-cards-many { grid-template-columns: repeat(3, minmax(0, 1fr)); }" in css
+      and 'all.length > 4 ? " ha-home-cards-many" : ""' in script
+      and ".ha-home-cards, .ha-home-cards.ha-home-cards-many, .ha-home .ha-home-kpi-tiles, .ha-home .ha-home-kpi-tiles."
+      "ha-home-kpi-six { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }" in css,
+      "six figures or tiles are three and three, two across on a phone")
 check(all("--ha-slice-%d: var(--hra-" % index in css for index in range(7)) and "--ha-slice-rest: var(--hra-ink-muted" in css
       and "const SLICES = 7;" in script and "var(--ha-slice-rest)" in script,
       "a ring's parts in the theme's own colours, the rest in its quiet gray")
