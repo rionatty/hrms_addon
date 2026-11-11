@@ -1571,6 +1571,9 @@ fixtures = [
                 "name",
                 "in",
                 [
+                    # the casuals' Overtime Type is imported (piece_pay/weekly_pay setup): Frappe HR's
+                    # own may not be on every site
+                    "Overtime Type-main-allow_import",
                     "Job Requisition-designation-label",
                     "Job Requisition-no_of_positions-label",
                     "Job Requisition-description-label",

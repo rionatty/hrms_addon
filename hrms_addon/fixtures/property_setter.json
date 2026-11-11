@@ -947,5 +947,15 @@
   "value": "1",
   "name": "Employee-status-hidden",
   "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
+  "name": "Overtime Type-main-allow_import",
+  "doc_type": "Overtime Type",
+  "doctype_or_field": "DocType",
+  "property": "allow_import",
+  "property_type": "Check",
+  "value": "1",
+  "module": "HRMS Addon"
  }
 ]

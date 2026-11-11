@@ -1270,6 +1270,14 @@ else:
 check(granted == [{"Overtime Type": {"System Manager": ("import",), "HR Manager": ("import",)}}]
       and "hrms_addon.patches.v1_0.overtime_type_import" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1],
       "the HR Manager and the System Manager may import Overtime Types, as Administrator alone could", granted)
+setters = {row["name"]: row for row in json.load(open(os.path.join(PACKAGE, "fixtures", "property_setter.json"),
+                                                     encoding="utf-8"))}
+allow = setters.get("Overtime Type-main-allow_import") or {}
+check((allow.get("doc_type"), allow.get("doctype_or_field"), allow.get("property"), allow.get("value"))
+      == ("Overtime Type", "DocType", "allow_import", "1")
+      and '"Overtime Type-main-allow_import",' in read("hrms_addon", "hooks.py"),
+      "and Overtime Type allows import on every site, Data Import refusing it otherwise: a Property Setter the "
+      "fixtures sync", allow)
 chain = [("Salary Slip-custom_weekly_section", "Section Break", "base_hour_rate"),
          ("Salary Slip-custom_weekly_hours", "Float", "custom_weekly_section"),
          ("Salary Slip-custom_weekly_rate", "Currency", "custom_weekly_hours"),

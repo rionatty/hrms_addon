@@ -70,8 +70,9 @@ DOCFIELD_PROPERTIES = {
 }
 # autoname: a document of Frappe HR's numbered Luuka's way (Employee
 # Grievance, LPL-GRV-YYYY-); customize_form.py doctype_properties has it
+# a subset of Frappe's own (custom/doctype/customize_form/customize_form.py doctype_properties), with its types
 DOCTYPE_PROPERTIES = {"field_order": "Data", "search_fields": "Data", "default_print_format": "Data",
-                      "autoname": "Data"}
+                      "autoname": "Data", "allow_import": "Check"}
 # Created at runtime by the Workflow (frappe/workflow/doctype/workflow), not
 # by these fixtures, but legitimately named in a field_order.
 RUNTIME_FIELDS = {"Job Requisition": {"workflow_state"}, "Employee Onboarding": {"workflow_state"}}
