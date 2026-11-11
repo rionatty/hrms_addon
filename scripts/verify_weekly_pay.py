@@ -1211,6 +1211,42 @@ check(sorted((row.employee, row.rate, row.from_date) for row in moved_site.rows(
       "the patch moves each rate on an employee to an Hourly Rate from the day they joined, once, and takes the "
       "field off the employee", (sorted((row.employee, row.rate, row.from_date) for row in moved_site.rows("Hourly Rate")),
                                   deleted))
+
+# the deploy makes each company's weekly structure, its Casual Overtime line and earning, so they are there to see
+ready_site = Site()
+for name, company, category in (("C1", "LPL", "Weekly"), ("C2", "LPL", "Per Piece"), ("C3", "OTHER", "Weekly"),
+                                 ("C4", "BROKEN", "Weekly"), ("M1", "STAFF", "Regular")):
+    ready_site.add("Employee", name=name, company=company, custom_pay_category=category)
+made_for, logged, rolled = [], [], []
+
+
+def made(company):
+    made_for.append(company)
+    if company == "BROKEN":
+        raise Thrown("Hourly Earnings is cut by payment days")
+    return "Weekly Casuals"
+
+
+ready_frappe = types.SimpleNamespace(
+    db=types.SimpleNamespace(has_column=lambda doctype, column: True, savepoint=lambda name: None,
+                             rollback=lambda save_point=None: rolled.append(save_point)),
+    get_all=ready_site.get_all, log_error=lambda title=None, **kwargs: logged.append(title))
+real_structure_for = W.structure_for
+W.structure_for = made
+sys.modules["frappe"] = ready_frappe
+spec = importlib.util.spec_from_file_location("casual_overtime_ready",
+                                              os.path.join(PACKAGE, "patches", "v1_0", "casual_overtime_ready.py"))
+ready_patch = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ready_patch)
+ready_patch.execute()
+sys.modules["frappe"] = frappe
+W.structure_for = real_structure_for
+check(made_for == ["BROKEN", "LPL", "OTHER"] and logged == ["HRMS Addon: the casuals' weekly structure for BROKEN"]
+      and rolled == ["casual_overtime_ready"],
+      "the deploy makes the weekly structure, with its Casual Overtime line and earning, for each company with casuals, "
+      "once a company; one that cannot be made is logged and undone, and the rest go on", (made_for, logged, rolled))
+check("hrms_addon.patches.v1_0.casual_overtime_ready" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1],
+      "after the doctypes are synced")
 chain = [("Salary Slip-custom_weekly_section", "Section Break", "base_hour_rate"),
          ("Salary Slip-custom_weekly_hours", "Float", "custom_weekly_section"),
          ("Salary Slip-custom_weekly_rate", "Currency", "custom_weekly_hours"),
