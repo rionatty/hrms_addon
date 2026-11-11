@@ -111,7 +111,7 @@ print("names: each sheet's week")
 def sheet_rows(title, people, id_column=False, prices=(200, 180, 170)):
     """A sheet as Luuka lay theirs out: the title, the headings, the prices, a row a person, TOTAL."""
     width = len(prices)
-    head = ["NO."] + (["EMP ID"] if id_column else []) + ["NAME", "NUMBER OF BAGS PACKED"] + [None] * (width - 1) \
+    head = ["NO."] + (["PAYROLL NO"] if id_column else []) + ["NAME", "NUMBER OF BAGS PACKED"] + [None] * (width - 1) \
         + ["AMOUNT PER BAG PACKED"] + [None] * (width - 1) + ["TOTAL AMOUNT", "ARREARS"]
     price_row = [None] * (2 + (1 if id_column else 0)) + list(prices) + list(prices) + [None, None]
     rows = [[title], head, price_row]
@@ -138,19 +138,20 @@ def workbook(sheets):
     return out.getvalue()
 
 
-WEEK1 = [{"name": "TEST PERSON ONE", "bags": {200: 10, 180: 5}, "arrears": 500},
-         {"name": "tester  second.", "bags": {200: 3}},
-         {"name": "THIRD EXAMPLE", "bags": {170: 4}},
+WEEK1 = [{"name": "TEST PERSON ONE", "id": "LPL-001", "bags": {200: 10, 180: 5}, "arrears": 500},
+         {"name": "tester  second.", "id": "E2", "bags": {200: 3}},
+         {"name": "THIRD EXAMPLE", "id": "E3", "bags": {170: 4}},
          {"name": "TWIN NAME", "bags": {200: 1}},
          {"name": "NOBODY KNOWN", "bags": {180: 2}},
-         {"name": "FOURTH SAMPLE", "bags": {200: 2}},
+         {"name": "FOURTH SAMPLE", "id": "E4", "bags": {200: 2}},
          {"name": "", "bags": {}}]
-WEEK2 = [{"name": "Test Person One", "bags": {200: 4}, "total": 900},
-         {"name": "SECOND TESTER", "bags": {180: 2}}]
+WEEK2 = [{"name": "Test Person One", "id": "E1", "bags": {200: 4}, "total": 900},
+         {"name": "SECOND TESTER", "id": "E2", "bags": {180: 2}}]
 CONTENT = workbook([
-    ("22nd-28th-October-2026", sheet_rows("PET PACKAGING 22ND-28TH OCTOBER 2026", WEEK1)),
-    ("29th-Oct-04th-Nov-26", sheet_rows("PET PACKAGING 22ND-28TH OCTOBER 2026", WEEK2)),
-    ("15th-21st-Octoer-2026", sheet_rows("PET PACKAGING", [{"name": "TEST PERSON ONE", "bags": {200: 7}}])),
+    ("22nd-28th-October-2026", sheet_rows("PET PACKAGING 22ND-28TH OCTOBER 2026", WEEK1, id_column=True)),
+    ("29th-Oct-04th-Nov-26", sheet_rows("PET PACKAGING 22ND-28TH OCTOBER 2026", WEEK2, id_column=True)),
+    ("15th-21st-Octoer-2026", sheet_rows("PET PACKAGING", [{"name": "TEST PERSON ONE", "id": "E1", "bags": {200: 7}}],
+                                         id_column=True)),
     ("EXTRA LABOUR", [["EXTRA LABOUR"], ["NAME", "DAYS"], ["CASUAL", 3]]),
 ])
 everything = S.read(CONTENT)
@@ -167,8 +168,8 @@ check(first["prices"] == [200.0, 180.0, 170.0] and [row["name"] for row in first
       [row["name"] for row in first["rows"]])
 row = first["rows"][0]
 check(row["bags"] == {200.0: 10, 180.0: 5, 170.0: None} and row["total"] == 2900.0 and row["arrears"] == 500.0
-      and row["employee_id"] is None,
-      "a row's bags at each price, its total and its arrears", row)
+      and row["employee_id"] == "LPL-001",
+      "a row's employee number, its bags at each price, its total and its arrears", row)
 wanted = S.read(CONTENT, wanted=lambda start, end: D(2026, 10, 22) <= end <= D(2026, 11, 4))
 check([week["sheet"] for week in wanted["weeks"]] == ["22nd-28th-October-2026", "29th-Oct-04th-Nov-26"] and wanted["skipped"] == 1,
       "only the weeks asked for are read; the others are counted", wanted["skipped"])
@@ -207,7 +208,7 @@ RATES = {"BAG 200": [{"work_unit": 190, "valid_from": D(2026, 1, 1)}, {"work_uni
          "BAG 170": [{"work_unit": 170, "valid_from": D(2026, 1, 1)}]}
 PERIOD = (D(2026, 10, 22), D(2026, 11, 4))
 check(O.piece_key("tester  second.") == O.piece_key("SECOND TESTER") == "SECOND TESTER" and O.employee_key(" lpl-007. ") == "LPL-007",
-      "a name is matched whatever its case, spacing, dots or word order; an Employee Id whatever its spacing")
+      "a name is read whatever its case, spacing, dots or word order; an employee number whatever its spacing")
 taken = O.take_pieces(wanted["weeks"], PEOPLE, SIZES, RATES, PERIOD, "PET", ["EXTRA LABOUR"])
 check(taken["work"] == {("E1", D(2026, 10, 28), "BAG 200"): (10.0, 200.0, "'22nd-28th-October-2026', row 4"),
                         ("E1", D(2026, 10, 28), "BAG 180"): (5.0, 180.0, "'22nd-28th-October-2026', row 4"),
@@ -219,14 +220,17 @@ check(taken["arrears"] == {("E1", D(2026, 10, 28)): (500.0, "'22nd-28th-October-
       "the arrears beside a person are paid with their week", taken["arrears"])
 problems = " | ".join(taken["problems"])
 for needle, why in (("Third Example (E3) is paid Weekly, not Per Piece", "a casual paid by the hour is not paid for bags"),
-                    ("TWIN NAME is the name of Twin Name (E5) and Name Twin (E6)", "a name two people share is not guessed"),
-                    ("no employee is called NOBODY KNOWN, so the bags, worth 360, are left out: correct the name on the "
-                     "sheet or on the employee.", "a name that is nobody's is said, with what it was worth"),
+                    ("row 7: TWIN NAME has no employee number, so the bags, worth 200, are left out: put it in the PAYROLL "
+                     "NO column. By name: Twin Name (E5) and Name Twin (E6).",
+                     "a row with no employee number is not paid, however well its name fits (Luuka, 11 Nov 2026: \"use "
+                     "employee number not employee name\"); those its name fits are said, for the number to be put in"),
+                    ("row 8: NOBODY KNOWN has no employee number, so the bags, worth 360, are left out: put it in the "
+                     "PAYROLL NO column.", "and one whose name fits nobody is said, with what it was worth"),
                     ("Fourth Sample (E4) works at BOTTLES, not PET", "another plant's person is left to their own payroll")):
     check(needle in problems, "left out and said: %s" % why, taken["problems"])
 check(len(taken["problems"]) == 4, "and nothing else is left out", taken["problems"])
-check(not any("Closest" in problem for problem in taken["problems"] if "NOBODY KNOWN" in problem),
-      "a name near nobody's names nobody as the closest", taken["problems"])
+check(not any("by name" in problem.lower() for problem in taken["problems"] if "NOBODY KNOWN" in problem),
+      "a name near nobody's names nobody", taken["problems"])
 notes = " | ".join(taken["notes"])
 check("Weeks taken: 22-Oct-2026 to 28-Oct-2026 and 29-Oct-2026 to 04-Nov-2026." in notes
       and "Test Person One's total is 900, but the bags at their prices come to 800, which is what is paid" in notes
@@ -234,7 +238,7 @@ check("Weeks taken: 22-Oct-2026 to 28-Oct-2026 and 29-Oct-2026 to 04-Nov-2026." 
       and "Sheets with no week in their name or title, not read: EXTRA LABOUR." in notes,
       "said beside it: the weeks taken, a total that is not its bags, the arrears paid, the sheets not read", taken["notes"])
 old_price = O.take_pieces([{"sheet": "old", "start": D(2026, 9, 3), "end": D(2026, 9, 9), "prices": [190.0],
-                            "rows": [{"row": 4, "name": "Second Tester", "bags": {190.0: 2}}]}],
+                            "rows": [{"row": 4, "name": "Second Tester", "employee_id": "E2", "bags": {190.0: 2}}]}],
                           PEOPLE, SIZES, RATES, (D(2026, 9, 3), D(2026, 9, 9)), None)
 check(old_price["work"] == {("E2", D(2026, 9, 9), "BAG 200"): (2.0, 190.0, "'old', row 4")} and not old_price["problems"],
       "a price names the category whose Work Unit it was on the week's last day, before the price went up", old_price)
@@ -247,22 +251,37 @@ near = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026, 11
                        "rows": [{"row": 4, "name": "SECOND TESTOR", "bags": {200.0: 1}},
                                 {"row": 5, "name": "THIRD EXAMPEL", "bags": {200.0: 1}}]}],
                      PEOPLE, SIZES, RATES, PERIOD, "PET")
-check(near["work"] == {} and any("no employee is called SECOND TESTOR, so the bags, worth 200, are left out: correct the "
-                                 "name on the sheet or on the employee. Closest: Second Tester (E2)." in problem
+check(near["work"] == {} and any("SECOND TESTOR has no employee number, so the bags, worth 200, are left out: put it in "
+                                 "the PAYROLL NO column. Closest by name: Second Tester (E2)." in problem
                                  for problem in near["problems"])
-      and not any("Closest" in problem for problem in near["problems"] if "THIRD EXAMPEL" in problem),
-      "a name spelt a letter wrong is not guessed: the closest Per Piece casual is named, so the sheet is put right",
-      near["problems"])
+      and not any("by name" in problem for problem in near["problems"] if "THIRD EXAMPEL" in problem)
+      and "'w' has no PAYROLL NO column, so nobody on it is paid: add one with each person's employee number."
+      in near["problems"],
+      "a sheet with no PAYROLL NO column pays nobody, and says so; the closest Per Piece casual to each name is said, "
+      "never taken", near["problems"])
+numbered = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026, 11, 4), "prices": [200.0],
+                           "rows": [{"row": 4, "name": "SECOND TESTOR", "employee_id": "E2", "bags": {200.0: 1}},
+                                    {"row": 5, "name": "SECOND TESTER", "employee_id": "E9", "bags": {200.0: 2}},
+                                    {"row": 6, "name": "", "employee_id": "LPL-007", "bags": {200.0: 3}}]}],
+                         PEOPLE, SIZES, RATES, PERIOD, "PET")
+check(set(numbered["work"]) == {("E2", D(2026, 11, 4), "BAG 200"), ("E9", D(2026, 11, 4), "BAG 200"),
+                                ("E7", D(2026, 11, 4), "BAG 200")} and not numbered["problems"],
+      "a row is paid by its number, whatever its name says: a misspelt name, another's name, no name", numbered)
+check([note for note in numbered["notes"] if "check the number" in note]
+      == ["'w', row 5: E9 is Ninth Person, not SECOND TESTER as the sheet says: check the number before the run is "
+          "submitted."],
+      "a number whose employee's name has no word of the sheet's is said, to be checked before the run is paid; a "
+      "misspelt name sharing a word is not", numbered["notes"])
 cases = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026, 11, 4), "prices": [200.0, 150.0],
                         "rows": [{"row": 4, "name": "Second Tester", "employee_id": "LPL-999", "bags": {200.0: 1}},
-                                 {"row": 5, "name": "Seventh Case", "bags": {200.0: "two", 150.0: 3}},
-                                 {"row": 6, "name": "Test Person One", "bags": {200.0: 1}},
-                                 {"row": 7, "name": "TEST PERSON ONE", "bags": {200.0: 2}},
-                                 {"row": 8, "name": "Twin Name", "bags": {}, "arrears": 0},
-                                 {"row": 9, "name": "Second Tester", "bags": {200.0: -1}},
-                                 {"row": 10, "name": "Eighth Person", "bags": {200.0: "ABSENT"}},
-                                 {"row": 11, "name": "Twin Name", "bags": {200.0: 0, 180.0: None}},
-                                 {"row": 12, "name": "Ninth Person", "bags": {}, "arrears": -300}]}],
+                                 {"row": 5, "name": "Seventh Case", "employee_id": "LPL-007", "bags": {200.0: "two", 150.0: 3}},
+                                 {"row": 6, "name": "Test Person One", "employee_id": "E1", "bags": {200.0: 1}},
+                                 {"row": 7, "name": "TEST PERSON ONE", "employee_id": "E1", "bags": {200.0: 2}},
+                                 {"row": 8, "name": "Twin Name", "employee_id": "E5", "bags": {}, "arrears": 0},
+                                 {"row": 9, "name": "Second Tester", "employee_id": "E2", "bags": {200.0: -1}},
+                                 {"row": 10, "name": "Eighth Person", "employee_id": "E8", "bags": {200.0: "ABSENT"}},
+                                 {"row": 11, "name": "Twin Name", "employee_id": "E5", "bags": {200.0: 0, 180.0: None}},
+                                 {"row": 12, "name": "Ninth Person", "employee_id": "E9", "bags": {}, "arrears": -300}]}],
                       PEOPLE, SIZES, RATES, PERIOD, "PET")
 said = " | ".join(cases["problems"])
 for needle, why in (("No Per Piece category is priced 150 on 04-Nov-2026", "a price no category has"),
@@ -298,7 +317,7 @@ check(O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4)) == (D(2026, 11, 4), None)
       "left before it, or is Inactive")
 anywhere = O.take_pieces(wanted["weeks"][:1], PEOPLE, SIZES, RATES, PERIOD, None)
 check(("E4", D(2026, 10, 28), "BAG 200") in anywhere["work"], "a payroll for every plant takes every plant's casuals")
-print("the rows: found by Employee Id or name, priced by the week's category, what is left out said")
+print("the rows: found by employee number alone, priced by the week's category, what is left out said")
 
 
 # ── A stand-in site ──────────────────────────────────────
@@ -725,7 +744,8 @@ check(pay(s) == {("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0}
       pay(s))
 s = populated()
 P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
-s.files["/private/files/one_week.xlsx"] = workbook([("29th-Oct-04th-Nov-26", sheet_rows("PET", [{"name": "SECOND TESTER", "bags": {180: 7}}]))])
+s.files["/private/files/one_week.xlsx"] = workbook([("29th-Oct-04th-Nov-26", sheet_rows(
+    "PET", [{"name": "SECOND TESTER", "id": "E2", "bags": {180: 7}}], id_column=True))])
 P.upload_pieces("RUN-W", "/private/files/one_week.xlsx")
 check(reports_of(s) == {D(2026, 10, 28): {"E1": [("BAG 200", 10.0), ("BAG 180", 5.0)], "E2": [("BAG 200", 3.0)]},
                         D(2026, 11, 4): {"E2": [("BAG 180", 7.0)]}},
@@ -770,7 +790,7 @@ check(reports_of(s)[D(2026, 10, 28)] == {"E1": [("BAG 200", 9)]} and "E1" in rep
 
 s = populated()
 s.files["/private/files/arrears.xlsx"] = workbook([("29th-Oct-04th-Nov-26", sheet_rows("PET", [
-    {"name": "EIGHTH PERSON", "bags": {}, "arrears": 250}]))])
+    {"name": "EIGHTH PERSON", "id": "E8", "bags": {}, "arrears": 250}], id_column=True))])
 P.upload_pieces("RUN-W", "/private/files/arrears.xlsx")
 pay_run("RUN-W")
 check(pay(s) == {("E8", "Arrears", D(2026, 11, 4)): 250.0} and not s.rows("Daily Production Report")[0].lines,

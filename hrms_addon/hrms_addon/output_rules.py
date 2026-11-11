@@ -571,11 +571,14 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
 
     A week is the payroll's when its last day is in it, so each week is
     paid once. A bag column's price names its category: the one whose Work
-    Unit that week is that price. A person is found by the Employee Id
-    where the sheet has one, else by name, its words in any order; a name
-    that is nobody's, or more than one person's, is said and left out, never
-    guessed. The ARREARS beside a person are paid with their week (Luuka's
-    casual payroll adds them to the gross).
+    Unit that week is that price. A person is found by their employee number
+    alone, in the sheet's PAYROLL NO column (Luuka, 11 Nov 2026: "use
+    employee number not employee name"). A row with none is left out, and
+    the employee its name fits is said, for the number to be put in; a name
+    is never taken. A number whose employee's name has no word of the
+    sheet's is taken and said, to be checked before the run is paid. The
+    ARREARS beside a person are paid with their week (Luuka's casual
+    payroll adds them to the gross).
 
     Returns {"work": {(employee, the week's last day, category): (bags,
     price, where)}, "arrears": {(employee, the week's last day): (amount,
@@ -627,6 +630,9 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
                 problems.append("No Per Piece category is priced %s on %s, so the bags at %s on %s are left out: "
                                 "set it in Sizes and Work Units." % (_figure(price), _day(last), _figure(price), sheet))
         found = {}
+        if (week.get("rows") or []) and not any(row.get("employee_id") for row in week.get("rows") or []):
+            problems.append("%s has no PAYROLL NO column, so nobody on it is paid: add one with each person's "
+                            "employee number." % sheet)
         for row in week.get("rows") or []:
             bags = {price: value for price, value in (row.get("bags") or {}).items() if _text(value)}
             owed = _num(row.get("arrears")) if _positive(row.get("arrears")) else 0.0
@@ -638,30 +644,29 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
             worth = sum(_num(value) * _num(price) for price, value in bags.items() if _positive(value))
             what = "bags and arrears" if owed and worth else "arrears" if owed else "bags"
             due = _amount(worth + owed)
-            if row.get("employee_id"):
-                person = by_id.get(employee_key(row["employee_id"]))
-                if not person:
-                    problems.append("%s, row %s: the Employee Id %s is nobody here, so %s's %s, worth %s, are "
-                                    "left out." % (sheet, row["row"], _text(row["employee_id"]),
-                                                   row.get("name") or "the row", what, due))
-                    continue
-            else:
-                matches = by_name.get(piece_key(row.get("name")), [])
-                if len(matches) > 1:
-                    problems.append("%s, row %s: %s is the name of %s, so the %s, worth %s, are left out: add an "
-                                    "Employee Id column." % (sheet, row["row"], row.get("name"),
-                                                             _joined(who(p["employee"]) for p in matches), what, due))
-                    continue
-                if not matches:
-                    # the nearest Per Piece casual's name is said, never taken: the spelling is put right first
-                    near = difflib.get_close_matches(piece_key(row.get("name")), list(piece_names), n=1, cutoff=0.8)
-                    problems.append("%s, row %s: no employee is called %s, so the %s, worth %s, are left out: "
-                                    "correct the name on the sheet or on the employee.%s"
-                                    % (sheet, row["row"], row.get("name"), what, due,
-                                       " Closest: %s." % _joined(who(p["employee"]) for p in piece_names[near[0]])
-                                       if near else ""))
-                    continue
-                person = matches[0]
+            if not row.get("employee_id"):
+                # paid by the number alone: the employee the name fits is said, for the number to be put in
+                fits = by_name.get(piece_key(row.get("name")), [])
+                near = [] if fits else difflib.get_close_matches(piece_key(row.get("name")), list(piece_names), n=1,
+                                                                 cutoff=0.8)
+                hint = (" By name: %s." % _joined(who(p["employee"]) for p in fits) if fits else
+                        " Closest by name: %s." % _joined(who(p["employee"]) for p in piece_names[near[0]])
+                        if near else "")
+                problems.append("%s, row %s: %s has no employee number, so the %s, worth %s, are left out: put it "
+                                "in the PAYROLL NO column.%s" % (sheet, row["row"], row.get("name") or "the row", what,
+                                                                 due, hint))
+                continue
+            person = by_id.get(employee_key(row["employee_id"]))
+            if not person:
+                problems.append("%s, row %s: the Employee Id %s is nobody here, so %s's %s, worth %s, are "
+                                "left out." % (sheet, row["row"], _text(row["employee_id"]),
+                                               row.get("name") or "the row", what, due))
+                continue
+            said = set(piece_key(row.get("name")).split())
+            if said and not said & set(piece_key(person.get("employee_name")).split()):
+                notes.append("%s, row %s: %s is %s, not %s as the sheet says: check the number before the run is "
+                             "submitted." % (sheet, row["row"], _text(row["employee_id"]),
+                                             person.get("employee_name") or person["employee"], row.get("name")))
             found.setdefault(person["employee"], []).append((row, bags, worth, person, owed))
         for employee, rows in found.items():
             if len(rows) > 1:
