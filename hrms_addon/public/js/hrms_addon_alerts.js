@@ -40,9 +40,10 @@
 
 	function minimised() {
 		try {
-			return window.localStorage.getItem(STORE) === "1";
+			// its bar alone until the viewer opens it: open, it lies over the page it is on
+			return window.localStorage.getItem(STORE) !== "0";
 		} catch (e) {
-			return false; // private windows and blocked storage: open is the default
+			return true; // private windows and blocked storage: its bar is the default
 		}
 	}
 
@@ -59,7 +60,7 @@
 		panel = document.createElement("div");
 		panel.className = PANEL + (minimised() ? " " + MINIMISED : "");
 		panel.innerHTML = `
-			<button class="ha-alerts-head" type="button" title="${__("Minimise")}" aria-expanded="true">
+			<button class="ha-alerts-head" type="button" title="${minimised() ? __("Show alerts") : __("Minimise")}" aria-expanded="${minimised() ? "false" : "true"}">
 				<span class="ha-alerts-title">${__("My Alerts")}</span>
 				<span class="ha-alerts-count ha-band-none">0</span>
 				<span class="ha-alerts-toggle" aria-hidden="true"></span>

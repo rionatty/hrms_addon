@@ -248,6 +248,15 @@ check(len(keys) == len(set(keys)) and set(DR.ATTENTION_TAB.values()) <= set(KEYS
 check([DR.SEVERITY.index(band) for *_rest, band in DR.ATTENTION] == sorted(DR.SEVERITY.index(band) for *_rest, band in DR.ATTENTION),
       "declared the most pressing first")
 check(all(DR.attention_filters(key, DAYS) is not None for key in keys), "each check says what it counts")
+check(DR.runs_with_drafts([{"payroll_entry": "PE-1", "count": 2000}, {"payroll_entry": "PE-2", "count": 3},
+                            {"payroll_entry": None, "count": 2}]) == 4 and DR.runs_with_drafts([]) == 0
+      and "slips_draft" in DR.COUNTED,
+      "draft slips of a past period are counted by their run: two thousand of one run are one thing to do, a slip "
+      "made by hand its own")
+check(DR.plain_department("PP Department - LPT", "LPT") == "PP Department"
+      and DR.plain_department("PP Department - LPT", None) == "PP Department - LPT"
+      and DR.plain_department("No department", "LPT") == "No department" and DR.plain_department(" - LPT", "LPT") == " - LPT",
+      "a department is named without the company's letters, which cut every name short")
 check(set(DR.COUNTED) <= set(keys) and set(DR.ATTENTION_ROUTES) <= set(keys) and DR.ATTENTION_COMPANY <= set(keys),
       "the checks counted by hand, opening a report or narrowed to the company are checks")
 check(DR.attention_in("leave", everybody) == ["leave_started_waiting", "leave_waiting", "plans_waiting", "plan_changes_waiting",

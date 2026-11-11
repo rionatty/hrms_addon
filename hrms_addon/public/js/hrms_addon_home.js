@@ -841,10 +841,14 @@
 				)
 				.join("") +
 			`</div>`;
-		const turnover = one.turnover
-			? `<span class="ha-home-legend-figure">${esc(__("Turnover"))} <b>${esc(String(one.turnover.rate) + "%")}</b> ` +
-			  `${esc(__("in 12 months"))}</span>`
-			: "";
+		// records younger than a year say since when the leavers are known: no leaver in that time is not a
+		// turnover of nothing in twelve months
+		const turnover = !one.turnover
+			? ""
+			: one.turnover.since && !Number(one.turnover.leavers)
+			? `<span class="ha-home-legend-figure">${esc(__("Turnover counted from {0}", [one.turnover.since]))}</span>`
+			: `<span class="ha-home-legend-figure">${esc(__("Turnover"))} <b>${esc(String(one.turnover.rate) + "%")}</b> ` +
+			  `${esc(one.turnover.since ? __("since {0}", [one.turnover.since]) : __("in 12 months"))}</span>`;
 		const legend =
 			`<div class="ha-home-legend"><span><i class="ha-band-good"></i>${esc(__("Joined"))}</span>` +
 			`<span><i class="ha-band-overdue"></i>${esc(__("Left"))}</span>${turnover}</div>`;
@@ -902,7 +906,13 @@
 	// the overview each says which module it is in
 	function attention_body(one) {
 		const all = one.rows || [];
-		if (!all.length) return nothing(__("Nothing is waiting or late. All clear."));
+		// on a module's tab it says where: the tab bar may show plenty waiting on the others
+		if (!all.length)
+			return nothing(
+				one.where
+					? __("Nothing is waiting or late in {0}.", [__(one.where)])
+					: __("Nothing is waiting or late. All clear.")
+			);
 		return all
 			.map(
 				(check, index) =>

@@ -799,8 +799,9 @@ ATTENTION = (
      "Off Duty Request", "attendance", TODAY),
     ("passes_not_returned", "Gate pass not returned", "Gate passes not returned", "Gate Pass", "attendance", TODAY),
     ("leave_waiting", "Leave waiting for approval", "Leaves waiting for approval", "Leave Application", "leave", TODAY),
-    ("slips_draft", "Salary slip of a past period in draft", "Salary slips of a past period in draft", "Salary Slip",
-     "payroll", TODAY),
+    # counted by the run: two thousand slips of one run are one thing to do (dashboards.count_slips_draft)
+    ("slips_draft", "Payroll run of a past period with slips in draft",
+     "Payroll runs of a past period with slips in draft", "Salary Slip", "payroll", TODAY),
     ("entries_open", "Payroll entry not submitted", "Payroll entries not submitted", "Payroll Entry", "payroll", TODAY),
     ("loans_waiting", "Loan waiting for approval", "Loans waiting for approval", "Employee Loan", "loans", TODAY),
     ("advance_requests_waiting", "Salary advance request waiting", "Salary advance requests waiting",
@@ -861,7 +862,7 @@ ATTENTION = (
 ATTENTION_DOCTYPE = {key: doctype for key, _one, _many, doctype, _tab, _band in ATTENTION}
 ATTENTION_TAB = {key: tab for key, _one, _many, _doctype, tab, _band in ATTENTION}
 # the checks dashboards.py counts itself
-COUNTED = ("documents_expired", "pips_overdue")
+COUNTED = ("documents_expired", "pips_overdue", "slips_draft")
 # a check that opens a report rather than its doctype's list
 ATTENTION_ROUTES = {"documents_expired": ["query-report", "Document Expiry"]}
 # the checks narrowed to the user's company: those of doctypes that always carry one
@@ -968,6 +969,19 @@ def attention_rows(counts, day_of, modules=False, company=None):
             row["module"] = TAB_TITLES[tab]
         rows.append(row)
     return rows
+
+
+def plain_department(label, abbr):
+    """A department as a chart names it: without the company's letters ERPNext puts after every one
+    ("PP Department - LPT"), which every bar would carry and which cut the names short."""
+    label, tail = str(label or ""), " - %s" % abbr if abbr else ""
+    return label[:-len(tail)] if tail and label.endswith(tail) and len(label) > len(tail) else label
+
+
+def runs_with_drafts(rows):
+    """How many payroll runs have slips in draft. rows: the draft slips counted by their run, [{"payroll_entry",
+    "count"}]; a slip made by hand, on no run, is its own."""
+    return sum(1 if row.get("payroll_entry") else int(_number(row.get("count"))) for row in rows or ())
 
 
 def badges(rows):

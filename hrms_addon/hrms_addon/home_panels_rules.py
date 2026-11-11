@@ -526,6 +526,9 @@ def output_note(start, today):
 MOVEMENT_MONTHS = 6
 TURNOVER_MONTHS = 12
 LEFT = "Left"
+# who is on the staff, as the Active Employees figure counts them (dashboards_rules.STAFF): the suspended too
+STAFF = ("Active", "Suspended")
+MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 
 def _month_start(day, back):
@@ -564,7 +567,11 @@ def movement(people, counts_as, today, months=MOVEMENT_MONTHS):
     year_ago = _month_start(today, TURNOVER_MONTHS - 1) - datetime.timedelta(days=1)
     leavers = sum(1 for row in people or [] if left_when(row) and year_ago < left_when(row) <= today)
     on_books = [row for row in people or [] if row.get("status") != LEFT]
-    active = sum(1 for row in on_books if row.get("status") == "Active")
+    active = sum(1 for row in on_books if row.get("status") in STAFF)
+    # the records are younger than the year the turnover is over: it says since when it knows, and no leaver
+    # in that time is not a turnover of nothing in twelve months
+    made = [_day(row.get("creation")) for row in people or [] if _day(row.get("creation"))]
+    since = min(made) if made and min(made) > year_ago else None
     tally = {}
     for row in on_books:
         name = row.get("custom_employee_status") or row.get("status") or "Not set"
@@ -575,15 +582,26 @@ def movement(people, counts_as, today, months=MOVEMENT_MONTHS):
                  "route": ["List", "Employee"], "filters": {"custom_employee_status": name}}
                 for name, value in sorted(tally.items(), key=lambda item: (-item[1], item[0]))]
     rate = round(100.0 * leavers / active, 1) if active else 0.0
-    return {"months": columns, "turnover": {"leavers": leavers, "rate": rate, "headcount": active},
+    return {"months": columns, "turnover": {"leavers": leavers, "rate": rate, "headcount": active,
+                                            "since": month_words(since) if since else None},
             "statuses": statuses}
+
+
+def month_words(day):
+    """A month as the home says it: Oct 2026."""
+    return "%s %d" % (MONTH_NAMES[day.month - 1], day.year)
 
 
 def movement_note(found):
     """The heading's line: the year's leavers against today's headcount."""
     turnover = found.get("turnover") or {}
-    return "%s left in 12 months · %s active" % (format(int(turnover.get("leavers") or 0), ","),
-                                                 format(int(turnover.get("headcount") or 0), ","))
+    staff = "%s on the staff" % format(int(turnover.get("headcount") or 0), ",")
+    leavers = int(turnover.get("leavers") or 0)
+    if turnover.get("since"):
+        left = "%s left since %s" % (format(leavers, ","), turnover["since"]) if leavers \
+            else "No leaver recorded since %s" % turnover["since"]
+        return "%s · %s" % (left, staff)
+    return "%s left in 12 months · %s" % (format(leavers, ","), staff)
 
 
 # ── Data Health ───────────────────────────────────────────────────────
@@ -597,9 +615,25 @@ HEALTH_CHECKS = (
     ("salary", "No salary structure", "Payroll cannot pay them", None, "overdue"),
     ("nssf", "No NSSF number", "NSSF cannot be filed for them", {"custom_nssf_no": ["is", "not set"]}, "today"),
     ("tin", "No TIN", "PAYE cannot be filed for them", {"custom_tin": ["is", "not set"]}, "today"),
+    ("rate", "Paid by the hour, no hourly rate", "The weekly payroll leaves them out", None, "overdue"),
     ("birth", "Birth date to check", "Before 1945, after today, or under 16 when they joined", None, "today"),
     ("twice", "Maybe on the list twice", "The same NIN, NSSF number, or name and birth date", None, "today"),
+    ("joined_after", "Joined after their record was made", "Check the day and the month: they may be swapped", None,
+     "today"),
+    ("joined_together", "Same joining date as many others", "50 or more share one: a contract date, perhaps", None,
+     "today"),
+    ("placeholder", "Details still to fill", "Gender not given, or born on 1 January 2000", None, "today"),
 )
+# somebody not active who is marked present: not one of the active records the other checks read
+PRESENT_NOT_ACTIVE = ("present", "Marked present, but not active", "Payroll will not pay them: check their status",
+                      "overdue")
+# how many must share a joining date for it to be one to check
+JOINED_TOGETHER = 50
+PLACEHOLDER_GENDER = "Prefer not to say"
+PLACEHOLDER_BIRTH = datetime.date(2000, 1, 1)
+WEEKLY = "Weekly"
+# an attendance that says the person worked
+WORKED = ("Present", "Half Day", "Work From Home")
 OLDEST_BIRTH_YEAR = 1945
 YOUNGEST_AT_JOINING = 16
 # who may read an employee's bank fields (security_rules.PRIVILEGED_ROLES): for anybody else they are blank
@@ -622,16 +656,31 @@ def _same(rows, key):
     return {name for names in seen.values() if len(names) > 1 for name in names}
 
 
-def data_health(people, assigned, today, bank_known=True):
+def data_health(people, assigned, today, bank_known=True, rated=None, present_not_active=None):
     """What the active employees' records are missing, each a row the home lists with how many and the list
     it opens: only the checks that find somebody. people: [{"name", "employee_name", "attendance_device_id",
     "custom_automatic_attendance", "salary_mode", "bank_ac_no", "custom_nssf_no", "custom_tin", "custom_nin",
-    "date_of_birth", "date_of_joining"}]; assigned: the employees with a salary structure in force, None where
-    the user may not read the assignments; bank_known: whether the user may read the bank fields, which are
-    blank for everybody else."""
+    "date_of_birth", "date_of_joining", "creation", "gender", "custom_pay_category"}]; assigned: the employees
+    with a salary structure in force, None where the user may not read the assignments; bank_known: whether the
+    user may read the bank fields, which are blank for everybody else; rated: the employees with an hourly rate
+    (everybody, where a standard rate stands in), None where the user may not read the rates;
+    present_not_active: those marked present this week who are not active, who are not among `people`."""
     found = {key: [] for key, _label, _note, _filters, _band in HEALTH_CHECKS}
+    joined_on = {}
+    for row in people or []:
+        if _day(row.get("date_of_joining")):
+            joined_on[_day(row.get("date_of_joining"))] = joined_on.get(_day(row.get("date_of_joining")), 0) + 1
     for row in people or []:
         name = row.get("name")
+        if rated is not None and row.get("custom_pay_category") == WEEKLY and name not in rated:
+            found["rate"].append(name)
+        made = _day(row.get("creation"))
+        if _day(row.get("date_of_joining")) and made and _day(row.get("date_of_joining")) > made:
+            found["joined_after"].append(name)
+        if joined_on.get(_day(row.get("date_of_joining")), 0) >= JOINED_TOGETHER:
+            found["joined_together"].append(name)
+        if row.get("gender") == PLACEHOLDER_GENDER or _day(row.get("date_of_birth")) == PLACEHOLDER_BIRTH:
+            found["placeholder"].append(name)
         if not str(row.get("attendance_device_id") or "").strip() and not row.get("custom_automatic_attendance"):
             found["clock"].append(name)
         if bank_known and row.get("salary_mode") == "Bank" and not str(row.get("bank_ac_no") or "").strip():
@@ -661,6 +710,11 @@ def data_health(people, assigned, today, bank_known=True):
         opened = dict(filters) if filters else {"name": ["in", sorted(names)[:OPENED_ON]]}
         rows.append({"key": key, "label": label, "note": note, "value": len(names), "band": band,
                      "route": ["List", "Employee"], "filters": dict({"status": "Active"}, **opened)})
+    if present_not_active:
+        key, label, note, band = PRESENT_NOT_ACTIVE
+        rows.insert(0, {"key": key, "label": label, "note": note, "value": len(set(present_not_active)), "band": band,
+                        "route": ["List", "Employee"],
+                        "filters": {"name": ["in", sorted(set(present_not_active))[:OPENED_ON]]}})
     return rows
 
 

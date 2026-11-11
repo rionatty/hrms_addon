@@ -347,8 +347,12 @@ class Reader:
         if not keys:
             return None
         counts = {key: home._or(0, self.attention_count, key) for key in keys}
-        return {"kind": "attention", "rows": rules.attention_rows(counts, self.days, modules=self.tab == rules.OVERVIEW,
-                                                                  company=self.company)}
+        found = {"kind": "attention", "rows": rules.attention_rows(counts, self.days, modules=self.tab == rules.OVERVIEW,
+                                                                   company=self.company)}
+        if self.tab != rules.OVERVIEW:
+            # with nothing waiting it says where: the other tabs may have plenty
+            found["where"] = rules.TAB_TITLES.get(self.tab)
+        return found
 
     def badges(self):
         """How much needs attention on each tab, for the tab bar: {tab: {"value", "band"}}."""
@@ -377,6 +381,25 @@ class Reader:
             "parenttype": "Employee", "parentfield": "custom_documents", "parent": ["in", staff], "status": "Expired"},
             pluck="name", limit_page_length=0))
 
+    def count_slips_draft(self):
+        """The payroll runs of a past period with slips still in draft: a run is one thing to do, however many
+        slips it has (rules.runs_with_drafts)."""
+        return rules.runs_with_drafts(frappe.get_list(
+            "Salary Slip", filters=rules.attention_filters("slips_draft", self.days, self.company),
+            fields=["payroll_entry", aggregate("COUNT", "*", "count")], group_by="payroll_entry", order_by=None,
+            limit_page_length=0))
+
+    def abbr(self):
+        """The company's letters, which ERPNext puts after each of its departments' names."""
+        return self.once("abbr", lambda: home._or(None, frappe.get_cached_value, "Company", self.company, "abbr")
+                         if self.company else None)
+
+    def plain(self, parts):
+        """A breakdown by department, each named without the company's letters."""
+        for part in parts:
+            part["label"] = rules.plain_department(part["label"], self.abbr())
+        return parts
+
     def count_pips_overdue(self):
         """The open improvement plans past their end date, or their new one where it was put back."""
         plans = frappe.get_list("Performance Improvement Plan", filters={
@@ -396,6 +419,7 @@ class Reader:
         for part in parts:
             part["route"] = ["List", "Salary Slip"]
             part["filters"] = dict(window, department=part["key"] or ["is", "not set"])
+        self.plain(parts)
         return {"kind": "bars", "money": 1, "currency": self.currency, "rows": parts, "note": rules.period_note(end),
                 "empty": "No period paid yet"}
 
@@ -409,6 +433,7 @@ class Reader:
         for part in parts:
             part["route"] = ["List", "Appraisal"]
             part["filters"] = dict(done, department=part["key"] or ["is", "not set"])
+        self.plain(parts)
         return {"kind": "bars", "percent": 1, "rows": parts, "note": "Completed this year",
                 "empty": "No appraisal completed this year"}
 
@@ -435,6 +460,8 @@ class Reader:
                 part["filters"] = dict(filters, **{by: part["key"] if part["key"] else ["is", "not set"]})
             if part["label"] in bands:
                 part["band"] = bands[part["label"]]
+        if by == "department":
+            self.plain(parts)
         return {"kind": "donut" if donut else "bars", "money": spec.get("money") or 0, "hours": spec.get("hours") or 0,
                 "currency": self.currency, "rows": parts, "note": spec.get("note") or "",
                 "empty": spec.get("empty") or "Nothing to show yet"}

@@ -255,14 +255,30 @@ check([(month["label"], month["joined"], month["left"]) for month in moved["mont
     ("May", 0, 0), ("Jun", 0, 1), ("Jul", 0, 0), ("Aug", 0, 0), ("Sep", 0, 0), ("Oct", 1, 0)],
     "joiners and leavers by month; a leaver entered after they had gone (the import's stand-in date) moved "
     "nothing: %s" % moved["months"])
-check(moved["turnover"] == {"leavers": 1, "rate": 50.0, "headcount": 2}
+check(moved["turnover"] == {"leavers": 1, "rate": 50.0, "headcount": 2, "since": None}
       and [(row["label"], row["value"]) for row in moved["statuses"]] == [("Active", 2), ("On Hold", 1)]
       and moved["statuses"][0]["band"] == "good" and moved["statuses"][1]["band"] == "today",
       "the year's leavers against today's headcount, and those on the books by status: %s" % moved)
 check(R.left_when({"status": "Left", "relieving_date": "2026-06-12", "creation": "2026-06-12 18:00:00"}) == D(2026, 6, 12)
       and R.left_when({"status": "Active", "relieving_date": "2026-06-12"}) is None,
       "a leaver entered on their last day left that day; somebody still here never left")
-check(R.movement_note(moved) == "1 left in 12 months · 2 active", "the heading: the leavers and today's headcount")
+check(R.movement_note(moved) == "1 left in 12 months · 2 on the staff", "the heading: the leavers and today's headcount")
+# records all made last month (an import): the turnover says since when it knows, and counts the suspended on the staff
+young = R.movement([
+    {"name": "a", "status": "Active", "date_of_joining": "2020-01-01", "creation": "2026-10-19 09:00:00"},
+    {"name": "b", "status": "Suspended", "date_of_joining": "2026-06-26", "creation": "2026-10-19 09:00:00"},
+    {"name": "c", "status": "Inactive", "date_of_joining": "2026-06-26", "creation": "2026-10-19 09:00:00"},
+    {"name": "d", "status": "Left", "date_of_joining": "2020-01-01", "relieving_date": "2026-09-30",
+     "creation": "2026-10-19 09:00:00"}], {}, D(2026, 11, 11))
+check(young["turnover"] == {"leavers": 0, "rate": 0.0, "headcount": 2, "since": "Oct 2026"}
+      and R.movement_note(young) == "No leaver recorded since Oct 2026 · 2 on the staff",
+      "records younger than the year say since when the leavers are known, not a turnover of nothing in twelve "
+      "months; the staff are the active and the suspended, as the figure above counts them: %s" % young["turnover"])
+left_since = R.movement([
+    {"name": "a", "status": "Active", "creation": "2026-10-19 09:00:00"},
+    {"name": "d", "status": "Left", "relieving_date": "2026-11-05", "creation": "2026-10-19 09:00:00"}], {}, D(2026, 11, 11))
+check(R.movement_note(left_since) == "1 left since Oct 2026 · 1 on the staff" and left_since["turnover"]["rate"] == 100.0,
+      "and one who left since is counted from then")
 
 TODAY = D(2026, 10, 21)
 listed = R.deadlines([
@@ -330,6 +346,34 @@ quiet = {row["key"] for row in R.data_health([{"name": "a", "salary_mode": "Bank
 check("bank" not in quiet and "salary" not in quiet,
       "the bank fields hidden from the user, or the assignments they may not read, find nobody missing them")
 check(R.data_health([], set(), TODAY) == [], "a clean list says nothing")
+crowd = [{"name": "p%02d" % number, "employee_name": "P %d" % number, "attendance_device_id": "1", "custom_nssf_no": "N%d" % number,
+          "custom_tin": "T%d" % number, "custom_nin": "C%d" % number, "date_of_birth": "1990-01-%02d" % (number % 27 + 1),
+          "date_of_joining": "2026-06-26", "creation": "2026-10-19 09:00:00", "gender": "Male",
+          "custom_pay_category": "Regular"} for number in range(50)]
+odd = [
+    {"name": "w1", "employee_name": "W One", "attendance_device_id": "1", "custom_nssf_no": "W1", "custom_tin": "W1",
+     "custom_nin": "W1", "date_of_birth": "1995-03-03", "date_of_joining": "2026-11-04", "creation": "2026-10-19 09:00:00",
+     "gender": "Female", "custom_pay_category": "Weekly"},
+    {"name": "w2", "employee_name": "W Two", "attendance_device_id": "1", "custom_nssf_no": "W2", "custom_tin": "W2",
+     "custom_nin": "W2", "date_of_birth": "2000-01-01", "date_of_joining": "2026-08-27", "creation": "2026-11-11 09:00:00",
+     "gender": "Prefer not to say", "custom_pay_category": "Weekly"},
+    {"name": "x1", "employee_name": "X One", "attendance_device_id": "1", "custom_nssf_no": "X1", "custom_tin": "X1",
+     "custom_nin": "X1", "date_of_birth": "1991-04-04", "date_of_joining": "2026-09-01", "creation": "2026-10-19 09:00:00",
+     "gender": "Male", "custom_pay_category": "Per Piece"}]
+dated = {row["key"]: row for row in R.data_health(crowd + odd, None, D(2026, 11, 11), rated={"w2"},
+                                                  present_not_active=["z9", "z9", "z8"])}
+check(list(dated) == ["present", "rate", "joined_after", "joined_together", "placeholder"]
+      and [dated[key]["value"] for key in dated] == [2, 1, 1, 50, 1],
+      "the dates and the casuals: those marked present who are not active, a casual by the hour with no rate, a joining "
+      "date after the record was made, fifty who share a joining date, a placeholder gender or birth date: %s"
+      % {key: row["value"] for key, row in dated.items()})
+check(dated["present"]["filters"] == {"name": ["in", ["z8", "z9"]]} and dated["present"]["band"] == "overdue"
+      and dated["rate"]["filters"] == {"status": "Active", "name": ["in", ["w1"]]} and dated["rate"]["band"] == "overdue"
+      and dated["joined_after"]["filters"]["name"] == ["in", ["w1"]],
+      "those not active open by name, with no status put on them; what stops a casual's pay is red")
+check("rate" not in {row["key"] for row in R.data_health(odd, None, D(2026, 11, 11))}
+      and "joined_together" not in {row["key"] for row in R.data_health(crowd[:49] + odd, None, D(2026, 11, 11))},
+      "rates the user may not read find nobody without one; forty-nine sharing a date are not a crowd")
 print("figures: payroll's steps by their days, the plants, the output, the movement, the deadlines, the pipeline, the records")
 
 # ── 3. What the rules name ────────────────────────────────────────────
@@ -413,6 +457,21 @@ plants_fn = body_of(glue, "_plants")
 check("home._marks(" in plants_fn and "home_rules.where_today(" in plants_fn
       and 'known=bool(seen.get("clock") or seen.get("attendance"))' in plants_fn,
       "the plants' day is the home's own, with what the user may read")
+for reader, needle, why in (
+        ("_movement", 'frappe.get_list("Employee", filters=_mine(), fields=[', "the movement"),
+        ("_data_health", 'filters=_mine({"status": "Active"}), fields=fields', "the records"),
+        ("_plants", 'filters=_mine({"status": "Active"}), fields=["name", "branch"]', "the plants"),
+        ("_present_not_active", 'filters=_mine({"status": ["!=", "Active"]})', "those not active")):
+    check(needle in body_of(glue, reader), "%s are read of the user's company, as the figure above them is" % why)
+check('filters.setdefault("company", company)' in body_of(glue, "_mine")
+      and 'home._or(None, frappe.defaults.get_user_default, "Company")' in body_of(glue, "_mine"),
+      "the company is the user's own, and a user with none reads them all")
+check('if not _may("Hourly Rate"):\n        return None' in body_of(glue, "_rated")
+      and 'get("standard_hourly_rate")) > 0:\n        return {row.name for row in people}' in body_of(glue, "_rated"),
+      "the rates are read only by one who may; a standard rate stands in for everybody's")
+check('"attendance_date": ["between", [add_days(today, -6), today]]' in body_of(glue, "_present_not_active")
+      and '"status": ["in", list(rules.WORKED)]' in body_of(glue, "_present_not_active"),
+      "marked present in the last seven days")
 check('"status": ["in", list(rules.OVERTIME_COUNTED)]' in body_of(glue, "_overtime_lines")
       and '"docstatus": 1' in body_of(glue, "_overtime_lines"),
       "overtime counts what is approved, never a refused request (submitted too)")

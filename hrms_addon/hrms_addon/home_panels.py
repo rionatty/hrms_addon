@@ -20,7 +20,7 @@ read is logged and left out (home._or), and the rest still come.
 """
 
 import frappe
-from frappe.utils import add_days, cint, now_datetime
+from frappe.utils import add_days, cint, flt, now_datetime
 
 from hrms_addon.hrms_addon import attendance_rules, home, home_panels_rules as rules, home_rules
 
@@ -30,6 +30,16 @@ UNREADABLE = {rules.UNREADABLE: 1}
 def _may(doctype):
     """A doctype the site has and the user may read."""
     return bool(frappe.db.exists("DocType", doctype) and frappe.has_permission(doctype, "read"))
+
+
+def _mine(filters=None):
+    """The filters, narrowed to the user's company where they have one, as the figures across the top are
+    (dashboards.Reader.mine): a panel and the figure above it count the same people."""
+    filters = dict(filters or {})
+    company = home._or(None, frappe.defaults.get_user_default, "Company")
+    if company:
+        filters.setdefault("company", company)
+    return filters
 
 
 # ── Payroll Readiness ─────────────────────────────────────────────────
@@ -172,7 +182,7 @@ def _plants(today, money, roles):
     """Each plant's people today, and its approved overtime this period."""
     if not _may("Employee"):
         return None
-    people = frappe.get_list("Employee", filters={"status": "Active"}, fields=["name", "branch"],
+    people = frappe.get_list("Employee", filters=_mine({"status": "Active"}), fields=["name", "branch"],
                              limit_page_length=0)
     clocked, marked, on_leave, seen = home._marks([row.name for row in people] or [""], today)
     where = home_rules.where_today([row.name for row in people], clocked, marked, on_leave)
@@ -266,8 +276,9 @@ def _movement(today, money, roles):
 
     if not _may("Employee"):
         return None
-    people = frappe.get_list("Employee", fields=["name", "status", "custom_employee_status", "date_of_joining",
-                                                 "relieving_date", "creation"], limit_page_length=0)
+    people = frappe.get_list("Employee", filters=_mine(), fields=[
+        "name", "status", "custom_employee_status", "date_of_joining", "relieving_date", "creation"],
+        limit_page_length=0)
     out = rules.movement(people, home._or({}, employee_status.counts), today)
     return dict(out, kind="movement", note=rules.movement_note(out))
 
@@ -288,8 +299,8 @@ def _probations(today):
     start, end = rules.window(today, rules.PROBATION_AHEAD)
     return [{"kind": "probation", "day": row.custom_probation_end_date, "who": row.employee_name or row.name,
              "doctype": "Employee", "docname": row.name}
-            for row in frappe.get_list("Employee", filters={
-                "status": "Active", "custom_probation_end_date": ["between", [start, end]]},
+            for row in frappe.get_list("Employee", filters=_mine({
+                "status": "Active", "custom_probation_end_date": ["between", [start, end]]}),
                 fields=["name", "employee_name", "custom_probation_end_date", "custom_probation_status"],
                 limit_page_length=0) if rules.probation_open(row)]
 
@@ -361,7 +372,7 @@ def _documents(today):
         return []
     start, end = rules.window(today, rules.DOCUMENT_AHEAD, back=rules.DOCUMENT_BACK)
     people = {row.name: row.employee_name or row.name for row in frappe.get_list(
-        "Employee", filters={"status": "Active"}, fields=["name", "employee_name"], limit_page_length=0)}
+        "Employee", filters=_mine({"status": "Active"}), fields=["name", "employee_name"], limit_page_length=0)}
     if not people:
         return []
     return [{"kind": "document", "day": row.expires_on, "who": people.get(row.parent), "what": row.document_type,
@@ -420,16 +431,43 @@ def _data_health(today, money, roles):
         return None
     bank_known = bool(set(roles or ()) & set(rules.BANK_ROLES))
     fields = ["name", "employee_name", "attendance_device_id", "custom_automatic_attendance", "custom_nssf_no",
-              "custom_tin", "custom_nin", "date_of_birth", "date_of_joining"]
+              "custom_tin", "custom_nin", "date_of_birth", "date_of_joining", "creation", "gender",
+              "custom_pay_category"]
     if bank_known:
         fields += ["salary_mode", "bank_ac_no"]
-    people = frappe.get_list("Employee", filters={"status": "Active"}, fields=fields, limit_page_length=0)
+    people = frappe.get_list("Employee", filters=_mine({"status": "Active"}), fields=fields, limit_page_length=0)
     assigned = None
     if _may("Salary Structure Assignment"):
         assigned = set(frappe.get_list("Salary Structure Assignment", filters={
             "docstatus": 1, "from_date": ["<=", today]}, pluck="employee", limit_page_length=0))
-    rows = rules.data_health(people, assigned, today, bank_known)
+    rows = rules.data_health(people, assigned, today, bank_known, rated=home._or(None, _rated, people, today),
+                             present_not_active=home._or(None, _present_not_active, today))
     return {"kind": "health", "rows": rows, "note": "%s active records" % format(len(people), ",")}
+
+
+def _rated(people, today):
+    """Those of these people with an Hourly Rate in force today: everybody where Output Pay Settings' standard
+    rate stands in for one, and None where the user may not read the rates (only HR may)."""
+    if not _may("Hourly Rate"):
+        return None
+    if flt(frappe.db.get_singles_dict("Output Pay Settings").get("standard_hourly_rate")) > 0:
+        return {row.name for row in people}
+    return set(frappe.get_list("Hourly Rate", filters={"from_date": ["<=", today], "rate": [">", 0]},
+                               pluck="employee", limit_page_length=0))
+
+
+def _present_not_active(today):
+    """Those marked present in the last seven days whose record is not active: the payroll leaves them out."""
+    if not _may("Attendance"):
+        return None
+    others = frappe.get_list("Employee", filters=_mine({"status": ["!=", "Active"]}), pluck="name",
+                             limit_page_length=0)
+    if not others:
+        return []
+    return frappe.get_list("Attendance", filters={
+        "employee": ["in", others], "docstatus": 1, "status": ["in", list(rules.WORKED)],
+        "attendance_date": ["between", [add_days(today, -6), today]]}, pluck="employee", distinct=True,
+        limit_page_length=0)
 
 
 READERS = {rules.PAYROLL: _payroll, rules.PLANTS: _plants, rules.OUTPUT: _output, rules.MOVEMENT: _movement,
