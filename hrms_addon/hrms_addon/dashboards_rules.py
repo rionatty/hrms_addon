@@ -1169,8 +1169,8 @@ def in_the_days(joined, left, start, end):
 def casual_week(facts):
     """The weekly casual payroll before it is run, as rows: (rows, note). facts: {"start", "end", "last" (the last
     weekly payroll's End), "with_days", "hours", "with_overtime", "overtime_hours", "no_rate" [names], "piece_waiting",
-    "piece_staff", "drafts"}. Each row: {"key", "label", "note", "value", "band", and "names" where it opens on
-    people}."""
+    "piece_staff", "piece_runs_draft" (the Per Piece Output Pay Runs not submitted), "drafts"}. Each row: {"key",
+    "label", "note", "value", "band", and "names" where it opens on people}."""
     rows = []
     end = _day(facts.get("end"))
     if end:
@@ -1184,12 +1184,19 @@ def casual_week(facts):
         if facts.get("no_rate"):
             rows.append({"key": "no_rate", "label": "Left out, no hourly rate", "value": len(facts["no_rate"]),
                          "band": OVERDUE, "note": "Give each an Hourly Rate", "names": sorted(facts["no_rate"])})
+        # a Per Piece casual's pay is worked out on the week's Output Pay Run, which feeds the payroll once it is
+        # submitted: paid, a run in draft, or no run yet
         if facts.get("piece_waiting"):
-            rows.append({"key": "pieces", "label": "Per Piece casuals with pay uploaded",
-                         "value": int(facts["piece_waiting"]), "band": GOOD, "note": "From their weekly sheet"})
-        elif facts.get("piece_staff"):
-            rows.append({"key": "no_sheet", "label": "Per Piece sheet not uploaded", "value": int(facts["piece_staff"]),
-                         "band": TODAY, "note": "Upload it on the weekly Payroll Entry"})
+            rows.append({"key": "pieces", "label": "Per Piece casuals with pay to be paid",
+                         "value": int(facts["piece_waiting"]), "band": GOOD, "note": "From the week's Output Pay Run"})
+        elif facts.get("piece_staff") and not facts.get("piece_runs_draft"):
+            rows.append({"key": "no_sheet", "label": "Per Piece casuals with no run yet", "value": int(facts["piece_staff"]),
+                         "band": TODAY, "note": "Make the week's Output Pay Run and upload the sheet"})
+    if facts.get("piece_runs_draft"):
+        several = facts["piece_runs_draft"] != 1
+        rows.append({"key": "piece_draft", "label": "Per Piece runs in draft" if several else "Per Piece run in draft",
+                     "value": int(facts["piece_runs_draft"]), "band": TODAY,
+                     "note": "Submit %s to feed the payroll" % ("them" if several else "it")})
     if facts.get("drafts"):
         rows.append({"key": "drafts", "label": "Weekly payroll in draft" if facts["drafts"] == 1
                      else "Weekly payrolls in draft", "value": int(facts["drafts"]), "band": TODAY,

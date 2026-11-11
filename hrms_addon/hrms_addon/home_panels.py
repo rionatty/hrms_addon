@@ -87,7 +87,9 @@ def _overtime_decided(start, end):
 
 def _output_runs(start, end):
     """Each plant and section that is paid by its output this month: from the people paid that way, the
-    period's reports and the month's runs; which runs are submitted; and a report left out of a paid run."""
+    period's reports and the month's runs; which runs are submitted; and a report left out of a paid run.
+    Only what the monthly payroll pays (rules.MONTHLY_OUTPUT): a Per Piece run is a week's."""
+    monthly = ["in", list(rules.MONTHLY_OUTPUT)]
     if not _may("Output Pay Run"):
         return None
 
@@ -95,17 +97,17 @@ def _output_runs(start, end):
         return "%s %s" % (branch or rules.UNPLACED, section)
 
     runs = frappe.get_list("Output Pay Run", filters={
-        "year": end.year, "month": rules.MONTHS[end.month - 1], "docstatus": ["<", 2]},
+        "year": end.year, "month": rules.MONTHS[end.month - 1], "docstatus": ["<", 2], "section": monthly},
         fields=["branch", "section", "docstatus"], limit_page_length=0)
     reports = []
     if _may("Daily Production Report"):
         reports = frappe.get_list("Daily Production Report", filters={
-            "docstatus": 1, "report_date": ["between", [start, end]]},
+            "docstatus": 1, "report_date": ["between", [start, end]], "section": monthly},
             fields=["branch", "section", "output_pay_run"], limit_page_length=0)
     paid_by_output = []
     if _may("Employee"):
         paid_by_output = frappe.get_list("Employee", filters={
-            "status": "Active", "custom_pay_category": ["in", list(rules.OUTPUT_SECTIONS)]},
+            "status": "Active", "custom_pay_category": monthly},
             fields=["branch", "custom_pay_category"], limit_page_length=0)
     paid = {label(row.branch, row.section) for row in runs if row.docstatus == 1}
     needed = {label(row.branch, row.section) for row in runs} | {label(row.branch, row.section) for row in reports} \

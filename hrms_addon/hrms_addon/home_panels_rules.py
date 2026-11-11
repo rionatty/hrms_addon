@@ -133,7 +133,7 @@ def _output(fact, today, start, end, now):
     needed, paid = list(fact.get("needed") or []), set(fact.get("paid") or [])
     loose = int(fact.get("unpaid_reports") or 0)
     target = {"route": ["List", "Output Pay Run"],
-              "filters": {"year": end.year, "month": MONTHS[end.month - 1]}}
+              "filters": {"year": end.year, "month": MONTHS[end.month - 1], "section": ["in", list(MONTHLY_OUTPUT)]}}
     if not needed:
         return {"done": True, "started": False, "note": "No output to pay this period", **target}
     left = [name for name in needed if name not in paid]
@@ -455,8 +455,11 @@ def overtime_hours(lines):
 
 # ── Output and Labour Cost ────────────────────────────────────────────
 PER_METER, PER_PIECE = "Per Meter", "Per Piece"
-# the ways of being paid by output, each with a run a month at its plant (Employee.custom_pay_category)
+# the ways of being paid by output (Employee.custom_pay_category)
 OUTPUT_SECTIONS = ("Per Meter", "Per Piece")
+# those with a run a month at their plant, which the monthly payroll waits for. Per Piece is paid by the week: its
+# runs are a week's and feed the weekly payroll (dashboards.panel_casual_week says where they stand)
+MONTHLY_OUTPUT = (PER_METER,)
 # an Overtime Request whose hours are approved: costed, or on the attendance
 OVERTIME_COUNTED = ("Costed", "Sent to Payroll")
 

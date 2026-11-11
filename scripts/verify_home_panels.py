@@ -407,6 +407,13 @@ check(set(R.APPLYING) | {R.SHORTLISTED} <= set(options(upstream("Job Applicant")
       "the pipeline's stages are Frappe HR's own statuses, read from %s" % APPS_ROOT)
 custom = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
 pay_category = [value for value in (custom.get("Employee-custom_pay_category", {}).get("options") or "").split("\n") if value]
+check(R.MONTHLY_OUTPUT == ("Per Meter",) and set(R.MONTHLY_OUTPUT) < set(R.OUTPUT_SECTIONS),
+      "the month's payroll waits for the runs a month has: Per Meter's. A Per Piece run is a week's, and feeds the "
+      "weekly payroll")
+waited = R._output({"needed": ["Kawempe Per Meter"], "paid": [], "unpaid_reports": 0}, D(2026, 10, 21), D(2026, 9, 26),
+                   D(2026, 10, 25), None)
+check(waited["filters"] == {"year": 2026, "month": "October", "section": ["in", ["Per Meter"]]},
+      "and the step opens the month's runs of that kind: %s" % waited["filters"])
 check(set(R.OUTPUT_SECTIONS) <= set(pay_category) and set(R.OUTPUT_SECTIONS) == set(options(ours("Output Pay Run"), "section"))
       and {R.PER_METER, R.PER_PIECE} == set(options(ours("Daily Production Report"), "section")),
       "the ways of being paid by output are the employee's and the run's own")
@@ -457,6 +464,12 @@ plants_fn = body_of(glue, "_plants")
 check("home._marks(" in plants_fn and "home_rules.where_today(" in plants_fn
       and 'known=bool(seen.get("clock") or seen.get("attendance"))' in plants_fn,
       "the plants' day is the home's own, with what the user may read")
+check(body_of(glue, "_output_runs").count('"section": monthly}') == 2
+      and '"custom_pay_category": monthly}' in body_of(glue, "_output_runs")
+      and 'monthly = ["in", list(rules.MONTHLY_OUTPUT)]' in body_of(glue, "_output_runs")
+      and "OUTPUT_SECTIONS" not in body_of(glue, "_output_runs"),
+      "the month's output runs, reports and people are read of the kind a month pays: a Per Piece week's are not "
+      "waited for")
 for reader, needle, why in (
         ("_movement", 'frappe.get_list("Employee", filters=_mine(), fields=[', "the movement"),
         ("_data_health", 'filters=_mine({"status": "Active"}), fields=fields', "the records"),

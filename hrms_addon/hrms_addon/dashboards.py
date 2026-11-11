@@ -396,8 +396,14 @@ class Reader:
         weekly = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.WEEKLY]
         pieces = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.PER_PIECE]
         runs = self.mine(payroll_frequency=weekly_pay_rules.WEEKLY, salary_slip_based_on_timesheet=0)
+        # the Per Piece runs: a week's pay is worked out on one, and feeds the payroll once it is submitted
+        piece_runs = self.mine(section=weekly_pay_rules.PER_PIECE)
+        if start:
+            piece_runs["to_date"] = [">=", str(start)]
         facts = {"last": last, "end": end, "piece_staff": len(pieces),
-                 "drafts": count("Payroll Entry", dict(runs, docstatus=0))}
+                 "drafts": count("Payroll Entry", dict(runs, docstatus=0)),
+                 "piece_runs_draft": count(piece_pay.RUN, dict(piece_runs, docstatus=0))
+                 if piece_pay.RUN in self.readable else 0}
         if end:
             days = weekly_pay.days_to_pay(weekly, start, end, self.company)
             due = weekly_pay.overtime_due(weekly, start, end, self.company)
@@ -423,9 +429,9 @@ class Reader:
             "days": (["List", "Payroll Entry"], runs),
             "overtime": (["List", "Overtime Request"], {"status": ["in", list(rules.OVERTIME_COUNTED)],
                                                         "overtime_date": between}),
-            "pieces": (["List", piece_pay.REPORT], {"section": weekly_pay_rules.PER_PIECE, "docstatus": 1,
-                                                    "report_date": between}),
-            "no_sheet": (["List", "Payroll Entry"], runs),
+            "pieces": (["List", piece_pay.RUN], dict(piece_runs, docstatus=1)),
+            "piece_draft": (["List", piece_pay.RUN], dict(piece_runs, docstatus=0)),
+            "no_sheet": (["List", piece_pay.RUN], piece_runs),
             "drafts": (["List", "Payroll Entry"], dict(runs, docstatus=0)),
         }
         for row in rows:

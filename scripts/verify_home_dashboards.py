@@ -397,6 +397,20 @@ check(week[0]["note"] == "20,500.5 hours. Up to 11 Nov" and week[1]["note"] == "
       and week[2]["names"] == ["C1", "C2"] and all("names" not in row for row in week if row["key"] != "no_rate")
       and week[4]["label"] == "Weekly payroll in draft",
       "the hours said, and those with no rate named so that their list can be opened")
+check((week[3]["label"], week[3]["note"]) == ("Per Piece casuals with no run yet",
+                                              "Make the week's Output Pay Run and upload the sheet"),
+      "Per Piece casuals with no run for the week are said so, with where their sheet goes")
+drafted, _said = DR.casual_week(dict(WEEK, piece_runs_draft=1))
+several, _said = DR.casual_week(dict(WEEK, piece_runs_draft=2, piece_waiting=20))
+check([row["key"] for row in drafted] == ["days", "overtime", "no_rate", "piece_draft", "drafts"]
+      and (drafted[3]["value"], drafted[3]["label"], drafted[3]["note"], drafted[3]["band"])
+      == (1, "Per Piece run in draft", "Submit it to feed the payroll", "today")
+      and [row["key"] for row in several] == ["days", "overtime", "no_rate", "pieces", "piece_draft", "drafts"]
+      and (several[4]["label"], several[4]["note"]) == ("Per Piece runs in draft", "Submit them to feed the payroll")
+      and [row["key"] for row in DR.casual_week({"end": None, "last": D(2026, 11, 4), "piece_runs_draft": 1,
+                                                 "piece_staff": 28})[0]] == ["piece_draft"],
+      "a Per Piece run in draft is said, in place of a run to make, beside the pay of a run already submitted, and "
+      "even with no days to pay yet")
 uploaded, _said = DR.casual_week(dict(WEEK, piece_waiting=27, drafts=2, no_rate=[]))
 check([row["key"] for row in uploaded] == ["days", "overtime", "pieces", "drafts"] and uploaded[2]["value"] == 27
       and uploaded[3]["label"] == "Weekly payrolls in draft",
@@ -611,7 +625,11 @@ check("if not self.company:\n            return None" in week_read
       and "weekly_pay.days_to_pay(weekly, start, end, self.company)" in week_read
       and "weekly_pay.overtime_due(weekly, start, end, self.company)" in week_read
       and "piece_pay.waiting(pieces, start, end)" in week_read and "weekly_pay_rules.unrated(table, rates)" in week_read
-      and "if not people and not rows and not last:" in week_read,
+      and "if not people and not rows and not last:" in week_read
+      and "piece_runs = self.mine(section=weekly_pay_rules.PER_PIECE)" in week_read
+      and 'piece_runs["to_date"] = [">=", str(start)]' in week_read
+      and '"piece_runs_draft": count(piece_pay.RUN, dict(piece_runs, docstatus=0))' in week_read
+      and "if piece_pay.RUN in self.readable else 0}" in week_read,
       "the casuals' week is read as the weekly payroll reads it, for the casuals the user may see, and is no panel "
       "where there are none")
 check('if self.money and "Salary Slip" in self.readable:' in method("panel_kpis")

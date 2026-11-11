@@ -190,7 +190,9 @@ list down the left.
     - *Payroll Readiness* (HR Manager, Payroll Officer) lists the steps of
       the period that ends this month, from the clock's last read to the
       bank entry made from the Payroll Entry. Each is done, under way, not
-      started, or late once past its day.
+      started, or late once past its day. Its output runs are the month's:
+      Per Meter's. A Per Piece run is a week's and feeds the weekly
+      payroll, so the month does not wait for it.
     - *Plants at a Glance* shows each plant's people in, late, absent and
       on leave today, a clock that has sent nothing today, and the approved
       overtime this period.
@@ -198,8 +200,12 @@ list down the left.
       reads the next weekly payroll as the payroll itself will, before it
       is run: the casuals with days and with approved overtime to pay,
       those who would be left out for want of an Hourly Rate (the row
-      opens them), whether the Per Piece sheet is uploaded, and a weekly
-      payroll left in draft. A company with no casuals has no such panel.
+      opens them), and a weekly payroll left in draft. For Per Piece it
+      says where the week's Output Pay Run stands: no run yet, a run in
+      draft, or pay from a submitted run waiting for the payroll. The
+      casuals are those the payroll takes: not the inactive, nor one who
+      left before the week began. A company with no casuals has no such
+      panel.
     - *Deductions Last Period* (Payroll) sums the lines the latest monthly
       period took off: PAYE, the NSSF's two shares and the rest, a foreign
       currency slip's at its exchange rate. A line worked out only to work
