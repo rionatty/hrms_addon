@@ -75,7 +75,7 @@ check(list(R.days_between("2026-08-30", "2026-09-02", D(2026, 9, 1))) == [D(2026
 check(list(R.days_between("2026-09-02", "2026-08-30")) == [], "no days in a period that runs backwards")
 check(R.period_problem("2026-09-02", "2026-09-01") and not R.period_problem("2026-09-01", "2026-09-01") and not R.period_problem(None, None),
       "the To Date before the From Date is said")
-check(R.BACKUP_HEADERS[:8] == U.HEADERS, "the file opens with Upload Attendance's own columns")
+check(R.BACKUP_HEADERS[:8] == U.HEADERS[:8], "the file opens with Upload Attendance's own columns")
 check(len(R.BACKUP_HEADERS) == len(R.backup_row({"docstatus": 1})), "a value for every heading")
 check(len(R.KEPT_HEADERS) == len(R.kept_row({}, "why")), "and for every heading of the second file")
 check(R.csv_bytes([["a"]], first=True).startswith(b"\xef\xbb\xbf") and not R.csv_bytes([["a"]]).startswith(b"\xef\xbb\xbf"),
@@ -610,7 +610,7 @@ check(len(idle.names()) == 1, "a job for a deletion not queued does nothing", id
 
 # ── 4. Back through Upload Attendance ────────────────────
 header = U.header_of(backup, "x.csv")
-check(tuple(header)[:8] == U.HEADERS, "Upload Attendance reads the file's heading", header)
+check(tuple(header)[:8] == U.HEADERS[:8], "Upload Attendance reads the file's heading", header)
 back = list(U.days_in(backup, "x.csv"))
 check(len(back) == 17 and {row["status"] for row in back} == {"Present"}, "and only the submitted days: 19 less a draft and a cancelled", len(back))
 check(back[0]["employee"].startswith("E") and U.parse_date(back[0]["attendance_date"]) == D(2026, 8, 30) and back[0]["shift"] == "Day", "with their employee, date and shift", back[0])

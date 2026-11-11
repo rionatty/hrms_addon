@@ -124,9 +124,13 @@ check("the file has the sheet to fill, the lists (hidden) and how to fill it",
       book.sheetnames == [R.SHEET, R.LISTS, R.HOW] and book[R.LISTS].sheet_state == "hidden", book.sheetnames)
 sheet = book[R.SHEET]
 check("its header is the template's: Employee, Employee Name, Department, Attendance Date, Status, Leave Type, "
-      "Shift, Note", [cell.value for cell in sheet[1]] == list(R.HEADERS) == [
-          "Employee", "Employee Name", "Department", "Attendance Date", "Status", "Leave Type", "Shift", "Note"],
-      [cell.value for cell in sheet[1]])
+      "Shift, Note, and after them Working Hours and Overtime Hours (Luuka, 11 Nov 2026)",
+      [cell.value for cell in sheet[1]] == list(R.HEADERS) == [
+          "Employee", "Employee Name", "Department", "Attendance Date", "Status", "Leave Type", "Shift", "Note",
+          "Working Hours", "Overtime Hours"], [cell.value for cell in sheet[1]])
+check("the two hours columns are blank on every row, and wide enough to read",
+      all(row[8] is None and row[9] is None and len(row) == 10 for row in rows)
+      and sheet.column_dimensions["I"].width == 16 and sheet.column_dimensions["J"].width == 16)
 check("a row for every day, under the header", sheet.max_row == len(rows) + 1, sheet.max_row)
 check("dates are dates, written 2026-10-05", isinstance(sheet["D2"].value, datetime.datetime)
       and sheet["D2"].number_format == "yyyy-mm-dd", (sheet["D2"].value, sheet["D2"].number_format))
@@ -145,7 +149,7 @@ check("each Leave Type and Shift from the site's own, on the hidden sheet",
       and pick.get("G2:G%d" % (len(rows) + 1)) == ("'Lists'!$B$2:$B$3", False), pick)
 check("the lists hold the names given", [book[R.LISTS].cell(r, 1).value for r in range(2, 5)] == LEAVES
       and [book[R.LISTS].cell(r, 2).value for r in range(2, 4)] == SHIFTS)
-check("the header stays in view and filters", sheet.freeze_panes == "B2" and sheet.auto_filter.ref.startswith("A1:H"),
+check("the header stays in view and filters", sheet.freeze_panes == "B2" and sheet.auto_filter.ref.startswith("A1:J"),
       (sheet.freeze_panes, sheet.auto_filter.ref))
 check("how to fill it says what a blank day means and what On Leave needs",
       [row[0] for row in book[R.HOW].iter_rows(values_only=True)] == list(R.HOW_TO_FILL)
@@ -256,6 +260,26 @@ for given, wanted in (("2026-10-05", D(2026, 10, 5)), ("05/10/2026", D(2026, 10,
                       (12, None), (True, None)):
     check("the date %r reads as %s" % (given, wanted), R.parse_date(given) == wanted, R.parse_date(given))
 
+# the hours (Luuka, 11 Nov 2026: "where do i import hours worked from and overtime hours from")
+for given, wanted in ((None, None), ("", None), ("  ", None), (0, None), ("0", None), (8, 8.0), ("7.5", 7.5),
+                      (" 10 ", 10.0), ("1,5", False), (24, 24.0), (24.01, False), (-1, False), ("eight", False),
+                      (float("nan"), False)):
+    check("hours %r read as %r" % (given, wanted), R.hours(given) == wanted
+          and type(R.hours(given)) is type(wanted), R.hours(given))
+hours_sheet = openpyxl.load_workbook(io.BytesIO(content))
+hw = hours_sheet[R.SHEET]
+hw["E2"], hw["I2"], hw["J2"] = "Present", 8, 2.5
+out_hours = io.BytesIO()
+hours_sheet.save(out_hours)
+with_hours = list(R.days_in(out_hours.getvalue(), "hours.xlsx"))
+check("a day's Working Hours and Overtime Hours are read back with it",
+      [(r["employee"], r["status"], r["working_hours"], r["overtime_hours"]) for r in with_hours]
+      == [("LPL001", "Present", 8, 2.5)], with_hours)
+before = list(R.days_in("Employee,Attendance Date,Status,Leave Type,Shift,Note\nLPL001,2026-10-05,Present,,,\n".encode(),
+                        "old.csv"))
+check("a file filled in before the hours columns reads as it did: no hours on its days",
+      len(before) == 1 and "working_hours" not in before[0] and "overtime_hours" not in before[0], before)
+
 # ── 3. The checks ─────────────────────────────────────────────────────
 EMPLOYEES = {
     "LPL001": {"date_of_joining": D(2020, 1, 6), "relieving_date": None, "status": "Active"},
@@ -335,6 +359,56 @@ check("each day to mark keeps the row it came from, for the file of rows not mar
       two["source"] is ROWS[0] and two["row"] == 2)
 
 # ── 4. The rows not marked ────────────────────────────────────────────
+# hours and overtime on a day (Luuka, 11 Nov 2026)
+CASUALS = {"LPC001": {"date_of_joining": D(2020, 1, 6), "relieving_date": None, "status": "Active",
+                      "pay_category": "Weekly"},
+           "LPL001": {"date_of_joining": D(2020, 1, 6), "relieving_date": None, "status": "Active",
+                      "pay_category": "Monthly"}}
+
+
+def hours_row(number, employee, status, worked=None, extra=None, day="2026-10-05"):
+    return {"row": number, "employee": employee, "attendance_date": day, "status": status, "working_hours": worked,
+            "overtime_hours": extra, "values": (employee, None, None, day, status, None, None, None, worked, extra)}
+
+
+timed = R.check_days([
+    hours_row(2, "LPC001", "Present", 8, 2),
+    hours_row(3, "LPC001", "Half Day", 4, None, "2026-10-06"),
+    hours_row(4, "LPC001", "Absent", 8, None, "2026-10-07"),
+    hours_row(5, "LPC001", "Half Day", 4, 1, "2026-10-08"),
+    hours_row(6, "LPL001", "Present", 8, 2, "2026-10-09"),
+    hours_row(7, "LPC001", "Present", "eight", None, "2026-10-10"),
+    hours_row(8, "LPC001", "Present", None, 25, "2026-10-11"),
+    hours_row(9, "LPL001", "Present", 9, None, "2026-10-12"),
+    hours_row(10, "LPC001", "Present", 0, 0, "2026-10-13"),
+], CASUALS, {"leave_types": [], "shifts": []}, {}, D(2026, 10, 20))
+marks = {row["row"]: (row["working_hours"], row["overtime_hours"]) for row in timed["to_mark"]}
+whys = {row["row"]: why for row, why in timed["problems"]}
+check("a weekly casual's day goes to be marked with its hours and its overtime; a monthly employee's with its hours; "
+      "0 is no hours; hours on a day not worked are left out, as a file of deleted days brings them",
+      marks == {2: (8.0, 2.0), 3: (4.0, None), 4: (None, None), 9: (9.0, None), 10: (None, None)}, marks)
+check("overtime is paid on a day Present only", whys.get(5) == "Overtime is paid on a day marked Present, not on Half Day.",
+      whys.get(5))
+check("Overtime Hours are for those paid by the week: anyone else is sent to an Overtime Request",
+      whys.get(6) == "Overtime Hours are for casuals paid by the week. LPL001's overtime goes through an Overtime "
+                     "Request.", whys.get(6))
+check("hours that are not a number, or more than a day has, are said",
+      whys.get(7) == "eight is not a number of hours from 0 to 24." and whys.get(8) == "25 is not a number of hours "
+                                                                                       "from 0 to 24.", (whys.get(7), whys.get(8)))
+MARKED_HOURS = {("LPC001", D(2026, 10, 5)): ("Present", "HR-ATT-1", 8.0, 2.0),
+                ("LPC001", D(2026, 10, 6)): ("Half Day", "HR-ATT-2", 0.0, 0.0),
+                ("LPC001", D(2026, 10, 7)): ("Present", "HR-ATT-3")}
+again_hours = R.check_days([
+    hours_row(2, "LPC001", "Present", 8, 2),
+    hours_row(3, "LPC001", "Half Day", 4, None, "2026-10-06"),
+    hours_row(4, "LPC001", "Present", None, None, "2026-10-07"),
+], CASUALS, {"leave_types": [], "shifts": []}, MARKED_HOURS, D(2026, 10, 20))
+check("a day already marked with the same hours counts as marked; with other hours it is said, not passed over; "
+      "a row that gives no hours asks for nothing more",
+      again_hours["already"] == 2 and [(row["row"], why) for row, why in again_hours["problems"]]
+      == [(3, "Already marked Half Day on HR-ATT-2 with other hours. Cancel that one to mark the day again.")],
+      (again_hours["already"], again_hours["problems"]))
+
 header = R.HEADERS
 problems = result["problems"] + rest["problems"]
 again = R.problems_file(header, list(reversed(problems)))
@@ -342,7 +416,7 @@ sheet = openpyxl.load_workbook(io.BytesIO(again))[R.SHEET]
 check("the rows not marked come with why, in a last column", [c.value for c in sheet[1]] == list(header) + [R.WHY],
       [c.value for c in sheet[1]])
 check("in the order of the file, whatever order they were found in",
-      [sheet.cell(r, 9).value for r in range(2, sheet.max_row + 1)] ==
+      [sheet.cell(r, len(R.HEADERS) + 1).value for r in range(2, sheet.max_row + 1)] ==
       [why for _row, why in sorted(problems, key=lambda p: p[0]["row"])])
 reread = list(R.days_in(again, "rows not marked.xlsx"))
 check("the file goes back in as it is: each row with its Status read again",
@@ -515,6 +589,27 @@ check("one hint at a time: the form clears its own before it draws one (two stoo
 listing = read("hrms_addon", "hrms_addon", "doctype", "upload_attendance", "upload_attendance_list.js")
 check("the list colours every status", all('%s:' % s in listing or '"%s":' % s in listing
                                            for s in fields["status"]["options"].split("\n")))
+
+# hours and overtime with the day (Luuka, 11 Nov 2026)
+overtime_glue = read("hrms_addon", "hrms_addon", "overtime.py")
+for needle, why in (
+    ('if row.get("working_hours"):\n            day.working_hours = row["working_hours"]',
+     "a day's Working Hours go on its Attendance"),
+    ('day.update(_overtime(row["employee"], row["attendance_date"], row["overtime_hours"], memo))',
+     "its Overtime Hours as an approved request writes them"),
+    ("named, why = overtime.type_on(employee, day, memo[\"types\"])", "under the Overtime Type that lists the person"),
+    ('frappe.throw(_("No Overtime Type for {0}: {1}").format(employee, _(why or overtime_rules.NOT_LISTED)))',
+     "nobody's overtime is written under no type: the row says why"),
+    ("return overtime_rules.attendance_update({\"hours\": hours}, named, overtime.standard_hours_on(employee, day))",
+     "the fields Frappe HR and the weekly payslip read"),
+    ('row.pay_category = row.get(PAY_CATEGORY)', "who is paid by the week is read with the employee"),
+    ('flt(row.actual_overtime_duration))', "a day already marked is compared with its hours"),
+    ('memo["types"] = overtime._types_for()', "the Overtime Types read once for a file"),
+):
+    check("attendance_upload.py: %s" % why, needle in glue, needle)
+check("overtime.type_on gives one person's type on a day, as a request's line is given it",
+      "def type_on(employee, day, types=None):" in overtime_glue and "return rules.person_type(" in overtime_glue
+      and "def standard_hours_on(employee, day):" in overtime_glue)
 
 print()
 if fail:

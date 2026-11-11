@@ -59,7 +59,18 @@ STATUSES = ("Present", "Absent", "On Leave", "Half Day", "Work From Home")
 NEEDS_LEAVE_TYPE = ("On Leave",)
 # the statuses a Leave Type is kept on; Frappe HR clears it on the others
 TAKES_LEAVE_TYPE = ("On Leave", "Half Day")
-HEADERS = ("Employee", "Employee Name", "Department", "Attendance Date", "Status", "Leave Type", "Shift", "Note")
+# the last two came later (Luuka, 11 Nov 2026: "where do i import hours worked from and overtime hours from"),
+# after the columns the template always had, so a file filled in before them still reads
+HEADERS = ("Employee", "Employee Name", "Department", "Attendance Date", "Status", "Leave Type", "Shift", "Note",
+           "Working Hours", "Overtime Hours")
+# the statuses a day's hours can be given on, and the one overtime is paid on (Frappe HR's Overtime Slip reads
+# no other; overtime_rules.PAID_ON)
+WORKED = ("Present", "Half Day", "Work From Home")
+OVERTIME_ON = "Present"
+# who Overtime Hours are for: the casuals paid by the week (weekly_pay.py); anyone else's overtime is approved on
+# an Overtime Request
+WEEKLY = "Weekly"
+MOST_HOURS = 24
 SHEET, LISTS, HOW = "Attendance", "Lists", "How to fill"
 HOLIDAY = "Holiday"
 WHY = "Why Not Marked"
@@ -75,6 +86,8 @@ COLUMNS = {
     "status": ("status",),
     "leave_type": ("leave type",),
     "shift": ("shift",),
+    "working_hours": ("working hours", "hours worked", "hours"),
+    "overtime_hours": ("overtime hours", "overtime", "ot hours"),
 }
 NEEDED = ("employee", "attendance_date", "status")
 # the header is looked for in this many rows from the top
@@ -99,6 +112,11 @@ HOW_TO_FILL = (
     "On Leave needs a Leave Type.",
     "Leave the Shift blank unless the day was worked on a shift that is not the employee's own.",
     "Days already marked are not in this file. A holiday says so in the Note column.",
+    "Working Hours: the hours worked that day, for those paid by the hour. Left blank, a day Present is a full day "
+    "and a Half Day half of one. Hours over a full day are not paid here: put them under Overtime Hours. Hours on a "
+    "day not worked are left out.",
+    "Overtime Hours: a weekly casual's overtime that day, on a day Present. It is paid on the weekly payroll with no "
+    "Overtime Request. Anyone else's overtime goes through an Overtime Request.",
     "Attach the file to the Upload Attendance and press Import.",
 )
 
@@ -128,7 +146,7 @@ def template_rows(people, start, end, today, marked, holidays=None):
             if (person["employee"], day) in marked:
                 continue
             yield (person["employee"], person.get("employee_name") or "", person.get("department") or "",
-                   day, None, None, None, HOLIDAY if day in kept else None)
+                   day, None, None, None, HOLIDAY if day in kept else None, None, None)
 
 
 def count_rows(people, start, end, today, marked):
@@ -147,7 +165,7 @@ def build_template(rows, total, leave_types=(), shifts=()):
     last = total + 1
     sheet.freeze_panes = "B2"
     sheet.auto_filter.ref = "A1:%s%d" % (_letter(len(HEADERS)), last)
-    for column, width in zip("ABCDEFGH", (14, 30, 28, 16, 18, 22, 18, 12)):
+    for column, width in zip("ABCDEFGHIJ", (14, 30, 28, 16, 18, 22, 18, 12, 16, 16)):
         sheet.column_dimensions[column].width = width
     _pick(sheet, "E", '"%s"' % ",".join(STATUSES), last)
     if leave_types:
@@ -207,7 +225,7 @@ def _row(number, row, styles):
     """One template row as openpyxl writes it: a date as its day number,
     anything else as text in the cell, a blank left out."""
     cells = []
-    for column, value in zip("ABCDEFGH", row):
+    for column, value in zip("ABCDEFGHIJ", row):
         if value is None or value == "":
             continue
         if isinstance(value, datetime.date):
@@ -360,8 +378,10 @@ def check_days(days, employees, names, marked, today, seen=None):
     employees    {name: {"date_of_joining", "relieving_date", "status"}},
                  matched without case, as the database matches them
     names        {"leave_types", "shifts"}: the names the site has
-    marked       {(employee, date): (status, the Attendance)}, in draft or
-                 submitted
+    marked       {(employee, date): (status, the Attendance, its working
+                 hours, its overtime hours)}, in draft or submitted; the
+                 hours may be left out
+    employees' facts may carry "pay_category", which Overtime Hours need
     seen         {(employee, date): row}: the days met so far in the file,
                  kept by the caller across the parts of a large file
     Returns {"to_mark": [...], "already": n, "problems": [(row, why)]}."""
@@ -379,6 +399,7 @@ def check_days(days, employees, names, marked, today, seen=None):
         facts = employees.get(name) or {}
         day, status = parse_date(given), statuses.get(said.lower())
         leave, shift = _text(row.get("leave_type")), _text(row.get("shift"))
+        worked, extra = hours(row.get("working_hours")), hours(row.get("overtime_hours"))
         joined, left = _date(facts.get("date_of_joining")), _date(facts.get("relieving_date"))
         why = None
         if not who:
@@ -407,14 +428,25 @@ def check_days(days, employees, names, marked, today, seen=None):
             why = "No shift %s." % shift
         elif (name, day) in seen:
             why = "%s on %s is on row %s too." % (name, day.isoformat(), seen[(name, day)])
+        elif worked is False or extra is False:
+            why = "%s is not a number of hours from 0 to %d." % (
+                _text(row.get("working_hours") if worked is False else row.get("overtime_hours")), MOST_HOURS)
+        elif extra and status != OVERTIME_ON:
+            why = "Overtime is paid on a day marked %s, not on %s." % (OVERTIME_ON, status)
+        elif extra and facts.get("pay_category") != WEEKLY:
+            why = ("Overtime Hours are for casuals paid by the week. %s's overtime goes through an Overtime Request."
+                   % name)
         if why:
             out["problems"].append((row, why))
             continue
         seen[(name, day)] = row.get("row")
         already = marked.get((name, day))
         if already:
-            if already[0] == status:
+            if already[0] == status and _same_hours(already, worked if status in WORKED else None, extra):
                 out["already"] += 1
+            elif already[0] == status:
+                out["problems"].append((row, "Already marked %s on %s with other hours. Cancel that one to mark the "
+                                             "day again." % (already[0], already[1])))
             else:
                 out["problems"].append((row, "Already marked %s on %s. Cancel that one to mark the day again."
                                         % (already[0], already[1])))
@@ -423,9 +455,34 @@ def check_days(days, employees, names, marked, today, seen=None):
             "row": row.get("row"), "employee": name, "attendance_date": day, "status": status,
             "leave_type": leave_names.get(leave.lower()) if leave and status in TAKES_LEAVE_TYPE else None,
             "shift": shift_names.get(shift.lower()) if shift else None,
+            # hours on a day not worked are left out: the clock leaves some on a day it marks Absent, and a file
+            # of deleted days (attendance_deletion.py) brings them back as they were
+            "working_hours": (worked or None) if status in WORKED else None, "overtime_hours": extra or None,
             "source": row,
         })
     return out
+
+
+def hours(value):
+    """A cell's hours: None where it is empty or 0, the number where it is one from 0 to a day's 24, False where
+    it is anything else. 1,5 is refused, never read as 15."""
+    if value is None or _text(value) == "":
+        return None
+    try:
+        number = float(str(value).strip())
+    except ValueError:
+        return False
+    if number != number or number < 0 or number > MOST_HOURS:
+        return False
+    return round(number, 2) or None
+
+
+def _same_hours(already, worked, extra):
+    """Whether a row's hours are those of the day as it is marked: a row that gives none asks for nothing more."""
+    for given, at in ((worked, 2), (extra, 3)):
+        if given and (len(already) <= at or abs(float(already[at] or 0) - given) > 0.005):
+            return False
+    return True
 
 
 # ── The days not marked ───────────────────────────────────────────────

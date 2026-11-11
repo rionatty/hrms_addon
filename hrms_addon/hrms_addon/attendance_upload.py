@@ -39,7 +39,7 @@ import base64
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, get_datetime, getdate, now_datetime, strip_html_tags, today
+from frappe.utils import add_to_date, flt, get_datetime, getdate, now_datetime, strip_html_tags, today
 
 from hrms_addon.hrms_addon import attendance
 from hrms_addon.hrms_addon import attendance_rules as register
@@ -47,6 +47,8 @@ from hrms_addon.hrms_addon import attendance_upload_rules as rules
 
 DOCTYPE = "Upload Attendance"
 ATTENDANCE = "Attendance"
+# how an employee is paid: Overtime Hours are for those paid by the week
+PAY_CATEGORY = "custom_pay_category"
 DRAFT, QUEUED, IMPORTING = "Draft", "Queued", "Importing"
 DONE, DONE_WITH_PROBLEMS, FAILED = "Done", "Done with Problems", "Failed"
 STATUSES = (DRAFT, QUEUED, IMPORTING, DONE, DONE_WITH_PROBLEMS, FAILED)
@@ -161,16 +163,19 @@ def _people(company, start, end, branch=None, department=None):
 
 
 def _marked(employees, start, end):
-    """{(employee, date): (status, the Attendance)} for every day marked in
-    the period, in draft or submitted: Frappe HR refuses a second one."""
+    """{(employee, date): (status, the Attendance, its working hours, its
+    overtime hours)} for every day marked in the period, in draft or
+    submitted: Frappe HR refuses a second one."""
     if not employees:
         return {}
-    return {(row.employee, getdate(row.attendance_date)): (row.status, row.name)
+    return {(row.employee, getdate(row.attendance_date)): (row.status, row.name, flt(row.working_hours),
+                                                           flt(row.actual_overtime_duration))
             for row in frappe.get_all(
                 ATTENDANCE, limit_page_length=0,
                 filters={"employee": ["in", employees], "docstatus": ["<", 2],
                          "attendance_date": ["between", [start, end]]},
-                fields=["name", "employee", "attendance_date", "status"])}
+                fields=["name", "employee", "attendance_date", "status", "working_hours",
+                        "actual_overtime_duration"])}
 
 
 def _holidays(lists, start, end):
@@ -243,6 +248,8 @@ def _mark_file(doc):
     # people: {name: what the checks need}; index: {name in small letters: name,
     # or None for one the site does not have}, so each is looked up once
     people, index, seen, problems = {}, {}, {}, []
+    # the Overtime Types, read once for the whole file where a row carries overtime
+    memo = {}
     done, shown = 0, -1
     for part in _parts(rules.days_in(content, doc.attendance_file), PART):
         _learn(people, index, part)
@@ -253,7 +260,7 @@ def _mark_file(doc):
         problems += checked["problems"]
         counts["already_marked"] += checked["already"]
         for row in checked["to_mark"]:
-            why = _mark_day(row, people)
+            why = _mark_day(row, people, memo)
             if why:
                 problems.append((row["source"], why))
             else:
@@ -306,12 +313,14 @@ def _learn(people, index, part):
     for name in wanted:
         index[name.lower()] = None
     for row in frappe.get_all("Employee", filters={"name": ["in", wanted]}, limit_page_length=0,
-                              fields=["name", "company", "date_of_joining", "relieving_date", "status"]):
+                              fields=["name", "company", "date_of_joining", "relieving_date", "status",
+                                      PAY_CATEGORY]):
+        row.pay_category = row.get(PAY_CATEGORY)
         people[row.name] = row
         index[row.name.lower()] = row.name
 
 
-def _mark_day(row, people):
+def _mark_day(row, people, memo=None):
     """One day marked and submitted, or why not. A day that fails is rolled
     back to before it, so it takes nothing else with it."""
     frappe.db.savepoint(SAVEPOINT)
@@ -321,6 +330,10 @@ def _mark_day(row, people):
             "status": row["status"], "leave_type": row["leave_type"], "shift": row["shift"],
             "company": people[row["employee"]].company,
         })
+        if row.get("working_hours"):
+            day.working_hours = row["working_hours"]
+        if row.get("overtime_hours"):
+            day.update(_overtime(row["employee"], row["attendance_date"], row["overtime_hours"], memo))
         day.insert()
         day.submit()
         return None
@@ -331,6 +344,21 @@ def _mark_day(row, people):
         # Frappe HR's notes on a day ("No leave record found ...") are for
         # somebody at the form; a month of them is only memory here
         frappe.local.message_log = []
+
+
+def _overtime(employee, day, hours, memo=None):
+    """A weekly casual's overtime uploaded with the day (Luuka, 11 Nov 2026): what an approved Overtime Request
+    writes on the Attendance (overtime_rules.attendance_update), under the Overtime Type that lists them, so the
+    weekly payslip pays it as it pays approved overtime. Nobody approves it: the file is the say-so."""
+    from hrms_addon.hrms_addon import overtime, overtime_rules
+
+    memo = {} if memo is None else memo
+    if "types" not in memo:
+        memo["types"] = overtime._types_for()
+    named, why = overtime.type_on(employee, day, memo["types"])
+    if not named:
+        frappe.throw(_("No Overtime Type for {0}: {1}").format(employee, _(why or overtime_rules.NOT_LISTED)))
+    return overtime_rules.attendance_update({"hours": hours}, named, overtime.standard_hours_on(employee, day))
 
 
 def _reason(error):
