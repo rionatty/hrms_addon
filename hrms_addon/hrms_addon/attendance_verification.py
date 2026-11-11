@@ -236,8 +236,8 @@ PERSON_FIELDS = ("name", "employee_name", "branch", "department", "designation",
 
 
 def _people(doc):
-    """{employee: row} of the branch's active people the sheet is for, by name (rules.on_sheet): those with a salary
-    structure assigned by its last day."""
+    """{employee: row} of the branch's active people the sheet is for, by name (rules.on_sheet): on a monthly sheet,
+    those with a salary structure assigned by its last day; on a weekly one, every weekly casual."""
     found = frappe.get_all("Employee", filters={
         "company": doc.company, "branch": doc.branch, "date_of_joining": ["<=", doc.to_date],
         "status": rules.ACTIVE}, fields=list(PERSON_FIELDS), order_by="employee_name asc",

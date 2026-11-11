@@ -16,6 +16,14 @@ const HRA_PAY_MONTHS = [
 ];
 
 frappe.ui.form.on("Output Pay Run", {
+	// a Per Piece run's To follows the From picked: the week of seven days from it (Luuka, 11 Nov 2026: "the date
+	// should auto fill the week once the from date is selected"). To can still be changed after.
+	from_date(frm) {
+		if (frm.doc.docstatus !== 0 || frm.doc.section !== "Per Piece" || !frm.doc.from_date) return;
+		const to = frappe.datetime.add_days(frm.doc.from_date, 6);
+		if (frm.doc.to_date !== to) frm.set_value("to_date", to);
+	},
+
 	onload(frm) {
 		if (!frm.is_new()) return;
 		// the payroll month a day belongs to: from the 26th, the next one

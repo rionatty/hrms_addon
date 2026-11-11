@@ -42,6 +42,9 @@ frappe.ui.form.on("Attendance Verification", {
 	pay_period(frm) {
 		ha_verify_month_dates(frm, false);
 	},
+	from_date(frm) {
+		ha_verify_week_end(frm);
+	},
 });
 
 // The page buttons of both tables, shown whenever a table has rows, one page or many (Luuka, 8 Nov 2026). Frappe draws
@@ -155,8 +158,17 @@ function ha_verify_weekly(frm) {
 	const asked = frm.doc.company + "|" + frm.doc.branch;
 	ha_verify_get(HA_VERIFY_WEEKLY, { company: frm.doc.company, branch: frm.doc.branch }).then((dates) => {
 		if (!dates || frm.doc.company + "|" + frm.doc.branch !== asked || frm.doc.pay_kind !== "Weekly") return;
+		// From first: its handler fills a week, then the To handed over is written over it
 		frm.set_value({ from_date: dates.from_date, to_date: dates.to_date });
 	});
+}
+
+// a weekly sheet's To follows the From picked: the week of seven days from it (Luuka, 11 Nov 2026: "the date should
+// auto fill the week once the from date is selected"). To can still be changed after.
+function ha_verify_week_end(frm) {
+	if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;
+	const to = frappe.datetime.add_days(frm.doc.from_date, 6);
+	if (frm.doc.to_date !== to) frm.set_value("to_date", to);
 }
 
 // Mark Attendance (Luuka, 8 Nov 2026): the days on the sheet nobody marked, of the sheet's own people and on its own

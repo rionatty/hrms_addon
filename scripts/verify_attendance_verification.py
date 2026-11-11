@@ -108,6 +108,15 @@ for structure in (False, None, ""):
           "nobody with no salary structure assigned by its last day (%r): the payroll pays nobody else" % structure)
 check(not R.on_sheet({key: value for key, value in staff.items() if key != "salary_structure"}, "Monthly",
                      "2026-09-26", "2026-10-25"), "nor one whose structure was never looked up")
+# a weekly sheet is every active weekly casual (Luuka, 11 Nov 2026: "the employee should be weekly casuals"): the weekly
+# payroll gives a casual the weekly structure itself when it pays them
+for structure in (False, None, ""):
+    check(R.on_sheet(dict(casual, salary_structure=structure), "Weekly", "2026-10-30", "2026-11-05"),
+          "a weekly casual with no salary structure yet (%r) is on the weekly sheet: the weekly payroll gives them "
+          "theirs when it pays them" % structure)
+check(not R.on_sheet(dict(casual, salary_structure=False, status="Inactive"), "Weekly", "2026-10-30", "2026-11-05")
+      and not R.on_sheet(dict(casual, salary_structure=False, date_of_joining="2026-11-06"), "Weekly", "2026-10-30",
+                         "2026-11-05"), "though only one active and on the books in its days")
 check(not R.on_sheet(dict(staff, status="Left", relieving_date="2026-10-10"), "Monthly", "2026-09-26", "2026-10-25"),
       "not even one who left during it")
 check(not R.on_sheet(dict(staff, date_of_joining="2026-10-26"), "Monthly", "2026-09-26", "2026-10-25"),
@@ -399,6 +408,12 @@ check("frappe.flags.get(\"via_payroll_entry\")" in glue, "a slip its payroll sub
 for method in ("weekly_dates", "payroll_branches"):
     check(re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % method, glue), "the form calls %s" % method)
 js = read("hrms_addon", "hrms_addon", "doctype", "attendance_verification", "attendance_verification.js")
+check("\tfrom_date(frm) {\n\t\tha_verify_week_end(frm);\n\t}," in js
+      and 'if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;' in js
+      and "const to = frappe.datetime.add_days(frm.doc.from_date, 6);" in js
+      and "frm.set_value({ from_date: dates.from_date, to_date: dates.to_date });" in js,
+      "a weekly draft's To follows the From picked, the seventh day from it; the days handed to a new weekly sheet are "
+      "written From first, so the To handed over stands (smoke_verification_week_form.py)")
 check('"hrms_addon.hrms_addon.attendance_verification.weekly_dates"' in js
       and '"hrms_addon.hrms_addon.payroll_months.open_months"' in js, "the sheet's form asks the glue and the months")
 check('frm.add_custom_button(__("Get Attendance"), () => frm.save())' in js
