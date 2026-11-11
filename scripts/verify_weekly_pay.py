@@ -1334,8 +1334,9 @@ check("@frappe.whitelist()\ndef dates_for(" in read("hrms_addon", "hrms_addon", 
 run_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_run", "output_pay_run.json"), encoding="utf-8"))
 section = next(field for field in run_meta["fields"] if field["fieldname"] == "section")
 check(section["options"].split("\n") == ["Per Meter", "Per Piece"], "an Output Pay Run is for Per Meter or Per Piece: the casuals are paid weekly")
-check('if doc.get("section") == rules.PER_PIECE:' in read("hrms_addon", "hrms_addon", "output_pay.py").split("def run_validate")[1][:300],
-      "and no longer for Per Piece: their weeks are paid on the weekly payroll, which a month's run would pay again")
+check('if doc.get("section") == rules.PER_PIECE:' in read("hrms_addon", "hrms_addon", "output_pay.py").split("def _set_period")[1][:300]
+      and "Per Piece casuals are paid by the week: upload their sheet" not in read("hrms_addon", "hrms_addon", "output_pay.py"),
+      "a Per Piece run is for a week, not a month: it feeds the weekly payroll, which pays it (Luuka, 11 Nov 2026)")
 glue = read("hrms_addon", "hrms_addon", "output_pay.py")
 check("_fill_hours" not in glue and "_price_hours" not in glue and "custom_pay_category\": rules.HOURLY" not in glue,
       "and it no longer pays anyone by the hour")

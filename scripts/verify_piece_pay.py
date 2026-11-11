@@ -291,7 +291,7 @@ check(O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4)) == (D(2026, 11, 4), None)
       and O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4), left=D(2026, 10, 31)) == (D(2026, 10, 31), None)
       and O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4), joined=D(2026, 11, 2), left=D(2026, 11, 30)) == (D(2026, 11, 4), None)
       and O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4), left=D(2026, 10, 28))[1] == "they left on 28-Oct-2026, before the "
-                                                                                       "days this payroll pays"
+                                                                                       "days this run pays"
       and O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4), joined=D(2026, 11, 5))[1] == "they joined on 05-Nov-2026, after the week"
       and O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4), status="Inactive")[1] == "they are Inactive",
       "a week's pay is dated its last day, or the last day of one who left during it; not for one who joined after it, "
@@ -414,6 +414,10 @@ class Doc:
         self.run("on_cancel")
         self.docstatus = 2
         self.site.log.append(("cancel", self.values["doctype"], self.values["name"]))
+
+    def save(self):
+        self.site.log.append(("save", self.values["doctype"], self.values["name"]))
+        return self
 
 
 class Site:
@@ -543,6 +547,34 @@ output_pay._pay_categories = lambda employees: {row.name: row.custom_pay_categor
 output_pay.report_validate = priced_lines
 output_pay.report_on_submit = lambda doc, method=None: None
 output_pay.report_on_cancel = lambda doc, method=None: None
+output_pay.RUN = "Output Pay Run"
+output_pay._paid_run = lambda branch, section, day: next(
+    (row.name for row in site().rows("Output Pay Run") if row.docstatus == 1 and row.branch == branch
+     and row.section == section and as_date(row.from_date) <= as_date(day) <= as_date(row.to_date)), None)
+
+
+def fill_run(doc):
+    """output_pay._fill and _earnings, as far as piece_pay stands on them: the run's lines and arrears from the
+    submitted Per Piece reports of its plant and days, those that wrote their own pay left out, and what each
+    person is paid under each earning (output_rules.earnings). Their own checks are verify_output_pay.py."""
+    reports = [row for row in site().rows("Daily Production Report")
+               if row.docstatus == 1 and row.section == "Per Piece" and row.branch == doc.branch
+               and as_date(doc.from_date) <= as_date(row.report_date) <= as_date(doc.to_date)]
+    own = P.self_paid([row.name for row in reports])
+    reports = [row for row in reports if row.name not in own]
+    lines = [Row(employee=line.employee, size=line.size, output=line.output, amount=line.amount or 0)
+             for row in reports for line in row.lines or []]
+    owed = {}
+    for row in reports:
+        for line in row.arrears or []:
+            owed[line.employee] = owed.get(line.employee, 0.0) + line.amount
+    named = {row.name: row.salary_component for row in site().rows("Output Rate") if row.get("salary_component")}
+    doc.lines = lines
+    doc.arrears = [Row(employee=employee, amount=amount) for employee, amount in owed.items()]
+    doc.earnings = [Row(row) for row in O.earnings(lines, owed, named, "Per Piece Earnings", P.ARREARS[0])]
+
+
+output_pay._fill = fill_run
 weekly_pay = types.ModuleType("hrms_addon.hrms_addon.weekly_pay")
 
 
@@ -586,10 +618,36 @@ def populated():
               rates=[Row(work_unit=unit, valid_from=D(2026, 1, 1))])
     s.add("Output Rate", name="SIZE 1", section="Per Meter", enabled=1, rates=[Row(work_unit=200, valid_from=D(2026, 1, 1))])
     s.add("Salary Component", name="Per Piece Earnings", type="Earning", depends_on_payment_days=0)
-    s.add("Payroll Entry", name="PE-W", company="LPL", payroll_frequency="Weekly", salary_slip_based_on_timesheet=0,
-          docstatus=0, start_date=D(2026, 10, 22), end_date=D(2026, 11, 4), branch="PET")
+    s.add("Output Pay Run", name="RUN-W", company="LPL", section="Per Piece", docstatus=0, from_date=D(2026, 10, 22),
+          to_date=D(2026, 11, 4), branch="PET")
     s.files["/private/files/pet.xlsx"] = CONTENT
     return s
+
+
+def pay_run(name):
+    """output_pay.run_on_submit, as far as a Per Piece run goes: what piece_pay.before_paying asks first, then each
+    earning written as Additional Salary dated the day it gives."""
+    run = site().get_doc("Output Pay Run", name)
+    fill_run(run)
+    days = P.before_paying(run)
+    for row in run.earnings:
+        if row.amount > 0:
+            site().add("Additional Salary", name="ADS-%d" % site().next(), employee=row.employee, company=run.company,
+                       salary_component=row.salary_component, amount=row.amount,
+                       payroll_date=days.get(row.employee) or run.to_date, ref_doctype="Output Pay Run",
+                       ref_docname=run.name, docstatus=1)
+    run.docstatus = 1
+
+
+def reports_of(s):
+    """{the week's last day: {employee: [(category, bags)]}} of the submitted Per Piece reports that stand."""
+    out = {}
+    for row in s.rows("Daily Production Report"):
+        if row.docstatus == 1 and row.section == "Per Piece":
+            seat = out.setdefault(as_date(row.report_date), {})
+            for line in row.lines or []:
+                seat.setdefault(line.employee, []).append((line.size, line.output))
+    return out
 
 
 def pay(s):
@@ -600,155 +658,189 @@ def pay(s):
 
 # ── 4. The upload ────────────────────────────────────────
 s = populated()
-found = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
+found = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
 reports = [row for row in s.rows("Daily Production Report")]
-check([(row.report_date, row.branch, row.source, row.section, row.docstatus) for row in reports]
-      == [(D(2026, 10, 28), "PET", "Uploaded", "Per Piece", 1), (D(2026, 11, 4), "PET", "Uploaded", "Per Piece", 1)]
+check([(row.report_date, row.branch, row.source, row.section, row.docstatus, row.sheet_run) for row in reports]
+      == [(D(2026, 10, 28), "PET", "Uploaded", "Per Piece", 1, "RUN-W"), (D(2026, 11, 4), "PET", "Uploaded", "Per Piece", 1, "RUN-W")]
       and found["reports"] == [row.name for row in reports],
-      "one submitted Per Piece report for each week and plant, dated the week's last day", reports)
+      "one submitted Per Piece report for each week and plant, dated the week's last day, naming the run it was uploaded on",
+      reports)
 check([(line.employee, line.size, line.output, line.rate, line.amount) for line in reports[0].lines]
       == [("E1", "BAG 200", 10.0, 200, 2000.0), ("E1", "BAG 180", 5.0, 180, 900.0), ("E2", "BAG 200", 3.0, 200, 600.0)]
       and [(line.employee, line.amount) for line in reports[0].arrears] == [("E1", 500.0)] and reports[0].total_arrears == 500.0,
       "each line its bags at the category's price; the arrears on the report beside them", reports[0].lines)
-check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 10, 28)): 2900.0, ("E1", "Arrears", D(2026, 10, 28)): 500.0,
-                 ("E2", "Per Piece Earnings", D(2026, 10, 28)): 600.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0,
-                 ("E2", "Per Piece Earnings", D(2026, 11, 4)): 360.0},
-      "each person's week is Additional Salary dated its last day, which the weekly slip pays; the arrears beside it", pay(s))
-earning = next(row for row in s.rows("Additional Salary"))
-check(earning.overwrite_salary_structure_amount == 0 and earning.ref_doctype == "Daily Production Report"
-      and earning.ref_docname == reports[0].name and earning.currency == "UGX" and earning.company == "LPL",
-      "added to the slip, never in place of another line, and pointing back at its report", earning)
+check(not s.rows("Additional Salary"),
+      "the upload writes no pay: the run does when it is submitted, as a Per Meter run does (Luuka, 11 Nov 2026)",
+      s.rows("Additional Salary"))
+run = s.rows("Output Pay Run")[0]
+check(run.uploaded_sheet == "/private/files/pet.xlsx" and ("save", "Output Pay Run", "RUN-W") in s.log
+      and {(row.employee, row.salary_component): row.amount for row in run.earnings}
+      == {("E1", "Per Piece Earnings"): 3700.0, ("E1", "Arrears"): 500.0, ("E2", "Per Piece Earnings"): 960.0},
+      "the run is filled from the week's reports and saved with its sheet", run.earnings)
+check(found["weeks"] == 2 and found["people"] == 2 and found["bags"] == 24.0 and found["amount"] == 4660.0 and found["arrears"] == 500.0,
+      "the upload says what it took: the weeks, the people, the bags, the pay and the arrears", found)
+check(len(found["problems"]) == 4 and any("NOBODY KNOWN" in problem for problem in found["problems"])
+      and any("Arrears paid with their week" in note for note in found["notes"])
+      and any("1 other weekly sheet(s) end outside 22-Oct-2026 to 04-Nov-2026: the run of the week each ends in takes it."
+              in note for note in found["notes"]),
+      "and what it left out, and what it saw: the sheets the run of another week takes", found["notes"])
+check(("E1", "E2") == tuple(s.assigned[0][0]) and s.assigned[0][2] == D(2026, 10, 22),
+      "those on the sheet are given the weekly structure first, from the run's From, as Get Employees would", s.assigned)
+pay_run("RUN-W")
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E1", "Arrears", D(2026, 11, 4)): 500.0,
+                 ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0},
+      "submitted, each person's pay is Additional Salary dated the run's last day, which the weekly slip pays; the arrears "
+      "beside it", pay(s))
 arrears_component = [row for row in s.rows("Salary Component") if row.name == "Arrears"]
 check(len(arrears_component) == 1 and arrears_component[0].depends_on_payment_days == 0 and arrears_component[0].type == "Earning"
       and arrears_component[0].salary_component_abbr == "ARR",
       "the arrears' earning is made once, not cut by payment days", arrears_component)
 check(s.accounts == {("Per Piece Earnings", "LPL"), ("Arrears", "LPL")},
       "each earning paid is given the company's account, as posting the payroll needs one", s.accounts)
-check(found["weeks"] == 2 and found["people"] == 2 and found["bags"] == 24.0 and found["amount"] == 4660.0 and found["arrears"] == 500.0,
-      "the upload says what it took: the weeks, the people, the bags, the pay and the arrears", found)
-check(len(found["problems"]) == 4 and any("NOBODY KNOWN" in problem for problem in found["problems"])
-      and any("Arrears paid with their week" in note for note in found["notes"])
-      and any("1 other weekly sheet(s) end outside 22-Oct-2026 to 04-Nov-2026" in note for note in found["notes"]),
-      "and what it left out, and what it saw: the sheets the payroll of another week takes", found["notes"])
-check(("E1", "E2") == tuple(s.assigned[0][0]) and s.assigned[0][2] == D(2026, 10, 22),
-      "those paid are given the weekly structure first, from the payroll's Start, as Get Employees would", s.assigned)
+check((["E1", "E2"], "LPL", D(2026, 10, 22)) == s.assigned[-1],
+      "and each person paid is on the weekly structure as the run is submitted", s.assigned[-1])
 
-again = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(len(s.rows("Daily Production Report")) == 2 and len(s.rows("Additional Salary")) == 5 and pay(s) == {
-    ("E1", "Per Piece Earnings", D(2026, 10, 28)): 2900.0, ("E1", "Arrears", D(2026, 10, 28)): 500.0,
-    ("E2", "Per Piece Earnings", D(2026, 10, 28)): 600.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0,
-    ("E2", "Per Piece Earnings", D(2026, 11, 4)): 360.0}
-      and [event for event in s.log if event[0] == "cancel" and event[1] == "Additional Salary"],
-      "uploaded again, the last upload goes with its pay, and the new one stands: nothing twice",
-      (len(s.rows("Daily Production Report")), len(s.rows("Additional Salary"))))
-s.add("Payroll Entry", name="PE-B", company="LPL", payroll_frequency="Weekly", salary_slip_based_on_timesheet=0,
-      docstatus=0, start_date=D(2026, 10, 22), end_date=D(2026, 11, 4), branch="BOTTLES")
-P.upload_pieces("PE-B", "/private/files/pet.xlsx")
-P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(pay(s).get(("E4", "Per Piece Earnings", D(2026, 10, 28))) == 400.0
-      and [row.branch for row in s.rows("Daily Production Report")].count("BOTTLES") == 1,
-      "another plant's payroll takes its own casuals off the same workbook, and this plant's upload leaves theirs "
-      "standing", pay(s))
+s = populated()
+P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+first = [row.name for row in s.rows("Daily Production Report")]
+again = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check(len(s.rows("Daily Production Report")) == 2 and not set(first) & {row.name for row in s.rows("Daily Production Report")}
+      and [event for event in s.log if event[:2] == ("delete", "Daily Production Report")] and not s.rows("Additional Salary"),
+      "uploaded again, the last upload goes and the new one stands: nothing twice",
+      (len(s.rows("Daily Production Report")), s.log))
+pay_run("RUN-W")
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E1", "Arrears", D(2026, 11, 4)): 500.0,
+                 ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0}, "and the run pays it once", pay(s))
+s = populated()
+s.add("Output Pay Run", name="RUN-B", company="LPL", section="Per Piece", docstatus=0, from_date=D(2026, 10, 22),
+      to_date=D(2026, 11, 4), branch="BOTTLES")
+P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+P.upload_pieces("RUN-B", "/private/files/pet.xlsx")
+P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+pay_run("RUN-B")
+check(pay(s) == {("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0}
+      and [row.branch for row in s.rows("Daily Production Report")].count("BOTTLES") == 1
+      and [row.branch for row in s.rows("Daily Production Report")].count("PET") == 2,
+      "another plant's run takes its own casuals off the same workbook, and this plant's upload leaves theirs standing",
+      pay(s))
+s = populated()
+P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
 s.files["/private/files/one_week.xlsx"] = workbook([("29th-Oct-04th-Nov-26", sheet_rows("PET", [{"name": "SECOND TESTER", "bags": {180: 7}}]))])
-P.upload_pieces("PE-W", "/private/files/one_week.xlsx")
-check(pay(s).get(("E2", "Per Piece Earnings", D(2026, 11, 4))) == 1260.0 and ("E1", "Per Piece Earnings", D(2026, 11, 4)) not in pay(s)
-      and pay(s).get(("E1", "Per Piece Earnings", D(2026, 10, 28))) == 2900.0,
-      "a sheet of one week replaces that week's upload, and the other week's stands", pay(s))
+P.upload_pieces("RUN-W", "/private/files/one_week.xlsx")
+check(reports_of(s) == {D(2026, 10, 28): {"E1": [("BAG 200", 10.0), ("BAG 180", 5.0)], "E2": [("BAG 200", 3.0)]},
+                        D(2026, 11, 4): {"E2": [("BAG 180", 7.0)]}},
+      "a sheet of one week replaces that week's upload, and the other week's stands", reports_of(s))
 
 s = populated()
 s.add("Daily Production Report", name="DPR-HAND", report_date=D(2026, 10, 25), section="Per Piece", source="Entered", branch="PET",
-      docstatus=1, lines=[Row(employee="E2", size="BAG 200", output=1)])
+      docstatus=1, lines=[Row(employee="E2", size="BAG 200", output=1, amount=200.0)])
 s.add("Daily Production Report", name="DPR-METER", report_date=D(2026, 10, 25), section="Per Meter", source="Entered", branch="PET",
       docstatus=1, lines=[Row(employee="E1", size="SIZE 1", output=1)])
-held = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(("E2", "Per Piece Earnings", D(2026, 10, 28)) not in pay(s) and pay(s).get(("E2", "Per Piece Earnings", D(2026, 11, 4))) == 360.0
-      and pay(s).get(("E1", "Per Piece Earnings", D(2026, 10, 28))) == 2900.0
+held = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check("E2" not in reports_of(s)[D(2026, 10, 28)] and reports_of(s)[D(2026, 11, 4)].get("E2") == [("BAG 180", 2.0)]
+      and "E1" in reports_of(s)[D(2026, 10, 28)]
       and any("Second Tester's week to 28-Oct-2026 is on submitted daily reports (DPR-HAND)" in problem for problem in held["problems"]),
-      "a week a supervisor's daily report already has for a person stays on it, said; their other week and the others are paid",
-      held["problems"])
+      "a week a supervisor's daily report already has for a person stays on it, said; their other week and the others are "
+      "taken", (reports_of(s), held["problems"]))
+pay_run("RUN-W")
+check(pay(s).get(("E2", "Per Piece Earnings", D(2026, 11, 4))) == 560.0,
+      "and the run pays the supervisor's report with the week's sheet: 200 and 360", pay(s))
 
 s = populated()
 s.add("Salary Slip", name="SS-PAID", employee="E1", docstatus=1, payroll_frequency="Weekly", start_date=D(2026, 10, 22),
       end_date=D(2026, 10, 28))
-paid = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(("E1", "Per Piece Earnings", D(2026, 10, 28)) not in pay(s) and ("E1", "Arrears", D(2026, 10, 28)) not in pay(s)
-      and pay(s).get(("E1", "Per Piece Earnings", D(2026, 11, 4))) == 800.0
+paid = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check("E1" not in reports_of(s)[D(2026, 10, 28)] and not s.rows("Daily Production Report")[0].arrears
+      and "E1" in reports_of(s)[D(2026, 11, 4)]
       and any("Test Person One's week to 28-Oct-2026 on the sheet, 3,400, is left out: SS-PAID has already paid that week." in problem
               for problem in paid["problems"]),
-      "a week a submitted weekly slip already covers is left out and said; the person's other week is paid", paid["problems"])
+      "a week a submitted weekly slip already covers is left out and said; the person's other week is taken", paid["problems"])
+
+s = populated()
+s.add("Output Pay Run", name="RUN-OLD", company="LPL", section="Per Piece", docstatus=1, from_date=D(2026, 10, 22),
+      to_date=D(2026, 10, 28), branch="PET")
+s.add("Daily Production Report", name="DPR-OLD", report_date=D(2026, 10, 28), section="Per Piece", source="Uploaded", branch="PET",
+      docstatus=1, output_pay_run="RUN-OLD", lines=[Row(employee="E1", size="BAG 200", output=9, amount=1800.0)])
+stands = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check(reports_of(s)[D(2026, 10, 28)] == {"E1": [("BAG 200", 9)]} and "E1" in reports_of(s)[D(2026, 11, 4)]
+      and not [event for event in s.log if event[:2] in (("delete", "Daily Production Report"), ("cancel", "Daily Production Report"))]
+      and any("The week to 28-Oct-2026 on the sheet is left out: RUN-OLD has already paid it." in problem
+              for problem in stands["problems"]),
+      "a week another submitted run has paid is left out and said, and its reports stand behind that pay", stands["problems"])
 
 s = populated()
 s.files["/private/files/arrears.xlsx"] = workbook([("29th-Oct-04th-Nov-26", sheet_rows("PET", [
     {"name": "EIGHTH PERSON", "bags": {}, "arrears": 250}]))])
-P.upload_pieces("PE-W", "/private/files/arrears.xlsx")
+P.upload_pieces("RUN-W", "/private/files/arrears.xlsx")
+pay_run("RUN-W")
 check(pay(s) == {("E8", "Arrears", D(2026, 11, 4)): 250.0} and not s.rows("Daily Production Report")[0].lines,
-      "a week whose only pay at the plant is arrears is still made, its report with no lines", pay(s))
+      "a week whose only pay at the plant is arrears is still made, its report with no lines, and paid", pay(s))
 s = populated()
 for row in s.rows("Employee"):
     if row.name == "E2":
         row.update(relieving_date=D(2026, 10, 31), status="Left")
     if row.name == "E1":
         row.update(date_of_joining=D(2026, 10, 29))
-employment = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(pay(s).get(("E2", "Per Piece Earnings", D(2026, 10, 28))) == 600.0
-      and pay(s).get(("E2", "Per Piece Earnings", D(2026, 10, 31))) == 360.0
-      and pay(s).get(("E1", "Per Piece Earnings", D(2026, 11, 4))) == 800.0 and ("E1", "Arrears", D(2026, 10, 28)) not in pay(s)
+employment = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+pay_run("RUN-W")
+check(pay(s) == {("E2", "Per Piece Earnings", D(2026, 10, 31)): 960.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0}
       and any("Test Person One's week to 28-Oct-2026 on the sheet, 3,400, is left out: they joined on 29-Oct-2026, after "
               "the week." in problem for problem in employment["problems"]),
-      "one who left during a week is paid on their last day; a week before someone joined is left out and said, "
+      "one who left during the run's days is paid on their last day; a week before someone joined is left out and said, "
       "not a failed upload", (pay(s), employment["problems"]))
 s = populated()
 for row in s.rows("Employee"):
     if row.name == "E2":
         row.update(relieving_date=D(2026, 10, 20), status="Left")
-gone = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(not [key for key in pay(s) if key[0] == "E2"]
+gone = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check(not any("E2" in seat for seat in reports_of(s).values())
       and any("Second Tester's week to 28-Oct-2026 on the sheet, 600, is left out: they left on 20-Oct-2026, before the "
-              "days this payroll pays." in problem for problem in gone["problems"]),
-      "one who left before the payroll's days is not paid on it, and is said", gone["problems"])
+              "days this run pays." in problem for problem in gone["problems"]),
+      "one who left before the run's days is not paid on it, and is said", gone["problems"])
 s = populated()
 for row in s.rows("Employee"):
     if row.name == "E2":
         row.update(status="Inactive")
-inactive = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(not [key for key in pay(s) if key[0] == "E2"] and pay(s).get(("E1", "Per Piece Earnings", D(2026, 10, 28))) == 2900.0
+inactive = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check(not any("E2" in seat for seat in reports_of(s).values()) and "E1" in reports_of(s)[D(2026, 10, 28)]
       and any("Second Tester's week to 04-Nov-2026 on the sheet, 360, is left out: they are Inactive." in problem
               for problem in inactive["problems"]),
-      "an Inactive person's weeks are left out and said; everyone else is paid", inactive["problems"])
+      "an Inactive person's weeks are left out and said; everyone else is taken", inactive["problems"])
 s = populated()
 s.unassignable["E2"] = "they already have an assignment from that day"
-failed = P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-check(not [key for key in pay(s) if key[0] == "E2"] and any("Second Tester's pay on the sheet, 960, is left out: they have no salary "
-                                                             "assignment: they already have an assignment from that day" in problem
-                                                             for problem in failed["problems"]),
+failed = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check(not any("E2" in seat for seat in reports_of(s).values())
+      and any("Second Tester's pay on the sheet, 960, is left out: they have no salary assignment: they already have an "
+              "assignment from that day" in problem for problem in failed["problems"]),
       "one who cannot be given the weekly structure is left out, saying why", failed["problems"])
-for change, why in (({"docstatus": 1}, "a submitted payroll takes no sheet"),
-                    ({"payroll_frequency": "Monthly"}, "a monthly payroll takes no sheet: Per Piece is paid by the week")):
+for change, why in (({"docstatus": 1}, "a submitted run takes no sheet"),
+                    ({"section": "Per Meter"}, "a Per Meter run takes no Per Piece sheet"),
+                    ({"to_date": None}, "nor a run with no dates")):
     s = populated()
-    s.rows("Payroll Entry")[0].update(change)
+    s.rows("Output Pay Run")[0].update(change)
     try:
-        P.upload_pieces("PE-W", "/private/files/pet.xlsx")
+        P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
         check(False, why)
     except Thrown:
         check(not s.rows("Daily Production Report"), why)
 s = populated()
 s.denied = True
 try:
-    P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-    check(False, "only one who may change the payroll uploads to it")
+    P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+    check(False, "only one who may change the run uploads to it")
 except Thrown:
-    check(True, "only one who may change the payroll uploads to it")
+    check(True, "only one who may change the run uploads to it")
 s = populated()
 s.files["/private/files/bad.xlsx"] = b"not a workbook"
 try:
-    P.upload_pieces("PE-W", "/private/files/bad.xlsx")
+    P.upload_pieces("RUN-W", "/private/files/bad.xlsx")
     check(False, "a file that is no workbook is refused")
 except Thrown as error:
     check("not an Excel workbook" in str(error), "a file that is no workbook is refused", str(error))
-print("the upload: a report a week, its pay written, made again without paying twice")
+print("the upload: a report a week on the run, no pay until the run is submitted, made again without paying twice")
 
 
-# ── 5. A report ──────────────────────────────────────────
+# ── 5. A report, and the run paying ──────────────────────
 def report(**values):
     base = {"doctype": "Daily Production Report", "report_date": D(2026, 11, 4), "section": "Per Piece", "branch": "PET",
             "company": "LPL", "shift": "Day", "source": "Entered", "lines": [], "arrears": [], "looms_ot": []}
@@ -777,15 +869,19 @@ typed = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}, {"empl
                arrears=[{"employee": "E1", "amount": 70}])
 typed.docstatus = 1
 typed.insert()
+check(not pay(s) and typed.total_arrears == 70.0,
+      "a Per Piece report writes no pay by itself: its week's run pays it", pay(s))
+pay_run("RUN-W")
 check(pay(s) == {("E1", "Bag Pay", D(2026, 11, 4)): 400.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 180.0,
-                 ("E1", "Arrears", D(2026, 11, 4)): 70.0} and typed.total_arrears == 70.0,
+                 ("E1", "Arrears", D(2026, 11, 4)): 70.0},
       "a category whose Output Rate names an earning is paid under it; the others under Per Piece Earnings", pay(s))
 s = populated()
 s.add("Salary Component", name="Arrears", type="Earning", depends_on_payment_days=1)
 cut = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}], arrears=[{"employee": "E1", "amount": 70}])
 cut.docstatus = 1
+cut.insert()
 try:
-    cut.insert()
+    pay_run("RUN-W")
     check(False, "an earning cut by payment days is refused: a casual's pieces are what they made")
 except Thrown as error:
     check("Arrears is cut by payment days" in str(error) and not pay(s),
@@ -795,70 +891,84 @@ s.add("Salary Slip", name="SS-WEEK", employee="E1", docstatus=1, payroll_frequen
       end_date=D(2026, 11, 4))
 late = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}])
 late.docstatus = 1
+late.insert()
 try:
-    late.insert()
-    check(False, "a report for a week a submitted slip already paid is refused: its pay would never be counted")
+    pay_run("RUN-W")
+    check(False, "a run for a week a submitted slip already paid is refused: its pay would never be counted")
 except Thrown as error:
     check("SS-WEEK has already paid E1's week of 04-Nov-2026" in str(error) and not pay(s),
-          "a report for a week a submitted slip already paid is refused: its pay would never be counted", str(error))
+          "a run for a week a submitted slip already paid is refused: its pay would never be counted", str(error))
 s = populated()
 s.unassignable["E1"] = "joined after the day"
+unassigned = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}])
+unassigned.docstatus = 1
+unassigned.insert()
 try:
-    unassigned = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}])
-    unassigned.docstatus = 1
-    unassigned.insert()
-    check(False, "a report for someone with no salary assignment is refused, saying why")
+    pay_run("RUN-W")
+    check(False, "a run for someone with no salary assignment is refused, saying why")
 except Thrown as error:
-    check("No salary assignment for: E1: joined after the day." in str(error), "a report for someone with no salary assignment "
-          "is refused, saying why", str(error))
-s = populated()
-meter = report(section="Per Meter", lines=[{"employee": "E1", "size": "SIZE 1", "output": 2}])
-meter.docstatus = 1
-meter.insert()
-check(not pay(s), "a Per Meter report is the monthly run's: nothing is written for it here")
+    check("No salary assignment for: E1: joined after the day." in str(error) and not pay(s),
+          "a run for someone with no salary assignment is refused, saying why", str(error))
 
+# a report that wrote its own pay, before a run paid Per Piece (10 Nov 2026)
 s = populated()
-P.upload_pieces("PE-W", "/private/files/pet.xlsx")
-first_report = s.rows("Daily Production Report")[0]
-earnings = [row.name for row in s.rows("Additional Salary") if row.ref_docname == first_report.name]
+s.add("Daily Production Report", name="DPR-OWN", report_date=D(2026, 10, 28), section="Per Piece", source="Uploaded", branch="PET",
+      docstatus=1, lines=[Row(employee="E1", size="BAG 200", output=10, amount=2000.0)])
+s.add("Daily Production Report", name="DPR-NEW", report_date=D(2026, 11, 4), section="Per Piece", source="Uploaded", branch="PET",
+      docstatus=1, lines=[Row(employee="E1", size="BAG 200", output=4, amount=800.0)])
+for name, component, amount in (("ADS-OWN-1", "Per Piece Earnings", 2000.0), ("ADS-OWN-2", "Arrears", 500.0)):
+    s.add("Additional Salary", name=name, employee="E1", salary_component=component, amount=amount, payroll_date=D(2026, 10, 28),
+          ref_doctype="Daily Production Report", ref_docname="DPR-OWN", docstatus=1)
+check(P.self_paid(["DPR-OWN", "DPR-NEW"]) == {"DPR-OWN"} and P.self_paid([]) == set(),
+      "a report that wrote its own pay, before a run paid Per Piece, is known as such")
+pay_run("RUN-W")
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 10, 28)): 2000.0, ("E1", "Arrears", D(2026, 10, 28)): 500.0,
+                 ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0},
+      "and a run leaves it out: its people are paid already, never twice", pay(s))
 s.add("Salary Slip", name="SS-TOOK", employee="E1", docstatus=1, payroll_frequency="Weekly", start_date=D(2026, 10, 22),
-      end_date=D(2026, 10, 28), earnings=[Row(salary_component="Per Piece Earnings", additional_salary=earnings[0])])
+      end_date=D(2026, 10, 28), earnings=[Row(salary_component="Per Piece Earnings", additional_salary="ADS-OWN-1")])
+own = next(row for row in s.rows("Daily Production Report") if row.name == "DPR-OWN")
 try:
-    s.get_doc("Daily Production Report", first_report.name).cancel()
-    check(False, "a report whose pay a submitted slip took cannot be cancelled, naming the slip")
+    s.get_doc("Daily Production Report", "DPR-OWN").cancel()
+    check(False, "such a report whose pay a submitted slip took cannot be cancelled, naming the slip")
 except Thrown as error:
-    check("Cancel the salary slip first" in str(error) and "SS-TOOK" in str(error) and first_report.docstatus == 1
-          and len([row for row in s.rows("Additional Salary") if row.ref_docname == first_report.name]) == 3,
-          "a report whose pay a submitted slip took cannot be cancelled, naming the slip", str(error))
+    check("Cancel the salary slip first" in str(error) and "SS-TOOK" in str(error) and own.docstatus == 1
+          and len([row for row in s.rows("Additional Salary") if row.ref_docname == "DPR-OWN"]) == 2,
+          "such a report whose pay a submitted slip took cannot be cancelled, naming the slip", str(error))
 s.rows("Salary Slip")[0]["docstatus"] = 2
-s.get_doc("Daily Production Report", first_report.name).cancel()
-check(first_report.docstatus == 2 and not [row for row in s.rows("Additional Salary") if row.ref_docname == first_report.name],
-      "once that slip is cancelled the report is, and its pay goes with it")
-print("a report: arrears checked, its pay written under the right earning, refused once paid, cancelled with its pay")
+s.get_doc("Daily Production Report", "DPR-OWN").cancel()
+check(own.docstatus == 2 and not [row for row in s.rows("Additional Salary") if row.ref_docname == "DPR-OWN"],
+      "once that slip is cancelled the report is, and its own pay goes with it")
+print("a report: arrears checked, no pay of its own; the run: the right earning, refused once paid; the old way let go")
 
 # ── 6. Get Employees ─────────────────────────────────────
 s = populated()
-P.upload_pieces("PE-W", "/private/files/pet.xlsx")
+P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+check(P.waiting(["E1", "E2", "E7"], D(2026, 10, 22), D(2026, 11, 4)) == set(),
+      "a run not yet submitted has paid nobody: the weekly payroll does not wait for them")
+pay_run("RUN-W")
 check(P.waiting(["E1", "E2", "E7"], D(2026, 10, 22), D(2026, 11, 4)) == {"E1", "E2"},
-      "a weekly payroll keeps the Per Piece casuals with piece pay in its days")
+      "a weekly payroll keeps the Per Piece casuals a submitted run has pay for in its days")
 check(P.waiting(["E1", "E2"], D(2026, 11, 5), D(2026, 11, 11)) == set() and P.waiting([], D(2026, 10, 22), D(2026, 11, 4)) == set(),
       "and not for another week's")
-taken_by = next(row.name for row in s.rows("Additional Salary") if row.employee == "E2")
 s.add("Salary Slip", name="SS-E2", employee="E2", docstatus=1, payroll_frequency="Weekly", start_date=D(2026, 10, 22),
       end_date=D(2026, 11, 4), earnings=[Row(additional_salary=row.name) for row in s.rows("Additional Salary") if row.employee == "E2"])
-check(P.waiting(["E1", "E2"], D(2026, 10, 22), D(2026, 11, 4)) == {"E1"} and taken_by,
+check(P.waiting(["E1", "E2"], D(2026, 10, 22), D(2026, 11, 4)) == {"E1"},
       "nor one whose piece pay a submitted slip has paid")
+s.add("Additional Salary", name="ADS-OWN", employee="E7", salary_component="Per Piece Earnings", amount=100.0,
+      payroll_date=D(2026, 11, 3), ref_doctype="Daily Production Report", ref_docname="DPR-OWN", docstatus=1)
+check(P.waiting(["E1", "E7"], D(2026, 10, 22), D(2026, 11, 4)) == {"E1", "E7"},
+      "one with pay a report wrote for itself, before a run paid Per Piece, is still kept")
 print("Get Employees: the Per Piece casuals with piece pay to be paid")
 
 # ── 7. Wiring ────────────────────────────────────────────
 events = hooks["doc_events"]["Daily Production Report"]
 check(events["validate"] == ["hrms_addon.hrms_addon.output_pay.report_validate", "hrms_addon.hrms_addon.piece_pay.report_validate"]
-      and events["on_submit"] == ["hrms_addon.hrms_addon.output_pay.report_on_submit",
-                                  "hrms_addon.hrms_addon.piece_pay.report_on_submit"]
+      and events["on_submit"] == "hrms_addon.hrms_addon.output_pay.report_on_submit"
       and events["on_cancel"] == ["hrms_addon.hrms_addon.piece_pay.report_on_cancel",
                                   "hrms_addon.hrms_addon.output_pay.report_on_cancel"],
-      "a report is priced before its arrears are checked, and its pay written after the monthly run's check; a cancel lets go "
-      "of its pay first", events)
+      "a report is priced before its arrears are checked; its submit writes no pay; a cancel lets go of pay it wrote "
+      "itself first", events)
 meta = json.load(open(os.path.join(APP, "doctype", "daily_production_report", "daily_production_report.json"), encoding="utf-8"))
 fields = {field["fieldname"]: field for field in meta["fields"]}
 check(fields["arrears"]["fieldtype"] == "Table" and fields["arrears"]["options"] == "Daily Production Overtime"
@@ -866,20 +976,44 @@ check(fields["arrears"]["fieldtype"] == "Table" and fields["arrears"]["options"]
       and meta["field_order"].index("arrears") < meta["field_order"].index("totals_section")
       and set(meta["field_order"]) == set(fields),
       "the report keeps a Per Piece casual's arrears, shown on a Per Piece report only, every field placed")
-script = read("hrms_addon", "public", "js", "payroll_entry.js")
+run_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_run", "output_pay_run.json"), encoding="utf-8"))
+run_fields = {field["fieldname"]: field for field in run_meta["fields"]}
+piece, meter = "eval:doc.section == 'Per Piece'", "eval:doc.section != 'Per Piece'"
+check(all(run_fields[name].get("mandatory_depends_on") == piece and run_fields[name].get("read_only_depends_on") == meter
+          and not run_fields[name].get("read_only") for name in ("from_date", "to_date"))
+      and all(run_fields[name].get("mandatory_depends_on") == meter and run_fields[name].get("depends_on") == meter
+              and not run_fields[name].get("reqd") for name in ("year", "month")),
+      "a Per Piece run is given its week, From and To; a Per Meter run its month, as before")
+arrears_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_arrears", "output_pay_arrears.json"), encoding="utf-8"))
+check(run_fields["arrears"]["options"] == "Output Pay Arrears" and run_fields["arrears_section"]["depends_on"] == piece
+      and run_fields["total_arrears"]["depends_on"] == piece and arrears_meta.get("istable") == 1
+      and [field["label"] for field in arrears_meta["fields"] if field["fieldname"] == "amount"] == ["Arrears"]
+      and set(run_meta["field_order"]) == set(run_fields) and not run_fields["uploaded_sheet"].get("depends_on")
+      and os.path.exists(os.path.join(APP, "doctype", "output_pay_arrears", "output_pay_arrears.py")),
+      "the run carries the week's arrears, on a Per Piece run only, and keeps its sheet")
+seat_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_employee", "output_pay_employee.json"), encoding="utf-8"))
+check([field["label"] for field in seat_meta["fields"] if field["fieldname"] == "arrears"] == ["Arrears"],
+      "each person's arrears show beside their work")
+script = read("hrms_addon", "hrms_addon", "doctype", "output_pay_run", "output_pay_run.js")
 for needle, why in (('"hrms_addon.hrms_addon.piece_pay.upload_pieces"', "the button asks the method the server whitelists"),
-                    ("ha_weekly_pieces_button(frm);", "on refresh"),
-                    ("frm.doc.docstatus !== 0 || !ha_weekly_on(frm) || !frm.doc.start_date || !frm.doc.end_date",
-                     "only on a draft weekly payroll with its dates"),
+                    ('"hrms_addon.hrms_addon.piece_pay.upload_pieces",\n\t\t\t\t\t{ run: frm.doc.name, file_url: file.file_url },',
+                     "for this run"),
+                    ('if (frm.doc.section === "Per Piece") {', "on a Per Piece run"),
+                    ("if (frm.doc.docstatus !== 0 || frm.is_new()) return;", "a draft one"),
+                    ("if (frm.doc.from_date && frm.doc.to_date) {", "with its dates"),
                     ('restrictions: { allowed_file_types: [".xlsx"] }', "an Excel workbook only"),
-                    ('frm.add_custom_button(__("Upload Per Piece Sheet")', "named as Luuka call it")):
-    check(needle in script, "the payroll's button: %s" % why, needle)
+                    ('frm.add_custom_button(__("Upload Per Piece Sheet"), () => ha_upload_piece_sheet(frm));',
+                     "named as Luuka call it")):
+    check(needle in script, "the run's button: %s" % why, needle)
+payroll_script = read("hrms_addon", "public", "js", "payroll_entry.js")
+check("Per Piece Sheet" not in payroll_script and "piece_pay" not in payroll_script and "ha_weekly_pieces" not in payroll_script,
+      "the payroll has no Per Piece sheet any more: the pay is worked out apart from it (Luuka, 11 Nov 2026)")
 glue = read("hrms_addon", "hrms_addon", "piece_pay.py")
-check('@frappe.whitelist(methods=["POST"])\ndef upload_pieces(' in glue and "doc.check_permission(\"write\")" in glue,
-      "the upload is a POST, by one who may change the payroll")
-check('if doc.get("section") == rules.PER_PIECE:' in read("hrms_addon", "hrms_addon", "output_pay.py").split("def run_validate")[1][:300],
-      "the monthly Output Pay Run no longer pays Per Piece: their weeks are on the weekly payroll")
-print("wiring: the hooks, the report's arrears, the button, the monthly run")
+check('@frappe.whitelist(methods=["POST"])\ndef upload_pieces(run, file_url):' in glue and "doc.check_permission(\"write\")" in glue
+      and "def report_on_submit" not in glue and "output_pay._fill(doc)" in glue and '"sheet_run": doc.name' in glue,
+      "the upload is a POST, by one who may change the run, which it fills; a report's submit writes no pay")
+check('"ref_doctype": ["in", [RUN, REPORT]],' in glue, "the weekly payroll waits for a run's pay, and a report's own from before")
+print("wiring: the hooks, the report's arrears, the run's week and its button, the payroll without one")
 
 print()
 print("FAILED: %d" % len(fail) if fail else "ALL PER PIECE CHECKS PASSED")

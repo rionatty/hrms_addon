@@ -10,6 +10,7 @@
   "output",
   "output_amount",
   "looms_ot",
+  "arrears",
   "hours",
   "overtime_hours",
   "rate",
@@ -61,6 +62,13 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "arrears",
+   "fieldtype": "Currency",
+   "label": "Arrears",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
    "fieldname": "hours",
    "fieldtype": "Float",
    "label": "Hours",
@@ -96,7 +104,7 @@
   }
  ],
  "links": [],
- "modified": "2026-09-30 12:00:00.000000",
+ "modified": "2026-11-11 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Output Pay Employee",

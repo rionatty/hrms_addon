@@ -6,6 +6,9 @@
 // uploaded filled in. Submitting it writes each person's pay as
 // Additional Salary, one for each salary component they are paid under
 // (a size's own, from its Output Rate).
+//
+// A Per Piece run is for a week: Per Piece casuals are paid on the weekly payroll, and their pay is worked out
+// here, apart from it (Luuka, 11 Nov 2026). It takes Luuka's weekly workbook, and carries the week's arrears.
 
 const HRA_PAY_MONTHS = [
 	"January", "February", "March", "April", "May", "June",
@@ -50,6 +53,7 @@ frappe.ui.form.on("Output Pay Run", {
 		frm.set_query("employee", "lines", people);
 		frm.set_query("employee", "employees", people);
 		frm.set_query("employee", "overtime", people);
+		frm.set_query("employee", "arrears", people);
 		frm.set_query("size", "lines", () => ({ filters: { section: frm.doc.section, enabled: 1 } }));
 	},
 
@@ -66,6 +70,12 @@ frappe.ui.form.on("Output Pay Run", {
 					frm.reload_doc();
 				})
 		);
+		if (frm.doc.section === "Per Piece") {
+			if (frm.doc.from_date && frm.doc.to_date) {
+				frm.add_custom_button(__("Upload Per Piece Sheet"), () => ha_upload_piece_sheet(frm));
+			}
+			return;
+		}
 		if (frm.doc.section !== "Per Meter") return;
 		const group = __("Per Meter Sheet");
 		frm.add_custom_button(
@@ -82,6 +92,58 @@ frappe.ui.form.on("Output Pay Run", {
 		frm.add_custom_button(__("Upload Sheet"), () => ha_upload_output_sheet(frm), group);
 	},
 });
+
+// The Per Piece casuals' weekly workbook, on a draft Per Piece run: each week that ends in the run's days becomes
+// the week's Per Piece reports (piece_pay.py), and the run is filled from them
+function ha_upload_piece_sheet(frm) {
+	new frappe.ui.FileUploader({
+		doctype: frm.doctype,
+		docname: frm.docname,
+		fieldname: "uploaded_sheet",
+		restrictions: { allowed_file_types: [".xlsx"] },
+		on_success: (file) =>
+			frappe
+				.xcall(
+					"hrms_addon.hrms_addon.piece_pay.upload_pieces",
+					{ run: frm.doc.name, file_url: file.file_url },
+					null,
+					{ freeze: true, freeze_message: __("Reading the sheet") }
+				)
+				.then((found) => {
+					ha_piece_sheet_summary(found);
+					frm.reload_doc();
+				}),
+	});
+}
+
+// what the upload took, and what it left out and why
+function ha_piece_sheet_summary(found) {
+	const esc = frappe.utils.escape_html;
+	const money = (value) => format_currency(value || 0);
+	const list = (rows) =>
+		rows.length ? "<ul>" + rows.map((row) => "<li>" + esc(row) + "</li>").join("") + "</ul>" : "";
+	const problems = found.problems || [];
+	const notes = found.notes || [];
+	let html =
+		"<p>" +
+		esc(
+			__("{0} week(s), {1} people, {2} bags: {3}, and {4} arrears.", [
+				found.weeks,
+				found.people,
+				found.bags,
+				money(found.amount),
+				money(found.arrears),
+			])
+		) +
+		"</p>";
+	if (problems.length) html += "<p><b>" + esc(__("Left out")) + "</b></p>" + list(problems);
+	if (notes.length) html += "<p><b>" + esc(__("Seen on the sheet")) + "</b></p>" + list(notes);
+	frappe.msgprint({
+		title: __("Per Piece Sheet"),
+		message: html,
+		indicator: problems.length ? "orange" : "green",
+	});
+}
 
 function ha_upload_output_sheet(frm) {
 	new frappe.ui.FileUploader({

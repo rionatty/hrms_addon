@@ -4,6 +4,13 @@
 """Output pay on the site: the sizes, the daily production report, the
 month's run, and Luuka's Per Meter sheet out and back (minutes §4.6).
 
+A Per Piece run is for a week, not a month: Per Piece casuals are paid by
+the week, on the weekly payroll, and their pay is worked out here, apart
+from the payroll, as Per Meter is (Luuka, 11 Nov 2026: "per piece pay should
+not be in payroll it should be independent like permeter and feed payroll").
+Its sheet is Luuka's weekly workbook, uploaded on the run (piece_pay.py), and
+it carries the week's arrears beside the work.
+
 The rules are in output_rules.py and the sheet in output_sheet.py, neither
 with a Frappe import (scripts/verify_output_pay.py). This reads and writes
 the site.
@@ -73,6 +80,8 @@ SETTING_FIELDS = {rules.PER_METER: "per_meter_component", rules.PER_PIECE: "per_
                   rules.HOURLY: "hourly_component"}
 HAND_LINE_FIELDS = ("employee", "size", "shifts", "output")
 HAND_OT_FIELDS = ("employee", "amount")
+# what a row of a run's tables is made of, when it was not typed in by hand
+ARREARS = "arrears"
 
 
 # ── 1. The sizes ──────────────────────────────────────────────────────
@@ -166,12 +175,15 @@ def _others(doc, people):
 
 
 def report_on_submit(doc, method=None):
-    """A report for a month whose run is already paid would never be
-    counted: somebody's day would go unpaid with nothing to say so."""
+    """A report for a month (a week, for Per Piece) whose run is already
+    paid would never be counted: somebody's day would go unpaid with nothing
+    to say so."""
     paid = _paid_run(doc.get("branch"), doc.get("section"), doc.get("report_date"))
     if paid:
-        frappe.throw(_("{0} has already paid {1} for this month. Cancel and amend it to include this "
-                       "report, or the day is never paid.").format(paid, doc.get("branch")), title=_(REPORT))
+        frappe.throw(_("{0} has already paid {1} for this {2}. Cancel and amend it to include this "
+                       "report, or the day is never paid.").format(
+            paid, doc.get("branch"), _("week") if doc.get("section") == rules.PER_PIECE else _("month")),
+            title=_(REPORT))
 
 
 def report_on_cancel(doc, method=None):
@@ -181,6 +193,10 @@ def report_on_cancel(doc, method=None):
 
 
 def _paid_run(branch, section, day):
+    if section == rules.PER_PIECE:
+        # a Per Piece run pays the days it is dated for
+        return frappe.db.get_value(RUN, {"branch": branch, "section": section, "docstatus": 1,
+                                         "from_date": ["<=", getdate(day)], "to_date": [">=", getdate(day)]}, "name")
     year, month = attendance_rules.cycle_of(getdate(day))
     return frappe.db.get_value(RUN, {"branch": branch, "section": section, "year": year,
                                      "month": MONTHS[month - 1], "docstatus": 1}, "name")
@@ -188,14 +204,11 @@ def _paid_run(branch, section, day):
 
 # ── 3. The month ──────────────────────────────────────────────────────
 def run_validate(doc, method=None):
-    # Per Piece casuals are paid by the week now (piece_pay.py): a month's run would pay their weeks again
-    if doc.get("section") == rules.PER_PIECE:
-        frappe.throw(_("Per Piece casuals are paid by the week: upload their sheet on the weekly Payroll Entry."),
-                     title=_(RUN))
     _set_period(doc)
     _one_run_a_month(doc)
     _price_lines(doc)
     _check_overtime(doc)
+    _check_arrears(doc)
     _employees_from_lines(doc)
     _earnings(doc)
     # a draft is somewhere to gather the month; only paying it has to be right
@@ -206,9 +219,18 @@ def run_validate(doc, method=None):
     doc.total_employees = len(doc.get("employees") or [])
     doc.total_amount = round(sum(flt(row.get("amount")) for row in doc.get("employees") or []), 2)
     doc.total_overtime = round(sum(flt(row.get("amount")) for row in doc.get("overtime") or []), 2)
+    doc.total_arrears = round(sum(flt(row.get("amount")) for row in doc.get(ARREARS) or []), 2)
 
 
 def _set_period(doc):
+    if doc.get("section") == rules.PER_PIECE:
+        # the week the run pays, as it is given; the month it ends in is kept for the list
+        if not doc.get("from_date") or not doc.get("to_date"):
+            frappe.throw(_("Say the week: its From and To dates."), title=_(RUN))
+        if getdate(doc.to_date) < getdate(doc.from_date):
+            frappe.throw(_("The To date is before the From date."), title=_(RUN))
+        doc.year, doc.month = getdate(doc.to_date).year, MONTHS[getdate(doc.to_date).month - 1]
+        return
     if doc.get("month") not in MONTHS or not cint(doc.get("year")):
         frappe.throw(_("Say the payroll month and year."), title=_(RUN))
     start, end = attendance_rules.cycle_window(cint(doc.year), MONTHS.index(doc.month) + 1)
@@ -216,6 +238,16 @@ def _set_period(doc):
 
 
 def _one_run_a_month(doc):
+    if doc.get("section") == rules.PER_PIECE:
+        other = frappe.db.get_value(RUN, {"branch": doc.get("branch"), "section": rules.PER_PIECE,
+                                          "docstatus": ["!=", 2], "name": ["!=", doc.name or ""],
+                                          "from_date": ["<=", getdate(doc.to_date)],
+                                          "to_date": [">=", getdate(doc.from_date)]}, "name")
+        if other:
+            frappe.throw(_("{0} already pays days from {1} to {2} for {3}: a week is paid once.").format(
+                other, frappe.utils.format_date(doc.from_date), frappe.utils.format_date(doc.to_date), doc.branch),
+                title=_(RUN))
+        return
     other = frappe.db.get_value(RUN, {"branch": doc.get("branch"), "section": doc.get("section"),
                                       "year": cint(doc.get("year")), "month": doc.get("month"),
                                       "docstatus": ["!=", 2], "name": ["!=", doc.name or ""]}, "name")
@@ -276,14 +308,44 @@ def _check_overtime(doc):
         frappe.throw("<br>".join(_(message) for message in errors), title=_(RUN))
 
 
+def _check_arrears(doc):
+    """Arrears are a Per Piece run's: a Per Piece casual's, each more than
+    nothing. Those from the reports were checked on them."""
+    rows = doc.get(ARREARS) or []
+    if doc.get("section") != rules.PER_PIECE:
+        if rows:
+            frappe.throw(_("Arrears go on a Per Piece run."), title=_(RUN))
+        return
+    typed = [(number, row) for number, row in enumerate(rows, 1) if not cint(row.get("from_reports"))]
+    categories = _pay_categories(row.get("employee") for _number, row in typed)
+    errors = []
+    for number, row in typed:
+        if row.employee in categories and categories[row.employee] != rules.PER_PIECE:
+            errors.append(_("Arrears line {0}: {1} is paid {2}, not Per Piece.").format(
+                number, row.employee, categories[row.employee]))
+        if flt(row.get("amount")) <= 0:
+            errors.append(_("Arrears line {0}: say how much is owed.").format(number))
+    if errors:
+        frappe.throw("<br>".join(errors), title=_(RUN))
+
+
+def _beside_the_work(doc):
+    """{employee: what they are paid beside their work}: a Per Meter run's
+    Looms OT, a Per Piece run's arrears."""
+    table = ARREARS if doc.get("section") == rules.PER_PIECE else "overtime"
+    return rules.overtime_by_employee([_row(row) for row in doc.get(table) or []])
+
+
 def _employees_from_lines(doc):
-    """What each person is paid: their lines and their Looms OT. An
-    Additional Salary already written stays linked, so a re-save never
-    forgets it."""
+    """What each person is paid: their lines and their Looms OT, or their
+    arrears on a Per Piece run. An Additional Salary already written stays
+    linked, so a re-save never forgets it."""
     written = {row.employee: row.get("additional_salary") for row in doc.get("employees") or []}
-    overtime = rules.overtime_by_employee([_row(row) for row in doc.get("overtime") or []])
+    piece = doc.get("section") == rules.PER_PIECE
     doc.set("employees", [])
-    for seat in rules.per_employee([_row(row) for row in doc.get("lines") or []], overtime):
+    for seat in rules.per_employee([_row(row) for row in doc.get("lines") or []], _beside_the_work(doc)):
+        if piece:
+            seat = dict(seat, arrears=seat.get("looms_ot"), looms_ot=0)
         doc.append("employees", dict(seat, additional_salary=written.get(seat["employee"])))
 
 
@@ -295,9 +357,9 @@ def _earnings(doc):
     written = {(row.employee, row.salary_component): row.get("additional_salary")
                for row in doc.get("earnings") or []}
     lines = [_row(row) for row in doc.get("lines") or []]
-    found = rules.earnings(lines, rules.overtime_by_employee([_row(row) for row in doc.get("overtime") or []]),
+    found = rules.earnings(lines, _beside_the_work(doc),
                            _size_components({row.get("size") for row in lines}), _component_name(doc.get("section")),
-                           _overtime_component())
+                           _arrears_name() if doc.get("section") == rules.PER_PIECE else _overtime_component())
     doc.set("earnings", [])
     for row in found:
         doc.append("earnings", dict(row, additional_salary=written.get((row["employee"], row["salary_component"]))))
@@ -311,6 +373,13 @@ def _size_components(sizes):
     return {row.name: row.salary_component
             for row in frappe.get_all(SIZE, filters={"name": ["in", names]}, fields=["name", "salary_component"],
                                       limit_page_length=0) if row.salary_component}
+
+
+def _arrears_name():
+    """The earning a Per Piece casual's arrears are paid under (piece_pay.ARREARS)."""
+    from hrms_addon.hrms_addon import piece_pay
+
+    return piece_pay.ARREARS[0]
 
 
 def _overtime_component():
@@ -338,13 +407,18 @@ def _fill(doc):
     lines = frappe.get_all(REPORT_LINE, filters={"parenttype": REPORT, "parent": ["in", reports or [""]]},
                            fields=["employee", "size", "output", "amount"], limit_page_length=0) if reports else []
     extra = frappe.get_all(REPORT_OT, filters={"parenttype": REPORT, "parent": ["in", reports or [""]]},
-                           fields=["employee", "amount"], limit_page_length=0) if reports else []
+                           fields=["employee", "amount", "parentfield"], limit_page_length=0) if reports else []
+    # a report's Looms OT and its arrears are rows of one kind, each in its own table
+    owed = [row for row in extra if row.get("parentfield") == ARREARS]
+    extra = [row for row in extra if row.get("parentfield") != ARREARS]
     # what was typed in by hand is kept as it was typed: only its own
     # fields, so it goes back in as a new row rather than an old one
     kept = [{field: row.get(field) for field in HAND_LINE_FIELDS}
             for row in doc.get("lines") or [] if not cint(row.get("from_reports"))]
     kept_ot = [{field: row.get(field) for field in HAND_OT_FIELDS}
                for row in doc.get("overtime") or [] if not cint(row.get("from_reports"))]
+    kept_owed = [{field: row.get(field) for field in HAND_OT_FIELDS}
+                 for row in doc.get(ARREARS) or [] if not cint(row.get("from_reports"))]
     doc.set("lines", [])
     for seat in rules.merge_lines(lines):
         doc.append("lines", dict(seat, from_reports=1))
@@ -355,12 +429,26 @@ def _fill(doc):
         doc.append("overtime", {"employee": employee, "amount": amount, "from_reports": 1})
     for row in kept_ot:
         doc.append("overtime", row)
+    doc.set(ARREARS, [])
+    for employee, amount in rules.overtime_by_employee(owed).items():
+        doc.append(ARREARS, {"employee": employee, "amount": amount, "from_reports": 1})
+    for row in kept_owed:
+        doc.append(ARREARS, row)
 
 
 def _month_reports(doc):
-    return frappe.get_all(REPORT, filters={
+    """The submitted reports the run is for: its plant's and section's, dated
+    in its days. A Per Piece report that wrote its own pay, before a run paid
+    Per Piece, is left out: its people are paid already."""
+    names = frappe.get_all(REPORT, filters={
         "docstatus": 1, "branch": doc.branch, "section": doc.section,
         "report_date": ["between", [doc.from_date, doc.to_date]]}, pluck="name", limit_page_length=0)
+    if names and doc.get("section") == rules.PER_PIECE:
+        from hrms_addon.hrms_addon import piece_pay
+
+        own = piece_pay.self_paid(names)
+        names = [name for name in names if name not in own]
+    return names
 
 
 # ── 4. Luuka's Per Meter sheet, out and back ──────────────────────────
@@ -616,15 +704,22 @@ def run_on_submit(doc, method=None):
     if any(row.salary_component == _component_name(doc.section) for row in doc.get("earnings") or []):
         _component(doc.section)  # ours is made once, where it is the one paid under
     structures = {}
+    # a Per Piece run's pay goes on the weekly payslip: each person can be paid there, on a day their slip holds
+    days = None
+    if doc.section == rules.PER_PIECE:
+        from hrms_addon.hrms_addon import piece_pay
+
+        days = piece_pay.before_paying(doc)
     for row in doc.get("earnings") or []:
         if flt(row.amount) <= 0 or row.get("additional_salary"):
             continue
         earning = frappe.get_doc({
             "doctype": "Additional Salary", "employee": row.employee, "company": doc.company,
-            "salary_component": row.salary_component, "amount": flt(row.amount), "payroll_date": doc.to_date,
-            "currency": currency,
-            "overwrite_salary_structure_amount": _in_structure(row.employee, row.salary_component, doc.to_date,
-                                                               structures),
+            "salary_component": row.salary_component, "amount": flt(row.amount),
+            "payroll_date": (days or {}).get(row.employee) or doc.to_date, "currency": currency,
+            # a casual's pieces are paid beside what the weekly structure pays, never in a line's place
+            "overwrite_salary_structure_amount": 0 if days is not None else _in_structure(
+                row.employee, row.salary_component, doc.to_date, structures),
             "ref_doctype": RUN, "ref_docname": doc.name,
         })
         earning.flags.ignore_permissions = True

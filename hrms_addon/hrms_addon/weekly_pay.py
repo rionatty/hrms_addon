@@ -22,8 +22,9 @@ are in weekly_pay_rules.py (scripts/verify_weekly_pay.py).
   rates_of              each casual's rate on a day, from their Hourly Rates
   rate_validate         an Hourly Rate: more than nothing, one a day a person
 
-A Per Piece casual's week is Additional Salary their Per Piece reports wrote
-(piece_pay.py), which the slip reads as it reads every other.
+A Per Piece casual's week is Additional Salary their week's Output Pay Run
+wrote (piece_pay.py, output_pay.py), which the slip reads as it reads every
+other.
 """
 
 import frappe

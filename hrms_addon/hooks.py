@@ -1930,13 +1930,12 @@ doc_events = {
     "Output Rate": {
         "validate": "hrms_addon.hrms_addon.output_pay.size_validate",
     },
-    # a Per Piece report's week is paid on the weekly payroll as Additional
-    # Salary, its arrears with it (piece_pay.py)
+    # a Per Piece report's week is paid by its week's Output Pay Run, its
+    # arrears with it, as a Per Meter report's month is (piece_pay.py)
     "Daily Production Report": {
         "validate": ["hrms_addon.hrms_addon.output_pay.report_validate",
                      "hrms_addon.hrms_addon.piece_pay.report_validate"],
-        "on_submit": ["hrms_addon.hrms_addon.output_pay.report_on_submit",
-                      "hrms_addon.hrms_addon.piece_pay.report_on_submit"],
+        "on_submit": "hrms_addon.hrms_addon.output_pay.report_on_submit",
         "on_cancel": ["hrms_addon.hrms_addon.piece_pay.report_on_cancel",
                       "hrms_addon.hrms_addon.output_pay.report_on_cancel"],
     },

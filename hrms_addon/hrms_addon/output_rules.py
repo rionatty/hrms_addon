@@ -546,9 +546,9 @@ def piece_key(name):
 
 
 def piece_pay_day(first, last, joined=None, left=None, status=None):
-    """The day a person's week of piece pay is dated, or why it cannot be paid on this payroll: (day, None) or
+    """The day a person's week of piece pay is dated, or why it cannot be paid on this run: (day, None) or
     (None, why). Frappe HR takes no Additional Salary dated before someone joined or after they left, nor any for
-    one who is Inactive. first: the first day of the week this payroll pays; last: the week's last day. One who
+    one who is Inactive. first: the first day of the days this run pays; last: the week's last day. One who
     left during the week is paid on their last day, which the slip still holds."""
     first, last, joined, left = _date(first), _date(last), _date(joined), _date(left)
     if status == "Inactive":
@@ -556,7 +556,7 @@ def piece_pay_day(first, last, joined=None, left=None, status=None):
     if joined and last and joined > last:
         return None, "they joined on %s, after the week" % _day(joined)
     if left and first and left < first:
-        return None, "they left on %s, before the days this payroll pays" % _day(left)
+        return None, "they left on %s, before the days this run pays" % _day(left)
     return (left if left and last and left < last else last), None
 
 

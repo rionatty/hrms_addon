@@ -43,7 +43,8 @@ TWO KINDS OF CASUAL (Luuka, 10 Nov 2026, with their casual worksheet)
 paid by the number of working hours and each hour has a rate": Weekly, by the
 hour, and Per Piece, by the bags packed at each bag's price. One weekly payroll
 pays both. A Per Piece casual's week comes from their Per Piece reports, the
-weekly workbook uploaded on the payroll (piece_pay.py): each is paid as
+weekly workbook uploaded on the week's Output Pay Run (piece_pay.py), which is
+worked out apart from the payroll and feeds it: each person is paid as
 Additional Salary dated the week's last day, with the arrears beside it.
 
 OVERTIME BY THE WEEK

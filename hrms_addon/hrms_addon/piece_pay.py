@@ -6,26 +6,30 @@ divided into two, one that is paid per piece and the one they are paid by
 the number of working hours"). The weekly payroll pays both kinds
 (weekly_pay.py); this is the Per Piece side.
 
+Their pay is worked out apart from the payroll, as Per Meter is, on an
+Output Pay Run for the week, and the run feeds the payroll (Luuka, 11 Nov
+2026: "per piece pay should not be in payroll it should be independent like
+permeter and feed payroll").
+
   upload_pieces      Luuka's weekly workbook (PET packaging, piece_sheet.py)
-                     uploaded on a weekly Payroll Entry: every week that ends
-                     in its dates is checked (output_rules.take_pieces) and
-                     made one Per Piece report, replacing the last upload of
-                     that week
+                     uploaded on a draft Per Piece run: every week that ends
+                     in the run's days is checked (output_rules.take_pieces)
+                     and made one Per Piece report, replacing the last upload
+                     of that week, and the run is filled from them
   report_validate    a Per Piece report's arrears: Per Piece casuals, each
                      more than nothing; no Looms OT
-  report_on_submit   each person's week written as Additional Salary dated
-                     the report's day, which the weekly payslip reads as it
-                     reads every other: one for each salary component the
-                     categories are paid under, and one for the arrears.
-                     Refused once a weekly slip that pays that day is
-                     submitted, as the pay would never be counted
-  report_on_cancel   those Additional Salaries cancelled and deleted, unless
-                     a submitted slip paid them
+  before_paying      what a Per Piece run needs as it is submitted: nobody's
+                     week already on a submitted weekly slip, each person on
+                     the weekly structure, each earning with an account, and
+                     the day each one's pay is dated (output_pay.run_on_submit
+                     writes it as Additional Salary, which the weekly payslip
+                     reads as it reads every other)
+  report_on_cancel   a report that wrote its own pay, before a run paid Per
+                     Piece: those Additional Salaries cancelled and deleted,
+                     unless a submitted slip paid them
+  self_paid          those reports, which a run leaves out
   waiting            who has piece pay dated in a payroll's days, for its
                      Get Employees
-
-The monthly Output Pay Run no longer pays Per Piece (output_pay.run_validate),
-so a week is never paid twice.
 """
 
 import frappe
@@ -36,6 +40,7 @@ from hrms_addon.hrms_addon import advance_runs, output_pay, output_rules as rule
 from hrms_addon.hrms_addon import weekly_pay_rules
 
 REPORT = output_pay.REPORT
+RUN = output_pay.RUN
 REPORT_LINE = output_pay.REPORT_LINE
 REPORT_OT = output_pay.REPORT_OT
 ADDITIONAL = "Additional Salary"
@@ -46,16 +51,16 @@ ARREARS = ("Arrears", "ARR")
 
 # ── The workbook in ───────────────────────────────────────────────────
 @frappe.whitelist(methods=["POST"])
-def upload_pieces(payroll_entry, file_url):
-    """The weekly workbook on a draft weekly payroll. Returns what was taken,
+def upload_pieces(run, file_url):
+    """The weekly workbook on a draft Per Piece run. Returns what was taken,
     and what was not and why."""
-    doc = frappe.get_doc("Payroll Entry", payroll_entry)
+    doc = frappe.get_doc(RUN, run)
     doc.check_permission("write")
     if doc.docstatus != 0:
-        frappe.throw(_("Only a draft payroll takes the sheet."), title=_(TITLE))
-    if not weekly_pay_rules.on_weekly_pay(doc) or not doc.get("start_date") or not doc.get("end_date"):
-        frappe.throw(_("The Per Piece sheet is for a weekly payroll with its Start and End Dates."), title=_(TITLE))
-    start, end = getdate(doc.start_date), getdate(doc.end_date)
+        frappe.throw(_("Only a draft run takes the sheet."), title=_(TITLE))
+    if doc.get("section") != rules.PER_PIECE or not doc.get("from_date") or not doc.get("to_date"):
+        frappe.throw(_("The Per Piece sheet is for a Per Piece run with its From and To dates."), title=_(TITLE))
+    start, end = getdate(doc.from_date), getdate(doc.to_date)
     try:
         found = piece_sheet.read(output_pay._file_bytes(file_url), wanted=lambda first, last: start <= last <= end)
     except ValueError as error:
@@ -69,17 +74,24 @@ def upload_pieces(payroll_entry, file_url):
                               found.get("unread"))
     problems = _keep_reported_weeks(doc, taken, names)
     problems += _drop_paid_weeks(taken, names)
+    problems += _drop_run_paid_weeks(doc, taken, names)
     plantless = {employee for employee in _people_in(taken) if not (by_employee[employee].get("branch") or doc.get("branch"))}
     problems += _drop(taken, {employee: None for employee in plantless}, names, _("they have no plant"))
     problems += _drop_not_employed(taken, names, start)
     failed = weekly_pay.assign_people(_people_in(taken), doc.company, start)
     problems += _drop(taken, failed, names, _("they have no salary assignment: {0}"))
-    _replace_uploads(doc, [week["end"] for week in taken["weeks"]])
+    # a week another submitted run has paid keeps its upload: its reports stand behind that pay
+    _replace_uploads(doc, [week["end"] for week in taken["weeks"]
+                           if not output_pay._paid_run(doc.get("branch"), rules.PER_PIECE, week["end"])])
     made = _make_reports(doc, taken, by_employee)
+    # the run filled from the week's reports, these among them, and kept with its sheet
+    output_pay._fill(doc)
+    doc.uploaded_sheet = file_url
+    doc.save()
     work, owed = taken["work"].values(), taken["arrears"].values()
     notes = list(taken["notes"])
     if found.get("skipped"):
-        notes.append(_("{0} other weekly sheet(s) end outside {1} to {2}: the payroll of the week each ends in "
+        notes.append(_("{0} other weekly sheet(s) end outside {1} to {2}: the run of the week each ends in "
                        "takes it.").format(found["skipped"], start.strftime("%d-%b-%Y"), end.strftime("%d-%b-%Y")))
     return {
         "reports": made, "weeks": len({day for _employee, day, _size in taken["work"]}
@@ -133,7 +145,7 @@ def _drop(taken, held, names, why):
 def _keep_reported_weeks(doc, taken, names):
     """A person's week already on another submitted Per Piece report stays
     there: a supervisor's daily report on any day of the week, or another
-    plant's upload (this payroll's last upload is about to be replaced). The
+    plant's upload (this plant's last upload is about to be replaced). The
     sheet's pay for that person and week is taken out and said, so nothing is
     paid twice."""
     weeks = {getdate(week["end"]): getdate(week["start"]) for week in taken["weeks"]}
@@ -218,6 +230,23 @@ def _drop_paid_weeks(taken, names):
     return problems
 
 
+def _drop_run_paid_weeks(doc, taken, names):
+    """A week another submitted run of the plant has paid is taken out and
+    said: its reports stand behind that run's pay, and are not replaced."""
+    problems = []
+    for day in sorted({day for _employee, day, _size in taken["work"]} | {day for _employee, day in taken["arrears"]}):
+        paid = output_pay._paid_run(doc.get("branch"), rules.PER_PIECE, day)
+        if not paid or paid == doc.name:
+            continue
+        for key in [key for key in taken["work"] if key[1] == day]:
+            del taken["work"][key]
+        for key in [key for key in taken["arrears"] if key[1] == day]:
+            del taken["arrears"][key]
+        problems.append(_("The week to {0} on the sheet is left out: {1} has already paid it.").format(
+            day.strftime("%d-%b-%Y"), paid))
+    return problems
+
+
 def _paying_slips(weeks):
     """{(employee, day): the submitted weekly salary slip whose days hold it}, for these (employee, day), read at
     once."""
@@ -238,10 +267,11 @@ def _paying_slips(weeks):
 
 
 def _replace_uploads(doc, days):
-    """The last upload of the weeks the sheet gives goes, its pay with it
-    (report_on_cancel): found by the week's last day and the plant, not by the
-    payroll, so a payroll deleted and made again still replaces what it
-    uploaded. A week the sheet does not give keeps its upload."""
+    """The last upload of the weeks the sheet gives goes (one that wrote its
+    own pay, before a run paid Per Piece, with that pay: report_on_cancel):
+    found by the week's last day and the plant, not by the run, so a run
+    deleted and made again still replaces what it uploaded. A week the sheet
+    does not give keeps its upload."""
     days = sorted({getdate(day) for day in days or ()})
     if not days:
         return
@@ -258,7 +288,7 @@ def _replace_uploads(doc, days):
 
 def _make_reports(doc, taken, people):
     """One submitted report for each week and plant, from the sheet: the sheet
-    is the week's record already. Their submit writes the pay."""
+    is the week's record already. The run they were uploaded on pays them."""
     groups = {}
     for (employee, day, size), (bags, _price, _where) in sorted(taken["work"].items(), key=lambda item: (item[0][1], item[1][2])):
         branch = people[employee].get("branch") or doc.get("branch")
@@ -272,7 +302,7 @@ def _make_reports(doc, taken, people):
     for (day, branch), found in sorted(groups.items(), key=lambda item: (item[0][0], item[0][1] or "")):
         report = frappe.get_doc({
             "doctype": REPORT, "report_date": day, "shift": rules.SHIFTS[0], "section": rules.PER_PIECE,
-            "branch": branch, "company": doc.company, "source": rules.UPLOADED,
+            "branch": branch, "company": doc.company, "source": rules.UPLOADED, "sheet_run": doc.name,
             "lines": found["lines"], "arrears": found["arrears"],
             "remarks": _("Uploaded on {0}.").format(doc.name),
         })
@@ -313,71 +343,39 @@ def report_validate(doc, method=None):
     doc.total_arrears = round(sum(flt(row.get("amount")) for row in rows), 2)
 
 
-def report_on_submit(doc, method=None):
-    """Each person's pay on the report written as Additional Salary dated its
-    day: the weekly slip whose days hold it pays it."""
-    if doc.get("section") != rules.PER_PIECE:
-        return
-    amounts = _amounts(doc)
-    people = sorted({employee for employee, _component in amounts})
-    paid = _paying_slips((employee, doc.report_date) for employee in people)
-    for (employee, day), slip in sorted(paid.items()):
-        frappe.throw(_("{0} has already paid {1}'s week of {2}: the pay would never be counted. Date the "
-                       "report in a week not yet paid, or cancel that slip first.").format(
-            slip, employee, day.strftime("%d-%b-%Y")), title=_(REPORT))
-    failed = weekly_pay.assign_people(people, doc.company, getdate(doc.report_date))
-    if failed:
-        frappe.throw(_("No salary assignment for: {0}.").format(
-            "; ".join("%s: %s" % (employee, why) for employee, why in sorted(failed.items()))), title=_(REPORT))
-    # posting the payroll needs an account for each earning: Basic's, where it has none (weekly_pay._give_account)
-    for component in sorted({component for _employee, component in amounts}):
-        weekly_pay._give_account(component, doc.company)
-    currency = frappe.get_cached_value("Company", doc.company, "default_currency")
-    # an uploaded week is paid to the last day of one who left during it, as Frappe HR takes no pay dated after
-    days = {}
-    if doc.get("source") == rules.UPLOADED:
-        found = _employment(people)
-        days = {employee: rules.piece_pay_day(None, doc.report_date, None,
-                                              (found.get(employee) or {}).get("relieving_date"))[0]
-                for employee in people}
-    for (employee, component), amount in sorted(amounts.items()):
-        if amount <= 0:
-            continue
-        earning = frappe.get_doc({
-            "doctype": ADDITIONAL, "employee": employee, "company": doc.company, "salary_component": component,
-            "amount": amount, "payroll_date": days.get(employee) or doc.report_date, "currency": currency,
-            "overwrite_salary_structure_amount": 0, "ref_doctype": REPORT, "ref_docname": doc.name,
-        })
-        earning.flags.ignore_permissions = True
-        earning.insert()
-        earning.submit()
-
-
-def _amounts(doc):
-    """{(employee, salary component): amount}: each category under the
-    component its Output Rate names, else the Per Piece earning; the arrears
-    under Arrears. A component cut by payment days is refused: a casual's
-    pieces are what they made, and a week with few days marked would pay
-    less."""
-    sizes = {row.size for row in doc.get("lines") or [] if row.get("size")}
-    named = {row.name: row.salary_component for row in frappe.get_all(
-        "Output Rate", filters={"name": ["in", list(sizes) or [""]]}, fields=["name", "salary_component"],
-        limit_page_length=0)}
-    amounts = {}
-    for row in doc.get("lines") or []:
-        component = named.get(row.size) or output_pay._component(rules.PER_PIECE)
-        key = (row.employee, component)
-        amounts[key] = round(amounts.get(key, 0.0) + flt(row.get("amount")), 2)
-    if doc.get("arrears"):
-        arrears = _arrears_component()
-        for row in doc.arrears:
-            key = (row.employee, arrears)
-            amounts[key] = round(amounts.get(key, 0.0) + flt(row.get("amount")), 2)
-    for component in {component for _employee, component in amounts}:
+def before_paying(run):
+    """What a Per Piece run needs as it is submitted, and {employee: the day
+    their pay is dated}. Nobody's week is already on a submitted weekly slip,
+    as the pay would never be counted; each person is on the weekly
+    structure, so the weekly payroll can pay them; each earning has an
+    account, for the payroll's posting; no earning is cut by payment days, as
+    a casual's pieces and arrears are what they are owed. One who left during
+    the week is paid on their last day, as Frappe HR takes no pay dated
+    after."""
+    rows = [row for row in run.get("earnings") or [] if flt(row.get("amount")) > 0]
+    people = sorted({row.employee for row in rows})
+    components = sorted({row.salary_component for row in rows})
+    if ARREARS[0] in components:
+        _arrears_component()
+    for component in components:
         if frappe.db.get_value("Salary Component", component, "depends_on_payment_days"):
             frappe.throw(_("{0} is cut by payment days: untick Depends on Payment Days on it, as a casual's pieces "
-                           "and arrears are what they are owed.").format(component), title=_(REPORT))
-    return amounts
+                           "and arrears are what they are owed.").format(component), title=_(RUN))
+    paid = _paying_slips((employee, run.to_date) for employee in people)
+    for (employee, day), slip in sorted(paid.items()):
+        frappe.throw(_("{0} has already paid {1}'s week of {2}: the pay would never be counted. Cancel that slip "
+                       "first.").format(slip, employee, day.strftime("%d-%b-%Y")), title=_(RUN))
+    failed = weekly_pay.assign_people(people, run.company, getdate(run.from_date))
+    if failed:
+        frappe.throw(_("No salary assignment for: {0}.").format(
+            "; ".join("%s: %s" % (employee, why) for employee, why in sorted(failed.items()))), title=_(RUN))
+    # posting the payroll needs an account for each earning: Basic's, where it has none (weekly_pay._give_account)
+    for component in components:
+        weekly_pay._give_account(component, run.company)
+    found = _employment(people)
+    return {employee: rules.piece_pay_day(None, run.to_date, None,
+                                          (found.get(employee) or {}).get("relieving_date"))[0]
+            for employee in people}
 
 
 def _arrears_component():
@@ -394,9 +392,22 @@ def _arrears_component():
     return name
 
 
+def self_paid(reports):
+    """Those of these reports that wrote their own pay, before a run paid
+    Per Piece (10 Nov 2026): a run leaves them out, or their people would be
+    paid twice."""
+    names = list(reports or ())
+    if not names:
+        return set()
+    return set(frappe.get_all(ADDITIONAL, filters={"ref_doctype": REPORT, "ref_docname": ["in", names],
+                                                   "docstatus": 1}, pluck="ref_docname", limit_page_length=0))
+
+
 def report_on_cancel(doc, method=None):
-    """The report's pay goes with it, unless a submitted slip has paid it:
-    that slip is named and nothing is cancelled."""
+    """A report that wrote its own pay, before a run paid Per Piece: the pay
+    goes with it, unless a submitted slip has paid it: that slip is named and
+    nothing is cancelled. (A report a run paid is held by the run:
+    output_pay.report_on_cancel.)"""
     if doc.get("section") != rules.PER_PIECE:
         return
     paid = advance_runs.recovered_on(REPORT, [doc.name])
@@ -419,7 +430,9 @@ def waiting(employees, start, end):
     employees = list(employees or ())
     if not employees or not start or not end:
         return set()
-    owed = frappe.get_all(ADDITIONAL, filters={"employee": ["in", employees], "docstatus": 1, "ref_doctype": REPORT,
+    owed = frappe.get_all(ADDITIONAL, filters={"employee": ["in", employees], "docstatus": 1,
+                                               # the run's pay, and a report's own from before a run paid
+                                               "ref_doctype": ["in", [RUN, REPORT]],
                                                "payroll_date": ["between", [getdate(start), getdate(end)]]},
                           fields=["name", "employee"], limit_page_length=0)
     if not owed:

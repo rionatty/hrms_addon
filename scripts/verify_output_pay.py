@@ -631,16 +631,40 @@ if 'if not cint(row.get("from_reports"))' not in typed or 'rules.work_unit_on(si
     fail.append("a run checks and prices only the lines typed in; the reports' lines keep their own days' pay")
 if 'cint(row.get("from_reports"))' not in body("_check_overtime"):
     fail.append("and only the Looms OT typed in")
-if "rules.per_employee(" not in body("_employees_from_lines") or "overtime" not in body("_employees_from_lines"):
-    fail.append("each person is paid their lines and their Looms OT")
+if "rules.per_employee(" not in body("_employees_from_lines") or "_beside_the_work(doc)" not in body("_employees_from_lines") \
+        or 'table = ARREARS if doc.get("section") == rules.PER_PIECE else "overtime"' not in body("_beside_the_work"):
+    fail.append("each person is paid their lines and their Looms OT, or their arrears on a Per Piece run")
+# a Per Piece run is for a week, and pays on the weekly payslip (Luuka, 11 Nov 2026: "per piece pay should not be in
+# payroll it should be independent like permeter and feed payroll")
+for name, needle, why in (
+    ("run_validate", "_check_arrears(doc)", "a run's arrears are checked"),
+    ("_set_period", 'if doc.get("section") == rules.PER_PIECE:', "a Per Piece run is for the week it is given"),
+    ("_set_period", 'frappe.throw(_("Say the week: its From and To dates."), title=_(RUN))', "which it must be given"),
+    ("_set_period", "if getdate(doc.to_date) < getdate(doc.from_date):", "the right way round"),
+    ("_one_run_a_month", '"from_date": ["<=", getdate(doc.to_date)],', "a week is paid once: no other run of the plant in its days"),
+    ("_one_run_a_month", '"to_date": [">=", getdate(doc.from_date)]}, "name")', "from either end"),
+    ("_paid_run", '"from_date": ["<=", getdate(day)], "to_date": [">=", getdate(day)]}, "name")',
+     "a report dated in a paid Per Piece run's days is refused, by the days not the month"),
+    ("_check_arrears", 'frappe.throw(_("Arrears go on a Per Piece run."), title=_(RUN))', "arrears are a Per Piece run's"),
+    ("_check_arrears", "if flt(row.get(\"amount\")) <= 0:", "each more than nothing"),
+    ("_fill", 'owed = [row for row in extra if row.get("parentfield") == ARREARS]', "the reports' arrears are taken apart from their Looms OT"),
+    ("_fill", 'doc.append(ARREARS, {"employee": employee, "amount": amount, "from_reports": 1})', "each person's added up"),
+    ("_month_reports", "own = piece_pay.self_paid(names)", "a report that wrote its own pay is left out of a run"),
+    ("_earnings", "_arrears_name() if doc.get(\"section\") == rules.PER_PIECE else _overtime_component())",
+     "the arrears are paid under their own earning"),
+    ("run_on_submit", "days = piece_pay.before_paying(doc)", "a Per Piece run is made ready for the weekly payslip first"),
+):
+    if needle not in body(name):
+        fail.append("%s: %s" % (name, why))
 paying = body("run_on_submit")
 for needle, why in (
     ('"Additional Salary"', "the pay is an Additional Salary, which the payroll run already reads"),
-    ('"payroll_date": doc.to_date', "on the last day of the payroll month"),
+    ('"payroll_date": (days or {}).get(row.employee) or doc.to_date', "on the last day of the payroll month, or the day "
+     "a Per Piece casual's slip holds"),
     ('for row in doc.get("earnings") or []:', "one for each person and salary component"),
     ('"salary_component": row.salary_component', "under that component"),
-    ('"overwrite_salary_structure_amount": _in_structure(row.employee, row.salary_component, doc.to_date,',
-     "beside what the structure pays, or in the place of its own line for that component"),
+    ('"overwrite_salary_structure_amount": 0 if days is not None else _in_structure(',
+     "beside what the structure pays, or in the place of its own line for that component; a casual's pieces always beside"),
     ('"ref_doctype": RUN', "and traceable to the run that wrote it"),
     ("earning.submit()", "and submitted, or the payroll never sees it"),
     ('row.get("additional_salary")', "and never written twice for the same person"),

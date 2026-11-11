@@ -59,7 +59,6 @@ frappe.ui.form.on("Payroll Entry", {
 		ha_payroll_ugx(frm);
 		ha_payroll_period(frm);
 		ha_weekly(frm);
-		ha_weekly_pieces_button(frm);
 		ha_payroll_attendance(frm);
 	},
 	on_tab_change(frm) {
@@ -257,62 +256,6 @@ function ha_weekly_show(frm) {
 	if (hint === ha_weekly_hint) return;
 	ha_weekly_hint = hint;
 	frm.set_df_property("end_date", "description", hint);
-}
-
-// The Per Piece casuals' weekly workbook, on a draft weekly payroll: each week that ends in its dates becomes the
-// week's Per Piece pay and arrears (piece_pay.py), which the slips then pay
-function ha_weekly_pieces_button(frm) {
-	if (frm.is_new() || frm.doc.docstatus !== 0 || !ha_weekly_on(frm) || !frm.doc.start_date || !frm.doc.end_date) {
-		return;
-	}
-	frm.add_custom_button(__("Upload Per Piece Sheet"), () =>
-		new frappe.ui.FileUploader({
-			doctype: frm.doctype,
-			docname: frm.docname,
-			restrictions: { allowed_file_types: [".xlsx"] },
-			on_success: (file) =>
-				frappe
-					.xcall(
-						"hrms_addon.hrms_addon.piece_pay.upload_pieces",
-						{ payroll_entry: frm.doc.name, file_url: file.file_url },
-						null,
-						{ freeze: true, freeze_message: __("Reading the sheet") }
-					)
-					.then((found) => {
-						ha_weekly_pieces_summary(found);
-						frm.reload_doc();
-					}),
-		})
-	);
-}
-
-// what the upload took, and what it left out and why
-function ha_weekly_pieces_summary(found) {
-	const esc = frappe.utils.escape_html;
-	const money = (value) => format_currency(value || 0);
-	const list = (rows) =>
-		rows.length ? "<ul>" + rows.map((row) => "<li>" + esc(row) + "</li>").join("") + "</ul>" : "";
-	const problems = found.problems || [];
-	const notes = found.notes || [];
-	let html =
-		"<p>" +
-		esc(
-			__("{0} week(s), {1} people, {2} bags: {3}, and {4} arrears.", [
-				found.weeks,
-				found.people,
-				found.bags,
-				money(found.amount),
-				money(found.arrears),
-			])
-		) +
-		"</p>";
-	if (problems.length) html += "<p><b>" + esc(__("Left out")) + "</b></p>" + list(problems);
-	if (notes.length) html += "<p><b>" + esc(__("Seen on the sheet")) + "</b></p>" + list(notes);
-	frappe.msgprint({
-		title: __("Per Piece Sheet"),
-		message: html,
-		indicator: problems.length ? "orange" : "green",
-	});
 }
 
 // written straight on, not with set_value: Frappe HR's handlers would work the End out from the Start again
