@@ -1159,6 +1159,13 @@ def kpis(facts, money=False):
 
 
 # ── The casuals' week ─────────────────────────────────────────────────
+def in_the_days(joined, left, start, end):
+    """Whether a payroll for these days takes somebody, as Frappe HR picks its employees: they joined on or before
+    its last day and left, if they left, on or after its first. A day not known rules nobody out."""
+    joined, left, start, end = _day(joined), _day(left), _day(start), _day(end)
+    return not (left and start and left < start) and not (joined and end and joined > end)
+
+
 def casual_week(facts):
     """The weekly casual payroll before it is run, as rows: (rows, note). facts: {"start", "end", "last" (the last
     weekly payroll's End), "with_days", "hours", "with_overtime", "overtime_hours", "no_rate" [names], "piece_waiting",

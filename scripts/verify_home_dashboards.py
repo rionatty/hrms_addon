@@ -401,6 +401,13 @@ uploaded, _said = DR.casual_week(dict(WEEK, piece_waiting=27, drafts=2, no_rate=
 check([row["key"] for row in uploaded] == ["days", "overtime", "pieces", "drafts"] and uploaded[2]["value"] == 27
       and uploaded[3]["label"] == "Weekly payrolls in draft",
       "once the sheet is uploaded the row counts those it pays, and nobody is left out")
+check([DR.in_the_days(joined, left, D(2026, 11, 5), D(2026, 11, 11)) for joined, left in (
+    (D(2026, 1, 5), None), (D(2026, 11, 11), None), (D(2026, 11, 12), None), (D(2026, 1, 5), D(2026, 11, 5)),
+    (D(2026, 1, 5), D(2026, 11, 4)), (None, None), ("2026-01-05", "2026-11-04"))]
+      == [True, True, False, True, False, True, False]
+      and DR.in_the_days(D(2026, 11, 12), D(2026, 11, 4), None, None),
+      "a payroll takes one who joined by its last day and has not left before its first, as Frappe HR does; with no "
+      "days known nobody is ruled out")
 check(DR.casual_week({"end": None, "last": None, "piece_staff": 28, "drafts": 0}) == ([], "No weekly payroll yet")
       and [row["key"] for row in DR.casual_week({"end": None, "last": D(2026, 11, 4), "drafts": 1})[0]] == ["drafts"],
       "with no attendance since the last payroll there is nothing to pay yet, and only a run left in draft is said")
@@ -599,6 +606,8 @@ check('"statistical_component": 0' in method("panel_deductions") and '"parentfie
 week_read = method("panel_casual_week")
 check("if not self.company:\n            return None" in week_read
       and 'frappe.get_list("Employee", filters=self.mine(' in week_read
+      and 'status=["!=", "Inactive"], custom_pay_category=["in", list(weekly_pay_rules.CATEGORIES)]' in week_read
+      and "if rules.in_the_days(row.date_of_joining, row.relieving_date, start, end)]" in week_read
       and "weekly_pay.days_to_pay(weekly, start, end, self.company)" in week_read
       and "weekly_pay.overtime_due(weekly, start, end, self.company)" in week_read
       and "piece_pay.waiting(pieces, start, end)" in week_read and "weekly_pay_rules.unrated(table, rates)" in week_read

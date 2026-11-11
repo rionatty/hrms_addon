@@ -383,15 +383,18 @@ class Reader:
 
         if not self.company:
             return None
-        people = frappe.get_list("Employee", filters=self.mine(
-            status="Active", custom_pay_category=["in", list(weekly_pay_rules.CATEGORIES)]),
-            fields=["name", "custom_pay_category"], limit_page_length=0)
-        weekly = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.WEEKLY]
-        pieces = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.PER_PIECE]
         wanted = {"company": self.company}
         last = weekly_pay._last_executed(wanted)
         dates = weekly_pay_rules.dates(last, weekly_pay._latest_attendance(wanted))
         start, end = dates["start"], dates["end"]
+        # the casuals a payroll for these days takes, as Frappe HR picks them: not the inactive, nor one who left
+        # before the days began or joins after they end. One who left in the week is still paid for it.
+        people = [row for row in frappe.get_list("Employee", filters=self.mine(
+            status=["!=", "Inactive"], custom_pay_category=["in", list(weekly_pay_rules.CATEGORIES)]),
+            fields=["name", "custom_pay_category", "relieving_date", "date_of_joining"], limit_page_length=0)
+            if rules.in_the_days(row.date_of_joining, row.relieving_date, start, end)]
+        weekly = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.WEEKLY]
+        pieces = [row.name for row in people if row.custom_pay_category == weekly_pay_rules.PER_PIECE]
         runs = self.mine(payroll_frequency=weekly_pay_rules.WEEKLY, salary_slip_based_on_timesheet=0)
         facts = {"last": last, "end": end, "piece_staff": len(pieces),
                  "drafts": count("Payroll Entry", dict(runs, docstatus=0))}
