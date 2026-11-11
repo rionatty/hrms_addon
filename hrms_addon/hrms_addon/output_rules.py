@@ -560,14 +560,14 @@ def piece_pay_day(first, last, joined=None, left=None, status=None):
     return (left if left and last and left < last else last), None
 
 
-def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
+def take_pieces(weeks, people, sizes, rates, period, unread=None):
     """What Luuka's Per Piece workbook gives for a payroll's days, checked row by row.
 
     weeks: piece_sheet.read's weeks [{"sheet", "start", "end", "prices",
     "rows"}]; people: [{"employee", "employee_name", "employee_number",
-    "category", "branch"}], every employee; sizes: the Per Piece categories
-    in use; rates: {category: [{"work_unit", "valid_from"}]}; period:
-    (from, to); branch: the payroll's plant; unread: the sheets dated by nothing.
+    "category"}], every employee; sizes: the Per Piece categories in use;
+    rates: {category: [{"work_unit", "valid_from"}]}; period: (from, to);
+    unread: the sheets dated by nothing.
 
     A week is the payroll's when its last day is in it, so each week is
     paid once. A bag column's price names its category: the one whose Work
@@ -577,7 +577,10 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
     is no employee number. A row with none is left out, and the employee its
     name fits is said, for the number to be put in; a name is never taken. A
     number whose employee's name has no word of the sheet's is taken and
-    said, to be checked before the run is paid.
+    said, to be checked before the run is paid. A Per Piece casual of any
+    plant is taken: the sheet is the company's, and the run it is uploaded on
+    pays everyone on it (Luuka, 11 Nov 2026: "the template download should
+    have all per piece employee active").
 
     The ARREARS column is not paid here: arrears, and anything else owed
     beside the pieces, are entered as Additional Salary, which the weekly
@@ -693,10 +696,6 @@ def take_pieces(weeks, people, sizes, rates, period, branch, unread=None):
             if (person.get("category") or REGULAR) != PER_PIECE:
                 problems.append("%s is paid %s, not Per Piece, so their bags on %s are left out."
                                 % (who(employee), person.get("category") or REGULAR, sheet))
-                continue
-            if branch and person.get("branch") != branch:
-                problems.append("%s works at %s, not %s, so their bags on %s are left out."
-                                % (who(employee), person.get("branch") or "no plant", branch, sheet))
                 continue
             for price, value in bags.items():
                 if not _is_number(value) or _num(value) < 0:

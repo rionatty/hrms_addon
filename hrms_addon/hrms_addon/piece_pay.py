@@ -66,24 +66,20 @@ def upload_pieces(run, file_url):
     except ValueError as error:
         frappe.throw(_(str(error)), title=_(TITLE))
     people = _people()
-    by_employee = {person["employee"]: person for person in people}
     names = {person["employee"]: person["employee_name"] for person in people}
     sizes = output_pay._sizes(section=rules.PER_PIECE)
     taken = rules.take_pieces(found["weeks"], people, {name for name, seat in sizes.items() if seat["enabled"]},
-                              {name: seat["rates"] for name, seat in sizes.items()}, (start, end), doc.get("branch"),
-                              found.get("unread"))
+                              {name: seat["rates"] for name, seat in sizes.items()}, (start, end), found.get("unread"))
     problems = _keep_reported_weeks(doc, taken, names)
     problems += _drop_paid_weeks(taken, names)
     problems += _drop_run_paid_weeks(doc, taken, names)
-    plantless = {employee for employee in _people_in(taken) if not (by_employee[employee].get("branch") or doc.get("branch"))}
-    problems += _drop(taken, {employee: None for employee in plantless}, names, _("they have no plant"))
     problems += _drop_not_employed(taken, names, start)
     failed = weekly_pay.assign_people(_people_in(taken), doc.company, start)
     problems += _drop(taken, failed, names, _("they have no salary assignment: {0}"))
     # a week another submitted run has paid keeps its upload: its reports stand behind that pay
     _replace_uploads(doc, [week["end"] for week in taken["weeks"]
                            if not output_pay._paid_run(doc.get("branch"), rules.PER_PIECE, week["end"])])
-    made = _make_reports(doc, taken, by_employee)
+    made = _make_reports(doc, taken)
     # the run filled from the week's reports, these among them, and kept with its sheet
     output_pay._fill(doc)
     doc.uploaded_sheet = file_url
@@ -106,9 +102,10 @@ def upload_pieces(run, file_url):
 
 @frappe.whitelist()
 def download_pieces(run):
-    """The run's week as Luuka's Per Piece template, to fill in and upload: every Per Piece casual of the plant on
-    staff that week, their employee number in NO., and the week's prices (Luuka, 11 Nov 2026: "one should be able to
-    also download the template for employee per piece")."""
+    """The run's week as Luuka's Per Piece template, to fill in and upload: every Active Per Piece casual of the
+    company, their employee number in NO., and the week's prices (Luuka, 11 Nov 2026: "one should be able to also
+    download the template for employee per piece"; then "the template download should have all per piece employee
+    active")."""
     doc = frappe.get_doc(RUN, run)
     doc.check_permission("read")
     if doc.get("section") != rules.PER_PIECE or not doc.get("from_date") or not doc.get("to_date"):
@@ -122,34 +119,30 @@ def download_pieces(run):
     if not prices:
         frappe.throw(_("No Per Piece category has a Work Unit on {0}: set them in Sizes and Work Units.").format(
             end.strftime("%d-%b-%Y")), title=_(TITLE))
-    content = piece_sheet.template(start, end, prices, _sheet_people(doc.get("branch"), start, end))
+    content = piece_sheet.template(start, end, prices, _sheet_people(doc.company))
     frappe.response["filename"] = "Per Piece %s %s.xlsx" % (piece_sheet.week_title(start, end), doc.get("branch") or "")
     frappe.response["filecontent"] = content
     frappe.response["type"] = "binary"
 
 
-def _sheet_people(branch, start, end):
-    """The plant's Per Piece casuals on staff in the week, by name: joined by its last day, not gone before its first,
-    not Inactive."""
-    filters = {"custom_pay_category": rules.PER_PIECE, "status": ["!=", "Inactive"], "date_of_joining": ["<=", end]}
-    if branch:
-        filters["branch"] = branch
-    found = frappe.get_all("Employee", filters=filters, fields=["name", "employee_name", "relieving_date"],
-                           order_by="employee_name asc", limit_page_length=0)
-    return [{"employee": row.name, "employee_name": row.employee_name} for row in found
-            if not row.relieving_date or getdate(row.relieving_date) >= start]
+def _sheet_people(company):
+    """Every Per Piece casual of the company whose status is Active, whatever their plant, by name. Luuka keeps one
+    sheet for them all, and the upload says why it leaves anyone on it out."""
+    found = frappe.get_all("Employee", filters={"custom_pay_category": rules.PER_PIECE, "status": "Active",
+                                                "company": company},
+                           fields=["name", "employee_name"], order_by="employee_name asc", limit_page_length=0)
+    return [{"employee": row.name, "employee_name": row.employee_name} for row in found]
 
 
 def _people():
     """Every employee, by what the workbook finds them by (the name, or the
     Employee Number where a sheet has an Employee Id column), with their pay
-    category and plant."""
-    fields = ["name", "employee_name", "employee_number", "branch"]
+    category."""
+    fields = ["name", "employee_name", "employee_number"]
     has_category = frappe.get_meta("Employee").has_field("custom_pay_category")
     if has_category:
         fields.append("custom_pay_category")
     return [{"employee": row.name, "employee_name": row.employee_name, "employee_number": row.employee_number,
-             "branch": row.branch,
              "category": (row.get("custom_pay_category") if has_category else None) or rules.REGULAR}
             for row in frappe.get_all("Employee", fields=fields, limit_page_length=0)]
 
@@ -322,16 +315,16 @@ def _replace_uploads(doc, days):
         frappe.delete_doc(REPORT, name, ignore_permissions=True, force=True)
 
 
-def _make_reports(doc, taken, people):
-    """One submitted report for each week and plant, from the sheet: the sheet
-    is the week's record already. The run they were uploaded on pays them."""
+def _make_reports(doc, taken):
+    """One submitted report for each week, from the sheet, at the run's plant:
+    the sheet is the week's record already, and the run it was uploaded on
+    pays everyone on it, whatever their plant."""
     groups = {}
+    branch = doc.get("branch")
     for (employee, day, size), (bags, _price, _where) in sorted(taken["work"].items(), key=lambda item: (item[0][1], item[1][2])):
-        branch = people[employee].get("branch") or doc.get("branch")
         groups.setdefault((day, branch), {"lines": [], "arrears": []})["lines"].append(
             {"employee": employee, "size": size, "output": bags})
     for (employee, day), (amount, _where) in sorted(taken["arrears"].items(), key=lambda item: (item[0][1], item[1][1])):
-        branch = people[employee].get("branch") or doc.get("branch")
         groups.setdefault((day, branch), {"lines": [], "arrears": []})["arrears"].append(
             {"employee": employee, "amount": amount})
     made = []

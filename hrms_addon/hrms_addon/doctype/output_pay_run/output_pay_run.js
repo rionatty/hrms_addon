@@ -72,7 +72,7 @@ frappe.ui.form.on("Output Pay Run", {
 		);
 		if (frm.doc.section === "Per Piece") {
 			if (frm.doc.from_date && frm.doc.to_date) {
-				// the week's template: each Per Piece casual of the plant, their employee number in NO.
+				// the week's template: every Active Per Piece casual of the company, their employee number in NO.
 				frm.add_custom_button(__("Download Per Piece Sheet"), () =>
 					window.open(
 						frappe.urllib.get_full_url(

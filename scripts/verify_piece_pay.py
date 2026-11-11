@@ -225,13 +225,15 @@ RATES = {"BAG 200": [{"work_unit": 190, "valid_from": D(2026, 1, 1)}, {"work_uni
 PERIOD = (D(2026, 10, 22), D(2026, 11, 4))
 check(O.piece_key("tester  second.") == O.piece_key("SECOND TESTER") == "SECOND TESTER" and O.employee_key(" lpl-007. ") == "LPL-007",
       "a name is read whatever its case, spacing, dots or word order; an employee number whatever its spacing")
-taken = O.take_pieces(wanted["weeks"], PEOPLE, SIZES, RATES, PERIOD, "PET", ["EXTRA LABOUR"])
+taken = O.take_pieces(wanted["weeks"], PEOPLE, SIZES, RATES, PERIOD, ["EXTRA LABOUR"])
 check(taken["work"] == {("E1", D(2026, 10, 28), "BAG 200"): (10.0, 200.0, "'22nd-28th-October-2026', row 4"),
                         ("E1", D(2026, 10, 28), "BAG 180"): (5.0, 180.0, "'22nd-28th-October-2026', row 4"),
                         ("E2", D(2026, 10, 28), "BAG 200"): (3.0, 200.0, "'22nd-28th-October-2026', row 5"),
+                        ("E4", D(2026, 10, 28), "BAG 200"): (2.0, 200.0, "'22nd-28th-October-2026', row 9"),
                         ("E1", D(2026, 11, 4), "BAG 200"): (4.0, 200.0, "'29th-Oct-04th-Nov-26', row 4"),
                         ("E2", D(2026, 11, 4), "BAG 180"): (2.0, 180.0, "'29th-Oct-04th-Nov-26', row 5")},
-      "each person's bags under the category priced so that week, dated the week's last day", taken["work"])
+      "each person's bags under the category priced so that week, dated the week's last day, a casual of another "
+      "plant among them", taken["work"])
 check(taken["arrears"] == {},
       "the ARREARS column is not paid by the upload: arrears are entered as Additional Salary, which the weekly "
       "payroll pays (Luuka, 11 Nov 2026)", taken["arrears"])
@@ -242,10 +244,9 @@ for needle, why in (("Third Example (E3) is paid Weekly, not Per Piece", "a casu
                      "a row with no employee number is not paid, however well its name fits (Luuka, 11 Nov 2026: \"use "
                      "employee number not employee name\"); those its name fits are said, for the number to be put in"),
                     ("row 8: NOBODY KNOWN has no employee number, so the bags, worth 360, are left out: put it in the "
-                     "NO. column.", "and one whose name fits nobody is said, with what it was worth"),
-                    ("Fourth Sample (E4) works at BOTTLES, not PET", "another plant's person is left to their own payroll")):
+                     "NO. column.", "and one whose name fits nobody is said, with what it was worth")):
     check(needle in problems, "left out and said: %s" % why, taken["problems"])
-check(len(taken["problems"]) == 4, "and nothing else is left out", taken["problems"])
+check(len(taken["problems"]) == 3, "and nothing else is left out", taken["problems"])
 check(not any("by name" in problem.lower() for problem in taken["problems"] if "NOBODY KNOWN" in problem),
       "a name near nobody's names nobody", taken["problems"])
 notes = " | ".join(taken["notes"])
@@ -258,10 +259,10 @@ check("Weeks taken: 22-Oct-2026 to 28-Oct-2026 and 29-Oct-2026 to 04-Nov-2026." 
       "sheets not read", taken["notes"])
 old_price = O.take_pieces([{"sheet": "old", "start": D(2026, 9, 3), "end": D(2026, 9, 9), "prices": [190.0],
                             "rows": [{"row": 4, "name": "Second Tester", "employee_id": "E2", "bags": {190.0: 2}}]}],
-                          PEOPLE, SIZES, RATES, (D(2026, 9, 3), D(2026, 9, 9)), None)
+                          PEOPLE, SIZES, RATES, (D(2026, 9, 3), D(2026, 9, 9)))
 check(old_price["work"] == {("E2", D(2026, 9, 9), "BAG 200"): (2.0, 190.0, "'old', row 4")} and not old_price["problems"],
       "a price names the category whose Work Unit it was on the week's last day, before the price went up", old_price)
-by_id = O.take_pieces(ids["weeks"], PEOPLE, SIZES, RATES, (D(2026, 11, 5), D(2026, 11, 11)), "PET")
+by_id = O.take_pieces(ids["weeks"], PEOPLE, SIZES, RATES, (D(2026, 11, 5), D(2026, 11, 11)))
 check(list(by_id["work"]) == [("E7", D(2026, 11, 11), "BAG 200")],
       "where the sheet has an Employee Id column, the person is found by it, whatever the name says", by_id)
 check(O.employee_key("LPL-007_x000D_\n") == "LPL-007" and "payroll no" in S.EMPLOYEE_ID,
@@ -269,7 +270,7 @@ check(O.employee_key("LPL-007_x000D_\n") == "LPL-007" and "payroll no" in S.EMPL
 near = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026, 11, 4), "prices": [200.0],
                        "rows": [{"row": 4, "name": "SECOND TESTOR", "bags": {200.0: 1}},
                                 {"row": 5, "name": "THIRD EXAMPEL", "bags": {200.0: 1}}]}],
-                     PEOPLE, SIZES, RATES, PERIOD, "PET")
+                     PEOPLE, SIZES, RATES, PERIOD)
 check(near["work"] == {} and any("SECOND TESTOR has no employee number, so the bags, worth 200, are left out: put it in "
                                  "the NO. column. Closest by name: Second Tester (E2)." in problem
                                  for problem in near["problems"])
@@ -281,7 +282,7 @@ check(near["work"] == {} and any("SECOND TESTOR has no employee number, so the b
 counted = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026, 11, 4), "prices": [200.0],
                           "rows": [{"row": 4, "name": "Second Tester", "employee_id": "1", "bags": {200.0: 1}},
                                    {"row": 5, "name": "Seventh Case", "employee_id": "2", "bags": {200.0: 1}}]}],
-                        PEOPLE, SIZES, RATES, PERIOD, "PET")
+                        PEOPLE, SIZES, RATES, PERIOD)
 check(counted["work"] == {} and "'w' has no employee numbers, so nobody on it is paid: put each person's employee number "
                                 "in the NO. column." in counted["problems"]
       and any("Second Tester has no employee number" in problem and "By name: Second Tester (E2)" in problem
@@ -291,7 +292,7 @@ numbered = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026
                            "rows": [{"row": 4, "name": "SECOND TESTOR", "employee_id": "E2", "bags": {200.0: 1}},
                                     {"row": 5, "name": "SECOND TESTER", "employee_id": "E9", "bags": {200.0: 2}},
                                     {"row": 6, "name": "", "employee_id": "LPL-007", "bags": {200.0: 3}}]}],
-                         PEOPLE, SIZES, RATES, PERIOD, "PET")
+                         PEOPLE, SIZES, RATES, PERIOD)
 check(set(numbered["work"]) == {("E2", D(2026, 11, 4), "BAG 200"), ("E9", D(2026, 11, 4), "BAG 200"),
                                 ("E7", D(2026, 11, 4), "BAG 200")} and not numbered["problems"],
       "a row is paid by its number, whatever its name says: a misspelt name, another's name, no name", numbered)
@@ -310,7 +311,7 @@ cases = O.take_pieces([{"sheet": "w", "start": D(2026, 10, 29), "end": D(2026, 1
                                  {"row": 10, "name": "Eighth Person", "employee_id": "E8", "bags": {200.0: "ABSENT"}},
                                  {"row": 11, "name": "Twin Name", "employee_id": "E5", "bags": {200.0: 0, 180.0: None}},
                                  {"row": 12, "name": "Ninth Person", "employee_id": "E9", "bags": {}, "arrears": -300}]}],
-                      PEOPLE, SIZES, RATES, PERIOD, "PET")
+                      PEOPLE, SIZES, RATES, PERIOD)
 said = " | ".join(cases["problems"])
 for needle, why in (("No Per Piece category is priced 150 on 04-Nov-2026", "a price no category has"),
                     ("the Employee Id LPL-999 is nobody here", "an Employee Id that is nobody's"),
@@ -323,15 +324,15 @@ check(cases["work"] == {} and cases["arrears"] == {}
       and not any("row 11" in problem or "row 12" in problem for problem in cases["problems"]),
       "and none of it is paid; a row of noughts, or of arrears alone, is nobody's business here", cases["problems"])
 two_sheets = O.take_pieces([dict(wanted["weeks"][1], sheet="a"), dict(wanted["weeks"][1], sheet="b")], PEOPLE, SIZES, RATES,
-                           PERIOD, "PET")
+                           PERIOD)
 check(two_sheets["work"] == {} and "is on 2 sheets ('a' and 'b'): none of them is taken" in " ".join(two_sheets["problems"]),
       "a week on two sheets is not guessed between", two_sheets["problems"])
 same_price = O.take_pieces(wanted["weeks"][1:], PEOPLE, SIZES | {"BAG 200B"}, dict(RATES, **{"BAG 200B": RATES["BAG 200"]}),
-                           PERIOD, "PET")
+                           PERIOD)
 check("BAG 200 and BAG 200B are all priced 200" in " ".join(same_price["problems"])
       and ("E1", D(2026, 11, 4), "BAG 200") not in same_price["work"],
       "two categories at one price leave those bags out: which was packed cannot be told", same_price["problems"])
-outside = O.take_pieces(wanted["weeks"], PEOPLE, SIZES, RATES, (D(2026, 11, 5), D(2026, 11, 11)), "PET")
+outside = O.take_pieces(wanted["weeks"], PEOPLE, SIZES, RATES, (D(2026, 11, 5), D(2026, 11, 11)))
 check(outside["work"] == {} and "No weekly sheet ends between 05-Nov-2026 and 11-Nov-2026" in " ".join(outside["problems"]),
       "a week is the payroll's whose last day is in its dates; none, and it says so", outside["problems"])
 check(O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4)) == (D(2026, 11, 4), None)
@@ -343,8 +344,10 @@ check(O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4)) == (D(2026, 11, 4), None)
       and O.piece_pay_day(D(2026, 10, 29), D(2026, 11, 4), status="Inactive")[1] == "they are Inactive",
       "a week's pay is dated its last day, or the last day of one who left during it; not for one who joined after it, "
       "left before it, or is Inactive")
-anywhere = O.take_pieces(wanted["weeks"][:1], PEOPLE, SIZES, RATES, PERIOD, None)
-check(("E4", D(2026, 10, 28), "BAG 200") in anywhere["work"], "a payroll for every plant takes every plant's casuals")
+check(("E4", D(2026, 10, 28), "BAG 200") in taken["work"] and not any("works at" in problem for problem in taken["problems"]),
+      "a Per Piece casual of another plant is taken: the sheet is the company's, and the run it is uploaded on pays "
+      "everyone on it (Luuka, 11 Nov 2026: \"the template download should have all per piece employee active\")",
+      taken["problems"])
 print("the rows: found by employee number alone, priced by the week's category, what is left out said")
 
 
@@ -710,12 +713,15 @@ reports = [row for row in s.rows("Daily Production Report")]
 check([(row.report_date, row.branch, row.source, row.section, row.docstatus, row.sheet_run) for row in reports]
       == [(D(2026, 10, 28), "PET", "Uploaded", "Per Piece", 1, "RUN-W"), (D(2026, 11, 4), "PET", "Uploaded", "Per Piece", 1, "RUN-W")]
       and found["reports"] == [row.name for row in reports],
-      "one submitted Per Piece report for each week and plant, dated the week's last day, naming the run it was uploaded on",
+      "one submitted Per Piece report for each week at the run's plant, dated the week's last day, naming the run it was "
+      "uploaded on",
       reports)
 check([(line.employee, line.size, line.output, line.rate, line.amount) for line in reports[0].lines]
-      == [("E1", "BAG 200", 10.0, 200, 2000.0), ("E1", "BAG 180", 5.0, 180, 900.0), ("E2", "BAG 200", 3.0, 200, 600.0)]
+      == [("E1", "BAG 200", 10.0, 200, 2000.0), ("E1", "BAG 180", 5.0, 180, 900.0), ("E2", "BAG 200", 3.0, 200, 600.0),
+          ("E4", "BAG 200", 2.0, 200, 400.0)]
       and not reports[0].arrears,
-      "each line its bags at the category's price; no arrears on the report: they are entered as Additional Salary",
+      "each line its bags at the category's price, a casual of another plant among them; no arrears on the report: "
+      "they are entered as Additional Salary",
       reports[0].lines)
 check(not s.rows("Additional Salary"),
       "the upload writes no pay: the run does when it is submitted, as a Per Meter run does (Luuka, 11 Nov 2026)",
@@ -723,26 +729,27 @@ check(not s.rows("Additional Salary"),
 run = s.rows("Output Pay Run")[0]
 check(run.uploaded_sheet == "/private/files/pet.xlsx" and ("save", "Output Pay Run", "RUN-W") in s.log
       and {(row.employee, row.salary_component): row.amount for row in run.earnings}
-      == {("E1", "Per Piece Earnings"): 3700.0, ("E2", "Per Piece Earnings"): 960.0},
+      == {("E1", "Per Piece Earnings"): 3700.0, ("E2", "Per Piece Earnings"): 960.0, ("E4", "Per Piece Earnings"): 400.0},
       "the run is filled from the week's reports and saved with its sheet", run.earnings)
-check(found["weeks"] == 2 and found["people"] == 2 and found["bags"] == 24.0 and found["amount"] == 4660.0 and found["arrears"] == 0,
+check(found["weeks"] == 2 and found["people"] == 3 and found["bags"] == 26.0 and found["amount"] == 5060.0 and found["arrears"] == 0,
       "the upload says what it took: the weeks, the people, the bags and the pay; no arrears", found)
-check(len(found["problems"]) == 4 and any("NOBODY KNOWN" in problem for problem in found["problems"])
+check(len(found["problems"]) == 3 and any("NOBODY KNOWN" in problem for problem in found["problems"])
       and any("Arrears on the sheet are not paid by this upload" in note for note in found["notes"])
       and any("1 other weekly sheet(s) end outside 22-Oct-2026 to 04-Nov-2026: the run of the week each ends in takes it."
               in note for note in found["notes"]),
       "and what it left out, and what it saw: the sheets the run of another week takes", found["notes"])
-check(("E1", "E2") == tuple(s.assigned[0][0]) and s.assigned[0][2] == D(2026, 10, 22),
+check(("E1", "E2", "E4") == tuple(s.assigned[0][0]) and s.assigned[0][2] == D(2026, 10, 22),
       "those on the sheet are given the weekly structure first, from the run's From, as Get Employees would", s.assigned)
 pay_run("RUN-W")
-check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0},
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0,
+                 ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0},
       "submitted, each person's pay is Additional Salary dated the run's last day, which the weekly slip pays; no arrears",
       pay(s))
 check(not [row for row in s.rows("Salary Component") if row.name == "Arrears"],
       "no Arrears earning is made by a run: it pays none", s.rows("Salary Component"))
 check(s.accounts == {("Per Piece Earnings", "LPL")},
       "each earning paid is given the company's account, as posting the payroll needs one", s.accounts)
-check((["E1", "E2"], "LPL", D(2026, 10, 22)) == s.assigned[-1],
+check((["E1", "E2", "E4"], "LPL", D(2026, 10, 22)) == s.assigned[-1],
       "and each person paid is on the weekly structure as the run is submitted", s.assigned[-1])
 
 s = populated()
@@ -754,26 +761,26 @@ check(len(s.rows("Daily Production Report")) == 2 and not set(first) & {row.name
       "uploaded again, the last upload goes and the new one stands: nothing twice",
       (len(s.rows("Daily Production Report")), s.log))
 pay_run("RUN-W")
-check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0},
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0,
+                 ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0},
       "and the run pays it once", pay(s))
 s = populated()
 s.add("Output Pay Run", name="RUN-B", company="LPL", section="Per Piece", docstatus=0, from_date=D(2026, 10, 22),
       to_date=D(2026, 11, 4), branch="BOTTLES")
 P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
-P.upload_pieces("RUN-B", "/private/files/pet.xlsx")
-P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
-pay_run("RUN-B")
-check(pay(s) == {("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0}
-      and [row.branch for row in s.rows("Daily Production Report")].count("BOTTLES") == 1
-      and [row.branch for row in s.rows("Daily Production Report")].count("PET") == 2,
-      "another plant's run takes its own casuals off the same workbook, and this plant's upload leaves theirs standing",
-      pay(s))
+elsewhere = P.upload_pieces("RUN-B", "/private/files/pet.xlsx")
+check(not elsewhere["reports"] and [row.branch for row in s.rows("Daily Production Report")] == ["PET", "PET"]
+      and any("Fourth Sample's week to 28-Oct-2026 is on submitted daily reports" in problem
+              for problem in elsewhere["problems"]),
+      "the same workbook uploaded on another plant's run pays nobody twice: everyone on it stands on the first run's "
+      "reports, their own plant's casual too, and it is said", elsewhere["problems"])
 s = populated()
 P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
 s.files["/private/files/one_week.xlsx"] = workbook([("29th-Oct-04th-Nov-26", sheet_rows(
     "PET", [{"name": "SECOND TESTER", "id": "E2", "bags": {180: 7}}], id_column=True))])
 P.upload_pieces("RUN-W", "/private/files/one_week.xlsx")
-check(reports_of(s) == {D(2026, 10, 28): {"E1": [("BAG 200", 10.0), ("BAG 180", 5.0)], "E2": [("BAG 200", 3.0)]},
+check(reports_of(s) == {D(2026, 10, 28): {"E1": [("BAG 200", 10.0), ("BAG 180", 5.0)], "E2": [("BAG 200", 3.0)],
+                                           "E4": [("BAG 200", 2.0)]},
                         D(2026, 11, 4): {"E2": [("BAG 180", 7.0)]}},
       "a sheet of one week replaces that week's upload, and the other week's stands", reports_of(s))
 
@@ -831,7 +838,8 @@ for row in s.rows("Employee"):
         row.update(date_of_joining=D(2026, 10, 29))
 employment = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
 pay_run("RUN-W")
-check(pay(s) == {("E2", "Per Piece Earnings", D(2026, 10, 31)): 960.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0}
+check(pay(s) == {("E2", "Per Piece Earnings", D(2026, 10, 31)): 960.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0,
+                 ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0}
       and any("Test Person One's week to 28-Oct-2026 on the sheet, 2,900, is left out: they joined on 29-Oct-2026, after "
               "the week." in problem for problem in employment["problems"]),
       "one who left during the run's days is paid on their last day; a week before someone joined is left out and said, "
@@ -1046,7 +1054,7 @@ filled = load_workbook(io.BytesIO(blank))
 filled.active["C4"], filled.active["D5"] = 10, 3
 again_out = io.BytesIO()
 filled.save(again_out)
-round_trip = O.take_pieces(S.read(again_out.getvalue())["weeks"], PEOPLE, SIZES, RATES, PERIOD, "PET")
+round_trip = O.take_pieces(S.read(again_out.getvalue())["weeks"], PEOPLE, SIZES, RATES, PERIOD)
 check(round_trip["work"] == {("E1", D(2026, 11, 4), "BAG 200"): (10.0, 200.0, "'Sheet1', row 4"),
                              ("E7", D(2026, 11, 4), "BAG 180"): (3.0, 180.0, "'Sheet1', row 5")}
       and not round_trip["problems"],
@@ -1058,12 +1066,28 @@ for needle, why in (
     ("if not piece_sheet.WEEK_DAYS[0] <= (end - start).days + 1 <= piece_sheet.WEEK_DAYS[1]:",
      "for one week, as the upload reads one"),
     ("rules.work_unit_on(seat[\"rates\"], end)", "each category's price on the week's last day"),
-    ('filters = {"custom_pay_category": rules.PER_PIECE, "status": ["!=", "Inactive"], "date_of_joining": ["<=", end]}',
-     "the Per Piece casuals on staff that week"),
-    ('filters["branch"] = branch', "of the run's plant"),
-    ("if not row.relieving_date or getdate(row.relieving_date) >= start", "not gone before it"),
+    ("piece_sheet.template(start, end, prices, _sheet_people(doc.company))", "the casuals of the run's company"),
 ):
     check(needle in download, "piece_pay.download_pieces: %s" % why, needle)
+# every Active Per Piece casual of the company, whatever their plant (Luuka, 11 Nov 2026: "the template download should
+# have all per piece employee active")
+s = populated()
+for row in s.rows("Employee"):
+    row.update(company="LPL", status="Active")
+    if row.name == "E5":
+        row.update(status="Left", relieving_date=D(2026, 10, 31))
+    if row.name == "E6":
+        row.update(status="Suspended")
+    if row.name == "E8":
+        row.update(status="Inactive")
+    if row.name == "E7":
+        row.update(company="OTHER")
+    if row.name == "E9":
+        row.update(branch=None, date_of_joining=D(2026, 12, 1))
+listed = [person["employee"] for person in P._sheet_people("LPL")]
+check(listed == ["E4", "E9", "E2", "E1"],
+      "the template lists every Active Per Piece casual of the company by name, whatever their plant, or none, or when "
+      "they joined: not one paid by the hour, nor one Left, Suspended or Inactive, nor another company's", listed)
 
 # ── 7. Wiring ────────────────────────────────────────────
 events = hooks["doc_events"]["Daily Production Report"]
