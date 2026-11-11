@@ -1188,7 +1188,9 @@ def casual_week(facts):
         # submitted: paid, a run in draft, or no run yet
         if facts.get("piece_waiting"):
             rows.append({"key": "pieces", "label": "Per Piece casuals with pay to be paid",
-                         "value": int(facts["piece_waiting"]), "band": GOOD, "note": "From the week's Output Pay Run"})
+                         "value": int(facts["piece_waiting"]), "band": GOOD,
+                         # the run's pay, and arrears HR entered as Additional Salary (piece_pay.waiting)
+                         "note": "Pieces from the week's run, and arrears"})
         elif facts.get("piece_staff") and not facts.get("piece_runs_draft"):
             rows.append({"key": "no_sheet", "label": "Per Piece casuals with no run yet", "value": int(facts["piece_staff"]),
                          "band": TODAY, "note": "Make the week's Output Pay Run and upload the sheet"})

@@ -404,6 +404,7 @@ class Reader:
                  "drafts": count("Payroll Entry", dict(runs, docstatus=0)),
                  "piece_runs_draft": count(piece_pay.RUN, dict(piece_runs, docstatus=0))
                  if piece_pay.RUN in self.readable else 0}
+        owed = []
         if end:
             days = weekly_pay.days_to_pay(weekly, start, end, self.company)
             due = weekly_pay.overtime_due(weekly, start, end, self.company)
@@ -414,12 +415,14 @@ class Reader:
                 rates = weekly_pay_rules.day_rates([row["attendance_date"] for row in table], history.get(name), standard)
                 if weekly_pay_rules.unrated(table, rates):
                     no_rate.append(name)
+            # the Per Piece casuals with pay waiting as Additional Salary: a submitted run's, and arrears entered
+            owed = sorted(piece_pay.waiting(pieces, start, end))
             facts.update(
                 with_days=sum(1 for name in weekly if days.get(name)),
                 hours=sum(weekly_pay_rules.total_hours(days.get(name)) for name in weekly),
                 with_overtime=sum(1 for name in weekly if due.get(name)),
                 overtime_hours=sum(flt(row["hours"]) for name in weekly for row in due.get(name) or []),
-                no_rate=no_rate, piece_waiting=len(piece_pay.waiting(pieces, start, end)))
+                no_rate=no_rate, piece_waiting=len(owed))
         rows, note = rules.casual_week(facts)
         if not people and not rows and not last:
             # a company with no casuals has no such panel
@@ -429,7 +432,8 @@ class Reader:
             "days": (["List", "Payroll Entry"], runs),
             "overtime": (["List", "Overtime Request"], {"status": ["in", list(rules.OVERTIME_COUNTED)],
                                                         "overtime_date": between}),
-            "pieces": (["List", piece_pay.RUN], dict(piece_runs, docstatus=1)),
+            "pieces": (["List", piece_pay.ADDITIONAL], {"employee": ["in", owed[:rules.OPENED_ON]], "docstatus": 1,
+                                                        "type": "Earning", "payroll_date": between}),
             "piece_draft": (["List", piece_pay.RUN], dict(piece_runs, docstatus=0)),
             "no_sheet": (["List", piece_pay.RUN], piece_runs),
             "drafts": (["List", "Payroll Entry"], dict(runs, docstatus=0)),

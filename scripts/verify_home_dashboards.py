@@ -412,6 +412,9 @@ check([row["key"] for row in drafted] == ["days", "overtime", "no_rate", "piece_
       "a Per Piece run in draft is said, in place of a run to make, beside the pay of a run already submitted, and "
       "even with no days to pay yet")
 uploaded, _said = DR.casual_week(dict(WEEK, piece_waiting=27, drafts=2, no_rate=[]))
+check((uploaded[2]["label"], uploaded[2]["note"]) == ("Per Piece casuals with pay to be paid",
+                                                    "Pieces from the week's run, and arrears"),
+      "the pay waiting for the payroll is said as what it is: the run's pieces, and arrears entered for them")
 check([row["key"] for row in uploaded] == ["days", "overtime", "pieces", "drafts"] and uploaded[2]["value"] == 27
       and uploaded[3]["label"] == "Weekly payrolls in draft",
       "once the sheet is uploaded the row counts those it pays, and nobody is left out")
@@ -624,7 +627,9 @@ check("if not self.company:\n            return None" in week_read
       and "if rules.in_the_days(row.date_of_joining, row.relieving_date, start, end)]" in week_read
       and "weekly_pay.days_to_pay(weekly, start, end, self.company)" in week_read
       and "weekly_pay.overtime_due(weekly, start, end, self.company)" in week_read
-      and "piece_pay.waiting(pieces, start, end)" in week_read and "weekly_pay_rules.unrated(table, rates)" in week_read
+      and "owed = sorted(piece_pay.waiting(pieces, start, end))" in week_read and "piece_waiting=len(owed)" in week_read
+      and '"pieces": (["List", piece_pay.ADDITIONAL], {"employee": ["in", owed[:rules.OPENED_ON]], "docstatus": 1,' in week_read
+      and "weekly_pay_rules.unrated(table, rates)" in week_read
       and "if not people and not rows and not last:" in week_read
       and "piece_runs = self.mine(section=weekly_pay_rules.PER_PIECE)" in week_read
       and 'piece_runs["to_date"] = [">=", str(start)]' in week_read

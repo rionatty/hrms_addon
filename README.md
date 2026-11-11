@@ -202,7 +202,8 @@ list down the left.
       those who would be left out for want of an Hourly Rate (the row
       opens them), and a weekly payroll left in draft. For Per Piece it
       says where the week's Output Pay Run stands: no run yet, a run in
-      draft, or pay from a submitted run waiting for the payroll. The
+      draft, or pay waiting for the payroll (a submitted run's, and arrears
+      entered as Additional Salary; the row opens them). The
       casuals are those the payroll takes: not the inactive, nor one who
       left before the week began. A company with no casuals has no such
       panel.
