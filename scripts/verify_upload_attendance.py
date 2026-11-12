@@ -608,8 +608,11 @@ for needle, why in (
 ):
     check("attendance_upload.py: %s" % why, needle in glue, needle)
 check("overtime.type_on gives one person's type on a day, as a request's line is given it",
-      "def type_on(employee, day, types=None):" in overtime_glue and "return rules.person_type(" in overtime_glue
+      "def type_on(employee, day, types=None, kind=None):" in overtime_glue and "return rules.person_type(" in overtime_glue
       and "def standard_hours_on(employee, day):" in overtime_glue)
+type_on_fn = overtime_glue[overtime_glue.index("\ndef type_on("):overtime_glue.index("\ndef standard_hours_on(")]
+check("the day taken as its own sort, or as the caller says: a Casual Hours Sheet's week of overtime is a weekday's",
+      "_departments([employee]).get(employee), kind or day_kind(employee, day)," in type_on_fn)
 
 # ── Each day names its upload (Luuka, 12 Nov 2026: "in attendance deletion can we be able to select the attendance
 # upload and only delete for that specific entry") ──
