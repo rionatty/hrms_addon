@@ -23,6 +23,7 @@ Frappe HR's and ERPNext's own fields are read from FRAPPE_APPS_ROOT
 (default ../ERPNext).
 """
 import ast
+import datetime
 import glob
 import importlib.util
 import json
@@ -142,6 +143,44 @@ for needle in ("I, John Okello, do hereby agree to a salary deduction of UGX 300
         fail.append("the declaration says what LPL/HR/39 says: %r is missing from %r" % (needle, words))
 if R.extent(300000, 3) != "UGX 100,000 a month for 3 month(s)" or R.extent(0, 3) is not None:
     fail.append("the extent of the deduction, in words: %s" % R.extent(300000, 3))
+# weekly instalments for a casual paid by the week (Luuka, 12 Nov 2026: "on the penalty add frequency weekly
+# deduction to cater for casuals")
+if R.extent(30000, 3, R.WEEKLY) != "UGX 10,000 a week for 3 week(s)":
+    fail.append("a weekly extent says a week: %s" % R.extent(30000, 3, R.WEEKLY))
+weekly_words = R.declaration({"employee_name": "Peter Odongo", "amount": 30000, "instalments": 3,
+                              "effective_from": "2026-10-08", "liability": "A cracked mould", "year": 2026,
+                              "frequency": R.WEEKLY})
+if "a salary deduction of UGX 30,000 in 3 equal weekly instalment(s) effective 08 October 2026" not in weekly_words:
+    fail.append("the consent a casual signs says the instalments are weekly: %s" % weekly_words)
+if "equal weekly" in words:
+    fail.append("a monthly consent is worded as it always was")
+if [R.week_on("2026-10-08", n) for n in range(3)] != [datetime.date(2026, 10, 8), datetime.date(2026, 10, 15),
+                                                     datetime.date(2026, 10, 22)]:
+    fail.append("weekly instalments are a week apart, each in a weekly payroll of its own")
+if [R.frequency_for(category) for category in ("Weekly", "Per Piece", "Monthly", "Per Meter", None)] != [
+        R.WEEKLY, R.WEEKLY, R.MONTHLY, R.MONTHLY, R.MONTHLY]:
+    fail.append("a casual paid by the week starts weekly, anyone else monthly")
+if (R.frequency_errors(R.WEEKLY, "Weekly") or R.frequency_errors(R.WEEKLY, "Per Piece")
+        or R.frequency_errors(R.MONTHLY, "Weekly") or R.frequency_errors(R.MONTHLY, None)):
+    fail.append("weekly for a casual, monthly for anyone")
+if R.frequency_errors(R.WEEKLY, "Monthly") != ["Weekly instalments are for a casual paid by the week. This employee "
+                                               "is paid Monthly: deduct monthly."]:
+    fail.append("weekly is refused for one paid by the month: %s" % R.frequency_errors(R.WEEKLY, "Monthly"))
+if not R.frequency_errors("Fortnightly", "Weekly"):
+    fail.append("a frequency the payroll does not have is refused")
+penalty_json = json.load(open(os.path.join(APP, "doctype", "employee_penalty", "employee_penalty.json"), encoding="utf-8"))
+frequency = next((field for field in penalty_json["fields"] if field["fieldname"] == "deduction_frequency"), {})
+if (frequency.get("fieldtype"), frequency.get("options"), frequency.get("label")) != ("Select", "Monthly\nWeekly", "Frequency") \
+        or penalty_json["field_order"].index("deduction_frequency") != penalty_json["field_order"].index("instalments") + 1:
+    fail.append("the penalty's Frequency, Monthly or Weekly, beside its instalments: %s" % frequency)
+penalty_js = open(os.path.join(APP, "doctype", "employee_penalty", "employee_penalty.js"), encoding="utf-8").read()
+if 'frm.set_value("deduction_frequency", ["Weekly", "Per Piece"].includes(category) ? "Weekly" : "Monthly");' not in penalty_js:
+    fail.append("picking a casual paid by the week sets the penalty weekly on the form")
+patches_txt = open(os.path.join(os.path.dirname(APP), "patches.txt"), encoding="utf-8").read()
+patch_src = open(os.path.join(os.path.dirname(APP), "patches", "v1_0", "penalty_frequency.py"), encoding="utf-8").read()
+if "hrms_addon.patches.v1_0.penalty_frequency" not in patches_txt.split("[post_model_sync]")[1] \
+        or '{"deduction_frequency": ["in", ["", None]]}, "deduction_frequency",' not in patch_src         or '"Monthly", update_modified=False)' not in patch_src:
+    fail.append("every penalty made before the Frequency is monthly, as its schedule already is")
 if R.penalty_status(1, "Liable", 300000, 100000) != R.RECOVERING \
         or R.penalty_status(1, "Liable", 300000, 300000) != R.RECOVERED \
         or R.penalty_status(1, "Not Liable", 0, 0) != R.NOT_LIABLE \
@@ -208,6 +247,12 @@ for needle, why in (
     ("rules.consent_errors(", "and LPL/HR/39"),
     ("rules.declaration(", "the declaration is worded by them"),
     ("loan_rules.repayment_schedule(", "the instalments are a loan's schedule"),
+    ("day = rules.week_on(start, number) if weekly else month", "weekly instalments a week apart"),
+    ("start = rules.week_on(done[-1].payroll_date, 1) if weekly else loan_rules.add_months(done[-1].payroll_date, 1)",
+     "redrawn after the last taken, a week on or a month on"),
+    ("doc.deduction_frequency = rules.frequency_for(category)", "a new penalty starts weekly for a casual"),
+    ("errors = rules.frequency_errors(doc.deduction_frequency, category)", "weekly only for a casual"),
+    ('"frequency": doc.deduction_frequency,', "the consent says how often"),
     ("Additional Salary", "the payroll takes each instalment, nobody keeps a list"),
     ("_is_the_employee(doc)", "a consent HR record for the employee needs the signed form"),
 ):

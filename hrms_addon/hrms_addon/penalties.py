@@ -46,6 +46,14 @@ def _fill(doc):
     if doc.get("employee"):
         doc.age = rules.age(frappe.db.get_value("Employee", doc.employee, "date_of_birth"),
                             doc.get("posting_date") or today())
+    # weekly for a casual paid by the week, monthly for anyone else (Luuka, 12 Nov 2026)
+    category = _pay_category(doc.get("employee"))
+    if not doc.get("deduction_frequency"):
+        doc.deduction_frequency = rules.frequency_for(category)
+    errors = rules.frequency_errors(doc.deduction_frequency, category)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(DOCTYPE))
+    weekly = doc.deduction_frequency == rules.WEEKLY
     liable = doc.get("finding") == rules.LIABLE
     amount = flt(doc.get("amount")) if liable else 0
     instalments = cint(doc.get("instalments"))
@@ -55,18 +63,28 @@ def _fill(doc):
     doc.outstanding = rules.outstanding(amount, recovered)
     # LPL/HR/39's extent and declaration follow the terms, so they are
     # written again whenever the terms change
-    doc.extent_of_deduction = (_("{0} a month for {1} month(s)").format(
+    doc.extent_of_deduction = ((_("{0} a week for {1} week(s)") if weekly else _("{0} a month for {1} month(s)")).format(
         frappe.utils.fmt_money(doc.monthly_instalment), instalments) if doc.monthly_instalment else None)
     doc.declaration = rules.declaration({
         "employee_name": doc.get("employee_name"), "amount": amount, "instalments": instalments,
         "effective_from": doc.get("effective_from"), "liability": doc.get("liability"),
         "year": getdate(doc.get("incident_date")).year if doc.get("incident_date") else None,
+        "frequency": doc.deduction_frequency,
     }) if amount else None
 
 
+def _pay_category(employee):
+    """How the employee is paid (Employee.custom_pay_category), where the site keeps it."""
+    if not employee or not frappe.get_meta("Employee").has_field("custom_pay_category"):
+        return None
+    return frappe.db.get_value("Employee", employee, "custom_pay_category")
+
+
 def _build_schedule(doc):
-    """The months the penalty comes back in. What is already recovered is
-    left exactly as it is; only the months still to come are redrawn."""
+    """The months the penalty comes back in, or the weeks for a casual paid
+    by the week, each instalment dated a week after the last so each falls
+    in a weekly payroll of its own. What is already recovered is left
+    exactly as it is; only the instalments still to come are redrawn."""
     amount = flt(doc.get("amount"))
     first = doc.get("effective_from")
     done = [row for row in doc.get("repayments") or [] if row.recovered]
@@ -75,12 +93,17 @@ def _build_schedule(doc):
         return
     left = round(amount - sum(flt(row.total) for row in done), 2)
     months = max(cint(doc.get("instalments")) - len(done), 1)
-    start = loan_rules.add_months(done[-1].payroll_date, 1) if done else first
+    weekly = doc.get("deduction_frequency") == rules.WEEKLY
+    if done:
+        start = rules.week_on(done[-1].payroll_date, 1) if weekly else loan_rules.add_months(done[-1].payroll_date, 1)
+    else:
+        start = first
     doc.set("repayments", done)
     if left <= 0:
         return
-    for month, due, _interest, total in loan_rules.repayment_schedule(left, 0, months, start):
-        doc.append("repayments", {"payroll_date": month, "principal": due, "interest": 0, "total": total})
+    for number, (month, due, _interest, total) in enumerate(loan_rules.repayment_schedule(left, 0, months, start)):
+        day = rules.week_on(start, number) if weekly else month
+        doc.append("repayments", {"payroll_date": day, "principal": due, "interest": 0, "total": total})
 
 
 def _check_step(doc):

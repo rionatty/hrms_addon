@@ -35,6 +35,14 @@ frappe.ui.form.on("Employee Penalty", {
 		}
 		frm.dashboard.set_headline(`<span>${parts.join(" &nbsp;|&nbsp; ")}</span>`);
 	},
+	// a casual paid by the week has the instalments off each week's pay (Luuka, 12 Nov 2026)
+	employee(frm) {
+		if (!frm.doc.employee || frm.doc.docstatus !== 0) return;
+		frappe.db.get_value("Employee", frm.doc.employee, "custom_pay_category").then((r) => {
+			const category = r && r.message && r.message.custom_pay_category;
+			frm.set_value("deduction_frequency", ["Weekly", "Per Piece"].includes(category) ? "Weekly" : "Monthly");
+		});
+	},
 	finding(frm) {
 		// LPL/HR/39's Liability and Reason start from the supervisor's report
 		if (frm.doc.finding !== "Liable") return;

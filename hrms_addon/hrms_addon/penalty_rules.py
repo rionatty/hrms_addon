@@ -43,6 +43,34 @@ STATUSES = (DRAFT, RECOVERING, RECOVERED, NOT_LIABLE, REJECTED, CANCELLED)
 
 COMPANY = "Luuka Plastics Ltd"
 
+# how often an instalment comes off: a month, or a week for a casual paid by the week (Luuka, 12 Nov 2026: "on the
+# penalty add frequency weekly deduction to cater for casuals")
+MONTHLY, WEEKLY = "Monthly", "Weekly"
+FREQUENCIES = (MONTHLY, WEEKLY)
+# the pay categories paid by the week (weekly_pay_rules.CATEGORIES)
+PAID_WEEKLY = ("Weekly", "Per Piece")
+
+
+def frequency_for(category):
+    """The frequency a penalty starts with: weekly for a casual paid by the week, else monthly."""
+    return WEEKLY if category in PAID_WEEKLY else MONTHLY
+
+
+def frequency_errors(frequency, category):
+    """Weekly instalments are a casual's: only the weekly payroll takes one a week."""
+    if frequency not in FREQUENCIES:
+        return ["Say how often an instalment comes off: %s." % _either(FREQUENCIES).lower()]
+    if frequency == WEEKLY and category not in PAID_WEEKLY:
+        return ["Weekly instalments are for a casual paid by the week. This employee is paid %s: deduct "
+                "monthly." % (category or "monthly")]
+    return []
+
+
+def week_on(day, weeks):
+    """The day so many weeks on: a weekly instalment's, each in a week of its own."""
+    day = _date(day)
+    return day + datetime.timedelta(days=7 * int(weeks)) if day else None
+
 
 def report_errors(facts):
     """What the supervisor's report says before the HR Officer is asked to
@@ -134,26 +162,30 @@ def declaration(facts):
     """The words the employee agrees to, as LPL/HR/39 has them.
 
     facts: "employee_name", "amount", "instalments", "effective_from",
-    "liability", "year".
+    "liability", "year", and "frequency" (a weekly one says so).
     """
     instalments = int(_num(facts.get("instalments")))
     day = _date(facts.get("effective_from"))
-    return ("I, %s, do hereby agree to a salary deduction of %s in %d equal instalment(s) effective %s "
-            "to cover my liability to %s in respect of %s in the year %s. In the event that I leave this "
-            "company for any reason before full recovery of the amount unsettled, I agree that all "
-            "outstanding balance be recovered in lump sum from my terminal benefits owed to me."
+    weekly = "weekly " if facts.get("frequency") == WEEKLY else ""
+    words = ("I, %s, do hereby agree to a salary deduction of %s in %d equal " + weekly + "instalment(s) effective %s "
+             "to cover my liability to %s in respect of %s in the year %s. In the event that I leave this "
+             "company for any reason before full recovery of the amount unsettled, I agree that all "
+             "outstanding balance be recovered in lump sum from my terminal benefits owed to me.")
+    return (words
             % (_text(facts.get("employee_name")) or "the employee", _money(facts.get("amount")), instalments,
                day.strftime("%d %B %Y") if day else "(a date to be agreed)", COMPANY,
                _text(facts.get("liability")).rstrip(".") or "(the liability)",
                facts.get("year") or (day.year if day else "")))
 
 
-def extent(amount, instalments):
-    """LPL/HR/39's "Extent of Deduction", in words."""
+def extent(amount, instalments, frequency=MONTHLY):
+    """LPL/HR/39's "Extent of Deduction", in words: a month or a week at a time."""
     count = int(_num(instalments))
     if _num(amount) <= 0 or count <= 0:
         return None
     each = round(_num(amount) / count, 2)
+    if frequency == WEEKLY:
+        return "%s a week for %d week(s)" % (_money(each), count)
     return "%s a month for %d month(s)" % (_money(each), count)
 
 
