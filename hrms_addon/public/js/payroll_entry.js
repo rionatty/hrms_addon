@@ -568,9 +568,10 @@ function ha_payroll_register_draw(frm, $wrapper, register) {
 			"/api/method/" + HA_PAYROLL_REGISTER_DOWNLOAD + "?payroll_entry=" + encodeURIComponent(frm.doc.name)
 		);
 	});
-	const columns = (register.columns || [])
-		.filter((column) => !column.hidden)
-		.map((column) => ha_payroll_register_column(column, rows));
+	const shown = (register.columns || []).filter((column) => !column.hidden);
+	// the total row says so under the first column, whichever register this is
+	const first = shown.length ? shown[0].fieldname : null;
+	const columns = shown.map((column) => ha_payroll_register_column(column, rows, first));
 	// as Frappe's own reports draw it: a filter row, and a total row that follows the filters
 	new frappe.DataTable($wrapper.find(".ha-payroll-register-table")[0], {
 		columns: columns,
@@ -586,7 +587,7 @@ function ha_payroll_register_draw(frm, $wrapper, register) {
 	});
 }
 
-function ha_payroll_register_column(column, rows) {
+function ha_payroll_register_column(column, rows, first) {
 	const width = parseInt(column.width);
 	return Object.assign({}, column, {
 		id: column.fieldname,
@@ -596,8 +597,9 @@ function ha_payroll_register_column(column, rows) {
 		format: (value, row, df, data) => {
 			if (!data) {
 				// the total row: its first column says so, and its amounts are in the slips' currency
-				if (df.id === "salary_slip_id") return `<b>${__("Total")}</b>`;
-				if (!frappe.model.is_numeric_field(df.fieldtype)) return "";
+				if (df.id === first) return `<b>${__("Total")}</b>`;
+				// a serial number or a rate is a figure with no total
+				if (df.no_total || !frappe.model.is_numeric_field(df.fieldtype)) return "";
 				data = rows[0];
 			}
 			return frappe.format(value, df, { always_show_decimals: true }, data);

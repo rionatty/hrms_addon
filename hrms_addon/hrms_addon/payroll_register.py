@@ -6,7 +6,9 @@ its Employees tab (rules: payroll_register_rules.py; the tab:
 public/js/payroll_entry.js; scripts/verify_payroll_register.py).
 
   salary_register            the register of the payroll's own salary slips,
-                             drafts or submitted, for the tab
+                             drafts or submitted, for the tab. A weekly
+                             payroll's is laid out as the team's Casual
+                             Master Payroll (casual_register)
   download_salary_register   the same as an Excel file
   employee_figures           Payroll Entry onload: each row of the Employees
                              table given the working days and paid days its
@@ -24,7 +26,7 @@ refuses them, and is not shown the figures.
 import frappe
 from frappe import _
 
-from hrms_addon.hrms_addon import pay_days_rules, payroll_register_rules as rules, slip_figures
+from hrms_addon.hrms_addon import pay_days_rules, payroll_register_rules as rules, slip_figures, weekly_pay_rules
 
 DOCTYPE = "Payroll Entry"
 SLIP = "Salary Slip"
@@ -47,7 +49,9 @@ def download_salary_register(payroll_entry):
     from frappe.utils.xlsxutils import make_xlsx
 
     columns, rows = register(payroll_entry)
-    content = make_xlsx(rules.sheet(columns, rows), _(REGISTER)).getvalue()
+    # a weekly payroll's ends with its totals, as the team's own sheet does
+    weekly = any(column.get("fieldname") == rules.OVERTIME_HOURS for column in columns)
+    content = make_xlsx(rules.sheet(columns, rows, total=weekly), _(REGISTER)).getvalue()
     provide_binary_file("%s %s" % (_(REGISTER), payroll_entry), "xlsx", content)
 
 
@@ -62,11 +66,65 @@ def register(payroll_entry):
                            fields=["name", "start_date", "end_date"], limit_page_length=0)
     if not slips:
         return [], []
+    if weekly_pay_rules.on_weekly_pay(run):
+        return casual_register(run, [slip.name for slip in slips])
     # no Document Status: the register then lists drafts and submitted slips alike
     result = report.execute_module({"company": run.company, "currency": run.currency,
                                     "from_date": min(slip.start_date for slip in slips),
                                     "to_date": max(slip.end_date for slip in slips)}) or ([], [])
     return rules.register_of(result[0], result[1] if len(result) > 1 else [], [slip.name for slip in slips])
+
+
+def casual_register(run, names):
+    """(columns, rows) of a weekly payroll's register, laid out as the team's Casual Master Payroll (Luuka, 12 Nov
+    2026): each casual's hours, rate, basic, pieces by their category, overtime hours and pay, arrears, gross,
+    what was taken off, net, TIN and NSSF, read from the payroll's own slips."""
+    from hrms_addon.hrms_addon import output_pay, output_rules, piece_pay, weekly_pay
+
+    slips = frappe.get_all(SLIP, filters={"name": ["in", names]}, limit_page_length=0, fields=[
+        "name", "employee", "employee_name", "department", "currency", "gross_pay", "net_pay",
+        "%s as hours" % weekly_pay.HOURS, "%s as rate" % weekly_pay.RATE,
+        "%s as overtime_hours" % weekly_pay.OVERTIME_HOURS])
+    lines = frappe.get_all(DETAIL, filters={"parenttype": SLIP, "parent": ["in", names],
+                                            "parentfield": ["in", ["earnings", "deductions"]]},
+                           fields=["parent", "parentfield", "salary_component", "amount", "do_not_include_in_total",
+                                   "additional_salary"], limit_page_length=0)
+    employees = sorted({slip.employee for slip in slips if slip.employee})
+    people = {row.name: {"tin": row.custom_tin, "nssf": row.custom_nssf_no} for row in frappe.get_all(
+        "Employee", filters={"name": ["in", employees]}, fields=["name", "custom_tin", "custom_nssf_no"],
+        limit_page_length=0)} if employees else {}
+    sizes = frappe.get_all(output_pay.SIZE, filters={"section": output_rules.PER_PIECE},
+                           fields=["name", "salary_component"], limit_page_length=0)
+    named = {"basic": output_pay._component_name(output_rules.HOURLY), "overtime": weekly_pay.OVERTIME_COMPONENT[0],
+             "arrears": piece_pay.ARREARS[0],
+             "pieces": {output_pay._component_name(output_rules.PER_PIECE)}
+             | {row.salary_component for row in sizes if row.salary_component}}
+    return rules.casual_register(slips, lines, people, _pieces(slips, lines), named,
+                                 frappe.get_cached_value("Company", run.company, "abbr"))
+
+
+def _pieces(slips, lines):
+    """{slip: {size: what its pieces came to}}: from the runs, and the reports from before a run paid Per Piece,
+    that wrote the slips' Additional Salaries (rules.pieces_by_size)."""
+    from hrms_addon.hrms_addon import output_pay
+
+    linked = sorted({line.additional_salary for line in lines if line.get("additional_salary")})
+    if not linked:
+        return {}
+    written = {row.name: row for row in frappe.get_all(
+        "Additional Salary", filters={"name": ["in", linked], "ref_doctype": ["in", [output_pay.RUN, output_pay.REPORT]]},
+        fields=["name", "employee", "ref_doctype", "ref_docname"], limit_page_length=0)}
+    paid = [{"slip": line.parent, "source": written[line.additional_salary].ref_docname,
+             "employee": written[line.additional_salary].employee}
+            for line in lines if line.get("additional_salary") in written]
+    found = []
+    for doctype, child in ((output_pay.RUN, "Output Pay Line"), (output_pay.REPORT, output_pay.REPORT_LINE)):
+        sources = sorted({row.ref_docname for row in written.values() if row.ref_doctype == doctype and row.ref_docname})
+        if sources:
+            found += [dict(row, source=row.parent) for row in frappe.get_all(
+                child, filters={"parenttype": doctype, "parent": ["in", sources]},
+                fields=["parent", "employee", "size", "amount"], limit_page_length=0)]
+    return rules.pieces_by_size(paid, found)
 
 
 def employee_figures(doc, method=None):

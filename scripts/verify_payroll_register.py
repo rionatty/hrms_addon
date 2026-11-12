@@ -52,6 +52,8 @@ def load(name, path):
 
 R = load("payroll_register_rules", os.path.join(APP, "payroll_register_rules.py"))  # proves it has no Frappe import
 P = load("pay_days_rules", os.path.join(APP, "pay_days_rules.py"))
+W = load("weekly_pay_rules", os.path.join(APP, "weekly_pay_rules.py"))  # what tells a weekly payroll
+O = load("output_rules", os.path.join(APP, "output_rules.py"))
 print("loaded payroll_register_rules.py and pay_days_rules.py without Frappe")
 
 
@@ -95,6 +97,99 @@ check("then a row per slip, cell by cell under its label",
       sheet[1:])
 check("an empty register is the labels alone", R.sheet(columns, []) == [sheet[0]])
 
+# a weekly payroll: the casuals' master payroll (Luuka, 12 Nov 2026: "i hope the register for casuals it not less
+# than this these fields are the most inportnat for casuals, also add overtme hours on it")
+CASUAL_SLIPS = [
+    {"name": "S1", "employee": "C1", "employee_name": "Alex", "department": "Blow - LPT", "currency": "UGX",
+     "hours": 50, "rate": 857, "overtime_hours": 10, "gross_pay": 55705, "net_pay": 55705},
+    {"name": "S2", "employee": "C2", "employee_name": "Agnes", "department": "Blow - LPT", "currency": "UGX",
+     "hours": 0, "rate": 0, "overtime_hours": 0, "gross_pay": 37340, "net_pay": 37340},
+    {"name": "S3", "employee": "C3", "employee_name": "Zed", "department": "Alpha - LPT", "currency": "UGX",
+     "hours": 60, "rate": 857, "overtime_hours": 17, "gross_pay": 85414.5, "net_pay": 80414.5},
+    {"name": "S4", "employee": "C4", "employee_name": "Mona", "department": "Blow - LPT", "currency": "UGX",
+     "hours": 0, "rate": 0, "overtime_hours": 0, "gross_pay": 9000, "net_pay": 9000}]
+CASUAL_LINES = [
+    {"parent": "S1", "parentfield": "earnings", "salary_component": "Hourly Earnings", "amount": 42850},
+    {"parent": "S1", "parentfield": "earnings", "salary_component": "Casual Overtime", "amount": 12855},
+    {"parent": "S2", "parentfield": "earnings", "salary_component": "Per Piece Earnings", "amount": 37340},
+    {"parent": "S3", "parentfield": "earnings", "salary_component": "Hourly Earnings", "amount": 51420},
+    {"parent": "S3", "parentfield": "earnings", "salary_component": "Casual Overtime", "amount": 21853.5},
+    {"parent": "S3", "parentfield": "earnings", "salary_component": "Arrears", "amount": 11141},
+    {"parent": "S3", "parentfield": "earnings", "salary_component": "Allowance", "amount": 1000},
+    {"parent": "S3", "parentfield": "deductions", "salary_component": "Salary Advance", "amount": 5000},
+    {"parent": "S3", "parentfield": "deductions", "salary_component": "Employer NSSF", "amount": 999,
+     "do_not_include_in_total": 1},
+    {"parent": "S4", "parentfield": "earnings", "salary_component": "Per Piece Earnings", "amount": 9000},
+    {"parent": "S9", "parentfield": "earnings", "salary_component": "Hourly Earnings", "amount": 777}]
+CASUAL_NAMES = {"basic": "Hourly Earnings", "overtime": "Casual Overtime", "arrears": "Arrears",
+                "pieces": {"Per Piece Earnings"}}
+CASUAL_PEOPLE = {"C1": {"tin": "T1", "nssf": "N1"}, "C3": {"tin": "T3", "nssf": None}}
+by_size = R.pieces_by_size(
+    [{"slip": "S2", "source": "OPR-1", "employee": "C2"}, {"slip": "S2", "source": "OPR-1", "employee": "C2"},
+     {"slip": "S2", "source": "DPR-9", "employee": "C2"}, {"slip": None, "source": "OPR-1", "employee": "C2"}],
+    [{"source": "OPR-1", "employee": "C2", "size": "PIECE RATE 1", "amount": 30000},
+     {"source": "OPR-1", "employee": "C2", "size": "PIECE RATE 2", "amount": 4140},
+     {"source": "OPR-1", "employee": "C9", "size": "PIECE RATE 1", "amount": 999},
+     {"source": "DPR-9", "employee": "C2", "size": "PIECE RATE 1", "amount": 3200},
+     {"source": "DPR-9", "employee": "C2", "size": None, "amount": 5}])
+check("a slip's pieces by their category: from each run or report that wrote its pay, read once however many "
+      "earnings it wrote, and its own person's lines only",
+      by_size == {"S2": {"PIECE RATE 1": 33200.0, "PIECE RATE 2": 4140.0}}, by_size)
+weekly_columns, weekly_rows = R.casual_register(CASUAL_SLIPS, CASUAL_LINES, CASUAL_PEOPLE, by_size, CASUAL_NAMES, "LPT")
+labels = [column["label"] for column in weekly_columns]
+check("a weekly payroll's register in the Casual Master Payroll's own columns and order, the overtime hours beside "
+      "the overtime pay",
+      labels == ["Sr No", "Payroll No", "Employee Name", "Department", "Hours Worked", "Wage Rate", "Basic",
+                 "PIECE RATE 1", "PIECE RATE 2", "Per Piece Earnings", "Overtime Hours", "OT Amount", "Arrears",
+                 "Allowance", "Gross Amount", "Salary Advance", "Net Pay", "TIN", "NSSF", "Salary Slip"], labels)
+check("a row a casual, by department and then by name, numbered; the department without the company's letters",
+      [(row["serial"], row["employee"], row["department"]) for row in weekly_rows]
+      == [(1, "C3", "Alpha"), (2, "C2", "Blow"), (3, "C1", "Blow"), (4, "C4", "Blow")],
+      [(row["serial"], row["employee"], row["department"]) for row in weekly_rows])
+by_slip = {row["salary_slip_id"]: row for row in weekly_rows}
+check("the hours, the rate, the basic and the overtime, hours and pay, are the slip's own",
+      [by_slip["S1"][key] for key in ("hours_worked", "wage_rate", "basic", "overtime_hours", "overtime_amount",
+                                      "gross_pay", "net_pay", "tin", "nssf")]
+      == [50.0, 857.0, 42850.0, 10.0, 12855.0, 55705.0, 55705.0, "T1", "N1"], by_slip["S1"])
+check("the pieces under their categories, as the run worked them out; pieces no run accounts for under their "
+      "earning's own name",
+      (by_slip["S2"]["piece_1"], by_slip["S2"]["piece_2"], by_slip["S2"]["piece_rest"]) == (33200.0, 4140.0, 0.0)
+      and (by_slip["S4"]["piece_1"], by_slip["S4"]["piece_rest"]) == (0.0, 9000.0), (by_slip["S2"], by_slip["S4"]))
+check("the arrears, any other earning and each deduction have their own columns; a line shown and not taken is "
+      "no deduction; another payroll's line is nobody's",
+      (by_slip["S3"]["arrears"], by_slip["S3"]["earning_1"], by_slip["S3"]["deduction_1"]) == (11141.0, 1000.0, 5000.0)
+      and "deduction_2" not in by_slip["S3"] and "S9" not in by_slip, by_slip["S3"])
+earning_fields = [column["fieldname"] for column in weekly_columns
+                  if column["fieldname"] in ("basic", "overtime_amount", "arrears", "piece_rest")
+                  or column["fieldname"].startswith(("piece_", "earning_"))]
+check("every row's earnings add up to its gross, and its gross less what was taken to its net",
+      all(abs(sum(row[field] for field in set(earning_fields)) - row["gross_pay"]) < 0.01
+          and abs(row["gross_pay"] - sum(value for key, value in row.items() if key.startswith("deduction_"))
+                  - row["net_pay"]) < 0.01 for row in weekly_rows),
+      [(row["employee"], sum(row[field] for field in set(earning_fields)), row["gross_pay"]) for row in weekly_rows])
+check("amounts are in the slips' currency; a serial number and a rate are figures with no total",
+      all(column.get("options") == "currency" for column in weekly_columns if column["fieldtype"] == "Currency")
+      and all(row["currency"] == "UGX" for row in weekly_rows)
+      and [column["fieldname"] for column in weekly_columns if column.get("no_total")] == ["serial", "wage_rate"],
+      [column["fieldname"] for column in weekly_columns if column.get("no_total")])
+weekly_sheet = R.sheet(weekly_columns, weekly_rows, total=True)
+totals = dict(zip(labels, weekly_sheet[-1]))
+check("the Excel sheet ends with the totals, as the team's own does: Total under the name, each column of figures "
+      "summed, none for the serial number or the rate",
+      len(weekly_sheet) == 6 and totals["Employee Name"] == "Total" and totals["Hours Worked"] == 110.0
+      and totals["Basic"] == 94270.0 and totals["Overtime Hours"] == 27.0 and totals["OT Amount"] == 34708.5
+      and totals["Gross Amount"] == 187459.5 and totals["Net Pay"] == 182459.5 and totals["Sr No"] is None
+      and totals["Wage Rate"] is None and totals["TIN"] is None, totals)
+check("a register with nobody on it has no total row, and the monthly register none either",
+      len(R.sheet(weekly_columns, [], total=True)) == 1 and len(R.sheet(columns, rows)) == 3)
+bare_columns, bare_rows = R.casual_register(CASUAL_SLIPS[:1], CASUAL_LINES[:2], None, None, CASUAL_NAMES, None)
+check("with no pieces, no other earning and nothing taken off, only the sheet's own columns are there",
+      [column["label"] for column in bare_columns] == [
+          "Sr No", "Payroll No", "Employee Name", "Department", "Hours Worked", "Wage Rate", "Basic", "Overtime Hours",
+          "OT Amount", "Arrears", "Gross Amount", "Net Pay", "TIN", "NSSF", "Salary Slip"]
+      and bare_rows[0]["department"] == "Blow - LPT" and bare_rows[0]["tin"] is None,
+      [column["label"] for column in bare_columns])
+
 
 # ── 2. The glue ───────────────────────────────────────────────────────
 class Refused(Exception):
@@ -110,7 +205,9 @@ class Site:
     """A stand-in for Frappe with one payroll, its slips and Frappe HR's Salary Register."""
 
     def __init__(self, may_read=True, report_roles=True, slip_report=True, slips=None, result=None, details=(),
-                 broken=False, expected=None, expected_broken=False):
+                 broken=False, expected=None, expected_broken=False, frequency="Monthly", tables=None):
+        # a weekly payroll: its frequency, and each doctype's rows as the glue reads them
+        self.frequency, self.tables = frequency, tables
         self.may_read, self.report_roles, self.slip_report = may_read, report_roles, slip_report
         self.slips = [{"name": "SS-1", "start_date": "2026-09-26", "end_date": "2026-10-25"},
                       {"name": "SS-2", "start_date": "2026-09-27", "end_date": "2026-10-25"}] if slips is None else slips
@@ -131,6 +228,10 @@ class Site:
 
         class Run:
             name, company, currency = "HR-PRUN-2026-00016", "Luuka Plastics Limited", "UGX"
+            payroll_frequency, salary_slip_based_on_timesheet = site.frequency, 0
+
+            def get(self, key, default=None):
+                return getattr(self, key, default)
 
             def check_permission(self, ptype):
                 site.calls.append(("check_permission", ptype))
@@ -159,6 +260,8 @@ class Site:
             site.calls.append(("get_all", doctype, filters, fields, limit_page_length))
             if site.broken:
                 raise ValueError("unreadable")
+            if site.tables is not None:
+                return [Row(row) for row in site.tables.get(doctype, [])]
             return [Row(row) for row in (site.details if doctype == "Salary Detail" else site.slips)]
 
         def log_error(title=None, defer_insert=False):
@@ -166,6 +269,7 @@ class Site:
 
         module.throw, module.get_doc, module.has_permission, module.get_all = throw, get_doc, has_permission, get_all
         module.log_error = log_error
+        module.get_cached_value = lambda doctype, name, field: site.calls.append(("cached", doctype, name, field)) or "LPT"
         module.whitelist = lambda *args, **kwargs: (lambda function: function)
         desk_utils = types.ModuleType("frappe.desk.utils")
         desk_utils.provide_binary_file = lambda filename, extension, content: site.calls.append(
@@ -193,9 +297,25 @@ package = types.ModuleType("hrms_addon")
 package.__path__ = []
 app = types.ModuleType("hrms_addon.hrms_addon")
 app.__path__ = []
-app.payroll_register_rules, app.pay_days_rules = R, P
+app.payroll_register_rules, app.pay_days_rules, app.weekly_pay_rules, app.output_rules = R, P, W, O
 sys.modules.update({"hrms_addon": package, "hrms_addon.hrms_addon": app, "hrms_addon.hrms_addon.payroll_register_rules": R,
-                    "hrms_addon.hrms_addon.pay_days_rules": P})
+                    "hrms_addon.hrms_addon.pay_days_rules": P, "hrms_addon.hrms_addon.weekly_pay_rules": W,
+                    "hrms_addon.hrms_addon.output_rules": O})
+# what a weekly payroll's register reads of the modules that pay the casuals: their names for the slip's fields
+# and for the earnings, stood in for here and checked against the modules' own text below
+weekly_pay = types.ModuleType("hrms_addon.hrms_addon.weekly_pay")
+weekly_pay.HOURS, weekly_pay.RATE, weekly_pay.OVERTIME_HOURS = (
+    "custom_weekly_hours", "custom_weekly_rate", "custom_weekly_overtime_hours")
+weekly_pay.OVERTIME_COMPONENT = ("Casual Overtime", "COT")
+output_pay = types.ModuleType("hrms_addon.hrms_addon.output_pay")
+output_pay.SIZE, output_pay.RUN, output_pay.REPORT, output_pay.REPORT_LINE = (
+    "Output Rate", "Output Pay Run", "Daily Production Report", "Daily Production Line")
+output_pay._component_name = lambda section: {O.HOURLY: "Hourly Earnings", O.PER_PIECE: "Per Piece Earnings"}[section]
+piece_pay = types.ModuleType("hrms_addon.hrms_addon.piece_pay")
+piece_pay.ARREARS = ("Arrears", "ARR")
+app.weekly_pay, app.output_pay, app.piece_pay = weekly_pay, output_pay, piece_pay
+sys.modules.update({"hrms_addon.hrms_addon.weekly_pay": weekly_pay, "hrms_addon.hrms_addon.output_pay": output_pay,
+                    "hrms_addon.hrms_addon.piece_pay": piece_pay})
 
 
 def run(site, call="register"):
@@ -212,6 +332,58 @@ answer = run(site)
 asked = [call for call in site.calls if call[0] == "get_all"]
 ran = [call[1] for call in site.calls if call[0] == "report"]
 check("the payroll must be one the user may read", ("check_permission", "read") in site.calls)
+# a weekly payroll: the register is the casuals' master payroll, read from the payroll's own slips
+WEEKLY = {
+    "Salary Slip": [dict(slip, start_date="2026-11-05", end_date="2026-11-11") for slip in CASUAL_SLIPS],
+    "Salary Detail": [dict(line, additional_salary="AS-1" if line["parent"] == "S2" else None)
+                      for line in CASUAL_LINES if line["parent"] != "S9"],
+    "Employee": [{"name": "C1", "custom_tin": "T1", "custom_nssf_no": "N1"},
+                 {"name": "C3", "custom_tin": "T3", "custom_nssf_no": None}],
+    "Output Rate": [{"name": "PIECE RATE 1", "salary_component": None}, {"name": "PIECE RATE 2", "salary_component": None}],
+    "Additional Salary": [{"name": "AS-1", "employee": "C2", "ref_doctype": "Output Pay Run", "ref_docname": "OPR-1"}],
+    "Output Pay Line": [{"parent": "OPR-1", "employee": "C2", "size": "PIECE RATE 1", "amount": 33200},
+                        {"parent": "OPR-1", "employee": "C2", "size": "PIECE RATE 2", "amount": 4140},
+                        {"parent": "OPR-1", "employee": "C7", "size": "PIECE RATE 1", "amount": 999}]}
+week = Site(frequency="Weekly", tables=WEEKLY)
+week_columns, week_rows = run(week)
+read_of = {call[1]: call for call in week.calls if call[0] == "get_all"}
+check("a weekly payroll's register is the casuals' master payroll: Frappe HR's register is not run for it",
+      [column["label"] for column in week_columns] == labels and not [call for call in week.calls if call[0] == "report"]
+      and [row["employee"] for row in week_rows] == ["C3", "C2", "C1", "C4"],
+      ([column["label"] for column in week_columns], [row["employee"] for row in week_rows]))
+check("read from the payroll's own slips: the hours, the rate and the overtime hours each keeps",
+      read_of["Salary Slip"][2] == {"name": ["in", ["S1", "S2", "S3", "S4"]]}
+      and all(field in read_of["Salary Slip"][3] for field in (
+          "custom_weekly_hours as hours", "custom_weekly_rate as rate", "custom_weekly_overtime_hours as overtime_hours",
+          "gross_pay", "net_pay", "department", "currency")), read_of["Salary Slip"])
+check("their earnings and deductions, each employee's TIN and NSSF, and the pieces by category from the run that "
+      "wrote the pay",
+      read_of["Salary Detail"][2] == {"parenttype": "Salary Slip", "parent": ["in", ["S1", "S2", "S3", "S4"]],
+                                      "parentfield": ["in", ["earnings", "deductions"]]}
+      and read_of["Employee"][3] == ["name", "custom_tin", "custom_nssf_no"]
+      and read_of["Additional Salary"][2] == {"name": ["in", ["AS-1"]],
+                                              "ref_doctype": ["in", ["Output Pay Run", "Daily Production Report"]]}
+      and read_of["Output Pay Line"][2] == {"parenttype": "Output Pay Run", "parent": ["in", ["OPR-1"]]}
+      and {row["salary_slip_id"]: (row["piece_1"], row["piece_2"]) for row in week_rows}["S2"] == (33200.0, 4140.0)
+      and ("cached", "Company", "Luuka Plastics Limited", "abbr") in week.calls,
+      (read_of.get("Salary Detail"), read_of.get("Additional Salary"), read_of.get("Output Pay Line")))
+check("whoever may not open the Salary Register is refused a weekly payroll's too",
+      str(run(Site(frequency="Weekly", tables=WEEKLY, report_roles=False))).startswith("refused")
+      and str(run(Site(frequency="Weekly", tables=WEEKLY, may_read=False))).startswith("refused"))
+week = Site(frequency="Weekly", tables=WEEKLY)
+run(week, "download_salary_register")
+sent = next(call[1] for call in week.calls if call[0] == "xlsx")
+check("its Excel file ends with the totals, as the team's own sheet does; a monthly payroll's does not",
+      sent[0] == labels and sent[-1][labels.index("Employee Name")] == "Total"
+      and sent[-1][labels.index("Gross Amount")] == 187459.5 and len(sent) == 6, sent[-1])
+for name, needle in (("weekly_pay.py", 'HOURS = "custom_weekly_hours"'), ("weekly_pay.py", 'RATE = "custom_weekly_rate"'),
+                     ("weekly_pay.py", 'OVERTIME_HOURS = "custom_weekly_overtime_hours"'),
+                     ("weekly_pay.py", 'OVERTIME_COMPONENT = ("Casual Overtime", "COT")'),
+                     ("piece_pay.py", 'ARREARS = ("Arrears", "ARR")'), ("output_pay.py", 'SIZE = "Output Rate"'),
+                     ("output_pay.py", 'RUN = "Output Pay Run"'), ("output_pay.py", 'REPORT_LINE = "Daily Production Line"'),
+                     ("output_pay.py", "def _component_name(section):")):
+    check("%s still has what the weekly register reads of it: %s" % (name, needle),
+          needle in read("hrms_addon", "hrms_addon", name))
 check("the slips asked for are the payroll's, cancelled ones left out, all of them",
       asked == [("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
                  ["name", "start_date", "end_date"], 0)], asked)
@@ -272,6 +444,12 @@ check("it loads when the tab is opened, and on refresh only while the tab is ope
 check("with fetch, so a register that cannot load says so in the tab, not in a dialog",
       'fetch("/api/method/" + HA_PAYROLL_REGISTER_METHOD' in script and ".call({" not in script.split(
           "function ha_payroll_register(")[1])
+check("the total row says Total under the first column of whichever register it is, and gives none to a serial "
+      "number or a rate",
+      "const first = shown.length ? shown[0].fieldname : null;" in script
+      and "shown.map((column) => ha_payroll_register_column(column, rows, first));" in script
+      and "if (df.id === first) return `<b>${__(\"Total\")}</b>`;" in script
+      and "if (df.no_total || !frappe.model.is_numeric_field(df.fieldtype)) return \"\";" in script)
 check("drawn as Frappe's reports draw it: a filter row, a total row, the hidden columns left out",
       "inlineFilters: true," in script and "showTotalRow: true," in script
       and "hooks: { columnTotal: frappe.utils.report_column_total }," in script
