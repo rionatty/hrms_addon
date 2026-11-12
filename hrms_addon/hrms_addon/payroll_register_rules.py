@@ -92,8 +92,9 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
     "gross_pay", "net_pay", "total_loan_repayment"}]; lines: the slips' earnings and deductions, [{"parent", "parentfield",
     "salary_component", "amount", "do_not_include_in_total"}]; people: {employee: {"tin", "nssf"}}; pieces: {slip:
     {size: what was paid for it}}, from the runs that worked the pieces out; names: {"basic", "overtime", "arrears":
-    the earning each is paid under, "pieces": the earnings pieces are paid under, "advance": the deduction an
-    advance is recovered under}; abbr: the company's letters, left off a department's name.
+    the earning each is paid under (arrears may be several, where the earning was renamed), "pieces": the earnings
+    pieces are paid under, "advance": the deduction an advance is recovered under}; abbr: the company's letters,
+    left off a department's name.
 
     Salary Advance is always there where the site names its deduction, as it is on the team's sheet in a week
     nobody has one.
@@ -103,7 +104,10 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
     earnings or deductions nobody has is left out, as the register leaves out a component no slip has."""
     names, people, pieces = names or {}, people or {}, pieces or {}
     piece_names, advance = set(names.get("pieces") or ()), names.get("advance")
-    known = {names.get("basic"): BASIC_PAY, names.get("overtime"): OVERTIME_PAY, names.get("arrears"): ARREARS_PAY}
+    known = {names.get("basic"): BASIC_PAY, names.get("overtime"): OVERTIME_PAY}
+    # arrears under whichever earning they were paid: one name, or several where the earning was renamed
+    arrears = names.get("arrears")
+    known.update({name: ARREARS_PAY for name in ([arrears] if isinstance(arrears, str) else arrears or ())})
     known.pop(None, None)
     sizes = sorted({size for found in pieces.values() for size, value in (found or {}).items() if _num(value)})
     size_field = {size: "piece_%d" % number for number, size in enumerate(sizes, 1)}

@@ -208,6 +208,16 @@ check("Salary Advance is always there, as on the team's sheet, and holds what wa
       [column["label"] for column in fined_columns][-7:-4] == ["Gross Amount", "Salary Advance", "Fine"]
       and (fined_rows[0]["salary_advance"], fined_rows[0]["deduction_1"]) == (700.0, 100.0),
       [column["label"] for column in fined_columns])
+renamed_columns, renamed_rows = R.casual_register(
+    CASUAL_SLIPS[:1], CASUAL_LINES[:2] + [
+        {"parent": "S1", "parentfield": "earnings", "salary_component": "Arrear", "amount": 100},
+        {"parent": "S1", "parentfield": "earnings", "salary_component": "Arrears", "amount": 11141}],
+    None, None, dict(CASUAL_NAMES, arrears={"Arrear", "Arrears"}), None)
+check("arrears are one column under whichever earning they were paid: the one in use now, and the one earlier runs "
+      "paid under",
+      renamed_rows[0]["arrears"] == 11241.0 and [column["label"] for column in renamed_columns].count("Arrears") == 1
+      and "Arrear" not in [column["label"] for column in renamed_columns],
+      (renamed_rows[0]["arrears"], [column["label"] for column in renamed_columns]))
 unnamed = R.casual_register(CASUAL_SLIPS[:1], CASUAL_LINES[:2], None, None, dict(CASUAL_NAMES, advance=None), None)[0]
 check("a site that names no advance deduction has no such column until somebody has a deduction",
       "Salary Advance" not in [column["label"] for column in unnamed], [column["label"] for column in unnamed])
@@ -403,12 +413,16 @@ check("its Excel file ends with the totals, as the team's own sheet does; a mont
 for name, needle in (("weekly_pay.py", 'HOURS = "custom_weekly_hours"'), ("weekly_pay.py", 'RATE = "custom_weekly_rate"'),
                      ("weekly_pay.py", 'OVERTIME_HOURS = "custom_weekly_overtime_hours"'),
                      ("weekly_pay.py", 'OVERTIME_COMPONENT = ("Casual Overtime", "COT")'),
-                     ("piece_pay.py", 'ARREARS = ("Arrears", "ARR")'), ("output_pay.py", 'SIZE = "Output Rate"'),
+                     ("output_pay.py", 'SIZE = "Output Rate"'),
                      ("advances.py", 'DEFAULT_COMPONENT = "Advance Recovery"'),
                      ("output_pay.py", 'RUN = "Output Pay Run"'), ("output_pay.py", 'REPORT_LINE = "Daily Production Line"'),
                      ("output_pay.py", "def _component_name(section):")):
     check("%s still has what the weekly register reads of it: %s" % (name, needle),
           needle in read("hrms_addon", "hrms_addon", name))
+check("piece_pay.py still names the arrears earning as (name, abbreviation), whatever it is called",
+      re.search(r'^ARREARS = \("[^"]+", "[^"]+"\)$', read("hrms_addon", "hrms_addon", "piece_pay.py"), re.M) is not None
+      and '"arrears": {piece_pay.ARREARS[0], OLD_ARREARS}' in read("hrms_addon", "hrms_addon", "payroll_register.py")
+      and 'OLD_ARREARS = "Arrears"' in read("hrms_addon", "hrms_addon", "payroll_register.py"))
 check("the slips asked for are the payroll's, cancelled ones left out, all of them",
       asked == [("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
                  ["name", "start_date", "end_date"], 0)], asked)
