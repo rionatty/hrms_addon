@@ -609,7 +609,8 @@ for name, branch, start, end, docstatus, state in (
         ("HR-CHS-A", "Kawempe", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
         ("HR-CHS-B", "Kawempe", D(2026, 11, 5), D(2026, 11, 11), 0, "Pending General Manager"),
         ("HR-CHS-N", "Namanve", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
-        ("HR-CHS-X", "Kawempe", D(2026, 10, 22), D(2026, 10, 28), 2, "Cancelled")):
+        # a cancelled sheet over the very same week, its 99 hours never counted
+        ("HR-CHS-X", "Kawempe", D(2026, 10, 30), D(2026, 11, 5), 2, "Cancelled")):
     s.add("Casual Hours Sheet", name=name, company="LPL", branch=branch, from_date=start, to_date=end,
           docstatus=docstatus, workflow_state=state)
 for parent, employee, hours, overtime, days, docstatus in (("HR-CHS-A", "LPC100", 50, 6, 5, 1),
