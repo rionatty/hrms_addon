@@ -37,6 +37,21 @@ The Overtime Types are Luuka's own: nothing here makes one (21 Oct 2026,
                   itself: the type's rules say what counts, and the
                   employee's supervisor (else the type's own requester) is
                   named on it
+
+A casual paid by the week waits for nobody's approval (Luuka, 12 Nov 2026:
+"overtime it shouldnt need approval for casuals"). Their overtime is paid on
+the weekly payslip from the day's attendance (weekly_pay.py), and reaches it
+three ways, none of them through an approval:
+
+  Upload Attendance  the Overtime Hours beside the day (attendance_upload.py)
+  raise_from_clock   what the clock shows is written onto the day by itself,
+                     with no request
+  pay_casuals        their line on a request is written onto the day as soon
+                     as the request is raised (raised, and the daily job once
+                     the day's attendance is in); returned or refused, it
+                     comes off again (unpay_casuals)
+
+Everybody else on the same request still waits for the officer and HR.
   waiting         for the Overtime Slip's form: the employee's requests in
                   the slip's dates that have not reached payroll, and the
                   step each waits for
@@ -438,6 +453,115 @@ def approved(doc):
     return found
 
 
+# ── Casuals: nobody's approval ───────────────────────────────────────
+def _verified(employee, day):
+    """Whether the day is one its branch has verified: it changes no more, its overtime included
+    (attendance_verification.py)."""
+    from hrms_addon.hrms_addon import attendance_verification
+
+    return bool(attendance_verification.holding(employee, [day]))
+
+
+def raised(doc):
+    """Overtime Request on_update. A casual paid by the week waits for nobody's approval: as the request is
+    raised, and for as long as it waits, their lines go onto the day's attendance (pay_casuals). Returned to be
+    put right, or refused, they come off again (unpay_casuals)."""
+    state = doc.get(approval.STATE_FIELD) or approval.DRAFT
+    before = doc.get_doc_before_save()
+    old = before.get(approval.STATE_FIELD) if before else None
+    if state in approval.PENDING_STATES:
+        written = pay_casuals(doc)
+        # said once, as it is raised: the steps after it write the same hours again
+        if written and old not in approval.PENDING_STATES:
+            frappe.msgprint(_("{0} casual(s) on this sheet need no approval: their hours are with the weekly "
+                              "payroll.").format(len(written)), indicator="green", title=_(REQUEST))
+        return written
+    if state in (approval.DRAFT, approval.REJECTED) and old in approval.PENDING_STATES:
+        return unpay_casuals(doc)
+    return []
+
+
+def pay_casuals(doc):
+    """The lines of the casuals paid by the week, on a request raised and not yet approved: their hours are
+    written onto the day's attendance under the Overtime Type that lists them, as send writes everybody's once
+    HR have approved, and the weekly payslip pays them. Up to what the clock shows on a day it measured, and the
+    most a day is paid for.
+
+    A day still to come, a casual with no attendance yet or one not marked Present, is left for the daily job
+    (send_ready); one no type is open to, and a verified day, are left alone. Returns the attendance written."""
+    if doc.get(approval.STATE_FIELD) not in approval.PENDING_STATES:
+        return []
+    if getdate(doc.overtime_date) > getdate(today()):
+        return []
+    casuals = _weekly_casuals([row.employee for row in doc.get("employees") or []])
+    lines = [row for row in doc.get("employees") or [] if row.employee in casuals]
+    if not lines:
+        return []
+    names = [row.employee for row in lines]
+    kinds, kind = _day_kinds(doc), doc.get("day_kind") or rules.WEEKDAY
+    grosses, standards = _monthly_gross(names, doc.overtime_date), _standard_hours(names, doc.overtime_date)
+    departments, categories = _departments(names), _categories(names)
+    types, most = _types_for(), working_day_most()
+    written = []
+    for row in lines:
+        found = frappe.db.get_value("Attendance", {
+            "employee": row.employee, "attendance_date": getdate(doc.overtime_date), "docstatus": 1},
+            ["name", "status", "in_time", "out_time", "working_hours"], as_dict=True)
+        if not found or found.status != rules.PAID_ON or _verified(row.employee, doc.overtime_date):
+            continue
+        theirs = kinds.get(row.employee) or kind
+        named, why = rules.person_type(grosses.get(row.employee), types, row.employee,
+                                       departments.get(row.employee), theirs, categories.get(row.employee))
+        if why:
+            continue
+        standard = standards.get(row.employee) or attendance_rules.STANDARD_HOURS
+        # the clock measured the day when it has both ends of it
+        worked = rules.worked_overtime(theirs, found.working_hours, standard) \
+            if (found.in_time and found.out_time) else None
+        paid = rules.payable_hours(row.get("hours"), worked, rules.day_most(theirs, None, most))
+        frappe.db.set_value("Attendance", found.name, rules.attendance_update(row.as_dict(), named, standard, hours=paid)
+                            if paid > 0 else dict(rules.NO_OVERTIME), update_modified=False)
+        row.db_set({"attendance": found.name, "day_kind": theirs, "worked_hours": flt(worked),
+                    "clocked": 0 if worked is None else 1, "payable_hours": paid}, update_modified=False)
+        written.append(found.name)
+    return written
+
+
+def unpay_casuals(doc, refuse_paid=False):
+    """What the casuals' lines wrote before anybody approved the request comes off the attendance again: the
+    request went back to be put right, was refused, or was cancelled before it was sent.
+
+    Hours a submitted weekly payslip has paid, and those of a verified day, stay where they are and are said;
+    with `refuse_paid`, for a cancel, they stop it instead, as take_back does. Returns the attendance cleared."""
+    lines = [row for row in doc.get("employees") or []
+             if row.get("attendance") and flt(row.get("payable_hours")) > 0]
+    casuals = _weekly_casuals([row.employee for row in lines])
+    lines = [row for row in lines if row.employee in casuals]
+    if not lines:
+        return []
+    paid = {row.employee: row.parent for row in frappe.get_all("Weekly Pay Day", filters={
+        "docstatus": 1, "overtime_hours": [">", 0], "attendance_date": getdate(doc.overtime_date),
+        "employee": ["in", [row.employee for row in lines]]}, fields=["employee", "parent"], limit_page_length=0)}
+    kept, cleared = [], []
+    for row in lines:
+        who = row.get("employee_name") or row.employee
+        if row.employee in paid:
+            kept.append(_("{0}: paid on {1}. Cancel that salary slip first.").format(who, paid[row.employee]))
+        elif _verified(row.employee, doc.overtime_date):
+            kept.append(_("{0}: the day is verified.").format(who))
+        else:
+            cleared.append(row)
+    if kept and refuse_paid:
+        frappe.throw("<br>".join(kept), title=_(REQUEST))
+    for row in cleared:
+        frappe.db.set_value("Attendance", row.attendance, dict(rules.NO_OVERTIME), update_modified=False)
+        row.db_set({"payable_hours": 0}, update_modified=False)
+    if kept:
+        frappe.msgprint(_("These casuals' overtime stays on the attendance:<br>{0}").format("<br>".join(kept)),
+                        indicator="orange", title=_(REQUEST))
+    return [row.attendance for row in cleared]
+
+
 # ── 3. How it is paid ─────────────────────────────────────────────────
 @frappe.whitelist(methods=["POST"])
 def send_to_payroll(name):
@@ -460,10 +584,21 @@ def send_ready():
                 sent.append(name)
         except Exception:
             frappe.log_error(title="HRMS Addon: sending overtime %s to payroll" % name)
+    # a casual's line waits for nobody, only for the day's attendance: those of the requests still waiting
+    for name in frappe.get_all(REQUEST, filters={
+            "docstatus": 0, "status": ["in", list(approval.PENDING_STATES)],
+            "overtime_date": ["between", [add_days(today(), -WAITING_DAYS_BACK), add_days(today(), -1)]]},
+            pluck="name", order_by="overtime_date asc", limit_page_length=0):
+        try:
+            pay_casuals(frappe.get_doc(REQUEST, name))
+        except Exception:
+            frappe.log_error(title="HRMS Addon: a casual's overtime on %s to payroll" % name)
     return sent
 
 
 CLOCK_DAYS_BACK = 3
+# how far back the daily job looks for a waiting request whose casuals are still to be written (send_ready)
+WAITING_DAYS_BACK = 14
 
 
 def raise_from_clock(day=None):
@@ -478,6 +613,12 @@ def raise_from_clock(day=None):
     left out and said in the Error Log. Somebody already on a request for
     that day is left to it, so a second run raises nothing twice.
 
+    A casual paid by the week needs no request: the clock is the say-so.
+    Their hours go straight onto the day's attendance, as an uploaded
+    day's Overtime Hours do, and the weekly payslip pays them. A day the
+    clock no longer shows overtime on loses what an earlier run wrote. A
+    verified day is left as it is.
+
     `day`: the day to read; none reads the last few, as the clock's
     attendance comes in. Returns the requests raised."""
     if day is None:
@@ -491,7 +632,8 @@ def raise_from_clock(day=None):
         return []
     marked = frappe.get_all("Attendance", filters={
         "attendance_date": day, "docstatus": 1, "status": rules.PAID_ON, "in_time": ["is", "set"],
-        "out_time": ["is", "set"]}, fields=["name", "employee", "employee_name", "working_hours"], limit_page_length=0)
+        "out_time": ["is", "set"]},
+        fields=["name", "employee", "employee_name", "working_hours", "actual_overtime_duration"], limit_page_length=0)
     asked = _on_a_request(day)
     marked = [row for row in marked if row.employee not in asked]
     if not marked:
@@ -502,6 +644,7 @@ def raise_from_clock(day=None):
         fields=["name", "reports_to", "branch", "department", "company"], limit_page_length=0)}
     grosses, standards = _monthly_gross(names, day), _standard_hours(names, day)
     categories, most = _categories(names), working_day_most()
+    casuals = _weekly_casuals(names)
     lines, nobody = [], []
     for row in marked:
         seat = seats.get(row.employee) or frappe._dict()
@@ -515,6 +658,13 @@ def raise_from_clock(day=None):
                                        standards.get(row.employee) or attendance_rules.STANDARD_HOURS)
         hours = rules.clock_hours(worked, theirs.get("custom_clock_minimum"), theirs.get("custom_clock_step"),
                                   rules.day_most(kind, theirs.get("maximum_overtime_hours_allowed"), most))
+        if row.employee in casuals:
+            # no request, and nobody to approve it: the hours the clock shows are the day's overtime
+            if hours != flt(row.actual_overtime_duration) and not _verified(row.employee, day):
+                frappe.db.set_value("Attendance", row.name, rules.attendance_update(
+                    {"hours": hours}, named, standards.get(row.employee) or attendance_rules.STANDARD_HOURS)
+                    if hours > 0 else dict(rules.NO_OVERTIME), update_modified=False)
+            continue
         if hours <= 0:
             continue
         requester = seat.get("reports_to") or theirs.get("custom_clock_requester")
@@ -658,7 +808,10 @@ def take_back(doc):
     cancelled first. Returns the attendance cleared."""
     names = [row.attendance for row in doc.get("employees") or []
              if row.get("attendance") and flt(row.get("payable_hours")) > 0]
-    if not names or not doc.get("sent_to_payroll_on"):
+    if not doc.get("sent_to_payroll_on"):
+        # never sent: only its casuals' lines wrote anything, as it was raised (pay_casuals)
+        return unpay_casuals(doc, refuse_paid=True)
+    if not names:
         return []
     slips = sorted({line.parent for line in frappe.get_all(
         "Overtime Details", filters={"parenttype": SLIP, "reference_document": ["in", names]}, fields=["parent"],

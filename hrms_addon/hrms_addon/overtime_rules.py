@@ -492,12 +492,14 @@ def register_rows(lines):
 
     lines: each a request's line with its request's "request", "overtime_date",
     "status", "branch" and the employee's "department". What was paid is said
-    only of a request sent to payroll; what the clock showed only of a day it
-    measured."""
+    only of a request sent to payroll, and of a line already written onto
+    the attendance: a casual paid by the week, who waits for nobody's approval
+    (overtime.pay_casuals). What the clock showed only of a day it measured."""
     out = []
     for line in sorted(lines or [], key=lambda one: (str(one.get("overtime_date") or ""),
                                                      one.get("employee_name") or "", one.get("request") or "")):
-        sent = line.get("status") == SENT
+        # no line carries hours to pay before it is written onto the attendance
+        sent = line.get("status") == SENT or _number(line.get("payable_hours")) > 0
         rate, times = _number(line.get("hourly_rate")), _number(line.get("multiplier"))
         paid = _number(line.get("payable_hours")) if sent else None
         out.append({
@@ -555,6 +557,10 @@ def reject_errors(status, reason):
     if not str(reason or "").strip():
         errors.append("Say why the overtime is refused.")
     return errors
+
+
+# what an attendance carries when it has no overtime to pay: what taking the hours off it leaves
+NO_OVERTIME = (("overtime_type", None), ("actual_overtime_duration", 0))
 
 
 def attendance_update(row, overtime_type, standard_hours=STANDARD_HOURS_PER_DAY, hours=None):

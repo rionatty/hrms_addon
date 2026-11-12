@@ -289,6 +289,13 @@ def overtime_on_submit(doc, method=None):
     overtime.approved(doc)
 
 
+def overtime_on_update(doc, method=None):
+    """Saved at any step: the casuals on it wait for nobody's approval (overtime.raised)."""
+    from hrms_addon.hrms_addon import overtime
+
+    overtime.raised(doc)
+
+
 def overtime_on_cancel(doc, method=None):
     """Cancelled: what it wrote for payroll is taken back with it."""
     from hrms_addon.hrms_addon import overtime

@@ -198,7 +198,7 @@ list down the left.
       overtime this period.
     - *Casual Payroll This Week* (Payroll; HR Manager, Payroll Officer)
       reads the next weekly payroll as the payroll itself will, before it
-      is run: the casuals with days and with approved overtime to pay,
+      is run: the casuals with days and with overtime to pay,
       those who would be left out for want of an Hourly Rate (the row
       opens them), and a weekly payroll left in draft. For Per Piece it
       says where the week's Output Pay Run stands: no run yet, a run in
@@ -1142,6 +1142,16 @@ Additional Salary, the way every other payment in this app reaches
 payroll. The checker asserts a production shift is the same twelve hours
 `attendance_rules` knows and that the allowance window is the register's
 own 26th-to-25th cycle.
+
+A casual paid by the week waits for nobody's approval. Their overtime is
+paid on the weekly payslip from the day's attendance, and gets there three
+ways: the Overtime Hours uploaded with the day (Upload Attendance); what
+the clock shows, written onto the day by itself where their Overtime Type
+says Raise from the Clock, with no request; and their line on an Overtime
+Request, written as soon as the request is raised, up to what the clock
+shows. A request returned, refused or cancelled takes those hours back,
+unless a weekly payslip has paid them. Everybody else on the same request
+still waits for the authorising officer and HR.
 
 `verify_overtime.py` covers overtime. Frappe HR already ships the pricing
 and the payroll route — an Overtime Type carries the multipliers, an

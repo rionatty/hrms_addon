@@ -1179,7 +1179,7 @@ def casual_week(facts):
             rows.append({"key": "days", "label": "Casuals with days to pay", "value": int(facts["with_days"]), "band": GOOD,
                          "note": "%s hours. %s" % (_figure(facts.get("hours")), days)})
         if facts.get("with_overtime"):
-            rows.append({"key": "overtime", "label": "With approved overtime to pay", "value": int(facts["with_overtime"]),
+            rows.append({"key": "overtime", "label": "With overtime to pay", "value": int(facts["with_overtime"]),
                          "band": GOOD, "note": "%s hours" % _figure(facts.get("overtime_hours"))})
         if facts.get("no_rate"):
             rows.append({"key": "no_rate", "label": "Left out, no hourly rate", "value": len(facts["no_rate"]),

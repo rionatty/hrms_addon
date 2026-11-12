@@ -993,9 +993,79 @@ if "doc.overtime_type" in glue or "doc.multiplier" in glue or "rules.priced(" no
 costing = glue.split("def _cost(")[1].split(chr(10) + "def ")[0]
 if 'row.get("hours"), (types.get(row.get("overtime_type")) or {}).get("maximum_overtime_hours_allowed"))' not in costing:
     fail.append("the ceiling is checked on each person's hours against their own Overtime Type")
+# a casual paid by the week waits for nobody's approval (Luuka, 12 Nov 2026: "overtime it shouldnt need approval
+# for casuals"): the clock's hours go straight onto the day, and their line on a request as soon as it is raised
+clock = glue.split("def raise_from_clock(")[1].split(chr(10) + "def ")[0]
+for needle, why in (
+    ("casuals = _weekly_casuals(names)", "the casuals paid by the week are told apart"),
+    ("if row.employee in casuals:", "and take no request"),
+    ("if hours != flt(row.actual_overtime_duration) and not _verified(row.employee, day):",
+     "the day is written only where it changes, and never a verified one"),
+    ("if hours > 0 else dict(rules.NO_OVERTIME), update_modified=False)",
+     "what the clock no longer shows comes off the day"),
+    ('fields=["name", "employee", "employee_name", "working_hours", "actual_overtime_duration"]',
+     "the day's own overtime is read with it"),
+):
+    if needle not in clock:
+        fail.append("overtime.raise_from_clock, a casual paid by the week: %s" % why)
+if "if row.employee in casuals:" in clock and not (
+        clock.index("if not theirs or not cint(theirs.get(\"custom_from_clock\")):") < clock.index("if row.employee in casuals:")
+        < clock.index("if hours <= 0:") < clock.index("requester = seat.get(")):
+    fail.append("a casual is taken from the clock only where their type says so, before a requester is looked for, and "
+                "before a day with no overtime is passed over: its earlier hours come off")
+for name, needles in (
+    ("raised", (("if state in approval.PENDING_STATES:", "for as long as the request waits"),
+                ("written = pay_casuals(doc)", "its casuals' lines are written"),
+                ("if written and old not in approval.PENDING_STATES:", "and it is said once, as it is raised"),
+                ("if state in (approval.DRAFT, approval.REJECTED) and old in approval.PENDING_STATES:",
+                 "returned or refused"),
+                ("return unpay_casuals(doc)", "they come off again"))),
+    ("pay_casuals", (("if doc.get(approval.STATE_FIELD) not in approval.PENDING_STATES:",
+                      "only a request raised and not yet approved"),
+                     ("if getdate(doc.overtime_date) > getdate(today()):", "whose day has come"),
+                     ('lines = [row for row in doc.get("employees") or [] if row.employee in casuals]',
+                      "and only the casuals paid by the week on it"),
+                     ("if not found or found.status != rules.PAID_ON or _verified(row.employee, doc.overtime_date):",
+                      "on a day marked Present and not verified"),
+                     ("if why:\n            continue", "under a type that lists them"),
+                     ('paid = rules.payable_hours(row.get("hours"), worked, rules.day_most(theirs, None, most))',
+                      "up to what the clock shows and the most a day is paid for, as send pays"),
+                     ('row.db_set({"attendance": found.name, "day_kind": theirs, "worked_hours": flt(worked),',
+                      "and the line says what it wrote"))),
+    ("unpay_casuals", (('if row.get("attendance") and flt(row.get("payable_hours")) > 0]', "only what a line wrote"),
+                       ('"docstatus": 1, "overtime_hours": [">", 0], "attendance_date": getdate(doc.overtime_date),',
+                        "hours a submitted weekly payslip has paid stay"),
+                       ("elif _verified(row.employee, doc.overtime_date):", "and those of a verified day"),
+                       ("if kept and refuse_paid:\n        frappe.throw(", "a cancel is refused over them"),
+                       ('frappe.db.set_value("Attendance", row.attendance, dict(rules.NO_OVERTIME), update_modified=False)',
+                        "the rest come off the attendance"),
+                       ('row.db_set({"payable_hours": 0}, update_modified=False)', "and off the line"))),
+    ("send_ready", (('"docstatus": 0, "status": ["in", list(approval.PENDING_STATES)],',
+                     "the requests still waiting are read daily"),
+                    ("pay_casuals(frappe.get_doc(REQUEST, name))", "for a casual whose attendance came in after"),
+                    ('"overtime_date": ["between", [add_days(today(), -WAITING_DAYS_BACK), add_days(today(), -1)]]},',
+                     "of the last fortnight's days, not every request there ever was"))),
+):
+    body = glue.split("def %s(" % name)[1].split(chr(10) + "def ")[0] if "def %s(" % name in glue else ""
+    for needle, why in needles:
+        if needle not in body:
+            fail.append("overtime.%s, a casual paid by the week: %s" % (name, why))
+if dict(R.NO_OVERTIME) != {"overtime_type": None, "actual_overtime_duration": 0}:
+    fail.append("an attendance with its overtime taken off carries no type and no hours: %s" % (R.NO_OVERTIME,))
+saved = read("hrms_addon", "hrms_addon", "attendance.py")
+if "def overtime_on_update(" not in saved \
+        or "overtime.raised(doc)" not in saved.split("def overtime_on_update(")[1].split(chr(10) + "def ")[0]:
+    fail.append("a request saved at any step writes its casuals' lines (attendance.overtime_on_update)")
+if "    def on_update(self):\n        attendance.overtime_on_update(self)" not in read(
+        "hrms_addon", "hrms_addon", "doctype", "overtime_request", "overtime_request.py").replace(chr(13), ""):
+    fail.append("the Overtime Request's on_update is wired to it")
+if "A weekly casual's is paid by itself." not in read("hrms_addon", "fixtures", "custom_field.json"):
+    fail.append("the Overtime Type's From the Clock box says a weekly casual's overtime is paid by itself")
 back = glue.split("def take_back(")[1].split(chr(10) + "def ")[0]
 for needle, why in (
-    ('if not names or not doc.get("sent_to_payroll_on"):', "only what the request itself sent to payroll"),
+    ('if not doc.get("sent_to_payroll_on"):', "a request never sent wrote only its casuals' lines"),
+    ("return unpay_casuals(doc, refuse_paid=True)", "which come off with it, unless a weekly payslip has paid them"),
+    ("if not names:\n        return []", "only what the request itself sent to payroll"),
     ("paid = [slip for slip in slips if stands[slip] == 1]",
      "a submitted Overtime Slip that paid the hours stops the cancel"),
     ("kept = [line for line in slip.get(\"overtime_details\") or [] if line.reference_document not in names]",
@@ -1193,6 +1263,16 @@ if '"reports": ("Salary Register", "Overtime Register", "Bank Remittance",' not 
         '"gross_by_department",' not in payroll_tab or '                   "overtime_by_plant"),' \
         not in payroll_tab or '"Overtime Register": "Overtime Request",' not in payroll_tab:
     fail.append("the Payroll tab offers the Overtime Register and shows the period's overtime by plant")
+# a casual's line is written as its request is raised: the register says so though the request still waits
+early = R.register_rows([
+    {"request": "R9", "overtime_date": "2026-11-10", "status": "Requested", "employee": "C1", "employee_name": "Cato",
+     "hours": 2, "worked_hours": 1, "clocked": 1, "payable_hours": 1, "hourly_rate": 1000, "multiplier": 1.5},
+    {"request": "R9", "overtime_date": "2026-11-10", "status": "Requested", "employee": "P1", "employee_name": "Paul",
+     "hours": 2, "worked_hours": 0, "clocked": 0, "payable_hours": 0, "hourly_rate": 2500, "multiplier": 1.5}])
+if [(row["employee"], row["payable_hours"], row["paid_amount"]) for row in early] != [
+        ("C1", 1.0, 1500.0), ("P1", None, None)]:
+    fail.append("a line already written onto the attendance is said as paid though its request still waits, and "
+                "nobody else's: %s" % [(row["employee"], row["payable_hours"], row["paid_amount"]) for row in early])
 print("the Overtime Register: by date, paid only once sent, the filters, on the Payroll tab")
 
 if fail:

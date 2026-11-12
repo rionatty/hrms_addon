@@ -12,7 +12,7 @@ are in weekly_pay_rules.py (scripts/verify_weekly_pay.py).
                         pay in its days, each given the weekly structure the
                         first time
   slip_before_validate  Salary Slip before_validate: the days it pays, their
-                        hours and the rate, and the approved overtime
+                        hours and the rate, and the overtime on them
   SalarySlipWeekly      the structure's two lines read those, and no tax is
                         worked out or added
   slip_validate         Salary Slip validate: the days it shows
@@ -560,7 +560,7 @@ def _overtime_component():
         component = frappe.get_doc({
             "doctype": COMPONENT, "name": name, "salary_component": name, "salary_component_abbr": abbr,
             "type": "Earning", "depends_on_payment_days": 0, "is_tax_applicable": 1, "remove_if_zero_valued": 1,
-            "description": "A casual's approved overtime, paid by the week at their own hourly rate."})
+            "description": "A casual's overtime, paid by the week at their own hourly rate."})
         component.flags.ignore_permissions = True
         component.insert()
     return name

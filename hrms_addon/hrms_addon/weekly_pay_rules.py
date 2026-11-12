@@ -50,11 +50,13 @@ Additional Salary dated the week's last day, with the arrears beside it.
 OVERTIME BY THE WEEK
 
 The worksheet pays a casual's overtime in the week, at their own hourly rate
-times one and a half. The overtime is still asked for and approved as anyone's
-is (overtime.py), which writes the hours paid and the Overtime Type onto the
-day's attendance; the weekly slip pays those hours at the casual's own rate
-times the multiplier the type gives that day, and notes them beside the day.
-Overtime approved after its day was paid goes on the next slip.
+times one and a half. It waits for nobody's approval (Luuka, 12 Nov 2026):
+the hours and the Overtime Type are written onto the day's attendance from
+the Overtime Hours uploaded with the day, from what the clock shows, or from
+the casual's line on a request as soon as it is raised (overtime.py). The
+weekly slip pays those hours at the casual's own rate times the multiplier
+the type gives that day, and notes them beside the day. Overtime written
+after its day was paid goes on the next slip.
 
 A MONTHLY PAYROLL
 

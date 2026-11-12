@@ -12,6 +12,9 @@ class OvertimeRequest(Document):
     def validate(self):
         attendance.overtime_validate(self)
 
+    def on_update(self):
+        attendance.overtime_on_update(self)
+
     def on_submit(self):
         attendance.overtime_on_submit(self)
 

@@ -11307,7 +11307,7 @@
   "insert_after": "custom_clock_section",
   "label": "Raise from the Clock",
   "module": "HRMS Addon",
-  "description": "Overtime the clock shows is raised as a request, for approval."
+  "description": "Overtime the clock shows is raised as a request, for approval. A weekly casual's is paid by itself."
  },
  {
   "doctype": "Custom Field",
