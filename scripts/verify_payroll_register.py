@@ -344,7 +344,8 @@ output_pay.SIZE, output_pay.RUN, output_pay.REPORT, output_pay.REPORT_LINE = (
     "Output Rate", "Output Pay Run", "Daily Production Report", "Daily Production Line")
 output_pay._component_name = lambda section: {O.HOURLY: "Hourly Earnings", O.PER_PIECE: "Per Piece Earnings"}[section]
 piece_pay = types.ModuleType("hrms_addon.hrms_addon.piece_pay")
-piece_pay.ARREARS = ("Arrears", "ARR")
+piece_pay.ARREARS_BEFORE = "Arrears"
+piece_pay.arrears_components = lambda: ("Arrear", "Arrears Deductions")
 advances = types.ModuleType("hrms_addon.hrms_addon.advances")
 advances.DEFAULT_COMPONENT = "Advance Recovery"
 app.weekly_pay, app.output_pay, app.piece_pay, app.advances = weekly_pay, output_pay, piece_pay, advances
@@ -410,6 +411,29 @@ sent = next(call[1] for call in week.calls if call[0] == "xlsx")
 check("its Excel file ends with the totals, as the team's own sheet does; a monthly payroll's does not",
       sent[0] == labels and sent[-1][labels.index("Employee Name")] == "Total"
       and sent[-1][labels.index("Gross Amount")] == 187459.5 and len(sent) == 6, sent[-1])
+# arrears: added under the earning in use now or under Arrears, as earlier runs paid them; taken back as a deduction
+OWED = dict(WEEKLY, **{"Salary Detail": WEEKLY["Salary Detail"] + [
+    {"parent": "S1", "parentfield": "earnings", "salary_component": "Arrear", "amount": 300, "additional_salary": None},
+    {"parent": "S1", "parentfield": "deductions", "salary_component": "Arrears Deductions", "amount": 200,
+     "additional_salary": None}]})
+owed_columns, owed_rows = run(Site(frequency="Weekly", tables=OWED))
+owed_labels = [column["label"] for column in owed_columns]
+check("arrears added are one Arrears column, under the earning the site adds them under now and under Arrears, as "
+      "earlier runs paid them; arrears taken back are a deduction, in a column of its own after Salary Advance",
+      {row["employee"]: row["arrears"] for row in owed_rows} == {"C1": 300.0, "C2": 0.0, "C3": 11141.0, "C4": 0.0}
+      and owed_labels.count("Arrears") == 1 and "Arrear" not in owed_labels
+      and owed_labels[owed_labels.index("Salary Advance") + 1] == "Arrears Deductions"
+      and {row["employee"]: row["deduction_1"] for row in owed_rows} == {"C1": 200.0, "C2": 0.0, "C3": 0.0, "C4": 0.0},
+      (owed_labels, [(row["employee"], row["arrears"]) for row in owed_rows]))
+piece_pay.arrears_components = lambda: ("Back Pay", "Overpaid")
+chosen_columns, chosen_rows = run(Site(frequency="Weekly", tables=dict(WEEKLY, **{"Salary Detail": WEEKLY[
+    "Salary Detail"] + [{"parent": "S1", "parentfield": "earnings", "salary_component": "Back Pay", "amount": 300,
+                         "additional_salary": None}]})))
+piece_pay.arrears_components = lambda: ("Arrear", "Arrears Deductions")
+check("where Output Pay Settings name another earning for arrears, that one is read",
+      {row["employee"]: row["arrears"] for row in chosen_rows} == {"C1": 300.0, "C2": 0.0, "C3": 11141.0, "C4": 0.0}
+      and "Back Pay" not in [column["label"] for column in chosen_columns],
+      [column["label"] for column in chosen_columns])
 for name, needle in (("weekly_pay.py", 'HOURS = "custom_weekly_hours"'), ("weekly_pay.py", 'RATE = "custom_weekly_rate"'),
                      ("weekly_pay.py", 'OVERTIME_HOURS = "custom_weekly_overtime_hours"'),
                      ("weekly_pay.py", 'OVERTIME_COMPONENT = ("Casual Overtime", "COT")'),
@@ -419,10 +443,12 @@ for name, needle in (("weekly_pay.py", 'HOURS = "custom_weekly_hours"'), ("weekl
                      ("output_pay.py", "def _component_name(section):")):
     check("%s still has what the weekly register reads of it: %s" % (name, needle),
           needle in read("hrms_addon", "hrms_addon", name))
-check("piece_pay.py still names the arrears earning as (name, abbreviation), whatever it is called",
-      re.search(r'^ARREARS = \("[^"]+", "[^"]+"\)$', read("hrms_addon", "hrms_addon", "piece_pay.py"), re.M) is not None
-      and '"arrears": {piece_pay.ARREARS[0], OLD_ARREARS}' in read("hrms_addon", "hrms_addon", "payroll_register.py")
-      and 'OLD_ARREARS = "Arrears"' in read("hrms_addon", "hrms_addon", "payroll_register.py"))
+check("piece_pay.py still has what the weekly register reads of the arrears: the earning they are added under, "
+      "Output Pay Settings' or the site's, and the one earlier runs paid them under",
+      "\ndef arrears_components():\n" in read("hrms_addon", "hrms_addon", "piece_pay.py")
+      and '\nARREARS_BEFORE = "Arrears"\n' in read("hrms_addon", "hrms_addon", "piece_pay.py")
+      and '"arrears": {piece_pay.arrears_components()[0], piece_pay.ARREARS_BEFORE},'
+      in read("hrms_addon", "hrms_addon", "payroll_register.py"))
 check("the slips asked for are the payroll's, cancelled ones left out, all of them",
       asked == [("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
                  ["name", "start_date", "end_date"], 0)], asked)

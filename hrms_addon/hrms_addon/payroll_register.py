@@ -33,8 +33,6 @@ SLIP = "Salary Slip"
 DETAIL = "Salary Detail"
 REGISTER = "Salary Register"
 BASIC = "Basic"
-# the earning a Per Piece run paid arrears under before the site's own arrears earning was used
-OLD_ARREARS = "Arrears"
 
 
 @frappe.whitelist()
@@ -98,8 +96,10 @@ def casual_register(run, names):
     sizes = frappe.get_all(output_pay.SIZE, filters={"section": output_rules.PER_PIECE},
                            fields=["name", "salary_component"], limit_page_length=0)
     named = {"basic": output_pay._component_name(output_rules.HOURLY), "overtime": weekly_pay.OVERTIME_COMPONENT[0],
-             # arrears under the earning they are paid under now, and "Arrears", which earlier runs paid under
-             "arrears": {piece_pay.ARREARS[0], OLD_ARREARS}, "advance": advances.DEFAULT_COMPONENT,
+             # arrears under the earning they are added under now, Output Pay Settings' or the site's, and under
+             # the one earlier runs paid them under; arrears taken back are a deduction, with its own column
+             "arrears": {piece_pay.arrears_components()[0], piece_pay.ARREARS_BEFORE},
+             "advance": advances.DEFAULT_COMPONENT,
              "pieces": {output_pay._component_name(output_rules.PER_PIECE)}
              | {row.salary_component for row in sizes if row.salary_component}}
     return rules.casual_register(slips, lines, people, _pieces(slips, lines), named,
