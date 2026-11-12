@@ -219,14 +219,14 @@ def _read(doc):
     # a weekly sheet's Hours Worked: the hours the weekly payroll pays for the days worked
     weekly = doc.get("pay_kind") == rules.WEEKLY
     standard = _full_day() if weekly else None
-    # and the weeks the plant's Casual Hours Sheets give its casuals paid by the hour: their hours, overtime and days,
-    # not the attendance's, as the weekly payroll pays them (casual_hours.for_verification; Luuka, 12 Nov 2026: "for
-    # casuals the attendance verification should be from casual hours sheet")
+    # and the weeks Casual Hours Sheets give the casuals paid by the hour: their hours, overtime and days, not the
+    # attendance's, as the weekly payroll pays them (casual_hours.for_verification; Luuka, 12 Nov 2026: "for casuals
+    # the attendance verification should be from casual hours sheet")
     if weekly:
         from hrms_addon.hrms_addon import casual_hours
 
         sheets = casual_hours.for_verification([employee for employee in employees if rules.by_the_hour(found[employee])],
-                                               start, end, doc.get("branch"))
+                                               start, end)
     else:
         sheets = {"people": {}, "sheets": {}}
     rows, issues = [], []
@@ -244,7 +244,9 @@ def _read(doc):
                                            if day not in covered), open_days, hours, standard)
         if covered:
             inside = rules.person_figures(person, line["days"], line["clock"], statuses, 0, sorted(covered))
-            figures = rules.with_hours_sheet(figures, inside, given)
+            counted = rules.person_figures(person, line["days"], line["clock"], statuses, 0,
+                                           sorted(given.get("counted") or ()))
+            figures = rules.with_hours_sheet(figures, inside, given, counted)
         rows.append(dict(figures, employee=person.name, employee_name=person.employee_name,
                          department=person.department))
         issues += rules.person_issues(dict(person, employee=person.name), line["days"], line["clock"], open_days)

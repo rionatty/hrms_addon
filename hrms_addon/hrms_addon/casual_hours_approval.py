@@ -96,6 +96,7 @@ def step_errors(old_state, new_state, facts):
       people          how many are on the sheet
       unrated         [text] of those with hours and no hourly rate
       no_type         [text] of those with overtime and no Overtime Type
+      paid            [text] of those some of whose days in the week a slip paid another way
     """
     if old_state == new_state:
         return []
@@ -114,6 +115,10 @@ def step_errors(old_state, new_state, facts):
     if no_type:
         errors.append("Overtime, but no Overtime Type lists %s: add them to the casuals' Overtime Type."
                       % _listed(no_type))
+    paid = list(facts.get("paid") or [])
+    if paid:
+        errors.append("Some of these days were paid already from the attendance for %s: take them off this sheet, or "
+                      "cancel that pay first, or the week is paid twice." % _listed(paid))
     return errors
 
 

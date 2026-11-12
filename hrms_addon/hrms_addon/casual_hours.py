@@ -52,7 +52,7 @@ def sheet_validate(doc, method=None):
 
     errors = rules.sheet_errors(doc.get("from_date"), doc.get("to_date"), today())
     if not errors:
-        errors = _row_errors(doc) + _overlap_errors(doc)
+        errors = _row_errors(doc) + _overlap_errors(doc) + _verified_errors(doc)
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_(TITLE))
     facts = _price(doc)
@@ -121,6 +121,42 @@ def _overlap_errors(doc):
             for employee, sheet in sorted(clashes.items())]
 
 
+def _verified_errors(doc):
+    """A sheet's people whose days in its week a verified Attendance Verification holds: the week as verified is what
+    the payroll pays, so the hours are not changed under it. The General Manager reopens it first (as
+    attendance_verification.refuse_attendance asks of a day's attendance)."""
+    from hrms_addon.hrms_addon import attendance_verification
+
+    people = [row.employee for row in doc.get("rows") or [] if row.get("employee")]
+    if not people or not doc.get("from_date") or not doc.get("to_date"):
+        return []
+    return ["%s is on %s, verified for %s: the General Manager reopens it before these hours change." % (
+        ", ".join(sorted(sheet["employees"])), sheet.name, sheet.branch or doc.get("branch"))
+        for sheet in attendance_verification.verified_sheets(doc.from_date, doc.to_date, doc.get("company"), people)
+        if sheet["employees"]]
+
+
+def _paid_already(doc):
+    """["employee (slip)"] of the sheet's people some of whose days in its week a submitted slip paid another way:
+    from the attendance on a weekly slip, or on a monthly slip. Sent or approved, the sheet would pay them again."""
+    people = [row.employee for row in doc.get("rows") or [] if row.get("employee")]
+    if not people or not doc.get("from_date") or not doc.get("to_date"):
+        return []
+    found = {}
+    for row in frappe.get_all(DAY, filters={"employee": ["in", people], "docstatus": 1, "hours_sheet": ["is", "not set"],
+                                            "attendance_date": ["between", [getdate(doc.from_date),
+                                                                            getdate(doc.to_date)]]},
+                              fields=["employee", "parent"], limit_page_length=0):
+        found.setdefault(row.employee, row.parent)
+    for row in frappe.get_all("Salary Slip", filters={"employee": ["in", people], "docstatus": 1,
+                                                      "payroll_frequency": ["!=", WEEKLY],
+                                                      "start_date": ["<=", getdate(doc.to_date)],
+                                                      "end_date": [">=", getdate(doc.from_date)]},
+                              fields=["employee", "name"], limit_page_length=0):
+        found.setdefault(row.employee, row.name)
+    return ["%s (%s)" % (employee, slip) for employee, slip in sorted(found.items())]
+
+
 def _price(doc):
     """Each row's rate and Overtime Type on the week's last day, and what it comes to. The week's overtime is at
     the weekday rate (OT1), the type taken as a weekday's: a week's total, whatever day the week ends on, as the
@@ -168,7 +204,8 @@ def _check_step(doc, facts):
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, {
             "return_remarks": doc.get("return_remarks"), "people": doc.get("total_people"),
-            "unrated": facts["unrated"], "no_type": facts["no_type"]})
+            "unrated": facts["unrated"], "no_type": facts["no_type"],
+            "paid": _paid_already(doc) if new_state in (approval.PENDING_GM, approval.APPROVED) else []})
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(TITLE))
         if new_state == approval.PENDING_GM:
@@ -221,7 +258,11 @@ def sheet_before_submit(doc, method=None):
 
 
 def sheet_before_cancel(doc, method=None):
-    """A week a submitted weekly slip has paid stays: its slips are cancelled first."""
+    """A week a submitted weekly slip has paid stays: its slips are cancelled first. So does one a verified Attendance
+    Verification holds: the General Manager reopens it first."""
+    held = _verified_errors(doc)
+    if held:
+        frappe.throw("<br>".join(_(message) for message in held), title=_(TITLE))
     slips = sorted({row.parent for row in frappe.get_all(DAY, filters={"hours_sheet": doc.name, "docstatus": 1},
                                                         fields=["parent"], limit_page_length=0)})
     if slips:
@@ -387,40 +428,13 @@ def _approved_rows(employees, until=None):
     return out
 
 
-def _plants(employees):
-    """{employee: their plant} of those of these people paid by the hour."""
-    employees = [employee for employee in dict.fromkeys(employees or ()) if employee]
-    return {row.name: row.branch for row in frappe.get_all(
-        "Employee", filters={"name": ["in", employees], "custom_pay_category": WEEKLY},
-        fields=["name", "branch"], limit_page_length=0)} if employees else {}
-
-
-def _plant_weeks(branches, docstatus=1):
-    """{plant: [(from, to)]}: the weeks the plants' sheets give, approved ones by default."""
-    branches = sorted({branch for branch in branches or () if branch})
-    out = {}
-    for sheet in frappe.get_all(DOCTYPE, filters={"branch": ["in", branches], "docstatus": docstatus},
-                                fields=["branch", "from_date", "to_date"], limit_page_length=0) if branches else []:
-        out.setdefault(sheet.branch, []).append((sheet.from_date, sheet.to_date))
-    return out
-
-
 def spans(employees):
-    """{employee: [(from, to)]}: the weeks the approved sheets give each casual paid by the hour, whose days the
-    attendance no longer pays (weekly_pay.days_to_pay, overtime_due): every approved sheet of their plant, whether
-    it lists them or not, as the team's sheet is the plant's week of casual hours (Luuka, 12 Nov 2026: "for casuals
-    the attendance verification should be from casual hours sheet"); and any other that lists them. A casual the
-    plant's sheet leaves out is paid nothing for its days: put them on the sheet."""
+    """{employee: [(from, to)]}: the weeks approved sheets cover for each person they list, whose days the attendance
+    no longer pays (weekly_pay.days_to_pay, overtime_due). A casual a sheet leaves out is paid from the attendance,
+    and the Attendance Verification shows them so (for_verification)."""
     out = {}
     for row in _approved_rows(employees):
         out.setdefault(row["employee"], []).append((row["from_date"], row["to_date"]))
-    plants = _plants(employees)
-    weeks = _plant_weeks(plants.values())
-    for employee, branch in plants.items():
-        theirs = out.setdefault(employee, [])
-        theirs += [week for week in weeks.get(branch, []) if week not in theirs]
-        if not theirs:
-            out.pop(employee)
     return out
 
 
@@ -448,51 +462,47 @@ def waiting(employees, end):
     return set(unpaid(employees, end))
 
 
-def for_verification(employees, first, last, branch=None):
+def for_verification(employees, first, last):
     """What a weekly Attendance Verification takes from the Casual Hours Sheets over its days, as the weekly payroll
     pays them (attendance_verification._read; Luuka, 12 Nov 2026: "attendance verification is not accurate ... i have
     uploaded casual hours but it pull different data also it doesnt show the overtime hours"; "for casuals the
     attendance verification should be from casual hours sheet"):
 
-      {"people": {employee: {"covered": {date}, "hours", "overtime", "days"}},
+      {"people": {employee: {"covered": {date}, "counted": {date}, "hours", "overtime", "days"}},
        "sheets": {name: {"from_date", "to_date", "state", "people"}}}
 
-    employees: the verification's casuals paid by the hour; branch: its plant. covered: the days a sheet gives,
-    within the verification's: those of every sheet of the plant, whether it lists the casual or not, as the payroll
-    reads them (spans), and of any other that lists them. Those days are the sheets' and not the attendance's: a
-    casual the plant's sheet leaves out worked none of them. The totals count on the verification that holds the
-    sheet's last day, as the payroll dates the week. Every sheet not cancelled counts, so what was uploaded shows at
-    once; one not yet approved stops the verification (attendance_verification_rules.hours_sheet_issue)."""
+    covered: the days within the verification's that a sheet not cancelled gives the person; they are the sheet's,
+    not the attendance's. counted: those of them whose days worked are the attendance's to count, as their sheet
+    leaves its Days Worked blank. The totals, the days worked a sheet gives among them, count on the verification
+    that holds the sheet's last day, as the payroll dates the week, so no day is counted on two. Every sheet not
+    cancelled counts, so what was uploaded shows at once; one not yet approved stops the verification
+    (attendance_verification_rules.hours_sheet_issue)."""
     employees = [employee for employee in dict.fromkeys(employees or ()) if employee]
     first, last = (getdate(first) if first else None), (getdate(last) if last else None)
     if not employees or not first or not last:
         return {"people": {}, "sheets": {}}
     sheets = {row.name: row for row in frappe.get_all(
         DOCTYPE, filters={"docstatus": ["<", 2], "from_date": ["<=", last], "to_date": [">=", first]},
-        fields=["name", "branch", "from_date", "to_date", "docstatus", "workflow_state"], limit_page_length=0)}
+        fields=["name", "from_date", "to_date", "docstatus", "workflow_state"], limit_page_length=0)}
     people, used = {}, {}
-
-    def theirs(employee):
-        return people.setdefault(employee, {"covered": set(), "hours": 0.0, "overtime": 0.0, "days": 0.0})
-
-    plant = [sheet for sheet in sheets.values() if branch and sheet.get("branch") == branch]
-    for sheet in plant:
-        used.setdefault(sheet.name, set())
-        for employee in employees:
-            theirs(employee)["covered"] |= rules.days_within(sheet.from_date, sheet.to_date, first, last)
     if sheets:
         for row in frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "parent": ["in", list(sheets)],
                                                 "employee": ["in", employees]},
                                   fields=["parent", "employee", "hours_worked", "overtime_hours", "days_worked"],
                                   limit_page_length=0):
-            sheet, mine = sheets[row.parent], theirs(row.employee)
-            mine["covered"] |= rules.days_within(sheet.from_date, sheet.to_date, first, last)
+            sheet = sheets[row.parent]
+            mine = people.setdefault(row.employee, {"covered": set(), "counted": set(), "hours": 0.0, "overtime": 0.0,
+                                                    "days": 0.0})
+            days = rules.days_within(sheet.from_date, sheet.to_date, first, last)
+            mine["covered"] |= days
+            if not flt(row.days_worked):
+                mine["counted"] |= days
             used.setdefault(sheet.name, set()).add(row.employee)
             if first <= getdate(sheet.to_date) <= last:
                 mine["hours"] = round(mine["hours"] + flt(row.hours_worked), 2)
                 mine["overtime"] = round(mine["overtime"] + flt(row.overtime_hours), 2)
                 mine["days"] = round(mine["days"] + flt(row.days_worked), 2)
-    return {"people": {employee: mine for employee, mine in people.items() if mine["covered"]},
+    return {"people": people,
             "sheets": {name: {"from_date": sheets[name].from_date, "to_date": sheets[name].to_date,
                               "state": sheets[name].get("workflow_state") or ("Approved" if sheets[name].docstatus == 1
                                                                              else "Draft"),

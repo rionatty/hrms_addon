@@ -218,23 +218,21 @@ HOURS_SHEET_WAITING = "Casual hours waiting for the General Manager"
 HOURS_SHEET = "Casual Hours Sheet"
 
 
-def with_hours_sheet(figures, inside, sheet):
+def with_hours_sheet(figures, inside, sheet, counted=None):
     """A casual's line where Casual Hours Sheets give some of its days, as the weekly payroll pays them (Luuka,
     12 Nov 2026: "i have uploaded casual hours but it pull different data also it doesnt show the overtime hours").
 
     figures: the line over the days no sheet gives, as the attendance has them; inside: the days a sheet gives, as
-    the attendance has them; sheet: what the sheets give ({"hours", "overtime", "days"}). The hours and overtime
-    are the sheets'; so are the days worked where they say, else the attendance's; leave, absences and days off
-    are the attendance's; a day a sheet gives is never "not marked"."""
+    the attendance has them; sheet: what the sheets give on this verification ({"hours", "overtime", "days"});
+    counted: the attendance over those of the days whose sheet leaves its Days Worked blank. The hours and
+    overtime are the sheets'; the days worked are those the sheets give, and the attendance's where a sheet gives
+    none, each day counted once however the weeks fall; leave, absences and days off are the attendance's; a day a
+    sheet gives is never "not marked"."""
     out = dict(figures)
     for key in ("absent", "leave", "off"):
         out[key] = out.get(key, 0) + inside.get(key, 0)
-    given = _num(sheet.get("days"))
-    if given:
-        out["worked"] = out.get("worked", 0) + int(round(given))
-    else:
-        out["worked"] = out.get("worked", 0) + inside.get("worked", 0)
-        out["half_day"] = out.get("half_day", 0) + inside.get("half_day", 0)
+    out["worked"] = out.get("worked", 0) + int(round(_num(sheet.get("days")))) + (counted or {}).get("worked", 0)
+    out["half_day"] = out.get("half_day", 0) + (counted or {}).get("half_day", 0)
     out["hours_worked"] = round(_num(out.get("hours_worked")) + _num(sheet.get("hours")), 2)
     out["overtime_hours"] = round(_num(out.get("overtime_hours")) + _num(sheet.get("overtime")), 2)
     return out

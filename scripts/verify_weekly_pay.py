@@ -1017,10 +1017,6 @@ print("the slip: each unpaid day once, late days on the next, nothing a monthly 
 
 # ── 4b. The weeks a Casual Hours Sheet gives ─────────────
 s = populated()
-# a plant's approved sheet is its casuals' week, so the cases below that are not North's own sit at plants of their own:
-# W2 at one with only a draft sheet, W7 at one whose sheet is the week after
-for row in s.rows("Employee"):
-    row["branch"] = {"W2": "East", "W7": "West"}.get(row["name"], row["branch"])
 # a public holiday's overtime at 2 (the Employment Act's floor), a weekday's at 1.5
 s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5, applicable_for_public_holiday=1,
       public_holiday_multiplier=2.0)
@@ -1058,19 +1054,12 @@ check([(row["attendance_date"], row["hours"], row.get("hours_sheet")) for row in
       == [(D(2026, 11, 4), 40.0, "HR-CHS-1")] and both.custom_weekly_overtime_hours == 0,
       "the sheet's week replaces the attendance's days and overtime in it: the week is paid once, not twice",
       both.custom_weekly_days)
-# the plant's sheet is its week (Luuka, 12 Nov 2026: "for casuals the attendance verification should be from casual
-# hours sheet"): W4, at North and on neither row, is paid nothing from the clock's day in it; put them on the sheet
-left_out = slip("W4")
+# a casual the sheet leaves out is paid from the attendance, as the verification shows them (casual_hours.spans)
+left_out = slip("W3")
 W.slip_before_validate(left_out)
-check(not left_out.custom_weekly_days and not left_out.custom_weekly_hours,
-      "a casual the plant's approved sheet leaves out is paid nothing from the clock for its days",
-      left_out.custom_weekly_days)
-plant_run = Form(name="PE-PLANT", company="LPL", start_date=D(2026, 10, 29), end_date=D(2026, 11, 4),
-                 payroll_frequency="Weekly", salary_slip_based_on_timesheet=0,
-                 employees=[Row(employee=name) for name in ("W8", "W4")])
-W._keep_those_to_pay(plant_run)
-check([row.employee for row in plant_run.employees] == ["W8"],
-      "nor kept by Get Employees for it", [row.employee for row in plant_run.employees])
+check([(row["attendance_date"], row.get("hours_sheet")) for row in left_out.custom_weekly_days]
+      == [(D(2026, 10, 30), None)],
+      "a casual the plant's sheet leaves out is paid from the attendance, never nothing", left_out.custom_weekly_days)
 submitted(s, weekly_sheet)
 again = slip("W8")
 W.slip_before_validate(again)
@@ -1083,7 +1072,7 @@ back = slip("W8")
 W.slip_before_validate(back)
 check([row.get("hours_sheet") for row in back.custom_weekly_days] == ["HR-CHS-1"],
       "a cancelled slip gives the week back", back.custom_weekly_days)
-s.add("Casual Hours Sheet", name="HR-CHS-2", company="LPL", branch="East", from_date=D(2026, 10, 29),
+s.add("Casual Hours Sheet", name="HR-CHS-2", company="LPL", branch="North", from_date=D(2026, 10, 29),
       to_date=D(2026, 11, 4), docstatus=0)
 s.add("Casual Hours Row", name="CHR-3", parent="HR-CHS-2", parenttype="Casual Hours Sheet", docstatus=0, employee="W2",
       hours_worked=30, days_worked=3)
@@ -1091,7 +1080,7 @@ not_yet = slip("W2")
 W.slip_before_validate(not_yet)
 check(not_yet.custom_weekly_hours == 20.0 and not any(row.get("hours_sheet") for row in not_yet.custom_weekly_days),
       "a sheet not yet approved pays nothing, and leaves the attendance's days as they were", not_yet.custom_weekly_days)
-s.add("Casual Hours Sheet", name="HR-CHS-3", company="LPL", branch="West", from_date=D(2026, 11, 5),
+s.add("Casual Hours Sheet", name="HR-CHS-3", company="LPL", branch="North", from_date=D(2026, 11, 5),
       to_date=D(2026, 11, 11), docstatus=1)
 s.add("Casual Hours Row", name="CHR-4", parent="HR-CHS-3", parenttype="Casual Hours Sheet", docstatus=1, employee="W7",
       hours_worked=45, days_worked=5)
@@ -1312,8 +1301,8 @@ def reads(count):
 
 few_reads, _few = reads(3)
 many_reads, many_found = reads(2000)
-# some of the reads are the Casual Hours Sheets' and their plants', the same however many people (casual_hours.spans)
-check(few_reads == many_reads <= 12 and len(many_found["P1999"]) == 1,
+# two of the reads are the Casual Hours Sheets', the same however many people (casual_hours.spans)
+check(few_reads == many_reads <= 11 and len(many_found["P1999"]) == 1,
       "2,000 people take no more reads than 3: %d and %d" % (many_reads, few_reads))
 print("the Employees tab: the days the slips will pay, read for everyone at once")
 

@@ -121,10 +121,16 @@ check(R.with_hours_sheet(outside, inside, {"hours": 50, "overtime": 6, "days": 5
       == dict(plain, worked=6, absent=1, leave=1, off=1, hours_worked=60.0, overtime_hours=7.0),
       "the sheet's hours, overtime and days for the days it gives, not the clock's; their leave, absences and days off "
       "as marked; none of them 'not marked'", R.with_hours_sheet(outside, inside, {"hours": 50, "overtime": 6, "days": 5}))
-check(R.with_hours_sheet(outside, inside, {"hours": 40})
+check(R.with_hours_sheet(outside, inside, {"hours": 40}, inside)
       == dict(plain, worked=5, half_day=1, absent=1, leave=1, off=1, hours_worked=50.0, overtime_hours=1.0),
-      "a sheet that gives no days leaves the days worked to the attendance, never its hours",
-      R.with_hours_sheet(outside, inside, {"hours": 40}))
+      "a sheet that gives no days leaves the days worked to the attendance over its days, never its hours",
+      R.with_hours_sheet(outside, inside, {"hours": 40}, inside))
+# the review of b453383 (12 Nov 2026): weeks that do not line up count no worked day twice and lose none. A sheet's days
+# worked count on the verification holding its last day; on the one before, its days add no worked day of their own
+check(R.with_hours_sheet(outside, inside, {}, None)
+      == dict(plain, worked=1, absent=1, leave=1, off=1, hours_worked=10.0, overtime_hours=1.0),
+      "the days of a sheet whose last day falls on the next verification add no days worked here: they are counted there",
+      R.with_hours_sheet(outside, inside, {}, None))
 week = {"from_date": "2026-10-29", "to_date": "2026-11-04", "people": 461}
 check(R.hours_sheet_issue("HR-CHS-1", dict(week, state="Approved"), "2026-10-30", "2026-11-05") is None,
       "an approved sheet leaves nothing to put right")
@@ -494,13 +500,15 @@ check('weekly = doc.get("pay_kind") == rules.WEEKLY' in read_fn and "standard = 
       "the hours are a weekly sheet's, from each day's Working Hours, a full day as the weekly payroll takes it; a Per "
       "Piece casual's are nought")
 check("casual_hours.for_verification([employee for employee in employees if rules.by_the_hour(found[employee])],"
-      in read_fn and 'start, end, doc.get("branch"))' in read_fn
-      and "figures = rules.with_hours_sheet(figures, inside, given)" in read_fn
+      in read_fn and "start, end)" in read_fn
+      and 'sorted(given.get("counted") or ()))' in read_fn
+      and "figures = rules.with_hours_sheet(figures, inside, given, counted)" in read_fn
       and 'line["clock"], open_days)' in read_fn
       and "rules.hours_sheet_issue(name, sheet, start, end)" in read_fn
       and "if day not in covered), open_days, hours, standard)" in read_fn,
-      "a weekly sheet takes the plant's Casual Hours Sheets for its casuals paid by the hour: their figures, no day "
-      "of theirs 'not marked', no overtime the attendance carries on them, and a line for a sheet not yet approved")
+      "a weekly sheet takes the Casual Hours Sheets for its casuals paid by the hour: their figures, the days worked "
+      "per sheet, no day of theirs 'not marked', no overtime the attendance carries on them, and a line for a sheet "
+      "not yet approved")
 check("\tfrom_date(frm) {\n\t\tha_verify_week_end(frm);\n\t}," in js
       and 'if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;' in js
       and "const to = frappe.datetime.add_days(frm.doc.from_date, 6);" in js

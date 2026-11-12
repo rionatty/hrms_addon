@@ -246,6 +246,10 @@ check(len(said) == 3 and "Nobody is on this sheet" in said[0] and "No hourly rat
       and "no Overtime Type lists LPC2" in said[2],
       "nothing goes to the General Manager with nobody on it, a rate missing or overtime with no type", said)
 check(A.step_errors(A.PENDING_GM, A.APPROVED, {"people": 3}) == [], "a week in order is approved")
+said = A.step_errors(A.PENDING_GM, A.APPROVED, {"people": 3, "paid": ["LPC1 (Sal Slip/LPC1/00001)"]})
+check(said == ["Some of these days were paid already from the attendance for LPC1 (Sal Slip/LPC1/00001): take them off "
+               "this sheet, or cancel that pay first, or the week is paid twice."],
+      "a week some of whose days were paid another way is not approved", said)
 stamps = A.compute_stamps(A.DRAFT, A.PENDING_GM, "hro@x", "T1", {})
 stamps = A.compute_stamps(A.PENDING_GM, A.APPROVED, "gm@x", "T2", stamps)
 check((stamps["prepared_by"], stamps["approved_by"]) == ("hro@x", "gm@x")
@@ -288,6 +292,8 @@ def matches(row, filters):
                 return False
             continue
         op, value = want[0], want[1]
+        if op == "between" and not (as_date(have) and as_date(value[0]) <= as_date(have) <= as_date(value[1])):
+            return False
         if op == "in" and have not in value:
             return False
         if op == "!=" and (have or "") == (value or ""):
@@ -376,10 +382,26 @@ weekly_pay = types.ModuleType("hrms_addon.hrms_addon.weekly_pay")
 weekly_pay.standard_rate = lambda: SITE[0].standard_rate
 weekly_pay.rate_history = lambda employees, until=None: {row.employee: [row] for row in SITE[0].tables.get("Hourly Rate", [])
                                                          if row.employee in employees}
+# the verified Attendance Verifications, as attendance_verification.verified_sheets gives them: each with its people
+attendance_verification = types.ModuleType("hrms_addon.hrms_addon.attendance_verification")
+
+
+def verified_sheets(first, last, company=None, employees=None):
+    found = []
+    for sheet in getattr(SITE[0], "verified", []):
+        if as_date(sheet["from_date"]) <= as_date(last) and as_date(sheet["to_date"]) >= as_date(first):
+            people = [who for who in sheet["employees"] if employees is None or who in employees]
+            found.append(Row(sheet, employees=people))
+    return found
+
+
+attendance_verification.verified_sheets = verified_sheets
 sys.modules.update({"frappe": frappe, "frappe.utils": utils, "frappe.utils.xlsxutils": xlsxutils,
                     "hrms_addon.hrms_addon.output_pay": output_pay, "hrms_addon.hrms_addon.people": people,
                     "hrms_addon.hrms_addon.overtime": overtime, "hrms_addon.hrms_addon.overtime_rules": OR,
-                    "hrms_addon.hrms_addon.weekly_pay": weekly_pay})
+                    "hrms_addon.hrms_addon.weekly_pay": weekly_pay,
+                    "hrms_addon.hrms_addon.attendance_verification": attendance_verification})
+app.attendance_verification = attendance_verification
 G = load("casual_hours")
 
 
@@ -601,9 +623,11 @@ check(G.new_sheet_week("LPL", "Kawempe") == {"from_date": "2026-11-05", "to_date
       G.new_sheet_week("LPL", "Kawempe"))
 print("the upload: the team's workbook read, each person found or said; the template; the next week")
 
-# the plant's sheets are its casuals' week, on the payroll and on the Attendance Verification (Luuka, 12 Nov 2026:
+# the sheets give the weeks of those they list, on the payroll and on the Attendance Verification (Luuka, 12 Nov 2026:
 # "for casuals the attendance verification should be from casual hours sheet"; "validate attendace varies from the
-# casual hour sheet")
+# casual hour sheet"). The review of b453383 the same day: a casual a sheet leaves out is paid from the clock, as the
+# verification shows them; the days worked are counted per sheet, never on two verifications; a verified week is not
+# changed under the General Manager; a week paid another way is not paid again
 s = site()
 for name, branch, start, end, docstatus, state in (
         ("HR-CHS-A", "Kawempe", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
@@ -614,32 +638,56 @@ for name, branch, start, end, docstatus, state in (
     s.add("Casual Hours Sheet", name=name, company="LPL", branch=branch, from_date=start, to_date=end,
           docstatus=docstatus, workflow_state=state)
 for parent, employee, hours, overtime, days, docstatus in (("HR-CHS-A", "LPC100", 50, 6, 5, 1),
-                                                           ("HR-CHS-B", "LPC100", 30, 0, 3, 0),
+                                                           ("HR-CHS-B", "LPC100", 30, 0, 0, 0),
                                                            ("HR-CHS-X", "LPC101", 99, 9, 7, 2)):
     s.add("Casual Hours Row", parent=parent, parenttype="Casual Hours Sheet", employee=employee, hours_worked=hours,
           overtime_hours=overtime, days_worked=days, docstatus=docstatus)
 A_WEEK = (D(2026, 10, 29), D(2026, 11, 4))
-check(G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]) == {"LPC100": [A_WEEK], "LPC101": [A_WEEK],
-                                                             "LPC300": [A_WEEK]},
-      "the payroll takes each plant's approved week as its casuals' by the hour, the sheet's row or not: LPC101, left "
-      "off Kawempe's, is paid none of its days from the clock; Namanve's casual by Namanve's; never a Per Piece casual; "
-      "never a sheet still with the General Manager or cancelled", G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]))
-got = G.for_verification(["LPC100", "LPC101"], D(2026, 10, 30), D(2026, 11, 5), "Kawempe")
+check(G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]) == {"LPC100": [A_WEEK]},
+      "the payroll takes an approved sheet's week for those it lists: LPC101, left off Kawempe's, is paid from the "
+      "clock, never nothing; never a sheet still with the General Manager or cancelled",
+      G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]))
+got = G.for_verification(["LPC100", "LPC101"], D(2026, 10, 30), D(2026, 11, 5))
 week_days = {D(2026, 10, 30) + datetime.timedelta(days=n) for n in range(7)}
-check(got["people"] == {"LPC100": {"covered": week_days, "hours": 50.0, "overtime": 6.0, "days": 5.0},
-                        "LPC101": {"covered": week_days, "hours": 0.0, "overtime": 0.0, "days": 0.0}},
-      "the verification's casuals: each day the plant's sheets give, theirs; the totals of the sheet whose last day it "
-      "holds, the next week's left to the next verification", got["people"])
+check(got["people"] == {"LPC100": {"covered": week_days, "counted": {D(2026, 11, 5)}, "hours": 50.0, "overtime": 6.0,
+                                   "days": 5.0}},
+      "the verification's casuals: each day a sheet gives, theirs; the totals and days of the sheet whose last day it "
+      "holds; the days of one that leaves its Days Worked blank counted from the attendance; nobody a sheet leaves out",
+      got["people"])
 check(got["sheets"] == {"HR-CHS-A": {"from_date": D(2026, 10, 29), "to_date": D(2026, 11, 4), "state": "Approved",
                                      "people": 1},
                         "HR-CHS-B": {"from_date": D(2026, 11, 5), "to_date": D(2026, 11, 11),
                                      "state": "Pending General Manager", "people": 1}},
-      "the plant's sheets over its days, not another plant's or a cancelled one, with how many of its casuals each has",
-      got["sheets"])
-check(G.for_verification(["LPC100"], D(2026, 10, 30), D(2026, 11, 5), "Matugga")["people"]["LPC100"]["covered"]
-      == week_days and not G.for_verification(["LPC104"], D(2026, 10, 30), D(2026, 11, 5), "Matugga")["people"],
-      "a sheet that lists a casual covers them at another plant's verification too; the plant's own covers its own")
-print("the plant's week: its sheets are its casuals', on the payroll and on the Attendance Verification")
+      "the sheets over its days, not a cancelled one, with how many of its casuals each has", got["sheets"])
+# a week the General Manager has verified for a casual is not changed under them: reopened first
+s.verified = [{"name": "HR-ATV-1", "branch": "Kawempe", "from_date": D(2026, 10, 29), "to_date": D(2026, 11, 4),
+               "employees": ["LPC103"]}]
+said = refused(Sheet(rows=[{"employee": "LPC103", "hours_worked": 10}], from_date=D(2026, 10, 29),
+                     to_date=D(2026, 11, 4)))
+check(said == "LPC103 is on HR-ATV-1, verified for Kawempe: the General Manager reopens it before these hours change.",
+      "hours over days a verified Attendance Verification holds for the person are refused", said)
+check(refused(Sheet(rows=[{"employee": "LPC 90017", "hours_worked": 10}], from_date=D(2026, 10, 29),
+                    to_date=D(2026, 11, 4))) is None, "another casual's hours, not verified, are taken")
+try:
+    G.sheet_before_cancel(Sheet(name="HR-CHS-Q", rows=[{"employee": "LPC103"}], from_date=D(2026, 10, 29),
+                                to_date=D(2026, 11, 4)))
+    check(False, "an approved week the General Manager has verified is not cancelled")
+except Thrown as error:
+    check("LPC103 is on HR-ATV-1" in str(error), "nor is its cancel: the verified week would change under it")
+s.verified = []
+# a week paid another way is not sent or approved: it would be paid twice (found by the review of b453383)
+s.standard_rate = 2000
+s.add("Weekly Pay Day", parent="Sal Slip/LPC104/00009", employee="LPC104", attendance_date=D(2026, 10, 30), docstatus=1,
+      hours=9)
+before = Sheet(rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29), to_date=D(2026, 11, 4))
+said = refused(Sheet(before=before, workflow_state="Pending General Manager",
+                     rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29),
+                     to_date=D(2026, 11, 4)))
+check(said and "Some of these days were paid already from the attendance for LPC104 (Sal Slip/LPC104/00009)" in said,
+      "a week some of whose days a weekly slip paid from the attendance is not sent: it would be paid twice", said)
+check(refused(Sheet(rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29),
+                    to_date=D(2026, 11, 4))) is None, "a draft may still hold it, while HR put it right")
+print("the sheets' weeks: of those they list, the days worked per sheet, locked once verified, never paid twice")
 
 # ── 4. The doctypes, the form, the wiring ─────────────
 
