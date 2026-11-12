@@ -1017,7 +1017,9 @@ print("the slip: each unpaid day once, late days on the next, nothing a monthly 
 
 # ── 4b. The weeks a Casual Hours Sheet gives ─────────────
 s = populated()
-s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5)
+# a public holiday's overtime at 2 (the Employment Act's floor), a weekday's at 1.5
+s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5, applicable_for_public_holiday=1,
+      public_holiday_multiplier=2.0)
 s.add("Casual Hours Sheet", name="HR-CHS-1", company="LPL", branch="North", from_date=D(2026, 10, 29),
       to_date=D(2026, 11, 4), docstatus=1)
 s.add("Casual Hours Row", name="CHR-1", parent="HR-CHS-1", parenttype="Casual Hours Sheet", docstatus=1, employee="W8",
@@ -1026,6 +1028,8 @@ s.add("Casual Hours Row", name="CHR-2", parent="HR-CHS-1", parenttype="Casual Ho
       hours_worked=40, overtime_hours=0, days_worked=4)
 s.add("Attendance", name="A-W1-OT", employee="W1", attendance_date=D(2026, 10, 30), status="Present", working_hours=10,
       actual_overtime_duration=3, overtime_type="Casual OT", docstatus=1)
+# the week ends on a public holiday: its overtime is still a weekday's, at 1.5, not all of it at the holiday's 2
+s.day_kinds[("W8", D(2026, 11, 4))] = OR.PUBLIC_HOLIDAY
 weekly_sheet = slip("W8")
 W.slip_before_validate(weekly_sheet)
 W.slip_validate(weekly_sheet)
@@ -1037,8 +1041,13 @@ check((weekly_sheet.custom_weekly_hours, weekly_sheet.custom_weekly_overtime_hou
        weekly_sheet.custom_days_paid) == (50.0, 6.0, 22500.0, 5.0)
       and R.week_pay(weekly_sheet.custom_weekly_days, weekly_sheet.custom_weekly_hours, weekly_sheet.custom_weekly_rate)
       == 125000,
-      "the hours at their own rate, the overtime at it times 1.5 with no cap, the days the sheet says",
+      "the hours at their own rate, the overtime at it times 1.5 with no cap, though the week ends on a public "
+      "holiday, the days the sheet says",
       (weekly_sheet.custom_weekly_hours, weekly_sheet.custom_weekly_overtime, weekly_sheet.custom_days_paid))
+attendance_ot = [{"attendance_date": D(2026, 11, 4), "overtime_type": "Casual OT"}]
+check(W.multipliers("W8", attendance_ot) == {D(2026, 11, 4): 2.0},
+      "an attendance day's overtime on that holiday is still the holiday's: only a sheet's week is taken as weekdays",
+      W.multipliers("W8", attendance_ot))
 both = slip("W1")
 W.slip_before_validate(both)
 check([(row["attendance_date"], row["hours"], row.get("hours_sheet")) for row in both.custom_weekly_days]

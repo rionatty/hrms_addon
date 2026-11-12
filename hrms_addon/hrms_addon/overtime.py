@@ -251,13 +251,14 @@ def _standard_hours(employees, day):
             for employee in employees}
 
 
-def type_on(employee, day, types=None):
+def type_on(employee, day, types=None, kind=None):
     """The Overtime Type one person's overtime falls under on a day, and why none where none does: (name, None)
     or (None, why). As a request's line is given its type (person_type), for an hour that comes in without a
-    request (attendance_upload.py). types: _types_for()'s, where the caller keeps them for many people."""
+    request (attendance_upload.py). types: _types_for()'s, where the caller keeps them for many people; kind: the
+    sort of day to take it as, where not the day's own (a week's overtime on a Casual Hours Sheet is a weekday's)."""
     return rules.person_type(_monthly_gross([employee], day).get(employee),
                              _types_for() if types is None else types, employee,
-                             _departments([employee]).get(employee), day_kind(employee, day),
+                             _departments([employee]).get(employee), kind or day_kind(employee, day),
                              _categories([employee]).get(employee))
 
 

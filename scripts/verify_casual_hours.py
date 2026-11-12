@@ -109,9 +109,81 @@ told[3], told[5], told[6] = heads + ["OT HOURS"], piece + [0], hourly + [10]
 found = R.read_rows(told)
 check([(row["employee"], row["hours"], row["overtime"]) for row in found["rows"]] == [("LPC90002", 50.0, 10.0)],
       "with OT HOURS beside the amount, the hours are read and the amount left to the payroll", found)
-check(R._overtime_amount(["OT1-AMOUNT"]) == 0 and R._overtime_amount(["X", "OVERTIME AMT"]) == 1
-      and R._overtime_amount(["OTHER AMOUNT", "PIECE RATE AMT1", "OT HOURS"]) is None,
-      "an overtime amount is OT, OT1 or OVERTIME and an amount; OTHER AMOUNT and the piece rates are not")
+kinds = {head: R._overtime_kind(R._head(head)) for head in (
+    "OT1-AMOUNT", "OVERTIME AMT", "TOTAL OT AMOUNT", "Overtime Pay", "O/T Amount", "OT HOURS", "OT1-HRS", "OT2 HOURS",
+    "OVERTIME", "OT RATE", "Overtime Type", "OTHER AMOUNT", "PIECE RATE AMT1", "NETTPAY", "BASIC")}
+check(kinds == {"OT1-AMOUNT": "amount", "OVERTIME AMT": "amount", "TOTAL OT AMOUNT": "amount", "Overtime Pay": "amount",
+                "O/T Amount": "amount", "OT HOURS": "hours", "OT1-HRS": "hours", "OT2 HOURS": "hours",
+                "OVERTIME": "hours", "OT RATE": None, "Overtime Type": None, "OTHER AMOUNT": None,
+                "PIECE RATE AMT1": None, "NETTPAY": None, "BASIC": None},
+      "overtime as money or as hours, by its heading; OTHER AMOUNT, the piece rates, a rate or a type are neither",
+      kinds)
+# the headings as a sheet may spell them (review of 12 Nov 2026): HRS, dashes, dots, the line break Excel escapes
+check([R._head(head) for head in ("OT1-HRS", "Payroll No.", "HRS WORKED", "Overtime\nHours", "OT_x000D_\nHOURS",
+                                  "o/t hrs", "EMP. ID")]
+      == ["OT1 HOURS", "PAYROLL NO", "HOURS WORKED", "OVERTIME HOURS", "OT HOURS", "OT HOURS", "EMP ID"],
+      "a heading read as words: HRS as HOURS, dashes, dots, line breaks and O/T aside",
+      [R._head(head) for head in ("OT1-HRS", "Payroll No.", "HRS WORKED", "Overtime\nHours", "OT_x000D_\nHOURS",
+                                  "o/t hrs", "EMP. ID")])
+for spelt in ("OT HRS", "OT1 HOURS", "OT1-HRS", "OVERTIME HRS", "Overtime Hours"):
+    found = R.read_rows([["PAYROLL NO", "HOURS WORKED", spelt], ["LPC90002", 50, 6]])
+    check([(row["hours"], row["overtime"]) for row in found["rows"]] == [(50.0, 6.0)],
+          "%s is read as the overtime hours" % spelt, found)
+# the casual master payroll's own IDs: Excel keeps a line break typed into the cell as _x000D_ (Casual week.xlsx)
+found = R.read_rows([["PAYROLL NO", "HOURS WORKED"], ["LPC90003_x000D_\n", 60], [" LPC 90004 ", 40], [90005.0, 30],
+                     [90006, 20]])
+check([row["employee"] for row in found["rows"]] == ["LPC90003", "LPC 90004", "90005", "90006"],
+      "an ID read clean: Excel's _x000D_ and the line break gone, a space inside kept, a number as written",
+      [row["employee"] for row in found["rows"]])
+
+
+def refused_sheet(table):
+    try:
+        R.read_rows(table)
+    except ValueError as error:
+        return str(error)
+    return None
+
+
+said = refused_sheet([["PAYROLL NO", "HOURS WORKED", "OT1-AMOUNT", "OT2-AMOUNT"], ["LPC90002", 50, 0, 2400]])
+check(said and said.startswith("The sheet has OT2-AMOUNT, an amount, and no overtime hours"),
+      "an amount in any overtime money column, not only the first, wants the hours; the heading said as written", said)
+said = refused_sheet([["PAYROLL NO", "HOURS WORKED", "OT1-AMOUNT"], ["LPC90002", 50, "13,500"]])
+check(said and "OT1-AMOUNT, an amount" in said, "an amount written as text with its comma is an amount", said)
+said = refused_sheet([["PAYROLL NO", "HOURS WORKED", "OVERTIME HOURS", "OT2 HOURS"], ["LPC90002", 50, 6, 4]])
+check(said == "The sheet has OT2 HOURS as well as OVERTIME HOURS: one column of overtime hours is read. Put each "
+              "casual's overtime hours for the week in OVERTIME HOURS.",
+      "a second column of overtime hours is refused, not left unpaid", said)
+said = refused_sheet([["PAYROLL NO", "HOURS WORKED", "OVERTIME 1 HOURS"], ["LPC90002", 50, 6]])
+check(said == "The sheet's OVERTIME 1 HOURS is not a heading the upload reads: name that column OVERTIME HOURS.",
+      "overtime hours under a heading not read are refused, not read as none", said)
+check(refused_sheet([["PAYROLL NO", "HOURS WORKED", "OVERTIME HOURS", "OT1-AMOUNT", "OT RATE"],
+                     ["LPC90002", 50, 6, 13500, 1.5]]) is None
+      and refused_sheet([["PAYROLL NO", "HOURS WORKED", "OT1-AMOUNT", "OT2 HOURS"], ["LPC90002", 50, 0, 0],
+                         ["TOTAL", 50, 99, 99]]) is None,
+      "an amount beside the hours read, a rate, and columns with nothing in them stop nothing; nor does a total line")
+found = R.read_rows([["PAYROLL NO", "HOURS WORKED", "OVERTIME HOURS"], ["LPC90002", 60, 13500]])
+check(found["rows"] and R.row_errors(found["rows"][0], 7) == ["13560 hours in all is more than 7 days have"],
+      "an amount put in the overtime hours column is caught by the hours a week has: overtime has no cap, a week has",
+      R.row_errors(found["rows"][0], 7) if found["rows"] else found)
+# a workbook: the sheet it was saved on, else the only one with the headings (the worksheet's MASTER PAYROLL tab)
+week = [["PAYROLL NO", "HOURS WORKED"], ["LPC90002", 50]]
+last_week = [["PAYROLL NO", "HOURS WORKED"], ["LPC90002", 40]]
+notes = [["Kawempe casuals"], ["see the next tab"]]
+check(R.read_book([("WEEK", week), ("PREVIOUS", last_week)])["rows"][0]["hours"] == 50.0
+      and R.read_book([("LEFT", notes), ("MASTER PAYROLL", week)])["rows"][0]["hours"] == 50.0,
+      "a workbook is read from the sheet it was saved on, else from its only sheet with the headings")
+try:
+    R.read_book([("LEFT", notes), ("MASTER PAYROLL", week), ("PREVIOUS", last_week)])
+    check(False, "two sheets with headings, saved on neither, are refused")
+except ValueError as error:
+    check("MASTER PAYROLL, PREVIOUS, each with PAYROLL NO and HOURS WORKED" in str(error),
+          "two sheets with headings, saved on neither, are refused: last week's could be read for this one", error)
+try:
+    R.read_book([("LEFT", notes)])
+    check(False, "a workbook with no headings is refused")
+except R.NoHeadings as error:
+    check("PAYROLL NO and HOURS WORKED" in str(error), "a workbook with no headings anywhere is refused, as a sheet is")
 check(R.sheet_errors(None, D(2026, 11, 4)) == ["Say the week: its From and To."]
       and R.sheet_errors(D(2026, 11, 4), D(2026, 11, 1)) == ["To is before From."]
       and R.sheet_errors(D(2026, 10, 29), D(2026, 11, 4), D(2026, 11, 5)) == [],
@@ -146,8 +218,10 @@ check([row["sheet"] for row in R.slip_rows(rows, {"S0"}, D(2026, 11, 4))] == ["S
 days, overtime = R.day_rows([{"sheet": "S1", "to_date": D(2026, 11, 4), "hours": 50, "overtime": 6, "days": 5,
                               "overtime_type": "Casual OT"}])
 check(days == [{"attendance_date": D(2026, 11, 4), "status": "Present", "hours": 50.0, "hours_sheet": "S1", "days_worked": 5.0}]
-      and overtime == [{"attendance_date": D(2026, 11, 4), "status": "Present", "hours": 6.0, "overtime_type": "Casual OT"}],
-      "a sheet's row is the slip's day and overtime, dated the week's last day", (days, overtime))
+      and overtime == [{"attendance_date": D(2026, 11, 4), "status": "Present", "hours": 6.0, "overtime_type": "Casual OT",
+                        "hours_sheet": "S1"}],
+      "a sheet's row is the slip's day and overtime, dated the week's last day; the overtime says its sheet, which "
+      "has it paid at the weekday rate", (days, overtime))
 print("rules: the team's sheet read, the week and the hours checked, what a row comes to, what a slip pays")
 
 # ── 2. The approval ───────────────────────────────────
@@ -287,9 +361,17 @@ people.assign = lambda doctype, name, users, description, date=None, notify=0: S
 people.withdraw = lambda doctype, name, users: SITE[0].told.append(("withdraw", tuple(users)))
 overtime = types.ModuleType("hrms_addon.hrms_addon.overtime")
 overtime._types_for = lambda: "types"
-overtime.type_on = lambda employee, day, types=None: (("Casual OT", None) if employee in SITE[0].typed
-                                                      else (None, "no Overtime Type lists them"))
-overtime.day_kind = lambda employee, day: OR.WEEKDAY
+TYPED_AS = []
+
+
+def type_on(employee, day, types=None, kind=None):
+    TYPED_AS.append(kind)
+    return ("Casual OT", None) if employee in SITE[0].typed else (None, "no Overtime Type lists them")
+
+
+overtime.type_on = type_on
+# the week's last day is a public holiday, as 11 Nov 2026 is taken to be here: the week's overtime is still a weekday's
+overtime.day_kind = lambda employee, day: OR.PUBLIC_HOLIDAY
 weekly_pay = types.ModuleType("hrms_addon.hrms_addon.weekly_pay")
 weekly_pay.standard_rate = lambda: SITE[0].standard_rate
 weekly_pay.rate_history = lambda employees, until=None: {row.employee: [row] for row in SITE[0].tables.get("Hourly Rate", [])
@@ -346,7 +428,9 @@ def site():
               branch=branch, employee_number=number, status="Active", relieving_date=None)
     for name in ("LPC100", "LPC 90017", "LPC103", "LPC300"):
         s.add("Hourly Rate", employee=name, rate=2500, from_date=D(2026, 1, 1))
-    s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5)
+    # a public holiday's overtime at 2, a weekday's at 1.5
+    s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5, applicable_for_public_holiday=1,
+          public_holiday_multiplier=2.0)
     return s
 
 
@@ -360,6 +444,9 @@ check((first.rate, first.overtime_type, first.multiplier, first.hours_pay, first
        first.employee_name) == (2500, "Casual OT", 1.5, 130000.0, 22500.0, 152500.0, "Name LPC100"),
       "each row priced: their own rate on the week's last day, their Overtime Type's 1.5, what it comes to",
       dict(first))
+check(TYPED_AS and set(TYPED_AS) == {OR.WEEKDAY},
+      "the week ends on a public holiday, and its overtime is still a weekday's: the type taken as a weekday's, at 1.5, "
+      "not 2", TYPED_AS)
 check((doc.total_people, doc.total_hours, doc.total_overtime, doc.total_pay, doc.status) == (2, 92.0, 6.0, 252500.0, "Draft"),
       "the week's totals", (doc.total_people, doc.total_hours, doc.total_overtime, doc.total_pay))
 
@@ -479,6 +566,25 @@ try:
     check(False, "a file that is not a workbook is refused")
 except Thrown as error:
     check("could not be read" in str(error), "a file that is not a workbook is refused, plainly")
+# the casual worksheet as the team keeps it: saved on its LEFT tab, the week on MASTER PAYROLL under two title rows,
+# an ID with the line break Excel keeps as _x000D_, and OT HRS for the overtime hours
+book = openpyxl.Workbook()
+book.active.title = "LEFT"
+book.active.append(["Casuals who left"])
+master_tab = book.create_sheet("MASTER PAYROLL")
+for row in (["LUUKA PLASTICS LTD (CASUALS)"], ["CASUAL MASTER PAYROLL"], [],
+            ["SrNo", "PAYROLL NO", "COUNT OF EMPLOYEE", "HOURS WORKED", "WAGE RATE", "OT HRS", "OT1-AMOUNT"],
+            [1, "LPC100_x000D_\n", "x", 50, 2500, 6, 22500], [2, "LPC104", "y", 30, 2500, 0, 0]):
+    master_tab.append(row)
+book.active = 0
+content = io.BytesIO()
+book.save(content)
+FILES["/private/files/worksheet.xlsx"] = content.getvalue()
+found = G.upload_sheet("HR-CHS-NEW", "/private/files/worksheet.xlsx")
+check([(row.employee, row.hours_worked, row.overtime_hours) for row in draft.rows]
+      == [("LPC100", 50.0, 6.0), ("LPC104", 30.0, 0.0)] and not found["problems"],
+      "the team's worksheet taken as saved: the week from its MASTER PAYROLL tab, the ID Excel marked found, OT HRS "
+      "read as the overtime hours beside the amount", ([(row.employee, row.hours_worked) for row in draft.rows], found))
 G.download_template("HR-CHS-NEW")
 name, data = MADE[-1]
 check(data[0] == list(R.TEMPLATE_HEADS)

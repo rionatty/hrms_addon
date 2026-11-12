@@ -122,8 +122,9 @@ def _overlap_errors(doc):
 
 
 def _price(doc):
-    """Each row's rate and Overtime Type on the week's last day, and what it comes to. {"unrated", "no_type"}:
-    those the approval waits on."""
+    """Each row's rate and Overtime Type on the week's last day, and what it comes to. The week's overtime is at
+    the weekday rate (OT1), the type taken as a weekday's: a week's total, whatever day the week ends on, as the
+    weekly slip pays it (weekly_pay.multipliers). {"unrated", "no_type"}: those the approval waits on."""
     from hrms_addon.hrms_addon import overtime, overtime_rules, weekly_pay
 
     employees = [row.employee for row in doc.get("rows") or [] if row.get("employee")]
@@ -137,12 +138,12 @@ def _price(doc):
             unrated.append(row.employee)
         multiplier, row.overtime_type = 0.0, None
         if flt(row.get("overtime_hours")) > 0:
-            name, why = overtime.type_on(row.employee, day, kinds)
+            name, why = overtime.type_on(row.employee, day, kinds, kind=overtime_rules.WEEKDAY)
             if name:
                 row.overtime_type = name
                 if name not in types:
                     types[name] = frappe.get_cached_doc(OVERTIME_TYPE, name).as_dict()
-                multiplier = overtime_rules.multiplier_for(overtime.day_kind(row.employee, day), types[name])
+                multiplier = overtime_rules.multiplier_for(overtime_rules.WEEKDAY, types[name])
             else:
                 no_type.append("%s (%s)" % (row.employee, why) if why else row.employee)
         row.rate, row.multiplier = rate, multiplier
@@ -274,19 +275,23 @@ def download_template(sheet):
     frappe.response["type"] = "binary"
 
 
-def _cells(content):
-    """The first worksheet's values, row by row."""
+def _tables(content):
+    """[(title, rows)]: each worksheet's values, row by row, the one the file was saved on first (rules.read_book)."""
     import openpyxl
 
     book = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     try:
-        return [list(row) for row in book.worksheets[0].iter_rows(values_only=True)]
+        sheets = list(book.worksheets)
+        active = book.active if book.active in sheets else None
+        if active is not None:
+            sheets = [active] + [sheet for sheet in sheets if sheet is not active]
+        return [(sheet.title, [list(row) for row in sheet.iter_rows(values_only=True)]) for sheet in sheets]
     finally:
         book.close()
 
 
 def _key(value):
-    return "".join(str(value or "").split()).upper()
+    return "".join(str(value or "").replace("_x000D_", " ").split()).upper()
 
 
 def _lookup(company):
@@ -311,7 +316,7 @@ def upload_sheet(sheet, file_url):
     if doc.docstatus != 0 or (doc.get("workflow_state") or approval.DRAFT) != approval.DRAFT:
         frappe.throw(_("Only a draft sheet takes an upload: return it to Draft first."), title=_(TITLE))
     try:
-        found = rules.read_rows(_cells(output_pay._file_bytes(file_url)))
+        found = rules.read_book(_tables(output_pay._file_bytes(file_url)))
     except ValueError as error:
         frappe.throw(_(str(error)), title=_(TITLE))
     except Exception:  # noqa: BLE001 — not a workbook openpyxl can read

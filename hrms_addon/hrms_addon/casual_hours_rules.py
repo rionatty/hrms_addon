@@ -15,8 +15,10 @@ hours and overtime as totals rather than a row a day. Once the plant's
 General Manager approves it, the weekly payroll pays it (weekly_pay.py):
 
   the hours        at the person's own Hourly Rate on the week's last day
-  the overtime     at that rate times their Overtime Type's multiplier, with
-                   no cap: a casual's overtime has no maximum
+  the overtime     at that rate times their Overtime Type's weekday
+                   multiplier (OT1), with no cap: a casual's overtime has no
+                   maximum, and a week's total is ordinary overtime whatever
+                   day the week ends on
   the days         none of the days a sheet covers is paid again from the
                    attendance, so the week is paid once
 
@@ -38,15 +40,24 @@ STANDARD_DAY = 10.0
 # a sheet is one week
 MOST_DAYS = 7
 
-# what the headings may say: the template's own first, then the team's casual master payroll's
-EMPLOYEE_HEADS = ("PAYROLL NO", "PAYROLL NUMBER", "EMP ID", "EMPLOYEE ID", "EMPLOYEE", "ID")
+# what the headings may say, as _head reads them: the template's own first, then the team's casual master payroll's
+EMPLOYEE_HEADS = ("PAYROLL NO", "PAYROLL NUMBER", "EMP ID", "EMPLOYEE ID", "EMPLOYEE NO", "EMPLOYEE", "ID")
 NAME_HEADS = ("NAME", "EMPLOYEE NAME", "COUNT OF EMPLOYEE")
 HOURS_HEADS = ("HOURS WORKED", "WORKING HOURS", "TOTAL HOURS", "HOURS")
-OVERTIME_HEADS = ("OVERTIME HOURS", "OT HOURS", "OT1-HOURS", "OVERTIME", "OT")
+OVERTIME_HEADS = ("OVERTIME HOURS", "OT HOURS", "OT1 HOURS", "OVERTIME", "OT")
 DAYS_HEADS = ("DAYS WORKED", "DAYS")
 TEMPLATE_HEADS = ("PAYROLL NO", "NAME", "HOURS WORKED", "OVERTIME HOURS", "DAYS WORKED")
 # a row the team's own sheet adds up on, not a person
 TOTALS = ("TOTAL", "TOTALS", "GRAND TOTAL", "SUB TOTAL", "SUBTOTAL")
+# a heading's words as a sheet may spell them
+SPELLINGS = {"HRS": "HOURS", "HOUR": "HOURS"}
+# the words of a heading of overtime money, rather than hours (the casual master payroll's OT1-AMOUNT)
+AMOUNT_WORDS = ("AMOUNT", "AMT", "AMNT", "PAY", "VALUE", "UGX", "SHS")
+NO_HEADINGS = "The sheet has no PAYROLL NO and HOURS WORKED headings: download the template and fill that in."
+
+
+class NoHeadings(ValueError):
+    """A sheet with no PAYROLL NO and HOURS WORKED headings to read."""
 
 
 def _num(value):
@@ -75,7 +86,45 @@ def shown(value):
 
 
 def _head(value):
-    return " ".join(str(value or "").replace("\n", " ").split()).upper()
+    """A heading as words, as the lists above have them: case, line breaks (and the _x000D_ Excel leaves of one),
+    dashes, dots and colons aside, O/T as OT and HRS as HOURS. "OT1-HRS" is OT1 HOURS, "Payroll No." PAYROLL NO."""
+    text = str(value or "").replace("_x000D_", " ").upper().replace("O/T", "OT")
+    for mark in "\r\n\t-_.:":
+        text = text.replace(mark, " ")
+    return " ".join(SPELLINGS.get(word, word) for word in text.split())
+
+
+def _employee(value):
+    """An ID as the sheet has it, for matching: spaces at either end, line breaks and the _x000D_ Excel leaves of one
+    aside, one space kept inside ("LPC 13797"), and a number Excel holds as 12345.0 written 12345."""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return " ".join(str(value if value is not None else "").replace("_x000D_", " ").split())
+
+
+def _money(value):
+    """A cell as an amount, its thousands commas allowed: "13,500" is 13500. Nought for what is no number."""
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value if value is not None else "").replace(",", "").strip() or 0)
+    except ValueError:
+        return 0.0
+
+
+def _overtime_kind(head):
+    """"amount" for a heading of overtime money (OT1 AMOUNT, TOTAL OT AMOUNT, OVERTIME PAY), "hours" for one of
+    overtime hours (OT HOURS, OT2 HOURS, OVERTIME), None for any other (OT RATE, OVERTIME TYPE, BASIC)."""
+    words = head.split()
+    if not any(re.fullmatch(r"(OT|OVERTIME)\d*", word) for word in words):
+        return None
+    if any(word.startswith(AMOUNT_WORDS) for word in words):
+        return "amount"
+    if "RATE" in words or "TYPE" in words:
+        return None
+    return "hours"
 
 
 def number(value):
@@ -106,21 +155,23 @@ def _find(heads, wanted):
     return None
 
 
-def _overtime_amount(heads):
-    """The column of an overtime amount rather than its hours, as the casual master payroll's OT1-AMOUNT: OT1-AMOUNT,
-    OT AMT, OVERTIME AMOUNT. None where there is none."""
-    for at, head in enumerate(heads):
-        words = head.replace("-", " ").split()
-        if words and re.fullmatch(r"(OT|OVERTIME)\d*", words[0]) and any(word.startswith("AM") for word in words[1:]):
-            return at
-    return None
+def _unread(heads, index, kind, read):
+    """Why overtime in a column the upload does not read stops it: read as none, it would go unpaid."""
+    if kind == "amount":
+        return ("The sheet has %s, an amount, and no overtime hours: add an OVERTIME HOURS column with each casual's "
+                "overtime hours. The payroll works out the amount from their rate and Overtime Type." % heads[index])
+    if read is not None:
+        return ("The sheet has %s as well as %s: one column of overtime hours is read. Put each casual's overtime "
+                "hours for the week in %s." % (heads[index], heads[read], heads[read]))
+    return "The sheet's %s is not a heading the upload reads: name that column OVERTIME HOURS." % heads[index]
 
 
 def read_rows(table):
     """{"rows": [{"line", "employee", "name", "hours", "overtime", "days"}], "problems": [text]} from a sheet's
     cells, a list of rows of values, whatever row the headings are on and whatever else it carries. A person with
-    nothing on the row is left out; a total line is not a person. Raises ValueError with no headings to read, and
-    where the overtime is given as an amount with no overtime hours beside it: read as none, it would go unpaid."""
+    nothing on the row is left out; a total line is not a person. Raises NoHeadings with no headings to read, and
+    ValueError where a person's overtime would go unpaid: given as an amount with no overtime hours to read, or as
+    hours in a column that is not the one read."""
     rows = [list(row or ()) for row in table or ()]
     start = None
     for at, row in enumerate(rows):
@@ -129,31 +180,33 @@ def read_rows(table):
             start = at
             break
     if start is None:
-        raise ValueError("The sheet has no PAYROLL NO and HOURS WORKED headings: download the template and fill "
-                         "that in.")
+        raise NoHeadings(NO_HEADINGS)
     heads = [_head(cell) for cell in rows[start]]
+    # the headings as the sheet writes them, for saying which
+    written = [_employee(cell) for cell in rows[start]]
     columns = {"employee": _find(heads, EMPLOYEE_HEADS), "name": _find(heads, NAME_HEADS),
                "hours": _find(heads, HOURS_HEADS), "overtime": _find(heads, OVERTIME_HEADS),
                "days": _find(heads, DAYS_HEADS)}
-    amount = _overtime_amount(heads) if columns["overtime"] is None else None
+    read = columns["overtime"]
+    # the overtime the sheet gives that would not be read: money where there are no hours, hours beside those read
+    unread = [(at, kind) for at, kind in enumerate(_overtime_kind(head) for head in heads)
+              if (kind == "amount" and read is None) or (kind == "hours" and at != read)]
     found, problems = [], []
     for at in range(start + 1, len(rows)):
         row = rows[at]
 
-        def cell(key):
-            index = columns[key]
+        def cell(index):
             return row[index] if index is not None and index < len(row) else None
 
-        employee = " ".join(str(cell("employee") or "").split())
+        employee = _employee(cell(columns["employee"]))
         if not employee or employee.upper() in TOTALS:
             continue
-        if amount is not None and amount < len(row) and (number(row[amount])[0] or 0) > 0:
-            raise ValueError("The sheet has %s, an amount, and no overtime hours: add an OVERTIME HOURS column with "
-                             "each casual's overtime hours. The payroll works out the amount from their rate and "
-                             "Overtime Type." % heads[amount])
+        for index, kind in unread:
+            if _money(cell(index)) > 0:
+                raise ValueError(_unread(written, index, kind, read))
         line, values, wrong = at + 1, {}, []
         for key in ("hours", "overtime", "days"):
-            value, why = number(cell(key))
+            value, why = number(cell(columns[key]))
             values[key] = value
             if why:
                 wrong.append(why)
@@ -162,9 +215,33 @@ def read_rows(table):
             continue
         if not (values["hours"] or values["overtime"] or values["days"]):
             continue
-        found.append({"line": line, "employee": employee, "name": " ".join(str(cell("name") or "").split()),
+        found.append({"line": line, "employee": employee, "name": _employee(cell(columns["name"])),
                       "hours": values["hours"], "overtime": values["overtime"], "days": values["days"]})
     return {"rows": found, "problems": problems}
+
+
+def read_book(tables):
+    """read_rows of the sheet to take from a workbook: the one it was saved on (the first of `tables`) where that one
+    has the headings, else the only one that has them, as the casual master payroll's among a worksheet's others.
+    Several with headings, the one saved on not among them, is refused: last week's could be read for this one.
+    tables: [(title, rows)], the sheet saved on first."""
+    titles, taken, missing = [], None, None
+    for at, (title, table) in enumerate(tables or ()):
+        try:
+            found = read_rows(table)
+        except NoHeadings as error:
+            missing = missing or error
+            continue
+        if at == 0:
+            return found
+        titles.append(title)
+        taken = taken or found
+    if len(titles) == 1:
+        return taken
+    if titles:
+        raise ValueError("The workbook has %s, each with PAYROLL NO and HOURS WORKED: open the week's sheet, save the "
+                         "file on it, and upload it again." % ", ".join(titles))
+    raise missing or NoHeadings(NO_HEADINGS)
 
 
 def week_days(from_date, to_date):
@@ -200,6 +277,9 @@ def row_errors(row, days, standard=STANDARD_DAY):
                       % (hours, int(days), _num(standard or STANDARD_DAY)))
     if days and worked > int(days):
         errors.append("%g days worked in a week of %d days" % (worked, int(days)))
+    # no cap on overtime, but no more hours in all than the days have: an amount in an hours column is caught here
+    if days and hours + overtime > int(days) * 24:
+        errors.append("%g hours in all is more than %d days have" % (hours + overtime, int(days)))
     return errors
 
 
@@ -257,12 +337,14 @@ def slip_rows(rows, paid, end):
 def day_rows(rows):
     """A sheet's rows as the weekly slip's days (weekly_pay.slip_before_validate): ([day], [overtime]), each
     dated the week's last day; the day carries the sheet, the days worked and the week's hours, which a standard
-    day does not cap (they are a week's), and the overtime its Overtime Type."""
+    day does not cap (they are a week's), and the overtime its Overtime Type and the sheet, which has it paid at the
+    weekday rate (weekly_pay.multipliers): a week's total, whatever day the week ends on."""
     days, overtime = [], []
     for row in rows or []:
         days.append({"attendance_date": _date(row["to_date"]), "status": "Present", "hours": round(_num(row.get("hours")), 2),
                      "hours_sheet": row.get("sheet"), "days_worked": round(_num(row.get("days")), 2)})
         if _num(row.get("overtime")) > 0:
             overtime.append({"attendance_date": _date(row["to_date"]), "status": "Present",
-                             "hours": round(_num(row.get("overtime")), 2), "overtime_type": row.get("overtime_type")})
+                             "hours": round(_num(row.get("overtime")), 2), "overtime_type": row.get("overtime_type"),
+                             "hours_sheet": row.get("sheet")})
     return days, overtime

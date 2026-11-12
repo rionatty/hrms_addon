@@ -202,14 +202,16 @@ def overtime_due(employees, start, end, company):
 
 def multipliers(employee, rows):
     """{date: the multiplier for that day's overtime}: its Overtime Type's, for the sort of day it is for the
-    person (overtime.day_kind), as the overtime module costs a request. Read for one slip's days only."""
+    person (overtime.day_kind), as the overtime module costs a request. A Casual Hours Sheet's week of overtime is
+    at the weekday rate (OT1), dated though it is the week's last day: its days are not known, and a week ending on a
+    rest day or a holiday is not all worked on one. Read for one slip's days only."""
     from hrms_addon.hrms_addon import overtime, overtime_rules
 
     types = {name: frappe.get_cached_doc(OVERTIME_TYPE, name).as_dict()
              for name in {row["overtime_type"] for row in rows or []} if frappe.db.exists(OVERTIME_TYPE, name)}
-    return {row["attendance_date"]: overtime_rules.multiplier_for(overtime.day_kind(employee, row["attendance_date"]),
-                                                                  types.get(row["overtime_type"]))
-            for row in rows or []}
+    return {row["attendance_date"]: overtime_rules.multiplier_for(
+        overtime_rules.WEEKDAY if row.get("hours_sheet") else overtime.day_kind(employee, row["attendance_date"]),
+        types.get(row["overtime_type"])) for row in rows or []}
 
 
 def rate_history(employees, until=None):
