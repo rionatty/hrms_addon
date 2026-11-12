@@ -33,6 +33,7 @@ General Manager approves it, the weekly payroll pays it (weekly_pay.py):
 """
 
 import datetime
+import decimal
 import re
 
 # a casual's standard day where Output Pay Settings give none (Luuka, 12 Nov 2026: "working hour is 10")
@@ -283,11 +284,18 @@ def row_errors(row, days, standard=STANDARD_DAY):
     return errors
 
 
+def shillings(value):
+    """A casual's pay in whole shillings, half a shilling rounded up, as the weekly slip pays it
+    (weekly_pay_rules.shillings): the sheet shows what the slip will."""
+    return float(decimal.Decimal(repr(round(_num(value), 2))).quantize(decimal.Decimal("1"),
+                                                                     rounding=decimal.ROUND_HALF_UP))
+
+
 def pay(hours, overtime, rate, multiplier):
     """{"hours_pay", "overtime_pay", "total_pay"}: the hours at the rate, the overtime at the rate times the
     multiplier."""
-    hours_pay = round(_num(hours) * _num(rate), 2)
-    overtime_pay = round(_num(overtime) * _num(rate) * _num(multiplier), 2)
+    hours_pay = shillings(_num(hours) * _num(rate))
+    overtime_pay = shillings(_num(overtime) * _num(rate) * _num(multiplier))
     return {"hours_pay": hours_pay, "overtime_pay": overtime_pay, "total_pay": round(hours_pay + overtime_pay, 2)}
 
 

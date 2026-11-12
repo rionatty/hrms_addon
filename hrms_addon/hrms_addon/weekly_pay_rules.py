@@ -67,6 +67,7 @@ again. A monthly payroll ending before weekly pay began pays them as before.
 """
 
 import datetime
+import decimal
 
 WEEKLY = "Weekly"
 PER_PIECE = "Per Piece"
@@ -156,14 +157,22 @@ def overtime_to_pay(attendance, paid):
     return sorted(out, key=lambda row: row["attendance_date"])
 
 
+def shillings(value):
+    """A casual's pay in whole shillings, half a shilling rounded up, as the team's own payroll has it (Luuka's
+    Casual Master Payroll, 12 Nov 2026: "makes the payrol can come accurate as this"). Fifteen hours of overtime at
+    857 x 1.5 is 19,282.5 and is paid as 19,283; Python and Frappe would round it to the even 19,282."""
+    return float(decimal.Decimal(repr(round(_num(value), 2))).quantize(decimal.Decimal("1"),
+                                                                     rounding=decimal.ROUND_HALF_UP))
+
+
 def overtime_amount(rows, rate, multipliers):
     """What the overtime comes to: each day's hours x the person's own hourly rate that day x the multiplier its
     Overtime Type gives that day. rate: one rate, or {date: rate}; multipliers: {date: multiplier}."""
     def rate_on_day(day):
         return _num(rate.get(day)) if isinstance(rate, dict) else _num(rate)
 
-    return round(sum(_num(row.get("hours")) * rate_on_day(_date(row.get("attendance_date")))
-                     * _num((multipliers or {}).get(_date(row.get("attendance_date")))) for row in rows or []), 2)
+    return shillings(sum(_num(row.get("hours")) * rate_on_day(_date(row.get("attendance_date")))
+                         * _num((multipliers or {}).get(_date(row.get("attendance_date")))) for row in rows or []))
 
 
 def rate_on(rates, day):
@@ -198,7 +207,7 @@ def week_pay(rows, hours=None, rate=None):
     before its days carried their rates pays its hours at its one rate."""
     worked = [row for row in rows or [] if _num(row.get("hours")) > 0]
     if worked and all(_num(row.get("rate")) > 0 for row in worked):
-        return round(sum(_num(row.get("hours")) * _num(row.get("rate")) for row in worked), 2)
+        return shillings(sum(_num(row.get("hours")) * _num(row.get("rate")) for row in worked))
     return amount(hours, rate)
 
 
@@ -247,7 +256,7 @@ def total_hours(days):
 
 
 def amount(hours, rate):
-    return round(_num(hours) * _num(rate), 2)
+    return shillings(_num(hours) * _num(rate))
 
 
 # ── The dates ─────────────────────────────────────────

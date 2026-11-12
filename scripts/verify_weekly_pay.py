@@ -153,10 +153,24 @@ due = R.overtime_to_pay(OT, {"2026-11-02": 1.5, D(2026, 10, 30): 0.5})
 check([(row["attendance_date"], row["hours"]) for row in due] == [(D(2026, 10, 29), 3.0), (D(2026, 10, 30), 1.5)],
       "the overtime to pay: approved and sent to payroll, less what a slip paid, earliest first; none with no type", due)
 check(R.overtime_amount([{"attendance_date": D(2026, 10, 29), "hours": 2}, {"attendance_date": D(2026, 10, 30), "hours": 3}],
-                        857, {D(2026, 10, 29): 1.5, D(2026, 10, 30): 1.5}) == 6427.5
+                        857, {D(2026, 10, 29): 1.5, D(2026, 10, 30): 1.5}) == 6428.0
       and R.overtime_amount([{"attendance_date": "2026-10-31", "hours": 2}], 1000, {D(2026, 10, 31): 2.0}) == 4000.0
       and R.overtime_amount([], 1000, {}) == 0.0,
-      "the worksheet's overtime: hours x their own rate x 1.5, or what the type gives a rest day")
+      "the worksheet's overtime: hours x their own rate x 1.5, or what the type gives a rest day; five hours at 857 "
+      "come to 6,427.5, paid as 6,428")
+# a casual is paid in whole shillings, half a shilling rounded up, as the team's Casual Master Payroll has it
+# (Luuka, 12 Nov 2026: "makes the payrol can come accurate as this"): its 17 rows that end in a half
+check([R.shillings(value) for value in (19282.5, 39850.5, 21853.5, 8998.5, 14140.5, 19282.49, 12855, 0, None)]
+      == [19283.0, 39851.0, 21854.0, 8999.0, 14141.0, 19282.0, 12855.0, 0.0, 0.0],
+      "half a shilling is rounded up, never to the even shilling below: 15 hours at 857 x 1.5 are 19,283, and 31 "
+      "hours 39,851", [R.shillings(value) for value in (19282.5, 39850.5, 21853.5, 8998.5, 14140.5, 19282.49)])
+check(R.overtime_amount([{"attendance_date": D(2026, 10, 29), "hours": 15}], 857, {D(2026, 10, 29): 1.5}) == 19283.0
+      and R.overtime_amount([{"attendance_date": D(2026, 10, 29), "hours": 7}, {"attendance_date": D(2026, 10, 30), "hours": 8}],
+                            857, {D(2026, 10, 29): 1.5, D(2026, 10, 30): 1.5}) == 19283.0
+      and R.week_pay([{"hours": 9.5, "rate": 857}, {"hours": 10, "rate": 857}]) == 16712.0
+      and R.amount(9.5, 857) == 8142.0 and R.amount(50, 857) == 42850.0,
+      "the week's overtime and the week's hours are each rounded once, on what the week comes to: 15 hours over two "
+      "days are paid as 15 hours over one")
 RATES = [{"rate": 857, "from_date": D(2026, 1, 1)}, {"rate": 1000, "from_date": "2026-11-02"},
          {"rate": 0, "from_date": D(2026, 11, 10)}]
 check(R.rate_on(RATES, D(2026, 11, 1)) == 857 and R.rate_on(RATES, "2026-11-02") == 1000

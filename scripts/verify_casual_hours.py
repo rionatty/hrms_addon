@@ -200,6 +200,11 @@ check(R.row_errors({"hours": 70.5}, 7) == ["70.5 hours is more than 7 days of 10
       R.row_errors({"hours": 70.5}, 7))
 check(R.row_errors({"hours": -1}, 7) == ["hours and days cannot be less than nothing"]
       and R.row_errors({"days": 8}, 7) == ["8 days worked in a week of 7 days"], "nothing below nought, no eighth day")
+check(R.pay(50, 15, 857, 1.5) == {"hours_pay": 42850.0, "overtime_pay": 19283.0, "total_pay": 62133.0}
+      and R.pay(60, 31, 857, 1.5)["overtime_pay"] == 39851.0 and R.pay(9.5, 0, 857, 1.5)["hours_pay"] == 8142.0
+      and all(R.shillings(value) == WR.shillings(value) for value in (19282.5, 39850.5, 21853.5, 0.5, 1.49, 0, 857)),
+      "pay is in whole shillings, half a shilling rounded up, as the team's own payroll has it and as the weekly slip "
+      "pays it: 15 hours of overtime at 857 are 19,283", R.pay(50, 15, 857, 1.5))
 check(R.pay(50, 6, 2500, 1.5) == {"hours_pay": 125000.0, "overtime_pay": 22500.0, "total_pay": 147500.0},
       "the hours at the rate, the overtime at the rate times its multiplier", R.pay(50, 6, 2500, 1.5))
 check(R.overlap(D(2026, 10, 29), D(2026, 11, 4), D(2026, 11, 4), D(2026, 11, 10))
