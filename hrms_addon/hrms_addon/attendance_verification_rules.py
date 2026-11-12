@@ -137,6 +137,12 @@ def fed_by_sheets(days, plant_days):
     return bool(days) and set(days) <= set(plant_days or ())
 
 
+def is_casual(person):
+    """Whether somebody is a casual the weekly payroll pays, by the hour or by the piece: their days nobody marked are
+    skipped on a weekly sheet, not put right."""
+    return (person.get("custom_pay_category") or "") in CASUAL_CATEGORIES
+
+
 def by_the_hour(person):
     """Whether a casual is paid for the hours they work: a Per Piece casual is paid for their pieces, and their Hours
     Worked are nought however many days they worked."""

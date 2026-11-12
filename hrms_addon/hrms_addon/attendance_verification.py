@@ -207,7 +207,7 @@ def _read(doc):
     days = rules.days_between(doc.get("from_date"), doc.get("to_date"))
     found = _people(doc) if days else {}
     if not found:
-        return {"rows": [], "issues": []}
+        return {"rows": [], "issues": [], "skipped": []}
     start, end = days[0], days[-1]
     # a weekly sheet's Hours Worked: the hours the weekly payroll pays for the days worked
     weekly = doc.get("pay_kind") == rules.WEEKLY
@@ -235,7 +235,7 @@ def _read(doc):
     lines = board._register_rows(found, marked, off_duty, _holidays(found, start, end, doc.company), days,
                                  attendance.all_shift_hours(), clocked)
     overtime = _overtime_hours(employees, start, end)
-    rows, issues = [], []
+    rows, issues, skipped = [], [], []
     for line in lines:
         person = found[line["employee"]]
         statuses = {day: row.status for day, row in (marked.get(line["employee"]) or {}).items()}
@@ -255,13 +255,20 @@ def _read(doc):
             figures = rules.with_hours_sheet(figures, inside, given, counted)
         rows.append(dict(figures, employee=person.name, employee_name=person.employee_name,
                          department=person.department))
-        issues += rules.person_issues(dict(person, employee=person.name), line["days"], line["clock"], open_days)
+        unmarked = rules.person_issues(dict(person, employee=person.name), line["days"], line["clock"], open_days)
+        # a casual's days nobody marked are skipped, not put right: they are counted, and paid nothing, as their pay is
+        # the Casual Hours Sheet's, their pieces or the days marked (Luuka, 12 Nov 2026: "if casual hourse not maked
+        # please skip and proceed"); Mark Attendance still offers them
+        if weekly and rules.is_casual(person):
+            skipped += unmarked
+        else:
+            issues += unmarked
     issues += _waiting(found, start, end)
     # a sheet's figures are not yet what the payroll pays until its General Manager approves it
     issues += [line for line in (rules.hours_sheet_issue(name, sheet, start, end)
                                  for name, sheet in sorted(sheets["sheets"].items())) if line]
     issues.sort(key=lambda row: (str(row["from_date"]), row.get("employee_name") or "", row["issue"]))
-    return {"rows": rows, "issues": issues}
+    return {"rows": rows, "issues": issues, "skipped": skipped}
 
 
 def _full_day():
@@ -431,12 +438,18 @@ def _with_hr(doc):
         frappe.throw(_("You may not mark attendance."), frappe.PermissionError, title=_(DOCTYPE))
 
 
+def _markable(doc):
+    """The sheet's days nobody marked: those to put right, and a casual's it skips."""
+    found = _read(doc)
+    return found["issues"] + found.get("skipped", [])
+
+
 @frappe.whitelist()
 def days_to_mark(name):
     """The sheet's people with days nobody marked, each with those days, and every such day."""
     doc = frappe.get_doc(DOCTYPE, name)
     _with_hr(doc)
-    found = sorted(rules.days_to_mark(_read(doc)["issues"]).values(),
+    found = sorted(rules.days_to_mark(_markable(doc)).values(),
                    key=lambda person: (person["employee_name"] or "", person["employee"]))
     return {
         "people": [dict(person, days=[str(day) for day in person["days"]],
@@ -456,7 +469,7 @@ def mark_days(name, status, employees=None, days=None, leave_type=None):
                                bool(leave_type) and bool(frappe.db.exists("Leave Type", leave_type)))
     if errors:
         frappe.throw("<br>".join(_(error) for error in errors), title=_(DOCTYPE))
-    picked = rules.chosen_days(rules.days_to_mark(_read(doc)["issues"]), frappe.parse_json(employees) or [],
+    picked = rules.chosen_days(rules.days_to_mark(_markable(doc)), frappe.parse_json(employees) or [],
                                frappe.parse_json(days) or [])
     if not picked:
         frappe.throw(_("None of the days picked is still not marked. Press Get Attendance to read the sheet again."),

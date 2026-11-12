@@ -111,6 +111,15 @@ check(not R.on_sheet(piece, "Monthly", "2026-09-26", "2026-10-25"),
 check(R.by_the_hour(casual) and not R.by_the_hour(piece) and not R.by_the_hour(staff)
       and not R.by_the_hour(dict(staff, custom_pay_category=None)),
       "only a casual paid by the hour has hours to count: a Per Piece casual's are nought")
+# a casual's days nobody marked are skipped on a weekly sheet, not put right (Luuka, 12 Nov 2026: "if casual hourse not
+# maked please skip and proceed"); a monthly person's still stop it
+check(R.is_casual(casual) and R.is_casual(piece) and not R.is_casual(staff)
+      and not R.is_casual(dict(staff, custom_pay_category="Per Meter")),
+      "the casuals are those paid by the hour or the piece, whose unmarked days a weekly sheet skips")
+read_skip = io.open(os.path.join(PACKAGE, "hrms_addon", "attendance_verification.py"), encoding="utf-8").read()
+check("if weekly and rules.is_casual(person):\n            skipped += unmarked\n        else:\n            issues += unmarked"
+      in read_skip and 'return {"rows": rows, "issues": issues, "skipped": skipped}' in read_skip,
+      "on a weekly sheet a casual's days nobody marked are kept apart: counted, offered to mark, stopping nothing")
 # a week the plant's Casual Hours Sheets give is theirs on a weekly sheet, as the weekly payroll pays it (Luuka, 12 Nov
 # 2026: "validate attendace varies from the casual hour sheet"; "for casuals the attendance verification should be from
 # casual hours sheet")
@@ -602,9 +611,11 @@ for needle, why in (
      "and with HR: not while the General Manager has it, nor once verified"),
     ('frappe.has_permission(ATTENDANCE, "create") and frappe.has_permission(ATTENDANCE, "submit")',
      "by somebody who may mark attendance"),
-    ('found = sorted(rules.days_to_mark(_read(doc)["issues"]).values(),', "the days offered are the sheet's own, read now"),
-    ('picked = rules.chosen_days(rules.days_to_mark(_read(doc)["issues"]), frappe.parse_json(employees) or [],',
+    ('found = sorted(rules.days_to_mark(_markable(doc)).values(),', "the days offered are the sheet's own, read now"),
+    ('picked = rules.chosen_days(rules.days_to_mark(_markable(doc)), frappe.parse_json(employees) or [],',
      "the days marked are read again too, and only those picked are marked"),
+    ('found = _read(doc)\n    return found["issues"] + found.get("skipped", [])',
+     "the days offered are those to put right and a casual's skipped ones (Luuka, 12 Nov 2026)"),
     ("if len(picked) <= MARK_AT_ONCE:\n        return _mark(doc.name, status, leave_type, picked)",
      "a few at once"),
     ('job_id="hrms_addon_verification_mark::%s" % doc.name,\n                         deduplicate=True,',
