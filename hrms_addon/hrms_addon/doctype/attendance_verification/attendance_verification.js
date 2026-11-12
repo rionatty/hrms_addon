@@ -23,6 +23,7 @@ frappe.ui.form.on("Attendance Verification", {
 		ha_verify_header(frm);
 		ha_verify_intro(frm);
 		ha_verify_pages(frm);
+		ha_verify_hours_column(frm);
 		// whoever may save it now: HR while it is a draft, the General Manager while it waits
 		if (frm.doc.docstatus === 0 && !frappe.workflow.is_read_only(frm.doctype, frm.docname)) {
 			frm.add_custom_button(__("Get Attendance"), () => frm.save());
@@ -36,6 +37,7 @@ frappe.ui.form.on("Attendance Verification", {
 	branch: ha_verify_weekly,
 	pay_kind(frm) {
 		ha_verify_header(frm);
+		ha_verify_hours_column(frm);
 		if (frm.doc.pay_kind === "Monthly") ha_verify_month_dates(frm, true);
 		else ha_verify_weekly(frm);
 	},
@@ -161,6 +163,16 @@ function ha_verify_weekly(frm) {
 		// From first: its handler fills a week, then the To handed over is written over it
 		frm.set_value({ from_date: dates.from_date, to_date: dates.to_date });
 	});
+}
+
+// Hours Worked is a weekly sheet's column (Luuka, 12 Nov 2026: "for weekly add no of hours worked"): the casuals are
+// paid by the hour. Frappe's grid keeps the change to this form, and redraws only when it changes.
+function ha_verify_hours_column(frm) {
+	const grid = frm.fields_dict.employees && frm.fields_dict.employees.grid;
+	if (!grid || !grid.set_column_disp_in_list_view) return;
+	const hide = frm.doc.pay_kind === "Weekly" ? 0 : 1;
+	if (((grid.column_disp_overrides || {}).hours_worked || 0) === hide) return;
+	grid.set_column_disp_in_list_view("hours_worked", !hide);
 }
 
 // a weekly sheet's To follows the From picked: the week of seven days from it (Luuka, 11 Nov 2026: "the date should

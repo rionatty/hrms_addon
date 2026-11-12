@@ -39,7 +39,7 @@ OFF_CODES = (WEEKLY_OFF, OFF_DUTY)
 HALF_DAY = "Half Day"
 
 # a line of the sheet, in the order the table shows it
-FIGURES = ("worked", "half_day", "absent", "leave", "off", "not_marked", "overtime_hours")
+FIGURES = ("worked", "half_day", "absent", "leave", "off", "not_marked", "overtime_hours", "hours_worked")
 
 NOT_MARKED = "Not marked"
 CLOCKED = "Clocked in, not marked"
@@ -132,12 +132,14 @@ def employed(person, day):
     return bool(day) and not (joined and day < joined) and not (left and day > left)
 
 
-def person_figures(person, codes, clock, statuses, overtime_hours, days):
+def person_figures(person, codes, clock, statuses, overtime_hours, days, hours=None, standard=None):
     """A person's line: the Board's letters, counted over the days they were on the books.
 
     codes: {date: letter} (attendance_rules.register_code); clock: the dates the clock saw them and nobody has marked
     (the Board shows those as worked, drawn lighter); statuses: {date: Attendance status}, for the half days;
-    overtime_hours: what the attendance carries."""
+    overtime_hours: what the attendance carries. hours: {date: the Working Hours marked}, on a weekly sheet only: its
+    Hours Worked are the hours the weekly payroll pays for the days worked (day_hours; Luuka, 12 Nov 2026: "for weekly
+    add no of hours worked"); standard: a full day's hours."""
     row = dict.fromkeys(FIGURES, 0)
     codes = {_date(day): code for day, code in (codes or {}).items()}
     clock = {_date(day) for day in clock or ()}
@@ -153,6 +155,8 @@ def person_figures(person, codes, clock, statuses, overtime_hours, days):
             row["worked"] += 1
             if statuses.get(day) == HALF_DAY:
                 row["half_day"] += 1
+            if hours is not None:
+                row["hours_worked"] += day_hours(statuses.get(day), hours.get(day), standard)
         elif code == ABSENT:
             row["absent"] += 1
         elif code in LEAVE_CODES:
@@ -160,7 +164,18 @@ def person_figures(person, codes, clock, statuses, overtime_hours, days):
         elif code in OFF_CODES:
             row["off"] += 1
     row["overtime_hours"] = round(_num(overtime_hours), 2)
+    row["hours_worked"] = round(row["hours_worked"], 2)
     return row
+
+
+def day_hours(status, worked, standard):
+    """The hours a day worked pays a casual by the hour, as the weekly payroll counts them (weekly_pay_rules.day_hours,
+    held to the same answers by scripts/verify_attendance_verification.py): those marked, up to a full day; a day
+    marked with none is a full day, a half day half of one."""
+    day, hours = _num(standard), _num(worked)
+    if hours > 0:
+        return round(min(hours, day), 2)
+    return round(day / 2.0 if status == HALF_DAY else day, 2)
 
 
 def person_issues(person, codes, clock, days):

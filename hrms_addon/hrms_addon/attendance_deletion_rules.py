@@ -63,7 +63,7 @@ TO_DELETE, KEPT_ON_SLIPS, KEPT_FROM_REQUESTS, KEPT_IN_USE = "to_delete", "kept_o
 COUNTS = (TO_DELETE, KEPT_ON_SLIPS, KEPT_FROM_REQUESTS, KEPT_IN_USE)
 
 # what a deletion chooses, fixed once it has started, and what only the job writes
-CHOICES = ("company", "from_date", "to_date", "department", "employee", "attendance_status", "keep_deleted")
+CHOICES = ("company", "from_date", "to_date", "department", "employee", "attendance_status", "upload", "keep_deleted")
 SERVER_FIELDS = (*COUNTS, "draft_slips", "status", "started_by", "started_on", "finished_on", "deleted", "kept",
                  "message", "backup_file", "kept_file", "cursor_date", "cursor_name", "backup_size", "kept_size",
                  "stop_requested")

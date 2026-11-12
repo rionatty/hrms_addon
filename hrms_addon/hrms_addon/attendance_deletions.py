@@ -47,6 +47,9 @@ CHECKIN = "Employee Checkin"
 SLIP = "Salary Slip"
 WEEKLY_DAY = "Weekly Pay Day"
 VERIFICATION = "Attendance Verification"
+UPLOAD = "Upload Attendance"
+# what an uploaded day names its upload by (attendance_upload.py)
+UPLOAD_FIELD = "custom_attendance_upload"
 # what a record's own links do not hold it back for: these are let go of with it
 LET_GO = {(ATTENDANCE, "amended_from"), (CHECKIN, "attendance")}
 BACKUP, KEPT = "deleted attendance", "attendance kept"
@@ -68,6 +71,13 @@ def deletion_validate(doc, method=None):
     problem = rules.period_problem(doc.get("from_date"), doc.get("to_date"))
     if problem:
         frappe.throw(_(problem), title=_(DOCTYPE))
+    if doc.get("upload"):
+        company = frappe.db.get_value(UPLOAD, doc.upload, "company")
+        if company and company != doc.get("company"):
+            frappe.throw(_("{0} is an upload of {1}. Pick that company.").format(doc.upload, company), title=_(DOCTYPE))
+        # nothing held from auto attendance: a hold is a company's, a department's or one person's days, never only
+        # the people an upload marked
+        doc.set("keep_deleted", 0)
     if doc.status != rules.DRAFT:
         if any(doc.has_value_changed(field) for field in rules.CHOICES):
             frappe.throw(_("This deletion has started. Make a new one to delete anything else."), title=_(DOCTYPE))
@@ -163,6 +173,21 @@ def progress(deletion):
     return {"status": doc.get("status"), "deleted": cint(doc.get("deleted")), "kept": cint(doc.get("kept"))}
 
 
+@frappe.whitelist()
+def upload_days(upload):
+    """An upload's company and the first and last day it marked, for the form to fill in: else the upload's own dates."""
+    frappe.has_permission(DOCTYPE, "write", throw=True)
+    doc = frappe.get_doc(UPLOAD, upload)
+    doc.check_permission("read")
+    first = last = None
+    if frappe.get_meta(ATTENDANCE).has_field(UPLOAD_FIELD):
+        first, last = (next(iter(frappe.get_all(ATTENDANCE, filters={UPLOAD_FIELD: upload}, pluck="attendance_date",
+                                                order_by="attendance_date %s" % way, limit=1)), None)
+                       for way in ("asc", "desc"))
+    return {"company": doc.company, "from_date": str(first or doc.get("from_date") or ""),
+            "to_date": str(last or doc.get("to_date") or "")}
+
+
 # ── What there is to delete ──────────────────────────────
 def count(doc):
     """{count field: how many}, and the draft slips the deletion would leave out of date."""
@@ -181,7 +206,9 @@ def _slices(doc, fields, first=None, after=None):
     `after` on that day. A day's records come from the day's own index, in name order, with no sorting to do."""
     first = getdate(first) if first else None
     choices = {"company": doc.get("company")}
-    for column, choice in (("department", "department"), ("employee", "employee"), ("status", "attendance_status")):
+    # one upload's days only, where one is chosen (Luuka, 12 Nov 2026): the days it marked name it
+    for column, choice in (("department", "department"), ("employee", "employee"), ("status", "attendance_status"),
+                           (UPLOAD_FIELD, "upload")):
         if doc.get(choice):
             choices[column] = doc.get(choice)
     # a weekly slip can pay a day marked after its week, which its own dates do not reach: the period's, read once

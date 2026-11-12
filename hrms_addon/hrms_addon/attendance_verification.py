@@ -34,7 +34,7 @@ off; a verified day stays locked either way.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, getdate, now_datetime, today
+from frappe.utils import cint, flt, getdate, now_datetime, today
 
 from hrms_addon.hrms_addon import attendance_verification_approval as approval
 from hrms_addon.hrms_addon import attendance_verification_rules as rules
@@ -216,18 +216,30 @@ def _read(doc):
     lines = board._register_rows(found, marked, off_duty, _holidays(found, start, end, doc.company), days,
                                  attendance.all_shift_hours(), clocked)
     overtime = _overtime_hours(employees, start, end)
+    # a weekly sheet's Hours Worked: the hours the weekly payroll pays for the days worked
+    weekly = doc.get("pay_kind") == rules.WEEKLY
+    standard = _full_day() if weekly else None
     rows, issues = [], []
     for line in lines:
         person = found[line["employee"]]
         statuses = {day: row.status for day, row in (marked.get(line["employee"]) or {}).items()}
+        hours = {day: row.get("working_hours") for day, row in (marked.get(line["employee"]) or {}).items()} \
+            if weekly else None
         figures = rules.person_figures(person, line["days"], line["clock"], statuses, overtime.get(line["employee"]),
-                                       days)
+                                       days, hours, standard)
         rows.append(dict(figures, employee=person.name, employee_name=person.employee_name,
                          department=person.department))
         issues += rules.person_issues(dict(person, employee=person.name), line["days"], line["clock"], days)
     issues += _waiting(found, start, end)
     issues.sort(key=lambda row: (str(row["from_date"]), row.get("employee_name") or "", row["issue"]))
     return {"rows": rows, "issues": issues}
+
+
+def _full_day():
+    """A full day's hours, as the weekly payroll pays a day marked with none (weekly_pay.days_to_pay)."""
+    from hrms_addon.hrms_addon import output_pay, output_rules
+
+    return flt(output_pay.settings().get("standard_hours")) or output_rules.STANDARD_HOURS
 
 
 PERSON_FIELDS = ("name", "employee_name", "branch", "department", "designation", "employment_type", "relieving_date",

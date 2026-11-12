@@ -137,10 +137,33 @@ print("who is on it: the branch's active people with a salary structure, on the 
 
 # ── 3. A person's line ────────────────────────────────────────────────
 week = days("2026-10-19", "2026-10-25")  # Mon..Sun
+# a weekly sheet's Hours Worked (Luuka, 12 Nov 2026: "for weekly add no of hours worked"): the hours the weekly payroll
+# pays for the days worked, those marked up to a full day, a day marked with none a full day, a half day half of one
+casual_week = R.person_figures(
+    dict(staff, custom_pay_category="Weekly"),
+    {D(2026, 10, 19): "M", D(2026, 10, 20): "M", D(2026, 10, 21): "N", D(2026, 10, 22): "M", D(2026, 10, 23): "A",
+     D(2026, 10, 24): "M", D(2026, 10, 25): "WO"},
+    [D(2026, 10, 24)], {D(2026, 10, 21): "Half Day"}, 2, week,
+    {D(2026, 10, 19): 10, D(2026, 10, 20): 8, D(2026, 10, 22): 12, D(2026, 10, 23): 9, D(2026, 10, 24): 10}, 10)
+check(casual_week["hours_worked"] == 33.0 and casual_week["worked"] == 4,
+      "a weekly casual's hours: 10 and 8 as marked, a half day with none 5, 12 marked paid as the full day of 10; not "
+      "an absent day's, nor a day the clock saw and nobody marked", casual_week)
+check(R.person_figures(staff, {D(2026, 10, 19): "M"}, [], {}, 0, week)["hours_worked"] == 0,
+      "a monthly sheet counts no hours")
+W = load("weekly_pay_rules")
+for status, worked, standard in (("Present", 8, 10), ("Present", 12, 10), ("Present", None, 10), ("Present", 0, 10),
+                                 ("Half Day", None, 10), ("Half Day", 4, 10), ("Work From Home", None, 8),
+                                 ("Present", "7.5", 10)):
+    check(R.day_hours(status, worked, standard) == W.day_hours(status, worked, standard),
+          "the sheet's hours of a day are the weekly payroll's (%s, %r, %r)" % (status, worked, standard),
+          (R.day_hours(status, worked, standard), W.day_hours(status, worked, standard)))
+check("hours_worked" in R.FIGURES and R.totals([casual_week, casual_week])["hours_worked"] == 66.0,
+      "the sheet's total Hours Worked is its people's")
 codes = {D(2026, 10, 19): "M", D(2026, 10, 20): "N", D(2026, 10, 21): "A", D(2026, 10, 22): "L",
          D(2026, 10, 23): "S", D(2026, 10, 25): "WO"}
 line = R.person_figures(staff, codes, [], {D(2026, 10, 19): "Half Day"}, 3.456, week)
-check(line == {"worked": 2, "half_day": 1, "absent": 1, "leave": 2, "off": 1, "not_marked": 1, "overtime_hours": 3.46},
+check(line == {"worked": 2, "half_day": 1, "absent": 1, "leave": 2, "off": 1, "not_marked": 1, "overtime_hours": 3.46,
+              "hours_worked": 0},
       "the Board's letters counted: shifts worked, half days among them, absences, leave and sick, days off, "
       "a day with no letter", line)
 line = R.person_figures(staff, dict(codes, **{"2026-10-24": "M"}), ["2026-10-24"], {}, None, week)
@@ -408,6 +431,32 @@ check("frappe.flags.get(\"via_payroll_entry\")" in glue, "a slip its payroll sub
 for method in ("weekly_dates", "payroll_branches"):
     check(re.search(r"@frappe\.whitelist\(\)\ndef %s\(" % method, glue), "the form calls %s" % method)
 js = read("hrms_addon", "hrms_addon", "doctype", "attendance_verification", "attendance_verification.js")
+check("\t\tha_verify_pages(frm);\n\t\tha_verify_hours_column(frm);" in js
+      and "\tpay_kind(frm) {\n\t\tha_verify_header(frm);\n\t\tha_verify_hours_column(frm);" in js
+      and 'const hide = frm.doc.pay_kind === "Weekly" ? 0 : 1;' in js
+      and 'grid.set_column_disp_in_list_view("hours_worked", !hide);' in js
+      and "if (!grid || !grid.set_column_disp_in_list_view) return;" in js,
+      "the Hours Worked column shows on a weekly sheet only, as it opens and as Payroll changes; a Frappe without the "
+      "grid's own switch shows it always")
+row_spec = fields_of(doctype("Attendance Verification Employee"))
+sheet_spec = doctype("Attendance Verification")
+hours_field = row_spec.get("hours_worked") or {}
+total_field = fields_of(sheet_spec).get("total_hours_worked") or {}
+check(hours_field.get("fieldtype") == "Float" and hours_field.get("in_list_view") == 1 and hours_field.get("read_only")
+      and doctype("Attendance Verification Employee")["field_order"].index("hours_worked")
+      == doctype("Attendance Verification Employee")["field_order"].index("worked") + 1,
+      "each person's Hours Worked, beside the days worked", hours_field)
+check(total_field.get("fieldtype") == "Float" and total_field.get("read_only")
+      and total_field.get("depends_on") == "eval:doc.pay_kind=='Weekly'"
+      and sheet_spec["field_order"].index("total_hours_worked") == sheet_spec["field_order"].index("total_worked") + 1,
+      "the sheet's Hours Worked, among its figures, on a weekly sheet", total_field)
+read_fn = glue[glue.index("\ndef _read(doc):"):glue.index("\ndef _full_day(")]
+check('weekly = doc.get("pay_kind") == rules.WEEKLY' in read_fn and "standard = _full_day() if weekly else None" in read_fn
+      and 'hours = {day: row.get("working_hours") for day, row in (marked.get(line["employee"]) or {}).items()} \\\n'
+          "            if weekly else None" in read_fn
+      and "days, hours, standard)" in read_fn
+      and 'return flt(output_pay.settings().get("standard_hours")) or output_rules.STANDARD_HOURS' in glue,
+      "the hours are a weekly sheet's, from each day's Working Hours, a full day as the weekly payroll takes it")
 check("\tfrom_date(frm) {\n\t\tha_verify_week_end(frm);\n\t}," in js
       and 'if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;' in js
       and "const to = frappe.datetime.add_days(frm.doc.from_date, 6);" in js

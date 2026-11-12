@@ -611,6 +611,39 @@ check("overtime.type_on gives one person's type on a day, as a request's line is
       "def type_on(employee, day, types=None):" in overtime_glue and "return rules.person_type(" in overtime_glue
       and "def standard_hours_on(employee, day):" in overtime_glue)
 
+# ── Each day names its upload (Luuka, 12 Nov 2026: "in attendance deletion can we be able to select the attendance
+# upload and only delete for that specific entry") ──
+check("the upload is handed to each day it marks", 'memo = {"upload": doc.name}' in marking, marking[:300])
+check("and each day names it", "UPLOAD_FIELD: (memo or {}).get(\"upload\")," in day
+      and 'UPLOAD_FIELD = "custom_attendance_upload"' in glue, day)
+fixtures_json = json.load(io.open(os.path.join(REPO, "hrms_addon", "fixtures", "custom_field.json"), encoding="utf-8"))
+upload_field = next((row for row in fixtures_json if row.get("name") == "Attendance-custom_attendance_upload"), {})
+check("Attendance's Upload: a link to the upload, read only, not copied, a filter on the list",
+      upload_field.get("dt") == "Attendance" and upload_field.get("fieldtype") == "Link"
+      and upload_field.get("options") == "Upload Attendance" and upload_field.get("read_only") == 1
+      and upload_field.get("no_copy") == 1 and upload_field.get("in_standard_filter") == 1, upload_field)
+check("and it ships with the app", '"Attendance-custom_attendance_upload",' in hooks)
+patch = read("hrms_addon", "patches", "v1_0", "attendance_upload_links.py")
+check("the uploads made before are matched on migrate",
+      "hrms_addon.patches.v1_0.attendance_upload_links" in read("hrms_addon", "patches.txt").split("[post_model_sync]")[1])
+same = all(upload_field.get(key) == value for key, value in {
+    "fieldname": "custom_attendance_upload", "fieldtype": "Link", "label": "Upload", "options": "Upload Attendance",
+    "insert_after": "custom_clock_out_missing", "read_only": 1, "no_copy": 1, "in_standard_filter": 1}.items())
+check("the patch makes the field as the fixture has it, as fixtures load after patches", same
+      and 'FIELD = {"fieldname": "custom_attendance_upload", "fieldtype": "Link", "label": "Upload", "options": UPLOAD,' in patch
+      and '"insert_after": "custom_clock_out_missing", "read_only": 1, "no_copy": 1, "in_standard_filter": 1}' in patch
+      and 'if not frappe.db.has_column("Attendance", FIELD["fieldname"]):\n        create_custom_field("Attendance", dict(FIELD))'
+      in patch)
+for needle, why in (
+    ('"owner": upload.imported_by, "company": upload.company, "docstatus": 1,', "marked by its importer, of its company"),
+    ('"creation": ["between", [upload.imported_on, upload.modified]], FIELD["fieldname"]: ["is", "not set"]},',
+     "while it ran, and named by no upload yet"),
+    ("if not names or len(names) != cint(upload.marked):", "taken only where they come to what it marked"),
+    ('if frappe.db.exists("Attendance", {FIELD["fieldname"]: upload.name}):', "an upload whose days name it is left"),
+    ("frappe.qb.update(table).set(table[FIELD[\"fieldname\"]], upload.name)", "named in one write a part"),
+):
+    check("the patch: %s" % why, needle in patch, needle)
+
 print()
 if fail:
     print("%d FAILED" % len(fail))

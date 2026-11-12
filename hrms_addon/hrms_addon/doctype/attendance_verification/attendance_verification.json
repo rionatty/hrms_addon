@@ -20,6 +20,7 @@
   "figures_section",
   "people",
   "total_worked",
+  "total_hours_worked",
   "total_half_day",
   "column_break_totals",
   "total_absent",
@@ -152,6 +153,15 @@
    "label": "Days Worked",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "total_hours_worked",
+   "fieldtype": "Float",
+   "label": "Hours Worked",
+   "read_only": 1,
+   "no_copy": 1,
+   "precision": "2",
+   "depends_on": "eval:doc.pay_kind=='Weekly'"
   },
   {
    "fieldname": "total_half_day",
@@ -327,7 +337,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 12:00:00.000000",
+ "modified": "2026-11-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Attendance Verification",

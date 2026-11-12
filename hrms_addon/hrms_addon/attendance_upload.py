@@ -65,6 +65,8 @@ LISTED = 50
 JOB_HOURS = 24
 STOPPED_AFTER = 30
 SAVEPOINT = "ha_upload_attendance"
+# Attendance's link to the upload that marked it (fixtures; patches/v1_0/attendance_upload_links.py)
+UPLOAD_FIELD = "custom_attendance_upload"
 COUNTS = ("days_in_file", "marked", "already_marked", "not_marked")
 
 
@@ -248,8 +250,8 @@ def _mark_file(doc):
     # people: {name: what the checks need}; index: {name in small letters: name,
     # or None for one the site does not have}, so each is looked up once
     people, index, seen, problems = {}, {}, {}, []
-    # the Overtime Types, read once for the whole file where a row carries overtime
-    memo = {}
+    # the Overtime Types, read once for the whole file where a row carries overtime; and the upload each day names
+    memo = {"upload": doc.name}
     done, shown = 0, -1
     for part in _parts(rules.days_in(content, doc.attendance_file), PART):
         _learn(people, index, part)
@@ -329,6 +331,8 @@ def _mark_day(row, people, memo=None):
             "doctype": ATTENDANCE, "employee": row["employee"], "attendance_date": row["attendance_date"],
             "status": row["status"], "leave_type": row["leave_type"], "shift": row["shift"],
             "company": people[row["employee"]].company,
+            # the upload that marked it, for a deletion to take one upload's days (attendance_deletions.py)
+            UPLOAD_FIELD: (memo or {}).get("upload"),
         })
         if row.get("working_hours"):
             day.working_hours = row["working_hours"]

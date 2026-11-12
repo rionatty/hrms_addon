@@ -10,6 +10,7 @@
   "department",
   "employee",
   "attendance_status",
+  "upload",
   "column_break_period",
   "from_date",
   "to_date",
@@ -70,6 +71,13 @@
    "options": "\nPresent\nAbsent\nOn Leave\nHalf Day\nWork From Home"
   },
   {
+   "fieldname": "upload",
+   "fieldtype": "Link",
+   "label": "Upload Attendance",
+   "options": "Upload Attendance",
+   "description": "Only the attendance this upload marked."
+  },
+  {
    "fieldname": "column_break_period",
    "fieldtype": "Column Break"
   },
@@ -92,7 +100,8 @@
    "fieldtype": "Check",
    "label": "Keep Deleted",
    "default": "1",
-   "description": "Auto attendance will not mark these days again."
+   "description": "Auto attendance will not mark these days again.",
+   "depends_on": "eval:!doc.upload"
   },
   {
    "fieldname": "count_section",
@@ -281,7 +290,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-02 09:00:00.000000",
+ "modified": "2026-11-12 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Attendance Deletion",

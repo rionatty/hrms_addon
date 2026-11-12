@@ -99,3 +99,4 @@ hrms_addon.patches.v1_0.hourly_rates_off_employee
 hrms_addon.patches.v1_0.output_rate_import
 hrms_addon.patches.v1_0.casual_overtime_ready
 hrms_addon.patches.v1_0.overtime_type_import
+hrms_addon.patches.v1_0.attendance_upload_links

@@ -20,6 +20,18 @@ frappe.ui.form.on("Attendance Deletion", {
 	refresh(frm) {
 		ha_attendance_deletion_form(frm);
 	},
+
+	// one upload's days (Luuka, 12 Nov 2026): its company and the days it marked filled in
+	upload(frm) {
+		if (!frm.doc.upload || (frm.doc.status && frm.doc.status !== "Draft")) return;
+		frappe
+			.call({ method: HA_ATTENDANCE_DELETION + "upload_days", args: { upload: frm.doc.upload } })
+			.then((r) => {
+				const days = r && r.message;
+				if (!days || !frm.doc.upload) return;
+				frm.set_value({ company: days.company, from_date: days.from_date, to_date: days.to_date });
+			});
+	},
 });
 
 function ha_attendance_deletion_form(frm) {
@@ -32,7 +44,7 @@ function ha_attendance_deletion_form(frm) {
 	const running = HA_ATTENDANCE_DELETION_RUNNING.includes(doc.status) && !stopped;
 
 	if (frm.is_new()) {
-		ha_attendance_deletion_hint(frm, __("Choose the dates and save to see how many records this would delete."));
+		ha_attendance_deletion_hint(frm, __("Choose the dates, or an upload, and save to see how many records this would delete."));
 	} else if (running) {
 		ha_attendance_deletion_hint(frm, __("Deleting in the background. You can close this page."), "blue");
 		frm.add_custom_button(__("Stop"), () => ha_attendance_deletion_call(frm, "stop"));

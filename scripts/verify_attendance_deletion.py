@@ -107,7 +107,7 @@ class Failure(Exception):
 ATTENDANCE_COLUMNS = "name TEXT PRIMARY KEY, docstatus INT DEFAULT 1, employee TEXT, employee_name TEXT, company TEXT, department TEXT, " \
                      "attendance_date DATE, status TEXT, leave_type TEXT, leave_application TEXT, attendance_request TEXT, shift TEXT, " \
                      "in_time TEXT, out_time TEXT, working_hours REAL, late_entry INT, early_exit INT, half_day_status TEXT, " \
-                     "overtime_type TEXT, amended_from TEXT"
+                     "overtime_type TEXT, amended_from TEXT, custom_attendance_upload TEXT"
 TABLES = {
     "tabAttendance": ATTENDANCE_COLUMNS,
     "tabEmployee Checkin": "name TEXT PRIMARY KEY, employee TEXT, attendance TEXT, shift TEXT, shift_start TEXT, time TEXT, skip_auto_attendance INT DEFAULT 0, offshift INT DEFAULT 0",
@@ -130,7 +130,8 @@ TABLES = {
     "tabCommunication": "name TEXT PRIMARY KEY, reference_doctype TEXT, reference_name TEXT",
     "tabActivity Log": "name TEXT PRIMARY KEY, reference_doctype TEXT, reference_name TEXT, timeline_doctype TEXT, timeline_name TEXT",
     "tabGeneric Reference": "name TEXT PRIMARY KEY, ref_type TEXT, ref_name TEXT, docstatus INT",
-    "tabAttendance Deletion": "name TEXT PRIMARY KEY, company TEXT, department TEXT, employee TEXT, attendance_status TEXT, from_date DATE, to_date DATE, "
+    "tabUpload Attendance": "name TEXT PRIMARY KEY, company TEXT, from_date DATE, to_date DATE",
+    "tabAttendance Deletion": "name TEXT PRIMARY KEY, company TEXT, department TEXT, employee TEXT, attendance_status TEXT, upload TEXT, from_date DATE, to_date DATE, "
                               "keep_deleted INT, to_delete INT, draft_slips INT, kept_on_slips INT, kept_from_requests INT, kept_in_use INT, "
                               "status TEXT, started_by TEXT, started_on TEXT, finished_on TEXT, deleted INT, kept INT, message TEXT, backup_file TEXT, "
                               "kept_file TEXT, cursor_date DATE, cursor_name TEXT, backup_size INT, kept_size INT, stop_requested INT, modified TEXT",
@@ -466,6 +467,20 @@ counted = site.glue.count(site.deletion("D-NONE", from_date=D(2020, 1, 1), to_da
 check(not any(counted.values()), "dates with nothing on them", counted)
 counted = site.glue.count(site.deletion("D-OTHER", company="Other Co"))
 check(counted["to_delete"] == 1, "another company's are its own", counted)
+# one upload's days only (Luuka, 12 Nov 2026: "select the attendance upload and only delete for that specific entry"):
+# the days an upload marked name it
+up = Site()
+populate(up)
+up.conn.execute("UPDATE tabAttendance SET custom_attendance_upload = 'HR-ATU-1' WHERE employee IN ('E2', 'E4')")
+up.conn.execute("UPDATE tabAttendance SET custom_attendance_upload = 'HR-ATU-2' WHERE employee = 'E0'")
+up.conn.commit()
+theirs = up.conn.execute("SELECT COUNT(*) FROM tabAttendance WHERE custom_attendance_upload = 'HR-ATU-1' AND company = 'LPL' "
+                         "AND attendance_date BETWEEN '2026-08-26' AND '2026-09-25'").fetchone()[0]
+counted = up.glue.count(up.deletion("D-UPLOAD", upload="HR-ATU-1"))
+check(theirs and counted["to_delete"] == theirs and sum(counted[field] for field in R.COUNTS) == theirs,
+      "an upload chosen: only the days it marked, not another upload's nor those marked any other way", (theirs, counted))
+counted = up.glue.count(up.deletion("D-UPLOAD-QA", upload="HR-ATU-1", employee="E2"))
+check(0 < counted["to_delete"] < theirs, "and the other choices narrow it further", counted)
 # a casual's day paid on a later week's slip: that slip's dates do not reach it, its list of days does
 late = Site()
 complicated(late)
@@ -490,6 +505,19 @@ def validated(doc, before=None, changed=()):
 
 site = Site()
 populate(site)
+site.add("Upload Attendance", name="HR-ATU-1", company="LPL", from_date=D(2026, 9, 3), to_date=D(2026, 9, 9))
+site.add("Upload Attendance", name="HR-ATU-9", company="Other Co", from_date=D(2026, 9, 3), to_date=D(2026, 9, 9))
+site.conn.commit()
+picked = validated(site.deletion("D-UP", upload="HR-ATU-1", keep_deleted=1))
+check(picked.values.get("keep_deleted") == 0,
+      "an upload's days are not held from auto attendance: a hold is a company's, a department's or a person's",
+      picked.values)
+try:
+    validated(site.deletion("D-UP-OTHER", upload="HR-ATU-9"))
+    check(False, "an upload of another company is refused")
+except Failure as error:
+    check("HR-ATU-9 is an upload of Other Co. Pick that company." in str(error), "an upload of another company is "
+                                                                               "refused, saying whose it is", str(error))
 doc = site.deletion()
 doc.values.update(deleted=999, status="Finished", to_delete=1, backup_file="/evil", stop_requested=1, cursor_name="Z")
 validated(doc)
@@ -962,6 +990,11 @@ for field in R.SERVER_FIELDS:
 for field in R.CHOICES:
     check(field in fields and not fields[field].get("read_only"), "%s is chosen" % field)
 check(fields["keep_deleted"].get("default") == "1", "Keep Deleted is on until unticked")
+check("upload" in R.CHOICES, "the upload chosen is fixed once the deletion has started")
+check(fields["upload"]["fieldtype"] == "Link" and fields["upload"]["options"] == "Upload Attendance"
+      and meta["field_order"].index("upload") == meta["field_order"].index("attendance_status") + 1
+      and fields["keep_deleted"].get("depends_on") == "eval:!doc.upload",
+      "an upload to choose beside the status; Keep Deleted not offered with one", (fields["upload"], fields["keep_deleted"]))
 check(fields["status"]["options"].split("\n") == [R.DRAFT, R.QUEUED, R.DELETING, R.STOPPED, R.FINISHED, R.FAILED] and fields["status"]["default"] == R.DRAFT, "its statuses")
 check(fields["attendance_status"]["options"].split("\n")[1:] == list(U.STATUSES) and fields["attendance_status"]["options"].startswith("\n"), "any status until one is chosen")
 for field in ("cursor_date", "cursor_name", "backup_size", "kept_size", "stop_requested"):
@@ -986,6 +1019,11 @@ attendance_src = open(os.path.join(APP, "attendance.py"), encoding="utf-8").read
 check("if attendance_deletions.held(employee.name, day):\n            continue" in attendance_src, "automatic attendance leaves a held day too")
 form = open(os.path.join(folder, "attendance_deletion.js"), encoding="utf-8").read()
 glue_src = open(os.path.join(APP, "attendance_deletions.py"), encoding="utf-8").read().replace("\r\n", "\n")
+check('@frappe.whitelist()\ndef upload_days(upload):' in glue_src
+      and 'frappe.has_permission(DOCTYPE, "write", throw=True)' in glue_src and 'doc.check_permission("read")' in glue_src
+      and 'order_by="attendance_date %s" % way, limit=1)), None)\n                       for way in ("asc", "desc"))' in glue_src
+      and '"from_date": str(first or doc.get("from_date") or ""),' in glue_src,
+      "an upload picked: its company and the first and last day it marked, else its own dates")
 for name in ("check", "start", "stop", "release"):
     check('@frappe.whitelist(methods=["POST"])\ndef %s(deletion' % name in glue_src, "%s changes things, so POST only" % name)
 check('@frappe.whitelist()\ndef progress(deletion):' in glue_src, "progress is the form's to read")
