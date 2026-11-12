@@ -345,6 +345,8 @@ CARDS = {
         ("Output Pay", [
             ("Daily Production Report", "Daily Production Report", DOCTYPE),
             ("Output Pay Run", "Output Pay Run", DOCTYPE),
+            # a plant's casuals' week as totals, approved by its General Manager (casual_hours.py)
+            ("Casual Hours Sheet", "Casual Hours Sheet", DOCTYPE),
             ("Sizes and Work Units", "Output Rate", DOCTYPE),
             # each casual's rate, from a day: HR alone open it (Luuka, 10 Nov 2026)
             ("Hourly Rates", "Hourly Rate", DOCTYPE),
@@ -595,6 +597,7 @@ SIDEBAR = {
         ("Attendance Verification", "Attendance Verification", DOCTYPE, None, None),
         ("Daily Production Report", "Daily Production Report", DOCTYPE, None, "Additional Salary"),
         ("Output Pay Run", "Output Pay Run", DOCTYPE, None, "Daily Production Report"),
+        ("Casual Hours Sheet", "Casual Hours Sheet", DOCTYPE, None, "Output Pay Run"),
         ("Arrear", "Arrear", DOCTYPE, None, "Salary Withholding"),
         ("Payroll Correction", "Payroll Correction", DOCTYPE, None, "Arrear"),
         ("Gratuity", "Gratuity", DOCTYPE, None, "Payroll Correction"),
@@ -702,7 +705,7 @@ GROUPS = {
         ("Payroll", "banknote", ["Attendance Verification", "Payroll Entry", "Salary Structure Assignment",
                                  "Salary Slip", "Additional Salary", "Salary Withholding", "Arrear",
                                  "Payroll Correction"]),
-        ("Output Pay", "factory", ["Daily Production Report", "Output Pay Run"]),
+        ("Output Pay", "factory", ["Daily Production Report", "Output Pay Run", "Casual Hours Sheet"]),
         ("Gratuity", "piggy-bank", ["Gratuity"]),
     ],
     "Tenure": [

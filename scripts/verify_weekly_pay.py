@@ -449,6 +449,15 @@ piece_glue.arrears_paid = lambda employee, day: site().arrears_paid.get(employee
 sys.modules.update({"frappe": frappe, "frappe.utils": utils, "hrms_addon.hrms_addon.output_pay": output_pay,
                     "hrms_addon.hrms_addon.output_rules": O, "hrms_addon.hrms_addon.overtime": overtime_glue,
                     "hrms_addon.hrms_addon.piece_pay": piece_glue})
+# the Casual Hours Sheets, as they are: the weekly payroll reads them (casual_hours.py)
+utils.now_datetime = lambda: datetime.datetime(2026, 11, 5, 9, 0)
+people_glue = types.ModuleType("hrms_addon.hrms_addon.people")
+people_glue.people_for = lambda role, branch, department=None: []
+people_glue.hr_officers = lambda branch, department=None: []
+people_glue.notify = people_glue.assign = people_glue.withdraw = lambda *args, **kwargs: None
+sys.modules["hrms_addon.hrms_addon.people"] = people_glue
+CHR = load("casual_hours_rules")
+CH = load("casual_hours")
 W = load("weekly_pay")
 
 
@@ -642,7 +651,8 @@ try:
     entry.fill_employee_details()
     check(False, "nobody with days to pay: it says so")
 except Thrown as error:
-    check("Nobody has attendance, piece work or Additional Salary to pay up to 12 Nov 2026" in str(error),
+    check("Nobody has attendance, an approved hours sheet, piece work or Additional Salary to pay up to 12 Nov 2026"
+          in str(error),
           "nobody with days or anything else to pay: it says so",
           str(error))
 monthly = PayrollEntry(name="PE-M", company="LPL", payroll_frequency="Monthly", salary_slip_based_on_timesheet=0,
@@ -1005,6 +1015,83 @@ W.rate_validate(Form(name="HRATE-W3", employee="W3", rate=3100, from_date=D(2025
 check(True, "and a rate saved again is not taken for a second one")
 print("the slip: each unpaid day once, late days on the next, nothing a monthly slip paid, the overtime once")
 
+# ── 4b. The weeks a Casual Hours Sheet gives ─────────────
+s = populated()
+s.add("Overtime Type", name="Casual OT", standard_multiplier=1.5)
+s.add("Casual Hours Sheet", name="HR-CHS-1", company="LPL", branch="North", from_date=D(2026, 10, 29),
+      to_date=D(2026, 11, 4), docstatus=1)
+s.add("Casual Hours Row", name="CHR-1", parent="HR-CHS-1", parenttype="Casual Hours Sheet", docstatus=1, employee="W8",
+      hours_worked=50, overtime_hours=6, days_worked=5, overtime_type="Casual OT")
+s.add("Casual Hours Row", name="CHR-2", parent="HR-CHS-1", parenttype="Casual Hours Sheet", docstatus=1, employee="W1",
+      hours_worked=40, overtime_hours=0, days_worked=4)
+s.add("Attendance", name="A-W1-OT", employee="W1", attendance_date=D(2026, 10, 30), status="Present", working_hours=10,
+      actual_overtime_duration=3, overtime_type="Casual OT", docstatus=1)
+weekly_sheet = slip("W8")
+W.slip_before_validate(weekly_sheet)
+W.slip_validate(weekly_sheet)
+check([(row["attendance_date"], row["hours"], row["overtime_hours"], row.get("hours_sheet"), row.get("days_worked"),
+        row["rate"]) for row in weekly_sheet.custom_weekly_days] == [(D(2026, 11, 4), 50.0, 6.0, "HR-CHS-1", 5.0, 2500)],
+      "an approved sheet's week is one row, dated its last day, at the week's hours and overtime: no ten-hour cap on "
+      "a week's total", weekly_sheet.custom_weekly_days)
+check((weekly_sheet.custom_weekly_hours, weekly_sheet.custom_weekly_overtime_hours, weekly_sheet.custom_weekly_overtime,
+       weekly_sheet.custom_days_paid) == (50.0, 6.0, 22500.0, 5.0)
+      and R.week_pay(weekly_sheet.custom_weekly_days, weekly_sheet.custom_weekly_hours, weekly_sheet.custom_weekly_rate)
+      == 125000,
+      "the hours at their own rate, the overtime at it times 1.5 with no cap, the days the sheet says",
+      (weekly_sheet.custom_weekly_hours, weekly_sheet.custom_weekly_overtime, weekly_sheet.custom_days_paid))
+both = slip("W1")
+W.slip_before_validate(both)
+check([(row["attendance_date"], row["hours"], row.get("hours_sheet")) for row in both.custom_weekly_days]
+      == [(D(2026, 11, 4), 40.0, "HR-CHS-1")] and both.custom_weekly_overtime_hours == 0,
+      "the sheet's week replaces the attendance's days and overtime in it: the week is paid once, not twice",
+      both.custom_weekly_days)
+submitted(s, weekly_sheet)
+again = slip("W8")
+W.slip_before_validate(again)
+check(not again.custom_weekly_days and not again.custom_weekly_overtime,
+      "a week a submitted slip paid is not paid again", again.custom_weekly_days)
+for row in s.rows("Weekly Pay Day"):
+    if row.get("hours_sheet") == "HR-CHS-1":
+        row["docstatus"] = 2
+back = slip("W8")
+W.slip_before_validate(back)
+check([row.get("hours_sheet") for row in back.custom_weekly_days] == ["HR-CHS-1"],
+      "a cancelled slip gives the week back", back.custom_weekly_days)
+s.add("Casual Hours Sheet", name="HR-CHS-2", company="LPL", branch="North", from_date=D(2026, 10, 29),
+      to_date=D(2026, 11, 4), docstatus=0)
+s.add("Casual Hours Row", name="CHR-3", parent="HR-CHS-2", parenttype="Casual Hours Sheet", docstatus=0, employee="W2",
+      hours_worked=30, days_worked=3)
+not_yet = slip("W2")
+W.slip_before_validate(not_yet)
+check(not_yet.custom_weekly_hours == 20.0 and not any(row.get("hours_sheet") for row in not_yet.custom_weekly_days),
+      "a sheet not yet approved pays nothing, and leaves the attendance's days as they were", not_yet.custom_weekly_days)
+s.add("Casual Hours Sheet", name="HR-CHS-3", company="LPL", branch="North", from_date=D(2026, 11, 5),
+      to_date=D(2026, 11, 11), docstatus=1)
+s.add("Casual Hours Row", name="CHR-4", parent="HR-CHS-3", parenttype="Casual Hours Sheet", docstatus=1, employee="W7",
+      hours_worked=45, days_worked=5)
+seven = slip("W7")
+W.slip_before_validate(seven)
+check([(row["attendance_date"], row.get("hours_sheet")) for row in seven.custom_weekly_days] == [(D(2026, 10, 31), None)],
+      "a week that ends after the slip waits for the slip that reaches it", seven.custom_weekly_days)
+run = Form(name="PE-SHEETS", company="LPL", start_date=D(2026, 10, 29), end_date=D(2026, 11, 4), payroll_frequency="Weekly",
+           salary_slip_based_on_timesheet=0, employees=[Row(employee=name) for name in ("W8", "W5")])
+W._keep_those_to_pay(run)
+check([row.employee for row in run.employees] == ["W8"],
+      "Get Employees keeps a casual whose week only a sheet gives", [row.employee for row in run.employees])
+figures = {"W8": {}, "W1": {}}
+W.show_on_figures(Form(company="LPL", start_date=D(2026, 10, 29), end_date=D(2026, 11, 4)), figures)
+check((figures["W8"]["custom_hours_worked"], figures["W8"]["custom_paid_days"], figures["W1"]["custom_hours_worked"],
+       figures["W1"]["custom_paid_days"]) == (50.0, 5.0, 40.0, 4.0),
+      "the Employees tab shows a sheet's hours and days, and none of the days it covers twice", figures)
+s.rows("Attendance")[:] = [row for row in s.rows("Attendance") if as_date(row["attendance_date"]) < D(2026, 11, 2)]
+check(W.dates_for("LPL")["end"] == D(2026, 11, 4),
+      "a weekly payroll reaches the last day an approved sheet ends on, though nobody was marked on it",
+      W.dates_for("LPL"))
+check(R.days_paid([{"hours": 9}, {"hours": 0, "overtime_hours": 2}, {"hours": 40, "hours_sheet": "S", "days_worked": 4},
+                   {"hours": 12, "hours_sheet": "T"}]) == 5.0,
+      "the days paid: a day each, a sheet's days worked, none for overtime alone or a sheet that gives no days")
+print("the sheets: a week at its totals, once, in place of its days; approved ones only; on the Employees tab")
+
 # ── 5. Frappe HR's own methods, lifted from its source ───
 SLIP_SOURCE = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "salary_slip", "salary_slip.py")
 SSA_SOURCE = os.path.join(APPS_ROOT, "hrms", "hrms", "payroll", "doctype", "salary_structure_assignment", "salary_structure_assignment.py")
@@ -1199,7 +1286,8 @@ def reads(count):
 
 few_reads, _few = reads(3)
 many_reads, many_found = reads(2000)
-check(few_reads == many_reads <= 9 and len(many_found["P1999"]) == 1,
+# two of the reads are the Casual Hours Sheets', the same however many people (casual_hours.spans)
+check(few_reads == many_reads <= 11 and len(many_found["P1999"]) == 1,
       "2,000 people take no more reads than 3: %d and %d" % (many_reads, few_reads))
 print("the Employees tab: the days the slips will pay, read for everyone at once")
 
@@ -1357,7 +1445,9 @@ check(all(custom[name].get("read_only") == 1 and custom[name].get("no_copy") == 
 meta = json.load(open(os.path.join(APP, "doctype", "weekly_pay_day", "weekly_pay_day.json"), encoding="utf-8"))
 fields = {field["fieldname"]: field for field in meta["fields"]}
 check(meta["istable"] == 1 and meta["name"] == "Weekly Pay Day"
-      and set(fields) == {"attendance_date", "status", "hours", "rate", "overtime_hours", "employee"}
+      and set(fields) == {"attendance_date", "status", "hours", "rate", "overtime_hours", "employee", "hours_sheet",
+                          "days_worked"}
+      and fields["hours_sheet"].get("options") == "Casual Hours Sheet" and fields["hours_sheet"].get("search_index") == 1
       and fields["overtime_hours"]["fieldtype"] == "Float"
       and fields["employee"].get("search_index") == 1 and fields["attendance_date"].get("search_index") == 1
       and all(field.get("read_only") == 1 for field in fields.values()),

@@ -226,8 +226,11 @@ def days_table(days, overtime):
 
 
 def days_paid(rows):
-    """The days a slip pays the hours of: its Days Paid, less those it pays only overtime for."""
-    return len([row for row in rows or [] if _num(row.get("hours")) > 0])
+    """The days a slip pays the hours of: its Days Paid, less those it pays only overtime for. A week a Casual
+    Hours Sheet gives is one row of the week's hours: it counts the days worked the sheet says, none where it says
+    none (casual_hours.py)."""
+    return round(sum(_num(row.get("days_worked")) if row.get("hours_sheet") else 1.0
+                     for row in rows or [] if _num(row.get("hours")) > 0), 2)
 
 
 def weekly_began(first_start, end):

@@ -501,6 +501,8 @@ after_migrate = [
     # Each branch's attendance, signed off by its General Manager before payroll
     # pays it. See attendance_verification_approval.py.
     "hrms_addon.hrms_addon.attendance_verification.setup_workflows_on_migrate",
+    # a plant's casuals' week, approved by its General Manager (casual_hours.py)
+    "hrms_addon.hrms_addon.casual_hours.setup_workflows_on_migrate",
     # The nine-box placement, the development programme, the succession
     # position and the graduate trainee. See talent_approval.py,
     # talent_program_approval.py, succession_approval.py, trainee_approval.py.

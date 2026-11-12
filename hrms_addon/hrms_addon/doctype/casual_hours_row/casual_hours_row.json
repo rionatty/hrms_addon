@@ -1,0 +1,116 @@
+{
+ "actions": [],
+ "creation": "2026-11-12 18:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "hours_worked",
+  "overtime_hours",
+  "days_worked",
+  "overtime_type",
+  "rate",
+  "multiplier",
+  "hours_pay",
+  "overtime_pay",
+  "total_pay"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "hours_worked",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Hours Worked"
+  },
+  {
+   "columns": 1,
+   "fieldname": "overtime_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Overtime Hours"
+  },
+  {
+   "columns": 1,
+   "fieldname": "days_worked",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Days Worked"
+  },
+  {
+   "fieldname": "overtime_type",
+   "fieldtype": "Link",
+   "label": "Overtime Type",
+   "options": "Overtime Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Hourly Rate",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "multiplier",
+   "fieldtype": "Float",
+   "label": "Overtime Times",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "hours_pay",
+   "fieldtype": "Currency",
+   "label": "Hours Pay",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "overtime_pay",
+   "fieldtype": "Currency",
+   "label": "Overtime Pay",
+   "permlevel": 1,
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "total_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Comes To",
+   "permlevel": 1,
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-12 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Casual Hours Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

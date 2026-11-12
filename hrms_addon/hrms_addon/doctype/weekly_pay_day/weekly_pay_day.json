@@ -10,7 +10,9 @@
   "hours",
   "rate",
   "overtime_hours",
-  "employee"
+  "employee",
+  "hours_sheet",
+  "days_worked"
  ],
  "fields": [
   {
@@ -61,11 +63,25 @@
    "label": "Employee",
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "hours_sheet",
+   "fieldtype": "Link",
+   "label": "Hours Sheet",
+   "options": "Casual Hours Sheet",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "days_worked",
+   "fieldtype": "Float",
+   "label": "Days Worked",
+   "read_only": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-11-10 10:00:00.000000",
+ "modified": "2026-11-12 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Weekly Pay Day",

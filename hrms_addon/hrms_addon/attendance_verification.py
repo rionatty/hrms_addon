@@ -645,8 +645,9 @@ def slip_before_submit(doc, method=None):
         return
     days = None
     if weekly_pay_rules.on_weekly_pay(doc):
+        # a week a Casual Hours Sheet gives, its plant's General Manager approved on the sheet (casual_hours.py)
         days = {doc.employee: [getdate(row.attendance_date) for row in doc.get("custom_weekly_days") or []
-                               if row.get("attendance_date")]}
+                               if row.get("attendance_date") and not row.get("hours_sheet")]}
         if not days[doc.employee]:
             return
     first, last = _range(doc, days)

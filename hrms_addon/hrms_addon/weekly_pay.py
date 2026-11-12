@@ -25,6 +25,11 @@ are in weekly_pay_rules.py (scripts/verify_weekly_pay.py).
 A Per Piece casual's week is Additional Salary their week's Output Pay Run
 wrote (piece_pay.py, output_pay.py), which the slip reads as it reads every
 other.
+
+A casual by the hour's week may come as totals instead, on a Casual Hours
+Sheet their plant's General Manager approved (casual_hours.py): the slip pays
+it as one row dated the week's last day, at the week's hours and overtime,
+and none of the days it covers is paid from the attendance as well.
 """
 
 import frappe
@@ -105,13 +110,18 @@ def _employee_filters(wanted):
 
 
 def _latest_attendance(wanted):
-    """The last day before today with attendance of those paid by the week."""
+    """The last day before today with attendance of those paid by the week, or the last day an approved Casual
+    Hours Sheet of theirs ends on, whichever is later: the hours may come either way."""
+    from hrms_addon.hrms_addon import casual_hours
+
     people = frappe.get_all("Employee", filters=_employee_filters(wanted), pluck="name", limit_page_length=0)
     if not people:
         return None
-    return frappe.db.get_value(ATTENDANCE, {"employee": ["in", people], "docstatus": 1, "status": ["in", rules.WORKED],
-                                            "attendance_date": ["<", today()]},
-                               "attendance_date", order_by="attendance_date desc")
+    marked = frappe.db.get_value(ATTENDANCE, {"employee": ["in", people], "docstatus": 1,
+                                              "status": ["in", rules.WORKED], "attendance_date": ["<", today()]},
+                                 "attendance_date", order_by="attendance_date desc")
+    found = [getdate(day) for day in (marked, casual_hours.latest_to(wanted)) if day]
+    return max(found) if found else None
 
 
 # ── The days ──────────────────────────────────────────
@@ -138,6 +148,11 @@ def days_to_pay(employees, start, end, company):
                                              "payroll_frequency": ["!=", rules.WEEKLY], "end_date": [">=", since]},
                               fields=["employee", "start_date", "end_date"], limit_page_length=0):
         covered.setdefault(row.employee, []).append((row.start_date, row.end_date))
+    # a week a Casual Hours Sheet gives is paid from the sheet, never from the attendance as well
+    from hrms_addon.hrms_addon import casual_hours
+
+    for employee, weeks in casual_hours.spans(employees).items():
+        covered.setdefault(employee, []).extend(weeks)
     standard = flt(output_pay.settings().get("standard_hours")) or output_rules.STANDARD_HOURS
     return {employee: rules.to_pay(attendance.get(employee), paid.get(employee), covered.get(employee), standard)
             for employee in employees}
@@ -162,6 +177,13 @@ def overtime_due(employees, start, end, company):
                               fields=["name", "employee", "attendance_date", "status", "actual_overtime_duration",
                                       "overtime_type"], limit_page_length=0):
         attendance.setdefault(row.employee, []).append(row)
+    # the overtime of a week a Casual Hours Sheet gives is the sheet's
+    from hrms_addon.hrms_addon import casual_hours, casual_hours_rules
+
+    weeks = casual_hours.spans(employees)
+    attendance = {employee: [row for row in rows if not casual_hours_rules.in_spans(row.attendance_date,
+                                                                                    weeks.get(employee))]
+                  for employee, rows in attendance.items()}
     days = {row.name: (row.employee, row.attendance_date) for rows in attendance.values() for row in rows}
     # hours paid on a submitted Overtime Slip, as everyone else's are, before the casual was paid by the week
     for row in frappe.get_all(OVERTIME_DETAIL, filters={"parenttype": OVERTIME_SLIP, "docstatus": 1,
@@ -235,13 +257,19 @@ def show_on_figures(doc, figures):
     days or hours is paid."""
     hourly = set(frappe.get_all("Employee", filters={"name": ["in", list(figures)], "custom_pay_category": rules.WEEKLY},
                                 pluck="name", limit_page_length=0)) if figures else set()
+    from hrms_addon.hrms_addon import casual_hours
+
     days = days_to_pay([employee for employee in figures if employee in hourly], doc.get("start_date"),
                        doc.get("end_date"), doc.get("company"))
+    # and the weeks Casual Hours Sheets give, at their totals
+    sheets = casual_hours.unpaid([employee for employee in figures if employee in hourly], doc.get("end_date"))
     period = date_diff(doc.get("end_date"), doc.get("start_date")) + 1
     for employee, row in figures.items():
+        theirs = sheets.get(employee) or []
         row["custom_working_days"] = period
-        row["custom_paid_days"] = len(days.get(employee) or [])
-        row["custom_hours_worked"] = round(sum(flt(day.get("hours")) for day in days.get(employee) or []), 2)
+        row["custom_paid_days"] = len(days.get(employee) or []) + sum(flt(week.get("days")) for week in theirs)
+        row["custom_hours_worked"] = round(sum(flt(day.get("hours")) for day in days.get(employee) or [])
+                                           + sum(flt(week.get("hours")) for week in theirs), 2)
 
 
 # ── The Salary Slip ───────────────────────────────────
@@ -255,6 +283,14 @@ def slip_before_validate(doc, method=None):
     days = days_to_pay([doc.employee], doc.get("start_date"), doc.get("end_date"), doc.get("company")).get(doc.employee)
     overtime = overtime_due([doc.employee], doc.get("start_date"), doc.get("end_date"),
                             doc.get("company")).get(doc.employee) or []
+    # the weeks approved Casual Hours Sheets give and no slip has paid, at their totals (casual_hours.py)
+    from hrms_addon.hrms_addon import casual_hours, casual_hours_rules
+
+    sheet_days, sheet_overtime = casual_hours_rules.day_rows(
+        casual_hours.unpaid([doc.employee], doc.get("end_date")).get(doc.employee))
+    if sheet_days:
+        days = sorted(list(days or []) + sheet_days, key=lambda row: row["attendance_date"])
+        overtime = sorted(list(overtime) + sheet_overtime, key=lambda row: row["attendance_date"])
     # each day at the rate in force that day: a raise from a day leaves the days before it at the old rate
     standard, history = standard_rate(), rate_history([doc.employee], doc.get("end_date")).get(doc.employee)
     table = rules.days_table(days, overtime)
@@ -345,13 +381,18 @@ def _keep_those_to_pay(doc):
     # arrears and anything else owed a casual by the hour, entered as Additional Salary (Luuka, 11 Nov 2026)
     keep |= piece_pay.waiting([name for name in weekly if name not in no_rate], doc.get("start_date"),
                               doc.get("end_date"))
+    # a week an approved Casual Hours Sheet gives, still to pay (casual_hours.py)
+    from hrms_addon.hrms_addon import casual_hours
+
+    keep |= casual_hours.waiting([name for name in weekly if name not in no_rate], doc.get("end_date"))
     doc.set("employees", [row for row in doc.get("employees") if row.employee in keep])
     doc.number_of_employees = len(doc.employees)
     if no_rate:
         frappe.msgprint(_("Left out, no hourly rate: {0}. Give them an Hourly Rate, or set the Standard Hourly Rate "
                           "on Output Pay Settings.").format(", ".join(no_rate)), title=_(TITLE), indicator="orange")
     if not doc.employees:
-        frappe.throw(_("Nobody has attendance, piece work or Additional Salary to pay up to {0}.").format(
+        frappe.throw(_("Nobody has attendance, an approved hours sheet, piece work or Additional Salary to pay up "
+                       "to {0}.").format(
             rules.shown(doc.get("end_date"))), title=_(TITLE))
 
 
