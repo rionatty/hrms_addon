@@ -116,13 +116,13 @@ CASUAL_LINES = [
     {"parent": "S3", "parentfield": "earnings", "salary_component": "Casual Overtime", "amount": 21853.5},
     {"parent": "S3", "parentfield": "earnings", "salary_component": "Arrears", "amount": 11141},
     {"parent": "S3", "parentfield": "earnings", "salary_component": "Allowance", "amount": 1000},
-    {"parent": "S3", "parentfield": "deductions", "salary_component": "Salary Advance", "amount": 5000},
+    {"parent": "S3", "parentfield": "deductions", "salary_component": "Advance Recovery", "amount": 5000},
     {"parent": "S3", "parentfield": "deductions", "salary_component": "Employer NSSF", "amount": 999,
      "do_not_include_in_total": 1},
     {"parent": "S4", "parentfield": "earnings", "salary_component": "Per Piece Earnings", "amount": 9000},
     {"parent": "S9", "parentfield": "earnings", "salary_component": "Hourly Earnings", "amount": 777}]
 CASUAL_NAMES = {"basic": "Hourly Earnings", "overtime": "Casual Overtime", "arrears": "Arrears",
-                "pieces": {"Per Piece Earnings"}}
+                "pieces": {"Per Piece Earnings"}, "advance": "Advance Recovery"}
 CASUAL_PEOPLE = {"C1": {"tin": "T1", "nssf": "N1"}, "C3": {"tin": "T3", "nssf": None}}
 by_size = R.pieces_by_size(
     [{"slip": "S2", "source": "OPR-1", "employee": "C2"}, {"slip": "S2", "source": "OPR-1", "employee": "C2"},
@@ -157,15 +157,16 @@ check("the pieces under their categories, as the run worked them out; pieces no 
       and (by_slip["S4"]["piece_1"], by_slip["S4"]["piece_rest"]) == (0.0, 9000.0), (by_slip["S2"], by_slip["S4"]))
 check("the arrears, any other earning and each deduction have their own columns; a line shown and not taken is "
       "no deduction; another payroll's line is nobody's",
-      (by_slip["S3"]["arrears"], by_slip["S3"]["earning_1"], by_slip["S3"]["deduction_1"]) == (11141.0, 1000.0, 5000.0)
-      and "deduction_2" not in by_slip["S3"] and "S9" not in by_slip, by_slip["S3"])
+      (by_slip["S3"]["arrears"], by_slip["S3"]["earning_1"], by_slip["S3"]["salary_advance"]) == (11141.0, 1000.0, 5000.0)
+      and "deduction_1" not in by_slip["S3"] and "S9" not in by_slip, by_slip["S3"])
 earning_fields = [column["fieldname"] for column in weekly_columns
                   if column["fieldname"] in ("basic", "overtime_amount", "arrears", "piece_rest")
                   or column["fieldname"].startswith(("piece_", "earning_"))]
 check("every row's earnings add up to its gross, and its gross less what was taken to its net",
       all(abs(sum(row[field] for field in set(earning_fields)) - row["gross_pay"]) < 0.01
-          and abs(row["gross_pay"] - sum(value for key, value in row.items() if key.startswith("deduction_"))
-                  - row["net_pay"]) < 0.01 for row in weekly_rows),
+          and abs(row["gross_pay"] - row["salary_advance"]
+                  - sum(value for key, value in row.items() if key.startswith("deduction_")) - row["net_pay"]) < 0.01
+          for row in weekly_rows),
       [(row["employee"], sum(row[field] for field in set(earning_fields)), row["gross_pay"]) for row in weekly_rows])
 check("amounts are in the slips' currency; a serial number and a rate are figures with no total",
       all(column.get("options") == "currency" for column in weekly_columns if column["fieldtype"] == "Currency")
@@ -186,16 +187,30 @@ lent_columns, lent_rows = R.casual_register([dict(CASUAL_SLIPS[0], total_loan_re
                                            CASUAL_LINES[:2], None, None, CASUAL_NAMES, None)
 check("a loan repayment, which a slip keeps apart from its deductions, has a column where anybody repays one, "
       "between the deductions and the net; nobody repaying, there is none",
-      [column["label"] for column in lent_columns][-6:-4] == ["Gross Amount", "Loan Repayment"]
+      [column["label"] for column in lent_columns][-7:-4] == ["Gross Amount", "Salary Advance", "Loan Repayment"]
       and lent_rows[0]["total_loan_repayment"] == 5000.0 and lent_rows[0]["gross_pay"] - 5000.0 == lent_rows[0]["net_pay"]
       and "Loan Repayment" not in labels, [column["label"] for column in lent_columns])
 bare_columns, bare_rows = R.casual_register(CASUAL_SLIPS[:1], CASUAL_LINES[:2], None, None, CASUAL_NAMES, None)
 check("with no pieces, no other earning and nothing taken off, only the sheet's own columns are there",
       [column["label"] for column in bare_columns] == [
           "Sr No", "Payroll No", "Employee Name", "Department", "Hours Worked", "Wage Rate", "Basic", "Overtime Hours",
-          "OT Amount", "Arrears", "Gross Amount", "Net Pay", "TIN", "NSSF", "Salary Slip"]
-      and bare_rows[0]["department"] == "Blow - LPT" and bare_rows[0]["tin"] is None,
+          "OT Amount", "Arrears", "Gross Amount", "Salary Advance", "Net Pay", "TIN", "NSSF", "Salary Slip"]
+      and bare_rows[0]["department"] == "Blow - LPT" and bare_rows[0]["tin"] is None
+      and bare_rows[0]["salary_advance"] == 0.0,
       [column["label"] for column in bare_columns])
+fined_columns, fined_rows = R.casual_register(
+    CASUAL_SLIPS[:1], CASUAL_LINES[:2] + [
+        {"parent": "S1", "parentfield": "deductions", "salary_component": "Fine", "amount": 100},
+        {"parent": "S1", "parentfield": "deductions", "salary_component": "Advance Recovery", "amount": 700}],
+    None, None, CASUAL_NAMES, None)
+check("Salary Advance is always there, as on the team's sheet, and holds what was recovered of an advance; any "
+      "other deduction has its own column after it",
+      [column["label"] for column in fined_columns][-7:-4] == ["Gross Amount", "Salary Advance", "Fine"]
+      and (fined_rows[0]["salary_advance"], fined_rows[0]["deduction_1"]) == (700.0, 100.0),
+      [column["label"] for column in fined_columns])
+unnamed = R.casual_register(CASUAL_SLIPS[:1], CASUAL_LINES[:2], None, None, dict(CASUAL_NAMES, advance=None), None)[0]
+check("a site that names no advance deduction has no such column until somebody has a deduction",
+      "Salary Advance" not in [column["label"] for column in unnamed], [column["label"] for column in unnamed])
 
 
 # ── 2. The glue ───────────────────────────────────────────────────────
@@ -320,9 +335,11 @@ output_pay.SIZE, output_pay.RUN, output_pay.REPORT, output_pay.REPORT_LINE = (
 output_pay._component_name = lambda section: {O.HOURLY: "Hourly Earnings", O.PER_PIECE: "Per Piece Earnings"}[section]
 piece_pay = types.ModuleType("hrms_addon.hrms_addon.piece_pay")
 piece_pay.ARREARS = ("Arrears", "ARR")
-app.weekly_pay, app.output_pay, app.piece_pay = weekly_pay, output_pay, piece_pay
+advances = types.ModuleType("hrms_addon.hrms_addon.advances")
+advances.DEFAULT_COMPONENT = "Advance Recovery"
+app.weekly_pay, app.output_pay, app.piece_pay, app.advances = weekly_pay, output_pay, piece_pay, advances
 sys.modules.update({"hrms_addon.hrms_addon.weekly_pay": weekly_pay, "hrms_addon.hrms_addon.output_pay": output_pay,
-                    "hrms_addon.hrms_addon.piece_pay": piece_pay})
+                    "hrms_addon.hrms_addon.piece_pay": piece_pay, "hrms_addon.hrms_addon.advances": advances})
 
 
 def run(site, call="register"):
@@ -387,6 +404,7 @@ for name, needle in (("weekly_pay.py", 'HOURS = "custom_weekly_hours"'), ("weekl
                      ("weekly_pay.py", 'OVERTIME_HOURS = "custom_weekly_overtime_hours"'),
                      ("weekly_pay.py", 'OVERTIME_COMPONENT = ("Casual Overtime", "COT")'),
                      ("piece_pay.py", 'ARREARS = ("Arrears", "ARR")'), ("output_pay.py", 'SIZE = "Output Rate"'),
+                     ("advances.py", 'DEFAULT_COMPONENT = "Advance Recovery"'),
                      ("output_pay.py", 'RUN = "Output Pay Run"'), ("output_pay.py", 'REPORT_LINE = "Daily Production Line"'),
                      ("output_pay.py", "def _component_name(section):")):
     check("%s still has what the weekly register reads of it: %s" % (name, needle),

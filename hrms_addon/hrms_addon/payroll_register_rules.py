@@ -68,9 +68,9 @@ def sheet(columns, rows, total=False):
 # ADVANCE, NETT PAY, TIN and NSSF. Every figure is the salary slip's own.
 TOTAL, TOTAL_UNDER = "Total", "employee_name"
 FIGURES = ("Int", "Float", "Currency")
-SERIAL, HOURS, RATE, BASIC_PAY, OVERTIME_HOURS, OVERTIME_PAY, ARREARS_PAY, GROSS, NET, LOAN = (
+SERIAL, HOURS, RATE, BASIC_PAY, OVERTIME_HOURS, OVERTIME_PAY, ARREARS_PAY, GROSS, NET, LOAN, ADVANCE = (
     "serial", "hours_worked", "wage_rate", "basic", "overtime_hours", "overtime_amount", "arrears", "gross_pay", "net_pay",
-    "total_loan_repayment")
+    "total_loan_repayment", "salary_advance")
 
 
 def _summed(column):
@@ -92,14 +92,17 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
     "gross_pay", "net_pay", "total_loan_repayment"}]; lines: the slips' earnings and deductions, [{"parent", "parentfield",
     "salary_component", "amount", "do_not_include_in_total"}]; people: {employee: {"tin", "nssf"}}; pieces: {slip:
     {size: what was paid for it}}, from the runs that worked the pieces out; names: {"basic", "overtime", "arrears":
-    the earning each is paid under, "pieces": the earnings pieces are paid under}; abbr: the company's letters, left
-    off a department's name.
+    the earning each is paid under, "pieces": the earnings pieces are paid under, "advance": the deduction an
+    advance is recovered under}; abbr: the company's letters, left off a department's name.
+
+    Salary Advance is always there where the site names its deduction, as it is on the team's sheet in a week
+    nobody has one.
 
     An earning that is none of those, and each deduction, has a column of its own, so the columns of a row add up
     to its gross and its net. Pieces a run does not account for stay under their earning's name. A column of
     earnings or deductions nobody has is left out, as the register leaves out a component no slip has."""
     names, people, pieces = names or {}, people or {}, pieces or {}
-    piece_names = set(names.get("pieces") or ())
+    piece_names, advance = set(names.get("pieces") or ()), names.get("advance")
     known = {names.get("basic"): BASIC_PAY, names.get("overtime"): OVERTIME_PAY, names.get("arrears"): ARREARS_PAY}
     known.pop(None, None)
     sizes = sorted({size for found in pieces.values() for size, value in (found or {}).items() if _num(value)})
@@ -113,7 +116,7 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
             "currency": slip.get("currency"), HOURS: _num(slip.get("hours")), RATE: _num(slip.get("rate")),
             BASIC_PAY: 0.0, OVERTIME_HOURS: _num(slip.get("overtime_hours")), OVERTIME_PAY: 0.0, ARREARS_PAY: 0.0,
             GROSS: _num(slip.get("gross_pay")), NET: _num(slip.get("net_pay")), "tin": who.get("tin"),
-            LOAN: _num(slip.get("total_loan_repayment")),
+            LOAN: _num(slip.get("total_loan_repayment")), ADVANCE: 0.0,
             "nssf": who.get("nssf"), "_pieces": 0.0}
         for size in sizes:
             rows[slip.get("name")][size_field[size]] = round(_num((pieces.get(slip.get("name")) or {}).get(size)), 2)
@@ -124,9 +127,12 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
         if line.get("parentfield") == "deductions":
             if int(_num(line.get("do_not_include_in_total"))):
                 continue
-            if component not in taken:
-                taken.append(component)
-            field = "deduction_%d" % (taken.index(component) + 1)
+            if advance and component == advance:
+                field = ADVANCE
+            else:
+                if component not in taken:
+                    taken.append(component)
+                field = "deduction_%d" % (taken.index(component) + 1)
         elif component in known:
             field = known[component]
         elif component in piece_names:
@@ -159,6 +165,8 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
                 _column(ARREARS_PAY, "Arrears")]
     columns += [_column("earning_%d" % number, component) for number, component in enumerate(earned, 1)]
     columns.append(_column(GROSS, "Gross Amount"))
+    if advance:
+        columns.append(_column(ADVANCE, "Salary Advance"))
     columns += [_column("deduction_%d" % number, component) for number, component in enumerate(taken, 1)]
     # a slip keeps what it repays of a loan apart from its deductions: a column where anybody repays one
     if any(row[LOAN] for row in ordered):

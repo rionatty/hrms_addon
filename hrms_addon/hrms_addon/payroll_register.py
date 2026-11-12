@@ -79,7 +79,7 @@ def casual_register(run, names):
     """(columns, rows) of a weekly payroll's register, laid out as the team's Casual Master Payroll (Luuka, 12 Nov
     2026): each casual's hours, rate, basic, pieces by their category, overtime hours and pay, arrears, gross,
     what was taken off, net, TIN and NSSF, read from the payroll's own slips."""
-    from hrms_addon.hrms_addon import output_pay, output_rules, piece_pay, weekly_pay
+    from hrms_addon.hrms_addon import advances, output_pay, output_rules, piece_pay, weekly_pay
 
     slips = frappe.get_all(SLIP, filters={"name": ["in", names]}, limit_page_length=0, fields=[
         "name", "employee", "employee_name", "department", "currency", "gross_pay", "net_pay", "total_loan_repayment",
@@ -96,7 +96,7 @@ def casual_register(run, names):
     sizes = frappe.get_all(output_pay.SIZE, filters={"section": output_rules.PER_PIECE},
                            fields=["name", "salary_component"], limit_page_length=0)
     named = {"basic": output_pay._component_name(output_rules.HOURLY), "overtime": weekly_pay.OVERTIME_COMPONENT[0],
-             "arrears": piece_pay.ARREARS[0],
+             "arrears": piece_pay.ARREARS[0], "advance": advances.DEFAULT_COMPONENT,
              "pieces": {output_pay._component_name(output_rules.PER_PIECE)}
              | {row.salary_component for row in sizes if row.salary_component}}
     return rules.casual_register(slips, lines, people, _pieces(slips, lines), named,
