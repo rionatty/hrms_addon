@@ -212,6 +212,47 @@ def person_issues(person, codes, clock, days):
     return out
 
 
+# a Casual Hours Sheet over the sheet's days that the plant's General Manager has not approved yet (casual_hours.py)
+HOURS_SHEET_DRAFT = "Casual hours not yet sent to the General Manager"
+HOURS_SHEET_WAITING = "Casual hours waiting for the General Manager"
+HOURS_SHEET = "Casual Hours Sheet"
+
+
+def with_hours_sheet(figures, inside, sheet):
+    """A casual's line where Casual Hours Sheets give some of its days, as the weekly payroll pays them (Luuka,
+    12 Nov 2026: "i have uploaded casual hours but it pull different data also it doesnt show the overtime hours").
+
+    figures: the line over the days no sheet gives, as the attendance has them; inside: the days a sheet gives, as
+    the attendance has them; sheet: what the sheets give ({"hours", "overtime", "days"}). The hours and overtime
+    are the sheets'; so are the days worked where they say, else the attendance's; leave, absences and days off
+    are the attendance's; a day a sheet gives is never "not marked"."""
+    out = dict(figures)
+    for key in ("absent", "leave", "off"):
+        out[key] = out.get(key, 0) + inside.get(key, 0)
+    given = _num(sheet.get("days"))
+    if given:
+        out["worked"] = out.get("worked", 0) + int(round(given))
+    else:
+        out["worked"] = out.get("worked", 0) + inside.get("worked", 0)
+        out["half_day"] = out.get("half_day", 0) + inside.get("half_day", 0)
+    out["hours_worked"] = round(_num(out.get("hours_worked")) + _num(sheet.get("hours")), 2)
+    out["overtime_hours"] = round(_num(out.get("overtime_hours")) + _num(sheet.get("overtime")), 2)
+    return out
+
+
+def hours_sheet_issue(name, sheet, first, last):
+    """The line of what to put right for a Casual Hours Sheet over the sheet's days that its General Manager has not
+    approved: its figures are on the sheet, and are not yet what the payroll pays. None for an approved one.
+    sheet: {"from_date", "to_date", "state", "people"} (casual_hours.for_verification)."""
+    state = sheet.get("state") or "Draft"
+    if state == "Approved":
+        return None
+    start, end = max(_date(sheet.get("from_date")), _date(first)), min(_date(sheet.get("to_date")), _date(last))
+    people = int(_num(sheet.get("people")))
+    return issue_row({"employee": None, "employee_name": "%d casual%s" % (people, "" if people == 1 else "s")},
+                     start, end, HOURS_SHEET_DRAFT if state == "Draft" else HOURS_SHEET_WAITING, HOURS_SHEET, name)
+
+
 def issue_row(person, first, last, issue, reference_doctype=None, reference_name=None):
     first, last = _date(first), _date(last or first)
     return {"employee": person.get("employee") or person.get("name"),

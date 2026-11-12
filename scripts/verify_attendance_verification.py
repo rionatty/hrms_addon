@@ -111,6 +111,30 @@ check(not R.on_sheet(piece, "Monthly", "2026-09-26", "2026-10-25"),
 check(R.by_the_hour(casual) and not R.by_the_hour(piece) and not R.by_the_hour(staff)
       and not R.by_the_hour(dict(staff, custom_pay_category=None)),
       "only a casual paid by the hour has hours to count: a Per Piece casual's are nought")
+# a week the plant's Casual Hours Sheets give is theirs on a weekly sheet, as the weekly payroll pays it (Luuka, 12 Nov
+# 2026: "validate attendace varies from the casual hour sheet"; "for casuals the attendance verification should be from
+# casual hours sheet")
+plain = dict.fromkeys(R.FIGURES, 0)
+outside = dict(plain, worked=1, hours_worked=10.0, overtime_hours=1.0)
+inside = dict(plain, worked=4, half_day=1, absent=1, leave=1, off=1, not_marked=2, hours_worked=36.0, overtime_hours=3.0)
+check(R.with_hours_sheet(outside, inside, {"hours": 50, "overtime": 6, "days": 5})
+      == dict(plain, worked=6, absent=1, leave=1, off=1, hours_worked=60.0, overtime_hours=7.0),
+      "the sheet's hours, overtime and days for the days it gives, not the clock's; their leave, absences and days off "
+      "as marked; none of them 'not marked'", R.with_hours_sheet(outside, inside, {"hours": 50, "overtime": 6, "days": 5}))
+check(R.with_hours_sheet(outside, inside, {"hours": 40})
+      == dict(plain, worked=5, half_day=1, absent=1, leave=1, off=1, hours_worked=50.0, overtime_hours=1.0),
+      "a sheet that gives no days leaves the days worked to the attendance, never its hours",
+      R.with_hours_sheet(outside, inside, {"hours": 40}))
+week = {"from_date": "2026-10-29", "to_date": "2026-11-04", "people": 461}
+check(R.hours_sheet_issue("HR-CHS-1", dict(week, state="Approved"), "2026-10-30", "2026-11-05") is None,
+      "an approved sheet leaves nothing to put right")
+said = R.hours_sheet_issue("HR-CHS-2", dict(week, state="Draft"), "2026-10-30", "2026-11-05")
+check(R.issue_text(said) == "461 casuals, 30 Oct 2026 to 4 Nov 2026: Casual hours not yet sent to the General Manager "
+                            "(HR-CHS-2)" and said["employee"] is None and said["reference_doctype"] == "Casual Hours Sheet",
+      "one not yet sent is one line for all its casuals, over its days within the sheet's", said)
+said = R.hours_sheet_issue("HR-CHS-3", dict(week, state="Pending General Manager", people=1), "2026-10-30", "2026-11-05")
+check(R.issue_text(said) == "1 casual, 30 Oct 2026 to 4 Nov 2026: Casual hours waiting for the General Manager (HR-CHS-3)",
+      "and one sent waits for the General Manager", R.issue_text(said))
 for status in ("Inactive", "Suspended", "Left", "", None):
     check(not R.on_sheet(dict(staff, status=status), "Monthly", "2026-09-26", "2026-10-25"),
           "only the active are on it, not one whose status is %r" % status)
@@ -469,6 +493,14 @@ check('weekly = doc.get("pay_kind") == rules.WEEKLY' in read_fn and "standard = 
       and 'return flt(output_pay.settings().get("standard_hours")) or output_rules.STANDARD_HOURS' in glue,
       "the hours are a weekly sheet's, from each day's Working Hours, a full day as the weekly payroll takes it; a Per "
       "Piece casual's are nought")
+check("casual_hours.for_verification([employee for employee in employees if rules.by_the_hour(found[employee])],"
+      in read_fn and 'start, end, doc.get("branch"))' in read_fn
+      and "figures = rules.with_hours_sheet(figures, inside, given)" in read_fn
+      and 'line["clock"], open_days)' in read_fn
+      and "rules.hours_sheet_issue(name, sheet, start, end)" in read_fn
+      and "if day not in covered), open_days, hours, standard)" in read_fn,
+      "a weekly sheet takes the plant's Casual Hours Sheets for its casuals paid by the hour: their figures, no day "
+      "of theirs 'not marked', no overtime the attendance carries on them, and a line for a sheet not yet approved")
 check("\tfrom_date(frm) {\n\t\tha_verify_week_end(frm);\n\t}," in js
       and 'if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;' in js
       and "const to = frappe.datetime.add_days(frm.doc.from_date, 6);" in js

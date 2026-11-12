@@ -387,12 +387,40 @@ def _approved_rows(employees, until=None):
     return out
 
 
+def _plants(employees):
+    """{employee: their plant} of those of these people paid by the hour."""
+    employees = [employee for employee in dict.fromkeys(employees or ()) if employee]
+    return {row.name: row.branch for row in frappe.get_all(
+        "Employee", filters={"name": ["in", employees], "custom_pay_category": WEEKLY},
+        fields=["name", "branch"], limit_page_length=0)} if employees else {}
+
+
+def _plant_weeks(branches, docstatus=1):
+    """{plant: [(from, to)]}: the weeks the plants' sheets give, approved ones by default."""
+    branches = sorted({branch for branch in branches or () if branch})
+    out = {}
+    for sheet in frappe.get_all(DOCTYPE, filters={"branch": ["in", branches], "docstatus": docstatus},
+                                fields=["branch", "from_date", "to_date"], limit_page_length=0) if branches else []:
+        out.setdefault(sheet.branch, []).append((sheet.from_date, sheet.to_date))
+    return out
+
+
 def spans(employees):
-    """{employee: [(from, to)]}: the weeks approved sheets cover for each, whose days the attendance no longer
-    pays (weekly_pay.days_to_pay, overtime_due)."""
+    """{employee: [(from, to)]}: the weeks the approved sheets give each casual paid by the hour, whose days the
+    attendance no longer pays (weekly_pay.days_to_pay, overtime_due): every approved sheet of their plant, whether
+    it lists them or not, as the team's sheet is the plant's week of casual hours (Luuka, 12 Nov 2026: "for casuals
+    the attendance verification should be from casual hours sheet"); and any other that lists them. A casual the
+    plant's sheet leaves out is paid nothing for its days: put them on the sheet."""
     out = {}
     for row in _approved_rows(employees):
         out.setdefault(row["employee"], []).append((row["from_date"], row["to_date"]))
+    plants = _plants(employees)
+    weeks = _plant_weeks(plants.values())
+    for employee, branch in plants.items():
+        theirs = out.setdefault(employee, [])
+        theirs += [week for week in weeks.get(branch, []) if week not in theirs]
+        if not theirs:
+            out.pop(employee)
     return out
 
 
@@ -418,6 +446,58 @@ def unpaid(employees, end):
 def waiting(employees, end):
     """Those of these people an approved sheet still owes, for a weekly payroll's Get Employees."""
     return set(unpaid(employees, end))
+
+
+def for_verification(employees, first, last, branch=None):
+    """What a weekly Attendance Verification takes from the Casual Hours Sheets over its days, as the weekly payroll
+    pays them (attendance_verification._read; Luuka, 12 Nov 2026: "attendance verification is not accurate ... i have
+    uploaded casual hours but it pull different data also it doesnt show the overtime hours"; "for casuals the
+    attendance verification should be from casual hours sheet"):
+
+      {"people": {employee: {"covered": {date}, "hours", "overtime", "days"}},
+       "sheets": {name: {"from_date", "to_date", "state", "people"}}}
+
+    employees: the verification's casuals paid by the hour; branch: its plant. covered: the days a sheet gives,
+    within the verification's: those of every sheet of the plant, whether it lists the casual or not, as the payroll
+    reads them (spans), and of any other that lists them. Those days are the sheets' and not the attendance's: a
+    casual the plant's sheet leaves out worked none of them. The totals count on the verification that holds the
+    sheet's last day, as the payroll dates the week. Every sheet not cancelled counts, so what was uploaded shows at
+    once; one not yet approved stops the verification (attendance_verification_rules.hours_sheet_issue)."""
+    employees = [employee for employee in dict.fromkeys(employees or ()) if employee]
+    first, last = (getdate(first) if first else None), (getdate(last) if last else None)
+    if not employees or not first or not last:
+        return {"people": {}, "sheets": {}}
+    sheets = {row.name: row for row in frappe.get_all(
+        DOCTYPE, filters={"docstatus": ["<", 2], "from_date": ["<=", last], "to_date": [">=", first]},
+        fields=["name", "branch", "from_date", "to_date", "docstatus", "workflow_state"], limit_page_length=0)}
+    people, used = {}, {}
+
+    def theirs(employee):
+        return people.setdefault(employee, {"covered": set(), "hours": 0.0, "overtime": 0.0, "days": 0.0})
+
+    plant = [sheet for sheet in sheets.values() if branch and sheet.get("branch") == branch]
+    for sheet in plant:
+        used.setdefault(sheet.name, set())
+        for employee in employees:
+            theirs(employee)["covered"] |= rules.days_within(sheet.from_date, sheet.to_date, first, last)
+    if sheets:
+        for row in frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "parent": ["in", list(sheets)],
+                                                "employee": ["in", employees]},
+                                  fields=["parent", "employee", "hours_worked", "overtime_hours", "days_worked"],
+                                  limit_page_length=0):
+            sheet, mine = sheets[row.parent], theirs(row.employee)
+            mine["covered"] |= rules.days_within(sheet.from_date, sheet.to_date, first, last)
+            used.setdefault(sheet.name, set()).add(row.employee)
+            if first <= getdate(sheet.to_date) <= last:
+                mine["hours"] = round(mine["hours"] + flt(row.hours_worked), 2)
+                mine["overtime"] = round(mine["overtime"] + flt(row.overtime_hours), 2)
+                mine["days"] = round(mine["days"] + flt(row.days_worked), 2)
+    return {"people": {employee: mine for employee, mine in people.items() if mine["covered"]},
+            "sheets": {name: {"from_date": sheets[name].from_date, "to_date": sheets[name].to_date,
+                              "state": sheets[name].get("workflow_state") or ("Approved" if sheets[name].docstatus == 1
+                                                                             else "Draft"),
+                              "people": len(who)}
+                       for name, who in used.items()}}
 
 
 def latest_to(wanted):

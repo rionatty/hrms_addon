@@ -219,6 +219,16 @@ def _read(doc):
     # a weekly sheet's Hours Worked: the hours the weekly payroll pays for the days worked
     weekly = doc.get("pay_kind") == rules.WEEKLY
     standard = _full_day() if weekly else None
+    # and the weeks the plant's Casual Hours Sheets give its casuals paid by the hour: their hours, overtime and days,
+    # not the attendance's, as the weekly payroll pays them (casual_hours.for_verification; Luuka, 12 Nov 2026: "for
+    # casuals the attendance verification should be from casual hours sheet")
+    if weekly:
+        from hrms_addon.hrms_addon import casual_hours
+
+        sheets = casual_hours.for_verification([employee for employee in employees if rules.by_the_hour(found[employee])],
+                                               start, end, doc.get("branch"))
+    else:
+        sheets = {"people": {}, "sheets": {}}
     rows, issues = [], []
     for line in lines:
         person = found[line["employee"]]
@@ -226,12 +236,22 @@ def _read(doc):
         # a Per Piece casual is paid for their pieces: their days are verified, and their hours are nought
         hours = {day: row.get("working_hours") for day, row in (marked.get(line["employee"]) or {}).items()} \
             if weekly and rules.by_the_hour(person) else None
-        figures = rules.person_figures(person, line["days"], line["clock"], statuses, overtime.get(line["employee"]),
-                                       days, hours, standard)
+        given = sheets["people"].get(line["employee"]) or {}
+        covered = given.get("covered") or set()
+        open_days = [day for day in days if day not in covered]
+        figures = rules.person_figures(person, line["days"], line["clock"], statuses,
+                                       sum(value for day, value in (overtime.get(line["employee"]) or {}).items()
+                                           if day not in covered), open_days, hours, standard)
+        if covered:
+            inside = rules.person_figures(person, line["days"], line["clock"], statuses, 0, sorted(covered))
+            figures = rules.with_hours_sheet(figures, inside, given)
         rows.append(dict(figures, employee=person.name, employee_name=person.employee_name,
                          department=person.department))
-        issues += rules.person_issues(dict(person, employee=person.name), line["days"], line["clock"], days)
+        issues += rules.person_issues(dict(person, employee=person.name), line["days"], line["clock"], open_days)
     issues += _waiting(found, start, end)
+    # a sheet's figures are not yet what the payroll pays until its General Manager approves it
+    issues += [line for line in (rules.hours_sheet_issue(name, sheet, start, end)
+                                 for name, sheet in sorted(sheets["sheets"].items())) if line]
     issues.sort(key=lambda row: (str(row["from_date"]), row.get("employee_name") or "", row["issue"]))
     return {"rows": rows, "issues": issues}
 
@@ -286,13 +306,16 @@ def _holidays(found, start, end, company):
 
 
 def _overtime_hours(employees, start, end):
-    """{employee: the overtime hours their attendance carries}: what overtime sent to payroll wrote there."""
+    """{employee: {date: the overtime hours their attendance carries that day}}: what overtime sent to payroll, or
+    an attendance upload, wrote there. By the day, so that a day a Casual Hours Sheet gives is left to the sheet."""
     hours = {}
     for row in frappe.get_all(ATTENDANCE, filters={
             "employee": ["in", employees], "docstatus": 1, "attendance_date": ["between", [start, end]],
-            "actual_overtime_duration": [">", 0]}, fields=["employee", "actual_overtime_duration"],
+            "actual_overtime_duration": [">", 0]}, fields=["employee", "attendance_date", "actual_overtime_duration"],
             limit_page_length=0):
-        hours[row.employee] = hours.get(row.employee, 0.0) + float(row.actual_overtime_duration or 0)
+        theirs = hours.setdefault(row.employee, {})
+        day = getdate(row.attendance_date)
+        theirs[day] = theirs.get(day, 0.0) + float(row.actual_overtime_duration or 0)
     return hours
 
 

@@ -601,6 +601,45 @@ check(G.new_sheet_week("LPL", "Kawempe") == {"from_date": "2026-11-05", "to_date
       G.new_sheet_week("LPL", "Kawempe"))
 print("the upload: the team's workbook read, each person found or said; the template; the next week")
 
+# the plant's sheets are its casuals' week, on the payroll and on the Attendance Verification (Luuka, 12 Nov 2026:
+# "for casuals the attendance verification should be from casual hours sheet"; "validate attendace varies from the
+# casual hour sheet")
+s = site()
+for name, branch, start, end, docstatus, state in (
+        ("HR-CHS-A", "Kawempe", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
+        ("HR-CHS-B", "Kawempe", D(2026, 11, 5), D(2026, 11, 11), 0, "Pending General Manager"),
+        ("HR-CHS-N", "Namanve", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
+        ("HR-CHS-X", "Kawempe", D(2026, 10, 22), D(2026, 10, 28), 2, "Cancelled")):
+    s.add("Casual Hours Sheet", name=name, company="LPL", branch=branch, from_date=start, to_date=end,
+          docstatus=docstatus, workflow_state=state)
+for parent, employee, hours, overtime, days, docstatus in (("HR-CHS-A", "LPC100", 50, 6, 5, 1),
+                                                           ("HR-CHS-B", "LPC100", 30, 0, 3, 0),
+                                                           ("HR-CHS-X", "LPC101", 99, 9, 7, 2)):
+    s.add("Casual Hours Row", parent=parent, parenttype="Casual Hours Sheet", employee=employee, hours_worked=hours,
+          overtime_hours=overtime, days_worked=days, docstatus=docstatus)
+A_WEEK = (D(2026, 10, 29), D(2026, 11, 4))
+check(G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]) == {"LPC100": [A_WEEK], "LPC101": [A_WEEK],
+                                                             "LPC300": [A_WEEK]},
+      "the payroll takes each plant's approved week as its casuals' by the hour, the sheet's row or not: LPC101, left "
+      "off Kawempe's, is paid none of its days from the clock; Namanve's casual by Namanve's; never a Per Piece casual; "
+      "never a sheet still with the General Manager or cancelled", G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]))
+got = G.for_verification(["LPC100", "LPC101"], D(2026, 10, 30), D(2026, 11, 5), "Kawempe")
+week_days = {D(2026, 10, 30) + datetime.timedelta(days=n) for n in range(7)}
+check(got["people"] == {"LPC100": {"covered": week_days, "hours": 50.0, "overtime": 6.0, "days": 5.0},
+                        "LPC101": {"covered": week_days, "hours": 0.0, "overtime": 0.0, "days": 0.0}},
+      "the verification's casuals: each day the plant's sheets give, theirs; the totals of the sheet whose last day it "
+      "holds, the next week's left to the next verification", got["people"])
+check(got["sheets"] == {"HR-CHS-A": {"from_date": D(2026, 10, 29), "to_date": D(2026, 11, 4), "state": "Approved",
+                                     "people": 1},
+                        "HR-CHS-B": {"from_date": D(2026, 11, 5), "to_date": D(2026, 11, 11),
+                                     "state": "Pending General Manager", "people": 1}},
+      "the plant's sheets over its days, not another plant's or a cancelled one, with how many of its casuals each has",
+      got["sheets"])
+check(G.for_verification(["LPC100"], D(2026, 10, 30), D(2026, 11, 5), "Matugga")["people"]["LPC100"]["covered"]
+      == week_days and not G.for_verification(["LPC104"], D(2026, 10, 30), D(2026, 11, 5), "Matugga")["people"],
+      "a sheet that lists a casual covers them at another plant's verification too; the plant's own covers its own")
+print("the plant's week: its sheets are its casuals', on the payroll and on the Attendance Verification")
+
 # ── 4. The doctypes, the form, the wiring ─────────────
 
 

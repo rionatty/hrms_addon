@@ -297,6 +297,12 @@ def overlap(first_from, first_to, second_from, second_to):
     return bool(a and b and c and d and a <= d and c <= b)
 
 
+def days_within(from_date, to_date, first, last):
+    """The days of a sheet's week that fall from `first` to `last`, as a set of dates."""
+    start, end = max(_date(from_date), _date(first)), min(_date(to_date), _date(last))
+    return {start + datetime.timedelta(days=n) for n in range((end - start).days + 1)} if start <= end else set()
+
+
 def in_spans(day, spans):
     day = _date(day)
     return bool(day) and any(_date(first) <= day <= _date(last) for first, last in spans or ())
