@@ -182,6 +182,13 @@ check("the Excel sheet ends with the totals, as the team's own does: Total under
       and totals["Wage Rate"] is None and totals["TIN"] is None, totals)
 check("a register with nobody on it has no total row, and the monthly register none either",
       len(R.sheet(weekly_columns, [], total=True)) == 1 and len(R.sheet(columns, rows)) == 3)
+lent_columns, lent_rows = R.casual_register([dict(CASUAL_SLIPS[0], total_loan_repayment=5000, net_pay=50705)],
+                                           CASUAL_LINES[:2], None, None, CASUAL_NAMES, None)
+check("a loan repayment, which a slip keeps apart from its deductions, has a column where anybody repays one, "
+      "between the deductions and the net; nobody repaying, there is none",
+      [column["label"] for column in lent_columns][-6:-4] == ["Gross Amount", "Loan Repayment"]
+      and lent_rows[0]["total_loan_repayment"] == 5000.0 and lent_rows[0]["gross_pay"] - 5000.0 == lent_rows[0]["net_pay"]
+      and "Loan Repayment" not in labels, [column["label"] for column in lent_columns])
 bare_columns, bare_rows = R.casual_register(CASUAL_SLIPS[:1], CASUAL_LINES[:2], None, None, CASUAL_NAMES, None)
 check("with no pieces, no other earning and nothing taken off, only the sheet's own columns are there",
       [column["label"] for column in bare_columns] == [
@@ -355,7 +362,7 @@ check("read from the payroll's own slips: the hours, the rate and the overtime h
       read_of["Salary Slip"][2] == {"name": ["in", ["S1", "S2", "S3", "S4"]]}
       and all(field in read_of["Salary Slip"][3] for field in (
           "custom_weekly_hours as hours", "custom_weekly_rate as rate", "custom_weekly_overtime_hours as overtime_hours",
-          "gross_pay", "net_pay", "department", "currency")), read_of["Salary Slip"])
+          "gross_pay", "net_pay", "department", "currency", "total_loan_repayment")), read_of["Salary Slip"])
 check("their earnings and deductions, each employee's TIN and NSSF, and the pieces by category from the run that "
       "wrote the pay",
       read_of["Salary Detail"][2] == {"parenttype": "Salary Slip", "parent": ["in", ["S1", "S2", "S3", "S4"]],

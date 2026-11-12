@@ -68,8 +68,9 @@ def sheet(columns, rows, total=False):
 # ADVANCE, NETT PAY, TIN and NSSF. Every figure is the salary slip's own.
 TOTAL, TOTAL_UNDER = "Total", "employee_name"
 FIGURES = ("Int", "Float", "Currency")
-SERIAL, HOURS, RATE, BASIC_PAY, OVERTIME_HOURS, OVERTIME_PAY, ARREARS_PAY, GROSS, NET = (
-    "serial", "hours_worked", "wage_rate", "basic", "overtime_hours", "overtime_amount", "arrears", "gross_pay", "net_pay")
+SERIAL, HOURS, RATE, BASIC_PAY, OVERTIME_HOURS, OVERTIME_PAY, ARREARS_PAY, GROSS, NET, LOAN = (
+    "serial", "hours_worked", "wage_rate", "basic", "overtime_hours", "overtime_amount", "arrears", "gross_pay", "net_pay",
+    "total_loan_repayment")
 
 
 def _summed(column):
@@ -88,7 +89,7 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
     """(columns, rows) of a weekly payroll's register, laid out as the team's Casual Master Payroll.
 
     slips: [{"name", "employee", "employee_name", "department", "currency", "hours", "rate", "overtime_hours",
-    "gross_pay", "net_pay"}]; lines: the slips' earnings and deductions, [{"parent", "parentfield",
+    "gross_pay", "net_pay", "total_loan_repayment"}]; lines: the slips' earnings and deductions, [{"parent", "parentfield",
     "salary_component", "amount", "do_not_include_in_total"}]; people: {employee: {"tin", "nssf"}}; pieces: {slip:
     {size: what was paid for it}}, from the runs that worked the pieces out; names: {"basic", "overtime", "arrears":
     the earning each is paid under, "pieces": the earnings pieces are paid under}; abbr: the company's letters, left
@@ -112,6 +113,7 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
             "currency": slip.get("currency"), HOURS: _num(slip.get("hours")), RATE: _num(slip.get("rate")),
             BASIC_PAY: 0.0, OVERTIME_HOURS: _num(slip.get("overtime_hours")), OVERTIME_PAY: 0.0, ARREARS_PAY: 0.0,
             GROSS: _num(slip.get("gross_pay")), NET: _num(slip.get("net_pay")), "tin": who.get("tin"),
+            LOAN: _num(slip.get("total_loan_repayment")),
             "nssf": who.get("nssf"), "_pieces": 0.0}
         for size in sizes:
             rows[slip.get("name")][size_field[size]] = round(_num((pieces.get(slip.get("name")) or {}).get(size)), 2)
@@ -158,6 +160,9 @@ def casual_register(slips, lines, people=None, pieces=None, names=None, abbr=Non
     columns += [_column("earning_%d" % number, component) for number, component in enumerate(earned, 1)]
     columns.append(_column(GROSS, "Gross Amount"))
     columns += [_column("deduction_%d" % number, component) for number, component in enumerate(taken, 1)]
+    # a slip keeps what it repays of a loan apart from its deductions: a column where anybody repays one
+    if any(row[LOAN] for row in ordered):
+        columns.append(_column(LOAN, "Loan Repayment"))
     columns += [_column(NET, "Net Pay"), _column("tin", "TIN", "Data", 120), _column("nssf", "NSSF", "Data", 140),
                 _column("salary_slip_id", "Salary Slip", "Link", 170, options="Salary Slip")]
     for row in ordered:

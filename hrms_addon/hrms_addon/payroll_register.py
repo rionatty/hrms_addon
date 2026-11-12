@@ -82,7 +82,7 @@ def casual_register(run, names):
     from hrms_addon.hrms_addon import output_pay, output_rules, piece_pay, weekly_pay
 
     slips = frappe.get_all(SLIP, filters={"name": ["in", names]}, limit_page_length=0, fields=[
-        "name", "employee", "employee_name", "department", "currency", "gross_pay", "net_pay",
+        "name", "employee", "employee_name", "department", "currency", "gross_pay", "net_pay", "total_loan_repayment",
         "%s as hours" % weekly_pay.HOURS, "%s as rate" % weekly_pay.RATE,
         "%s as overtime_hours" % weekly_pay.OVERTIME_HOURS])
     lines = frappe.get_all(DETAIL, filters={"parenttype": SLIP, "parent": ["in", names],
