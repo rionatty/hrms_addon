@@ -456,15 +456,15 @@ def additional_validate(doc, method=None):
     if doc.get("ref_doctype") != "Output Pay Run" and doc.get("payroll_date"):
         from hrms_addon.hrms_addon import piece_pay
 
-        if doc.salary_component == piece_pay.ARREARS[0]:
-            paid = piece_pay.arrears_paid(doc.employee, doc.payroll_date)
+        if doc.salary_component in piece_pay.arrears_names():
+            paid = piece_pay.arrears_paid(doc.employee, doc.payroll_date, doc.salary_component)
             if paid:
                 frappe.throw(_("{0} has paid {1}'s arrears for that week. Change them on that run, not here.").format(
                     paid, doc.employee), title=_("Additional Salary"))
     if frappe.db.get_value("Salary Component", doc.salary_component, "depends_on_payment_days"):
         frappe.throw(_("{0} is cut by the days paid, and {1} is a casual paid by the week, so it would come to less "
                        "than is owed. Untick Depends on Payment Days on {0}, or use a component that is not cut, such "
-                       "as Arrears.").format(doc.salary_component, doc.employee), title=_("Additional Salary"))
+                       "as Arrear.").format(doc.salary_component, doc.employee), title=_("Additional Salary"))
 
 
 def assign_people(employees, company, start):

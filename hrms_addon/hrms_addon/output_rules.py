@@ -250,6 +250,52 @@ def overtime_by_employee(rows):
     return totals
 
 
+def arrears_lines(rows, addition, deduction):
+    """A run's arrears lines, each an addition or a deduction, as Luuka's own Additional Salaries are (Luuka,
+    12 Nov 2026: arrears "can be addition or deduction" and "should look like this"): [{"employee",
+    "salary_component", "amount"}], each amount more than nothing. A line with no component is an addition; one
+    less than nothing is taken back, a deduction of its size. rows: [{"employee", "salary_component", "amount"}]."""
+    out = []
+    for row in rows or []:
+        amount, component = _num(row.get("amount")), row.get("salary_component") or addition
+        if amount < 0:
+            amount, component = -amount, deduction
+        out.append({"employee": row.get("employee"), "salary_component": component, "amount": round(amount, 2)})
+    return out
+
+
+def arrears_net(lines, deduction):
+    """{employee: their arrears added, less those taken back}. lines: as arrears_lines gives them."""
+    net = {}
+    for row in lines or []:
+        if row.get("employee"):
+            sign = -1 if row.get("salary_component") == deduction else 1
+            net[row["employee"]] = round(net.get(row["employee"], 0.0) + sign * _num(row.get("amount")), 2)
+    return net
+
+
+def with_arrears(rows, lines):
+    """A Per Piece run's earnings with each person's arrears beside their pieces: rows as earnings gives them, each
+    person's followed by their arrears lines summed by component (an addition and a deduction apart, each its own
+    Additional Salary); those with only arrears after everyone else, in the order of the lines. lines: as
+    arrears_lines gives them. Nothing for a component that comes to nothing."""
+    owed, order = {}, []
+    for row in lines or []:
+        key = (row.get("employee"), row.get("salary_component"))
+        if not key[0] or not key[1]:
+            continue
+        if key not in owed:
+            owed[key] = 0.0
+            order.append(key)
+        owed[key] = round(owed[key] + _num(row.get("amount")), 2)
+    out = []
+    for who in dict.fromkeys([row["employee"] for row in rows or []] + [person for person, _component in order]):
+        out += [row for row in rows or [] if row["employee"] == who]
+        out += [{"employee": who, "salary_component": component, "amount": owed[(person, component)]}
+                for person, component in order if person == who and owed[(person, component)] > 0]
+    return out
+
+
 def earnings(lines, overtime, components, default, overtime_component=None):
     """What each person is paid under each salary component, so that the
     payslip shows the sizes apart as Luuka's own does (PER METER 1 to 6):
@@ -583,9 +629,10 @@ def take_pieces(weeks, people, sizes, rates, period, unread=None):
     have all per piece employee active").
 
     The ARREARS beside a person are paid with their week: the run writes them
-    as Additional Salary under Arrears, each person's own, as it writes their
-    pieces (Luuka, 12 Nov 2026: "arrears should work like additional salary
-    and it should post to additional salary respectively").
+    as Additional Salary, each person's own, as it writes their pieces (Luuka,
+    12 Nov 2026: "arrears should work like additional salary and it should post
+    to additional salary respectively"): added under Arrear, or taken back under
+    Arrears Deductions where they are less than nothing.
 
     Returns {"work": {(employee, the week's last day, category): (bags,
     price, where)}, "arrears": {(employee, the week's last day): (amount,
@@ -648,11 +695,11 @@ def take_pieces(weeks, people, sizes, rates, period, unread=None):
                             "in the NO. column." % sheet)
         for row in week.get("rows") or []:
             bags = {price: value for price, value in (row.get("bags") or {}).items() if _text(value)}
-            owed = _num(row.get("arrears")) if _positive(row.get("arrears")) else 0.0
-            # bags that are no number or less than nothing, and arrears less than nothing, are said, never passed over
+            # arrears less than nothing are owed back: taken back with the week, as a deduction
+            owed = round(_num(row.get("arrears")), 2) if _is_number(row.get("arrears")) else 0.0
+            # bags that are no number or less than nothing are said, never passed over
             odd = [value for value in bags.values() if not _is_number(value) or _num(value) < 0]
-            owes_back = _is_number(row.get("arrears")) and _num(row.get("arrears")) < 0
-            if not owed and not odd and not owes_back and not any(_positive(value) for value in bags.values()):
+            if not owed and not odd and not any(_positive(value) for value in bags.values()):
                 continue
             worth = sum(_num(value) * _num(price) for price, value in bags.items() if _positive(value))
             what = "bags and arrears" if owed and worth else "arrears" if owed else "bags"
@@ -704,9 +751,6 @@ def take_pieces(weeks, people, sizes, rates, period, unread=None):
                 notes.append("%s, row %s: %s's total is %s, but the bags at their prices come to %s, which is "
                              "what is paid." % (sheet, row["row"], row.get("name") or called[employee],
                                                 _amount(row["total"]), _amount(worth)))
-            if _is_number(row.get("arrears")) and _num(row.get("arrears")) < 0:
-                problems.append("%s, row %s: arrears of %s are less than nothing, so they are left out."
-                                % (sheet, row["row"], _amount(row["arrears"])))
             if owed:
                 arrears[(employee, last)] = (round(owed, 2), "%s, row %s" % (sheet, row["row"]))
         taken.append(week)
@@ -714,10 +758,17 @@ def take_pieces(weeks, people, sizes, rates, period, unread=None):
         notes.insert(0, "Weeks taken: %s." % _joined("%s to %s" % (_day(week["start"]), _day(week["end"]))
                                                       for week in taken))
     if arrears:
-        owed_by = len({employee for employee, _week in arrears})
-        notes.append("Arrears paid with their week, as Additional Salary under Arrears when the run is submitted: "
-                     "%d %s, %s in all." % (owed_by, "person" if owed_by == 1 else "people",
-                                            _amount(sum(amount for amount, _where in arrears.values()))))
+        added = [amount for amount, _where in arrears.values() if amount > 0]
+        back = [-amount for amount, _where in arrears.values() if amount < 0]
+        said = []
+        if added:
+            said.append("%s added for %d %s" % (_amount(sum(added)), len(added),
+                                                "person" if len(added) == 1 else "people"))
+        if back:
+            said.append("%s taken back from %d %s" % (_amount(sum(back)), len(back),
+                                                      "person" if len(back) == 1 else "people"))
+        notes.append("Arrears with their week, as Additional Salary when the run is submitted: %s."
+                     % " and ".join(said))
     if unread:
         notes.append("Sheets with no week in their name or title, not read: %s." % _joined(unread))
     return {"work": work, "arrears": arrears, "overtime": {}, "weeks": taken, "problems": problems, "notes": notes}
@@ -737,7 +788,8 @@ def run_errors(section, employees):
         errors.append("There is nothing in this run to pay.")
     for row in employees or []:
         if _num(row.get("amount")) < 0:
-            errors.append("%s cannot be paid less than nothing." % row.get("employee"))
+            errors.append("%s cannot be paid less than nothing: what is taken back is more than the week pays them."
+                          % row.get("employee"))
     return errors
 
 

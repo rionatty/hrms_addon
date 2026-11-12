@@ -6,6 +6,9 @@
  "field_order": [
   "employee",
   "employee_name",
+  "department",
+  "salary_component",
+  "component_type",
   "amount",
   "from_reports"
  ],
@@ -16,7 +19,8 @@
    "label": "Employee",
    "options": "Employee",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "columns": 2
   },
   {
    "fieldname": "employee_name",
@@ -24,14 +28,17 @@
    "label": "Name",
    "fetch_from": "employee.employee_name",
    "read_only": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "columns": 2
   },
   {
    "fieldname": "amount",
    "fieldtype": "Currency",
-   "label": "Arrears",
+   "label": "Amount",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "columns": 1,
+   "description": "Less than nothing is taken back, under the deduction."
   },
   {
    "fieldname": "from_reports",
@@ -39,10 +46,38 @@
    "label": "From the Daily Reports",
    "read_only": 1,
    "hidden": 1
+  },
+  {
+   "columns": 2,
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Arrear to add it, Arrears Deductions to take it back.",
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Salary Component",
+   "options": "Salary Component"
+  },
+  {
+   "columns": 1,
+   "fetch_from": "salary_component.type",
+   "fieldname": "component_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Type",
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-11-11 12:00:00.000000",
+ "modified": "2026-11-12 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Output Pay Arrears",

@@ -444,8 +444,10 @@ overtime_glue = types.ModuleType("hrms_addon.hrms_addon.overtime")
 overtime_glue.day_kind = lambda employee, day: site().day_kinds.get((employee, as_date(day)), OR.WEEKDAY)
 piece_glue = types.ModuleType("hrms_addon.hrms_addon.piece_pay")
 piece_glue.waiting = lambda employees, start, end: {name for name in employees if name in site().pieces_waiting}
-piece_glue.ARREARS = ("Arrears", "ARR")
-piece_glue.arrears_paid = lambda employee, day: site().arrears_paid.get(employee)
+piece_glue.ARREARS = ("Arrear", "ARR")
+piece_glue.arrears_names = lambda: ("Arrear", "Arrears Deductions", "Arrears")
+# {(employee, component): the run that paid their arrears under it}, as piece_pay.arrears_paid finds it
+piece_glue.arrears_paid = lambda employee, day, component=None: site().arrears_paid.get((employee, component))
 sys.modules.update({"frappe": frappe, "frappe.utils": utils, "hrms_addon.hrms_addon.output_pay": output_pay,
                     "hrms_addon.hrms_addon.output_rules": O, "hrms_addon.hrms_addon.overtime": overtime_glue,
                     "hrms_addon.hrms_addon.piece_pay": piece_glue})
@@ -798,7 +800,7 @@ for employee in ("P9", "W1"):
         check(False, "a casual's Additional Salary under a component cut by the days paid is refused")
     except Thrown as error:
         check("Bonus Cut is cut by the days paid, and %s is a casual paid by the week" % employee in str(error)
-              and "Untick Depends on Payment Days on Bonus Cut, or use a component that is not cut, such as Arrears."
+              and "Untick Depends on Payment Days on Bonus Cut, or use a component that is not cut, such as Arrear."
               in str(error), "a casual's Additional Salary under a component cut by the days paid is refused, saying "
                              "what to do (%s)" % employee, str(error))
 W.additional_validate(additional("P9", "Arrears"))
@@ -808,18 +810,25 @@ check(True, "under a component not cut it is taken; a monthly employee's is Frap
             "whole by Frappe HR anyway")
 # arrears a Per Piece run has paid for the week are not entered again by hand (Luuka, 12 Nov 2026: "arrears should work
 # like additional salary and it should post to additional salary respectively")
-s.arrears_paid = {"P9": "OPR-2026-00004"}
-try:
-    W.additional_validate(Row(employee="P9", salary_component="Arrears", payroll_date=D(2026, 11, 2)))
-    check(False, "a casual's arrears the week's run has paid are not entered again by hand")
-except Thrown as error:
-    check("OPR-2026-00004 has paid P9's arrears for that week. Change them on that run, not here." in str(error),
-          "a casual's arrears the week's run has paid are not entered again by hand, saying which run", str(error))
-W.additional_validate(Row(employee="P9", salary_component="Arrears", payroll_date=D(2026, 11, 2),
+# arrears are added under Arrear or taken back under Arrears Deductions (Luuka, 12 Nov 2026: arrears "can be addition
+# or deduction"), and Arrears is what a run paid under before: each is guarded under its own name
+for component in ("Arrear", "Arrears Deductions", "Arrears"):
+    s.arrears_paid = {("P9", component): "OPR-2026-00004"}
+    try:
+        W.additional_validate(Row(employee="P9", salary_component=component, payroll_date=D(2026, 11, 2)))
+        check(False, "a casual's arrears the week's run has paid under %s are not entered again by hand" % component)
+    except Thrown as error:
+        check("OPR-2026-00004 has paid P9's arrears for that week. Change them on that run, not here." in str(error),
+              "a casual's arrears the week's run has paid under %s are not entered again by hand, saying which run"
+              % component, str(error))
+s.arrears_paid = {("P9", "Arrear"): "OPR-2026-00004"}
+W.additional_validate(Row(employee="P9", salary_component="Arrears Deductions", payroll_date=D(2026, 11, 2)))
+W.additional_validate(Row(employee="P9", salary_component="Arrear", payroll_date=D(2026, 11, 2),
                           ref_doctype="Output Pay Run"))
 s.arrears_paid = {}
-W.additional_validate(Row(employee="P9", salary_component="Arrears", payroll_date=D(2026, 11, 2)))
-check(True, "the run's own Arrears are taken, and a casual's with none paid for the week")
+W.additional_validate(Row(employee="P9", salary_component="Arrear", payroll_date=D(2026, 11, 2)))
+check(True, "a deduction beside an addition the run paid is taken, the run's own arrears are, and a casual's with "
+            "none paid for the week")
 
 
 # ── 4. The slip ──────────────────────────────────────────

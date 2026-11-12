@@ -9,6 +9,8 @@
   "per_piece_component",
   "hourly_component",
   "looms_ot_component",
+  "arrears_component",
+  "arrears_deduction_component",
   "column_break_1",
   "standard_hourly_rate",
   "standard_hours"
@@ -60,10 +62,24 @@
    "label": "Standard Hours a Day",
    "default": "10",
    "description": "Hours above this are paid as overtime."
+  },
+  {
+   "description": "An Earning: a Per Piece casual's arrears owed to them. Arrear where none is chosen.",
+   "fieldname": "arrears_component",
+   "fieldtype": "Link",
+   "label": "Arrears Added Under",
+   "options": "Salary Component"
+  },
+  {
+   "description": "A Deduction: arrears owed back. Arrears Deductions where none is chosen.",
+   "fieldname": "arrears_deduction_component",
+   "fieldtype": "Link",
+   "label": "Arrears Taken Back Under",
+   "options": "Salary Component"
   }
  ],
  "links": [],
- "modified": "2026-11-05 18:00:00.000000",
+ "modified": "2026-11-12 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Output Pay Settings",

@@ -15,6 +15,14 @@ const HRA_PAY_MONTHS = [
 	"July", "August", "September", "October", "November", "December",
 ];
 
+// a new arrears line is an addition until it is made a deduction
+frappe.ui.form.on("Output Pay Arrears", {
+	arrears_add(frm, cdt, cdn) {
+		const added = (frm.__ha_arrears || ["Arrear"])[0];
+		if (!locals[cdt][cdn].salary_component) frappe.model.set_value(cdt, cdn, "salary_component", added);
+	},
+});
+
 frappe.ui.form.on("Output Pay Run", {
 	// a Per Piece run's To follows the From picked: the week of seven days from it (Luuka, 11 Nov 2026: "the date
 	// should auto fill the week once the from date is selected"). To can still be changed after.
@@ -63,6 +71,13 @@ frappe.ui.form.on("Output Pay Run", {
 		frm.set_query("employee", "overtime", people);
 		frm.set_query("employee", "arrears", people);
 		frm.set_query("size", "lines", () => ({ filters: { section: frm.doc.section, enabled: 1 } }));
+		// an arrears line is added under Arrear or taken back under Arrears Deductions, as an Additional Salary is
+		frm.set_query("salary_component", "arrears", () => ({
+			filters: { name: ["in", frm.__ha_arrears || ["Arrear", "Arrears Deductions"]] },
+		}));
+		frappe
+			.xcall("hrms_addon.hrms_addon.piece_pay.arrears_choices")
+			.then((choices) => (frm.__ha_arrears = choices || frm.__ha_arrears));
 	},
 
 	refresh(frm) {

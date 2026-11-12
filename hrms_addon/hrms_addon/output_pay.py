@@ -80,6 +80,8 @@ SETTING_FIELDS = {rules.PER_METER: "per_meter_component", rules.PER_PIECE: "per_
                   rules.HOURLY: "hourly_component"}
 HAND_LINE_FIELDS = ("employee", "size", "shifts", "output")
 HAND_OT_FIELDS = ("employee", "amount")
+# an arrears line typed in by hand: an addition or a deduction under its own component
+HAND_ARREARS_FIELDS = ("employee", "salary_component", "amount")
 # what a row of a run's tables is made of, when it was not typed in by hand
 ARREARS = "arrears"
 
@@ -219,7 +221,7 @@ def run_validate(doc, method=None):
     doc.total_employees = len(doc.get("employees") or [])
     doc.total_amount = round(sum(flt(row.get("amount")) for row in doc.get("employees") or []), 2)
     doc.total_overtime = round(sum(flt(row.get("amount")) for row in doc.get("overtime") or []), 2)
-    doc.total_arrears = round(sum(flt(row.get("amount")) for row in doc.get(ARREARS) or []), 2)
+    doc.total_arrears = round(sum(rules.arrears_net(_arrears_lines(doc), _arrears_components()[1]).values()), 2)
 
 
 def _set_period(doc):
@@ -309,16 +311,22 @@ def _check_overtime(doc):
 
 
 def _check_arrears(doc):
-    """Arrears are a Per Piece run's: a Per Piece casual's, each more than
-    nothing. Those from the reports were checked on them. The run pays them
-    as Additional Salary under Arrears, each person's own (Luuka, 12 Nov
-    2026: "arrears should work like additional salary and it should post to
-    additional salary respectively")."""
+    """Arrears are a Per Piece run's: a Per Piece casual's, each line an
+    addition or a deduction under its own component, as Luuka's own
+    Additional Salaries are (Luuka, 12 Nov 2026: "arrears should work like
+    additional salary and it should post to additional salary respectively";
+    arrears "can be addition or deduction" and "should look like this"). A
+    line with no component is an addition; one less than nothing is taken
+    back, a deduction of its size. Those from the reports were checked on
+    them. The run pays each as Additional Salary, each person's own."""
     rows = doc.get(ARREARS) or []
     if doc.get("section") != rules.PER_PIECE:
         if rows:
             frappe.throw(_("Arrears go on a Per Piece run."), title=_(RUN))
         return
+    addition, deduction = _arrears_components()
+    for row, line in zip(rows, rules.arrears_lines([_row(row) for row in rows], addition, deduction)):
+        row.salary_component, row.amount = line["salary_component"], line["amount"]
     typed = [(number, row) for number, row in enumerate(rows, 1) if not cint(row.get("from_reports"))]
     categories = _pay_categories(row.get("employee") for _number, row in typed)
     errors = []
@@ -327,16 +335,32 @@ def _check_arrears(doc):
             errors.append(_("Arrears line {0}: {1} is paid {2}, not Per Piece.").format(
                 number, row.employee, categories[row.employee]))
         if flt(row.get("amount")) <= 0:
-            errors.append(_("Arrears line {0}: say how much is owed.").format(number))
+            errors.append(_("Arrears line {0}: say how much.").format(number))
+        if row.salary_component not in (addition, deduction):
+            errors.append(_("Arrears line {0}: {1} is neither {2} nor {3}.").format(
+                number, row.salary_component, addition, deduction))
     if errors:
         frappe.throw("<br>".join(errors), title=_(RUN))
 
 
 def _beside_the_work(doc):
     """{employee: what they are paid beside their work}: a Per Meter run's
-    Looms OT, a Per Piece run's arrears."""
-    table = ARREARS if doc.get("section") == rules.PER_PIECE else "overtime"
-    return rules.overtime_by_employee([_row(row) for row in doc.get(table) or []])
+    Looms OT, a Per Piece run's arrears, those taken back less."""
+    if doc.get("section") == rules.PER_PIECE:
+        return rules.arrears_net(_arrears_lines(doc), _arrears_components()[1])
+    return rules.overtime_by_employee([_row(row) for row in doc.get("overtime") or []])
+
+
+def _arrears_lines(doc):
+    """The run's arrears, each an addition or a deduction (rules.arrears_lines)."""
+    return rules.arrears_lines([_row(row) for row in doc.get(ARREARS) or []], *_arrears_components())
+
+
+def _arrears_components():
+    """(the addition, the deduction) a Per Piece casual's arrears are paid under (piece_pay.arrears_components)."""
+    from hrms_addon.hrms_addon import piece_pay
+
+    return piece_pay.arrears_components()
 
 
 def _employees_from_lines(doc):
@@ -360,9 +384,13 @@ def _earnings(doc):
     written = {(row.employee, row.salary_component): row.get("additional_salary")
                for row in doc.get("earnings") or []}
     lines = [_row(row) for row in doc.get("lines") or []]
-    found = rules.earnings(lines, _beside_the_work(doc),
+    piece = doc.get("section") == rules.PER_PIECE
+    found = rules.earnings(lines, {} if piece else _beside_the_work(doc),
                            _size_components({row.get("size") for row in lines}), _component_name(doc.get("section")),
-                           _arrears_name() if doc.get("section") == rules.PER_PIECE else _overtime_component())
+                           None if piece else _overtime_component())
+    if piece:
+        # each person's arrears beside their pieces, an addition and a deduction each its own Additional Salary
+        found = rules.with_arrears(found, _arrears_lines(doc))
     doc.set("earnings", [])
     for row in found:
         doc.append("earnings", dict(row, additional_salary=written.get((row["employee"], row["salary_component"]))))
@@ -376,13 +404,6 @@ def _size_components(sizes):
     return {row.name: row.salary_component
             for row in frappe.get_all(SIZE, filters={"name": ["in", names]}, fields=["name", "salary_component"],
                                       limit_page_length=0) if row.salary_component}
-
-
-def _arrears_name():
-    """The earning a Per Piece casual's arrears are paid under (piece_pay.ARREARS)."""
-    from hrms_addon.hrms_addon import piece_pay
-
-    return piece_pay.ARREARS[0]
 
 
 def _overtime_component():
@@ -420,7 +441,7 @@ def _fill(doc):
             for row in doc.get("lines") or [] if not cint(row.get("from_reports"))]
     kept_ot = [{field: row.get(field) for field in HAND_OT_FIELDS}
                for row in doc.get("overtime") or [] if not cint(row.get("from_reports"))]
-    kept_owed = [{field: row.get(field) for field in HAND_OT_FIELDS}
+    kept_owed = [{field: row.get(field) for field in HAND_ARREARS_FIELDS}
                  for row in doc.get(ARREARS) or [] if not cint(row.get("from_reports"))]
     doc.set("lines", [])
     for seat in rules.merge_lines(lines):
@@ -433,8 +454,12 @@ def _fill(doc):
     for row in kept_ot:
         doc.append("overtime", row)
     doc.set(ARREARS, [])
+    # each person's arrears on the reports, added less taken back: an addition, or a deduction where less than nothing
+    addition, deduction = _arrears_components()
     for employee, amount in rules.overtime_by_employee(owed).items():
-        doc.append(ARREARS, {"employee": employee, "amount": amount, "from_reports": 1})
+        if amount:
+            doc.append(ARREARS, {"employee": employee, "amount": abs(amount), "from_reports": 1,
+                                 "salary_component": addition if amount > 0 else deduction})
     for row in kept_owed:
         doc.append(ARREARS, row)
 

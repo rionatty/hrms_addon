@@ -632,7 +632,7 @@ if 'if not cint(row.get("from_reports"))' not in typed or 'rules.work_unit_on(si
 if 'cint(row.get("from_reports"))' not in body("_check_overtime"):
     fail.append("and only the Looms OT typed in")
 if "rules.per_employee(" not in body("_employees_from_lines") or "_beside_the_work(doc)" not in body("_employees_from_lines") \
-        or 'table = ARREARS if doc.get("section") == rules.PER_PIECE else "overtime"' not in body("_beside_the_work"):
+        or 'return rules.arrears_net(_arrears_lines(doc), _arrears_components()[1])' not in body("_beside_the_work"):
     fail.append("each person is paid their lines and their Looms OT, or their arrears on a Per Piece run")
 # a Per Piece run is for a week, and pays on the weekly payslip (Luuka, 11 Nov 2026: "per piece pay should not be in
 # payroll it should be independent like permeter and feed payroll")
@@ -650,10 +650,18 @@ for name, needle, why in (
     ("_fill", 'owed = [row for row in extra if row.get("parentfield") == ARREARS]',
      "the reports' arrears are taken apart from their Looms OT, and paid (Luuka, 12 Nov 2026)"),
     ("_fill", 'extra = [row for row in extra if row.get("parentfield") != ARREARS]', "and not counted as Looms OT"),
-    ("_fill", 'doc.append(ARREARS, {"employee": employee, "amount": amount, "from_reports": 1})', "each person's added up"),
+    ("_fill", 'doc.append(ARREARS, {"employee": employee, "amount": abs(amount), "from_reports": 1,',
+     "each person's added up"),
+    ("_fill", '"salary_component": addition if amount > 0 else deduction})',
+     "an addition, or a deduction where the reports' come to less than nothing (Luuka, 12 Nov 2026)"),
+    ("_fill", "kept_owed = [{field: row.get(field) for field in HAND_ARREARS_FIELDS}",
+     "a line typed in by hand keeps its component"),
     ("_month_reports", "own = piece_pay.self_paid(names)", "a report that wrote its own pay is left out of a run"),
-    ("_earnings", "_arrears_name() if doc.get(\"section\") == rules.PER_PIECE else _overtime_component())",
-     "the arrears are paid under their own earning"),
+    ("_earnings", "found = rules.with_arrears(found, _arrears_lines(doc))",
+     "the arrears are paid each under its own component, an addition or a deduction"),
+    ("_check_arrears", "for row, line in zip(rows, rules.arrears_lines([_row(row) for row in rows], addition, deduction)):",
+     "a line with no component is an addition, one less than nothing a deduction of its size"),
+    ("_check_arrears", "if row.salary_component not in (addition, deduction):", "and no other component"),
     ("run_on_submit", "days = piece_pay.before_paying(doc)", "a Per Piece run is made ready for the weekly payslip first"),
 ):
     if needle not in body(name):

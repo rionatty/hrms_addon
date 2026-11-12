@@ -45,8 +45,13 @@ REPORT_LINE = output_pay.REPORT_LINE
 REPORT_OT = output_pay.REPORT_OT
 ADDITIONAL = "Additional Salary"
 TITLE = "Per Piece Sheet"
-# the earning a casual's arrears are paid under, made once where the site has none
-ARREARS = ("Arrears", "ARR")
+# a casual's arrears, an addition or a deduction as Luuka's own Additional Salaries are (Luuka, 12 Nov 2026: arrears
+# "can be addition or deduction" and "should look like this"): added under the site's Arrear, taken back under its
+# Arrears Deductions, each made once where the site has none, unless Output Pay Settings name others. Arrears is what
+# a run paid under before them.
+ARREARS = ("Arrear", "ARR")
+ARREARS_DEDUCTION = ("Arrears Deductions", "ARD")
+ARREARS_BEFORE = "Arrears"
 
 
 # ── The workbook in ───────────────────────────────────────────────────
@@ -346,9 +351,11 @@ def _make_reports(doc, taken):
 
 # ── A Per Piece report ────────────────────────────────────────────────
 def report_validate(doc, method=None):
-    """A Per Piece report's arrears are a Per Piece casual's, each more than
-    nothing, once a person: the week's run pays them as Additional Salary under
-    Arrears (Luuka, 12 Nov 2026). A Per Piece report has no Looms OT."""
+    """A Per Piece report's arrears are a Per Piece casual's, once a person, each
+    something: owed to them, or owed back where less than nothing. The week's
+    run pays them as Additional Salary, added under Arrear or taken back under
+    Arrears Deductions (Luuka, 12 Nov 2026). A Per Piece report has no Looms
+    OT."""
     if doc.get("section") != rules.PER_PIECE:
         if doc.get("arrears"):
             frappe.throw(_("Arrears go on a Per Piece report."), title=_(REPORT))
@@ -365,8 +372,9 @@ def report_validate(doc, method=None):
             errors.append(_("Arrears row {0}: {1} is already on the arrears.").format(row.idx, row.employee))
         elif categories.get(row.employee) != rules.PER_PIECE:
             errors.append(_("Arrears row {0}: {1} is not paid Per Piece.").format(row.idx, row.employee))
-        if flt(row.get("amount")) <= 0:
-            errors.append(_("Arrears row {0}: the amount must be more than nothing.").format(row.idx))
+        if not flt(row.get("amount")):
+            errors.append(_("Arrears row {0}: say how much, less than nothing where it is taken back.").format(
+                row.idx))
         seen.add(row.get("employee"))
     if errors:
         frappe.throw("<br>".join(errors), title=_(REPORT))
@@ -385,14 +393,15 @@ def before_paying(run):
     rows = [row for row in run.get("earnings") or [] if flt(row.get("amount")) > 0]
     people = sorted({row.employee for row in rows})
     components = sorted({row.salary_component for row in rows})
-    if ARREARS[0] in components:
-        _arrears_component()
+    owed = arrears_components()
+    if set(owed) & set(components):
+        _arrears_components_made(set(owed) & set(components))
     for component in components:
         if frappe.db.get_value("Salary Component", component, "depends_on_payment_days"):
             frappe.throw(_("{0} is cut by payment days: untick Depends on Payment Days on it, as a casual's pieces "
                            "and arrears are what they are owed.").format(component), title=_(RUN))
     # arrears already entered by hand as Additional Salary for the week would be paid twice
-    entered = arrears_entered([row.employee for row in rows if row.salary_component == ARREARS[0]],
+    entered = arrears_entered([(row.employee, row.salary_component) for row in rows if row.salary_component in owed],
                               run.from_date, run.to_date, but_run=run.name)
     if entered:
         frappe.throw(_("Arrears for the week are already entered as Additional Salary: {0}. Take them off this run, "
@@ -416,27 +425,34 @@ def before_paying(run):
             for employee in people}
 
 
-def arrears_entered(employees, first, last, but_run=None):
-    """{employee: an Additional Salary} of these employees' Arrears, submitted and dated in the days, that the run
-    named but_run did not write: entered by hand, or paid by another run."""
-    employees = sorted(set(filter(None, employees or ())))
-    if not employees:
+def arrears_entered(pairs, first, last, but_run=None):
+    """{employee: an Additional Salary} of these employees' arrears, submitted and dated in the days, each under the
+    component it is paired with (an addition or a deduction), that the run named but_run did not write: entered by
+    hand, or paid by another run. pairs: [(employee, salary component)]."""
+    pairs = {(employee, _same(component)) for employee, component in pairs or () if employee and component}
+    if not pairs:
         return {}
     found = {}
     for row in frappe.get_all(ADDITIONAL, filters={
-            "employee": ["in", employees], "salary_component": ARREARS[0], "docstatus": 1,
+            "employee": ["in", sorted({employee for employee, _component in pairs})],
+            "salary_component": ["in", _named({component for _employee, component in pairs})], "docstatus": 1,
             "payroll_date": ["between", [getdate(first), getdate(last)]]},
-            fields=["name", "employee", "ref_doctype", "ref_docname"], order_by="name asc", limit_page_length=0):
+            fields=["name", "employee", "salary_component", "ref_doctype", "ref_docname"], order_by="name asc",
+            limit_page_length=0):
+        if (row.employee, _same(row.salary_component)) not in pairs:
+            continue
         if row.get("ref_doctype") == RUN and row.get("ref_docname") != but_run:
             continue
         found.setdefault(row.employee, row.name)
     return found
 
 
-def arrears_paid(employee, day):
-    """The submitted Per Piece run that paid this employee's arrears for the week holding the day, or None."""
+def arrears_paid(employee, day, component=None):
+    """The submitted Per Piece run that paid this employee's arrears for the week holding the day, under the component
+    where one is given (an addition or a deduction), or None."""
     for row in frappe.get_all(ADDITIONAL, filters={
-            "employee": employee, "salary_component": ARREARS[0], "docstatus": 1, "ref_doctype": RUN},
+            "employee": employee, "salary_component": ["in", _named([component]) if component else list(arrears_names())],
+            "docstatus": 1, "ref_doctype": RUN},
             fields=["ref_docname"], limit_page_length=0):
         week = frappe.db.get_value(RUN, row.ref_docname, ["from_date", "to_date", "docstatus"], as_dict=True)
         if week and week.docstatus == 1 and getdate(week.from_date) <= getdate(day) <= getdate(week.to_date):
@@ -444,18 +460,56 @@ def arrears_paid(employee, day):
     return None
 
 
-def _arrears_component():
-    """The earning a casual's arrears are paid under: the site's Arrears, made
-    once where it has none: an Earning, not pro-rated by payment days."""
-    name, abbr = ARREARS
-    if not frappe.db.exists("Salary Component", name):
+def arrears_components():
+    """(the earning a casual's arrears are added under, the deduction they are taken back under): Output Pay
+    Settings' choice, else the site's Arrear and Arrears Deductions."""
+    chosen = output_pay.settings()
+    return (chosen.get("arrears_component") or ARREARS[0],
+            chosen.get("arrears_deduction_component") or ARREARS_DEDUCTION[0])
+
+
+def _same(component):
+    """The arrears a component is: Arrears, as a run paid under before, is the addition's."""
+    return arrears_components()[0] if component == ARREARS_BEFORE else component
+
+
+def _named(components):
+    """Every name these arrears are paid under: the addition's is Arrears's too."""
+    names = {_same(component) for component in components or () if component}
+    if arrears_components()[0] in names:
+        names.add(ARREARS_BEFORE)
+    return sorted(names)
+
+
+def arrears_names():
+    """Every component a casual's arrears are paid under: the addition and the deduction, and Arrears, as a run
+    paid them before."""
+    return tuple(dict.fromkeys(arrears_components() + (ARREARS_BEFORE,)))
+
+
+@frappe.whitelist()
+def arrears_choices():
+    """The two components an arrears line can be under, for the run's form: [addition, deduction]."""
+    frappe.has_permission(RUN, "read", throw=True)
+    return list(arrears_components())
+
+
+def _arrears_components_made(used=None):
+    """Ours, made once where the site has none and Output Pay Settings name none, each once it is paid under: Arrear
+    an Earning, Arrears Deductions a Deduction, neither cut by payment days."""
+    addition, deduction = arrears_components()
+    for (name, abbr), kind, chosen, said in (
+            (ARREARS, "Earning", addition, "What is owed from an earlier week or month."),
+            (ARREARS_DEDUCTION, "Deduction", deduction, "What was overpaid in an earlier week or month.")):
+        if chosen != name or (used is not None and name not in used) or frappe.db.exists("Salary Component", name):
+            continue
         component = frappe.get_doc({
             "doctype": "Salary Component", "name": name, "salary_component": name, "salary_component_abbr": abbr,
-            "type": "Earning", "depends_on_payment_days": 0, "is_tax_applicable": 1,
-            "description": "What is owed from an earlier week or month."})
+            "type": kind, "depends_on_payment_days": 0, "is_tax_applicable": 1 if kind == "Earning" else 0,
+            "description": said})
         component.flags.ignore_permissions = True
         component.insert()
-    return name
+    return addition, deduction
 
 
 def self_paid(reports):
