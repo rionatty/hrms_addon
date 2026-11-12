@@ -144,7 +144,7 @@ function ha_piece_sheet_summary(found) {
 	let html =
 		"<p>" +
 		esc(
-			__("{0} week(s), {1} people, {2} bags: {3}.", [
+			__("{0} week(s), {1} people, {2} bags: {3}, and {4} arrears.", [
 				found.weeks,
 				found.people,
 				found.bags,

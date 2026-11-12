@@ -409,6 +409,15 @@ def additional_validate(doc, method=None):
     category = frappe.db.get_value("Employee", doc.employee, "custom_pay_category")
     if category not in (rules.WEEKLY, rules.PER_PIECE):
         return
+    # a casual's arrears the week's Per Piece run has paid would be paid twice (piece_pay.arrears_paid)
+    if doc.get("ref_doctype") != "Output Pay Run" and doc.get("payroll_date"):
+        from hrms_addon.hrms_addon import piece_pay
+
+        if doc.salary_component == piece_pay.ARREARS[0]:
+            paid = piece_pay.arrears_paid(doc.employee, doc.payroll_date)
+            if paid:
+                frappe.throw(_("{0} has paid {1}'s arrears for that week. Change them on that run, not here.").format(
+                    paid, doc.employee), title=_("Additional Salary"))
     if frappe.db.get_value("Salary Component", doc.salary_component, "depends_on_payment_days"):
         frappe.throw(_("{0} is cut by the days paid, and {1} is a casual paid by the week, so it would come to less "
                        "than is owed. Untick Depends on Payment Days on {0}, or use a component that is not cut, such "

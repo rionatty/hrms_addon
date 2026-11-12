@@ -309,14 +309,27 @@ def _check_overtime(doc):
 
 
 def _check_arrears(doc):
-    """A run pays no arrears: they are entered as Additional Salary, which the
-    weekly payroll pays, so they are never paid twice (Luuka, 11 Nov 2026:
-    "arrears and additional salary should be done on the additional
-    salary"). A run whose submitted reports carry arrears from before that,
-    on a draft, takes them as it always did."""
-    typed = [row for row in doc.get(ARREARS) or [] if not cint(row.get("from_reports"))]
-    if typed:
-        frappe.throw(_("Arrears are entered as Additional Salary, which the weekly payroll pays: take them off this run and enter them there."), title=_(RUN))
+    """Arrears are a Per Piece run's: a Per Piece casual's, each more than
+    nothing. Those from the reports were checked on them. The run pays them
+    as Additional Salary under Arrears, each person's own (Luuka, 12 Nov
+    2026: "arrears should work like additional salary and it should post to
+    additional salary respectively")."""
+    rows = doc.get(ARREARS) or []
+    if doc.get("section") != rules.PER_PIECE:
+        if rows:
+            frappe.throw(_("Arrears go on a Per Piece run."), title=_(RUN))
+        return
+    typed = [(number, row) for number, row in enumerate(rows, 1) if not cint(row.get("from_reports"))]
+    categories = _pay_categories(row.get("employee") for _number, row in typed)
+    errors = []
+    for number, row in typed:
+        if row.employee in categories and categories[row.employee] != rules.PER_PIECE:
+            errors.append(_("Arrears line {0}: {1} is paid {2}, not Per Piece.").format(
+                number, row.employee, categories[row.employee]))
+        if flt(row.get("amount")) <= 0:
+            errors.append(_("Arrears line {0}: say how much is owed.").format(number))
+    if errors:
+        frappe.throw("<br>".join(errors), title=_(RUN))
 
 
 def _beside_the_work(doc):
@@ -398,9 +411,8 @@ def _fill(doc):
                            fields=["employee", "size", "output", "amount"], limit_page_length=0) if reports else []
     extra = frappe.get_all(REPORT_OT, filters={"parenttype": REPORT, "parent": ["in", reports or [""]]},
                            fields=["employee", "amount", "parentfield"], limit_page_length=0) if reports else []
-    # a report's Looms OT and its arrears are rows of one kind, each in its own table; arrears are paid as Additional
-    # Salary now, and none is taken from a report (Luuka, 11 Nov 2026)
-    owed = []
+    # a report's Looms OT and its arrears are rows of one kind, each in its own table
+    owed = [row for row in extra if row.get("parentfield") == ARREARS]
     extra = [row for row in extra if row.get("parentfield") != ARREARS]
     # what was typed in by hand is kept as it was typed: only its own
     # fields, so it goes back in as a new row rather than an old one

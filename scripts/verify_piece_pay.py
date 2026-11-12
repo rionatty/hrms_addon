@@ -234,9 +234,10 @@ check(taken["work"] == {("E1", D(2026, 10, 28), "BAG 200"): (10.0, 200.0, "'22nd
                         ("E2", D(2026, 11, 4), "BAG 180"): (2.0, 180.0, "'29th-Oct-04th-Nov-26', row 5")},
       "each person's bags under the category priced so that week, dated the week's last day, a casual of another "
       "plant among them", taken["work"])
-check(taken["arrears"] == {},
-      "the ARREARS column is not paid by the upload: arrears are entered as Additional Salary, which the weekly "
-      "payroll pays (Luuka, 11 Nov 2026)", taken["arrears"])
+check(taken["arrears"] == {("E1", D(2026, 10, 28)): (500.0, "'22nd-28th-October-2026', row 4")},
+      "the arrears beside a person are paid with their week, by the run as Additional Salary under Arrears (Luuka, "
+      "12 Nov 2026: \"arrears should work like additional salary and it should post to additional salary "
+      "respectively\")", taken["arrears"])
 problems = " | ".join(taken["problems"])
 for needle, why in (("Third Example (E3) is paid Weekly, not Per Piece", "a casual paid by the hour is not paid for bags"),
                     ("row 7: TWIN NAME has no employee number, so the bags, worth 200, are left out: put it in the NO. "
@@ -252,11 +253,10 @@ check(not any("by name" in problem.lower() for problem in taken["problems"] if "
 notes = " | ".join(taken["notes"])
 check("Weeks taken: 22-Oct-2026 to 28-Oct-2026 and 29-Oct-2026 to 04-Nov-2026." in notes
       and "Test Person One's total is 900, but the bags at their prices come to 800, which is what is paid" in notes
-      and "Arrears on the sheet are not paid by this upload: enter them as Additional Salary, which the weekly payroll "
-          "pays. 1, 500 in all: Test Person One (E1) 500." in notes
+      and "Arrears paid with their week, as Additional Salary under Arrears when the run is submitted: 1 person, 500 in all." in notes
       and "Sheets with no week in their name or title, not read: EXTRA LABOUR." in notes,
-      "said beside it: the weeks taken, a total that is not its bags, the arrears to enter as Additional Salary, the "
-      "sheets not read", taken["notes"])
+      "said beside it: the weeks taken, a total that is not its bags, the arrears paid, the sheets not read",
+      taken["notes"])
 old_price = O.take_pieces([{"sheet": "old", "start": D(2026, 9, 3), "end": D(2026, 9, 9), "prices": [190.0],
                             "rows": [{"row": 4, "name": "Second Tester", "employee_id": "E2", "bags": {190.0: 2}}]}],
                           PEOPLE, SIZES, RATES, (D(2026, 9, 3), D(2026, 9, 9)))
@@ -318,11 +318,11 @@ for needle, why in (("No Per Piece category is priced 150 on 04-Nov-2026", "a pr
                     ("'two' bags at 200 is not a number of bags", "bags that are not a number"),
                     ("Test Person One (E1) is on 'w' twice (rows 6 and 7), so neither is taken", "a person twice in a week"),
                     ("-1 bags at 200 is not a number of bags", "bags less than nothing, though nothing else is on the row"),
-                    ("'ABSENT' bags at 200 is not a number of bags", "a word where the bags go")):
+                    ("'ABSENT' bags at 200 is not a number of bags", "a word where the bags go"),
+                    ("row 12: arrears of -300 are less than nothing", "arrears less than nothing")):
     check(needle in said, "left out and said: %s" % why, cases["problems"])
-check(cases["work"] == {} and cases["arrears"] == {}
-      and not any("row 11" in problem or "row 12" in problem for problem in cases["problems"]),
-      "and none of it is paid; a row of noughts, or of arrears alone, is nobody's business here", cases["problems"])
+check(cases["work"] == {} and cases["arrears"] == {} and not any("row 11" in problem for problem in cases["problems"]),
+      "and none of it is paid; a row of noughts is nobody's business", cases["problems"])
 two_sheets = O.take_pieces([dict(wanted["weeks"][1], sheet="a"), dict(wanted["weeks"][1], sheet="b")], PEOPLE, SIZES, RATES,
                            PERIOD)
 check(two_sheets["work"] == {} and "is on 2 sheets ('a' and 'b'): none of them is taken" in " ".join(two_sheets["problems"]),
@@ -617,11 +617,14 @@ def fill_run(doc):
     reports = [row for row in reports if row.name not in own]
     lines = [Row(employee=line.employee, size=line.size, output=line.output, amount=line.amount or 0)
              for row in reports for line in row.lines or []]
-    # arrears are paid as Additional Salary, none from a report (Luuka, 11 Nov 2026)
+    owed = {}
+    for row in reports:
+        for line in row.arrears or []:
+            owed[line.employee] = owed.get(line.employee, 0.0) + line.amount
     named = {row.name: row.salary_component for row in site().rows("Output Rate") if row.get("salary_component")}
     doc.lines = lines
-    doc.arrears = []
-    doc.earnings = [Row(row) for row in O.earnings(lines, {}, named, "Per Piece Earnings", P.ARREARS[0])]
+    doc.arrears = [Row(employee=employee, amount=amount) for employee, amount in owed.items()]
+    doc.earnings = [Row(row) for row in O.earnings(lines, owed, named, "Per Piece Earnings", P.ARREARS[0])]
 
 
 output_pay._fill = fill_run
@@ -719,9 +722,9 @@ check([(row.report_date, row.branch, row.source, row.section, row.docstatus, row
 check([(line.employee, line.size, line.output, line.rate, line.amount) for line in reports[0].lines]
       == [("E1", "BAG 200", 10.0, 200, 2000.0), ("E1", "BAG 180", 5.0, 180, 900.0), ("E2", "BAG 200", 3.0, 200, 600.0),
           ("E4", "BAG 200", 2.0, 200, 400.0)]
-      and not reports[0].arrears,
-      "each line its bags at the category's price, a casual of another plant among them; no arrears on the report: "
-      "they are entered as Additional Salary",
+      and [(line.employee, line.amount) for line in reports[0].arrears] == [("E1", 500.0)] and reports[0].total_arrears == 500.0,
+      "each line its bags at the category's price, a casual of another plant among them; the arrears on the report "
+      "beside them",
       reports[0].lines)
 check(not s.rows("Additional Salary"),
       "the upload writes no pay: the run does when it is submitted, as a Per Meter run does (Luuka, 11 Nov 2026)",
@@ -729,25 +732,33 @@ check(not s.rows("Additional Salary"),
 run = s.rows("Output Pay Run")[0]
 check(run.uploaded_sheet == "/private/files/pet.xlsx" and ("save", "Output Pay Run", "RUN-W") in s.log
       and {(row.employee, row.salary_component): row.amount for row in run.earnings}
-      == {("E1", "Per Piece Earnings"): 3700.0, ("E2", "Per Piece Earnings"): 960.0, ("E4", "Per Piece Earnings"): 400.0},
-      "the run is filled from the week's reports and saved with its sheet", run.earnings)
-check(found["weeks"] == 2 and found["people"] == 3 and found["bags"] == 26.0 and found["amount"] == 5060.0 and found["arrears"] == 0,
-      "the upload says what it took: the weeks, the people, the bags and the pay; no arrears", found)
+      == {("E1", "Per Piece Earnings"): 3700.0, ("E1", "Arrears"): 500.0, ("E2", "Per Piece Earnings"): 960.0,
+          ("E4", "Per Piece Earnings"): 400.0},
+      "the run is filled from the week's reports and saved with its sheet: the pieces, and the arrears under their own",
+      run.earnings)
+check(found["weeks"] == 2 and found["people"] == 3 and found["bags"] == 26.0 and found["amount"] == 5060.0
+      and found["arrears"] == 500.0, "the upload says what it took: the weeks, the people, the bags, the pay and the "
+                                      "arrears", found)
 check(len(found["problems"]) == 3 and any("NOBODY KNOWN" in problem for problem in found["problems"])
-      and any("Arrears on the sheet are not paid by this upload" in note for note in found["notes"])
+      and any("Arrears paid with their week, as Additional Salary under Arrears when the run is submitted" in note for note in found["notes"])
       and any("1 other weekly sheet(s) end outside 22-Oct-2026 to 04-Nov-2026: the run of the week each ends in takes it."
               in note for note in found["notes"]),
       "and what it left out, and what it saw: the sheets the run of another week takes", found["notes"])
 check(("E1", "E2", "E4") == tuple(s.assigned[0][0]) and s.assigned[0][2] == D(2026, 10, 22),
       "those on the sheet are given the weekly structure first, from the run's From, as Get Employees would", s.assigned)
 pay_run("RUN-W")
-check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0,
-                 ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0},
-      "submitted, each person's pay is Additional Salary dated the run's last day, which the weekly slip pays; no arrears",
-      pay(s))
-check(not [row for row in s.rows("Salary Component") if row.name == "Arrears"],
-      "no Arrears earning is made by a run: it pays none", s.rows("Salary Component"))
-check(s.accounts == {("Per Piece Earnings", "LPL")},
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E1", "Arrears", D(2026, 11, 4)): 500.0,
+                 ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0, ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0},
+      "submitted, each person's pay is Additional Salary dated the run's last day, which the weekly slip pays; the arrears "
+      "beside it, each person's own (Luuka, 12 Nov 2026)", pay(s))
+arrears_component = [row for row in s.rows("Salary Component") if row.name == "Arrears"]
+check(len(arrears_component) == 1 and arrears_component[0].depends_on_payment_days == 0 and arrears_component[0].type == "Earning"
+      and arrears_component[0].salary_component_abbr == "ARR",
+      "the arrears' earning is made once where the site has none, not cut by payment days", arrears_component)
+check(P.arrears_paid("E1", D(2026, 11, 2)) == "RUN-W" and P.arrears_paid("E1", D(2026, 11, 5)) is None
+      and P.arrears_paid("E2", D(2026, 11, 2)) is None,
+      "the run that paid a casual's arrears for a week is found, for an Arrears entered by hand to be refused")
+check(s.accounts == {("Per Piece Earnings", "LPL"), ("Arrears", "LPL")},
       "each earning paid is given the company's account, as posting the payroll needs one", s.accounts)
 check((["E1", "E2", "E4"], "LPL", D(2026, 10, 22)) == s.assigned[-1],
       "and each person paid is on the weekly structure as the run is submitted", s.assigned[-1])
@@ -761,9 +772,21 @@ check(len(s.rows("Daily Production Report")) == 2 and not set(first) & {row.name
       "uploaded again, the last upload goes and the new one stands: nothing twice",
       (len(s.rows("Daily Production Report")), s.log))
 pay_run("RUN-W")
-check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0,
-                 ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0},
+check(pay(s) == {("E1", "Per Piece Earnings", D(2026, 11, 4)): 3700.0, ("E1", "Arrears", D(2026, 11, 4)): 500.0,
+                 ("E2", "Per Piece Earnings", D(2026, 11, 4)): 960.0, ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0},
       "and the run pays it once", pay(s))
+# an Arrears entered by hand for the week first: the run would pay it twice, and says so (Luuka, 12 Nov 2026)
+s = populated()
+s.add("Additional Salary", name="ADS-HAND", employee="E1", salary_component="Arrears", amount=500.0,
+      payroll_date=D(2026, 11, 2), docstatus=1, type="Earning", is_recurring=0)
+P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
+try:
+    pay_run("RUN-W")
+    check(False, "arrears already entered by hand for the week are not paid again by the run")
+except Thrown as error:
+    check("Arrears for the week are already entered as Additional Salary: E1 (ADS-HAND). Take them off this run, or "
+          "cancel those." in str(error) and not [row for row in s.rows("Additional Salary") if row.name != "ADS-HAND"],
+          "arrears already entered by hand for the week are not paid again by the run, which says which", str(error))
 s = populated()
 s.add("Output Pay Run", name="RUN-B", company="LPL", section="Per Piece", docstatus=0, from_date=D(2026, 10, 22),
       to_date=D(2026, 11, 4), branch="BOTTLES")
@@ -805,7 +828,7 @@ s.add("Salary Slip", name="SS-PAID", employee="E1", docstatus=1, payroll_frequen
 paid = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
 check("E1" not in reports_of(s)[D(2026, 10, 28)] and not s.rows("Daily Production Report")[0].arrears
       and "E1" in reports_of(s)[D(2026, 11, 4)]
-      and any("Test Person One's week to 28-Oct-2026 on the sheet, 2,900, is left out: SS-PAID has already paid that week." in problem
+      and any("Test Person One's week to 28-Oct-2026 on the sheet, 3,400, is left out: SS-PAID has already paid that week." in problem
               for problem in paid["problems"]),
       "a week a submitted weekly slip already covers is left out and said; the person's other week is taken", paid["problems"])
 
@@ -826,9 +849,8 @@ s.files["/private/files/arrears.xlsx"] = workbook([("29th-Oct-04th-Nov-26", shee
     {"name": "EIGHTH PERSON", "id": "E8", "bags": {}, "arrears": 250}], id_column=True))])
 only_arrears = P.upload_pieces("RUN-W", "/private/files/arrears.xlsx")
 pay_run("RUN-W")
-check(pay(s) == {} and not s.rows("Daily Production Report")
-      and any("Eighth Person (E8) 250" in note for note in only_arrears["notes"]),
-      "a week with only arrears makes nothing: the arrears are said, to be entered as Additional Salary",
+check(pay(s) == {("E8", "Arrears", D(2026, 11, 4)): 250.0} and not s.rows("Daily Production Report")[0].lines,
+      "a week whose only pay at the plant is arrears is still made, its report with no lines, and paid",
       (pay(s), only_arrears["notes"]))
 s = populated()
 for row in s.rows("Employee"):
@@ -840,7 +862,7 @@ employment = P.upload_pieces("RUN-W", "/private/files/pet.xlsx")
 pay_run("RUN-W")
 check(pay(s) == {("E2", "Per Piece Earnings", D(2026, 10, 31)): 960.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 800.0,
                  ("E4", "Per Piece Earnings", D(2026, 11, 4)): 400.0}
-      and any("Test Person One's week to 28-Oct-2026 on the sheet, 2,900, is left out: they joined on 29-Oct-2026, after "
+      and any("Test Person One's week to 28-Oct-2026 on the sheet, 3,400, is left out: they joined on 29-Oct-2026, after "
               "the week." in problem for problem in employment["problems"]),
       "one who left during the run's days is paid on their last day; a week before someone joined is left out and said, "
       "not a failed upload", (pay(s), employment["problems"]))
@@ -906,12 +928,14 @@ def report(**values):
 
 s = populated()
 for values, needle, why in (
-        ({"arrears": [{"employee": "E1", "amount": 10}]}, "Arrears are entered as Additional Salary, which the weekly payroll pays: take them off this report",
-         "a new Per Piece report takes no arrears: they are entered as Additional Salary (Luuka, 11 Nov 2026)"),
-        ({"section": "Per Meter", "arrears": [{"employee": "E1", "amount": 10}]}, "Arrears are entered as Additional Salary, which the weekly payroll pays: take them off this report",
-         "nor a Per Meter one"),
-        ({"looms_ot": [{"employee": "E1", "amount": 10}]}, "A Per Piece report has no Looms OT: enter what is owed as "
-                                                          "Additional Salary.", "a Per Piece report has no Looms OT")):
+        ({"section": "Per Meter", "arrears": [{"employee": "E1", "amount": 10}]}, "Arrears go on a Per Piece report",
+         "arrears go on a Per Piece report only"),
+        ({"looms_ot": [{"employee": "E1", "amount": 10}]}, "A Per Piece report has no Looms OT", "a Per Piece report has no Looms OT"),
+        ({"arrears": [{"amount": 10}]}, "Arrears row 1: whose arrears?", "an arrears row names its person"),
+        ({"arrears": [{"employee": "E1", "amount": 10}, {"employee": "E1", "amount": 5}]}, "E1 is already on the arrears",
+         "once each"),
+        ({"arrears": [{"employee": "E3", "amount": 10}]}, "E3 is not paid Per Piece", "a Per Piece casual's"),
+        ({"arrears": [{"employee": "E1", "amount": 0}]}, "the amount must be more than nothing", "and more than nothing")):
     try:
         report(**values).insert()
         check(False, "a report: %s" % why)
@@ -919,12 +943,15 @@ for values, needle, why in (
         check(needle in str(error), "a report: %s" % why, str(error))
 s.rows("Output Rate")[0]["salary_component"] = "Bag Pay"
 s.add("Salary Component", name="Bag Pay", type="Earning", depends_on_payment_days=0)
-typed = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}, {"employee": "E1", "size": "BAG 180", "output": 1}])
+typed = report(lines=[{"employee": "E1", "size": "BAG 200", "output": 2}, {"employee": "E1", "size": "BAG 180", "output": 1}],
+               arrears=[{"employee": "E1", "amount": 70}])
 typed.docstatus = 1
 typed.insert()
-check(not pay(s), "a Per Piece report writes no pay by itself: its week's run pays it", pay(s))
+check(not pay(s) and typed.total_arrears == 70.0, "a Per Piece report writes no pay by itself: its week's run pays it",
+      pay(s))
 pay_run("RUN-W")
-check(pay(s) == {("E1", "Bag Pay", D(2026, 11, 4)): 400.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 180.0},
+check(pay(s) == {("E1", "Bag Pay", D(2026, 11, 4)): 400.0, ("E1", "Per Piece Earnings", D(2026, 11, 4)): 180.0,
+                 ("E1", "Arrears", D(2026, 11, 4)): 70.0},
       "a category whose Output Rate names an earning is paid under it; the others under Per Piece Earnings", pay(s))
 s = populated()
 next(row for row in s.rows("Salary Component") if row.name == "Per Piece Earnings")["depends_on_payment_days"] = 1
@@ -990,7 +1017,7 @@ s.rows("Salary Slip")[0]["docstatus"] = 2
 s.get_doc("Daily Production Report", "DPR-OWN").cancel()
 check(own.docstatus == 2 and not [row for row in s.rows("Additional Salary") if row.ref_docname == "DPR-OWN"],
       "once that slip is cancelled the report is, and its own pay goes with it")
-print("a report: no arrears, no pay of its own; the run: the right earning, refused once paid; the old way let go")
+print("a report: arrears checked, no pay of its own; the run: the right earning, refused once paid; the old way let go")
 
 # ── 6. Get Employees ─────────────────────────────────────
 s = populated()
@@ -1101,10 +1128,10 @@ meta = json.load(open(os.path.join(APP, "doctype", "daily_production_report", "d
 fields = {field["fieldname"]: field for field in meta["fields"]}
 check(fields["arrears"]["fieldtype"] == "Table" and fields["arrears"]["options"] == "Daily Production Overtime"
       and fields["total_arrears"].get("read_only") == 1
-      and fields["arrears_section"]["depends_on"] == "eval:doc.section == 'Per Piece' && (doc.arrears || []).length"
+      and fields["arrears_section"]["depends_on"] == "eval:doc.section == 'Per Piece'"
       and meta["field_order"].index("arrears") < meta["field_order"].index("totals_section")
       and set(meta["field_order"]) == set(fields),
-      "the report keeps the arrears it had from before, shown only where there are some, every field placed")
+      "a Per Piece report has its arrears, every field placed")
 run_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_run", "output_pay_run.json"), encoding="utf-8"))
 run_fields = {field["fieldname"]: field for field in run_meta["fields"]}
 piece, meter = "eval:doc.section == 'Per Piece'", "eval:doc.section != 'Per Piece'"
@@ -1114,13 +1141,13 @@ check(all(run_fields[name].get("mandatory_depends_on") == piece and run_fields[n
               and not run_fields[name].get("reqd") for name in ("year", "month")),
       "a Per Piece run is given its week, From and To; a Per Meter run its month, as before")
 arrears_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_arrears", "output_pay_arrears.json"), encoding="utf-8"))
-some = "eval:doc.section == 'Per Piece' && (doc.arrears || []).length"
+some = "eval:doc.section == 'Per Piece'"
 check(run_fields["arrears"]["options"] == "Output Pay Arrears" and run_fields["arrears_section"]["depends_on"] == some
       and run_fields["total_arrears"]["depends_on"] == some and arrears_meta.get("istable") == 1
       and [field["label"] for field in arrears_meta["fields"] if field["fieldname"] == "amount"] == ["Arrears"]
       and set(run_meta["field_order"]) == set(run_fields) and not run_fields["uploaded_sheet"].get("depends_on")
       and os.path.exists(os.path.join(APP, "doctype", "output_pay_arrears", "output_pay_arrears.py")),
-      "the run keeps any arrears a draft took from before, shown only where there are some, and keeps its sheet")
+      "a Per Piece run has its arrears, and keeps its sheet")
 seat_meta = json.load(open(os.path.join(APP, "doctype", "output_pay_employee", "output_pay_employee.json"), encoding="utf-8"))
 check([field["label"] for field in seat_meta["fields"] if field["fieldname"] == "arrears"] == ["Arrears"],
       "each person's arrears show beside their work")

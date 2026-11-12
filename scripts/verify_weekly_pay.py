@@ -315,6 +315,8 @@ class Site:
         self.companies = {"LPL": Row(abbr="LPT", default_currency="UGX")}
         self.components = []
         self.day_kinds, self.pieces_waiting, self.cache_cleared = {}, set(), []
+        # {employee: the run that paid their arrears}, as piece_pay.arrears_paid finds it
+        self.arrears_paid = {}
 
     def add(self, doctype, **values):
         row = Row(values)
@@ -442,6 +444,8 @@ overtime_glue = types.ModuleType("hrms_addon.hrms_addon.overtime")
 overtime_glue.day_kind = lambda employee, day: site().day_kinds.get((employee, as_date(day)), OR.WEEKDAY)
 piece_glue = types.ModuleType("hrms_addon.hrms_addon.piece_pay")
 piece_glue.waiting = lambda employees, start, end: {name for name in employees if name in site().pieces_waiting}
+piece_glue.ARREARS = ("Arrears", "ARR")
+piece_glue.arrears_paid = lambda employee, day: site().arrears_paid.get(employee)
 sys.modules.update({"frappe": frappe, "frappe.utils": utils, "hrms_addon.hrms_addon.output_pay": output_pay,
                     "hrms_addon.hrms_addon.output_rules": O, "hrms_addon.hrms_addon.overtime": overtime_glue,
                     "hrms_addon.hrms_addon.piece_pay": piece_glue})
@@ -792,6 +796,20 @@ W.additional_validate(additional("M9", "Bonus Cut"))
 W.additional_validate(additional("P9", "Bonus Cut", ref="Arrear"))
 check(True, "under a component not cut it is taken; a monthly employee's is Frappe HR's as ever; an Arrear's is left "
             "whole by Frappe HR anyway")
+# arrears a Per Piece run has paid for the week are not entered again by hand (Luuka, 12 Nov 2026: "arrears should work
+# like additional salary and it should post to additional salary respectively")
+s.arrears_paid = {"P9": "OPR-2026-00004"}
+try:
+    W.additional_validate(Row(employee="P9", salary_component="Arrears", payroll_date=D(2026, 11, 2)))
+    check(False, "a casual's arrears the week's run has paid are not entered again by hand")
+except Thrown as error:
+    check("OPR-2026-00004 has paid P9's arrears for that week. Change them on that run, not here." in str(error),
+          "a casual's arrears the week's run has paid are not entered again by hand, saying which run", str(error))
+W.additional_validate(Row(employee="P9", salary_component="Arrears", payroll_date=D(2026, 11, 2),
+                          ref_doctype="Output Pay Run"))
+s.arrears_paid = {}
+W.additional_validate(Row(employee="P9", salary_component="Arrears", payroll_date=D(2026, 11, 2)))
+check(True, "the run's own Arrears are taken, and a casual's with none paid for the week")
 
 
 # ── 4. The slip ──────────────────────────────────────────

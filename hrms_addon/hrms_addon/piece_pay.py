@@ -346,15 +346,15 @@ def _make_reports(doc, taken):
 
 # ── A Per Piece report ────────────────────────────────────────────────
 def report_validate(doc, method=None):
-    """A report has no arrears: they are entered as Additional Salary, which
-    the weekly payroll pays (Luuka, 11 Nov 2026). One submitted before that
-    keeps its own. A Per Piece report has no Looms OT."""
-    if doc.get("arrears") and doc.is_new():
-        frappe.throw(_("Arrears are entered as Additional Salary, which the weekly payroll pays: take them off this report and enter them there."), title=_(REPORT))
+    """A Per Piece report's arrears are a Per Piece casual's, each more than
+    nothing, once a person: the week's run pays them as Additional Salary under
+    Arrears (Luuka, 12 Nov 2026). A Per Piece report has no Looms OT."""
     if doc.get("section") != rules.PER_PIECE:
+        if doc.get("arrears"):
+            frappe.throw(_("Arrears go on a Per Piece report."), title=_(REPORT))
         return
     if doc.get("looms_ot"):
-        frappe.throw(_("A Per Piece report has no Looms OT: enter what is owed as Additional Salary."), title=_(REPORT))
+        frappe.throw(_("A Per Piece report has no Looms OT: put what is owed under Arrears."), title=_(REPORT))
     rows = doc.get("arrears") or []
     categories = output_pay._pay_categories([row.get("employee") for row in rows])
     seen, errors = set(), []
@@ -391,6 +391,14 @@ def before_paying(run):
         if frappe.db.get_value("Salary Component", component, "depends_on_payment_days"):
             frappe.throw(_("{0} is cut by payment days: untick Depends on Payment Days on it, as a casual's pieces "
                            "and arrears are what they are owed.").format(component), title=_(RUN))
+    # arrears already entered by hand as Additional Salary for the week would be paid twice
+    entered = arrears_entered([row.employee for row in rows if row.salary_component == ARREARS[0]],
+                              run.from_date, run.to_date, but_run=run.name)
+    if entered:
+        frappe.throw(_("Arrears for the week are already entered as Additional Salary: {0}. Take them off this run, "
+                       "or cancel those.").format(", ".join("%s (%s)" % (employee, name)
+                                                           for employee, name in sorted(entered.items()))),
+                     title=_(RUN))
     paid = _paying_slips((employee, run.to_date) for employee in people)
     for (employee, day), slip in sorted(paid.items()):
         frappe.throw(_("{0} has already paid {1}'s week of {2}: the pay would never be counted. Cancel that slip "
@@ -406,6 +414,34 @@ def before_paying(run):
     return {employee: rules.piece_pay_day(None, run.to_date, None,
                                           (found.get(employee) or {}).get("relieving_date"))[0]
             for employee in people}
+
+
+def arrears_entered(employees, first, last, but_run=None):
+    """{employee: an Additional Salary} of these employees' Arrears, submitted and dated in the days, that the run
+    named but_run did not write: entered by hand, or paid by another run."""
+    employees = sorted(set(filter(None, employees or ())))
+    if not employees:
+        return {}
+    found = {}
+    for row in frappe.get_all(ADDITIONAL, filters={
+            "employee": ["in", employees], "salary_component": ARREARS[0], "docstatus": 1,
+            "payroll_date": ["between", [getdate(first), getdate(last)]]},
+            fields=["name", "employee", "ref_doctype", "ref_docname"], order_by="name asc", limit_page_length=0):
+        if row.get("ref_doctype") == RUN and row.get("ref_docname") != but_run:
+            continue
+        found.setdefault(row.employee, row.name)
+    return found
+
+
+def arrears_paid(employee, day):
+    """The submitted Per Piece run that paid this employee's arrears for the week holding the day, or None."""
+    for row in frappe.get_all(ADDITIONAL, filters={
+            "employee": employee, "salary_component": ARREARS[0], "docstatus": 1, "ref_doctype": RUN},
+            fields=["ref_docname"], limit_page_length=0):
+        week = frappe.db.get_value(RUN, row.ref_docname, ["from_date", "to_date", "docstatus"], as_dict=True)
+        if week and week.docstatus == 1 and getdate(week.from_date) <= getdate(day) <= getdate(week.to_date):
+            return row.ref_docname
+    return None
 
 
 def _arrears_component():
