@@ -25,6 +25,7 @@ Manager, then paid by the weekly payroll (weekly_pay.py).
                        cover, what is still to pay, and where a payroll stops
 """
 
+import datetime
 import io
 
 import frappe
@@ -462,14 +463,18 @@ def waiting(employees, end):
     return set(unpaid(employees, end))
 
 
-def for_verification(employees, first, last):
+def for_verification(employees, first, last, branch=None):
     """What a weekly Attendance Verification takes from the Casual Hours Sheets over its days, as the weekly payroll
     pays them (attendance_verification._read; Luuka, 12 Nov 2026: "attendance verification is not accurate ... i have
     uploaded casual hours but it pull different data also it doesnt show the overtime hours"; "for casuals the
     attendance verification should be from casual hours sheet"):
 
       {"people": {employee: {"covered": {date}, "counted": {date}, "hours", "overtime", "days"}},
-       "sheets": {name: {"from_date", "to_date", "state", "people"}}}
+       "sheets": {name: {"from_date", "to_date", "state", "people"}}, "plant_days": {date}}
+
+    plant_days: the verification's days the sheets of its plant (branch) give, not cancelled. Over a week they give
+    every day of, the sheets feed its casuals paid by the hour: one they do not list is not on it (Luuka, 12 Nov 2026:
+    "this is for casuals only casual hour sheet is the one tha feed the attendance verifacition sheet").
 
     covered: the days within the verification's that a sheet not cancelled gives the person; they are the sheet's,
     not the attendance's. counted: those of them whose days worked are the attendance's to count, as their sheet
@@ -479,11 +484,17 @@ def for_verification(employees, first, last):
     (attendance_verification_rules.hours_sheet_issue)."""
     employees = [employee for employee in dict.fromkeys(employees or ()) if employee]
     first, last = (getdate(first) if first else None), (getdate(last) if last else None)
-    if not employees or not first or not last:
-        return {"people": {}, "sheets": {}}
+    if not first or not last:
+        return {"people": {}, "sheets": {}, "plant_days": set()}
     sheets = {row.name: row for row in frappe.get_all(
         DOCTYPE, filters={"docstatus": ["<", 2], "from_date": ["<=", last], "to_date": [">=", first]},
-        fields=["name", "from_date", "to_date", "docstatus", "workflow_state"], limit_page_length=0)}
+        fields=["name", "branch", "from_date", "to_date", "docstatus", "workflow_state"], limit_page_length=0)}
+    plant_days = set()
+    for sheet in sheets.values():
+        if branch and sheet.get("branch") == branch:
+            plant_days |= rules.days_within(sheet.from_date, sheet.to_date, first, last)
+    if not employees:
+        return {"people": {}, "sheets": {}, "plant_days": plant_days}
     people, used = {}, {}
     if sheets:
         for row in frappe.get_all(ROW, filters={"parenttype": DOCTYPE, "parent": ["in", list(sheets)],
@@ -507,7 +518,36 @@ def for_verification(employees, first, last):
                               "state": sheets[name].get("workflow_state") or ("Approved" if sheets[name].docstatus == 1
                                                                              else "Draft"),
                               "people": len(who)}
-                       for name, who in used.items()}}
+                       for name, who in used.items()},
+            "plant_days": plant_days}
+
+
+def plants_with_sheets(branches, first, last):
+    """Those of these plants with a sheet not cancelled over any of the days: their casuals by the hour are on the
+    sheet, or not paid from the clock unseen (attendance_verification.payroll_problems)."""
+    branches = sorted({branch for branch in branches or () if branch})
+    if not branches or not first or not last:
+        return set()
+    return set(frappe.get_all(DOCTYPE, filters={"branch": ["in", branches], "docstatus": ["<", 2],
+                                                "from_date": ["<=", getdate(last)], "to_date": [">=", getdate(first)]},
+                              pluck="branch", limit_page_length=0))
+
+
+def plant_week(company, branch, first, yesterday):
+    """(from, to) of the plant's sheet a new weekly Attendance Verification follows, so the two cover the same days,
+    or None: the plant's earliest sheet not cancelled that ends on or after `first` and by yesterday. A sheet that
+    starts later leaves the days before it to a verification of their own."""
+    if not company or not branch or not first or not yesterday:
+        return None
+    found = frappe.get_all(DOCTYPE, filters={"company": company, "branch": branch, "docstatus": ["<", 2],
+                                             "to_date": [">=", getdate(first)]},
+                           fields=["from_date", "to_date"], order_by="from_date asc", limit=1)
+    if not found or getdate(found[0].to_date) > getdate(yesterday):
+        return None
+    start = getdate(found[0].from_date)
+    if start > getdate(first):
+        return getdate(first), start - datetime.timedelta(days=1)
+    return getdate(first), getdate(found[0].to_date)
 
 
 def latest_to(wanted):

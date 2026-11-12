@@ -499,8 +499,8 @@ check('weekly = doc.get("pay_kind") == rules.WEEKLY' in read_fn and "standard = 
       and 'return flt(output_pay.settings().get("standard_hours")) or output_rules.STANDARD_HOURS' in glue,
       "the hours are a weekly sheet's, from each day's Working Hours, a full day as the weekly payroll takes it; a Per "
       "Piece casual's are nought")
-check("casual_hours.for_verification([employee for employee in employees if rules.by_the_hour(found[employee])],"
-      in read_fn and "start, end)" in read_fn
+check("casual_hours.for_verification([employee for employee in found if rules.by_the_hour(found[employee])],"
+      in read_fn and 'start, end, doc.get("branch"))' in read_fn
       and 'sorted(given.get("counted") or ()))' in read_fn
       and "figures = rules.with_hours_sheet(figures, inside, given, counted)" in read_fn
       and 'line["clock"], open_days)' in read_fn
@@ -509,6 +509,33 @@ check("casual_hours.for_verification([employee for employee in employees if rule
       "a weekly sheet takes the Casual Hours Sheets for its casuals paid by the hour: their figures, the days worked "
       "per sheet, no day of theirs 'not marked', no overtime the attendance carries on them, and a line for a sheet "
       "not yet approved")
+# the sheets feed it (Luuka, 12 Nov 2026: "this is for casuals only casual hour sheet is the one tha feed the attendance
+# verifacition sheet"): over a week its plant's sheets give every day of, a casual by the hour they do not list is not
+# on it; a Per Piece casual and the monthly people are as they were
+check('if rules.fed_by_sheets(days, sheets["plant_days"]):' in read_fn
+      and "if not rules.by_the_hour(row) or name in sheets[\"people\"]}" in read_fn
+      and read_fn.index("rules.fed_by_sheets(") < read_fn.index("employees = list(found)")
+      < read_fn.index("marked = board._attendance(start, end, employees)"),
+      "fed by the plant's sheets, its casuals by the hour are those the sheets list, before anything is read for them")
+check(R.fed_by_sheets([D(2026, 11, 5), D(2026, 11, 6)], {D(2026, 11, 5), D(2026, 11, 6), D(2026, 11, 7)})
+      and not R.fed_by_sheets([D(2026, 11, 4), D(2026, 11, 5)], {D(2026, 11, 5)})
+      and not R.fed_by_sheets([], {D(2026, 11, 5)}) and not R.fed_by_sheets([D(2026, 11, 5)], set()),
+      "a week is fed by the sheets when they give every day of it; a day they miss leaves the clock to it")
+said = R.gaps_message({"Matugga": [{"employee": "H3", "employee_name": "Hugo Clock", "days": [D(2026, 11, 2)]}]},
+                      {}, {"Matugga"}, {"Matugga"})
+check(said == ["Matugga: Hugo Clock worked on days the Casual Hours Sheet gives, but are not on it. Put them on the "
+               "sheet, or take them off this payroll."],
+      "a weekly payroll paying a casual the plant's sheet leaves out says so, and what to do", said)
+check(R.gaps_message({"Matugga": [{"employee": "E3", "employee_name": "Cy", "days": [D(2026, 11, 2)]}]}, {},
+                     {"Matugga"}) == ["Matugga: Cy not on its verified sheet. The General Manager reopens it, and it "
+                                      "is verified again."],
+      "elsewhere as before")
+check("return rules.gaps_message(gaps, waiting, {sheet.branch for sheet in sheets}, _fed(doc, gaps, first, last))"
+      in glue and "{sheet.branch for sheet in sheets}, _fed(doc, gaps, first, last))" in glue
+      and "if not weekly_pay_rules.on_weekly_pay(doc):\n        return set()" in glue,
+      "the payroll and a slip submitted alone say it, a weekly payroll only")
+check("first, last = casual_hours.plant_week(company, branch, first, last) or (first, last)" in glue,
+      "a new weekly sheet follows the plant's Casual Hours Sheet's week, so the sheet feeds the whole of it")
 check("\tfrom_date(frm) {\n\t\tha_verify_week_end(frm);\n\t}," in js
       and 'if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;' in js
       and "const to = frappe.datetime.add_days(frm.doc.from_date, 6);" in js

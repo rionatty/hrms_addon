@@ -687,6 +687,22 @@ check(said and "Some of these days were paid already from the attendance for LPC
       "a week some of whose days a weekly slip paid from the attendance is not sent: it would be paid twice", said)
 check(refused(Sheet(rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29),
                     to_date=D(2026, 11, 4))) is None, "a draft may still hold it, while HR put it right")
+# the plant's sheets feed its weekly Attendance Verification (Luuka, 12 Nov 2026: "this is for casuals only casual hour
+# sheet is the one tha feed the attendance verifacition sheet")
+check(G.for_verification(["LPC100"], D(2026, 10, 30), D(2026, 11, 5), "Kawempe")["plant_days"] == week_days
+      and G.for_verification([], D(2026, 10, 30), D(2026, 11, 5), "Namanve")["plant_days"]
+      == {D(2026, 10, 30) + datetime.timedelta(days=n) for n in range(6)}
+      and not G.for_verification(["LPC100"], D(2026, 10, 30), D(2026, 11, 5), "Matugga")["plant_days"],
+      "the verification's days its plant's sheets give, still with HR or approved, never a cancelled one's")
+check(G.plants_with_sheets(["Kawempe", "Namanve", "Matugga"], D(2026, 11, 5), D(2026, 11, 6)) == {"Kawempe"},
+      "the plants with a sheet over some of the days: a casual of theirs missing from it is said on the payroll")
+check(G.plant_week("LPL", "Kawempe", D(2026, 10, 29), D(2026, 11, 11)) == (D(2026, 10, 29), D(2026, 11, 4))
+      and G.plant_week("LPL", "Kawempe", D(2026, 10, 27), D(2026, 11, 11)) == (D(2026, 10, 27), D(2026, 10, 28))
+      and G.plant_week("LPL", "Kawempe", D(2026, 11, 5), D(2026, 11, 8)) is None
+      and G.plant_week("LPL", "Matugga", D(2026, 10, 29), D(2026, 11, 11)) is None,
+      "a new weekly verification follows the plant's sheet: its week, the days before it on their own first, none "
+      "still to come; a plant with no sheet as before", (G.plant_week("LPL", "Kawempe", D(2026, 10, 27),
+                                                              D(2026, 11, 11))))
 print("the sheets' weeks: of those they list, the days worked per sheet, locked once verified, never paid twice")
 
 # ── 4. The doctypes, the form, the wiring ─────────────

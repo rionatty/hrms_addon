@@ -131,6 +131,12 @@ def on_sheet(person, kind, from_date, to_date):
     return casual if kind == WEEKLY else not casual
 
 
+def fed_by_sheets(days, plant_days):
+    """Whether a weekly sheet's casuals by the hour are fed by its plant's Casual Hours Sheets: they give every one of
+    its days (casual_hours.for_verification)."""
+    return bool(days) and set(days) <= set(plant_days or ())
+
+
 def by_the_hour(person):
     """Whether a casual is paid for the hours they work: a Per Piece casual is paid for their pieces, and their Hours
     Worked are nought however many days they worked."""
@@ -364,14 +370,18 @@ def payroll_gaps(people, sheets, start, end, days_by_employee=None):
     return gaps
 
 
-def gaps_message(gaps, waiting, verified_branches):
+def gaps_message(gaps, waiting, verified_branches, fed=None):
     """What stops a payroll, a branch to a line. waiting: {branch: the state of its sheet not yet verified};
-    verified_branches: the branches with a verified sheet for these days."""
+    verified_branches: the branches with a verified sheet for these days; fed: those of them whose Casual Hours
+    Sheets feed their casuals by the hour, so that one missing is missing from the sheet."""
     lines = []
     for branch in sorted(gaps, key=lambda name: (name == "", name)):
         people = gaps[branch]
         if not branch:
             lines.append("No branch: %s. Set their branch, then verify their attendance there." % names_text(people))
+        elif branch in (fed or ()):
+            lines.append("%s: %s worked on days the Casual Hours Sheet gives, but are not on it. Put them on the "
+                         "sheet, or take them off this payroll." % (branch, names_text(people)))
         elif branch in (verified_branches or ()):
             lines.append("%s: %s not on its verified sheet. The General Manager reopens it, and it is verified "
                          "again." % (branch, names_text(people)))

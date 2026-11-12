@@ -209,13 +209,6 @@ def _read(doc):
     if not found:
         return {"rows": [], "issues": []}
     start, end = days[0], days[-1]
-    employees = list(found)
-    marked = board._attendance(start, end, employees)
-    clocked = board._clocked(start, end, employees)
-    off_duty = attendance._off_duty_between(employees, start, end)
-    lines = board._register_rows(found, marked, off_duty, _holidays(found, start, end, doc.company), days,
-                                 attendance.all_shift_hours(), clocked)
-    overtime = _overtime_hours(employees, start, end)
     # a weekly sheet's Hours Worked: the hours the weekly payroll pays for the days worked
     weekly = doc.get("pay_kind") == rules.WEEKLY
     standard = _full_day() if weekly else None
@@ -225,10 +218,23 @@ def _read(doc):
     if weekly:
         from hrms_addon.hrms_addon import casual_hours
 
-        sheets = casual_hours.for_verification([employee for employee in employees if rules.by_the_hour(found[employee])],
-                                               start, end)
+        sheets = casual_hours.for_verification([employee for employee in found if rules.by_the_hour(found[employee])],
+                                               start, end, doc.get("branch"))
     else:
-        sheets = {"people": {}, "sheets": {}}
+        sheets = {"people": {}, "sheets": {}, "plant_days": set()}
+    # over a week the plant's sheets give every day of, they feed its casuals paid by the hour: one they do not list
+    # is not on it, and the weekly payroll pays them nothing from the clock unseen (payroll_problems; Luuka, 12 Nov
+    # 2026: "this is for casuals only casual hour sheet is the one tha feed the attendance verifacition sheet")
+    if rules.fed_by_sheets(days, sheets["plant_days"]):
+        found = {name: row for name, row in found.items()
+                 if not rules.by_the_hour(row) or name in sheets["people"]}
+    employees = list(found)
+    marked = board._attendance(start, end, employees)
+    clocked = board._clocked(start, end, employees)
+    off_duty = attendance._off_duty_between(employees, start, end)
+    lines = board._register_rows(found, marked, off_duty, _holidays(found, start, end, doc.company), days,
+                                 attendance.all_shift_hours(), clocked)
+    overtime = _overtime_hours(employees, start, end)
     rows, issues = [], []
     for line in lines:
         person = found[line["employee"]]
@@ -400,6 +406,10 @@ def weekly_dates(company=None, branch=None):
                                fields=["end_date"], order_by="end_date desc", limit=1) if company else []
     first, last = rules.weekly_dates(last_sheet[0].to_date if last_sheet else None,
                                      last_paid[0].end_date if last_paid else None, today())
+    # the plant's Casual Hours Sheet's week, where it has one, so the sheet feeds the whole of it
+    from hrms_addon.hrms_addon import casual_hours
+
+    first, last = casual_hours.plant_week(company, branch, first, last) or (first, last)
     return {"from_date": str(first), "to_date": str(last)}
 
 
@@ -635,7 +645,17 @@ def payroll_problems(doc):
     if not gaps:
         return []
     waiting = _waiting_states(doc, [branch for branch in gaps if branch], first, last)
-    return rules.gaps_message(gaps, waiting, {sheet.branch for sheet in sheets})
+    return rules.gaps_message(gaps, waiting, {sheet.branch for sheet in sheets}, _fed(doc, gaps, first, last))
+
+
+def _fed(doc, gaps, first, last):
+    """The plants of a weekly payroll's gaps whose Casual Hours Sheets feed their verification: a casual by the hour
+    missing there is missing from the sheet, which is what to put right (casual_hours.plants_with_sheets)."""
+    if not weekly_pay_rules.on_weekly_pay(doc):
+        return set()
+    from hrms_addon.hrms_addon import casual_hours
+
+    return casual_hours.plants_with_sheets([branch for branch in gaps if branch], first, last)
 
 
 def refuse_payroll(doc):
@@ -686,7 +706,7 @@ def slip_before_submit(doc, method=None):
     gaps = rules.payroll_gaps(found, sheets, doc.start_date, doc.end_date, days)
     if gaps:
         lines = rules.gaps_message(gaps, _waiting_states(doc, [branch for branch in gaps if branch], first, last),
-                                   {sheet.branch for sheet in sheets})
+                                   {sheet.branch for sheet in sheets}, _fed(doc, gaps, first, last))
         frappe.throw(_("Each branch verifies its attendance before payroll pays it.") + "<br>"
                      + "<br>".join(_(line) for line in lines), title=_(DOCTYPE))
 
