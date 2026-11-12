@@ -25,8 +25,11 @@ import datetime
 
 MONTHLY, WEEKLY = "Monthly", "Weekly"
 KINDS = (MONTHLY, WEEKLY)
-# Employee custom_pay_category of those paid by the week (weekly_pay_rules.WEEKLY)
+# Employee custom_pay_category of the casuals the weekly payroll pays: by the hour (weekly_pay_rules.WEEKLY), and by
+# the piece (weekly_pay_rules.PER_PIECE), who are paid for their pieces and have no hours
 WEEKLY_CATEGORY = "Weekly"
+PER_PIECE_CATEGORY = "Per Piece"
+CASUAL_CATEGORIES = (WEEKLY_CATEGORY, PER_PIECE_CATEGORY)
 MAX_WEEKLY_DAYS = 31
 # the system status of those verified; Luuka's own statuses each count as one of the four
 ACTIVE = "Active"
@@ -108,9 +111,12 @@ def on_sheet(person, kind, from_date, to_date):
     and no payroll waits for them (payroll_people). On a monthly sheet, nor is somebody with no salary structure
     assigned by its last day (Luuka, 8 Nov 2026): the monthly payroll pays nobody else, so nobody else holds the sheet
     up. A weekly sheet is every active weekly casual (Luuka, 11 Nov 2026: "the employee should be weekly casuals"):
-    the weekly payroll gives a casual the weekly structure itself when it pays them (weekly_pay.assign_people). person:
-    status (the system status, which each of Luuka's statuses counts as), salary_structure (whether one is assigned by
-    the sheet's last day), date_of_joining, relieving_date, custom_pay_category."""
+    the weekly payroll gives a casual the weekly structure itself when it pays them (weekly_pay.assign_people). The
+    Per Piece casuals are on it too, as the weekly payroll pays them, with no hours (Luuka, 12 Nov 2026: "for per
+    piece pay hour is 0 but attendance verification should cater for this"); never on a monthly sheet, though the
+    weekly structure is assigned to them. person: status (the system status, which each of Luuka's statuses counts
+    as), salary_structure (whether one is assigned by the sheet's last day), date_of_joining, relieving_date,
+    custom_pay_category."""
     if (person.get("status") or "") != ACTIVE:
         return False
     if kind != WEEKLY and not person.get("salary_structure"):
@@ -121,8 +127,14 @@ def on_sheet(person, kind, from_date, to_date):
         return False
     if left and first and left < first:
         return False
-    weekly = (person.get("custom_pay_category") or "") == WEEKLY_CATEGORY
-    return weekly if kind == WEEKLY else not weekly
+    casual = (person.get("custom_pay_category") or "") in CASUAL_CATEGORIES
+    return casual if kind == WEEKLY else not casual
+
+
+def by_the_hour(person):
+    """Whether a casual is paid for the hours they work: a Per Piece casual is paid for their pieces, and their Hours
+    Worked are nought however many days they worked."""
+    return (person.get("custom_pay_category") or "") == WEEKLY_CATEGORY
 
 
 def employed(person, day):

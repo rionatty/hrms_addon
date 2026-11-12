@@ -83,6 +83,35 @@ try:
     check(False, "a sheet with no headings is refused")
 except ValueError as error:
     check("PAYROLL NO and HOURS WORKED" in str(error), "a sheet with no headings is refused, saying what it wants", error)
+# the casual master payroll's own layout (Luuka, Sep 2026): the hourly and the Per Piece casuals on one sheet, a Per
+# Piece casual with no hours, and the overtime as OT1-AMOUNT, an amount
+heads = ["SrNo", "PAYROLL NO", "COUNT OF EMPLOYEE", "DEPARTMENTNAME", "HOURS WORKED", "WAGE RATE", "BASIC",
+         "PIECE RATE AMT1", "PIECE RATE AMT2", "PIECE RATE AMT3", "OT1-AMOUNT", "ARREARS", "GROSS AMOUNT",
+         "SALARY ADVANCE", "NETTPAY"]
+piece = [1, "LPC90001", "A Piece", "MOULDING", 0, 0, 0, 30000, 4000, 0, 0, 0, 34000, 0, 34000]
+hourly = [2, "LPC90002\n", "B Hourly", "MOULDING", 50, 900, 45000, 0, 0, 0, 13500, 0, 58500, 0, 58500]
+master = [["LUUKA PLASTICS LTD (CASUALS)"], ["CASUAL MASTER PAYROLL"], [], heads, [], piece, hourly]
+try:
+    R.read_rows(master)
+    check(False, "overtime given only as an amount is refused")
+except ValueError as error:
+    check("OT1-AMOUNT, an amount, and no overtime hours" in str(error) and "OVERTIME HOURS column" in str(error),
+          "overtime given only as an amount is refused, not read as none: it would go unpaid", error)
+quiet = [list(row) for row in master]
+quiet[-1][10] = 0
+found = R.read_rows(quiet)
+check([(row["employee"], row["hours"], row["overtime"]) for row in found["rows"]] == [("LPC90002", 50.0, 0.0)]
+      and not found["problems"],
+      "with no overtime that week it reads: the Per Piece casual's nought hours leave them out, the piece amounts "
+      "are no overtime, the cell's line break is no part of the ID", found)
+told = [list(row) for row in master]
+told[3], told[5], told[6] = heads + ["OT HOURS"], piece + [0], hourly + [10]
+found = R.read_rows(told)
+check([(row["employee"], row["hours"], row["overtime"]) for row in found["rows"]] == [("LPC90002", 50.0, 10.0)],
+      "with OT HOURS beside the amount, the hours are read and the amount left to the payroll", found)
+check(R._overtime_amount(["OT1-AMOUNT"]) == 0 and R._overtime_amount(["X", "OVERTIME AMT"]) == 1
+      and R._overtime_amount(["OTHER AMOUNT", "PIECE RATE AMT1", "OT HOURS"]) is None,
+      "an overtime amount is OT, OT1 or OVERTIME and an amount; OTHER AMOUNT and the piece rates are not")
 check(R.sheet_errors(None, D(2026, 11, 4)) == ["Say the week: its From and To."]
       and R.sheet_errors(D(2026, 11, 4), D(2026, 11, 1)) == ["To is before From."]
       and R.sheet_errors(D(2026, 10, 29), D(2026, 11, 4), D(2026, 11, 5)) == [],

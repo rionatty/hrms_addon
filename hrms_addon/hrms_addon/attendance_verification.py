@@ -223,8 +223,9 @@ def _read(doc):
     for line in lines:
         person = found[line["employee"]]
         statuses = {day: row.status for day, row in (marked.get(line["employee"]) or {}).items()}
+        # a Per Piece casual is paid for their pieces: their days are verified, and their hours are nought
         hours = {day: row.get("working_hours") for day, row in (marked.get(line["employee"]) or {}).items()} \
-            if weekly else None
+            if weekly and rules.by_the_hour(person) else None
         figures = rules.person_figures(person, line["days"], line["clock"], statuses, overtime.get(line["employee"]),
                                        days, hours, standard)
         rows.append(dict(figures, employee=person.name, employee_name=person.employee_name,

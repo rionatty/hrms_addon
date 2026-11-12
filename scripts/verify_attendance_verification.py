@@ -100,6 +100,17 @@ check(R.on_sheet(dict(staff, custom_pay_category="Per Meter"), "Monthly", "2026-
 check(not R.on_sheet(casual, "Monthly", "2026-09-26", "2026-10-25"), "a casual paid weekly is not on the monthly one")
 check(R.on_sheet(casual, "Weekly", "2026-10-30", "2026-11-05"), "but on the weekly one")
 check(not R.on_sheet(staff, "Weekly", "2026-10-30", "2026-11-05"), "where a monthly person is not")
+# a Per Piece casual is paid by the weekly payroll for their pieces, with no hours (Luuka, 12 Nov 2026: "for per piece
+# pay hour is 0 but attendance verification should cater for this"); the weekly structure is assigned to them too
+piece = dict(casual, custom_pay_category="Per Piece")
+check(R.on_sheet(piece, "Weekly", "2026-10-30", "2026-11-05")
+      and R.on_sheet(dict(piece, salary_structure=False), "Weekly", "2026-10-30", "2026-11-05"),
+      "a Per Piece casual is on the weekly sheet with the other casuals")
+check(not R.on_sheet(piece, "Monthly", "2026-09-26", "2026-10-25"),
+      "and never on the monthly one, though the weekly structure is assigned to them")
+check(R.by_the_hour(casual) and not R.by_the_hour(piece) and not R.by_the_hour(staff)
+      and not R.by_the_hour(dict(staff, custom_pay_category=None)),
+      "only a casual paid by the hour has hours to count: a Per Piece casual's are nought")
 for status in ("Inactive", "Suspended", "Left", "", None):
     check(not R.on_sheet(dict(staff, status=status), "Monthly", "2026-09-26", "2026-10-25"),
           "only the active are on it, not one whose status is %r" % status)
@@ -453,10 +464,11 @@ check(total_field.get("fieldtype") == "Float" and total_field.get("read_only")
 read_fn = glue[glue.index("\ndef _read(doc):"):glue.index("\ndef _full_day(")]
 check('weekly = doc.get("pay_kind") == rules.WEEKLY' in read_fn and "standard = _full_day() if weekly else None" in read_fn
       and 'hours = {day: row.get("working_hours") for day, row in (marked.get(line["employee"]) or {}).items()} \\\n'
-          "            if weekly else None" in read_fn
+          "            if weekly and rules.by_the_hour(person) else None" in read_fn
       and "days, hours, standard)" in read_fn
       and 'return flt(output_pay.settings().get("standard_hours")) or output_rules.STANDARD_HOURS' in glue,
-      "the hours are a weekly sheet's, from each day's Working Hours, a full day as the weekly payroll takes it")
+      "the hours are a weekly sheet's, from each day's Working Hours, a full day as the weekly payroll takes it; a Per "
+      "Piece casual's are nought")
 check("\tfrom_date(frm) {\n\t\tha_verify_week_end(frm);\n\t}," in js
       and 'if (frm.doc.docstatus !== 0 || frm.doc.pay_kind !== "Weekly" || !frm.doc.from_date) return;' in js
       and "const to = frappe.datetime.add_days(frm.doc.from_date, 6);" in js

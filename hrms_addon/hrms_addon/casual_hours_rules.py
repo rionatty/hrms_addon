@@ -31,6 +31,7 @@ General Manager approves it, the weekly payroll pays it (weekly_pay.py):
 """
 
 import datetime
+import re
 
 # a casual's standard day where Output Pay Settings give none (Luuka, 12 Nov 2026: "working hour is 10")
 STANDARD_DAY = 10.0
@@ -105,10 +106,21 @@ def _find(heads, wanted):
     return None
 
 
+def _overtime_amount(heads):
+    """The column of an overtime amount rather than its hours, as the casual master payroll's OT1-AMOUNT: OT1-AMOUNT,
+    OT AMT, OVERTIME AMOUNT. None where there is none."""
+    for at, head in enumerate(heads):
+        words = head.replace("-", " ").split()
+        if words and re.fullmatch(r"(OT|OVERTIME)\d*", words[0]) and any(word.startswith("AM") for word in words[1:]):
+            return at
+    return None
+
+
 def read_rows(table):
     """{"rows": [{"line", "employee", "name", "hours", "overtime", "days"}], "problems": [text]} from a sheet's
     cells, a list of rows of values, whatever row the headings are on and whatever else it carries. A person with
-    nothing on the row is left out; a total line is not a person. Raises ValueError with no headings to read."""
+    nothing on the row is left out; a total line is not a person. Raises ValueError with no headings to read, and
+    where the overtime is given as an amount with no overtime hours beside it: read as none, it would go unpaid."""
     rows = [list(row or ()) for row in table or ()]
     start = None
     for at, row in enumerate(rows):
@@ -123,6 +135,7 @@ def read_rows(table):
     columns = {"employee": _find(heads, EMPLOYEE_HEADS), "name": _find(heads, NAME_HEADS),
                "hours": _find(heads, HOURS_HEADS), "overtime": _find(heads, OVERTIME_HEADS),
                "days": _find(heads, DAYS_HEADS)}
+    amount = _overtime_amount(heads) if columns["overtime"] is None else None
     found, problems = [], []
     for at in range(start + 1, len(rows)):
         row = rows[at]
@@ -134,6 +147,10 @@ def read_rows(table):
         employee = " ".join(str(cell("employee") or "").split())
         if not employee or employee.upper() in TOTALS:
             continue
+        if amount is not None and amount < len(row) and (number(row[amount])[0] or 0) > 0:
+            raise ValueError("The sheet has %s, an amount, and no overtime hours: add an OVERTIME HOURS column with "
+                             "each casual's overtime hours. The payroll works out the amount from their rate and "
+                             "Overtime Type." % heads[amount])
         line, values, wrong = at + 1, {}, []
         for key in ("hours", "overtime", "days"):
             value, why = number(cell(key))
