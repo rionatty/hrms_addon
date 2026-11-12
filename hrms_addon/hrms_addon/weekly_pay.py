@@ -230,8 +230,9 @@ def rate_validate(doc, method=None):
 
 
 def show_on_figures(doc, figures):
-    """A weekly payroll's Employees tab shows the days its slips will (slip_figures.expected): a Per Piece
-    casual's pay is their bags, and none of their days is paid."""
+    """A weekly payroll's Employees tab shows the days its slips will (slip_figures.expected), and the hours (Luuka,
+    12 Nov 2026: "add hours worked on the weekly payroll"): a Per Piece casual's pay is their bags, and none of their
+    days or hours is paid."""
     hourly = set(frappe.get_all("Employee", filters={"name": ["in", list(figures)], "custom_pay_category": rules.WEEKLY},
                                 pluck="name", limit_page_length=0)) if figures else set()
     days = days_to_pay([employee for employee in figures if employee in hourly], doc.get("start_date"),
@@ -240,6 +241,7 @@ def show_on_figures(doc, figures):
     for employee, row in figures.items():
         row["custom_working_days"] = period
         row["custom_paid_days"] = len(days.get(employee) or [])
+        row["custom_hours_worked"] = round(sum(flt(day.get("hours")) for day in days.get(employee) or []), 2)
 
 
 # ── The Salary Slip ───────────────────────────────────

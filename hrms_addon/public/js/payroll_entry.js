@@ -60,6 +60,7 @@ frappe.ui.form.on("Payroll Entry", {
 		ha_payroll_period(frm);
 		ha_weekly(frm);
 		ha_payroll_attendance(frm);
+		ha_payroll_hours_column(frm);
 	},
 	on_tab_change(frm) {
 		ha_payroll_register(frm);
@@ -82,6 +83,17 @@ frappe.ui.form.on("Payroll Entry", {
 function ha_payroll_dates_changed(frm) {
 	ha_payroll_period_changed(frm);
 	ha_weekly_changed(frm);
+	ha_payroll_hours_column(frm);
+}
+
+// Hours Worked is a weekly payroll's column on the Employees tab (Luuka, 12 Nov 2026: "add hours worked on the weekly
+// payroll"): the casuals are paid by the hour. Frappe's grid keeps the change to this form, redrawn only when it changes.
+function ha_payroll_hours_column(frm) {
+	const grid = frm.fields_dict && frm.fields_dict.employees && frm.fields_dict.employees.grid;
+	if (!grid || !grid.set_column_disp_in_list_view) return;
+	const hide = ha_weekly_on(frm) ? 0 : 1;
+	if (((grid.column_disp_overrides || {}).custom_hours_worked || 0) === hide) return;
+	grid.set_column_disp_in_list_view("custom_hours_worked", !hide);
 }
 
 function ha_payroll_period_asked(frm) {

@@ -266,7 +266,7 @@ check("and the two methods the glue whitelists", all(
     and "@frappe.whitelist()\ndef %s(payroll_entry):" % method in glue_src
     for const, method in (("METHOD", "salary_register"), ("DOWNLOAD", "download_salary_register"))))
 check("it loads when the tab is opened, and on refresh only while the tab is open",
-      re.search(r"refresh\(frm\) \{\s*ha_payroll_recreate_button\(frm\);\s*ha_payroll_share_buttons\(frm\);\s*(ha_payroll_bank_file_button\(frm\);\s*)?ha_payroll_register\(frm\);\s*(ha_payroll_ugx\(frm\);\s*)?ha_payroll_period\(frm\);\s*ha_weekly\(frm\);\s*(ha_weekly_pieces_button\(frm\);\s*)?(ha_payroll_attendance\(frm\);\s*)?\}", script)
+      re.search(r"refresh\(frm\) \{\s*ha_payroll_recreate_button\(frm\);\s*ha_payroll_share_buttons\(frm\);\s*(ha_payroll_bank_file_button\(frm\);\s*)?ha_payroll_register\(frm\);\s*(ha_payroll_ugx\(frm\);\s*)?ha_payroll_period\(frm\);\s*ha_weekly\(frm\);\s*(ha_weekly_pieces_button\(frm\);\s*)?(ha_payroll_attendance\(frm\);\s*)?(ha_payroll_hours_column\(frm\);\s*)?\}", script)
       and re.search(r"on_tab_change\(frm\) \{\s*ha_payroll_register\(frm\);\s*(ha_payroll_ugx\(frm\);\s*)?\}", script)
       and "tab.df.fieldname !== HA_PAYROLL_REGISTER_TAB) return;" in script)
 check("with fetch, so a register that cannot load says so in the tab, not in a dialog",
@@ -319,17 +319,18 @@ shown = figures(site)
 check("a row is given the days its slip shows, Sundays and holidays included, not the 26 pay works from; its absent "
       "days and absent amount, and the month's Basic",
       shown["E1"] == {"custom_working_days": 31, "custom_paid_days": 30, "custom_absent_days": 1,
-                      "custom_absent_amount": 30769.23, "custom_basic_salary": 800000}, shown["E1"])
+                      "custom_absent_amount": 30769.23, "custom_basic_salary": 800000, "custom_hours_worked": 0},
+      shown["E1"])
 check("half days as they are, and the Basic with an Additional Salary on it whole", shown["E2"] == {
     "custom_working_days": 31, "custom_paid_days": 30.5, "custom_absent_days": 0.5, "custom_absent_amount": 5769.23,
-    "custom_basic_salary": 350000}, shown["E2"])
+    "custom_basic_salary": 350000, "custom_hours_worked": 0}, shown["E2"])
 check("a row with no slip and nothing expected shows nothing of an earlier one", shown["E3"] == R.NO_FIGURES, shown["E3"])
 check("only those with no slip are worked out", ("expected", "HR-PRUN-2026-00016", ["E3"]) in site.calls, site.calls)
 asked = [call for call in site.calls if call[0] == "get_all"]
 check("the slips read are the payroll's, cancelled ones left out, all of them",
       asked[0] == ("get_all", "Salary Slip", {"payroll_entry": "HR-PRUN-2026-00016", "docstatus": ["<", 2]},
                    ["name", "employee", "custom_days_in_period", "custom_days_paid", "absent_days",
-                    "custom_absent_amount"], 0),
+                    "custom_absent_amount", "custom_weekly_hours"], 0),
       asked[0])
 check("and of their earnings the Basic rows, all of them",
       asked[1] == ("get_all", "Salary Detail", {"parenttype": "Salary Slip", "parentfield": "earnings",
@@ -374,7 +375,9 @@ LOOK = (("custom_working_days", "Working Days", "Float", 2, "is_salary_withheld"
         ("custom_paid_days", "Paid Days", "Float", 1, "custom_working_days"),
         ("custom_absent_days", "Absent", "Float", 1, "custom_paid_days"),
         ("custom_absent_amount", "Absent Amount", "Currency", 2, "custom_absent_days"),
-        ("custom_basic_salary", "Basic Salary", "Currency", 2, "custom_absent_amount"))
+        ("custom_basic_salary", "Basic Salary", "Currency", 2, "custom_absent_amount"),
+        # a weekly casual's hours (Luuka, 12 Nov 2026: "add hours worked on the weekly payroll")
+        ("custom_hours_worked", "Hours Worked", "Float", 1, "custom_basic_salary"))
 for fieldname, label, fieldtype, columns, after in LOOK:
     field = fields.get("Payroll Employee Detail-%s" % fieldname) or {}
     check("the Employees table's %s: in that order, a column of its own" % label,
@@ -383,9 +386,18 @@ for fieldname, label, fieldtype, columns, after in LOOK:
     check("and nobody types in it; a submitted payroll saved with it shown is not refused",
           field.get("read_only") == 1 and field.get("allow_on_submit") == 1 and field.get("no_copy") == 1, field)
     check("and it reads as days with their halves, or in the payroll's currency",
-          field.get("precision") == "1" if fieldtype == "Float" else field.get("options") == "currency", field)
+          field.get("precision") == ("2" if fieldname == "custom_hours_worked" else "1") if fieldtype == "Float"
+          else field.get("options") == "currency", field)
     check("and it is in the fixtures the app ships", '"Payroll Employee Detail-%s",' % fieldname in hooks_src)
 check("every figure the rules give has its field", set(R.NO_FIGURES) == {one[0] for one in LOOK})
+check("a slip's hours are its week's", R.SLIP_FIGURES["custom_hours_worked"] == "custom_weekly_hours")
+check("the Hours Worked column shows on a weekly payroll only, as it opens and as its dates or frequency change; a "
+      "Frappe without the grid's own switch shows it always",
+      "\t\tha_payroll_attendance(frm);\n\t\tha_payroll_hours_column(frm);\n\t}," in script
+      and "\tha_weekly_changed(frm);\n\tha_payroll_hours_column(frm);\n}" in script
+      and "const hide = ha_weekly_on(frm) ? 0 : 1;" in script
+      and 'grid.set_column_disp_in_list_view("custom_hours_worked", !hide);' in script
+      and "if (!grid || !grid.set_column_disp_in_list_view) return;" in script)
 check("and nothing else sits under them",
       all([(row["dt"], row.get("insert_after")) for row in fields.values()].count(("Payroll Employee Detail", one[4])) == 1
           for one in LOOK), [row["name"] for row in fields.values() if row["dt"] == "Payroll Employee Detail"])

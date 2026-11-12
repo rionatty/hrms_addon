@@ -49,6 +49,9 @@ def pay_slip(doc):
         deductions = []
         ugx = usd_sheet.slip_sheet(doc)
     leave, absent = rules.day_counts(_attendance(doc))
+    # a weekly casual paid by the hour: their hours worked and overtime hours where the month's days are (Luuka,
+    # 12 Nov 2026: "add hours worked on the weekly payroll and the payslip too")
+    hourly = doc.get("payroll_frequency") == WEEKLY and employee.get("custom_pay_category") == WEEKLY
     shown = _shown({row.get("salary_component") for row in earnings + deductions if row.get("salary_component")})
     net = flt(doc.get("net_pay"))
     return frappe._dict({
@@ -74,6 +77,9 @@ def pay_slip(doc):
         "absent_amount": rules.absent_amount(earnings),
         "leave_taken": leave,
         "absent_days": flt(doc.get("absent_days")) or absent,
+        "hourly": hourly,
+        "hours_worked": flt(doc.get(WEEKLY_HOURS)) if hourly else None,
+        "overtime_hours": flt(doc.get(WEEKLY_OVERTIME_HOURS)) if hourly else None,
         "currency": currency,
         "ugx": ugx,
     })

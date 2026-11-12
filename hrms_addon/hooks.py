@@ -1325,6 +1325,7 @@ fixtures = [
                     "Payroll Employee Detail-custom_absent_days",
                     "Payroll Employee Detail-custom_absent_amount",
                     "Payroll Employee Detail-custom_basic_salary",
+                    "Payroll Employee Detail-custom_hours_worked",
                     "Expense Claim-custom_lpl_section",
                     "Expense Claim-custom_badge_no",
                     "Expense Claim-custom_work_section",

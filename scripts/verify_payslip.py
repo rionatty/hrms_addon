@@ -294,7 +294,16 @@ def figures(slip, employee, attendance=(), holidays=0, hours=None, section=None,
                                                      slip.get("bank_account_no")) if part) or None,
             "paid_days": slip["payment_days"], "working_days": slip["total_working_days"], "holidays": holidays,
             "absent_amount": R.absent_amount(slip["earnings"]), "leave_taken": leave,
-            "absent_days": slip.get("absent_days") or absent, "currency": currency, "ugx": ugx}
+            "absent_days": slip.get("absent_days") or absent,
+            "hourly": hourly(slip, employee),
+            "hours_worked": slip.get("custom_weekly_hours", 0) if hourly(slip, employee) else None,
+            "overtime_hours": slip.get("custom_weekly_overtime_hours", 0) if hourly(slip, employee) else None,
+            "currency": currency, "ugx": ugx}
+
+
+def hourly(slip, employee):
+    """A weekly casual paid by the hour, whose slip shows the hours they worked."""
+    return slip.get("payroll_frequency") == "Weekly" and employee.get("custom_pay_category") == "Weekly"
 
 
 AUGUST = {"company": "Luuka Plastics Limited", "employee": "LPL1834", "employee_name": "SARAH AMUGE", "department": "PP DEPARTMENT",
@@ -331,6 +340,19 @@ for said in ("Luuka Plastics Limited PAY SLIP AUGUST 2026 NAME SARAH AMUGE DEPT 
     check(said in text, "the August slip reads: %s" % said)
 check("USD" not in text and text.count("AMOUNT") == 2 and "HOURS" not in text,
       "a slip in shillings names no currency, as Luuka's never has; with no overtime hours, no Hours column")
+check("Hours Worked" not in text, "a monthly slip shows its days, not hours")
+# a weekly casual's slip shows the hours they worked where the month's days are (Luuka, 12 Nov 2026: "add hours worked
+# on the weekly payroll and the payslip too")
+week_slip = dict(AUGUST, payroll_frequency="Weekly", payment_days=6, total_working_days=7, custom_weekly_hours=52,
+                 custom_weekly_overtime_hours=12)
+week_text = text_of(page_of(week_slip, {"custom_pay_category": "Weekly"}, section="Production", shown=SHOWN))
+check("6 Paid Days 52 Hours Worked 12 Overtime Hours 0.00 Absent Amount" in week_text
+      and "Working Days" not in week_text and "Holidays" not in week_text,
+      "a weekly casual's slip: Paid Days, Hours Worked and Overtime Hours: %s" % week_text[-200:])
+piece_text = text_of(page_of(dict(week_slip, custom_weekly_hours=0), {"custom_pay_category": "Per Piece"},
+                             section="Production", shown=SHOWN))
+check("Hours Worked" not in piece_text and "Working Days" in piece_text,
+      "a Per Piece casual's weekly slip, paid by bags, shows no hours: %s" % piece_text[-200:])
 # a USD slip prints as two (Luuka, 10 Nov 2026: "the salary slip should be in two", "on USD one only show the
 # basic alone"): its USD pay, then the sheet's shilling figures. One expatriate's September.
 PERSON = dict(AUGUST, employee="E10", employee_name="EXPATRIATE TEN", earnings=[

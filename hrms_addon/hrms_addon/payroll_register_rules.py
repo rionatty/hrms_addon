@@ -28,7 +28,9 @@ AMOUNT = "Currency"
 TOTALS = ("absent_amount", "gross_pay", "total_loan_repayment", "total_deduction", "net_pay")
 # a row of the Employees table's figure, and the slip's field it is read from
 SLIP_FIGURES = {"custom_working_days": "custom_days_in_period", "custom_paid_days": "custom_days_paid",
-                "custom_absent_days": "absent_days", "custom_absent_amount": "custom_absent_amount"}
+                "custom_absent_days": "absent_days", "custom_absent_amount": "custom_absent_amount",
+                # a weekly casual's hours (Luuka, 12 Nov 2026: "add hours worked on the weekly payroll")
+                "custom_hours_worked": "custom_weekly_hours"}
 BASIC_SALARY = "custom_basic_salary"
 # a row with nothing to show: Frappe sends a blank number as nought all the same
 NO_FIGURES = dict.fromkeys((*SLIP_FIGURES, BASIC_SALARY), 0)

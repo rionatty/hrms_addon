@@ -1155,9 +1155,11 @@ s.add("Attendance", name="A-P1-0", employee="P1", attendance_date=D(2026, 10, 30
 figures = {"W1": {"custom_working_days": 31, "custom_paid_days": 31}, "W2": {"custom_working_days": 31, "custom_paid_days": 31},
            "P1": {"custom_working_days": 31, "custom_paid_days": 31}}
 W.show_on_figures(Form(company="LPL", start_date=D(2026, 10, 29), end_date=D(2026, 11, 4)), figures)
-check(figures == {"W1": {"custom_working_days": 7, "custom_paid_days": 6}, "W2": {"custom_working_days": 7, "custom_paid_days": 2},
-                  "P1": {"custom_working_days": 7, "custom_paid_days": 0}},
-      "a weekly payroll's tab shows the days its slips will pay; a Per Piece casual's none, their pay being their bags",
+check(figures == {"W1": {"custom_working_days": 7, "custom_paid_days": 6, "custom_hours_worked": 53.0},
+                  "W2": {"custom_working_days": 7, "custom_paid_days": 2, "custom_hours_worked": 20.0},
+                  "P1": {"custom_working_days": 7, "custom_paid_days": 0, "custom_hours_worked": 0}},
+      "a weekly payroll's tab shows the days and the hours its slips will pay (12 marked paid as the full 10, a half "
+      "day 5, a day marked with none 10; Luuka, 12 Nov 2026); a Per Piece casual's none, their pay being their bags",
       figures)
 
 
