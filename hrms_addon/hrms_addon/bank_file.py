@@ -179,4 +179,5 @@ def refuse_problems(lines):
 
         frappe.throw("<br>".join(escape_html(line) for line in said), title=_(TITLE))
     if not rules.to_pay(lines):
-        frappe.throw(_("Nobody here is paid by bank, so there is no bank file."), title=_(TITLE))
+        frappe.throw(_("Nobody here is paid by bank, so there is no bank file. Those paid in cash through mobile "
+                       "money are in the Mobile Money File."), title=_(TITLE))

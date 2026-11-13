@@ -55,6 +55,7 @@ frappe.ui.form.on("Payroll Entry", {
 		ha_payroll_recreate_button(frm);
 		ha_payroll_share_buttons(frm);
 		ha_payroll_bank_file_button(frm);
+		ha_payroll_mobile_money_button(frm);
 		ha_payroll_register(frm);
 		ha_payroll_ugx(frm);
 		ha_payroll_period(frm);
@@ -384,6 +385,61 @@ function ha_payroll_bank_file_button(frm) {
 				ha_payroll_bank_file_said(found);
 			});
 	});
+}
+
+// Luuka, 13 Nov 2026: those paid in cash through mobile money, in the team's own TO BANK REPORT, beside the bank
+// file (mobile_money.py). Asked first, so a refusal shows as a message; then downloaded.
+const HA_PAYROLL_MOBILE_MONEY = "hrms_addon.hrms_addon.mobile_money.";
+
+function ha_payroll_mobile_money_button(frm) {
+	const doc = frm.doc;
+	if (doc.docstatus !== 1 || !cint(doc.salary_slips_submitted)) return;
+	frm.add_custom_button(__("Mobile Money File"), () => {
+		frappe
+			.call({ method: HA_PAYROLL_MOBILE_MONEY + "check", args: { payroll_entry: doc.name }, freeze: true })
+			.then((r) => {
+				const found = r && r.message;
+				if (!found || !found.rows) return;
+				window.open(
+					"/api/method/" + HA_PAYROLL_MOBILE_MONEY + "download?payroll_entry=" + encodeURIComponent(doc.name)
+				);
+				ha_payroll_mobile_money_said(found);
+			});
+	});
+}
+
+// who is in the mobile money file, and who is paid another way
+function ha_payroll_mobile_money_said(found) {
+	const said = [
+		found.rows === 1
+			? __("1 person is in the mobile money file.")
+			: __("{0} people are in the mobile money file.", [found.rows]),
+	];
+	if (found.bank) {
+		said.push(
+			found.bank === 1
+				? __("1 paid by bank is in the Bank File.")
+				: __("{0} paid by bank are in the Bank File.", [found.bank])
+		);
+	}
+	if (found.cheque) {
+		said.push(
+			found.cheque === 1 ? __("1 paid by cheque is not in it.") : __("{0} paid by cheque are not in it.", [found.cheque])
+		);
+	}
+	if (found.no_phone_count) {
+		said.push(
+			__("{0} paid in cash with no Wages Phone Number are not in it: {1}", [
+				found.no_phone_count,
+				frappe.utils.escape_html(found.no_phone),
+			])
+		);
+	}
+	if (said.length === 1) {
+		frappe.show_alert({ message: said[0], indicator: "green" });
+		return;
+	}
+	frappe.msgprint({ title: __("Mobile Money File"), message: said.join("<br>"), indicator: "blue" });
 }
 
 // who is in the file, and who is paid another way
