@@ -237,9 +237,11 @@ class Site:
     """A stand-in for Frappe with one payroll, its slips and Frappe HR's Salary Register."""
 
     def __init__(self, may_read=True, report_roles=True, slip_report=True, slips=None, result=None, details=(),
-                 broken=False, expected=None, expected_broken=False, frequency="Monthly", tables=None):
+                 broken=False, expected=None, expected_broken=False, frequency="Monthly", tables=None, lending=True):
         # a weekly payroll: its frequency, and each doctype's rows as the glue reads them
         self.frequency, self.tables = frequency, tables
+        # whether the Lending app gives the Salary Slip its loan repayment field (Frappe HR v16 has none without it)
+        self.lending = lending
         self.may_read, self.report_roles, self.slip_report = may_read, report_roles, slip_report
         self.slips = [{"name": "SS-1", "start_date": "2026-09-26", "end_date": "2026-10-25"},
                       {"name": "SS-2", "start_date": "2026-09-27", "end_date": "2026-10-25"}] if slips is None else slips
@@ -303,6 +305,8 @@ class Site:
         module.log_error = log_error
         module.get_cached_value = lambda doctype, name, field: site.calls.append(("cached", doctype, name, field)) or "LPT"
         module.whitelist = lambda *args, **kwargs: (lambda function: function)
+        module.get_meta = lambda doctype: types.SimpleNamespace(
+            has_field=lambda field: site.lending or field != "total_loan_repayment")
         desk_utils = types.ModuleType("frappe.desk.utils")
         desk_utils.provide_binary_file = lambda filename, extension, content: site.calls.append(
             ("file", filename, extension, content))
@@ -391,6 +395,16 @@ check("read from the payroll's own slips: the hours, the rate and the overtime h
       and all(field in read_of["Salary Slip"][3] for field in (
           "custom_weekly_hours as hours", "custom_weekly_rate as rate", "custom_weekly_overtime_hours as overtime_hours",
           "gross_pay", "net_pay", "department", "currency", "total_loan_repayment")), read_of["Salary Slip"])
+# Frappe HR v16 has no loan repayment on a slip without the Lending app: asked for, the register failed to load
+# (Luuka, 12 Nov 2026, HR-PRUN-2026-00025: "salary register is not showning please fix on the payroll")
+plain = Site(frequency="Weekly", tables=WEEKLY, lending=False)
+plain_columns, plain_rows = run(plain)
+plain_read = {call[1]: call for call in plain.calls if call[0] == "get_all"}
+check("without the Lending app a slip's loan repayment is not asked for, and the weekly register loads as it is",
+      "total_loan_repayment" not in plain_read["Salary Slip"][3]
+      and [row["employee"] for row in plain_rows] == ["C3", "C2", "C1", "C4"]
+      and [column["label"] for column in plain_columns] == [column["label"] for column in week_columns],
+      plain_read["Salary Slip"])
 check("their earnings and deductions, each employee's TIN and NSSF, and the pieces by category from the run that "
       "wrote the pay",
       read_of["Salary Detail"][2] == {"parenttype": "Salary Slip", "parent": ["in", ["S1", "S2", "S3", "S4"]],

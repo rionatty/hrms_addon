@@ -33,6 +33,8 @@ SLIP = "Salary Slip"
 DETAIL = "Salary Detail"
 REGISTER = "Salary Register"
 BASIC = "Basic"
+# what a slip repays of a loan: the Lending app's field, which Frappe HR v16 has only where Lending is installed
+LOAN_FIELD = "total_loan_repayment"
 
 
 @frappe.whitelist()
@@ -81,10 +83,14 @@ def casual_register(run, names):
     what was taken off, net, TIN and NSSF, read from the payroll's own slips."""
     from hrms_addon.hrms_addon import advances, output_pay, output_rules, piece_pay, weekly_pay
 
-    slips = frappe.get_all(SLIP, filters={"name": ["in", names]}, limit_page_length=0, fields=[
-        "name", "employee", "employee_name", "department", "currency", "gross_pay", "net_pay", "total_loan_repayment",
-        "%s as hours" % weekly_pay.HOURS, "%s as rate" % weekly_pay.RATE,
-        "%s as overtime_hours" % weekly_pay.OVERTIME_HOURS])
+    fields = ["name", "employee", "employee_name", "department", "currency", "gross_pay", "net_pay",
+              "%s as hours" % weekly_pay.HOURS, "%s as rate" % weekly_pay.RATE,
+              "%s as overtime_hours" % weekly_pay.OVERTIME_HOURS]
+    # a slip's loan repayment only where the slip has the field: without the Lending app, asking for it fails the
+    # whole register ("The Salary Register could not be loaded."), and nobody repays a loan that way anyway
+    if frappe.get_meta(SLIP).has_field(LOAN_FIELD):
+        fields.append(LOAN_FIELD)
+    slips = frappe.get_all(SLIP, filters={"name": ["in", names]}, limit_page_length=0, fields=fields)
     lines = frappe.get_all(DETAIL, filters={"parenttype": SLIP, "parent": ["in", names],
                                             "parentfield": ["in", ["earnings", "deductions"]]},
                            fields=["parent", "parentfield", "salary_component", "amount", "do_not_include_in_total",
