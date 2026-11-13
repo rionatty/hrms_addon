@@ -133,6 +133,15 @@ many = [(R.NO_ACCOUNT, line("EMP-%02d" % i, "Person %02d" % i, 10, account="")) 
 check(R.problem_lines(many)[1].endswith("Person 10 (EMP-10) and 3 more."), "a long list says how many more",
       R.problem_lines(many)[1])
 check(not any(dash in " ".join(said) for dash in (" - ", "–", "—")), "plain words, no dashes", said)
+blank = R.problem_lines(found, heading=R.BLANK)
+check(blank[0] == "Left blank in the bank file:" and blank[1:] == said[1:],
+      "a payroll's file is made with them left blank: the same lines under its own heading (Luuka, 13 Nov 2026)",
+      blank)
+paid = {row[0]: row for row in R.rows(broken)}
+check(sorted(paid) == ["EMP-1", "EMP-2", "EMP-3", "EMP-4", "EMP-5"] and paid["EMP-1"][4] == ""
+      and paid["EMP-2"][2] == "" and paid["EMP-3"][3] == "" and paid["EMP-4"][3] == "" and paid["EMP-5"][3] == ""
+      and paid["EMP-1"][5] == 10,
+      "its rows keep them, what is missing blank and the amount still paid; cash and nothing to pay stay out", paid)
 
 # ── 4. The Excel file ─────────────────────────────────────────────────
 content = R.workbook(body)
@@ -213,9 +222,15 @@ for needle, why in (
     check(needle in glue, "bank_file.py: %s" % why)
 for name in ("check", "download"):
     body_of = glue.split("def %s(" % name)[1].split("\ndef ")[0]
-    check("refuse_problems(lines)" in body_of, "%s refuses a file the bank cannot pay in full" % name)
-check(glue.index("def refuse_problems") > 0 and 'rules.problem_lines(rules.problems(lines))' in glue
-      and 'escape_html(line) for line in said' in glue, "the refusal is the rules' words, escaped")
+    check("refuse_empty(lines)" in body_of and "refuse_problems" not in body_of,
+          "%s: a payroll's file is made with what is missing left blank, refused only when empty" % name)
+check('"blank": rules.problem_lines(rules.problems(lines), heading=rules.BLANK)'
+      in glue.split("def check(")[1].split("\ndef ")[0], "the check says what is left blank, a line each")
+refusal = glue.split("def refuse_problems(lines):")[1].split("\ndef ")[0] if "def refuse_problems(lines):" in glue \
+    else ""
+check("rules.problem_lines(rules.problems(lines))" in refusal and "escape_html(line) for line in said" in refusal
+      and "refuse_empty(lines)" in refusal,
+      "an advance run's file is still refused for them, in the rules' words, escaped")
 check("bank_ac_no" in glue and "slip.bank_account_no" not in glue,
       "bank details from the employee as they now stand, not the slip's copy")
 
@@ -233,6 +248,10 @@ check(button.find('HA_PAYROLL_BANK_FILE + "check"') < button.find('HA_PAYROLL_BA
       "asked first, so a refusal shows as a message, then downloaded")
 check('const HA_PAYROLL_BANK_FILE = "hrms_addon.hrms_addon.bank_file.";' in js, "the form calls bank_file.py")
 check("frappe.utils.escape_html(found.unknown)" in js, "names it shows are escaped")
+said_js = js.split("function ha_payroll_bank_file_said(found) {")[1].split("\n}\n")[0] \
+    if "function ha_payroll_bank_file_said(found) {" in js else ""
+check("(found.blank || []).forEach((line) => said.push(frappe.utils.escape_html(line)));" in said_js,
+      "the form says what is left blank, each line escaped")
 
 # ── 7. The leave advance run's file ───────────────────────────────────
 advances = read("hrms_addon", "hrms_addon", "leave_advances.py")

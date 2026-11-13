@@ -60,13 +60,15 @@ def setup_on_migrate():
 
 @frappe.whitelist()
 def check(payroll_entry):
-    """Whether the payroll's bank file can be made. Refuses with who is
-    missing what; else how many it pays and who it leaves out."""
+    """How many the payroll's bank file pays, what it leaves blank, and who it leaves out. One paid by bank with no
+    account number, bank or bank code is in it with that left blank and said (Luuka, 13 Nov 2026: "if moble phone/
+    bank account ist should be blank on that employee"). Refuses only an empty file."""
     lines = lines_of(payroll(payroll_entry))
-    refuse_problems(lines)
+    refuse_empty(lines)
     other, unknown = rules.not_by_bank(lines)
     return {"rows": len(rules.to_pay(lines)), "other": len(other), "unknown_count": len(unknown),
-            "unknown": rules.people(unknown) if unknown else ""}
+            "unknown": rules.people(unknown) if unknown else "",
+            "blank": rules.problem_lines(rules.problems(lines), heading=rules.BLANK)}
 
 
 @frappe.whitelist()
@@ -76,7 +78,7 @@ def download(payroll_entry):
 
     run = payroll(payroll_entry)
     lines = lines_of(run)
-    refuse_problems(lines)
+    refuse_empty(lines)
     provide_binary_file(file_name(run), "xlsx", rules.workbook(rules.rows(lines)))
 
 
@@ -171,13 +173,19 @@ def code_of(employee, bank_name):
 
 
 def refuse_problems(lines):
-    """No file the bank cannot pay in full, and no empty file."""
+    """An advance run's file: none the bank cannot pay in full, and no empty file. A payroll's is made with what is
+    missing left blank (check, download)."""
     said = rules.problem_lines(rules.problems(lines))
     if said:
         from frappe.utils import escape_html
 
 
         frappe.throw("<br>".join(escape_html(line) for line in said), title=_(TITLE))
+    refuse_empty(lines)
+
+
+def refuse_empty(lines):
+    """No empty file."""
     if not rules.to_pay(lines):
         frappe.throw(_("Nobody here is paid by bank, so there is no bank file. Those paid in cash through mobile "
                        "money are in the Mobile Money File."), title=_(TITLE))

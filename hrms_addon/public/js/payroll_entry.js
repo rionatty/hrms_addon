@@ -427,14 +427,8 @@ function ha_payroll_mobile_money_said(found) {
 			found.cheque === 1 ? __("1 paid by cheque is not in it.") : __("{0} paid by cheque are not in it.", [found.cheque])
 		);
 	}
-	if (found.no_phone_count) {
-		said.push(
-			__("{0} paid in cash with no Wages Phone Number are not in it: {1}", [
-				found.no_phone_count,
-				frappe.utils.escape_html(found.no_phone),
-			])
-		);
-	}
+	// those with no phone number, or one that is not one: in it, with the phone left blank
+	(found.blank || []).forEach((line) => said.push(frappe.utils.escape_html(line)));
 	if (said.length === 1) {
 		frappe.show_alert({ message: said[0], indicator: "green" });
 		return;
@@ -462,6 +456,8 @@ function ha_payroll_bank_file_said(found) {
 			])
 		);
 	}
+	// those paid by bank with no account, bank or code: in it, with that left blank
+	(found.blank || []).forEach((line) => said.push(frappe.utils.escape_html(line)));
 	if (said.length === 1) {
 		frappe.show_alert({ message: said[0], indicator: "green" });
 		return;

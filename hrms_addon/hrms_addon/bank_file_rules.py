@@ -27,12 +27,14 @@ WHO IS IN IT
   Cash and Cheque are paid another way and are not in it. Nor is anybody
   with nothing to pay.
 
-WHAT STOPS IT
+WHAT IS LEFT BLANK, AND WHAT STOPS IT
 
   A person paid by bank with no account number, no bank or no bank code. A
-  file the bank cannot pay in full is not made at all: the message names
-  them, and the bank codes by bank, since one code set on the bank mends
-  everybody at that bank.
+  payroll's file has them, with what is missing left blank (Luuka, 13 Nov
+  2026: "if moble phone/ bank account ist should be blank on that
+  employee"); an advance run's file is not made at all. Either way the
+  message names them, and the bank codes by bank, since one code set on the
+  bank mends everybody at that bank.
 
 The bank code is the employee's own, else the one set once on their bank in
 the Bank list (bank_file.py reads both).
@@ -159,12 +161,18 @@ def people(lines, shown=SHOWN):
     return "%s and %d more" % (", ".join(names[:shown]), len(names) - shown)
 
 
-def problem_lines(found, shown=SHOWN):
+# a payroll's file is made with these left blank, and says so (Luuka, 13 Nov 2026: "if moble phone/ bank account
+# ist should be blank on that employee"); an advance run's file is not made
+REFUSED = "The bank file was not made. These people are paid by bank and the bank needs more."
+BLANK = "Left blank in the bank file:"
+
+
+def problem_lines(found, shown=SHOWN, heading=REFUSED):
     """The message, a line each: who has no account number, who no bank, and
     which banks have no code and for how many."""
     if not found:
         return []
-    out = ["The bank file was not made. These people are paid by bank and the bank needs more."]
+    out = [heading]
     no_account = [line for what, line in found if what == NO_ACCOUNT]
     no_bank = [line for what, line in found if what == NO_BANK]
     if no_account:

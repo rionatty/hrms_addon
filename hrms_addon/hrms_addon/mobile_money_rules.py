@@ -11,8 +11,9 @@ money: TO BANK REPORT FOR THE PERIOD 05TH TO 11TH NOVEMBER, WEEK TWO.
 
   title           the sheet's first line: the period, and the week of the month a weekly payroll's ends in
   phone           a Wages Phone Number as the bank takes it: nine digits, and with the country's 256 before them
-  lines_to_pay    those paid by mobile money: not by bank or cheque, with a phone number, something to pay
-  problems        a phone number that is not one: the file waits for it, as the bank file waits for an account
+  lines_to_pay    those paid in cash or by mobile money: not by bank or cheque, something to pay
+  blanks          those with no phone number, or one that is not one: in the file with it blank, and said
+                  (Luuka, 13 Nov 2026: "if moble phone/ bank account ist should be blank on that employee")
   rows            each line as the sheet has it, the smallest amount first
   workbook        the sheet, in the team's own look
 """
@@ -109,9 +110,9 @@ def by_bank(line):
 
 
 def by_mobile_money(line):
-    """Paid by neither bank nor cheque, with a Wages Phone Number: in cash, through mobile money (Luuka, 13 Nov 2026:
-    "some employee have cash paymebt through mobile moneny")."""
-    return not by_bank(line) and _text(line.get("salary_mode")) != CHEQUE and phone(line.get("phone")) is not None
+    """Paid by neither bank nor cheque: in cash, through mobile money (Luuka, 13 Nov 2026: "some employee have cash
+    paymebt through mobile moneny"). One with no phone number is in the file with it blank (blanks)."""
+    return not by_bank(line) and _text(line.get("salary_mode")) != CHEQUE
 
 
 def lines_to_pay(lines):
@@ -120,17 +121,12 @@ def lines_to_pay(lines):
 
 
 def left_out(lines):
-    """{"bank", "cheque", "no_phone"}: those with something to pay the file leaves out, by why."""
-    out = {"bank": [], "cheque": [], "no_phone": []}
+    """{"bank", "cheque"}: those with something to pay the file leaves out, by why."""
+    out = {"bank": [], "cheque": []}
     for line in lines or ():
         if shillings(line.get("amount")) <= 0 or by_mobile_money(line):
             continue
-        if by_bank(line):
-            out["bank"].append(line)
-        elif _text(line.get("salary_mode")) == CHEQUE:
-            out["cheque"].append(line)
-        else:
-            out["no_phone"].append(line)
+        out["bank" if by_bank(line) else "cheque"].append(line)
     return out
 
 
@@ -144,18 +140,27 @@ def people(lines, shown=SHOWN):
     return named + (" and %d more" % (len(lines) - shown) if len(lines) > shown else "")
 
 
-def problems(lines):
-    """The lines whose Wages Phone Number is not a phone number: the bank could not pay them."""
-    return [line for line in lines or () if by_mobile_money(line) and shillings(line.get("amount")) > 0
-            and phone(line.get("phone")) is False]
+def blanks(lines):
+    """The lines the file pays with no phone to give: no Wages Phone Number, or one that is not a phone number. They
+    are in the file with the phone blank, and said (blank_lines)."""
+    return [line for line in lines_to_pay(lines) if not isinstance(phone(line.get("phone")), tuple)]
 
 
-def problem_text(found, shown=SHOWN):
+def blank_lines(found, shown=SHOWN):
+    """The message, a line each: whose phone is left blank for having none, and whose for one that is not a phone
+    number."""
     found = list(found or ())
     if not found:
-        return ""
-    return ("Wages Phone Number is not a phone number for %s: put the nine digits, or 0 and the nine, on their "
-            "employee record." % people(found, shown))
+        return []
+    out = ["Telephone left blank in the file:"]
+    none = [line for line in found if phone(line.get("phone")) is None]
+    wrong = [line for line in found if phone(line.get("phone")) is False]
+    if none:
+        out.append("No Wages Phone Number: %s." % people(none, shown))
+    if wrong:
+        out.append("Wages Phone Number not a phone number: %s. Put the nine digits, or 0 and the nine, on their "
+                   "employee record." % people(wrong, shown))
+    return out
 
 
 def _names(line):
@@ -174,7 +179,8 @@ def rows(lines):
     paid = sorted(lines_to_pay(lines), key=lambda line: (shillings(line.get("amount")), str(line.get("employee"))))
     out = []
     for number, line in enumerate(paid, 1):
-        local, full = phone(line.get("phone"))
+        given = phone(line.get("phone"))
+        local, full = given if isinstance(given, tuple) else (None, None)
         surname, first = _names(line)
         registered = _text(line.get("registered_name")) or _text(line.get("employee_name"))
         out.append((number, line.get("employee"), local, full, shillings(line.get("amount")), surname, first,

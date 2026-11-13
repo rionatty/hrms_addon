@@ -32,14 +32,13 @@ REGISTERED = "custom_wages_phone_names"
 
 @frappe.whitelist()
 def check(payroll_entry):
-    """Whether the payroll's mobile money file can be made. Refuses with whose number is not one; else how many it
-    pays, and who it leaves out and why."""
+    """How many the payroll's mobile money file pays, whose phone it leaves blank, and who it leaves out and why.
+    Refuses only an empty file."""
     lines = lines_of(payroll(payroll_entry))
-    refuse_problems(lines)
+    refuse_empty(lines)
     out = rules.left_out(lines)
     return {"rows": len(rules.lines_to_pay(lines)), "bank": len(out["bank"]), "cheque": len(out["cheque"]),
-            "no_phone_count": len(out["no_phone"]),
-            "no_phone": rules.people(out["no_phone"]) if out["no_phone"] else ""}
+            "blank": rules.blank_lines(rules.blanks(lines))}
 
 
 @frappe.whitelist()
@@ -49,7 +48,7 @@ def download(payroll_entry):
 
     run = payroll(payroll_entry)
     lines = lines_of(run)
-    refuse_problems(lines)
+    refuse_empty(lines)
     weekly = run.get("payroll_frequency") == WEEKLY
     provide_binary_file(file_name(run), "xlsx", rules.workbook(rules.title(run.start_date, run.end_date, weekly),
                                                                rules.rows(lines)))
@@ -102,13 +101,9 @@ def lines_of(run):
     return lines
 
 
-def refuse_problems(lines):
-    """No file the bank cannot pay in full, and no empty file."""
-    said = rules.problem_text(rules.problems(lines))
-    if said:
-        from frappe.utils import escape_html
-
-        frappe.throw(escape_html(said), title=_(TITLE))
+def refuse_empty(lines):
+    """No empty file. One with no phone number to give is in it with the phone blank (rules.blanks; Luuka, 13 Nov
+    2026: "if moble phone/ bank account ist should be blank on that employee")."""
     if not rules.lines_to_pay(lines):
-        frappe.throw(_("Nobody here is paid by mobile money: nobody paid in cash has a Wages Phone Number."),
+        frappe.throw(_("Nobody here is paid in cash or by mobile money, so there is no mobile money file."),
                      title=_(TITLE))
