@@ -45,6 +45,14 @@ def request_validate(doc, method=None):
 
     if not doc.get("request_date"):
         doc.request_date = today()
+    if frappe.flags.in_import and doc.is_new():
+        # an imported request carries only the employee (Luuka, 15 Nov 2026: "when uploading the request it should
+        # just employee but the amount should be computed by the engine depending on the rules set"): each month's
+        # run works the amount out from Advance Settings
+        doc.amount = None
+    if not doc.get("first_month"):
+        # the month it is asked in, or brought in
+        doc.first_month = doc.request_date
     before = doc.get_doc_before_save()
     old_state = before.get("workflow_state") if before else None
     new_state = doc.get("workflow_state")

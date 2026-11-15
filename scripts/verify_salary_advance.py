@@ -599,6 +599,11 @@ validate_part = glue.split("def request_validate(", 1)[1].split("\ndef ", 1)[0]
 if "if before and before.docstatus == 0 and doc.docstatus == 1 and old_state == new_state:" not in validate_part \
         or "_approved_on_import(doc)" not in validate_part:
     fail.append("a draft submitted outside the workflow goes through _approved_on_import")
+if "if frappe.flags.in_import and doc.is_new():\n" not in validate_part \
+        or "        doc.amount = None\n" not in validate_part:
+    fail.append("an imported request carries only the employee: the run works the amount out from the rules")
+if 'if not doc.get("first_month"):' not in validate_part or "doc.first_month = doc.request_date" not in validate_part:
+    fail.append("a request with no Start Month starts the month it is asked in, or brought in")
 imported = glue.split("def _approved_on_import(", 1)[1].split("\ndef ", 1)[0] \
     if "def _approved_on_import(" in glue else ""
 for needle, why in (
