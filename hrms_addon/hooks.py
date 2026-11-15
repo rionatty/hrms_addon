@@ -250,6 +250,8 @@ doctype_js = {
     # The non-disciplinary grievance on their Employee Grievance: where it
     # stands and what the next step needs (grievances.py)
     "Employee Grievance": "public/js/employee_grievance.js",
+    # Delete Imported Records: what an import inserted, deleted in one go (import_undo.py)
+    "Data Import": "public/js/data_import.js",
 }
 # the Appraisal list: an employee on an improvement plan, and a score below
 # the pass mark, in red
