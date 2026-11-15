@@ -580,6 +580,42 @@ if "/assets/hrms_addon/js/hrms_addon_search.js" not in read("hrms_addon", "hooks
     fail.append("the search names load on every desk page (app_include_js)")
 print("the search bar: the salary and special advances by name; the Leave Advance is its own")
 
+# Data Import (Luuka, 15 Nov 2026: "add salary advance import file under data import")
+RA = load("advance_request_approval")
+request_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", "salary_advance_request",
+                               "salary_advance_request.json"))
+importers = sorted(row["role"] for row in request_json["permissions"] if row.get("import"))
+if not request_json.get("allow_import") or importers != sorted(RA.IMPORTERS) \
+        or sorted(RA.IMPORTERS) != ["HR Manager", "System Manager"]:
+    fail.append("Salary Advance Request is in Data Import for the HR Manager and the System Manager: %s" % importers)
+if "hrms_addon.patches.v1_0.salary_advance_request_import" not in patches:
+    fail.append("the import right is granted on migrate where the request's rules are Custom DocPerm")
+grant = read("hrms_addon", "patches", "v1_0", "salary_advance_request_import.py")
+if 'frappe.db.exists("Custom DocPerm", {"parent": DOCTYPE})' not in grant \
+        or 'security.grant({DOCTYPE: {role: ("import",) for role in IMPORTERS}})' not in grant:
+    fail.append("the patch grants import to the importers, only where Custom DocPerm rules stand")
+glue = read("hrms_addon", "hrms_addon", "salary_advances.py")
+validate_part = glue.split("def request_validate(", 1)[1].split("\ndef ", 1)[0]
+if "if before and before.docstatus == 0 and doc.docstatus == 1 and old_state == new_state:" not in validate_part \
+        or "_approved_on_import(doc)" not in validate_part:
+    fail.append("a draft submitted outside the workflow goes through _approved_on_import")
+imported = glue.split("def _approved_on_import(", 1)[1].split("\ndef ", 1)[0] \
+    if "def _approved_on_import(" in glue else ""
+for needle, why in (
+        ("if not frappe.flags.in_import or not set(frappe.get_roles()) & set(approval.IMPORTERS):",
+         "only an import by the HR Manager or the System Manager approves it"),
+        ("rules.request_errors(", "it is checked as a request sent for approval is"),
+        ("+ _other_active(doc)", "one active request per employee"),
+        ("doc.supervisor_by, doc.supervisor_on = frappe.session.user, today()", "approved by whoever imported it"),
+        ("doc.approval_status = approval.APPROVED", "it is approved"),
+        ("doc.status = request_status(doc)", "and active")):
+    if needle not in imported:
+        fail.append("an imported request: %s" % why)
+submit_part = glue.split("def request_on_submit(", 1)[1].split("\ndef ", 1)[0]
+if not 0 <= submit_part.find("if frappe.flags.in_import:") < submit_part.find("people.notify("):
+    fail.append("nobody is told of each request imported")
+print("Data Import: the HR Manager imports requests; with Submit After Import they come in approved")
+
 if fail:
     print("\nFAILURES:")
     for message in fail:

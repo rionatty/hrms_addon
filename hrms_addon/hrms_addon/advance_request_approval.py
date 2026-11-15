@@ -12,6 +12,10 @@ Workflow from it on every migrate (salary_advances.setup_on_migrate).
                              month's Salary Advance Processing picks it up)
       --Reject--> Rejected (the supervisor says why)
       --Return--> Draft (the supervisor says what to change)
+
+    Imported by the HR Manager (Data Import, Submit After Import): Approved at
+      once, for requests agreed before the system
+      (salary_advances._approved_on_import)
 """
 
 DOCTYPE = "Salary Advance Request"
@@ -35,6 +39,9 @@ ACTIONS = (SUBMIT, APPROVE, REJECT, RETURN, CANCEL)
 PREPARERS = ("Employee", "HR User", "HR Manager")
 SUPERVISORS = ("Supervisor", "Head of Department")
 HRM = "HR Manager"
+# who may import requests, which come in approved with Submit After Import (Luuka, 15 Nov 2026: "add salary advance
+# import file under data import")
+IMPORTERS = ("HR Manager", "System Manager")
 NEW_ROLES = ("Supervisor", "Head of Department", "Payroll Officer")
 # the DocType carries every role's rights
 PERMISSIONS = {}

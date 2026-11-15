@@ -8,7 +8,9 @@ The rules are in advance_rules.py and advance_request_approval.py.
 
   request_*  the Salary Advance Request: the employee applies once and the
              supervisor approves. The request stays active month after
-             month, until its last month or until it is stopped.
+             month, until its last month or until it is stopped. The HR
+             Manager may import requests agreed before the system (Data
+             Import).
   run_*      the Salary Advance Processing: Get Requests brings in every
              active request for the month; each line is checked against the
              month's attendance, off-duty days, leave and the other
@@ -46,6 +48,10 @@ def request_validate(doc, method=None):
     before = doc.get_doc_before_save()
     old_state = before.get("workflow_state") if before else None
     new_state = doc.get("workflow_state")
+    if before and before.docstatus == 0 and doc.docstatus == 1 and old_state == new_state:
+        # a draft submitted outside the workflow: Data Import's Submit After Import, or refused
+        _approved_on_import(doc)
+        return
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, {"supervisor_remarks": doc.get("supervisor_remarks")})
         if new_state == approval.PENDING_SUPERVISOR:
@@ -70,6 +76,27 @@ def request_validate(doc, method=None):
                 doc.get("employee_name") or doc.employee, _month_of(doc.get("first_month")))
             people.notify(users, doc.doctype, doc.name, message)
             people.assign(doc.doctype, doc.name, users, message)
+
+
+def _approved_on_import(doc):
+    """A draft submitted straight past the supervisor. Data Import does this for Submit After Import, and Frappe then
+    moves the request to Approved itself (set_workflow_state_on_action): a request agreed before the system comes in
+    active, approved by the HR Manager who imported it (Luuka, 15 Nov 2026: "add salary advance import file under
+    data import"). It is checked as a request sent for approval is. Anything else submitting a draft is refused."""
+    from hrms_addon.hrms_addon import advance_request_approval as approval
+
+    if not frappe.flags.in_import or not set(frappe.get_roles()) & set(approval.IMPORTERS):
+        frappe.throw(_("A salary advance request is approved by its supervisor. Send it for approval first."),
+                     title=_(REQUEST))
+    errors = rules.request_errors({"employee": doc.get("employee"), "first_month": doc.get("first_month"),
+                                   "until_month": doc.get("until_month"), "amount": doc.get("amount"),
+                                   "request_date": doc.get("request_date"), "today": today()}) + _other_active(doc)
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(REQUEST))
+    doc.supervisor_by, doc.supervisor_on = frappe.session.user, today()
+    doc.approved_on = today()
+    doc.approval_status = approval.APPROVED
+    doc.status = request_status(doc)
 
 
 def _other_active(doc):
@@ -99,6 +126,9 @@ def request_status(doc):
 
 def request_on_submit(doc, method=None):
     doc.db_set("status", request_status(doc), update_modified=False)
+    if frappe.flags.in_import:
+        # brought in by HR in bulk (_approved_on_import): nobody is told of each one
+        return
     users = [frappe.db.get_value("Employee", doc.employee, "user_id")]
     users += people.people_for("Payroll Officer", doc.get("branch"), doc.get("department"))
     users = [user for user in dict.fromkeys(users) if user]
