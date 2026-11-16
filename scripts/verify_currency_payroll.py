@@ -21,6 +21,7 @@ import io
 import json
 import os
 import sys
+import types
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -204,6 +205,95 @@ for name, label, after in (
           == ("Currency", "currency", label, after, 1) and ('"%s",' % name) in hooks,
           "%s: an amount in the assignment's currency, never below 0, under Variable, and in the fixtures" % name)
 print("wiring: the hooks, the two rate fields, the two allowances")
+
+# an expatriate's Additional Salary in shillings (Luuka, 16 Nov 2026: "Epertiates are currency in uSD yet their
+# advance are un UGX on basic salary")
+check(R.additional_currencies("USD", "UGX") == ["USD", "UGX"] and R.additional_currencies("UGX", "UGX") == ["UGX"]
+      and R.additional_currencies(None, "UGX") == ["UGX"],
+      "an Additional Salary in the employee's pay currency or the company's: USD or UGX for an expatriate, UGX else")
+check(R.additional_amount(616000, "UGX", "USD", "UGX", 3850) == 160.0
+      and R.additional_amount(160, "USD", "USD", "UGX", 3850) == 160,
+      "616,000 shillings come off a USD slip at 3,850 as 160.00 dollars; one in dollars as it stands")
+glue = read("hrms_addon", "hrms_addon", "currency_payroll.py")
+check_part = glue.split("def additional_validate(", 1)[1].split("\ndef ", 1)[0] if "def additional_validate(" in glue \
+    else ""
+check('rules.additional_currencies(pay_currency(doc.employee, doc.get("payroll_date")),' in check_part
+      and "doc.currency = allowed[0]" in check_part and "elif doc.currency not in allowed:" in check_part
+      and "frappe.throw(" in check_part,
+      "an Additional Salary's currency is the employee's pay's or the company's: none set means their pay's, any "
+      "other refused")
+choice = glue.split("def additional_currencies(", 1)[1].split("\ndef ", 1)[0] if "def additional_currencies(" in glue \
+    else ""
+check('frappe.has_permission("Employee", "read", employee, throw=True)' in choice
+      and "@frappe.whitelist()\ndef additional_currencies(employee, company):" in glue,
+      "the form asks the server which, for an employee it may read")
+paid_in = glue.split("def pay_currency(", 1)[1].split("\ndef ", 1)[0] if "def pay_currency(" in glue else ""
+check('filters = {"employee": employee, "docstatus": 1}' in paid_in and 'filters["from_date"] = ["<=", getdate(day)]'
+      in paid_in and 'order_by="from_date desc"' in paid_in,
+      "the pay currency is the submitted assignment's in force on the payroll date")
+hooks_src = read("hrms_addon", "hooks.py")
+check('"hrms_addon.hrms_addon.currency_payroll.additional_validate"]' in hooks_src
+      and '"Additional Salary-currency-read_only",' in hooks_src,
+      "the check runs on every Additional Salary, and the currency field opens with the app's fixtures")
+setters = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "property_setter.json"))}
+setter = setters.get("Additional Salary-currency-read_only") or {}
+check((setter.get("doc_type"), setter.get("field_name"), setter.get("property"), setter.get("value"))
+      == ("Additional Salary", "currency", "read_only", "0"),
+      "Frappe HR's read-only currency opened")
+script = read("hrms_addon", "public", "js", "additional_salary.js")
+check('"hrms_addon.hrms_addon.currency_payroll.additional_currencies"' in script
+      and 'frm.set_query("currency", () => ({ filters: { name: ["in", allowed] } }));' in script
+      and "if (doc.docstatus !== 0 || !doc.employee || !doc.company) return;" in script,
+      "the form offers only those two, on a draft")
+lifted = [node for node in ast.parse(glue).body if isinstance(node, ast.FunctionDef)
+          and node.name in ("pay_currency", "additional_validate")]
+
+
+class Refused(Exception):
+    pass
+
+
+class Row(dict):
+    def __getattr__(self, key):
+        return self.get(key)
+
+
+ASSIGNED = {"EXP-1": [("2026-01-01", "UGX"), ("2026-07-01", "USD")], "LOC-1": [("2026-01-01", "UGX")]}
+
+
+def stand_in_get_all(doctype, filters=None, fields=None, order_by=None, limit_page_length=None, **kwargs):
+    rows = [(day, currency) for day, currency in ASSIGNED.get(filters["employee"], [])
+            if "from_date" not in filters or day <= str(filters["from_date"][1])]
+    rows.sort(reverse=order_by == "from_date desc")
+    return [Row(currency=currency) for _day, currency in rows[:limit_page_length or None]]
+
+
+stand_in = types.SimpleNamespace(get_all=stand_in_get_all,
+                                 throw=lambda message, title=None: (_ for _ in ()).throw(Refused(message)))
+space = {"frappe": stand_in, "rules": R, "_": lambda text: text, "getdate": lambda day: day,
+         "company_currency": lambda company: "UGX"}
+exec(compile(ast.Module(body=lifted, type_ignores=[]), "currency_payroll.py(lifted)", "exec"), space)
+
+
+def saved(employee, currency, payroll_date="2026-11-25"):
+    doc = Row(employee=employee, employee_name=employee, company="Luuka", currency=currency, payroll_date=payroll_date)
+    try:
+        space["additional_validate"](doc)
+    except Refused as error:
+        return "refused: %s" % error
+    return doc.currency
+
+
+check(len(lifted) == 2 and saved("EXP-1", "UGX") == "UGX" and saved("EXP-1", "USD") == "USD"
+      and saved("EXP-1", None) == "USD",
+      "an expatriate's Additional Salary kept in shillings or dollars; none set, their pay's")
+check(saved("EXP-1", "EUR") == "refused: EXP-1 is paid in USD: record this in USD or UGX.",
+      "any other currency refused, saying which")
+check(saved("LOC-1", "USD") == "refused: LOC-1 is paid in UGX: record this in UGX." and saved("LOC-1", None) == "UGX",
+      "somebody paid in shillings, in shillings only")
+check(saved("EXP-1", "USD", payroll_date="2026-03-25") == "refused: EXP-1 is paid in UGX: record this in UGX.",
+      "the assignment in force on the payroll date decides: before the dollar one, shillings")
+print("an expatriate's Additional Salary: USD or UGX, shillings taken at the payroll's rate")
 
 print()
 if fail:

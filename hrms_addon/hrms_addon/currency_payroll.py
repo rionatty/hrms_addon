@@ -135,6 +135,42 @@ def assignment_validate(doc, method=None):
     doc.set(rules.RATE_FIELD, flt(rate_for(doc.get("currency"), home, doc.get("from_date"))) or 1)
 
 
+def pay_currency(employee, day=None):
+    """The currency an employee is paid in: their submitted salary structure assignment's in force on the day, else
+    their latest; None with none."""
+    filters = {"employee": employee, "docstatus": 1}
+    if day:
+        filters["from_date"] = ["<=", getdate(day)]
+    found = frappe.get_all("Salary Structure Assignment", filters=filters, fields=["currency"],
+                           order_by="from_date desc", limit_page_length=1)
+    if not found and day:
+        found = frappe.get_all("Salary Structure Assignment", filters={"employee": employee, "docstatus": 1},
+                               fields=["currency"], order_by="from_date asc", limit_page_length=1)
+    return found[0].currency if found else None
+
+
+def additional_validate(doc, method=None):
+    """An Additional Salary in the employee's pay currency or the company's (rules.additional_currencies): an
+    expatriate's advance recorded in shillings comes off their USD slip at the payroll's rate
+    (SalarySlipCurrency.update_component_row). None set means their pay's; any other is refused."""
+    if not doc.get("employee") or not doc.get("company"):
+        return
+    allowed = rules.additional_currencies(pay_currency(doc.employee, doc.get("payroll_date")),
+                                          company_currency(doc.company))
+    if not doc.get("currency"):
+        doc.currency = allowed[0]
+    elif doc.currency not in allowed:
+        frappe.throw(_("{0} is paid in {1}: record this in {2}.").format(
+            doc.get("employee_name") or doc.employee, allowed[0], _(" or ").join(allowed)), title=_("Currency"))
+
+
+@frappe.whitelist()
+def additional_currencies(employee, company):
+    """The Additional Salary form's choice of currency for the employee."""
+    frappe.has_permission("Employee", "read", employee, throw=True)
+    return rules.additional_currencies(pay_currency(employee), company_currency(company))
+
+
 def month_allowances(employee, start, end, company, rate):
     """The employee's Additional Salary earnings a slip of these days pays (Add Allowance's, and any other), in the
     company's currency: what the USD gross-up takes with the USD pay (rules.ALLOWANCES). As Frappe HR picks them for a

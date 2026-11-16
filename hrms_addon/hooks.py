@@ -1627,6 +1627,8 @@ fixtures = [
                     # the Additional Salary list filtered by its payroll date and company
                     "Additional Salary-payroll_date-in_standard_filter",
                     "Additional Salary-company-in_standard_filter",
+                    # an expatriate's may be recorded in shillings (currency_payroll.additional_validate)
+                    "Additional Salary-currency-read_only",
                     "Interview Type-expected_skill_set-reqd",
                     "Training Feedback-feedback-label",
                     "Training Feedback-feedback-reqd",
@@ -1989,8 +1991,10 @@ doc_events = {
     # one cancelled after a draft salary slip took it up: the slip keeps
     # the line, so it is named (recoveries.py)
     "Additional Salary": {
-        # a casual's is never cut by the days paid (weekly_pay.py)
-        "validate": "hrms_addon.hrms_addon.weekly_pay.additional_validate",
+        # a casual's is never cut by the days paid (weekly_pay.py); an expatriate's may be in shillings, taken off
+        # the USD slip at the payroll's rate (currency_payroll.py)
+        "validate": ["hrms_addon.hrms_addon.weekly_pay.additional_validate",
+                     "hrms_addon.hrms_addon.currency_payroll.additional_validate"],
         "on_cancel": "hrms_addon.hrms_addon.recoveries.addition_on_cancel",
         "on_submit": "hrms_addon.hrms_addon.recoveries.addition_on_submit",
     },

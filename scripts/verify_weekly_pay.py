@@ -1491,7 +1491,7 @@ check(meta["istable"] == 1 and meta["name"] == "Weekly Pay Day"
       and all(field.get("read_only") == 1 for field in fields.values()),
       "a day a slip paid: its date and its person indexed, as the paid days are read by them")
 hooks_source = read("hrms_addon", "hooks.py")
-check('"validate": "hrms_addon.hrms_addon.weekly_pay.additional_validate",' in hooks_source,
+check('"validate": ["hrms_addon.hrms_addon.weekly_pay.additional_validate",' in hooks_source,
       "every Additional Salary is checked for a casual's on save")
 hooks = {}
 for node in ast.parse(hooks_source).body:

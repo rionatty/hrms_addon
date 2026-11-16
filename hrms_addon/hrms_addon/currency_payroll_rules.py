@@ -67,6 +67,13 @@ def foreign(currency, company_currency):
     return bool(currency) and bool(company_currency) and currency != company_currency
 
 
+def additional_currencies(pay_currency, company_currency):
+    """The currencies an employee's Additional Salary may be recorded in: their pay's, then the company's (Luuka,
+    16 Nov 2026: "Epertiates are currency in uSD yet their advance are un UGX"). One in the company's comes off a slip
+    in another currency at the payroll's rate (additional_amount)."""
+    return [currency for currency in dict.fromkeys((pay_currency or company_currency, company_currency)) if currency]
+
+
 def month_bounds(day):
     """The first and the last day of the month `day` falls in."""
     day = _day(day)

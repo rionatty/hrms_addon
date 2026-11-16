@@ -906,6 +906,17 @@
  },
  {
   "doctype": "Property Setter",
+  "name": "Additional Salary-currency-read_only",
+  "doc_type": "Additional Salary",
+  "doctype_or_field": "DocField",
+  "field_name": "currency",
+  "property": "read_only",
+  "property_type": "Check",
+  "value": "0",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Property Setter",
   "doctype_or_field": "DocField",
   "doc_type": "Employee",
   "field_name": "status",
