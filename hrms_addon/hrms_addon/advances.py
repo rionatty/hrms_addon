@@ -94,10 +94,11 @@ def _has(doctype, fieldname):
 def advance_validate(doc, method=None):
     from hrms_addon.hrms_addon import advance_approval as approval
 
-    if not doc.get("custom_advance_type"):
-        doc.custom_advance_type = rules.SALARY_ADVANCE
-    s = settings()
     from_run = doc.get("custom_salary_advance_run")
+    if not doc.get("custom_advance_type"):
+        # the only kind still raised on this form; the run names its own
+        doc.custom_advance_type = rules.SALARY_ADVANCE if from_run else rules.SPECIAL_ADVANCE
+    s = settings()
     if doc.custom_advance_type == rules.SALARY_ADVANCE and doc.is_new() and not from_run:
         frappe.throw(_("Salary advances are requested on a Salary Advance Request and paid through the "
                        "monthly Salary Advance Processing."), title=_("Employee Advance"))
@@ -491,18 +492,43 @@ def _advances_paid_by(voucher):
 
 def payment_on_submit(doc, method=None):
     """Payment Entry and Journal Entry: an advance paid out goes onto the
-    payroll. Frappe HR has already written the paid amount onto it by now
-    (the ledger entries this voucher made)."""
+    payroll, and is Paid once the payment covers it. Frappe HR has already
+    written the paid amount onto it by now (the ledger entries this voucher
+    made)."""
     for name in _advances_paid_by(doc):
         advance = frappe.get_doc(DOCTYPE, name)
         scheduled = schedule_recovery(advance)
+        follow_payment(advance)
         if scheduled:
             _tell_scheduled(advance, scheduled)
 
 
 def payment_on_cancel(doc, method=None):
     for name in _advances_paid_by(doc):
-        unschedule_beyond_paid(frappe.get_doc(DOCTYPE, name))
+        advance = frappe.get_doc(DOCTYPE, name)
+        unschedule_beyond_paid(advance)
+        follow_payment(advance)
+
+
+def follow_payment(doc):
+    """Approved until the payment recorded against the advance covers it,
+    then Paid; back to Approved if that payment is cancelled
+    (advance_approval.paid_state). Written straight in, as Frappe HR writes
+    the paid amount: it is the money moving, not a step anybody takes."""
+    from hrms_addon.hrms_addon import advance_approval as approval
+
+    state = doc.get("workflow_state")
+    if doc.docstatus != 1:
+        return state
+    new = approval.paid_state(state, doc.get("paid_amount"), _to_pay(doc))
+    if new != state:
+        doc.db_set({"workflow_state": new, "custom_advance_status": new})
+    return new
+
+
+def _to_pay(doc):
+    """What the advance pays out: the amount approved, else the amount asked."""
+    return flt(doc.get("custom_approved_amount")) or flt(doc.get("advance_amount"))
 
 
 def _component(company=None):

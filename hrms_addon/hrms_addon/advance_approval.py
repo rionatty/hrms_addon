@@ -14,18 +14,24 @@ junction out of Draft is conditional on the type:
   Leave Advance (4.2)     Draft --Submit--> Pending Accounts Manager
                                 --Approve--> Pending Payroll Officer
                                 --Approve--> Pending Finance
-                                --Pay--> Paid
+                                --Approve--> Approved
   Salary Advance (4.10)   Draft --Submit--> Pending HR Officer
                                 --Approve--> Pending Payroll Officer
                                 --Approve--> Pending Finance
-                                --Pay--> Paid
+                                --Approve--> Approved
   Special Advance         Draft --Submit--> Pending Section Head
   (LPL/HR/21)                   --Approve--> Pending Executive Director
                                 --Approve--> Pending Finance
-                                --Pay--> Paid
+                                --Approve--> Approved
 
 Any pending state returns to Draft with the reason in Return Remarks, or
 is rejected outright.
+
+Approved is submitted and waiting for its money. It becomes Paid when the
+payment recorded against it (Create > Payment, or the run's bank entry)
+covers it, and goes back to Approved if that payment is cancelled
+(paid_state). Until 16 Nov 2026 Finance's step was Pay, straight to Paid,
+and Luuka found "The state changes to Paid before making the payment".
 
 Frappe HR's own `status` is theirs — their controller writes Paid, Claimed
 and Returned from the money — so the workflow's state goes in
@@ -50,19 +56,19 @@ PENDING_SECTION_HEAD = "Pending Section Head"
 PENDING_ED = "Pending Executive Director"
 PENDING_PAYROLL = "Pending Payroll Officer"
 PENDING_FINANCE = "Pending Finance"
+APPROVED = "Approved"
 PAID = "Paid"
 REJECTED = "Rejected"
 CANCELLED = "Cancelled"
 
 SUBMIT = "Submit"
 APPROVE = "Approve"
-PAY = "Pay"
 # a salary advance made by the monthly Salary Advance Processing
 PROCESS = "Process"
 RETURN = "Return"
 REJECT = "Reject"
 CANCEL = "Cancel"
-ACTIONS = (SUBMIT, APPROVE, PAY, PROCESS, RETURN, REJECT, CANCEL)
+ACTIONS = (SUBMIT, APPROVE, PROCESS, RETURN, REJECT, CANCEL)
 
 PREPARERS = ("HR User", "HR Manager", "Employee")
 HR_OFFICER, HRM = "HR User", "HR Manager"
@@ -94,11 +100,12 @@ FROM_RUN = "doc.custom_salary_advance_run"
 PENDING_STATES = (PENDING_ACCOUNTS_MANAGER, PENDING_HR, PENDING_SECTION_HEAD, PENDING_ED,
                   PENDING_PAYROLL, PENDING_FINANCE)
 
-# the states each advance actually passes through, in order
+# the states each advance actually passes through, in order: the last by
+# the payment, not by anyone's action
 ROUTES = {
-    LEAVE_ADVANCE: (DRAFT, PENDING_ACCOUNTS_MANAGER, PENDING_PAYROLL, PENDING_FINANCE, PAID),
-    SALARY_ADVANCE: (DRAFT, PENDING_HR, PENDING_PAYROLL, PENDING_FINANCE, PAID),
-    SPECIAL_ADVANCE: (DRAFT, PENDING_SECTION_HEAD, PENDING_ED, PENDING_FINANCE, PAID),
+    LEAVE_ADVANCE: (DRAFT, PENDING_ACCOUNTS_MANAGER, PENDING_PAYROLL, PENDING_FINANCE, APPROVED, PAID),
+    SALARY_ADVANCE: (DRAFT, PENDING_HR, PENDING_PAYROLL, PENDING_FINANCE, APPROVED, PAID),
+    SPECIAL_ADVANCE: (DRAFT, PENDING_SECTION_HEAD, PENDING_ED, PENDING_FINANCE, APPROVED, PAID),
 }
 
 STATES = (
@@ -114,6 +121,9 @@ STATES = (
      "send_email": 1},
     {"state": PENDING_FINANCE, "allow_edit": FINANCE, "status": PENDING_FINANCE, "style": "Warning",
      "send_email": 1},
+    {"state": APPROVED, "allow_edit": FINANCE, "status": APPROVED, "style": "Success", "send_email": 0,
+     "doc_status": "1"},
+    # reached by the payment only (paid_state): no transition leads here
     {"state": PAID, "allow_edit": FINANCE, "status": PAID, "style": "Success", "send_email": 0, "doc_status": "1"},
     {"state": REJECTED, "allow_edit": HRM, "status": REJECTED, "style": "Danger", "send_email": 0,
      "doc_status": "1"},
@@ -129,8 +139,9 @@ TRANSITIONS = (
        "condition": IS_SALARY} for role in PREPARERS),
     *({"state": DRAFT, "action": SUBMIT, "next_state": PENDING_SECTION_HEAD, "allowed": role,
        "condition": IS_SPECIAL} for role in PREPARERS),
-    # a salary advance made by the month's run: the run itself was approved
-    *({"state": DRAFT, "action": PROCESS, "next_state": PAID, "allowed": role, "condition": FROM_RUN}
+    # a salary advance made by the month's run: the run itself was approved,
+    # and Finance pays the run's bank entry
+    *({"state": DRAFT, "action": PROCESS, "next_state": APPROVED, "allowed": role, "condition": FROM_RUN}
       for role in (PAYROLL, HRM)),
     # the leave advance: Accounts Manager, then Payroll
     {"state": PENDING_ACCOUNTS_MANAGER, "action": APPROVE, "next_state": PENDING_PAYROLL,
@@ -150,13 +161,15 @@ TRANSITIONS = (
     {"state": PENDING_ED, "action": APPROVE, "next_state": PENDING_FINANCE, "allowed": ED},
     {"state": PENDING_ED, "action": RETURN, "next_state": DRAFT, "allowed": ED},
     {"state": PENDING_ED, "action": REJECT, "next_state": REJECTED, "allowed": ED},
-    # payroll sets the amount approved and the recovery, then Finance pays
+    # payroll sets the amount approved and the recovery, then Finance
+    # approves it for payment and records the payment on it
     {"state": PENDING_PAYROLL, "action": APPROVE, "next_state": PENDING_FINANCE, "allowed": PAYROLL},
     {"state": PENDING_PAYROLL, "action": RETURN, "next_state": DRAFT, "allowed": PAYROLL},
     {"state": PENDING_PAYROLL, "action": REJECT, "next_state": REJECTED, "allowed": PAYROLL},
-    {"state": PENDING_FINANCE, "action": PAY, "next_state": PAID, "allowed": FINANCE},
+    {"state": PENDING_FINANCE, "action": APPROVE, "next_state": APPROVED, "allowed": FINANCE},
     {"state": PENDING_FINANCE, "action": RETURN, "next_state": DRAFT, "allowed": FINANCE},
     {"state": PENDING_FINANCE, "action": REJECT, "next_state": REJECTED, "allowed": FINANCE},
+    {"state": APPROVED, "action": CANCEL, "next_state": CANCELLED, "allowed": HRM},
     {"state": PAID, "action": CANCEL, "next_state": CANCELLED, "allowed": HRM},
 )
 
@@ -239,6 +252,21 @@ def step_errors(old_state, new_state, facts):
     if old_state == PENDING_HR and not facts.get("attendance_confirmed"):
         errors.append("Confirm the employee's attendance and leave before passing the advance on.")
     return errors
+
+
+def paid_state(state, paid, to_pay):
+    """The state once the payments recorded against the advance are counted.
+
+    Approved becomes Paid when they cover what is to be paid; Paid goes back
+    to Approved when a payment is cancelled and they no longer do. Any other
+    state is left as it is.
+    """
+    covered = _num(paid) > 0 and _num(paid) >= _num(to_pay) - 0.005
+    if state == APPROVED and covered:
+        return PAID
+    if state == PAID and not covered:
+        return APPROVED
+    return state
 
 
 def next_states(state, roles, advance_type=None):

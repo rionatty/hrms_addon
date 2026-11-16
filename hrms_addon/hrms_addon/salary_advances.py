@@ -16,9 +16,9 @@ The rules are in advance_rules.py and advance_request_approval.py.
              month's attendance, off-duty days, leave and the other
              conditions; each plant's HR Officer confirms their plant; the
              Payroll Officer submits. Submitting creates each employee's
-             advance and one draft bank entry for Finance. When Finance
-             submit the bank entry, each recovery goes onto the payroll
-             (advances.payment_on_submit).
+             advance, Approved, and one draft bank entry for Finance. When
+             Finance submit the bank entry, each advance is Paid and its
+             recovery goes onto the payroll (advances.payment_on_submit).
   daily      requests past their last month are ended; the Payroll Officer
              and the HR Officers are reminded when requests close and on the
              processing date.
@@ -419,7 +419,8 @@ def run_on_submit(doc, method=None):
         })
         advance.flags.ignore_permissions = True
         advance.insert()
-        advance.workflow_state = approval.PAID
+        # Paid when Finance submit the bank entry (advances.follow_payment)
+        advance.workflow_state = approval.APPROVED
         advance.submit()
         row.db_set("employee_advance", advance.name, update_modified=False)
         made.append(advance)

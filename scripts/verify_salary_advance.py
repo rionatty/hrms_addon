@@ -415,9 +415,10 @@ if "_tell_paid(doc, scheduled)" not in body("advance_on_submit") \
     fail.append("the run tells everyone once, not once for each advance it makes")
 AA = load("advance_approval")
 process = [t for t in AA.TRANSITIONS if t["action"] == AA.PROCESS]
-if not process or any((t["state"], t["next_state"], t["condition"]) != (AA.DRAFT, AA.PAID, AA.FROM_RUN)
+if not process or any((t["state"], t["next_state"], t["condition"]) != (AA.DRAFT, AA.APPROVED, AA.FROM_RUN)
                       for t in process) or {t["allowed"] for t in process} != {AA.PAYROLL, AA.HRM}:
-    fail.append("the run's advances go from Draft to Paid in one step, by the Payroll Officer or HR Manager")
+    fail.append("the run's advances go from Draft to Approved in one step, by the Payroll Officer or HR Manager, "
+                "and are Paid when Finance submit the bank entry")
 RA = load("advance_request_approval")
 walked, state = [RA.DRAFT], RA.DRAFT
 for action in (RA.SUBMIT, RA.APPROVE):
@@ -466,8 +467,9 @@ for doctype, fieldname, wanted in (("advance_settings", "salary_max_unmarked_day
 if "rules.run_errors(" not in part("run_before_submit") or "_work_out(" not in part("run_before_submit"):
     fail.append("the run is held to its day, its plants confirmed, and counted again before it is submitted")
 paying = part("run_on_submit")
-if "advance.submit()" not in paying or "approval.PAID" not in paying or "_bank_entry(" not in paying:
-    fail.append("submitting the run makes each advance, passed for payment, and one bank entry for Finance")
+if "advance.submit()" not in paying or "advance.workflow_state = approval.APPROVED" not in paying \
+        or "approval.PAID" in paying or "_bank_entry(" not in paying:
+    fail.append("submitting the run makes each advance, approved and not yet paid, and one bank entry for Finance")
 entry = part("_bank_entry")
 if '"reference_type": ADVANCE' not in entry or '"is_advance": "Yes"' not in entry:
     fail.append("the bank entry pays each advance against itself, so its recovery follows the payment")

@@ -840,15 +840,84 @@ if plan_route != [LP.DRAFT, LP.PENDING_HOD, LP.PENDING_HR, LP.APPROVED]:
 expect("a plan returned without saying why", LP.step_errors(LP.PENDING_HOD, LP.DRAFT, {}), "Return Remarks")
 
 for kind, wanted in (
-    (V.LEAVE_ADVANCE, [AA.DRAFT, AA.PENDING_ACCOUNTS_MANAGER, AA.PENDING_PAYROLL, AA.PENDING_FINANCE, AA.PAID]),
-    (V.SALARY_ADVANCE, [AA.DRAFT, AA.PENDING_HR, AA.PENDING_PAYROLL, AA.PENDING_FINANCE, AA.PAID]),
-    (V.SPECIAL_ADVANCE, [AA.DRAFT, AA.PENDING_SECTION_HEAD, AA.PENDING_ED, AA.PENDING_FINANCE, AA.PAID]),
+    (V.LEAVE_ADVANCE, [AA.DRAFT, AA.PENDING_ACCOUNTS_MANAGER, AA.PENDING_PAYROLL, AA.PENDING_FINANCE, AA.APPROVED]),
+    (V.SALARY_ADVANCE, [AA.DRAFT, AA.PENDING_HR, AA.PENDING_PAYROLL, AA.PENDING_FINANCE, AA.APPROVED]),
+    (V.SPECIAL_ADVANCE, [AA.DRAFT, AA.PENDING_SECTION_HEAD, AA.PENDING_ED, AA.PENDING_FINANCE, AA.APPROVED]),
 ):
-    walked = walk(AA, AA.DRAFT, (AA.SUBMIT, AA.APPROVE, AA.PAY), AA.CONDITIONS[kind])
+    walked = walk(AA, AA.DRAFT, (AA.SUBMIT, AA.APPROVE), AA.CONDITIONS[kind])
     if walked != wanted:
         fail.append("the %s goes %s, not %s" % (kind, wanted, walked))
-    if list(AA.route(kind)) != wanted:
-        fail.append("advance_approval.route(%r) must say the same: %s" % (kind, AA.route(kind)))
+    # then Paid, by the payment and not by anybody's step
+    if list(AA.route(kind)) != wanted + [AA.PAID]:
+        fail.append("advance_approval.route(%r) must say the same, then Paid: %s" % (kind, AA.route(kind)))
+
+# Luuka, 16 Nov 2026: "The state changes to Paid before making the payment". Finance approve it for payment; the
+# payment recorded against it makes it Paid, and a payment cancelled takes it back to Approved.
+if [t for t in AA.TRANSITIONS if t["next_state"] == AA.PAID] or "Pay" in AA.ACTIONS or hasattr(AA, "PAY"):
+    fail.append("no step leads to Paid: only the payment does")
+if AA.next_states(AA.PENDING_FINANCE, ("Finance Officer",), V.SPECIAL_ADVANCE) != [
+        (AA.APPROVE, AA.APPROVED), (AA.RETURN, AA.DRAFT), (AA.REJECT, AA.REJECTED)]:
+    fail.append("Finance approve the advance for payment, return it or refuse it: %s"
+                % AA.next_states(AA.PENDING_FINANCE, ("Finance Officer",), V.SPECIAL_ADVANCE))
+submitting = {row["state"]: row.get("doc_status") for row in AA.STATES}
+if (submitting.get(AA.APPROVED), submitting.get(AA.PAID)) != ("1", "1"):
+    fail.append("Approved and Paid are both submitted states: %s" % submitting)
+for state in (AA.APPROVED, AA.PAID):
+    if AA.next_states(state, ("HR Manager",), V.SPECIAL_ADVANCE) != [(AA.CANCEL, AA.CANCELLED)]:
+        fail.append("the HR Manager cancels an advance %s" % state)
+for state, paid, to_pay, want in (
+        (AA.APPROVED, 0, 100000, AA.APPROVED), (AA.APPROVED, None, 100000, AA.APPROVED),
+        (AA.APPROVED, 60000, 100000, AA.APPROVED), (AA.APPROVED, 99999.996, 100000, AA.PAID),
+        (AA.APPROVED, 100000, 100000, AA.PAID), (AA.APPROVED, 120000, 100000, AA.PAID),
+        (AA.PAID, 100000, 100000, AA.PAID), (AA.PAID, 60000, 100000, AA.APPROVED), (AA.PAID, 0, 100000, AA.APPROVED),
+        # nothing paid is never Paid, even with nothing to pay
+        (AA.APPROVED, 0, 0, AA.APPROVED), (AA.PAID, None, None, AA.APPROVED),
+        (AA.PENDING_FINANCE, 100000, 100000, AA.PENDING_FINANCE), (AA.DRAFT, 0, 100000, AA.DRAFT),
+        (AA.CANCELLED, 0, 100000, AA.CANCELLED), (AA.REJECTED, 100000, 100000, AA.REJECTED)):
+    if AA.paid_state(state, paid, to_pay) != want:
+        fail.append("paid_state(%r, %r, %r) is %r, not %r" % (state, paid, to_pay, AA.paid_state(state, paid, to_pay),
+                                                            want))
+advances_py = read("hrms_addon", "hrms_addon", "advances.py")
+
+
+def advances_part(name):
+    return advances_py.split("def %s(" % name, 1)[-1].split(chr(10) + "def ", 1)[0]
+
+
+follow = advances_part("follow_payment")
+if "approval.paid_state(state, doc.get(\"paid_amount\"), _to_pay(doc))" not in follow \
+        or 'doc.db_set({"workflow_state": new, "custom_advance_status": new})' not in follow \
+        or "if doc.docstatus != 1:" not in follow:
+    fail.append("a submitted advance's state and Approval Status follow its payments")
+if 'flt(doc.get("custom_approved_amount")) or flt(doc.get("advance_amount"))' not in advances_part("_to_pay"):
+    fail.append("what is to be paid is the amount approved, else the amount asked")
+for hook in ("payment_on_submit", "payment_on_cancel"):
+    if "follow_payment(advance)" not in advances_part(hook):
+        fail.append("%s moves each advance it pays between Approved and Paid" % hook)
+if "rules.SALARY_ADVANCE if from_run else rules.SPECIAL_ADVANCE" not in advances_part("advance_validate"):
+    fail.append("an advance with no type is a special advance unless the run made it")
+fields = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
+kind_field = fields.get("Employee Advance-custom_advance_type") or {}
+status_field = fields.get("Employee Advance-custom_advance_status") or {}
+if kind_field.get("default") != V.SPECIAL_ADVANCE or kind_field.get("modified", "") < "2026-11-16" \
+        or set(kind_field.get("options", "").split(chr(10))) != {V.LEAVE_ADVANCE, V.SALARY_ADVANCE, V.SPECIAL_ADVANCE}:
+    fail.append("a new advance is a special advance; the other two stay for the ones made before and by the run")
+statuses = status_field.get("options", "").split(chr(10))
+if AA.APPROVED not in statuses or statuses.index(AA.APPROVED) + 1 != statuses.index(AA.PAID) \
+        or status_field.get("modified", "") < "2026-11-16":
+    fail.append("Approval Status shows Approved, before Paid: %s" % statuses)
+advance_js = read("hrms_addon", "public", "js", "employee_advance.js")
+if 'const HA_RAISED_ELSEWHERE = ["Salary Advance", "Leave Advance"];' not in advance_js \
+        or "ha_advance_types(frm);" not in advance_js.split("refresh(frm) {", 1)[-1].split("},", 1)[0] \
+        or 'frm.set_value("custom_advance_type", "Special Advance")' not in advance_js \
+        or "kind === own" not in advance_js:
+    fail.append("the form offers a new advance as a special advance only, and an old one keeps its own type")
+patch = read("hrms_addon", "patches", "v1_0", "advance_paid_on_payment.py")
+if "hrms_addon.patches.v1_0.advance_paid_on_payment" not in read("hrms_addon", "patches.txt") \
+        or "approval.paid_state(approval.PAID, row.paid_amount, to_pay)" not in patch \
+        or '"docstatus": 1, "workflow_state": approval.PAID' not in patch \
+        or 'meta.has_field("workflow_state") and meta.has_field("custom_approved_amount")' not in patch:
+    fail.append("the patch takes an advance left at Paid and not yet paid back to Approved")
 if set(AA.STAMPS) != set(AA.PENDING_STATES) or set(AA.REMARK_FIELDS) != set(AA.PENDING_STATES):
     fail.append("every desk an advance passes is stamped: %s" % sorted(AA.STAMPS))
 if set(AA.ROLE_WAITING) != set(AA.PENDING_STATES):

@@ -142,8 +142,8 @@ print("frappe: validate and before_submit, then the workflow's own move to the f
 
 # ── 5. The app's own submits ────────────────────────────────────────────
 run = read(APP, "salary_advances.py")
-check("        advance.workflow_state = approval.PAID\n        advance.submit()" in run,
-      "a Salary Advance Processing writes its advances as Paid, then submits them")
+check("        advance.workflow_state = approval.APPROVED\n        advance.submit()" in run,
+      "a Salary Advance Processing writes its advances as Approved, then submits them (Paid comes with the payment)")
 board = read(APP, "talent_board.py").split("def advance(")[1] if "def advance(" in read(APP, "talent_board.py") else read(
     APP, "talent_board.py")
 check("doc.workflow_state = allowed[action]" in board and "doc.submit()" in board

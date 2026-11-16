@@ -8,6 +8,28 @@
 // doctype_js, read from disk when the form loads, so a change to it needs
 // no `bench build`.
 
+// Luuka, 16 Nov 2026: "Remove the Salary Advance Option in the Employee Advance because it is applied for via the
+// Advance Request document". A salary advance comes from the Salary Advance Request and the monthly run, a leave
+// advance is a Leave Advance, so a new advance here is a special advance (advances.advance_validate refuses the
+// others). One made before keeps its own type.
+const HA_RAISED_ELSEWHERE = ["Salary Advance", "Leave Advance"];
+
+function ha_advance_types(frm) {
+	const field = frappe.meta.get_docfield("Employee Advance", "custom_advance_type");
+	if (!field) return;
+	const own = frm.is_new() ? null : frm.doc.custom_advance_type;
+	frm.set_df_property(
+		"custom_advance_type",
+		"options",
+		(field.options || "")
+			.split("\n")
+			.filter((kind) => kind && (!HA_RAISED_ELSEWHERE.includes(kind) || kind === own))
+	);
+	if (frm.is_new() && HA_RAISED_ELSEWHERE.includes(frm.doc.custom_advance_type)) {
+		frm.set_value("custom_advance_type", "Special Advance");
+	}
+}
+
 frappe.ui.form.on("Employee Advance", {
 	setup(frm) {
 		// Frappe HR's own filter warns that no employee is selected when the
@@ -24,6 +46,7 @@ frappe.ui.form.on("Employee Advance", {
 		}));
 	},
 	refresh(frm) {
+		ha_advance_types(frm);
 		frm.trigger("show_eligibility");
 		frm.trigger("show_recovery");
 		if (frm.doc.docstatus === 1 && frm.doc.custom_outstanding > 0) {
