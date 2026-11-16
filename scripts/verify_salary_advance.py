@@ -209,6 +209,24 @@ for entitlement, requested, paid, why in (
     if V.line_amount(entitlement, requested) != paid:
         fail.append("line_amount: %s (%s)" % (why, V.line_amount(entitlement, requested)))
 
+# an amount the Payroll Officer sets (Luuka, 16 Nov 2026: "make the amount column editable and its should post
+# that adjusted amount")
+for worked_out, entered, saved, adjusted, kept, why in (
+    (320000, None, None, 0, (320000, 0), "a new line: what the run works out"),
+    (320000, 320000, 320000, 0, (320000, 0), "untouched: what the run works out"),
+    (330000, 320000, 320000, 0, (330000, 0), "untouched, and the pay changed: the run's new figure"),
+    (320000, 250000, 320000, 0, (250000, 1), "changed since it was saved: set by hand"),
+    (330000, 250000, 250000, 1, (250000, 1), "set by hand before: kept, whatever the run now works out"),
+    (320000, 0, 250000, 1, (320000, 0), "cleared: handed back to the run"),
+    (320000, 320000, 250000, 1, (320000, 0), "set back to the run's figure: handed back"),
+    (320000, 999999, 320000, 0, (999999, 1), "more than allowed is kept as typed; the allowance refuses it"),
+    (320000, 250000, None, 0, (320000, 0), "a new line typed before its first save: the run's figure"),
+):
+    if V.kept_amount(worked_out, entered, saved, adjusted) != kept:
+        fail.append("kept_amount: %s (%s)" % (why, V.kept_amount(worked_out, entered, saved, adjusted)))
+if V.adjusted_note(320000) != "Amount set by hand; the run works out UGX 320,000.":
+    fail.append("the line says its amount was set by hand, and what the run works out: %s" % V.adjusted_note(320000))
+
 # what holds the run back
 READY = {"processing_date": "2026-09-15", "today": "2026-09-15", "unconfirmed": [], "included": 2,
          "bank_account": "Stanbic - LPL", "payment_method": "Cheque", "reference_no": "004512",
@@ -620,6 +638,35 @@ submit_part = glue.split("def request_on_submit(", 1)[1].split("\ndef ", 1)[0]
 if not 0 <= submit_part.find("if frappe.flags.in_import:") < submit_part.find("people.notify("):
     fail.append("nobody is told of each request imported")
 print("Data Import: the HR Manager imports requests; with Submit After Import they come in approved")
+
+# the amount set by hand, posted as set (Luuka, 16 Nov 2026)
+line_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", "salary_advance_processing_employee",
+                            "salary_advance_processing_employee.json"))
+line_fields = {field["fieldname"]: field for field in line_json["fields"]}
+if line_fields["amount"].get("read_only") or not line_fields["amount"].get("non_negative"):
+    fail.append("the Payroll Officer may set a line's amount, never below nought")
+for fieldname, fieldtype in (("worked_out", "Currency"), ("amount_adjusted", "Check")):
+    field = line_fields.get(fieldname) or {}
+    if field.get("fieldtype") != fieldtype or not field.get("read_only") \
+            or line_json["field_order"].index(fieldname) != line_json["field_order"].index("amount") + 1 + (
+            fieldname == "amount_adjusted"):
+        fail.append("beside the amount, read-only: what the run works out, and whether set by hand (%s)" % fieldname)
+work = glue.split("def _work_out(", 1)[1].split("\ndef ", 1)[0]
+for needle, why in (
+        ("worked_out = rules.line_amount(entitlement, request.amount if request else 0)", "the run's own figure"),
+        ('row.amount, row.amount_adjusted = rules.kept_amount(worked_out, row.get("amount"), _was(doc, row),',
+         "the amount set by hand kept"),
+        ("row.worked_out = worked_out", "the run's figure kept beside it"),
+        ('"amount": row.amount, "outstanding"', "the allowance checked on the amount paid"),
+        ("[rules.adjusted_note(worked_out)] if row.amount_adjusted else []", "the line says it was set by hand")):
+    if needle not in work:
+        fail.append("a line's amount: %s" % why)
+for name in ("run_validate", "run_before_submit"):
+    part = glue.split("def %s(" % name, 1)[1].split("\ndef ", 1)[0]
+    if part.find("doc.flags.saved_amounts = _saved_amounts(doc)") < 0 \
+            or part.find("doc.flags.saved_amounts = _saved_amounts(doc)") > part.find("_work_out(row, doc, s)"):
+        fail.append("%s reads each line's saved amount before working the lines out" % name)
+print("a line's amount set by hand: kept, said, posted")
 
 if fail:
     print("\nFAILURES:")

@@ -173,6 +173,7 @@ def run_validate(doc, method=None):
     s = advances.settings()
     _fill_period(doc, s)
     if doc.docstatus == 0:
+        doc.flags.saved_amounts = _saved_amounts(doc)
         for row in doc.get("employees") or []:
             _work_out(row, doc, s)
         _sync_plants(doc)
@@ -225,7 +226,11 @@ def _work_out(row, doc, s):
                                                          "amount"], as_dict=True) \
         if row.get("request") else None
     entitlement = rules.entitled(rules.SALARY_ADVANCE, row.gross_pay, row.pay_category, s)
-    row.amount = rules.line_amount(entitlement, request.amount if request else 0)
+    # the Payroll Officer may set the amount (rules.kept_amount); the allowance still holds below
+    worked_out = rules.line_amount(entitlement, request.amount if request else 0)
+    row.amount, row.amount_adjusted = rules.kept_amount(worked_out, row.get("amount"), _was(doc, row),
+                                                        row.get("amount_adjusted"))
+    row.worked_out = worked_out
     errors = rules.eligibility_errors({
         "advance_type": rules.SALARY_ADVANCE, "status": employee.status,
         "employment_type": employee.employment_type, "pay_category": row.pay_category,
@@ -247,7 +252,18 @@ def _work_out(row, doc, s):
     if paid_in:
         errors.insert(0, "Already paid this month in %s." % paid_in)
     row.qualifies = 0 if errors else 1
-    row.remarks = "; ".join(errors) or None
+    row.remarks = "; ".join(errors + ([rules.adjusted_note(worked_out)] if row.amount_adjusted else [])) or None
+
+
+def _saved_amounts(doc):
+    """Each line's amount as the run was last saved, by the line's name: an amount that differs was set by hand since
+    (rules.kept_amount). A line added since has none."""
+    before = doc.get_doc_before_save()
+    return {row.name: row.get("amount") for row in (before.get("employees") or []) if row.get("name")} if before else {}
+
+
+def _was(doc, row):
+    return (doc.flags.saved_amounts or {}).get(row.get("name"))
 
 
 def _marked_days(employee, start, end):
@@ -359,6 +375,7 @@ def run_before_submit(doc, method=None):
     from hrms_addon.hrms_addon import advances
 
     s = advances.settings()
+    doc.flags.saved_amounts = _saved_amounts(doc)
     was = [(row.employee, int(row.qualifies or 0), flt(row.amount)) for row in doc.get("employees") or []]
     for row in doc.get("employees") or []:
         _work_out(row, doc, s)

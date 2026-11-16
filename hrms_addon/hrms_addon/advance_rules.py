@@ -362,6 +362,25 @@ def line_amount(entitlement, requested):
     return round(entitlement, 2)
 
 
+def kept_amount(worked_out, entered, saved=None, adjusted=0):
+    """What a run's line pays, and whether it was set by hand: what the run works out, unless the Payroll Officer set
+    the amount (minutes §4.9: "the Payroll Officer sets the amount approved"; Luuka, 16 Nov 2026: "make the amount
+    column editable and its should post that adjusted amount"). An amount changed since the line was last saved is
+    set by hand and stays so; clearing it, or setting it back to what the run works out, hands it back to the run.
+    The allowance still holds: more than it does not qualify (eligibility_errors). Returns (amount, adjusted)."""
+    worked_out, entered = round(_num(worked_out), 2), round(_num(entered), 2)
+    if entered <= 0 or entered == worked_out:
+        return worked_out, 0
+    if adjusted or (saved is not None and entered != round(_num(saved), 2)):
+        return entered, 1
+    return worked_out, 0
+
+
+def adjusted_note(worked_out):
+    """The line's word that its amount was set by hand, and what the run works out."""
+    return "Amount set by hand; the run works out %s." % _money(worked_out)
+
+
 def run_errors(facts, settings=None):
     """Why the month's run cannot be submitted yet.
 
