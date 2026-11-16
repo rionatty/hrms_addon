@@ -526,6 +526,22 @@ def bank_file(name):
                         bank_file_rules.workbook(bank_file_rules.rows(lines)))
 
 
+@frappe.whitelist()
+def download(name):
+    """The run's lines as Excel, as saved: everyone on it, what each is paid and why (Luuka, 16 Nov 2026: "add
+    download functionality"; advance_run_sheet_rules.py)."""
+    from frappe.desk.utils import provide_binary_file
+
+    from hrms_addon.hrms_addon import advance_run_sheet_rules as sheet
+
+    doc = frappe.get_doc(RUN, name)
+    doc.check_permission("read")
+    lines = [row.as_dict() for row in doc.get("employees") or []]
+    if not lines:
+        frappe.throw(_("This run has no lines yet. Get Requests first."), title=_("Download"))
+    provide_binary_file(sheet.file_name(doc.month, doc.year, doc.name), "xlsx", sheet.workbook(lines))
+
+
 # ── 3. What the system watches ────────────────────────────────────────
 def daily():
     _end_requests()

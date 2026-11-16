@@ -36,6 +36,21 @@ frappe.ui.form.on("Salary Advance Processing", {
 				])
 			);
 		}
+		// Luuka, 16 Nov 2026: "add download functionality". The run's lines as Excel, as saved (salary_advances.download)
+		if (!frm.is_new() && (frm.doc.employees || []).length) {
+			frm.add_custom_button(__("Download"), () => {
+				if (frm.is_dirty()) {
+					frappe.show_alert({
+						message: __("Save the run first. The file holds what is saved."),
+						indicator: "orange",
+					});
+					return;
+				}
+				window.open(
+					"/api/method/hrms_addon.hrms_addon.salary_advances.download?name=" + encodeURIComponent(frm.doc.name)
+				);
+			});
+		}
 		if (frm.doc.docstatus === 1) {
 			frm.add_custom_button(__("Advance Payment Report"), () =>
 				frappe.set_route("query-report", "Advance Payment Report", {
