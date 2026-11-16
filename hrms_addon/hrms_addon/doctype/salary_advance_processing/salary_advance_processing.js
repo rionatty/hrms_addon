@@ -62,14 +62,23 @@ frappe.ui.form.on("Salary Advance Processing", {
 					frappe.set_route("Form", "Journal Entry", frm.doc.journal_entry)
 				);
 			}
-			// the bank's own file, as the payroll's (salary_advances.bank_file): asked first, so a refusal is a message
+			// Luuka's own ADVANCE_PAYMENT workbook, those paid by bank and a cash report (salary_advances.bank_file):
+			// asked first, so a refusal is a message; who has a bank detail left blank is said
 			frm.add_custom_button(__("Bank File"), () => {
 				const method = "hrms_addon.hrms_addon.salary_advances.bank_file";
 				frappe
 					.call({ method: method + "_check", args: { name: frm.doc.name }, freeze: true })
 					.then((r) => {
-						if (!r || !r.message || !r.message.rows) return;
+						const found = r && r.message;
+						if (!found || !(found.rows || found.cash)) return;
 						window.open("/api/method/" + method + "?name=" + encodeURIComponent(frm.doc.name));
+						if ((found.blank || []).length) {
+							frappe.msgprint({
+								title: __("Bank File"),
+								message: found.blank.map((line) => frappe.utils.escape_html(line)).join("<br>"),
+								indicator: "orange",
+							});
+						}
 					});
 			});
 		}

@@ -477,10 +477,12 @@ def run_on_trash(doc, method=None):
 
 
 # ── 2b. The bank file ─────────────────────────────────────────────────
-# Luuka, 8 Nov 2026: Finance pays the salary advances from the bank's own
-# file too, the six columns of the payroll's (bank_file_rules.py): a row for
-# each advance the submitted run made and pays by bank, its amount the
-# advance.
+# Luuka, 8 Nov 2026: Finance pays the salary advances from a bank file. On
+# 16 Nov 2026 they sent their own, "this is the bank file": the ADVANCE_PAYMENT
+# workbook, those paid by bank and a CASH REPORT of the rest
+# (advance_payment_rules.py). A row for each advance the submitted run makes.
+# One paid by bank with no account, bank or code is in it with that cell
+# blank, and the check says so, as the payroll's file.
 def _bank_run(name):
     doc = frappe.get_doc(RUN, name)
     doc.check_permission("read")
@@ -500,30 +502,38 @@ def _bank_lines(doc):
 
 @frappe.whitelist()
 def bank_file_check(name):
-    """Whether the run's bank file can be made: refuses with who is missing
-    what, else says how many it pays. The form asks first, so a refusal
-    shows as a message."""
-    from hrms_addon.hrms_addon import bank_file as bank
+    """How many the run's bank file pays by bank and in cash, and what it
+    leaves blank. The form asks first, so a refusal shows as a message."""
+    from hrms_addon.hrms_addon import advance_payment_rules as advance
     from hrms_addon.hrms_addon import bank_file_rules
 
     lines = _bank_lines(_bank_run(name))
-    bank.refuse_problems(lines)
-    return {"rows": len(bank_file_rules.to_pay(lines))}
+    _refuse_empty(lines)
+    return {"rows": len(advance.by_bank(lines)), "cash": len(advance.in_cash(lines)),
+            "blank": bank_file_rules.problem_lines(bank_file_rules.problems(advance.by_bank(lines)),
+                                                   heading=bank_file_rules.BLANK)}
 
 
 @frappe.whitelist()
 def bank_file(name):
-    """The run's bank file, as Excel."""
+    """The run's bank file, as Luuka's own ADVANCE_PAYMENT workbook."""
     from frappe.desk.utils import provide_binary_file
 
-    from hrms_addon.hrms_addon import bank_file as bank
-    from hrms_addon.hrms_addon import bank_file_rules
+    from hrms_addon.hrms_addon import advance_payment_rules as advance
 
     doc = _bank_run(name)
     lines = _bank_lines(doc)
-    bank.refuse_problems(lines)
-    provide_binary_file("%s %s" % (bank.TITLE, doc.name), "xlsx",
-                        bank_file_rules.workbook(bank_file_rules.rows(lines)))
+    _refuse_empty(lines)
+    provide_binary_file(advance.file_name(doc.month, doc.year), "xlsx",
+                        advance.workbook(doc.month, advance.bank_rows(lines), advance.cash_rows(lines)))
+
+
+def _refuse_empty(lines):
+    """No file for a run that pays nobody."""
+    from hrms_addon.hrms_addon import advance_payment_rules as advance
+
+    if not advance.paid(lines):
+        frappe.throw(_("Nobody on this run is paid: no line qualifies and is ticked to pay."), title=_("Bank File"))
 
 
 @frappe.whitelist()

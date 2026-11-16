@@ -281,9 +281,13 @@ check('lines = [row.as_dict() for row in doc.get("employees") or [] if row.inclu
       "each line included that qualifies, as the run pays them, with the employee's branch and code")
 for name in ("bank_file_check", "bank_file"):
     check(re.search(r"@frappe\.whitelist\(\)\ndef %s\(name\):" % name, salary) is not None
-          and "bank.refuse_problems(lines)" in part_of(name), "salary_advances.%s, refused the same way" % name)
-check("bank_file_rules.workbook(bank_file_rules.rows(lines))" in part_of("bank_file"),
-      "the salary run's file is the same six columns")
+          and "_refuse_empty(lines)" in part_of(name) and "refuse_problems" not in part_of(name),
+          "salary_advances.%s: refused only when it pays nobody; a missing bank detail is left blank" % name)
+check("advance.workbook(doc.month, advance.bank_rows(lines), advance.cash_rows(lines))" in part_of("bank_file")
+      and "advance.file_name(doc.month, doc.year)" in part_of("bank_file"),
+      "the salary run's file is Luuka's own ADVANCE_PAYMENT workbook (Luuka, 16 Nov 2026)")
+check('"blank": bank_file_rules.problem_lines(bank_file_rules.problems(advance.by_bank(lines)),'
+      in part_of("bank_file_check"), "and its check says what is left blank")
 details = glue.split("def add_bank_details(lines):")[1].split("\ndef ")[0] if "def add_bank_details(lines):" in glue \
     else ""
 check('line["bank_branch"] = person.get(BRANCH)' in details and 'if not rules.compact(line.get("bank_code")):' in details,
