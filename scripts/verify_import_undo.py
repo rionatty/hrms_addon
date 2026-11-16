@@ -66,7 +66,26 @@ check(said[1] == "Not deleted, 12:" and said[2] == "REQ-00: linked" and said[11]
       and said[12] == "and 2 more." and said[13] == "Deleted records can be restored from Deleted Document."
       and len(said) == 14,
       "those that stayed, each with why, ten named and the rest counted", said)
-check(R.result_lines("X", 1, 0, [("A", "no")]) == ["Deleted 0 of the 1 X records this import made.", "Not deleted, 1:",
+held = [("REQ-99", "Cannot delete or cancel because Salary Advance Request REQ-99 is linked with Salary Advance "
+         "Processing RUN-2")]
+held += [("REQ-%02d" % i, "Cannot delete or cancel because Salary Advance Request REQ-%02d is linked with Salary "
+          "Advance Processing RUN-1" % i) for i in range(12)]
+held += [("REQ-77", "No permission to cancel REQ-77")]
+said = R.result_lines("Salary Advance Request", 20, 6, held)
+check(said == ["Deleted 6 of the 20 Salary Advance Request records this import made.", "Not deleted, 14:",
+               "12 linked with Salary Advance Processing RUN-1. Delete or cancel it first, then press Delete Imported "
+               "Records again.",
+               "1 linked with Salary Advance Processing RUN-2. Delete or cancel it first, then press Delete Imported "
+               "Records again.",
+               "REQ-77: No permission to cancel REQ-77",
+               "Deleted records can be restored from Deleted Document."],
+      "those another document holds are counted by that document, the one holding most first, with what to do; "
+      "the rest named with why (Luuka, 16 Nov 2026: 694 held by one run were ten long lines)", said)
+said = R.result_lines("X", 12, 0, [("REQ-%02d" % i, "x is linked with RUN-%02d" % i) for i in range(12)])
+check(said[2] == "1 linked with RUN-00. Delete or cancel it first, then press Delete Imported Records again."
+      and said[-1] == "and 2 more documents that hold some of them." and len(said) == 13,
+      "ten holders named, the rest counted", said)
+check(R.result_lines("X", 1, 0, [("A", "no")]) ==["Deleted 0 of the 1 X records this import made.", "Not deleted, 1:",
                                                     "A: no"],
       "nothing deleted: no word of restoring")
 print("rules: which imports, why a record stayed, the message")
@@ -91,6 +110,7 @@ frappe.whitelist = lambda *args, **kwargs: (lambda fn: fn) if not args or not ca
 frappe.throw = lambda message, title=None, *args, **kwargs: (_ for _ in ()).throw(Thrown(message))
 frappe.has_permission = lambda doctype, ptype="read", *args, **kwargs: (doctype, ptype) in SITE["perms"]
 frappe.clear_messages = lambda: SITE["events"].append(("clear",))
+frappe.conf = Row()
 
 
 def publish_progress(percent, title=None, doctype=None, docname=None, description=None, **kwargs):
@@ -161,12 +181,20 @@ def delete_doc(doctype, name, *args, **kwargs):
     SITE["delete_kwargs"].append(kwargs)
     rows = SITE["tables"][doctype]
     if name in SITE["linked"]:
-        raise Thrown('Cannot delete or cancel because <a href="#">RUN-1</a> &amp; RUN-2 link %s' % name)
+        # Frappe's own words (raise_link_exists_exception)
+        raise Thrown('Cannot delete or cancel because %s <a href="/desk/x/%s">%s</a> is linked with Salary Advance '
+                     'Processing <a href="#">RUN-1 &amp; 2</a> ' % (doctype, name, name))
     if rows[name]["docstatus"] == 1:
         raise Thrown("Submitted Record cannot be deleted. You must Cancel it first.")
+    if SITE["queued"] >= SITE["limit"]:
+        # Frappe asks the queue before taking the delete's clean-up job (background_jobs._check_queue_size)
+        raise Thrown("Too many queued background jobs (%d). Please retry after some time." % SITE["limit"])
     SITE["journal"].append((doctype, name, copy.deepcopy(rows[name])))
     del rows[name]
     SITE["events"].append(("delete", name))
+    # its clean-up job, delete_dynamic_links, waits on the default queue
+    SITE["queued"] += 1
+    SITE["most_queued"] = max(SITE["most_queued"], SITE["queued"])
 
 
 def get_all(doctype, filters=None, fields=None, order_by=None, pluck=None, limit_page_length=None, **kwargs):
@@ -187,12 +215,32 @@ frappe.get_doc, frappe.delete_doc, frappe.get_all = get_doc, delete_doc, get_all
 utils = types.ModuleType("frappe.utils")
 utils.__path__ = []
 utils.escape_html = html.escape
+utils.cint = lambda value: int(value or 0)
+
+
+class Queue:
+    @property
+    def count(self):
+        return SITE["queued"]
+
+
 jobs = types.ModuleType("frappe.utils.background_jobs")
 jobs.is_job_enqueued = lambda job_id: job_id in SITE["running"]
+jobs.MAX_QUEUED_JOBS = 500
+jobs.get_queue = lambda qtype, is_async=True: SITE["queues"].append(qtype) or Queue()
 utils.background_jobs = jobs
 sys.modules.update({"frappe": frappe, "frappe.utils": utils, "frappe.utils.background_jobs": jobs})
 G = load("import_undo")
 REQUEST = "Salary Advance Request"
+
+
+def sleep(seconds):
+    """The workers clear the queue while the deletion waits."""
+    SITE["slept"] += seconds
+    SITE["queued"] = max(0, SITE["queued"] - SITE["drain"] * seconds)
+
+
+G.time = types.SimpleNamespace(sleep=sleep)
 
 
 def site(**changes):
@@ -211,7 +259,7 @@ def site(**changes):
         tables={REQUEST: {"REQ-01": {"docstatus": 0}, "REQ-02": {"docstatus": 1}, "REQ-03": {"docstatus": 0},
                           "REQ-05": {"docstatus": 1}, "REQ-09": {"docstatus": 0}, "OTHER": {"docstatus": 0}}},
         linked=set(), no_cancel=set(), running=set(), jobs=[], events=[], journal=[], progress=[], said=[],
-        comments=[], reads=[], delete_kwargs=[])
+        comments=[], reads=[], delete_kwargs=[], queued=0, limit=550, drain=0, slept=0, most_queued=0, queues=[])
     for key, value in changes.items():
         if key == "run":
             SITE["run"].update(value)
@@ -278,8 +326,8 @@ check(SITE["delete_kwargs"] and all(not kwargs for kwargs in SITE["delete_kwargs
 check(SITE["progress"] == [(100.0, "Deleting Salary Advance Request", "REQ-01", None, None)],
       "the user sees the progress, to the end", SITE["progress"])
 message = ("Deleted 3 of the 4 Salary Advance Request records this import made.<br>Not deleted, 1:<br>"
-           "REQ-05: Cannot delete or cancel because RUN-1 &amp;amp; RUN-2 link REQ-05<br>"
-           "Deleted records can be restored from Deleted Document.")
+           "1 linked with Salary Advance Processing RUN-1 &amp;amp; 2. Delete or cancel it first, then press Delete "
+           "Imported Records again.<br>Deleted records can be restored from Deleted Document.")
 check(SITE["comments"] == [("Info", message)], "the import keeps a comment of it, escaped", SITE["comments"])
 check(SITE["said"] == [(message, "Delete Imported Records", "orange", True)],
       "and the user is told, wherever they are, orange when something stayed", SITE["said"])
@@ -297,6 +345,26 @@ G.delete_in_background("IMP-1")
 check([entry[0] for entry in SITE["progress"]] == [40.0, 80.0, 100.0] and SITE["said"][0][2] == "green"
       and SITE["tables"][REQUEST] == {},
       "many records: the progress every ten and at the end; all gone, green", SITE["progress"])
+site(drain=20)
+SITE["logs"] = [{"data_import": "IMP-1", "docname": "REQ-%03d" % number, "success": 1, "log_index": number}
+                for number in range(700)]
+SITE["tables"][REQUEST] = {"REQ-%03d" % number: {"docstatus": 0} for number in range(700)}
+G.delete_in_background("IMP-1")
+check(SITE["tables"][REQUEST] == {} and SITE["said"][0][2] == "green" and SITE["slept"] > 0
+      and SITE["most_queued"] <= 250 and SITE["queues"] == ["default"],
+      "700 records: each delete queues a clean-up job, and the deletion waits whenever that queue is half full, so "
+      "Frappe never refuses one (Luuka, 16 Nov 2026: 73 of 694 refused, \"Too many queued background jobs\")",
+      (len(SITE["tables"][REQUEST]), SITE["slept"], SITE["most_queued"], SITE["said"][:1]))
+site(queued=300)
+check(G._room(Queue()) == 600 and SITE["slept"] == 600,
+      "a queue that never empties holds the deletion ten minutes at most, then it goes on", SITE["slept"])
+site(queued=60, drain=5)
+frappe.conf["max_queued_jobs"] = 100
+waited = G._room(Queue())
+del frappe.conf["max_queued_jobs"]
+check(waited == 3 and SITE["queued"] == 45, "half of the site's own queue limit, when it sets one", (waited, SITE["queued"]))
+site(queued=249)
+check(G._room(Queue()) == 0 and SITE["slept"] == 0, "no wait below half the limit")
 print("the glue: which records, newest first, cancel then delete, each on its own, the progress and the message")
 
 # ── 3. The form and the hooks ─────────────────────────

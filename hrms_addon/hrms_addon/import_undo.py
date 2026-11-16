@@ -10,11 +10,14 @@ The records are those the import's log says it made (Data Import Log, success) t
 in the background, newest first, a submitted one cancelled first. Each is committed on its own, so a record that
 cannot go (another document links to it, or the user may not cancel or delete it) stays without stopping the rest.
 Each goes to Deleted Document, as Frappe's own delete does, so it can be restored. The user sees the progress and then
-a message, and the import keeps a comment of it.
+a message, and the import keeps a comment of it. Each delete queues a clean-up job, so the deletion waits whenever that
+queue is half full and never meets Frappe's limit (_room).
 
 Only for an import that inserted new records, and only for someone who may delete that document type. Every cancel
 and delete is the user's own, checked by Frappe as if done by hand.
 """
+
+import time
 
 import frappe
 from frappe import _
@@ -25,6 +28,8 @@ IMPORT = "Data Import"
 LOG = "Data Import Log"
 TITLE = "Delete Imported Records"
 JOB = "hrms_addon_import_undo::%s"
+# where Frappe's delete puts its clean-up job, delete_dynamic_links
+QUEUE = "default"
 
 
 @frappe.whitelist()
@@ -81,11 +86,14 @@ def still_there(run):
 def delete_in_background(data_import):
     """Deletes the records, each on its own, and tells the user how it went."""
     from frappe.utils import escape_html
+    from frappe.utils.background_jobs import get_queue
 
     run = frappe.get_doc(IMPORT, data_import)
     doctype, names = run.reference_doctype, still_there(run)
+    queue = get_queue(QUEUE)
     deleted, failed = 0, []
     for number, name in enumerate(names, 1):
+        _room(queue)
         try:
             doc = frappe.get_doc(doctype, name)
             if doc.docstatus == 1:
@@ -105,3 +113,17 @@ def delete_in_background(data_import):
     run.add_comment("Info", said)
     frappe.db.commit()
     frappe.msgprint(said, title=_(TITLE), indicator="orange" if failed else "green", realtime=True)
+
+
+def _room(queue):
+    """Waits while the queue Frappe's delete feeds is half full, so the next delete is never refused. Returns the
+    seconds waited."""
+    from frappe.utils import cint
+    from frappe.utils.background_jobs import MAX_QUEUED_JOBS
+
+    busy = rules.busy(cint(frappe.conf.get("max_queued_jobs")) or MAX_QUEUED_JOBS)
+    waited = 0
+    while queue.count >= busy and waited < rules.MOST_WAIT:
+        time.sleep(rules.PAUSE)
+        waited += rules.PAUSE
+    return waited
