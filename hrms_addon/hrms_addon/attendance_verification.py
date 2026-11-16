@@ -53,9 +53,6 @@ def sheet_validate(doc, method=None):
     before = doc.get_doc_before_save()
     old_state = before.get(approval.STATE_FIELD) if before else None
     new_state = doc.get(approval.STATE_FIELD) or approval.DRAFT
-    if old_state == approval.PENDING_GM and _header(before) != _header(doc):
-        # what the General Manager verifies is what HR sent
-        frappe.throw(_("Return the sheet to HR to change its branch, payroll or days."), title=_(DOCTYPE))
     if not before:
         # an amended sheet comes with everything its reopened one had (Amend copies even no_copy fields)
         for field in ("reopened_by", "reopened_on", "return_remarks"):
@@ -75,7 +72,7 @@ def sheet_validate(doc, method=None):
     if errors:
         frappe.throw("<br>".join(_(error) for error in errors), title=_(DOCTYPE))
     if new_state != approval.VERIFIED:
-        # the figures the General Manager verifies are those already on the sheet, unchanged (step_errors)
+        # the figures verified are those already on the sheet, unchanged (step_errors)
         _write(doc, fresh)
     if old_state != new_state and new_state != approval.DRAFT:
         doc.return_remarks = None
@@ -83,10 +80,6 @@ def sheet_validate(doc, method=None):
     for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, now_datetime(),
                                                 current).items():
         doc.set(field, value)
-    if doc.docstatus == 0:
-        doc.status = new_state
-    if old_state and old_state != new_state:
-        _tell_step(doc, old_state, new_state, before)
 
 
 HEADER = ("company", "branch", "pay_kind", "from_date", "to_date")
@@ -110,17 +103,24 @@ def _facts(doc, fresh, new_state):
 def sheet_before_submit(doc, method=None):
     """Verified: whatever submitted it, nothing is left to put right and the figures are those that were checked
     (a plain submit skips the steps, and refuse_plain_submit only stands while the workflow is there)."""
+    _may_verify(doc)
     fresh = doc.flags.get("ha_fresh") or _read(doc)
-    errors = approval.step_errors(approval.PENDING_GM, approval.VERIFIED, _facts(doc, fresh, approval.VERIFIED))
+    errors = approval.step_errors(approval.DRAFT, approval.VERIFIED, _facts(doc, fresh, approval.VERIFIED))
     if errors:
         frappe.throw("<br>".join(_(error) for error in errors), title=_(DOCTYPE))
-    if not doc.get("verified_by"):
-        doc.verified_by, doc.verified_on = frappe.session.user, now_datetime()
+    doc.verified_by, doc.verified_on = frappe.session.user, now_datetime()
     doc.status = approval.VERIFIED
 
 
+def _may_verify(doc):
+    """The branch's own HR Officer, or the HR Manager (approval.verifier_errors)."""
+    errors = approval.verifier_errors(frappe.session.user, frappe.get_roles(),
+                                      people.people_for(approval.HR_OFFICER, doc.branch), doc.branch)
+    if errors:
+        frappe.throw("<br>".join(_(error) for error in errors), frappe.PermissionError, title=_(DOCTYPE))
+
+
 def sheet_on_submit(doc, method=None):
-    people.withdraw(DOCTYPE, doc.name, people.people_for(approval.GM, doc.branch))
     users = {doc.get("prepared_by")} | set(people.hr_officers(doc.branch)) \
         | set(people.people_for(approval.PAYROLL_OFFICER, doc.branch))
     users.discard(frappe.session.user)
@@ -129,7 +129,8 @@ def sheet_on_submit(doc, method=None):
 
 
 def sheet_before_cancel(doc, method=None):
-    """Reopened: not once a slip has paid these days."""
+    """Reopened: by the branch's HR Officer, and not once a slip has paid these days."""
+    _may_verify(doc)
     paid = _paid_slips(doc)
     if paid:
         frappe.throw(_("Salary slips that paid these days are submitted: {0}. Cancel them before the sheet is "
@@ -143,25 +144,12 @@ def sheet_on_cancel(doc, method=None):
     drafts = _draft_slips(doc)
     users = {doc.get("prepared_by")} | set(people.hr_officers(doc.branch))
     users.discard(frappe.session.user)
-    message = _("{0} is reopened. Put the attendance right, then Amend the sheet and send it again.").format(doc.title)
+    message = _("{0} is reopened. Put the attendance right, then Amend the sheet and verify it again.").format(
+        doc.title)
     if drafts:
         message += " " + _("{0} draft salary slips were made from it: make them again once it is verified.").format(
             len(drafts))
     people.notify(sorted(user for user in users if user), DOCTYPE, doc.name, message)
-
-
-def _tell_step(doc, old_state, new_state, before):
-    """The General Manager is asked to verify; a return goes back to whoever prepared it and the branch's HR."""
-    gms = people.people_for(approval.GM, doc.branch)
-    if new_state == approval.PENDING_GM:
-        message = _("{0}: the attendance is ready for you to verify.").format(doc.title)
-        people.notify(gms, DOCTYPE, doc.name, message)
-        people.assign(DOCTYPE, doc.name, gms, message)
-    elif new_state == approval.DRAFT and old_state == approval.PENDING_GM:
-        people.withdraw(DOCTYPE, doc.name, gms)
-        users = {before.get("prepared_by") if before else None} | set(people.hr_officers(doc.branch))
-        people.notify(sorted(user for user in users if user), DOCTYPE, doc.name,
-                      _("{0} came back: {1}").format(doc.title, doc.get("return_remarks") or ""))
 
 
 def _clashes(doc):

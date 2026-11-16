@@ -59,8 +59,7 @@ ISSUE_ROWS = 500
 SETTING = "custom_branches_verify_attendance"
 
 VERIFIED_STATE = "Verified"
-WAITING_TEXT = {None: "not started", "": "not started", "Draft": "with HR",
-                "Pending General Manager": "waiting for the General Manager"}
+WAITING_TEXT = {None: "not started", "": "not started", "Draft": "waiting for its HR Officer to verify"}
 NAMES_SHOWN = 5
 
 
@@ -340,7 +339,7 @@ def lock_message(who, holding):
     days = [day for day, _sheet, _branch in holding]
     sheets = sorted({(branch or "", sheet) for _day, sheet, branch in holding})
     whose = ", ".join("%s (%s)" % (sheet, branch) if branch else sheet for branch, sheet in sheets)
-    return ("The attendance of %s on %s is verified on %s and cannot change. The General Manager reopens it first."
+    return ("The attendance of %s on %s is verified on %s and cannot change. Its HR Officer reopens it first."
             % (who, days_text(days), whose))
 
 
@@ -389,7 +388,7 @@ def gaps_message(gaps, waiting, verified_branches, fed=None):
             lines.append("%s: %s worked on days the Casual Hours Sheet gives, but are not on it. Put them on the "
                          "sheet, or take them off this payroll." % (branch, names_text(people)))
         elif branch in (verified_branches or ()):
-            lines.append("%s: %s not on its verified sheet. The General Manager reopens it, and it is verified "
+            lines.append("%s: %s not on its verified sheet. Its HR Officer reopens it, and it is verified "
                          "again." % (branch, names_text(people)))
         else:
             lines.append("%s: attendance not verified yet (%s)." % (branch, WAITING_TEXT.get(

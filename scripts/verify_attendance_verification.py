@@ -300,22 +300,22 @@ check(late and late["Kawempe"][0]["days"] == [D(2026, 10, 29)],
       "a day marked late, before the payroll's Start, needs its own verified sheet", late)
 check(not R.payroll_gaps(weekly_people, sheets, "2026-10-30", "2026-11-05", {"C1": []}),
       "somebody a weekly payroll pays no day is not stopped")
-lines = R.gaps_message(gaps, {"Matugga": "Pending General Manager"}, {"Kawempe"})
-check(lines == ["Matugga: attendance not verified yet (waiting for the General Manager).",
+lines = R.gaps_message(gaps, {"Matugga": "Draft"}, {"Kawempe"})
+check(lines == ["Matugga: attendance not verified yet (waiting for its HR Officer to verify).",
                 "No branch: Di. Set their branch, then verify their attendance there."],
       "the payroll's refusal: a line per branch, what its sheet waits for, and nobody without a branch", lines)
 check(R.gaps_message({"Matugga": gaps["Matugga"]}, {}, set()) == ["Matugga: attendance not verified yet (not started)."],
       "a branch with no sheet: not started")
-check(R.gaps_message({"Matugga": gaps["Matugga"]}, {"Matugga": "Draft"}, set())[0].endswith("(with HR)."),
-      "a branch whose sheet is a draft: with HR")
+check(R.gaps_message({"Matugga": gaps["Matugga"]}, {"Matugga": "Draft"}, set())[0].endswith(
+    "(waiting for its HR Officer to verify)."), "a branch whose sheet is a draft: waiting for its HR Officer")
 moved = R.gaps_message({"Kawempe": [{"employee": "E7", "employee_name": "New"}]}, {}, {"Kawempe"})
-check(moved == ["Kawempe: New not on its verified sheet. The General Manager reopens it, and it is verified again."],
+check(moved == ["Kawempe: New not on its verified sheet. Its HR Officer reopens it, and it is verified again."],
       "a branch verified without somebody who joined or moved in since: reopened and verified again", moved)
 many = [{"employee": "E%d" % n, "employee_name": "P%d" % n} for n in range(8)]
 check(R.names_text(many) == "P0, P1, P2, P3, P4 and 3 more", "a long list of names is cut short", R.names_text(many))
 status = R.branch_lines(people, sheets[:1], {"Matugga": "Draft"}, "2026-09-26", "2026-10-25")
 check([(row["branch"], row["people"], row["missing"], row["state"]) for row in status] == [
-    ("Kawempe", 2, 0, "Verified"), ("Matugga", 1, 1, "with HR"), ("", 1, 1, "No branch")],
+    ("Kawempe", 2, 0, "Verified"), ("Matugga", 1, 1, "waiting for its HR Officer to verify"), ("", 1, 1, "No branch")],
       "the payroll form's line per branch", status)
 check(status[0]["sheets"][0]["name"] == "HR-ATV-1", "with the sheet that verified it")
 part = R.branch_lines(people[:2] + [{"employee": "E9", "employee_name": "Ed", "branch": "Kawempe"}], sheets[:1], {},
@@ -341,65 +341,78 @@ print("a weekly sheet runs on from the last")
 spec = doctype("Attendance Verification")
 fields = fields_of(spec)
 options = fields["status"]["options"].split("\n")
-check(all(row["status"] in options for row in A.STATES), "every state is a Status option", options)
+check(all(row["status"] in options for row in A.STATES) and "Pending General Manager" not in options,
+      "every state is a Status option, and there is no General Manager step", options)
 check(all(not row["send_email"] for row in A.STATES), "no state emails a role: the branch's people are told by name")
 check({row["state"] for row in A.STATES if row.get("doc_status") == "1"} == {A.VERIFIED}, "Verified submits")
 check({row["state"] for row in A.STATES if row.get("doc_status") == "2"} == {A.REOPENED}, "Reopened cancels")
 moves = {(row["state"], row["action"], row["next_state"], row["allowed"]) for row in A.TRANSITIONS}
 check(moves == {
-    (A.DRAFT, A.SEND, A.PENDING_GM, "HR User"), (A.DRAFT, A.SEND, A.PENDING_GM, "HR Manager"),
-    (A.PENDING_GM, A.VERIFY, A.VERIFIED, "General Manager"), (A.PENDING_GM, A.VERIFY, A.VERIFIED, "HR Manager"),
-    (A.PENDING_GM, A.RETURN, A.DRAFT, "General Manager"), (A.PENDING_GM, A.RETURN, A.DRAFT, "HR Manager"),
-    (A.VERIFIED, A.REOPEN, A.REOPENED, "General Manager"), (A.VERIFIED, A.REOPEN, A.REOPENED, "HR Manager")},
-      "HR sends, the General Manager (or the HR Manager standing in) verifies, returns or reopens", moves)
-check(A.next_states(A.DRAFT, ["HR User"]) == [(A.SEND, A.PENDING_GM)] and not A.next_states(A.PENDING_GM, ["HR User"]),
-      "HR may not verify")
+    (A.DRAFT, A.VERIFY, A.VERIFIED, "HR User"), (A.DRAFT, A.VERIFY, A.VERIFIED, "HR Manager"),
+    (A.VERIFIED, A.REOPEN, A.REOPENED, "HR User"), (A.VERIFIED, A.REOPEN, A.REOPENED, "HR Manager")},
+      "the branch's HR Officer, or the HR Manager, verifies and reopens: no General Manager step (Luuka, 16 Nov 2026: "
+      "\"attendace verification should be done by the HR officer for each branch\")", moves)
+check(A.next_states(A.DRAFT, ["HR User"]) == [(A.VERIFY, A.VERIFIED)] and not A.next_states(A.DRAFT, ["General Manager"]),
+      "HR verifies; the General Manager no longer does")
 check(set(A.ACTIONS) == {row["action"] for row in A.TRANSITIONS}, "every action is used")
 perms = {row["role"]: row for row in spec["permissions"]}
 for row in A.STATES:
     check(perms.get(row["allow_edit"], {}).get("write"), "%s edits %s: it may write" % (row["allow_edit"], row["state"]))
-check(perms["General Manager"].get("submit") and perms["General Manager"].get("cancel"),
-      "the General Manager's Verify submits and Reopen cancels")
-check(not perms["HR User"].get("submit") and not perms["HR User"].get("cancel"), "HR neither submits nor cancels")
+check(perms["HR User"].get("submit") and perms["HR User"].get("cancel"),
+      "the HR Officer's Verify submits and Reopen cancels")
+check(perms["General Manager"].get("read") and not perms["General Manager"].get("write")
+      and not perms["General Manager"].get("submit"), "the General Manager reads it, no more")
 check(perms["Payroll Officer"].get("read") and not perms["Payroll Officer"].get("write"), "payroll reads it")
-check(A.PERMISSIONS == {A.DOCTYPE: {"General Manager": ("read", "write", "submit", "cancel", "print", "report")}},
-      "and the site grants the General Manager the same")
+check(A.PERMISSIONS == {A.DOCTYPE: {"HR User": ("read", "write", "submit", "cancel", "print", "report")}},
+      "and the site grants the HR Officer the same")
+check(A.verifier_errors("hro.k@luuka", ["HR User"], ["hro.k@luuka"], "Kawempe") == []
+      and A.verifier_errors("hrm@luuka", ["HR User", "HR Manager"], ["hro.k@luuka"], "Kawempe") == []
+      and A.verifier_errors("Administrator", [], [], "Kawempe") == [],
+      "the branch's own HR Officer verifies; the HR Manager for any branch")
+check(A.verifier_errors("hro.m@luuka", ["HR User"], ["hro.k@luuka"], "Kawempe")
+      == ["Only the HR Officer of Kawempe, or the HR Manager, verifies or reopens its attendance."]
+      and A.verifier_errors("gm@luuka", ["General Manager"], ["hro.k@luuka"], "Kawempe"),
+      "another branch's HR Officer may not, nor the General Manager")
 
 ready = {"people": 3, "issues": [], "changed": [], "sheet_errors": []}
-expect("sent with nothing to put right", A.step_errors(A.DRAFT, A.PENDING_GM, ready))
-expect("sent with a day not marked", A.step_errors(A.DRAFT, A.PENDING_GM, dict(ready, issues=["Ann, 1 Oct: Not marked"])),
+expect("verified with nothing to put right", A.step_errors(A.DRAFT, A.VERIFIED, ready))
+expect("verified with a day not marked",
+       A.step_errors(A.DRAFT, A.VERIFIED, dict(ready, issues=["Ann, 1 Oct: Not marked"])),
        "Put these right first, then Get Attendance again: Ann, 1 Oct: Not marked")
-expect("sent with nobody on it", A.step_errors(A.DRAFT, A.PENDING_GM, dict(ready, people=0)), "Nobody is on this sheet")
-expect("sent before its last day is over", A.step_errors(A.DRAFT, A.PENDING_GM,
-                                                         dict(ready, sheet_errors=["The sheet runs to 25 Oct"])),
+expect("verified with nobody on it", A.step_errors(A.DRAFT, A.VERIFIED, dict(ready, people=0)),
+       "Nobody is on this sheet")
+expect("verified before its last day is over",
+       A.step_errors(A.DRAFT, A.VERIFIED, dict(ready, sheet_errors=["The sheet runs to 25 Oct"])),
        "The sheet runs to 25 Oct")
-expect("verified as sent", A.step_errors(A.PENDING_GM, A.VERIFIED, ready))
-expect("verified after the attendance moved", A.step_errors(A.PENDING_GM, A.VERIFIED, dict(ready, changed=["Ann"])),
+expect("verified after the attendance moved", A.step_errors(A.DRAFT, A.VERIFIED, dict(ready, changed=["Ann"])),
        "changed after these figures were read (Ann)")
-expect("verified with something new to put right",
-       A.step_errors(A.PENDING_GM, A.VERIFIED, dict(ready, issues=["Bob, 3 Oct: Leave waiting for approval"])),
-       "Put these right first")
-expect("sent while the attendance moves is fine: it is read again as it goes",
-       A.step_errors(A.DRAFT, A.PENDING_GM, dict(ready, changed=["Ann"])))
-expect("returned without a word", A.step_errors(A.PENDING_GM, A.DRAFT, {}), "Return Remarks")
-expect("returned with what to put right", A.step_errors(A.PENDING_GM, A.DRAFT, {"return_remarks": "Kato's 3rd"}))
 expect("saved where it stands", A.step_errors(A.DRAFT, A.DRAFT, dict(ready, issues=["x"])))
-long = A.step_errors(A.DRAFT, A.PENDING_GM, dict(ready, issues=["line %d" % n for n in range(25)]))
+expect("reopened: nothing to check", A.step_errors(A.VERIFIED, A.REOPENED, dict(ready, issues=["x"])))
+long = A.step_errors(A.DRAFT, A.VERIFIED, dict(ready, issues=["line %d" % n for n in range(25)]))
 check("and 15 more" in long[0] and "line 9" in long[0] and "line 10" not in long[0],
       "a long list of what to put right is cut short", long)
 
 now = "2026-10-26 09:00"
-stamps = A.compute_stamps(A.DRAFT, A.PENDING_GM, "hro@luuka", now, {})
+stamps = A.compute_stamps(A.DRAFT, A.VERIFIED, "hro@luuka", now, {})
 check(stamps["prepared_by"] == "hro@luuka" and stamps["prepared_on"] == now and not stamps["verified_by"],
-      "sent: HR's signature", stamps)
-stamps = A.compute_stamps(A.PENDING_GM, A.VERIFIED, "gm@luuka", now, stamps)
-check(stamps["prepared_by"] == "hro@luuka" and stamps["verified_by"] == "gm@luuka", "verified: the GM's too", stamps)
-check(A.compute_stamps(A.PENDING_GM, A.DRAFT, "gm@luuka", now, stamps) == dict.fromkeys(A.ALL_STAMP_FIELDS),
-      "returned: the signatures go, as the sheet is read again")
+      "verified: HR's signature as it read the sheet (verified_by is stamped as it is submitted)", stamps)
 check(A.compute_stamps(A.DRAFT, A.DRAFT, "x", now, {"prepared_by": "a"})["prepared_by"] == "a", "a save keeps them")
-check(A.compute_stamps(None, A.DRAFT, "x", now, {"prepared_by": "a"}) == dict.fromkeys(A.ALL_STAMP_FIELDS),
-      "a new sheet has none")
-print("the steps: HR sends, the General Manager verifies or returns with a reason, and reopens")
+check(A.compute_stamps(None, A.DRAFT, "x", now, {"prepared_by": "a", "verified_by": "b"})
+      == dict.fromkeys(A.ALL_STAMP_FIELDS), "a new sheet, an amended one too, has none")
+glue_source = read("hrms_addon", "hrms_addon", "attendance_verification.py")
+submit_part = glue_source.split("def sheet_before_submit(", 1)[1].split("\ndef ", 1)[0]
+cancel_part = glue_source.split("def sheet_before_cancel(", 1)[1].split("\ndef ", 1)[0]
+check(submit_part.find("_may_verify(doc)") >= 0 and cancel_part.find("_may_verify(doc)") >= 0
+      and "doc.verified_by, doc.verified_on = frappe.session.user, now_datetime()" in submit_part
+      and "approval.verifier_errors(frappe.session.user, frappe.get_roles()," in glue_source
+      and "people.people_for(approval.HR_OFFICER, doc.branch), doc.branch)" in glue_source,
+      "Verify and Reopen, by whatever path, only by the branch's HR Officer or the HR Manager, who signs it")
+patch = read("hrms_addon", "patches", "v1_0", "attendance_verification_hr_officer.py")
+check("hrms_addon.patches.v1_0.attendance_verification_hr_officer" in read("hrms_addon", "patches.txt")
+      and 'WAS_WAITING = "Pending General Manager"' in patch
+      and '{"workflow_state": "Draft", "status": "Draft"}' in patch and '"status", "Cancelled"' in patch,
+      "a sheet left with the General Manager goes back to Draft on migrate, its to-do closed")
+print("the steps: the branch's HR Officer verifies and reopens; the HR Manager may for any branch")
 
 # ── 8. The doctypes ───────────────────────────────────────────────────
 check(spec["is_submittable"] == 1 and spec["autoname"] == "HR-ATV-.YYYY.-.#####" and spec["title_field"] == "title",
@@ -536,7 +549,7 @@ check(said == ["Matugga: Hugo Clock worked on days the Casual Hours Sheet gives,
                "sheet, or take them off this payroll."],
       "a weekly payroll paying a casual the plant's sheet leaves out says so, and what to do", said)
 check(R.gaps_message({"Matugga": [{"employee": "E3", "employee_name": "Cy", "days": [D(2026, 11, 2)]}]}, {},
-                     {"Matugga"}) == ["Matugga: Cy not on its verified sheet. The General Manager reopens it, and it "
+                     {"Matugga"}) == ["Matugga: Cy not on its verified sheet. Its HR Officer reopens it, and it "
                                       "is verified again."],
       "elsewhere as before")
 check("return rules.gaps_message(gaps, waiting, {sheet.branch for sheet in sheets}, _fed(doc, gaps, first, last))"

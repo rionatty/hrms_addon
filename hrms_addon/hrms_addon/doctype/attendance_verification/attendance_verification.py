@@ -1,7 +1,7 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""A branch's attendance for a payroll, signed off by its General Manager before payroll pays it
+"""A branch's attendance for a payroll, signed off by its HR Officer before payroll pays it
 (attendance_verification.py)."""
 
 from frappe.model.document import Document

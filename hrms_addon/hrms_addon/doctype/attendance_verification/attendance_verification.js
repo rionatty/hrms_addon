@@ -1,7 +1,7 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 
-// A branch's attendance for a payroll, signed off by its General Manager before payroll pays it
+// A branch's attendance for a payroll, signed off by its HR Officer before payroll pays it
 // (attendance_verification.py). The figures are read again on every save while the sheet is with HR: Get Attendance
 // saves. A monthly sheet's Month is picked from the company's open payroll months and its dates follow it; a weekly
 // sheet's days run on from the branch's last weekly sheet.
@@ -24,7 +24,7 @@ frappe.ui.form.on("Attendance Verification", {
 		ha_verify_intro(frm);
 		ha_verify_pages(frm);
 		ha_verify_hours_column(frm);
-		// whoever may save it now: HR while it is a draft, the General Manager while it waits
+		// whoever may save it now: HR, while it is a draft
 		if (frm.doc.docstatus === 0 && !frappe.workflow.is_read_only(frm.doctype, frm.docname)) {
 			frm.add_custom_button(__("Get Attendance"), () => frm.save());
 		}
@@ -338,10 +338,8 @@ function ha_verify_intro(frm) {
 			]),
 			"orange"
 		);
-	} else if (doc.workflow_state === "Pending General Manager") {
-		frm.set_intro(__("Waiting for the General Manager to verify."), "blue");
 	} else if (cint(doc.people)) {
-		frm.set_intro(__("Nothing to put right. Send it to the General Manager from Actions."), "blue");
+		frm.set_intro(__("Nothing to put right. Verify it from Actions."), "blue");
 	} else {
 		frm.set_intro("");
 	}

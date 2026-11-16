@@ -2,7 +2,7 @@
  "actions": [],
  "autoname": "HR-ATV-.YYYY.-.#####",
  "creation": "2026-11-06 12:00:00.000000",
- "description": "A branch's attendance for a payroll, signed off by its General Manager before payroll pays it.",
+ "description": "A branch's attendance for a payroll, signed off by its HR Officer before payroll pays it.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -120,7 +120,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Draft\nPending General Manager\nVerified\nReopened",
+   "options": "Draft\nVerified\nReopened",
    "default": "Draft",
    "read_only": 1,
    "in_list_view": 1,
@@ -337,7 +337,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-12 12:00:00.000000",
+ "modified": "2026-11-16 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Attendance Verification",
@@ -385,14 +385,13 @@
    "export": 1,
    "print": 1,
    "email": 1,
-   "share": 1
+   "share": 1,
+   "submit": 1,
+   "cancel": 1
   },
   {
    "role": "General Manager",
    "read": 1,
-   "write": 1,
-   "submit": 1,
-   "cancel": 1,
    "report": 1,
    "print": 1
   },

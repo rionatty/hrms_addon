@@ -352,7 +352,7 @@ CARDS = {
             ("Hourly Rates", "Hourly Rate", DOCTYPE),
             ("Output Pay Settings", "Output Pay Settings", DOCTYPE),
         ]),
-        # each branch's attendance, signed off by its General Manager before
+        # each branch's attendance, signed off by its HR Officer before
         # the payroll pays it (attendance_verification.py): a step of the
         # payroll, so on its page rather than Shift & Attendance (Luuka,
         # 8 Nov 2026). Then pay owed from an earlier month, and a slip put
