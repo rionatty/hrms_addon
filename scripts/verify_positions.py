@@ -510,6 +510,28 @@ for name in PAPER:
         fail.append("%s has no Connections of its own (%s_dashboard.py)" % (name, folder))
 print("wiring: the workflow and roles on migrate, the jinja method, the daily job, the patch, the way in")
 
+# Luuka, 16 Nov 2026: an error about a certificate on a position change, "but i cant see the field". The preamble's
+# education and experience show for a promotion only, so rows left from when it was one are taken off any other change,
+# on the server and in the form before Frappe checks the required fields.
+validate = positions.split("def change_validate(", 1)[1].split("\ndef ", 1)[0]
+if 'if doc.docstatus == 0 and doc.get("change_type") != rules.PROMOTION:' not in validate \
+        or 'doc.set("education", [])' not in validate or 'doc.set("experience", [])' not in validate:
+    fail.append("a change that is not a promotion keeps no education or experience rows")
+change_js = read("hrms_addon", "hrms_addon", "doctype", "employee_position_change", "employee_position_change.js")
+if 'if (frm.doc.docstatus !== 0 || frm.doc.change_type === "Promotion") return;' not in change_js \
+        or 'for (const table of ["education", "experience"]) {' not in change_js \
+        or "validate: ha_position_preamble_rows," not in change_js \
+        or "change_type(frm) {\n\t\tha_position_preamble_rows(frm);" not in change_js:
+    fail.append("the form takes them off as the change type moves away from Promotion, and before it saves")
+change_json = json.loads(read("hrms_addon", "hrms_addon", "doctype", "employee_position_change",
+                              "employee_position_change.json"))
+sections = {field["fieldname"]: field.get("depends_on") for field in change_json["fields"]
+            if field["fieldtype"] == "Section Break"}
+if sections.get("education_section") != 'eval:doc.change_type == "Promotion"' \
+        or sections.get("experience_section") != 'eval:doc.change_type == "Promotion"':
+    fail.append("the education and experience sections are a promotion's only: %s" % sections)
+print("a change that is not a promotion: no rows left in the sections it does not show")
+
 print()
 if fail:
     print("FAILURES:")

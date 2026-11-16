@@ -1,6 +1,18 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 
+// The preamble's education and experience (sections 4 and 5) are a promotion's: shown only for one, so taken off any
+// other change, as positions.change_validate does on the server.
+function ha_position_preamble_rows(frm) {
+	if (frm.doc.docstatus !== 0 || frm.doc.change_type === "Promotion") return;
+	for (const table of ["education", "experience"]) {
+		if ((frm.doc[table] || []).length) {
+			frm.clear_table(table);
+			frm.refresh_field(table);
+		}
+	}
+}
+
 frappe.ui.form.on("Employee Position Change", {
 	refresh(frm) {
 		if (frm.doc.docstatus === 0 && frm.doc.employee && frm.doc.change_type === "Promotion") {
@@ -55,9 +67,13 @@ frappe.ui.form.on("Employee Position Change", {
 		}
 	},
 	change_type(frm) {
+		ha_position_preamble_rows(frm);
 		frm.trigger("show_letter");
 		frm.trigger("employee");
 	},
+	// before Frappe checks the required fields: a row left in a section the form no longer shows would ask for a
+	// field nobody can see (Luuka, 16 Nov 2026: an error about a certificate, "but i cant see the field")
+	validate: ha_position_preamble_rows,
 	employee(frm) {
 		if (!frm.doc.employee) return;
 		frappe.db.get_value("Employee", frm.doc.employee, ["designation", "reports_to"]).then((r) => {

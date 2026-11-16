@@ -37,6 +37,11 @@ LETTER_ROLE_SETTING = "executive_director"
 
 # ── 1. The form ───────────────────────────────────────────────────────
 def change_validate(doc, method=None):
+    if doc.docstatus == 0 and doc.get("change_type") != rules.PROMOTION:
+        # the preamble's education and experience are a promotion's, and its form shows them for one only: rows left
+        # from when it was one would ask for a field nobody can see (Luuka, 16 Nov 2026)
+        doc.set("education", [])
+        doc.set("experience", [])
     _fill_current(doc)
     doc.new_salary_in_words = rules.in_words(doc.get("new_salary"))
     old_state, new_state = _check_step(doc)
