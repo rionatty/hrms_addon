@@ -237,6 +237,35 @@ def back_on(to_date, worked_days):
     return after[0] if after else None
 
 
+def report_back_errors(facts):
+    """Problems with HR marking somebody back from a leave.
+
+    facts: "docstatus", "status", "reported_back", "last" (the leave's last
+    day, or its extension's), "back" (the day back), "today".
+    """
+    if facts.get("docstatus") != 1 or facts.get("status") != "Approved":
+        return ["Only an approved leave is marked reported back."]
+    if facts.get("reported_back"):
+        return ["This leave is already marked reported back."]
+    last, back, today = _date(facts.get("last")), _date(facts.get("back")), _date(facts.get("today"))
+    if not back:
+        return ["Give the day they reported back."]
+    if today and back > today:
+        return ["%s is still to come." % _day(back)]
+    if last and back <= last:
+        return ["The leave runs to %s. Back before then, the leave is ended early (End Early)." % _day(last)]
+    return []
+
+
+def days_late(last, back):
+    """The days missed between a leave's last day and the day back: none
+    when back the day after."""
+    last, back = _date(last), _date(back)
+    if not last or not back:
+        return 0
+    return max((back - last).days - 1, 0)
+
+
 def overdue_days(to_date, today, reported_back=False, extended_to=None, after_days=1):
     """How many days somebody is overdue from a leave: the days past its
     last day (or the last day of its extension) with nobody having said,

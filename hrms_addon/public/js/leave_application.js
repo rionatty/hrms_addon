@@ -31,9 +31,30 @@ frappe.ui.form.on("Leave Application", {
 						})
 				);
 			}
-			if (!frm.doc.custom_reported_back) {
+			// written by the server: an approved leave's Reported Back is not a field the form saves
+			// (leave_follow.mark_reported_back)
+			if (!frm.doc.custom_reported_back && frappe.user.has_role(["HR User", "HR Manager"])) {
 				frm.add_custom_button(__("Mark Reported Back"), () =>
-					frm.set_value("custom_reported_back", 1).then(() => frm.save("Update"))
+					frappe.prompt(
+						[
+							{
+								fieldname: "back_on",
+								fieldtype: "Date",
+								label: __("Reported Back On"),
+								reqd: 1,
+								default: frappe.datetime.get_today(),
+							},
+						],
+						(values) =>
+							frappe
+								.xcall("hrms_addon.hrms_addon.leave_follow.mark_reported_back", {
+									name: frm.doc.name,
+									back_on: values.back_on,
+								})
+								.then(() => frm.reload_doc()),
+						__("Mark Reported Back"),
+						__("Mark")
+					)
 				);
 			}
 			frm.trigger("after_approval");
@@ -107,6 +128,15 @@ frappe.ui.form.on("Leave Application", {
 		}
 		if (frm.doc.docstatus === 1 && frm.doc.custom_overstay_days && !frm.doc.custom_reported_back) {
 			frm.set_intro(__("{0} day(s) overdue from this leave.", [frm.doc.custom_overstay_days]), "red");
+		}
+		if (frm.doc.docstatus === 1 && frm.doc.custom_reported_back && frm.doc.custom_reported_back_on) {
+			const on = frappe.datetime.str_to_user(frm.doc.custom_reported_back_on);
+			frm.set_intro(
+				frm.doc.custom_overstay_days
+					? __("Reported back on {0}, {1} day(s) late.", [on, frm.doc.custom_overstay_days])
+					: __("Reported back on {0}.", [on]),
+				frm.doc.custom_overstay_days ? "orange" : "green"
+			);
 		}
 	},
 	// Part 2 of the form, said once at the top: what has been earned, what

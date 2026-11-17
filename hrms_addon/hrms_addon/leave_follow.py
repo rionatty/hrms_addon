@@ -18,6 +18,8 @@
                      of its own for the further days, approved as any is.
                      watch_returns (daily): the clock says who is back,
                      and who is not is counted as overdue.
+                     mark_reported_back: HR say who is back, for
+                     somebody the clock does not see.
 
 leave.py calls in here from the Leave Application's own events, so the
 form has one set of doc events.
@@ -415,6 +417,41 @@ def extend(name, new_to, reason):
     return extension.name
 
 
+def _last_day(name, to_date):
+    """A leave's last day, or the last day of a leave that extends it,
+    approved or still being decided."""
+    further = frappe.get_all(APPLICATION, filters={"custom_extends": name, "docstatus": ["<", 2],
+                                                   "custom_leave_status": ["not in", ["Rejected", "Cancelled"]]},
+                             fields=["to_date"], order_by="to_date desc", limit=1)
+    return getdate(further[0].to_date) if further else getdate(to_date)
+
+
+@frappe.whitelist(methods=["POST"])
+def mark_reported_back(name, back_on=None):
+    """HR mark somebody back from an approved leave, on the day they say,
+    today unless given. Written straight onto the submitted leave: Reported
+    Back is not a field the form changes once the leave is approved, so the
+    button that saved it changed nothing (Luuka, 16 Nov 2026: "Leave
+    Application doesnt allow edits after submition"). The days overdue are
+    counted as the clock's marking counts them (watch_returns)."""
+    _only_hr()
+    doc = frappe.get_doc(APPLICATION, name)
+    doc.check_permission("read")
+    back = getdate(back_on or today())
+    last = _last_day(doc.name, doc.to_date)
+    errors = rules.report_back_errors({
+        "docstatus": doc.docstatus, "status": doc.get("status"), "reported_back": cint(doc.get("custom_reported_back")),
+        "last": last, "back": back, "today": today()})
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(APPLICATION))
+    doc.db_set({"custom_reported_back": 1, "custom_reported_back_on": back,
+                "custom_overstay_days": rules.days_late(last, back)})
+    doc.add_comment("Info", _("Reported back on {0}.").format(frappe.utils.format_date(back)))
+    # what the daily check asked of HR is done
+    people.withdraw(APPLICATION, doc.name, people.hr_officers(doc.get("custom_branch"), doc.get("department")))
+    return str(back)
+
+
 def watch_returns():
     """Daily, for each approved leave that has run out with nobody marked
     back: the clock is asked. Somebody at work after the last day is back,
@@ -430,11 +467,7 @@ def watch_returns():
             filters={"docstatus": 1, "status": "Approved", "custom_reported_back": ["!=", 1], "to_date": ["<", now]},
             fields=["name", "employee", "employee_name", "to_date", "custom_branch", "department",
                     "custom_overstay_days", "custom_overstay_told"]):
-        # a leave that extends it, approved or still being decided
-        further = frappe.get_all(APPLICATION, filters={"custom_extends": row.name, "docstatus": ["<", 2],
-                                                       "custom_leave_status": ["not in", ["Rejected", "Cancelled"]]},
-                                 fields=["to_date"], order_by="to_date desc", limit=1)
-        last = getdate(further[0].to_date) if further else getdate(row.to_date)
+        last = _last_day(row.name, row.to_date)
         if last >= now:
             continue
         seen = frappe.get_all("Attendance", filters={"employee": row.employee, "docstatus": 1,
@@ -448,7 +481,7 @@ def watch_returns():
         if back:
             frappe.db.set_value(APPLICATION, row.name, {
                 "custom_reported_back": 1, "custom_reported_back_on": back,
-                "custom_overstay_days": max((back - last).days - 1, 0)}, update_modified=False)
+                "custom_overstay_days": rules.days_late(last, back)}, update_modified=False)
             people.withdraw(APPLICATION, row.name, hr)
             out["back"].append(row.name)
             continue

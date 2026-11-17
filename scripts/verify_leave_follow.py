@@ -165,7 +165,24 @@ for label, today, more, want in (
     ("switched off", "2026-11-28", {"after_days": 0}, 0),
 ):
     same("overdue: %s" % label, R.overdue_days("2026-11-22", today, **more), want)
-print("after approval: ended early with the days given back, extended from the day after, overdue by the clock")
+# Luuka, 16 Nov 2026: Mark Reported Back saved a field an approved leave does not save. HR's mark is the server's.
+BACK = {"docstatus": 1, "status": "Approved", "reported_back": 0, "last": "2026-11-22", "back": "2026-11-25",
+        "today": "2026-11-26"}
+expect("HR marking somebody back", R.report_back_errors(BACK))
+expect("back the day after", R.report_back_errors(dict(BACK, back="2026-11-23")))
+expect("back today", R.report_back_errors(dict(BACK, back="2026-11-26")))
+expect("on a day to come", R.report_back_errors(dict(BACK, back="2026-11-27")), "27 Nov 2026 is still to come.")
+expect("on the leave's last day", R.report_back_errors(dict(BACK, back="2026-11-22")), "runs to 22 Nov 2026")
+expect("with no day", R.report_back_errors(dict(BACK, back=None)), "Give the day they reported back.")
+expect("twice", R.report_back_errors(dict(BACK, reported_back=1)), "already marked reported back")
+for label, kind in (("a draft", {"docstatus": 0}), ("a refused leave", {"status": "Rejected"}),
+                    ("a cancelled leave", {"docstatus": 2})):
+    expect("marking %s back" % label, R.report_back_errors(dict(BACK, **kind)), "Only an approved leave")
+for label, back, want in (("the day after", "2026-11-23", 0), ("two days after", "2026-11-24", 1),
+                          ("a week after", "2026-11-29", 6), ("no day", None, 0)):
+    same("days late, back %s" % label, R.days_late("2026-11-22", back), want)
+print("after approval: ended early with the days given back, extended from the day after, overdue by the clock, "
+      "marked back by HR")
 
 # ── 4. the glue, and the wiring ───────────────────────────────────────
 glue = read("hrms_addon", "hrms_addon", "leave_follow.py")
@@ -200,10 +217,20 @@ for needle, why in (
     ("overdue = rules.overdue_days(row.to_date, now, False, last, kept.overdue_after_days)", "and who is overdue"),
     ('"custom_reported_back": ["!=", 1]', "only a leave nobody is back from is watched"),
     ('values["custom_overstay_told"] = 1', "HR and the supervisor are told once"),
+    ('"custom_overstay_days": rules.days_late(last, back)}, update_modified=False)', "the clock counts the days late"),
+    ("        last = _last_day(row.name, row.to_date)\n", "to the leave's last day, or its extension's"),
+    ("    _only_hr()\n    doc = frappe.get_doc(APPLICATION, name)\n    doc.check_permission(\"read\")\n"
+     "    back = getdate(back_on or today())\n    last = _last_day(doc.name, doc.to_date)\n"
+     "    errors = rules.report_back_errors({", "HR mark somebody back, today unless given, judged by the rules"),
+    ('    doc.db_set({"custom_reported_back": 1, "custom_reported_back_on": back,\n'
+     '                "custom_overstay_days": rules.days_late(last, back)})',
+     "written straight onto the approved leave, the days late counted as the clock counts them"),
+    ('    doc.add_comment("Info", _("Reported back on {0}.")', "said on the leave's timeline"),
+    ("    people.withdraw(APPLICATION, doc.name, people.hr_officers(", "and HR's to-do on it closed"),
 ):
     if needle not in glue:
         fail.append("leave_follow.py: %s (%r not found)" % (why, needle))
-for name in ("end_early", "extend"):
+for name in ("end_early", "extend", "mark_reported_back"):
     if not re.search(r'@frappe\.whitelist\(methods=\["POST"\]\)\ndef %s\(' % name, glue):
         fail.append("leave_follow.%s changes something: a whitelisted POST method" % name)
 for needle, why in (
@@ -267,9 +294,16 @@ for needle, why in (
     ('options: ["Returned Early", "Recalled"],', "it asks which"),
     ("frappe.utils.escape_html(frm.doc.custom_cover)", "the cover is shown, escaped"),
     ("frm.doc.custom_overstay_days && !frm.doc.custom_reported_back", "and who is overdue"),
+    ('"hrms_addon.hrms_addon.leave_follow.mark_reported_back"', "Mark Reported Back asks the server"),
+    ('if (!frm.doc.custom_reported_back && frappe.user.has_role(["HR User", "HR Manager"])) {',
+     "and is HR's, until somebody is back"),
+    ("default: frappe.datetime.get_today(),", "on the day asked, today unless changed"),
+    ('__("Reported back on {0}, {1} day(s) late.", [on, frm.doc.custom_overstay_days])', "and says when they came back"),
 ):
     if needle not in form:
         fail.append("leave_application.js: %s (%r not found)" % (why, needle))
+if 'frm.set_value("custom_reported_back", 1)' in form or 'frm.save("Update")' in form:
+    fail.append("leave_application.js: an approved leave's Reported Back is not saved from the form")
 tree = ast.parse(read("hrms_addon", "hooks.py"))
 if "hrms_addon.hrms_addon.leave.daily" not in hooks:
     fail.append("the leave watches run from the daily job")
