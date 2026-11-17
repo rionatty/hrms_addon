@@ -174,6 +174,7 @@ def run_validate(doc, method=None):
     _fill_period(doc, s)
     if doc.docstatus == 0:
         doc.flags.saved_amounts = _saved_amounts(doc)
+        _may_set_amounts(doc)
         for row in doc.get("employees") or []:
             _work_out(row, doc, s)
         _sync_plants(doc)
@@ -226,7 +227,7 @@ def _work_out(row, doc, s):
                                                          "amount"], as_dict=True) \
         if row.get("request") else None
     entitlement = rules.entitled(rules.SALARY_ADVANCE, row.gross_pay, row.pay_category, s)
-    # the Payroll Officer may set the amount (rules.kept_amount); the allowance still holds below
+    # HR may set the amount (rules.kept_amount, _may_set_amounts); the allowance still holds below
     worked_out = rules.line_amount(entitlement, request.amount if request else 0)
     row.amount, row.amount_adjusted = rules.kept_amount(worked_out, row.get("amount"), _was(doc, row),
                                                         row.get("amount_adjusted"))
@@ -264,6 +265,18 @@ def _saved_amounts(doc):
 
 def _was(doc, row):
     return (doc.flags.saved_amounts or {}).get(row.get("name"))
+
+
+def _may_set_amounts(doc):
+    """A line's amount is set by hand by the HR Officer or the HR Manager (Luuka, 17 Nov 2026): anybody else saving a
+    line with another amount than was saved is refused, before the run works anything out."""
+    if set(frappe.get_roles()) & set(rules.AMOUNT_SETTERS):
+        return
+    changed = [row.get("employee_name") or row.get("employee") for row in doc.get("employees") or []
+               if rules.amount_changed(row.get("amount"), _was(doc, row))]
+    if changed:
+        frappe.throw(_("Only the HR Officer or the HR Manager sets a line's amount by hand: {0}.").format(
+            ", ".join(changed)), frappe.PermissionError, title=_(RUN))
 
 
 def _marked_days(employee, start, end):

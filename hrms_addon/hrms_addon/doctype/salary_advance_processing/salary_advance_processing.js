@@ -27,6 +27,12 @@ frappe.ui.form.on("Salary Advance Processing", {
 		if (!frm.doc.month) frm.set_value("month", MONTHS[today.getMonth()]);
 	},
 	refresh(frm) {
+		// a line's amount is set by hand by the HR Officer or the HR Manager (salary_advances._may_set_amounts)
+		frm.fields_dict.employees.grid.update_docfield_property(
+			"amount",
+			"read_only",
+			frappe.user.has_role(["HR User", "HR Manager", "System Manager"]) ? 0 : 1
+		);
 		if (frm.doc.docstatus === 0 && frm.doc.processing_date) {
 			frm.dashboard.set_headline(
 				__("Processed on {0}. Payroll period {1} to {2}.", [

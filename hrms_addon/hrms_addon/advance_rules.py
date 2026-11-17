@@ -363,9 +363,9 @@ def line_amount(entitlement, requested):
 
 
 def kept_amount(worked_out, entered, saved=None, adjusted=0):
-    """What a run's line pays, and whether it was set by hand: what the run works out, unless the Payroll Officer set
-    the amount (minutes §4.9: "the Payroll Officer sets the amount approved"; Luuka, 16 Nov 2026: "make the amount
-    column editable and its should post that adjusted amount"). An amount changed since the line was last saved is
+    """What a run's line pays, and whether it was set by hand: what the run works out, unless HR set the amount (Luuka,
+    16 Nov 2026: "make the amount column editable and its should post that adjusted amount"; 17 Nov: by the "HR
+    manager and HR officer", AMOUNT_SETTERS). An amount changed since the line was last saved is
     set by hand and stays so; clearing it, or setting it back to what the run works out, hands it back to the run.
     The allowance still holds: more than it does not qualify (eligibility_errors). Returns (amount, adjusted)."""
     worked_out, entered = round(_num(worked_out), 2), round(_num(entered), 2)
@@ -374,6 +374,18 @@ def kept_amount(worked_out, entered, saved=None, adjusted=0):
     if adjusted or (saved is not None and entered != round(_num(saved), 2)):
         return entered, 1
     return worked_out, 0
+
+
+# who sets a run's line amount by hand (Luuka, 17 Nov 2026: "HR manager and HR officer")
+AMOUNT_SETTERS = ("HR User", "HR Manager", "System Manager")
+
+
+def amount_changed(entered, saved):
+    """Whether a line saved before now carries another amount: set, changed or cleared by hand. A line not saved
+    yet (saved None) has nothing to change."""
+    if saved is None:
+        return False
+    return round(_num(entered), 2) != round(_num(saved), 2)
 
 
 def adjusted_note(worked_out):

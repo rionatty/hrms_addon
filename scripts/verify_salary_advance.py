@@ -668,7 +668,28 @@ for name in ("run_validate", "run_before_submit"):
     if part.find("doc.flags.saved_amounts = _saved_amounts(doc)") < 0 \
             or part.find("doc.flags.saved_amounts = _saved_amounts(doc)") > part.find("_work_out(row, doc, s)"):
         fail.append("%s reads each line's saved amount before working the lines out" % name)
-print("a line's amount set by hand: kept, said, posted")
+# Luuka, 17 Nov 2026: "HR manager and HR officer" set a line's amount by hand
+if tuple(V.AMOUNT_SETTERS) != ("HR User", "HR Manager", "System Manager") or "Payroll Officer" in V.AMOUNT_SETTERS:
+    fail.append("the HR Officer and the HR Manager set a line's amount, not the Payroll Officer: %s" % (V.AMOUNT_SETTERS,))
+for entered, saved, changed, why in ((250000, 320000, True, "set by hand"), (320000, 320000, False, "as saved"),
+                                     (None, 320000, True, "cleared"), (0, 0, False, "nothing, as saved"),
+                                     (250000, None, False, "a line not saved yet"),
+                                     (320000.004, 320000, False, "a fraction of a shilling is not a change")):
+    if V.amount_changed(entered, saved) != changed:
+        fail.append("amount_changed: %s (%s)" % (why, V.amount_changed(entered, saved)))
+validate_run = glue.split("def run_validate(", 1)[1].split("\ndef ", 1)[0]
+may = glue.split("def _may_set_amounts(", 1)[1].split("\ndef ", 1)[0] if "def _may_set_amounts(" in glue else ""
+if not (0 < validate_run.find("doc.flags.saved_amounts = _saved_amounts(doc)") < validate_run.find(
+        "_may_set_amounts(doc)") < validate_run.find("_work_out(row, doc, s)")):
+    fail.append("the run checks who set an amount after reading the saved ones, before working the lines out")
+if "if set(frappe.get_roles()) & set(rules.AMOUNT_SETTERS):" not in may \
+        or 'rules.amount_changed(row.get("amount"), _was(doc, row))' not in may or "frappe.PermissionError" not in may:
+    fail.append("anybody else saving a line with another amount is refused, by name")
+run_form = read("hrms_addon", "hrms_addon", "doctype", "salary_advance_processing", "salary_advance_processing.js")
+if 'frm.fields_dict.employees.grid.update_docfield_property(\n\t\t\t"amount",\n\t\t\t"read_only",\n\t\t\t' \
+        'frappe.user.has_role(["HR User", "HR Manager", "System Manager"]) ? 0 : 1' not in run_form:
+    fail.append("the run's form opens the amount to HR only")
+print("a line's amount set by hand: kept, said, posted, by HR only")
 
 if fail:
     print("\nFAILURES:")
