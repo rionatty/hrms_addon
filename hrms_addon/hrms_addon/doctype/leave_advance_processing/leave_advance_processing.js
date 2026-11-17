@@ -35,8 +35,17 @@ frappe.ui.form.on("Leave Advance Processing", {
 				frappe
 					.call({ method: method + "_check", args: { name: frm.doc.name }, freeze: true })
 					.then((r) => {
-						if (!r || !r.message || !r.message.rows) return;
+						const found = r && r.message;
+						if (!found || !found.rows) return;
 						window.open("/api/method/" + method + "?name=" + encodeURIComponent(frm.doc.name));
+						// those paid by bank with no account, bank or code: in it, with that left blank
+						if ((found.blank || []).length) {
+							frappe.msgprint({
+								title: __("Bank File"),
+								message: found.blank.map((line) => frappe.utils.escape_html(line)).join("<br>"),
+								indicator: "orange",
+							});
+						}
 					});
 			});
 		}

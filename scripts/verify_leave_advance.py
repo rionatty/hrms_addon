@@ -271,7 +271,7 @@ for needle, why in (
      "a cancelled run takes its bank entry back with it (verify_advance_runs.py)"),
     ('lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]',
      "the file pays the lines included"),
-    ("bank.refuse_problems(lines)", "no file the bank cannot pay in full (bank_file.py)"),
+    ("bank.refuse_empty(lines)", "a missing bank detail left blank, no empty file (bank_file.py)"),
     ("bank_file_rules.workbook(bank_file_rules.rows(lines))", "the bank's six columns, as the payroll's file"),
     ('"""The employee\'s Bank Code, else the one set on their bank in the Bank\n    list, as the payroll\'s bank file '
      'reads it (bank_file.py)."""\n    from hrms_addon.hrms_addon import bank_file\n\n    return '

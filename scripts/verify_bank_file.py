@@ -226,11 +226,8 @@ for name in ("check", "download"):
           "%s: a payroll's file is made with what is missing left blank, refused only when empty" % name)
 check('"blank": rules.problem_lines(rules.problems(lines), heading=rules.BLANK)'
       in glue.split("def check(")[1].split("\ndef ")[0], "the check says what is left blank, a line each")
-refusal = glue.split("def refuse_problems(lines):")[1].split("\ndef ")[0] if "def refuse_problems(lines):" in glue \
-    else ""
-check("rules.problem_lines(rules.problems(lines))" in refusal and "escape_html(line) for line in said" in refusal
-      and "refuse_empty(lines)" in refusal,
-      "an advance run's file is still refused for them, in the rules' words, escaped")
+# Luuka, 17 Nov 2026: the leave advance run's file leaves them blank too, so nothing refuses them any more
+check("def refuse_problems(" not in glue, "no file is refused for a missing bank detail")
 check("bank_ac_no" in glue and "slip.bank_account_no" not in glue,
       "bank details from the employee as they now stand, not the slip's copy")
 
@@ -257,8 +254,8 @@ check("(found.blank || []).forEach((line) => said.push(frappe.utils.escape_html(
 advances = read("hrms_addon", "hrms_addon", "leave_advances.py")
 run_file = advances.split("def bank_file(name):")[1].split("\ndef ")[0]
 check('doc.check_permission("read")' in run_file, "the run's file needs the run readable")
-check("bank.refuse_problems(lines)" in run_file and "bank_file_rules.workbook(bank_file_rules.rows(lines))"
-      in run_file, "the run's file is the same six columns, stopped by the same gaps")
+check("bank.refuse_empty(lines)" in run_file and "bank_file_rules.workbook(bank_file_rules.rows(lines))"
+      in run_file, "the run's file is the same six columns, a missing bank detail left blank, refused only when empty")
 check("return bank_file.code_of(employee, bank_name)" in advances and "swift_number" not in advances,
       "a run line's code: the employee's, else their bank's; no SWIFT number in a bank code")
 
@@ -267,9 +264,15 @@ lines_of_run = advances.split("def _bank_lines(doc):")[1].split("\ndef ")[0]
 check('lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]' in lines_of_run
       and "return bank.add_bank_details(lines)" in lines_of_run,
       "the leave run's lines: those included, with the employee's bank branch")
+leave_check = advances.split("def bank_file_check(name):")[1].split("\ndef ")[0]
 check(re.search(r"@frappe\.whitelist\(\)\ndef bank_file_check\(name\):", advances) is not None
-      and "bank.refuse_problems(lines)" in advances.split("def bank_file_check(name):")[1].split("\ndef ")[0],
-      "the leave run's form asks first, and is refused the same way")
+      and "bank.refuse_empty(lines)" in leave_check
+      and '"blank": bank_file_rules.problem_lines(bank_file_rules.problems(lines), heading=bank_file_rules.BLANK)}'
+      in leave_check,
+      "the leave run's form asks first, refused only when it pays nobody, and is told what is left blank")
+leave_form = read("hrms_addon", "hrms_addon", "doctype", "leave_advance_processing", "leave_advance_processing.js")
+check('message: found.blank.map((line) => frappe.utils.escape_html(line)).join("<br>"),' in leave_form,
+      "the leave run's form says what is left blank, each line escaped")
 
 # ── 7b. The salary advance run's file (Luuka, 8 Nov 2026) ─────────────
 salary = read("hrms_addon", "hrms_addon", "salary_advances.py")

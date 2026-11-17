@@ -172,20 +172,9 @@ def code_of(employee, bank_name):
     return rules.bank_code(own, banks.get(rules.clean(bank_name).lower())) or None
 
 
-def refuse_problems(lines):
-    """An advance run's file: none the bank cannot pay in full, and no empty file. A payroll's is made with what is
-    missing left blank (check, download)."""
-    said = rules.problem_lines(rules.problems(lines))
-    if said:
-        from frappe.utils import escape_html
-
-
-        frappe.throw("<br>".join(escape_html(line) for line in said), title=_(TITLE))
-    refuse_empty(lines)
-
-
 def refuse_empty(lines):
-    """No empty file."""
+    """No empty file. Every file is made with what is missing left blank, and says so: the payroll's (Luuka,
+    13 Nov 2026) and the leave advance run's (17 Nov 2026)."""
     if not rules.to_pay(lines):
         frappe.throw(_("Nobody here is paid by bank, so there is no bank file. Those paid in cash through mobile "
                        "money are in the Mobile Money File."), title=_(TITLE))

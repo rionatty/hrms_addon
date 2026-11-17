@@ -482,17 +482,19 @@ def _bank_lines(doc):
 
 @frappe.whitelist()
 def bank_file_check(name):
-    """Whether the run's bank file can be made: refuses with who is missing
-    what, else says how many it pays. The form asks first, so a refusal
-    shows as a message."""
+    """How many the run's bank file pays, and what it leaves blank. One paid
+    by bank with no account number, bank or bank code is in it with that
+    cell blank, as on the payroll's file (Luuka, 17 Nov 2026). Refuses only
+    an empty file; the form asks first, so a refusal shows as a message."""
     from hrms_addon.hrms_addon import bank_file as bank
     from hrms_addon.hrms_addon import bank_file_rules
 
     doc = frappe.get_doc(RUN, name)
     doc.check_permission("read")
     lines = _bank_lines(doc)
-    bank.refuse_problems(lines)
-    return {"rows": len(bank_file_rules.to_pay(lines))}
+    bank.refuse_empty(lines)
+    return {"rows": len(bank_file_rules.to_pay(lines)),
+            "blank": bank_file_rules.problem_lines(bank_file_rules.problems(lines), heading=bank_file_rules.BLANK)}
 
 
 @frappe.whitelist()
@@ -508,7 +510,7 @@ def bank_file(name):
     doc = frappe.get_doc(RUN, name)
     doc.check_permission("read")
     lines = _bank_lines(doc)
-    bank.refuse_problems(lines)
+    bank.refuse_empty(lines)
     provide_binary_file("%s %s" % (bank.TITLE, doc.name), "xlsx",
                         bank_file_rules.workbook(bank_file_rules.rows(lines)))
 
