@@ -926,6 +926,9 @@ ATTENTION = (
      "Training Needs Assessment", "training", SOON),
     ("certificates_running_out", "Certificate running out within 90 days", "Certificates running out within 90 days",
      "Employee Certification", "training", SOON),
+    # a training budget used past its alert level (learning_value.py)
+    ("training_budgets_near", "Training budget near or over its limit", "Training budgets near or over their limit",
+     "Training Budget", "training", SOON),
     ("suspensions_ending", "Suspension ending this week", "Suspensions ending this week", "Employee Suspension",
      "relations", SOON),
     ("reviews_due", "Onboarding review due", "Onboarding reviews due", "Onboarding Review", "tenure", SOON),
@@ -949,7 +952,7 @@ ATTENTION_COMPANY = {
     "penalties_waiting", "reviews_waiting", "trainings_not_closed", "suspensions_ending", "documents_expired",
     "exit_interviews_waiting", "training_overdue", "certificates_run_out", "certificates_running_out",
     "top_talent_at_risk", "shift_reports_unchecked", "interventions_overdue", "cases_past_limit",
-    "application_reviews_overdue", "reassessments_due",
+    "application_reviews_overdue", "reassessments_due", "training_budgets_near",
 }
 
 
@@ -1008,6 +1011,7 @@ def attention_filters(key, day_of, company=None):
         "certificates_run_out": {"status": "Expired"},
         "application_reviews_overdue": {"status": "Pending", "due_on": ["between", [EVER, "{yesterday}"]]},
         "reassessments_due": {"status": "Reassessment Due"},
+        "training_budgets_near": {"status": ["in", ["Near the Limit", "Over Budget"]], "year": "{year_number}"},
         "certificates_running_out": {"status": "Due Soon"},
         "suspensions_ending": {"docstatus": 1, "status": SUSPENDED, "report_back_on": ["between", ["{today}", "{week}"]]},
         "clearances_late": {"docstatus": 0, "leaving_date": ["between", [EVER, "{yesterday}"]]},
@@ -1420,6 +1424,8 @@ def dates(today, cycle_start=None):
         "{month}": str(first),
         "{month_end}": str(last),
         "{year}": str(today.replace(month=1, day=1)),
+        # the year itself, for a record that keeps a year and no date (Training Budget)
+        "{year_number}": str(today.year),
         "{cycle}": str(cycle_start or first),
     }
 

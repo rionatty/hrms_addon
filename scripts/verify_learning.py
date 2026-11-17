@@ -422,7 +422,8 @@ check("the categories and the ladder seeded once, then HR's", "if not frappe.db.
 HOOKS = read("hrms_addon", "hooks.py")
 for needle, what in (
         ('"hrms_addon.hrms_addon.learning.employee_on_update"', "an employee's change reaches the rules"),
-        ('"on_update_after_submit": "hrms_addon.hrms_addon.learning.event_changed"', "a held session changed"),
+        ('"on_update_after_submit": [\n            "hrms_addon.hrms_addon.learning.event_changed",',
+         "a held session changed"),
         ('"hrms_addon.hrms_addon.learning.event_on_trash"', "a session deleted"),
         ('"hrms_addon.hrms_addon.learning.result_changed"', "marks given or taken back"),
         ('"hrms_addon.hrms_addon.learning.setup_on_migrate"', "seeded on migrate"),

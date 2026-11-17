@@ -1,0 +1,227 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 22:00:00.000000",
+ "description": "A year's training budget for a company, a plant or a department, and how much of it is used.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "year",
+  "branch",
+  "department",
+  "column_break_amount",
+  "amount",
+  "alert_at",
+  "notes",
+  "use_section",
+  "spent",
+  "committed",
+  "column_break_use",
+  "remaining",
+  "utilisation",
+  "status",
+  "alerted"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Empty for the whole company."
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_amount",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Budget",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "alert_at",
+   "fieldtype": "Percent",
+   "label": "Alert At",
+   "default": "80",
+   "description": "HR and Finance are told once the budget is used this far."
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "use_section",
+   "fieldtype": "Section Break",
+   "label": "Use",
+   "description": "Spent: sessions held, their costs. Committed: sessions still to be held, their costs typed, else the programme's cost per person for each one invited."
+  },
+  {
+   "fieldname": "spent",
+   "fieldtype": "Currency",
+   "label": "Spent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "committed",
+   "fieldtype": "Currency",
+   "label": "Committed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_use",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remaining",
+   "fieldtype": "Currency",
+   "label": "Remaining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "utilisation",
+   "fieldtype": "Percent",
+   "label": "Used",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Within Budget\nNear the Limit\nOver Budget",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "alerted",
+   "fieldtype": "Check",
+   "label": "Alerted",
+   "read_only": 1,
+   "hidden": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Budget",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Finance Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "allow_import": 1
+}

@@ -957,6 +957,13 @@ fixtures = [
                     "Skill-custom_reassess_months",
                     "Skill-custom_certification",
                     "Designation Skill-custom_required_level",
+                    "Training Event-custom_costs_section",
+                    "Training Event-custom_costs",
+                    "Training Event-custom_costs_cb",
+                    "Training Event-custom_direct_cost",
+                    "Training Event-custom_time_cost",
+                    "Training Event-custom_total_cost",
+                    "Training Event-custom_cost_per_trainee",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -2259,17 +2266,30 @@ doc_events = {
     "Training Event": {
         # the Trainers table behind Frappe HR's Trainer Name, the programme
         # from the course, nobody booked twice
-        "validate": "hrms_addon.hrms_addon.training.event_validate",
+        "validate": [
+            "hrms_addon.hrms_addon.training.event_validate",
+            # its costs added up, the trainees' time with them
+            # (learning_value.py)
+            "hrms_addon.hrms_addon.learning_value.event_costs",
+        ],
+        "before_update_after_submit": "hrms_addon.hrms_addon.learning_value.event_costs",
+        # every save: the year's training budgets brought up to date
+        "on_update": "hrms_addon.hrms_addon.learning_value.event_changed",
         # held, changed or cancelled: what its people have done, and the
         # certificate its training gives those who passed (learning.py)
         "on_submit": [
             "hrms_addon.hrms_addon.training.event_on_submit",
             "hrms_addon.hrms_addon.learning.event_changed",
+            "hrms_addon.hrms_addon.learning_value.event_changed",
         ],
-        "on_update_after_submit": "hrms_addon.hrms_addon.learning.event_changed",
+        "on_update_after_submit": [
+            "hrms_addon.hrms_addon.learning.event_changed",
+            "hrms_addon.hrms_addon.learning_value.event_changed",
+        ],
         "on_cancel": [
             "hrms_addon.hrms_addon.training.event_on_cancel",
             "hrms_addon.hrms_addon.learning.event_changed",
+            "hrms_addon.hrms_addon.learning_value.event_changed",
         ],
         # a draft one deleted: its requisitions and its schedule line let go,
         # and no training requirement names it as its proof
@@ -2426,6 +2446,8 @@ scheduler_events = {
         # Competency: where each assessment stands today; a reassessment
         # falling due on the supervisor's list (competency.py)
         "hrms_addon.hrms_addon.competency.daily",
+        # the year's training budgets brought up to date (learning_value.py)
+        "hrms_addon.hrms_addon.learning_value.daily",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,
