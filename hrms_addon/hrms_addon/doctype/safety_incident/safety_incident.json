@@ -19,6 +19,16 @@
   "incident_on",
   "location",
   "nature",
+  "board_section",
+  "severity",
+  "hazard",
+  "off_site",
+  "column_break_capa",
+  "corrective_action",
+  "capa_owner",
+  "capa_due",
+  "capa_status",
+  "capa_closed_on",
   "column_break_2",
   "first_aid_by",
   "ehs_officer",
@@ -182,6 +192,68 @@
    "fieldtype": "Small Text",
    "label": "Details",
    "reqd": 1
+  },
+  {
+   "fieldname": "board_section",
+   "fieldtype": "Section Break",
+   "label": "Severity and Corrective Action"
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "label": "Severity",
+   "allow_on_submit": 1,
+   "options": "\nNear Miss\nFirst Aid\nMedical Treatment\nLost Time\nFatality",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "hazard",
+   "fieldtype": "Select",
+   "label": "Hazard",
+   "allow_on_submit": 1,
+   "options": "\nPinch Point\nForklift and Material Handling\nElectrical\nSlip, Trip or Fall\nFire\nChemical\nCommuting\nOther"
+  },
+  {
+   "fieldname": "off_site",
+   "fieldtype": "Check",
+   "label": "Off Site or Commuting",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_capa",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "corrective_action",
+   "fieldtype": "Small Text",
+   "label": "Corrective Action",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "capa_owner",
+   "fieldtype": "Link",
+   "label": "Action Owner",
+   "options": "User",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "capa_due",
+   "fieldtype": "Date",
+   "label": "Action Due",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "capa_status",
+   "fieldtype": "Select",
+   "label": "Action Status",
+   "allow_on_submit": 1,
+   "options": "\nOpen\nIn Progress\nClosed"
+  },
+  {
+   "fieldname": "capa_closed_on",
+   "fieldtype": "Date",
+   "label": "Action Closed On",
+   "allow_on_submit": 1
   },
   {
    "fieldname": "column_break_2",
@@ -516,7 +588,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-06 23:00:00.000000",
+ "modified": "2026-11-17 16:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Safety Incident",

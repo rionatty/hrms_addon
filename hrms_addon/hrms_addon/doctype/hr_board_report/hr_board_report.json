@@ -1,0 +1,449 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "The quarter's HR board pack: the figures from the month snapshots, HR's words beside them, and the deck.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "company",
+  "year",
+  "quarter",
+  "column_break_report",
+  "prepared_by",
+  "presented_on",
+  "status",
+  "figures_section",
+  "get_figures",
+  "built_on",
+  "figures_preview",
+  "figures_json",
+  "summary_tab",
+  "headline",
+  "key_achievements",
+  "ratings",
+  "people_tab",
+  "head_count_insight",
+  "yoy_notes",
+  "recruitment_insight",
+  "demand_roles",
+  "exits_insight",
+  "regrettable_note",
+  "churn_insight",
+  "yoy_insight",
+  "pay_tab",
+  "wage_insight",
+  "overtime_insight",
+  "control_plan",
+  "labour_method",
+  "labour_insight",
+  "metrics_tab",
+  "metrics",
+  "ceo_view",
+  "learning_tab",
+  "ld_quality",
+  "ld_people",
+  "ld_commercial",
+  "ld_insight",
+  "ld_pipeline",
+  "training_value",
+  "safety_tab",
+  "ehs_actions",
+  "ehs_critical",
+  "memoriam",
+  "agenda_tab",
+  "plant_notes",
+  "company_milestones",
+  "agenda",
+  "challenges",
+  "priorities",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "quarter",
+   "fieldtype": "Select",
+   "label": "Quarter",
+   "options": "Q1\nQ2\nQ3\nQ4",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_report",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "prepared_by",
+   "fieldtype": "Data",
+   "label": "Prepared By",
+   "default": "HR Department"
+  },
+  {
+   "fieldname": "presented_on",
+   "fieldtype": "Date",
+   "label": "Presented On"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nApproved\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "figures_section",
+   "fieldtype": "Section Break",
+   "label": "The Quarter's Figures"
+  },
+  {
+   "fieldname": "get_figures",
+   "fieldtype": "Button",
+   "label": "Get the Figures"
+  },
+  {
+   "fieldname": "built_on",
+   "fieldtype": "Datetime",
+   "label": "Figures Taken On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "figures_preview",
+   "fieldtype": "HTML",
+   "label": "Figures"
+  },
+  {
+   "fieldname": "figures_json",
+   "fieldtype": "Long Text",
+   "label": "Figures (Data)",
+   "hidden": 1,
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "summary_tab",
+   "fieldtype": "Tab Break",
+   "label": "Executive Summary"
+  },
+  {
+   "fieldname": "headline",
+   "fieldtype": "Text",
+   "label": "Headline"
+  },
+  {
+   "fieldname": "key_achievements",
+   "fieldtype": "Text",
+   "label": "Key Achievements",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "ratings",
+   "fieldtype": "Table",
+   "label": "HR Health Rating",
+   "options": "Board Health Rating"
+  },
+  {
+   "fieldname": "people_tab",
+   "fieldtype": "Tab Break",
+   "label": "People"
+  },
+  {
+   "fieldname": "head_count_insight",
+   "fieldtype": "Small Text",
+   "label": "Head Count: Key Insight"
+  },
+  {
+   "fieldname": "yoy_notes",
+   "fieldtype": "Small Text",
+   "label": "Head Count Year on Year: What the Board Should Note",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "recruitment_insight",
+   "fieldtype": "Small Text",
+   "label": "Recruitment: Key Insight"
+  },
+  {
+   "fieldname": "demand_roles",
+   "fieldtype": "Small Text",
+   "label": "Top Demand Roles"
+  },
+  {
+   "fieldname": "exits_insight",
+   "fieldtype": "Small Text",
+   "label": "Exits: Key Insight"
+  },
+  {
+   "fieldname": "regrettable_note",
+   "fieldtype": "Small Text",
+   "label": "Regrettable Exits",
+   "description": "Filled from the separations marked regrettable; change it as the board should read it."
+  },
+  {
+   "fieldname": "churn_insight",
+   "fieldtype": "Small Text",
+   "label": "Churn: Reading the Numbers"
+  },
+  {
+   "fieldname": "yoy_insight",
+   "fieldtype": "Small Text",
+   "label": "Year on Year: Key Insight"
+  },
+  {
+   "fieldname": "pay_tab",
+   "fieldtype": "Tab Break",
+   "label": "Pay"
+  },
+  {
+   "fieldname": "wage_insight",
+   "fieldtype": "Small Text",
+   "label": "Wage Bill: Trend"
+  },
+  {
+   "fieldname": "overtime_insight",
+   "fieldtype": "Small Text",
+   "label": "Overtime Pattern"
+  },
+  {
+   "fieldname": "control_plan",
+   "fieldtype": "Small Text",
+   "label": "Control Plan"
+  },
+  {
+   "fieldname": "labour_method",
+   "fieldtype": "Small Text",
+   "label": "Labour Cost: Method",
+   "default": "Staff costs are Finance's figure where typed, else the payroll wage bill; revenue as Finance typed it."
+  },
+  {
+   "fieldname": "labour_insight",
+   "fieldtype": "Small Text",
+   "label": "Labour Cost: Key Insight"
+  },
+  {
+   "fieldname": "metrics_tab",
+   "fieldtype": "Tab Break",
+   "label": "Metrics"
+  },
+  {
+   "fieldname": "metrics",
+   "fieldtype": "Table",
+   "label": "HR Metrics That Drive Business",
+   "options": "Board Metric Line"
+  },
+  {
+   "fieldname": "ceo_view",
+   "fieldtype": "Small Text",
+   "label": "The CEO-Level View"
+  },
+  {
+   "fieldname": "learning_tab",
+   "fieldtype": "Tab Break",
+   "label": "Learning"
+  },
+  {
+   "fieldname": "ld_quality",
+   "fieldtype": "Small Text",
+   "label": "Quality, Systems & Compliance",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "ld_people",
+   "fieldtype": "Small Text",
+   "label": "People & Leadership",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "ld_commercial",
+   "fieldtype": "Small Text",
+   "label": "Commercial & Financial",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "ld_insight",
+   "fieldtype": "Small Text",
+   "label": "Learning: Key Insight"
+  },
+  {
+   "fieldname": "ld_pipeline",
+   "fieldtype": "Small Text",
+   "label": "Next Quarter's Pipeline"
+  },
+  {
+   "fieldname": "training_value",
+   "fieldtype": "Table",
+   "label": "Programme Value Ranking",
+   "options": "Board Training Value"
+  },
+  {
+   "fieldname": "safety_tab",
+   "fieldtype": "Tab Break",
+   "label": "Safety"
+  },
+  {
+   "fieldname": "ehs_actions",
+   "fieldtype": "Text",
+   "label": "Our Actions",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "ehs_critical",
+   "fieldtype": "Small Text",
+   "label": "Critical"
+  },
+  {
+   "fieldname": "memoriam",
+   "fieldtype": "Table",
+   "label": "In Memoriam",
+   "options": "Board Memoriam"
+  },
+  {
+   "fieldname": "agenda_tab",
+   "fieldtype": "Tab Break",
+   "label": "Agenda & Outlook"
+  },
+  {
+   "fieldname": "plant_notes",
+   "fieldtype": "Table",
+   "label": "Achievements by Plant",
+   "options": "Board Plant Note"
+  },
+  {
+   "fieldname": "company_milestones",
+   "fieldtype": "Text",
+   "label": "Company-Wide Milestones",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "agenda",
+   "fieldtype": "Table",
+   "label": "Strategic People Agenda",
+   "options": "Board Agenda Line"
+  },
+  {
+   "fieldname": "challenges",
+   "fieldtype": "Text",
+   "label": "Key Challenges",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "priorities",
+   "fieldtype": "Text",
+   "label": "Next Quarter's Priorities",
+   "description": "One per line."
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "HR Board Report",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Board Report",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "is_submittable": 1,
+ "title_field": "title",
+ "track_changes": 1
+}

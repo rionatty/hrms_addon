@@ -461,6 +461,9 @@ after_migrate = [
     # levels and Talent Settings, made once from the built-in grid
     # (talent_masters.py)
     "hrms_addon.hrms_addon.talent_masters.setup_on_migrate",
+    # the HR board pack: the earnings' groups on its wage bill, from their
+    # names, once (board_pack.py)
+    "hrms_addon.hrms_addon.board_pack.setup_on_migrate",
     # Learning: the training categories and the certificate alert ladder,
     # made once and then HR's (learning.py)
     "hrms_addon.hrms_addon.learning.setup_on_migrate",
@@ -1395,6 +1398,7 @@ fixtures = [
                     "Employee Separation-custom_lpl_section",
                     "Employee Separation-custom_exit_type",
                     "Employee Separation-custom_reason",
+                    "Employee Separation-custom_regrettable",
                     "Employee Separation-custom_branch",
                     "Employee Separation-custom_date_of_joining",
                     "Employee Separation-custom_lpl_cb",
@@ -2371,6 +2375,9 @@ scheduler_events = {
         # the month just ended in talent, told to the HR Managers and the
         # Talent Council with its Monthly Talent Report (talent.py)
         "hrms_addon.hrms_addon.talent.monthly",
+        # the month just ended, by plant, for the HR board pack: head count,
+        # movements, pay and safety (board_pack.py)
+        "hrms_addon.hrms_addon.board_pack.monthly",
     ],
     "daily_long": [
         # Learning: everyone's training requirements brought up to date, each

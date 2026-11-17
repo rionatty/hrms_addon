@@ -8052,6 +8052,18 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Employee Separation-custom_regrettable",
+  "dt": "Employee Separation",
+  "fieldname": "custom_regrettable",
+  "fieldtype": "Check",
+  "insert_after": "custom_reason",
+  "label": "Regrettable Loss",
+  "allow_on_submit": 1,
+  "description": "A skilled or critical person the board should know was lost.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Employee Separation",
   "fieldname": "custom_branch",
   "fieldtype": "Link",

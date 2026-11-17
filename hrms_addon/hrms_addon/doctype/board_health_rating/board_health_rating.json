@@ -1,0 +1,46 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "An area of the board's HR health rating.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "area",
+  "rating",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "area",
+   "fieldtype": "Data",
+   "label": "Area",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rating",
+   "fieldtype": "Select",
+   "label": "Rating",
+   "options": "\nOn Track\nWatch\nAction Needed",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Health Rating",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

@@ -1,0 +1,190 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "A month's head count, movements, pay and safety by plant: what the board's quarter is made of.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "month_start",
+  "source",
+  "column_break_snapshot",
+  "locked",
+  "built_on",
+  "build",
+  "plants_section",
+  "plants",
+  "totals_section",
+  "total_closing",
+  "total_hires",
+  "column_break_totals",
+  "total_exits",
+  "total_wage_bill"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "month_start",
+   "fieldtype": "Date",
+   "label": "Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Any day in the month."
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "System\nImported",
+   "default": "System",
+   "in_list_view": 1,
+   "description": "Imported for the months before the system, as the board compares with them."
+  },
+  {
+   "fieldname": "column_break_snapshot",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "locked",
+   "fieldtype": "Check",
+   "label": "Locked",
+   "description": "Taken as it stands: not built from the site again."
+  },
+  {
+   "fieldname": "built_on",
+   "fieldtype": "Datetime",
+   "label": "Built On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "build",
+   "fieldtype": "Button",
+   "label": "Build from the Site",
+   "depends_on": "eval:!doc.locked && doc.source=='System'"
+  },
+  {
+   "fieldname": "plants_section",
+   "fieldtype": "Section Break",
+   "label": "Plants"
+  },
+  {
+   "fieldname": "plants",
+   "fieldtype": "Table",
+   "label": "Plants",
+   "options": "HR Snapshot Plant"
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_closing",
+   "fieldtype": "Int",
+   "label": "Closing Head Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_hires",
+   "fieldtype": "Int",
+   "label": "Hires",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_exits",
+   "fieldtype": "Int",
+   "label": "Exits",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_wage_bill",
+   "fieldtype": "Currency",
+   "label": "Wage Bill",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Monthly Snapshot",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "month_start",
+ "sort_order": "DESC",
+ "states": [],
+ "allow_import": 1,
+ "track_changes": 1
+}

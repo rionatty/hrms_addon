@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "A programme's value, ranked in the board pack.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "programme",
+  "reach",
+  "participation",
+  "learning",
+  "application",
+  "result",
+  "evidence",
+  "score"
+ ],
+ "fields": [
+  {
+   "fieldname": "programme",
+   "fieldtype": "Data",
+   "label": "Programme",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reach",
+   "fieldtype": "Data",
+   "label": "Reach",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "participation",
+   "fieldtype": "Check",
+   "label": "Participation"
+  },
+  {
+   "fieldname": "learning",
+   "fieldtype": "Check",
+   "label": "Learning"
+  },
+  {
+   "fieldname": "application",
+   "fieldtype": "Check",
+   "label": "Application"
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Check",
+   "label": "Result"
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "Value Evidence",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Benefit Score (of 5)",
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Training Value",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

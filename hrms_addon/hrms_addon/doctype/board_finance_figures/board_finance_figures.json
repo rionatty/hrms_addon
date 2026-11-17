@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "Revenue, kilograms produced and staff cost by plant and month, typed by Finance for the HR board pack.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "year",
+  "quarter",
+  "column_break_figures",
+  "add_lines",
+  "lines_section",
+  "lines"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "quarter",
+   "fieldtype": "Select",
+   "label": "Quarter",
+   "options": "Q1\nQ2\nQ3\nQ4",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_figures",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "add_lines",
+   "fieldtype": "Button",
+   "label": "Add the Quarter's Lines"
+  },
+  {
+   "fieldname": "lines_section",
+   "fieldtype": "Section Break",
+   "label": "Revenue and Output"
+  },
+  {
+   "fieldname": "lines",
+   "fieldtype": "Table",
+   "label": "Lines",
+   "options": "Board Finance Line"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Finance Figures",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Finance Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "allow_import": 1,
+ "track_changes": 1
+}

@@ -422,6 +422,14 @@ CARDS = {
         ("Manpower", [
             ("Monthly Manpower and Headcount", "Monthly Manpower and Headcount", REPORT),
         ]),
+        # the quarterly HR board pack: the month snapshots it is made of, the
+        # figures Finance type, and the deck (board_pack.py, 17 Nov 2026)
+        ("Board Pack", [
+            ("HR Board Report", "HR Board Report", DOCTYPE),
+            ("HR Monthly Snapshot", "HR Monthly Snapshot", DOCTYPE),
+            ("Board Finance Figures", "Board Finance Figures", DOCTYPE),
+            ("Board Report Settings", "Board Report Settings", DOCTYPE),
+        ]),
         # the specimen on file and the signatures given (signatures.py)
         ("Signatures", [
             ("Employee Signature", "Employee Signature", DOCTYPE),

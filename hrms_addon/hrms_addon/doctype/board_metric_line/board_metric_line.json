@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "One of the HR metrics the board asked for.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "number",
+  "metric",
+  "reading",
+  "tells",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "number",
+   "fieldtype": "Data",
+   "label": "No.",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "metric",
+   "fieldtype": "Data",
+   "label": "Metric",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reading",
+   "fieldtype": "Small Text",
+   "label": "Reading",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "tells",
+   "fieldtype": "Small Text",
+   "label": "What It Tells the Board",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nOn Track\nWatch\nAction\nBuilding",
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Metric Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

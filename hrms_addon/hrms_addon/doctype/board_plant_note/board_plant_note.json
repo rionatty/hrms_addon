@@ -1,0 +1,38 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "A plant's achievements and events in the quarter.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "plant",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "plant",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Achievements and Events",
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Plant Note",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

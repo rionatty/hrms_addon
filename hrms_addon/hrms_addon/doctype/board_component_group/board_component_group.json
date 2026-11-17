@@ -1,0 +1,41 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "Where a salary component counts in the board pack's wage bill.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "salary_component",
+  "component_group"
+ ],
+ "fields": [
+  {
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "component_group",
+   "fieldtype": "Select",
+   "label": "Board Group",
+   "options": "Basic\nPer Meter\nOvertime\nSpecial Overtime\nArrears\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Component Group",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

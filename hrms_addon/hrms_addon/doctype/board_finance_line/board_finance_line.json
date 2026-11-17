@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 16:00:00.000000",
+ "description": "A plant's month: revenue, output and staff cost, as Finance have them.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "branch",
+  "month_start",
+  "revenue",
+  "output_kg",
+  "staff_cost"
+ ],
+ "fields": [
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "month_start",
+   "fieldtype": "Date",
+   "label": "Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Any day in the month."
+  },
+  {
+   "fieldname": "revenue",
+   "fieldtype": "Currency",
+   "label": "Revenue",
+   "in_list_view": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "output_kg",
+   "fieldtype": "Float",
+   "label": "Output (kg)",
+   "in_list_view": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "staff_cost",
+   "fieldtype": "Currency",
+   "label": "Staff Cost (P&L)",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "description": "Leave empty to use the payroll wage bill."
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Finance Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}
