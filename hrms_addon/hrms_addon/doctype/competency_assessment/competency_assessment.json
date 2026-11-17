@@ -1,0 +1,316 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 21:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "links": [],
+ "modified": "2026-11-17 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Competency Assessment",
+ "owner": "Administrator",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "title_field": "employee_name",
+ "allow_import": 1,
+ "track_changes": 1,
+ "description": "An employee's level in a skill, 1 to 5, against the level it needs (LMS phase 4).",
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-CMP-.YYYY.-",
+   "default": "LPL-CMP-.YYYY.-",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_place",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skill_section",
+   "fieldtype": "Section Break",
+   "label": "Skill"
+  },
+  {
+   "fieldname": "skill",
+   "fieldtype": "Link",
+   "label": "Skill",
+   "options": "Skill",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "critical",
+   "fieldtype": "Check",
+   "label": "Critical",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "level",
+   "fieldtype": "Select",
+   "label": "Level",
+   "options": "\n1 Awareness\n2 Basic Understanding\n3 Works Under Supervision\n4 Competent Independently\n5 Can Train and Supervise",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "required_level",
+   "fieldtype": "Data",
+   "label": "Level Needed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gap",
+   "fieldtype": "Int",
+   "label": "Levels Short",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_assessed",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "assessed_by",
+   "fieldtype": "Link",
+   "label": "Assessed By",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "assessed_by_name",
+   "fieldtype": "Data",
+   "label": "Assessor Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assessed_on",
+   "fieldtype": "Date",
+   "label": "Assessed On",
+   "reqd": 1,
+   "default": "Today"
+  },
+  {
+   "fieldname": "next_due",
+   "fieldtype": "Date",
+   "label": "Reassess By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Competent\nGap\nCertificate Needed\nReassessment Due\nSuperseded",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "detail_section",
+   "fieldtype": "Section Break",
+   "label": "Detail"
+  },
+  {
+   "fieldname": "induction_done",
+   "fieldtype": "Check",
+   "label": "Safety Induction Done"
+  },
+  {
+   "fieldname": "training_event",
+   "fieldtype": "Link",
+   "label": "After Training",
+   "options": "Training Event"
+  },
+  {
+   "fieldname": "column_break_detail",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "What Was Seen"
+  }
+ ],
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "designation",
+  "column_break_place",
+  "branch",
+  "department",
+  "work_section",
+  "company",
+  "skill_section",
+  "skill",
+  "critical",
+  "level",
+  "required_level",
+  "gap",
+  "column_break_assessed",
+  "assessed_by",
+  "assessed_by_name",
+  "assessed_on",
+  "next_due",
+  "status",
+  "detail_section",
+  "induction_done",
+  "training_event",
+  "column_break_detail",
+  "evidence"
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ]
+}

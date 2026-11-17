@@ -27,7 +27,11 @@
   "application_review_days",
   "column_break_evaluation",
   "impact_review_days",
-  "impact_window_days"
+  "impact_window_days",
+  "cover_section",
+  "cover_per_shift",
+  "column_break_cover",
+  "cover_shifts"
  ],
  "fields": [
   {
@@ -164,10 +168,34 @@
    "label": "Days Measured Before and After",
    "default": "30",
    "non_negative": 1
+  },
+  {
+   "fieldname": "cover_section",
+   "fieldtype": "Section Break",
+   "label": "Skills Cover"
+  },
+  {
+   "fieldname": "cover_per_shift",
+   "fieldtype": "Int",
+   "label": "Competent People Needed per Shift",
+   "default": "2",
+   "non_negative": 1,
+   "description": "In each skill. One competent person is a single point of failure."
+  },
+  {
+   "fieldname": "column_break_cover",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cover_shifts",
+   "fieldtype": "Int",
+   "label": "Shifts Covered",
+   "default": "2",
+   "non_negative": 1
   }
  ],
  "links": [],
- "modified": "2026-11-17 20:00:00.000000",
+ "modified": "2026-11-17 21:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Learning Settings",

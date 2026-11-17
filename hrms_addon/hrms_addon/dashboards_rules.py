@@ -842,6 +842,9 @@ ATTENTION = (
     # (learning_delivery.py)
     ("application_reviews_overdue", "Training application review overdue", "Training application reviews overdue",
      "Training Application Review", "training", OVERDUE),
+    # a skill's assessment past the day it was due again (competency.py)
+    ("reassessments_due", "Competency reassessment overdue", "Competency reassessments overdue",
+     "Competency Assessment", "training", OVERDUE),
     # Manufacturing Excellence (excellence.py): interventions past their
     # date, cases past the 15 days the Employment Act gives to impose a
     # penalty (s.62(5))
@@ -946,7 +949,7 @@ ATTENTION_COMPANY = {
     "penalties_waiting", "reviews_waiting", "trainings_not_closed", "suspensions_ending", "documents_expired",
     "exit_interviews_waiting", "training_overdue", "certificates_run_out", "certificates_running_out",
     "top_talent_at_risk", "shift_reports_unchecked", "interventions_overdue", "cases_past_limit",
-    "application_reviews_overdue",
+    "application_reviews_overdue", "reassessments_due",
 }
 
 
@@ -1004,6 +1007,7 @@ def attention_filters(key, day_of, company=None):
         "training_overdue": {"status": "Overdue"},
         "certificates_run_out": {"status": "Expired"},
         "application_reviews_overdue": {"status": "Pending", "due_on": ["between", [EVER, "{yesterday}"]]},
+        "reassessments_due": {"status": "Reassessment Due"},
         "certificates_running_out": {"status": "Due Soon"},
         "suspensions_ending": {"docstatus": 1, "status": SUSPENDED, "report_back_on": ["between", ["{today}", "{week}"]]},
         "clearances_late": {"docstatus": 0, "leaving_date": ["between", [EVER, "{yesterday}"]]},

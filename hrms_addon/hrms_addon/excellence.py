@@ -482,6 +482,9 @@ def period_facts(start, end, company=None, branch=None, section=None, shift=None
     facts.update(_intervention_facts({"company": company, "branch": branch, "section": section}, start, end, s))
     facts.update(_case_facts(start, end, ids, s, shift))
     facts.update(_grievance_facts(ids, s))
+    from hrms_addon.hrms_addon import competency
+
+    facts["competency"], facts["critical"] = competency.coverage_for(ids)
     return facts, s
 
 

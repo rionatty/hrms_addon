@@ -947,6 +947,16 @@ fixtures = [
                     "Training Program-custom_certification",
                     "Training Program-custom_kpis_section",
                     "Training Program-custom_kpis",
+                    "Skill-custom_competency_section",
+                    "Skill-custom_skill_type",
+                    "Skill-custom_branch",
+                    "Skill-custom_work_section",
+                    "Skill-custom_critical",
+                    "Skill-custom_competency_cb",
+                    "Skill-custom_required_level",
+                    "Skill-custom_reassess_months",
+                    "Skill-custom_certification",
+                    "Designation Skill-custom_required_level",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -2413,6 +2423,9 @@ scheduler_events = {
         # apply it, and the programme's KPIs measured before and after
         # (learning_delivery.py)
         "hrms_addon.hrms_addon.learning_delivery.daily",
+        # Competency: where each assessment stands today; a reassessment
+        # falling due on the supervisor's list (competency.py)
+        "hrms_addon.hrms_addon.competency.daily",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,

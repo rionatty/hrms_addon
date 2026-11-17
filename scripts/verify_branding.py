@@ -147,6 +147,7 @@ MODULES = {
     "hrms_addon.hrms_addon.board_pack": read("hrms_addon/hrms_addon/board_pack.py"),
     "hrms_addon.hrms_addon.excellence": read("hrms_addon/hrms_addon/excellence.py"),
     "hrms_addon.hrms_addon.learning_delivery": read("hrms_addon/hrms_addon/learning_delivery.py"),
+    "hrms_addon.hrms_addon.competency": read("hrms_addon/hrms_addon/competency.py"),
     "hrms_addon.hrms_addon.pick_lists": read("hrms_addon/hrms_addon/pick_lists.py"),
     "hrms_addon.hrms_addon.leave": read("hrms_addon/hrms_addon/leave.py"),
     "hrms_addon.hrms_addon.advances": read("hrms_addon/hrms_addon/advances.py"),

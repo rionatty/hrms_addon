@@ -18,7 +18,8 @@ from hrms_addon.hrms_addon import excellence, excellence_rules as rules
 PERCENT = {
     "Deployment (on shift over crew)", "Direct Labour Share", "Labour Cost against Budget",
     "Overtime Share of Labour Cost", "Attendance", "Unauthorised Absence", "Shift Reports Entered",
-    "Required Training Done", "Actions Closed on Time", "PPE Compliance", "Housekeeping",
+    "Required Training Done", "Skills at the Level Needed", "Critical Skills at the Level Needed",
+    "Actions Closed on Time", "PPE Compliance", "Housekeeping",
     "Cases Routed to Coaching or a Process Fix", "Turnover", "Engagement Pulse (Last 3 Months)",
 }
 MONEY = {"Labour Cost per Kg", "Total Labour Cost", "Overtime Cost", "Paid Absence Cost",

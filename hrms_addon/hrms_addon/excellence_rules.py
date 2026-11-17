@@ -582,6 +582,9 @@ def pillars(facts, s):
         "supervisors": facts.get("supervisors"), "weeks": facts.get("weeks")}, s)
     done, required = facts.get("coverage") or (0, 0)
     coverage = ratio(done, required)
+    # the skills assessed on the floor, all and critical (competency.py)
+    competent = ratio(*(facts.get("competency") or (0, 0)))
+    critical = ratio(*(facts.get("critical") or (0, 0)))
     headcount, establishment = facts.get("headcount") or 0, facts.get("establishment") or 0
     interventions = facts.get("interventions_due") or 0
     closed = facts.get("interventions_closed") or 0
@@ -596,7 +599,8 @@ def pillars(facts, s):
         "planning": [deployment_part(a["deployment"], s), establishment_part(headcount, establishment)],
         "productivity": [budget_part(a["budget_variance"]), overtime_part(a["ot_share"], s)],
         "attendance": [attendance_part(a["attendance"], a["unauthorised"], s)],
-        "skills": [capped(coverage, s["coverage_target"])],
+        "skills": [capped(coverage, s["coverage_target"]), capped(competent, s["coverage_target"]),
+                   capped(critical, s["coverage_target"])],
         "supervision": [supervision["index"]],
         "safety": [capped(a["ppe"], s["ppe_target"]), a["factors"]["safety"], a["factors"]["housekeeping"],
                    fatigue_part(a["fatigue"], s)],
@@ -650,6 +654,10 @@ def pillars(facts, s):
              _check(coverage >= s["coverage_target"]) if coverage is not None else NO_DATA),
             ("Requirements Not Done", (required - done) if required else None, 0,
              _check(required == done) if required else NO_DATA),
+            ("Skills at the Level Needed", competent, s["coverage_target"],
+             _check(competent >= s["coverage_target"]) if competent is not None else NO_DATA),
+            ("Critical Skills at the Level Needed", critical, s["coverage_target"],
+             _check(critical >= s["coverage_target"]) if critical is not None else NO_DATA),
         ],
         "supervision": [
             ("Supervisory Index", supervision["index"], s["green_from"],

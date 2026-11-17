@@ -77,6 +77,9 @@ DEFAULTS = {
     # they apply it, when the programme's KPIs are measured, and over how
     # many days before and after (learning_delivery.py)
     "application_review_days": 30, "impact_review_days": 60, "impact_window_days": 30,
+    # the skills cover: competent people needed in each skill per shift, and
+    # the shifts (competency.py)
+    "cover_per_shift": 2, "cover_shifts": 2,
 }
 
 # the blueprint's categories, in the order the matrix shows them; the
