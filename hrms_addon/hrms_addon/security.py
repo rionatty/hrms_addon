@@ -150,6 +150,14 @@ def _warn_about_leaks():
                    "%s should" % (role, " and ".join(rules.PRIVILEGED_ROLES)))
         frappe.log_error(title=message)
         print(message)
+    # HR alone change an employee's record (Luuka, 17 Nov 2026)
+    writers = frappe.get_all("Custom DocPerm", filters={"parent": "Employee", "write": 1},
+                             fields=["role", "permlevel", "write"], limit=200)
+    for role in rules.employee_write_leaks([dict(row) for row in writers]):
+        message = ("HRMS Addon: %s can change Employee records, and only %s should"
+                   % (role, " and ".join(rules.EDITOR_ROLES)))
+        frappe.log_error(title=message)
+        print(message)
 
 
 @frappe.whitelist(methods=["POST"])

@@ -45,6 +45,11 @@ PROTECTED_LEVEL = 1
 # Who is granted that level. Everybody else sees the fields as absent.
 PRIVILEGED_ROLES = ("HR Manager", "HR User", "Payroll Officer")
 PRIVILEGED_PTYPES = ("read", "write")
+# Who may change them, and any employee's record: HR alone; Payroll reads them (Luuka, 17 Nov 2026: "some of the
+# critical employee information HR manager and HR officer shuld be the ones to edit")
+EDITOR_ROLES = ("HR Manager", "HR User")
+# who administers the site, and may change anything
+ADMIN_ROLES = ("System Manager", "Administrator")
 
 # ── The read-only roles ───────────────────────────────────────────────
 AUDITOR = "Auditor"
@@ -73,8 +78,15 @@ def read_only_grants(doctypes):
 
 
 def privileged_grants(doctype="Employee"):
-    """Who may read the fields at level one."""
-    return {doctype: {role: PRIVILEGED_PTYPES for role in PRIVILEGED_ROLES}}
+    """Who may read the fields at level one, and who may change them: HR read and write them, Payroll reads."""
+    return {doctype: {role: PRIVILEGED_PTYPES if role in EDITOR_ROLES else ("read",) for role in PRIVILEGED_ROLES}}
+
+
+def employee_write_leaks(rules):
+    """The roles outside HR and the site's administrators that may change an Employee, at any level.
+    rules: [{role, permlevel, write}]."""
+    return sorted({rule.get("role") for rule in rules or ()
+                   if rule.get("write") and rule.get("role") not in EDITOR_ROLES + ADMIN_ROLES})
 
 
 def property_setters(doctype="Employee", fields=PROTECTED, level=PROTECTED_LEVEL):

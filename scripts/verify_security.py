@@ -114,7 +114,25 @@ if sorted(leaks) != ["Auditor", "Employee"]:
     fail.append("anybody outside HR and Payroll at level one is named: %s" % leaks)
 if S.level_one_leaks([{"role": "System Manager", "permlevel": 1, "read": 1}]):
     fail.append("the System Manager is not a leak: they administer the site")
-print("the fields: salary and bank at level one, HR and Payroll and nobody else")
+# Luuka, 17 Nov 2026: "some of the critical employee information HR manager and HR officer shuld be the ones to edit"
+if grants["Employee"] != {"HR Manager": ("read", "write"), "HR User": ("read", "write"), "Payroll Officer": ("read",)} \
+        or tuple(S.EDITOR_ROLES) != ("HR Manager", "HR User"):
+    fail.append("HR read and change the salary, bank and advance details; Payroll reads them: %s" % grants)
+writers = S.employee_write_leaks([
+    {"role": "HR Manager", "permlevel": 0, "write": 1}, {"role": "HR User", "permlevel": 1, "write": 1},
+    {"role": "System Manager", "permlevel": 0, "write": 1}, {"role": "Payroll Officer", "permlevel": 1, "write": 1},
+    {"role": "Accounts User", "permlevel": 0, "write": 1}, {"role": "Employee", "permlevel": 0, "read": 1},
+    {"role": "Payroll Officer", "permlevel": 0, "read": 1}])
+if writers != ["Accounts User", "Payroll Officer"]:
+    fail.append("anybody outside HR and the administrators who can change an Employee is named: %s" % writers)
+patch = read("hrms_addon", "patches", "v1_0", "employee_edits_by_hr.py")
+if "hrms_addon.patches.v1_0.employee_edits_by_hr" not in read("hrms_addon", "patches.txt") \
+        or '"parent": "Employee", "permlevel": rules.PROTECTED_LEVEL, "write": 1,' not in patch \
+        or '"role": ["not in", list(rules.EDITOR_ROLES + rules.ADMIN_ROLES)]' not in patch \
+        or 'frappe.db.set_value("Custom DocPerm", name, "write", 0, update_modified=False)' not in patch \
+        or "remove_permission" in patch or "frappe.db.delete" in patch:
+    fail.append("the patch takes the write at level one from anybody but HR, once, keeping their read")
+print("the fields: salary and bank at level one, HR and Payroll and nobody else; HR alone change them")
 
 # ── 2. The read-only roles ────────────────────────────────────────────
 if "Auditor" not in S.READ_ONLY_ROLES:
@@ -202,6 +220,7 @@ for needle, why in (
     ("rules.privileged_grants(", "and so does who sees level one"),
     ("rules.leaks(", "a read-only role given write is noticed"),
     ("rules.level_one_leaks(", "and so is anybody else at level one"),
+    ("rules.employee_write_leaks(", "and anybody but HR who can change an Employee, said on the deploy"),
     ("rules.branch_permission(", "a user is held to their branch by a User Permission"),
     ("rules.matrix(", "and the matrix is built by the rules"),
     ("setup_custom_perms", "granting a custom rule copies the standard ones first"),

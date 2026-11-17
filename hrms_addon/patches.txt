@@ -105,3 +105,4 @@ hrms_addon.patches.v1_0.salary_advance_request_import
 hrms_addon.patches.v1_0.attendance_verification_hr_officer
 hrms_addon.patches.v1_0.advance_paid_on_payment
 hrms_addon.patches.v1_0.casual_hours_hr_officer
+hrms_addon.patches.v1_0.employee_edits_by_hr
