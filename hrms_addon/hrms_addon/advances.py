@@ -203,6 +203,14 @@ def _company_loan(employee):
         pluck="outstanding", limit_page_length=0)))
 
 
+def set_by_hand(employee):
+    """The Employee's Salary Advance Set by Hand: their salary advance is typed on the run and may be above the
+    share of gross (Luuka, 17 Nov 2026)."""
+    if not employee or not _has("Employee", "custom_advance_set_by_hand"):
+        return False
+    return bool(cint(frappe.db.get_value("Employee", employee, "custom_advance_set_by_hand")))
+
+
 def _pay_category(employee):
     if not employee or not _has("Employee", "custom_pay_category"):
         return rules.REGULAR
@@ -294,6 +302,7 @@ def _facts(doc, s=None):
             "days_absent": doc.get("custom_days_absent"),
             "on_leave": _on_leave(employee, on) if employee else None,
             "bank_loan": _bank_loan(employee, on),
+            "set_by_hand": set_by_hand(employee),
         })
     elif kind == rules.LEAVE_ADVANCE:
         facts.update({

@@ -445,8 +445,13 @@ def eligibility_errors(facts, settings=None):
     "date_of_joining", "today", "gross_pay", "average_gross", "amount",
     "outstanding", "instalments", and for a salary advance
     "processing_date", "window_start", "days_absent", "days_unmarked", "on_leave",
-    "bank_loan"; for a leave advance "bank_loan", "company_loan",
+    "bank_loan", "set_by_hand"; for a leave advance "bank_loan", "company_loan",
     "leave_days".
+
+    An employee whose salary advance is set by hand (the Employee's Salary
+    Advance Set by Hand) may have more than the share of gross: Luuka, 17 Nov
+    2026, "add a setting for employee that their amount is put manually which
+    can be more than 40% of the gross". Everything else still holds.
     """
     s = _settings(settings)
     kind = facts.get("advance_type") or SALARY_ADVANCE
@@ -465,7 +470,8 @@ def eligibility_errors(facts, settings=None):
     if amount <= 0:
         errors.append(ASK_AMOUNT)
     ceiling = entitled(kind, facts.get("gross_pay"), facts.get("pay_category"), s, facts.get("average_gross"))
-    if ceiling is not None and amount > ceiling:
+    above_allowed = kind == SALARY_ADVANCE and bool(facts.get("set_by_hand"))
+    if ceiling is not None and amount > ceiling and not above_allowed:
         errors.append("The most that may be advanced is %s, %s." % (_money(ceiling), _because(kind, facts, s)))
     return errors
 

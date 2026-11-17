@@ -732,6 +732,10 @@ if by_dt.get(EM):
                  "custom_bank_loan_bank": ("Salary", "custom_has_bank_loan"),
                  "custom_bank_loan_cb": ("Salary", "custom_bank_loan_bank"),
                  "custom_bank_loan_until": ("Salary", "custom_bank_loan_cb"),
+                 # whose salary advance is typed on the run, above the share
+                 # of gross (Luuka, 17 Nov 2026; advance_rules.eligibility_errors)
+                 "custom_salary_advance_section": ("Salary", "custom_bank_loan_until"),
+                 "custom_advance_set_by_hand": ("Salary", "custom_salary_advance_section"),
                  # how gross is earned, beside Frappe HR's own Employment Type
                  # (minutes §4.6; the Per Meter salary advance reads it)
                  "custom_pay_category": ("Overview", "employment_type"),

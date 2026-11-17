@@ -695,7 +695,33 @@ run_form = read("hrms_addon", "hrms_addon", "doctype", "salary_advance_processin
 if 'frm.fields_dict.employees.grid.update_docfield_property(\n\t\t\t"amount",\n\t\t\t"read_only",\n\t\t\t' \
         'frappe.user.has_role(["HR User", "HR Manager", "System Manager"]) ? 0 : 1' not in run_form:
     fail.append("the run's form opens the amount to HR only")
-print("a line's amount set by hand: kept, said, posted, by HR only")
+# Luuka, 17 Nov 2026: "add a setting for employee that their amount is put manually which can be more than 40% of the
+# gross". The Employee's Salary Advance Set by Hand lifts the share of gross, for a salary advance only
+OVER = {"advance_type": V.SALARY_ADVANCE, "status": "Active", "pay_category": V.REGULAR, "gross_pay": 377300,
+        "amount": 500000, "instalments": 1}
+LIMIT = "The most that may be advanced is UGX 150,920"
+said_over = V.eligibility_errors(OVER)
+said_by_hand = V.eligibility_errors(dict(OVER, set_by_hand=1))
+said_leave = V.eligibility_errors(dict(OVER, advance_type=V.LEAVE_ADVANCE, set_by_hand=1))
+if not any(LIMIT in text for text in said_over) or any("most that may be advanced" in text for text in said_by_hand) \
+        or not any("most that may be advanced" in text for text in said_leave) \
+        or [text for text in said_by_hand if "most" not in text] != [text for text in said_over if "most" not in text]:
+    fail.append("set by hand, a salary advance may be above the share of gross and nothing else changes; a leave "
+                "advance is held to its own: %s / %s" % (said_over, said_by_hand))
+advances_glue = read("hrms_addon", "hrms_addon", "advances.py")
+by_hand = advances_glue.split("def set_by_hand(", 1)[-1].split("\ndef ", 1)[0]
+if 'if not employee or not _has("Employee", "custom_advance_set_by_hand"):' not in by_hand \
+        or 'frappe.db.get_value("Employee", employee, "custom_advance_set_by_hand")' not in by_hand \
+        or '"set_by_hand": set_by_hand(employee),' not in advances_glue.split("def _facts(", 1)[-1].split("\ndef ", 1)[0] \
+        or '"set_by_hand": advances.set_by_hand(row.employee)}, s)' not in work:
+    fail.append("the run's lines and the advances it makes read the Employee's Salary Advance Set by Hand")
+fixture = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
+tick = fixture.get("Employee-custom_advance_set_by_hand") or {}
+if (tick.get("fieldtype"), tick.get("label"), tick.get("insert_after")) != (
+        "Check", "Salary Advance Set by Hand", "custom_salary_advance_section") \
+        or "Employee-custom_advance_set_by_hand" not in read("hrms_addon", "hooks.py"):
+    fail.append("the Employee carries Salary Advance Set by Hand, shipped with the fixtures: %s" % tick)
+print("a line's amount set by hand: kept, said, posted, by HR only; above the share of gross where the Employee says")
 
 if fail:
     print("\nFAILURES:")

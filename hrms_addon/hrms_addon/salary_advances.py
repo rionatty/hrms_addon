@@ -240,7 +240,9 @@ def _work_out(row, doc, s):
         "instalments": s["salary_instalments"], "processing_date": processed_on, "window_start": start,
         "days_absent": row.days_absent, "days_unmarked": row.days_unmarked,
         "on_leave": advances._on_leave(row.employee, processed_on),
-        "bank_loan": advances._bank_loan(row.employee, processed_on)}, s)
+        "bank_loan": advances._bank_loan(row.employee, processed_on),
+        # the Employee's Salary Advance Set by Hand: the amount typed may be above the share of gross
+        "set_by_hand": advances.set_by_hand(row.employee)}, s)
     if not row.amount:
         errors = [rules.no_gross(processed_on)] + [error for error in errors if error != rules.ASK_AMOUNT]
     if request:
