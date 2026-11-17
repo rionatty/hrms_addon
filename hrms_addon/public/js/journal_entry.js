@@ -2,9 +2,10 @@
 // For license information, please see license.txt
 //
 // The bank entry of an advance run (Salary Advance Processing, Leave Advance
-// Processing). Finance cancel it on its own: the run and its advances are
-// not documents to cancel first, and what the payment put on the payroll
-// comes off (advance_runs.journal_on_cancel).
+// Processing), and a staff loan's entries. Finance cancel one on its own:
+// the run and its advances, or the loan, are not documents to cancel first,
+// and what the payment put on the payroll comes off
+// (advance_runs.journal_on_cancel, loans.journal_on_cancel).
 //
 // doctype_js, read from disk when the form loads, so a change to it needs
 // no `bench build`.
@@ -17,6 +18,9 @@ frappe.ui.form.on("Journal Entry", {
 				"Salary Advance Processing",
 				"Leave Advance Processing",
 				"Leave Advance",
+				// a staff loan's payment, repayment or write-off: the loan follows the entry (loans.journal_on_cancel),
+				// a running one cancelled with its payment
+				"Employee Loan",
 			]),
 		];
 	},

@@ -136,7 +136,9 @@ check(naming(SALARY) == {"Employee Advance"} and naming(LEAVE) == {"Leave Advanc
       "an advance names its run: %s, %s" % (sorted(naming(SALARY)), sorted(naming(LEAVE))))
 
 entry_form = read("hrms_addon", "public", "js", "journal_entry.js")
-check(ignored(entry_form) == set(R.BANK_ENTRY_KEPT_BY) and "...(frm.ignore_doctypes_on_cancel_all || [])" in entry_form,
+# and the staff loan, which follows its own entries (loans.journal_on_cancel, scripts/verify_loans.py)
+check(ignored(entry_form) == set(R.BANK_ENTRY_KEPT_BY) | {"Employee Loan"}
+      and "...(frm.ignore_doctypes_on_cancel_all || [])" in entry_form,
       "the bank entry's form keeps ERPNext's exceptions and adds the runs: %s" % sorted(ignored(entry_form)))
 ours = {SALARY, LEAVE, "Employee Advance", "Leave Advance"}
 check(naming("Journal Entry") & ours <= set(R.BANK_ENTRY_KEPT_BY),

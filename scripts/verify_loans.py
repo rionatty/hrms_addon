@@ -502,9 +502,45 @@ if '@frappe.whitelist(methods=["POST"])\ndef make_journal(' not in glue:
     fail.append("the form drafts the Journal Entry, by POST only")
 for name, needle in (("journal_on_submit", "apply_payment("), ("journal_on_submit", "_write_off("),
                      ("journal_on_cancel", "remove_payment("), ("journal_on_cancel", "_undo_write_off("),
-                     ("journal_on_cancel", "Cancel the loan first")):
+                     ("journal_on_cancel", "_cancel_with_payment(target)")):
     if needle not in body(glue, name):
         fail.append("%s: %s" % (name, needle))
+
+# Luuka, 16 Nov 2026: "Once a loan is approved, There is no way of cancelling it or even reversing the payment."
+# Each refused to go before the other. Now the loan takes its payment with it, and the payment its loan.
+cancel = body(glue, "loan_on_cancel")
+if 'frappe.has_permission(JOURNAL, "cancel", entry)' not in cancel \
+        or "frappe.get_doc(JOURNAL, entry)._cancel()" not in cancel \
+        or "Accounts reverse it (Reverse Payment on the loan), and the \"\n" not in cancel \
+        or cancel.index("already recovered") > cancel.index("._cancel()"):
+    fail.append("a loan cancelled reverses its payment, for somebody who may cancel journal entries, once nothing "
+                "is recovered; anybody else is told Accounts reverse it")
+if 'doc.db_set({"status": rules.CANCELLED, "approval_status": approval.CANCELLED,\n' \
+        '                "workflow_state": approval.CANCELLED}, update_modified=False)' not in cancel \
+        or "doc.status = " in cancel or "doc.approval_status = " in cancel:
+    fail.append("a cancelled loan is written Cancelled: set in on_cancel, after the loan is written, it was lost")
+with_payment = body(glue, "_cancel_with_payment")
+if "if row.recovered]" not in with_payment or "so its payment stands" not in with_payment \
+        or "doc.flags.ignore_permissions = True\n    doc.cancel()" not in with_payment:
+    fail.append("a running loan's payment reversed cancels the loan, while the payroll has taken nothing of it")
+reverse = body(glue, "reverse_payment")
+if '@frappe.whitelist(methods=["POST"])\ndef reverse_payment(' not in glue \
+        or 'doc.check_permission("read")' not in reverse \
+        or 'frappe.has_permission(JOURNAL, "cancel", entry)' not in reverse \
+        or 'frappe.db.get_value(JOURNAL, entry, "docstatus") != 1' not in reverse \
+        or "frappe.get_doc(JOURNAL, entry)._cancel()" not in reverse or "ignore_permissions" in reverse:
+    fail.append("Reverse Payment cancels a booked payment, by POST, under the user's own right to cancel entries")
+loan_form = read("hrms_addon", "hrms_addon", "doctype", "employee_loan", "employee_loan.js")
+if '...(frm.ignore_doctypes_on_cancel_all || []), "Journal Entry", "Additional Salary"' not in loan_form:
+    fail.append("the loan's Cancel All leaves its payment and deductions to the loan")
+reverse_button = loan_form.split('__("Reverse Payment")', 1)[0].rsplit("if (", 1)[-1] \
+    if '__("Reverse Payment")' in loan_form else ""
+if 'HA_LOANS + "reverse_payment"' not in loan_form or not all(part in reverse_button for part in (
+        "!bank", "frm.doc.disbursement_entry", "frm.doc.docstatus < 2", 'frappe.model.can_cancel("Journal Entry")',
+        "!(frm.doc.repayments || []).some((row) => row.recovered)")):
+    fail.append("the loan offers Reverse Payment to those who may cancel entries, while nothing is recovered")
+if not re.search(r'^\s*"Employee Loan",\s*$', read("hrms_addon", "public", "js", "journal_entry.js"), re.M):
+    fail.append("an entry's Cancel All leaves its loan to follow it")
 if "rules.PAID_DIRECTLY" not in body(glue, "journal_on_submit") or "rules.FINAL_SETTLEMENT" not in \
         body(glue, "settle_on_exit"):
     fail.append("a payment made directly, and one taken in the final settlement, say so on the schedule")

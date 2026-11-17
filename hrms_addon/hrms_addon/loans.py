@@ -634,17 +634,30 @@ def loan_on_submit(doc, method=None):
 
 def loan_on_cancel(doc, method=None):
     """Only a loan nothing has been taken back on is cancelled; one part
-    repaid is repaid or written off instead."""
+    repaid is repaid or written off instead. Its payment is reversed with
+    it, by somebody who may cancel journal entries; anybody else is told
+    that Accounts reverse it, which cancels the loan (journal_on_cancel).
+    Until 16 Nov 2026 each refused to go before the other, and Luuka found
+    "no way of cancelling it or even reversing the payment"."""
+    from hrms_addon.hrms_addon import loan_approval as approval
+
     taken = [row for row in doc.get("repayments") or [] if row.recovered]
     if taken:
         frappe.throw(_("{0} month(s) of this loan are already recovered. Record the rest as repaid, or "
                        "write it off, instead of cancelling.").format(len(taken)), title=_(DOCTYPE))
     entry = doc.get("disbursement_entry")
     if entry and frappe.db.get_value(JOURNAL, entry, "docstatus") == 1:
-        frappe.throw(_("The payment {0} is booked. Cancel it first.").format(entry), title=_(DOCTYPE))
+        if not frappe.has_permission(JOURNAL, "cancel", entry):
+            frappe.throw(_("The payment {0} is booked. Accounts reverse it (Reverse Payment on the loan), and the "
+                           "loan is cancelled with it.").format(entry), title=_(DOCTYPE))
+        # _cancel, not cancel: ERPNext queues the cancel of a long entry for later
+        frappe.get_doc(JOURNAL, entry)._cancel()
+        frappe.msgprint(_("Payment {0} is reversed.").format(entry), alert=True)
     _cancel_untaken(doc)
-    doc.approval_status = "Cancelled"
-    doc.status = rules.CANCELLED
+    # on_cancel runs after the loan is written, and a cancel never passes
+    # through its workflow: what it now is, written here
+    doc.db_set({"status": rules.CANCELLED, "approval_status": approval.CANCELLED,
+                "workflow_state": approval.CANCELLED}, update_modified=False)
     if _is_bank(doc):
         _mark_bank_loan(doc.employee, exclude=doc.name, ended=doc)
 
@@ -914,13 +927,43 @@ def journal_on_cancel(doc, method=None):
     target = frappe.get_doc(DOCTYPE, loan)
     if purpose == PAYMENT:
         if target.docstatus == 1:
-            frappe.throw(_("{0} is running on this payment. Cancel the loan first.").format(loan), title=_(DOCTYPE))
+            _cancel_with_payment(target)
         frappe.db.set_value(DOCTYPE, loan, {"disbursed_on": None, "disbursement_entry": None,
                                             "disbursement_reference": None}, update_modified=False)
     elif purpose == REPAYMENT:
         remove_payment(target, JOURNAL, doc.name)
     elif target.get("write_off_entry") == doc.name:
         _undo_write_off(target)
+
+
+def _cancel_with_payment(doc):
+    """A running loan's payment reversed: a loan does not run on money it
+    never lent, so it is cancelled with it, while the payroll has taken
+    nothing of it."""
+    taken = [row for row in doc.get("repayments") or [] if row.recovered]
+    if taken:
+        frappe.throw(_("{0} month(s) of {1} are already recovered, so its payment stands. Record the rest as "
+                       "repaid, or write it off.").format(len(taken), doc.name), title=_(DOCTYPE))
+    # whoever may reverse the payment takes the loan back with it
+    doc.flags.ignore_permissions = True
+    doc.cancel()
+    frappe.msgprint(_("{0} is cancelled with its payment.").format(doc.name), alert=True)
+
+
+@frappe.whitelist(methods=["POST"])
+def reverse_payment(loan):
+    """Accounts take a loan's payment back: its entry is cancelled, and a
+    loan already running is cancelled with it (journal_on_cancel); one still
+    waiting to run waits to be paid out again."""
+    doc = frappe.get_doc(DOCTYPE, loan)
+    doc.check_permission("read")
+    entry = doc.get("disbursement_entry")
+    if not entry or frappe.db.get_value(JOURNAL, entry, "docstatus") != 1:
+        frappe.throw(_("No payment is booked on this loan."), title=_(DOCTYPE))
+    if not frappe.has_permission(JOURNAL, "cancel", entry):
+        frappe.throw(_("Accounts reverse the payment."), frappe.PermissionError, title=_(DOCTYPE))
+    frappe.get_doc(JOURNAL, entry)._cancel()
+    return entry
 
 
 def apply_payment(doc, amount, day, reference_type, reference_name, label):

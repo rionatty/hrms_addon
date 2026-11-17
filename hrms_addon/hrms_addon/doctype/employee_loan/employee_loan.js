@@ -4,6 +4,13 @@
 const HA_LOANS = "hrms_addon.hrms_addon.loans.";
 
 frappe.ui.form.on("Employee Loan", {
+	setup(frm) {
+		// the loan takes back its own payment and deductions as it is cancelled (loans.loan_on_cancel): neither is
+		// a document to cancel first
+		frm.ignore_doctypes_on_cancel_all = [
+			...new Set([...(frm.ignore_doctypes_on_cancel_all || []), "Journal Entry", "Additional Salary"]),
+		];
+	},
 	refresh(frm) {
 		frm.trigger("show_loan");
 		const roles = (list) => list.some((role) => frappe.user.has_role(role));
@@ -24,6 +31,29 @@ frappe.ui.form.on("Employee Loan", {
 			!frm.doc.disbursement_entry
 		) {
 			frm.add_custom_button(__("Record Payment"), () => ha_loan_journal(frm, "Payment"));
+		}
+		// Luuka, 16 Nov 2026: "Once a loan is approved, There is no way of cancelling it or even reversing the
+		// payment." Accounts reverse it; a running loan is cancelled with it (loans.reverse_payment)
+		if (
+			!bank &&
+			frm.doc.disbursement_entry &&
+			frm.doc.docstatus < 2 &&
+			frappe.model.can_cancel("Journal Entry") &&
+			!(frm.doc.repayments || []).some((row) => row.recovered)
+		) {
+			frm.add_custom_button(__("Reverse Payment"), () =>
+				frappe.confirm(
+					frm.doc.docstatus === 1
+						? __("Reverse the payment {0}? The loan is cancelled with it, and its deductions come off the payroll.", [
+								frm.doc.disbursement_entry,
+						  ])
+						: __("Reverse the payment {0}? The loan waits to be paid out again.", [frm.doc.disbursement_entry]),
+					() =>
+						frappe
+							.xcall(HA_LOANS + "reverse_payment", { loan: frm.doc.name })
+							.then(() => frm.reload_doc())
+				)
+			);
 		}
 		if (!bank && frm.doc.docstatus === 1 && frm.doc.status === "Running") {
 			if (accounts) {
