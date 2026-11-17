@@ -2,7 +2,7 @@
  "actions": [],
  "autoname": "HR-CHS-.YYYY.-.#####",
  "creation": "2026-11-12 18:00:00.000000",
- "description": "One plant's casuals paid by the hour for a week: each one's hours and overtime as totals, approved by the plant's General Manager before the weekly payroll pays them.",
+ "description": "One plant's casuals paid by the hour for a week: each one's hours and overtime as totals, approved by the plant's HR Officer before the weekly payroll pays them.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -81,7 +81,7 @@
    "in_standard_filter": 1,
    "label": "Status",
    "no_copy": 1,
-   "options": "Draft\nPending General Manager\nApproved\nCancelled",
+   "options": "Draft\nApproved\nCancelled",
    "print_hide": 1,
    "read_only": 1
   },
@@ -184,6 +184,7 @@
   {
    "fieldname": "return_remarks",
    "fieldtype": "Small Text",
+   "hidden": 1,
    "label": "Return Remarks",
    "no_copy": 1
   },
@@ -209,7 +210,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-12 18:00:00.000000",
+ "modified": "2026-11-17 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Casual Hours Sheet",
@@ -248,6 +249,7 @@
   },
   {
    "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -257,15 +259,14 @@
    "report": 1,
    "role": "HR User",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "General Manager",
-   "submit": 1,
-   "write": 1
+   "role": "General Manager"
   },
   {
    "print": 1,

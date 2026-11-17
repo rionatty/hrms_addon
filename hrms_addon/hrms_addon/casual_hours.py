@@ -7,14 +7,16 @@ casual_hours_rules.py and casual_hours_approval.py (scripts/verify_casual_hours.
 Luuka, 12 Nov 2026: "the team captures total number of hours worked and
 overtime how can we make it easy for them". A Casual Hours Sheet is one
 plant's week: each casual paid by the hour with the week's totals, filled
-from a template or the team's own sheet, approved by the plant's General
-Manager, then paid by the weekly payroll (weekly_pay.py).
+from a template or the team's own sheet, approved by the plant's HR Officer
+(its General Manager until 17 Nov 2026), then paid by the weekly payroll
+(weekly_pay.py).
 
   sheet_validate       the week and its people: the plant's casuals paid by
                        the hour, each once, on no other sheet of those days;
                        each one's rate and Overtime Type on the week's last
                        day, and what the row comes to; the approval's steps
-  sheet_before_submit  only the General Manager's Approve submits it
+  sheet_before_submit  only the Approve of the plant's own HR Officer (or
+                       the HR Manager) submits it
   sheet_before_cancel  refused once a submitted weekly slip paid any of it
   new_sheet_week       the week a plant's next sheet is for
   download_template    the plant's casuals paid by the hour, to fill in
@@ -124,14 +126,14 @@ def _overlap_errors(doc):
 
 def _verified_errors(doc):
     """A sheet's people whose days in its week a verified Attendance Verification holds: the week as verified is what
-    the payroll pays, so the hours are not changed under it. The General Manager reopens it first (as
+    the payroll pays, so the hours are not changed under it. Its HR Officer reopens it first (as
     attendance_verification.refuse_attendance asks of a day's attendance)."""
     from hrms_addon.hrms_addon import attendance_verification
 
     people = [row.employee for row in doc.get("rows") or [] if row.get("employee")]
     if not people or not doc.get("from_date") or not doc.get("to_date"):
         return []
-    return ["%s is on %s, verified for %s: the General Manager reopens it before these hours change." % (
+    return ["%s is on %s, verified for %s: its HR Officer reopens it before these hours change." % (
         ", ".join(sorted(sheet["employees"])), sheet.name, sheet.branch or doc.get("branch"))
         for sheet in attendance_verification.verified_sheets(doc.from_date, doc.to_date, doc.get("company"), people)
         if sheet["employees"]]
@@ -204,13 +206,10 @@ def _check_step(doc, facts):
     new_state = doc.get("workflow_state")
     if old_state != new_state:
         errors = approval.step_errors(old_state, new_state, {
-            "return_remarks": doc.get("return_remarks"), "people": doc.get("total_people"),
-            "unrated": facts["unrated"], "no_type": facts["no_type"],
-            "paid": _paid_already(doc) if new_state in (approval.PENDING_GM, approval.APPROVED) else []})
+            "people": doc.get("total_people"), "unrated": facts["unrated"], "no_type": facts["no_type"],
+            "paid": _paid_already(doc) if new_state == approval.APPROVED else []})
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(TITLE))
-        if new_state == approval.PENDING_GM:
-            doc.return_remarks = None
     current = {field: before.get(field) for field in approval.ALL_STAMP_FIELDS} if before else {}
     for field, value in approval.compute_stamps(old_state, new_state, frappe.session.user, now_datetime(),
                                                 current).items():
@@ -220,29 +219,12 @@ def _check_step(doc, facts):
 
 
 def _tell_step(doc, old_state, new_state):
-    """The plant's General Manager is told of a week to approve; whoever prepared it, of a return; the plant's HR
-    and Payroll Officers, of a week the payroll may pay."""
+    """The plant's HR and Payroll Officers are told of a week the payroll may pay."""
     from hrms_addon.hrms_addon import casual_hours_approval as approval
 
     branch = doc.get("branch")
     week = "%s to %s" % (rules.shown(doc.from_date), rules.shown(doc.to_date))
-    if new_state == approval.PENDING_GM:
-        users = [user for user in people.people_for(approval.GM, branch) if user != frappe.session.user]
-        message = _("Casual hours of {0}, {1}: {2} people, {3} hours and {4} overtime hours to approve.").format(
-            branch, week, doc.get("total_people"), doc.get("total_hours"), doc.get("total_overtime"))
-        if users:
-            people.notify(users, doc.doctype, doc.name, message)
-            people.assign(doc.doctype, doc.name, users, message)
-        return
-    if old_state == approval.PENDING_GM:
-        people.withdraw(doc.doctype, doc.name, people.people_for(approval.GM, branch))
-    if new_state == approval.DRAFT and old_state == approval.PENDING_GM:
-        users = [user for user in [doc.get("owner")] + list(people.hr_officers(branch)) if user]
-        users = [user for user in dict.fromkeys(users) if user != frappe.session.user]
-        if users:
-            people.notify(users, doc.doctype, doc.name, _("Casual hours of {0}, {1}, returned: {2}").format(
-                branch, week, doc.get("return_remarks") or ""))
-    elif new_state == approval.APPROVED:
+    if new_state == approval.APPROVED:
         users = set(people.hr_officers(branch)) | set(people.people_for(approval.PAYROLL_OFFICER, branch))
         users.discard(frappe.session.user)
         if users:
@@ -251,16 +233,30 @@ def _tell_step(doc, old_state, new_state):
 
 
 def sheet_before_submit(doc, method=None):
-    """Only the General Manager's Approve submits a sheet: a plain submit would pay a week nobody approved."""
+    """Only an Approve submits a sheet, by the plant's own HR Officer or the HR Manager: a plain submit would pay a
+    week nobody approved."""
     from hrms_addon.hrms_addon import casual_hours_approval as approval
 
+    _may_approve(doc)
     if doc.get("workflow_state") != approval.APPROVED:
-        frappe.throw(_("The plant's General Manager approves the week: send it to them."), title=_(TITLE))
+        frappe.throw(_("The plant's HR Officer approves the week: Approve it from Actions."), title=_(TITLE))
+
+
+def _may_approve(doc):
+    """The plant's own HR Officers approve and cancel its sheet; the HR Manager any plant's (Luuka, 17 Nov 2026)."""
+    from hrms_addon.hrms_addon import casual_hours_approval as approval
+
+    errors = approval.approver_errors(frappe.session.user, frappe.get_roles(),
+                                      people.people_for(approval.HR_OFFICER, doc.get("branch")), doc.get("branch"))
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), frappe.PermissionError, title=_(TITLE))
 
 
 def sheet_before_cancel(doc, method=None):
     """A week a submitted weekly slip has paid stays: its slips are cancelled first. So does one a verified Attendance
-    Verification holds: the General Manager reopens it first."""
+    Verification holds: its HR Officer reopens it first. Only the plant's own HR Officer or the HR Manager cancels
+    it."""
+    _may_approve(doc)
     held = _verified_errors(doc)
     if held:
         frappe.throw("<br>".join(_(message) for message in held), title=_(TITLE))
@@ -356,7 +352,8 @@ def upload_sheet(sheet, file_url):
     doc = frappe.get_doc(DOCTYPE, sheet)
     doc.check_permission("write")
     if doc.docstatus != 0 or (doc.get("workflow_state") or approval.DRAFT) != approval.DRAFT:
-        frappe.throw(_("Only a draft sheet takes an upload: return it to Draft first."), title=_(TITLE))
+        frappe.throw(_("Only a draft sheet takes an upload: an approved week is cancelled and amended to change it."),
+                     title=_(TITLE))
     try:
         found = rules.read_book(_tables(output_pay._file_bytes(file_url)))
     except ValueError as error:

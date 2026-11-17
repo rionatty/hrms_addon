@@ -1,7 +1,7 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""One plant's casuals paid by the hour, for a week, approved by its General Manager before the weekly payroll
+"""One plant's casuals paid by the hour, for a week, approved by its HR Officer before the weekly payroll
 pays it (casual_hours.py)."""
 
 from frappe.model.document import Document

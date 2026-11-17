@@ -223,9 +223,8 @@ def person_issues(person, codes, clock, days):
     return out
 
 
-# a Casual Hours Sheet over the sheet's days that the plant's General Manager has not approved yet (casual_hours.py)
-HOURS_SHEET_DRAFT = "Casual hours not yet sent to the General Manager"
-HOURS_SHEET_WAITING = "Casual hours waiting for the General Manager"
+# a Casual Hours Sheet over the sheet's days that the plant's HR Officer has not approved yet (casual_hours.py)
+HOURS_SHEET_DRAFT = "Casual hours not yet approved by its HR Officer"
 HOURS_SHEET = "Casual Hours Sheet"
 
 
@@ -250,7 +249,7 @@ def with_hours_sheet(figures, inside, sheet, counted=None):
 
 
 def hours_sheet_issue(name, sheet, first, last):
-    """The line of what to put right for a Casual Hours Sheet over the sheet's days that its General Manager has not
+    """The line of what to put right for a Casual Hours Sheet over the sheet's days that its HR Officer has not
     approved: its figures are on the sheet, and are not yet what the payroll pays. None for an approved one.
     sheet: {"from_date", "to_date", "state", "people"} (casual_hours.for_verification)."""
     state = sheet.get("state") or "Draft"
@@ -259,7 +258,7 @@ def hours_sheet_issue(name, sheet, first, last):
     start, end = max(_date(sheet.get("from_date")), _date(first)), min(_date(sheet.get("to_date")), _date(last))
     people = int(_num(sheet.get("people")))
     return issue_row({"employee": None, "employee_name": "%d casual%s" % (people, "" if people == 1 else "s")},
-                     start, end, HOURS_SHEET_DRAFT if state == "Draft" else HOURS_SHEET_WAITING, HOURS_SHEET, name)
+                     start, end, HOURS_SHEET_DRAFT, HOURS_SHEET, name)
 
 
 def issue_row(person, first, last, issue, reference_doctype=None, reference_name=None):

@@ -1,5 +1,5 @@
 """Checks for the Casual Hours Sheet: one plant's casuals paid by the hour, a week's totals each, approved by its
-General Manager before the weekly payroll pays it (Luuka, 12 Nov 2026: "the team captures total number of hours
+HR Officer (its General Manager until 17 Nov 2026) before the weekly payroll pays it (Luuka, 12 Nov 2026: "the team captures total number of hours
 worked and overtime how can we make it easy for them"; "working hour is 10 ... no maximum overtime hours for
 casuals"; "build it").
 
@@ -230,37 +230,48 @@ check(days == [{"attendance_date": D(2026, 11, 4), "status": "Present", "hours":
 print("rules: the team's sheet read, the week and the hours checked, what a row comes to, what a slip pays")
 
 # ── 2. The approval ───────────────────────────────────
-check(A.next_states(A.DRAFT, ["HR User"]) == [(A.SEND, A.PENDING_GM)] and A.next_states(A.DRAFT, ["General Manager"]) == [],
-      "HR send the week to the General Manager; the General Manager does not fill it")
-check(A.next_states(A.PENDING_GM, ["General Manager"]) == [(A.APPROVE, A.APPROVED), (A.RETURN, A.DRAFT)]
-      and A.next_states(A.PENDING_GM, ["HR User"]) == [],
-      "the General Manager approves or returns it; an HR Officer cannot approve their own week")
-check(A.next_states(A.PENDING_GM, ["HR Manager"]) == [(A.APPROVE, A.APPROVED), (A.RETURN, A.DRAFT)]
+# Luuka, 17 Nov 2026: the sheet's approval goes "to HR Offer", the plant's own HR Officer, no General Manager
+check(A.next_states(A.DRAFT, ["HR User"]) == [(A.APPROVE, A.APPROVED)]
+      and A.next_states(A.DRAFT, ["HR Manager"]) == [(A.APPROVE, A.APPROVED)]
+      and A.next_states(A.DRAFT, ["General Manager"]) == [] and A.next_states(A.DRAFT, ["Payroll Officer"]) == [],
+      "the HR Officer or the HR Manager approves the week from Draft; nobody else")
+check(A.next_states(A.APPROVED, ["HR User"]) == [(A.CANCEL, A.CANCELLED)]
       and A.next_states(A.APPROVED, ["HR Manager"]) == [(A.CANCEL, A.CANCELLED)]
       and A.next_states(A.APPROVED, ["General Manager"]) == [],
-      "the HR Manager may stand in for an absent General Manager, and alone cancels")
+      "and either cancels an approved one")
 check({state["state"]: state.get("doc_status", "0") for state in A.STATES}
-      == {A.DRAFT: "0", A.PENDING_GM: "0", A.APPROVED: "1", A.CANCELLED: "2"}
-      and not any(state["send_email"] for state in A.STATES),
-      "Approved submits it, Cancelled cancels it; nobody is emailed by role: the plant's own people are told")
-check(A.step_errors(A.PENDING_GM, A.DRAFT, {}) == ["Write in Return Remarks what must be put right."]
-      and A.step_errors(A.PENDING_GM, A.DRAFT, {"return_remarks": "Line 4 is short."}) == [],
-      "a return says what to put right")
-said = A.step_errors(A.DRAFT, A.PENDING_GM, {"people": 0, "unrated": ["LPC1"], "no_type": ["LPC2 (no type)"]})
+      == {A.DRAFT: "0", A.APPROVED: "1", A.CANCELLED: "2"}
+      and not any(state["send_email"] for state in A.STATES)
+      and not hasattr(A, "PENDING_GM") and not hasattr(A, "SEND") and not hasattr(A, "RETURN"),
+      "Approved submits it, Cancelled cancels it; no General Manager's state, send or return")
+check(A.approver_errors("hro.k@x", ["HR User"], ["hro.k@x"], "Kawempe") == []
+      and A.approver_errors("hro.m@x", ["HR User"], ["hro.k@x"], "Kawempe")
+      == ["Only the HR Officer of Kawempe, or the HR Manager, approves or cancels its casual hours."]
+      and A.approver_errors("hrm@x", ["HR Manager"], [], "Kawempe") == []
+      and A.approver_errors("sys@x", ["System Manager"], [], "Kawempe") == []
+      and A.approver_errors("Administrator", [], [], "Kawempe") == []
+      and A.approver_errors("gm@x", ["General Manager"], [], "Kawempe") != [],
+      "only the plant's own HR Officers approve or cancel its sheet; the HR Manager any plant's")
+said = A.step_errors(A.DRAFT, A.APPROVED, {"people": 0, "unrated": ["LPC1"], "no_type": ["LPC2 (no type)"]})
 check(len(said) == 3 and "Nobody is on this sheet" in said[0] and "No hourly rate" in said[1] and "LPC1" in said[1]
       and "no Overtime Type lists LPC2" in said[2],
-      "nothing goes to the General Manager with nobody on it, a rate missing or overtime with no type", said)
-check(A.step_errors(A.PENDING_GM, A.APPROVED, {"people": 3}) == [], "a week in order is approved")
-said = A.step_errors(A.PENDING_GM, A.APPROVED, {"people": 3, "paid": ["LPC1 (Sal Slip/LPC1/00001)"]})
+      "nothing is approved with nobody on it, a rate missing or overtime with no type", said)
+check(A.step_errors(A.DRAFT, A.APPROVED, {"people": 3}) == [], "a week in order is approved")
+said = A.step_errors(A.DRAFT, A.APPROVED, {"people": 3, "paid": ["LPC1 (Sal Slip/LPC1/00001)"]})
 check(said == ["Some of these days were paid already from the attendance for LPC1 (Sal Slip/LPC1/00001): take them off "
                "this sheet, or cancel that pay first, or the week is paid twice."],
       "a week some of whose days were paid another way is not approved", said)
-stamps = A.compute_stamps(A.DRAFT, A.PENDING_GM, "hro@x", "T1", {})
-stamps = A.compute_stamps(A.PENDING_GM, A.APPROVED, "gm@x", "T2", stamps)
-check((stamps["prepared_by"], stamps["approved_by"]) == ("hro@x", "gm@x")
-      and A.compute_stamps(A.PENDING_GM, A.DRAFT, "gm@x", "T3", stamps) == dict.fromkeys(A.ALL_STAMP_FIELDS),
-      "who prepared it and who approved it are signed; a return clears both", stamps)
-print("approval: HR fill and send, the plant's General Manager approves or returns, the HR Manager cancels")
+check(A.step_errors(A.APPROVED, A.CANCELLED, {"people": 0}) == [], "a cancel needs none of it")
+stamps = A.compute_stamps(A.DRAFT, A.APPROVED, "hro@x", "T1", {})
+check((stamps["prepared_by"], stamps["prepared_on"], stamps["approved_by"], stamps["approved_on"])
+      == ("hro@x", "T1", "hro@x", "T1")
+      and A.compute_stamps(A.APPROVED, A.CANCELLED, "hrm@x", "T2", stamps) == stamps
+      and A.compute_stamps(None, A.DRAFT, "hro@x", "T3", stamps) == dict.fromkeys(A.ALL_STAMP_FIELDS),
+      "approving signs who prepared it and who approved it; a cancel keeps them; a new one has none", stamps)
+check(A.PERMISSIONS == {A.DOCTYPE: {"HR User": ("read", "write", "submit", "cancel", "report", "print")}}
+      and A.NEW_ROLES == (),
+      "the HR Officer submits and cancels the sheet (the General Manager keeps what it had, to read)")
+print("approval: the plant's own HR Officer fills and approves the week, or the HR Manager; either cancels")
 
 # ── 3. The glue, on a stand-in site ───────────────────
 TODAY = D(2026, 11, 12)
@@ -337,11 +348,15 @@ SITE = [None]
 frappe = types.ModuleType("frappe")
 frappe._ = lambda text, *args, **kwargs: text
 frappe.whitelist = lambda *args, **kwargs: (lambda fn: fn) if not args or not callable(args[0]) else args[0]
-frappe.throw = lambda message, title=None, *args, **kwargs: (_ for _ in ()).throw(Thrown(message))
+frappe.throw = lambda message, exc=None, title=None, *args, **kwargs: (_ for _ in ()).throw(Thrown(message))
 frappe.has_permission = lambda *args, **kwargs: True
 frappe.get_all = lambda *args, **kwargs: SITE[0].get_all(*args, **kwargs)
 frappe.db = types.SimpleNamespace(get_value=lambda *args, **kwargs: SITE[0].get_value(*args, **kwargs))
 frappe.session = types.SimpleNamespace(user="hro@luuka")
+ROLES = {"hro@luuka": ["HR User"], "hro.kawempe@luuka": ["HR User"], "hro.namanve@luuka": ["HR User"],
+         "hrm@luuka": ["HR Manager"], "gm.kawempe@luuka": ["General Manager"]}
+frappe.get_roles = lambda user=None: ROLES.get(user or frappe.session.user, [])
+frappe.PermissionError = type("PermissionError", (Exception,), {})
 frappe.response = {}
 frappe.get_cached_doc = lambda doctype, name: types.SimpleNamespace(
     as_dict=lambda: Row(next(row for row in SITE[0].tables.get(doctype, []) if row.name == name)))
@@ -365,7 +380,9 @@ output_pay = types.ModuleType("hrms_addon.hrms_addon.output_pay")
 output_pay.settings = lambda: {"standard_hours": 10}
 output_pay._file_bytes = lambda file_url: FILES[file_url]
 people = types.ModuleType("hrms_addon.hrms_addon.people")
-people.people_for = lambda role, branch, department=None: ["gm.%s@luuka" % (branch or "").lower()] if role == "General Manager" else []
+people.people_for = lambda role, branch, department=None: (
+    ["gm.%s@luuka" % (branch or "").lower()] if role == "General Manager"
+    else ["hro.%s@luuka" % (branch or "").lower()] if role == "HR User" else [])
 people.hr_officers = lambda branch, department=None: ["hro@luuka"]
 people.notify = lambda users, doctype, name, subject, message=None: SITE[0].told.append(("notify", tuple(users), subject))
 people.assign = lambda doctype, name, users, description, date=None, notify=0: SITE[0].told.append(("assign", tuple(users)))
@@ -504,37 +521,49 @@ said = refused(Sheet(rows=[{"employee": "LPC100", "hours_worked": 10}], from_dat
 check(said == "The week ends on 16 Nov 2026: hours are entered once they are worked.", "no week still to come", said)
 
 before = Sheet(rows=[{"employee": "LPC104", "hours_worked": 30}, {"employee": "LPC101", "overtime_hours": 2}], **week)
-sending = Sheet(before=before, workflow_state="Pending General Manager",
-                rows=[{"employee": "LPC104", "hours_worked": 30}, {"employee": "LPC101", "overtime_hours": 2}], **week)
-said = refused(sending)
+approving = Sheet(before=before, workflow_state="Approved",
+                  rows=[{"employee": "LPC104", "hours_worked": 30}, {"employee": "LPC101", "overtime_hours": 2}], **week)
+said = refused(approving)
 check(said and "No hourly rate on the week's last day for LPC104; LPC101" in said and "no Overtime Type lists LPC101" in said,
-      "it goes to the General Manager only with every rate and Overtime Type in place", said)
+      "it is approved only with every rate and Overtime Type in place", said)
 s.standard_rate = 2000
 s.typed.add("LPC101")
-sending = Sheet(before=before, workflow_state="Pending General Manager", return_remarks="old",
-                rows=[{"employee": "LPC104", "hours_worked": 30}, {"employee": "LPC101", "overtime_hours": 2}], **week)
-G.sheet_validate(sending)
-check(sending.rows[0].rate == 2000 and sending.prepared_by == "hro@luuka" and sending.return_remarks is None
-      and sending.status == "Pending General Manager"
-      and ("notify", ("gm.kawempe@luuka",), "Casual hours of Kawempe, 5 Nov 2026 to 11 Nov 2026: 2 people, 30.0 hours and 2.0 "
-                                            "overtime hours to approve.") in s.told,
-      "sent: the standard rate where there is none, who prepared it, and the plant's own General Manager told",
-      (sending.rows[0].rate, sending.prepared_by, s.told))
-frappe.session.user = "gm.kawempe@luuka"
-approving = Sheet(before=sending, workflow_state="Approved", prepared_by="hro@luuka",
-                  rows=[{"employee": "LPC104", "hours_worked": 30}], **week)
+# Luuka, 17 Nov 2026: the plant's own HR Officer approves it, no General Manager
+frappe.session.user = "hro.kawempe@luuka"
+approving = Sheet(before=before, workflow_state="Approved",
+                  rows=[{"employee": "LPC104", "hours_worked": 30}, {"employee": "LPC101", "overtime_hours": 2}], **week)
 G.sheet_validate(approving)
 G.sheet_before_submit(approving)
-check(approving.approved_by == "gm.kawempe@luuka" and approving.status == "Approved"
-      and ("withdraw", ("gm.kawempe@luuka",)) in s.told
-      and any(entry[0] == "notify" and "approved: the weekly payroll pays them" in entry[2] for entry in s.told),
-      "approved: signed by the General Manager, their task closed, HR and Payroll told the payroll pays it", s.told)
-frappe.session.user = "hro@luuka"
+check(approving.rows[0].rate == 2000 and (approving.prepared_by, approving.approved_by)
+      == ("hro.kawempe@luuka", "hro.kawempe@luuka") and approving.status == "Approved"
+      and any(entry[0] == "notify" and "approved: the weekly payroll pays them" in entry[2] for entry in s.told)
+      and not any("gm." in str(entry) for entry in s.told),
+      "approved by the plant's own HR Officer: the standard rate where there is none, signed, HR and Payroll told the "
+      "payroll pays it; no General Manager asked or told", (approving.rows[0].rate, approving.approved_by, s.told))
+for user, who in (("hro.namanve@luuka", "another plant's HR Officer"), ("gm.kawempe@luuka", "the General Manager")):
+    frappe.session.user = user
+    try:
+        G.sheet_before_submit(Sheet(workflow_state="Approved", **week))
+        check(False, "%s does not approve it" % who)
+    except Thrown as error:
+        check("Only the HR Officer of Kawempe, or the HR Manager, approves or cancels its casual hours." in str(error),
+              "%s does not approve it" % who, str(error))
+frappe.session.user = "hrm@luuka"
+G.sheet_before_submit(Sheet(workflow_state="Approved", **week))
+check(True, "the HR Manager approves any plant's")
+frappe.session.user = "hro.kawempe@luuka"
 try:
     G.sheet_before_submit(Sheet(workflow_state="Draft", **week))
     check(False, "a plain submit is refused")
 except Thrown as error:
-    check("General Manager approves the week" in str(error), "a plain submit is refused: only the approval submits it")
+    check("Approve it from Actions" in str(error), "a plain submit is refused: only the approval submits it")
+frappe.session.user = "hro.namanve@luuka"
+try:
+    G.sheet_before_cancel(Sheet(name="HR-CHS-NEW", **week))
+    check(False, "another plant's HR Officer does not cancel it")
+except Thrown as error:
+    check("Only the HR Officer of Kawempe" in str(error), "nor cancels it")
+frappe.session.user = "hro.kawempe@luuka"
 s.add("Weekly Pay Day", parent="Sal Slip/LPC104/00001", hours_sheet="HR-CHS-PAID", docstatus=1, employee="LPC104")
 try:
     G.sheet_before_cancel(Sheet(name="HR-CHS-PAID", **week))
@@ -543,8 +572,9 @@ except Thrown as error:
     check("Sal Slip/LPC104/00001" in str(error), "a week a submitted slip paid is not cancelled: the slips go first")
 s.tables["Weekly Pay Day"][-1]["docstatus"] = 2
 G.sheet_before_cancel(Sheet(name="HR-CHS-PAID", **week))
-check(True, "once its slip is cancelled, the week may be")
-print("the sheet: the plant's casuals by the hour, priced, sent with everything in place, approved by its own General Manager")
+check(True, "once its slip is cancelled, the week may be, by its own HR Officer")
+frappe.session.user = "hro@luuka"
+print("the sheet: the plant's casuals by the hour, priced, approved with everything in place by its own HR Officer")
 
 # the upload, from a real workbook
 import openpyxl  # noqa: E402
@@ -580,14 +610,14 @@ check(len(problems) == 6 and any("LPC999: no such employee" in text for text in 
       "and each one left out said, with its row", problems)
 check((found["people"], found["hours"], found["overtime"], found["missing"]) == (3, 122.0, 6.0, 2),
       "what was taken, and how many of the plant's casuals are not on it", found)
-draft.workflow_state = "Pending General Manager"
+draft.workflow_state, draft.docstatus = "Approved", 1
 try:
     G.upload_sheet("HR-CHS-NEW", "/private/files/hours.xlsx")
-    check(False, "a sent sheet takes no upload")
+    check(False, "an approved sheet takes no upload")
 except Thrown as error:
-    check("Only a draft sheet takes an upload" in str(error), "a sheet with the General Manager takes no upload")
+    check("Only a draft sheet takes an upload" in str(error), "an approved sheet takes no upload")
 FILES["/private/files/notes.xlsx"] = b"not a workbook"
-draft.workflow_state = "Draft"
+draft.workflow_state, draft.docstatus = "Draft", 0
 try:
     G.upload_sheet("HR-CHS-NEW", "/private/files/notes.xlsx")
     check(False, "a file that is not a workbook is refused")
@@ -632,11 +662,11 @@ print("the upload: the team's workbook read, each person found or said; the temp
 # "for casuals the attendance verification should be from casual hours sheet"; "validate attendace varies from the
 # casual hour sheet"). The review of b453383 the same day: a casual a sheet leaves out is paid from the clock, as the
 # verification shows them; the days worked are counted per sheet, never on two verifications; a verified week is not
-# changed under the General Manager; a week paid another way is not paid again
+# changed under its HR Officer; a week paid another way is not paid again
 s = site()
 for name, branch, start, end, docstatus, state in (
         ("HR-CHS-A", "Kawempe", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
-        ("HR-CHS-B", "Kawempe", D(2026, 11, 5), D(2026, 11, 11), 0, "Pending General Manager"),
+        ("HR-CHS-B", "Kawempe", D(2026, 11, 5), D(2026, 11, 11), 0, "Draft"),
         ("HR-CHS-N", "Namanve", D(2026, 10, 29), D(2026, 11, 4), 1, "Approved"),
         # a cancelled sheet over the very same week, its 99 hours never counted
         ("HR-CHS-X", "Kawempe", D(2026, 10, 30), D(2026, 11, 5), 2, "Cancelled")):
@@ -650,7 +680,7 @@ for parent, employee, hours, overtime, days, docstatus in (("HR-CHS-A", "LPC100"
 A_WEEK = (D(2026, 10, 29), D(2026, 11, 4))
 check(G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]) == {"LPC100": [A_WEEK]},
       "the payroll takes an approved sheet's week for those it lists: LPC101, left off Kawempe's, is paid from the "
-      "clock, never nothing; never a sheet still with the General Manager or cancelled",
+      "clock, never nothing; never a sheet not yet approved, or cancelled",
       G.spans(["LPC100", "LPC101", "LPC300", "LPC200"]))
 got = G.for_verification(["LPC100", "LPC101"], D(2026, 10, 30), D(2026, 11, 5))
 week_days = {D(2026, 10, 30) + datetime.timedelta(days=n) for n in range(7)}
@@ -662,34 +692,36 @@ check(got["people"] == {"LPC100": {"covered": week_days, "counted": {D(2026, 11,
 check(got["sheets"] == {"HR-CHS-A": {"from_date": D(2026, 10, 29), "to_date": D(2026, 11, 4), "state": "Approved",
                                      "people": 1},
                         "HR-CHS-B": {"from_date": D(2026, 11, 5), "to_date": D(2026, 11, 11),
-                                     "state": "Pending General Manager", "people": 1}},
+                                     "state": "Draft", "people": 1}},
       "the sheets over its days, not a cancelled one, with how many of its casuals each has", got["sheets"])
-# a week the General Manager has verified for a casual is not changed under them: reopened first
+# a week its HR Officer has verified for a casual is not changed under them: reopened first
 s.verified = [{"name": "HR-ATV-1", "branch": "Kawempe", "from_date": D(2026, 10, 29), "to_date": D(2026, 11, 4),
                "employees": ["LPC103"]}]
 said = refused(Sheet(rows=[{"employee": "LPC103", "hours_worked": 10}], from_date=D(2026, 10, 29),
                      to_date=D(2026, 11, 4)))
-check(said == "LPC103 is on HR-ATV-1, verified for Kawempe: the General Manager reopens it before these hours change.",
+check(said == "LPC103 is on HR-ATV-1, verified for Kawempe: its HR Officer reopens it before these hours change.",
       "hours over days a verified Attendance Verification holds for the person are refused", said)
 check(refused(Sheet(rows=[{"employee": "LPC 90017", "hours_worked": 10}], from_date=D(2026, 10, 29),
                     to_date=D(2026, 11, 4))) is None, "another casual's hours, not verified, are taken")
+frappe.session.user = "hro.kawempe@luuka"  # its own HR Officer, who may cancel it
 try:
     G.sheet_before_cancel(Sheet(name="HR-CHS-Q", rows=[{"employee": "LPC103"}], from_date=D(2026, 10, 29),
                                 to_date=D(2026, 11, 4)))
-    check(False, "an approved week the General Manager has verified is not cancelled")
+    check(False, "an approved week its HR Officer has verified is not cancelled")
 except Thrown as error:
     check("LPC103 is on HR-ATV-1" in str(error), "nor is its cancel: the verified week would change under it")
+frappe.session.user = "hro@luuka"
 s.verified = []
-# a week paid another way is not sent or approved: it would be paid twice (found by the review of b453383)
+# a week paid another way is not approved: it would be paid twice (found by the review of b453383)
 s.standard_rate = 2000
 s.add("Weekly Pay Day", parent="Sal Slip/LPC104/00009", employee="LPC104", attendance_date=D(2026, 10, 30), docstatus=1,
       hours=9)
 before = Sheet(rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29), to_date=D(2026, 11, 4))
-said = refused(Sheet(before=before, workflow_state="Pending General Manager",
+said = refused(Sheet(before=before, workflow_state="Approved",
                      rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29),
                      to_date=D(2026, 11, 4)))
 check(said and "Some of these days were paid already from the attendance for LPC104 (Sal Slip/LPC104/00009)" in said,
-      "a week some of whose days a weekly slip paid from the attendance is not sent: it would be paid twice", said)
+      "a week some of whose days a weekly slip paid from the attendance is not approved: it would be paid twice", said)
 check(refused(Sheet(rows=[{"employee": "LPC104", "hours_worked": 30}], from_date=D(2026, 10, 29),
                     to_date=D(2026, 11, 4))) is None, "a draft may still hold it, while HR put it right")
 # the plant's sheets feed its weekly Attendance Verification (Luuka, 12 Nov 2026: "this is for casuals only casual hour
@@ -731,12 +763,15 @@ check(all(row_fields[name].get("permlevel") == 1 and row_fields[name].get("read_
       "the rates and the pay are kept to HR (permission level 1), as the Hourly Rate is; the hours are anyone's")
 level_one = {perm["role"] for perm in sheet_json["permissions"] if perm.get("permlevel") == 1 and perm.get("read")}
 check(level_one == {"System Manager", "HR Manager", "HR User"},
-      "the General Manager approves the hours and never sees a rate", level_one)
+      "the rates are HR's: the General Manager, who reads the sheet, never sees one", level_one)
 roles = {perm["role"]: perm for perm in sheet_json["permissions"] if not perm.get("permlevel")}
-check(roles["General Manager"].get("submit") and not roles["General Manager"].get("create")
-      and not roles["HR User"].get("submit") and roles["HR Manager"].get("cancel")
+check(not roles["General Manager"].get("submit") and not roles["General Manager"].get("write")
+      and roles["General Manager"].get("read")
+      and roles["HR User"].get("submit") and roles["HR User"].get("cancel") and roles["HR Manager"].get("cancel")
       and not roles["Payroll Officer"].get("write"),
-      "HR fill it, the General Manager approves it, the HR Manager cancels, the Payroll Officer reads")
+      "HR fill it, approve it and cancel it; the General Manager and the Payroll Officer read it")
+check(fields["return_remarks"].get("hidden") and sheet_json["modified"] >= "2026-11-17",
+      "with no return, its remarks are hidden")
 check(all(fields[name].get("read_only") for name in ("status", "uploaded_sheet", "total_people", "total_hours",
                                                        "total_overtime", "prepared_by", "approved_by"))
       and fields["workflow_state"].get("hidden"), "the figures and signatures are written by the server")
@@ -757,6 +792,20 @@ check('__("Download Template")' in form and '__("Upload Sheet")' in form and 'HA
       and 'HA_HOURS + "download_template?sheet="' in form and '"Draft") === "Draft"' in form
       and 'allowed_file_types: [".xlsx"]' in form,
       "the form: the template to download, and the upload while it is a draft")
+patch = read("hrms_addon", "patches", "v1_0", "casual_hours_hr_officer.py")
+check("hrms_addon.patches.v1_0.casual_hours_hr_officer" in read("hrms_addon", "patches.txt")
+      and '"docstatus": 0, "workflow_state": WAS_WAITING' in patch and '"docstatus": 0, "status": WAS_WAITING' in patch
+      and '{"workflow_state": "Draft", "status": "Draft"}' in patch and '"ToDo", todo, "status", "Cancelled"' in patch,
+      "the patch: a sheet left waiting for the General Manager back to Draft, and the General Manager's to-do closed")
+before_submit = glue.split("def sheet_before_submit(", 1)[1].split("\ndef ", 1)[0]
+before_cancel = glue.split("def sheet_before_cancel(", 1)[1].split("\ndef ", 1)[0]
+may = glue.split("def _may_approve(", 1)[1].split("\ndef ", 1)[0]
+check("_may_approve(doc)" in before_submit and before_cancel.find("_may_approve(doc)") < before_cancel.find(
+      "_verified_errors(doc)") and before_cancel.find("_may_approve(doc)") > 0
+      and "people.people_for(approval.HR_OFFICER, doc.get(\"branch\"))" in may and "frappe.PermissionError" in may,
+      "only the plant's own HR Officer, or the HR Manager, approves or cancels a sheet, whatever the path")
+check("PENDING_GM" not in glue and "return_remarks" not in glue and "approval.GM" not in glue,
+      "nothing waits on the General Manager any more")
 hooks = read("hrms_addon", "hooks.py")
 check('"hrms_addon.hrms_addon.casual_hours.setup_workflows_on_migrate",' in hooks,
       "the approval is built on every migrate")
@@ -772,7 +821,7 @@ gate = read("hrms_addon", "hrms_addon", "attendance_verification.py")
 lone = gate[gate.index("\ndef slip_before_submit("):gate.index("\n@frappe.whitelist()\ndef payroll_branches(")]
 check('if row.get("attendance_date") and not row.get("hours_sheet")]}' in lone
       and "weekly_pay.days_to_pay(" in gate[gate.index("\ndef _days_paid("):gate.index("\ndef _range(")],
-      "the attendance verification asks nothing more of a sheet's week, which its General Manager approved on the "
+      "the attendance verification asks nothing more of a sheet's week, which its HR Officer approved on the "
       "sheet: not on the payroll (days_to_pay leaves the week out), nor on a slip submitted alone")
 print("wiring: the doctypes, HR's rates kept to HR, the form, the hook, the page, the weekly payroll, the gate")
 

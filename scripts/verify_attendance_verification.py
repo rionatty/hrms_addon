@@ -144,12 +144,13 @@ week = {"from_date": "2026-10-29", "to_date": "2026-11-04", "people": 461}
 check(R.hours_sheet_issue("HR-CHS-1", dict(week, state="Approved"), "2026-10-30", "2026-11-05") is None,
       "an approved sheet leaves nothing to put right")
 said = R.hours_sheet_issue("HR-CHS-2", dict(week, state="Draft"), "2026-10-30", "2026-11-05")
-check(R.issue_text(said) == "461 casuals, 30 Oct 2026 to 4 Nov 2026: Casual hours not yet sent to the General Manager "
+check(R.issue_text(said) == "461 casuals, 30 Oct 2026 to 4 Nov 2026: Casual hours not yet approved by its HR Officer "
                             "(HR-CHS-2)" and said["employee"] is None and said["reference_doctype"] == "Casual Hours Sheet",
-      "one not yet sent is one line for all its casuals, over its days within the sheet's", said)
+      "one not yet approved is one line for all its casuals, over its days within the sheet's", said)
+# Luuka, 17 Nov 2026: the sheet's HR Officer approves it; one left at the General Manager's old step reads the same
 said = R.hours_sheet_issue("HR-CHS-3", dict(week, state="Pending General Manager", people=1), "2026-10-30", "2026-11-05")
-check(R.issue_text(said) == "1 casual, 30 Oct 2026 to 4 Nov 2026: Casual hours waiting for the General Manager (HR-CHS-3)",
-      "and one sent waits for the General Manager", R.issue_text(said))
+check(R.issue_text(said) == "1 casual, 30 Oct 2026 to 4 Nov 2026: Casual hours not yet approved by its HR Officer (HR-CHS-3)"
+      and not hasattr(R, "HOURS_SHEET_WAITING"), "no sheet waits for the General Manager", R.issue_text(said))
 for status in ("Inactive", "Suspended", "Left", "", None):
     check(not R.on_sheet(dict(staff, status=status), "Monthly", "2026-09-26", "2026-10-25"),
           "only the active are on it, not one whose status is %r" % status)

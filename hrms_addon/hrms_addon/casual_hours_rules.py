@@ -12,7 +12,7 @@ scripts/verify_casual_hours.py exercises it without a bench.
 
 A sheet is one plant's week: each casual paid by the hour, with the week's
 hours and overtime as totals rather than a row a day. Once the plant's
-General Manager approves it, the weekly payroll pays it (weekly_pay.py):
+HR Officer approves it, the weekly payroll pays it (weekly_pay.py):
 
   the hours        at the person's own Hourly Rate on the week's last day
   the overtime     at that rate times their Overtime Type's weekday

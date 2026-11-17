@@ -27,7 +27,7 @@ wrote (piece_pay.py, output_pay.py), which the slip reads as it reads every
 other.
 
 A casual by the hour's week may come as totals instead, on a Casual Hours
-Sheet their plant's General Manager approved (casual_hours.py): the slip pays
+Sheet their plant's HR Officer approved (casual_hours.py): the slip pays
 it as one row dated the week's last day, at the week's hours and overtime,
 and none of the days it covers is paid from the attendance as well.
 """
