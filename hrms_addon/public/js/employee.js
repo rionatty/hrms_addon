@@ -87,3 +87,12 @@ frappe.ui.form.on("Employee", {
 		});
 	},
 });
+
+// The section they work in is one of their plant's (excellence.py)
+frappe.ui.form.on("Employee", {
+	setup(frm) {
+		frm.set_query("custom_work_section", () => ({
+			filters: Object.assign({ is_active: 1 }, frm.doc.branch ? { branch: frm.doc.branch } : {}),
+		}));
+	},
+});

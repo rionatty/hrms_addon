@@ -464,6 +464,9 @@ after_migrate = [
     # the HR board pack: the earnings' groups on its wage bill, from their
     # names, once (board_pack.py)
     "hrms_addon.hrms_addon.board_pack.setup_on_migrate",
+    # Manufacturing Excellence: the Manufacturing Excellence Officer's role
+    # (excellence.py)
+    "hrms_addon.hrms_addon.excellence.setup_on_migrate",
     # Learning: the training categories and the certificate alert ladder,
     # made once and then HR's (learning.py)
     "hrms_addon.hrms_addon.learning.setup_on_migrate",
@@ -1563,6 +1566,7 @@ fixtures = [
                     "Employee-custom_union_member",
                     "Employee-custom_ppe_size",
                     "Employee-custom_plant_cost_centre",
+                    "Employee-custom_work_section",
                     "Attendance-custom_late_minutes",
                     "Attendance-custom_early_minutes",
                     "Attendance-custom_clock_out_missing",
@@ -2203,6 +2207,11 @@ doc_events = {
         # a salary structure it drafted goes with it
         "on_cancel": "hrms_addon.hrms_addon.onboarding.on_cancel",
     },
+    # Manufacturing Excellence (excellence.py): the route the cause takes, the
+    # day a penalty is due by and the Employment Act's flags
+    "Disciplinary Case": {
+        "validate": "hrms_addon.hrms_addon.excellence.case_validate",
+    },
     "Employee": {
         # The Status picked (one of Luuka's, an Employee Status) sets Frappe's
         # own, the System Status, before Frappe validates it: an employee who
@@ -2215,6 +2224,9 @@ doc_events = {
         "validate": [
             "hrms_addon.hrms_addon.documents.employee_validate",
             "hrms_addon.hrms_addon.exits.employee_validate",
+            # a section is one plant's: moved to another plant, it is cleared
+            # (excellence.py)
+            "hrms_addon.hrms_addon.excellence.employee_validate",
         ],
         # the candidate's onboarding learns its Employee even once its tasks
         # are all done, which Frappe HR's own link skips (onboarding.py);
@@ -2284,6 +2296,9 @@ doc_events = {
 # a month before it ends (contracts.py, Onboarding Settings)
 scheduler_events = {
     "daily": [
+        # HR interventions past their target date told to their owner; open
+        # cases' legal flags brought up to date (excellence.py)
+        "hrms_addon.hrms_addon.excellence.daily",
         # an application saved for later and not finished in 30 days goes (careers.py)
         "hrms_addon.hrms_addon.careers.purge_drafts",
         # an employee whose System Status was set without a save gets the

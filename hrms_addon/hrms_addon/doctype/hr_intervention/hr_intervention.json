@@ -1,0 +1,493 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 18:00:00.000000",
+ "description": "A workforce issue: what was seen, HR's assessment, the intervention, its owner, target date and evidence.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "raised_on",
+  "source",
+  "pillar",
+  "week",
+  "column_break_where",
+  "work_section",
+  "shift",
+  "branch",
+  "company",
+  "column_break_who",
+  "supervisor",
+  "supervisor_name",
+  "issue_section",
+  "observation",
+  "implication",
+  "column_break_issue",
+  "suspected_cause",
+  "assessment",
+  "action_section",
+  "intervention",
+  "action_detail",
+  "column_break_action",
+  "responsible",
+  "target_date",
+  "expected_outcome",
+  "evidence_section",
+  "kpi",
+  "baseline",
+  "latest",
+  "change",
+  "result",
+  "column_break_evidence",
+  "actual_outcome",
+  "evidence",
+  "evidence_file",
+  "estimated_saving",
+  "verified",
+  "status_section",
+  "status",
+  "closed_on",
+  "column_break_status",
+  "days_open",
+  "overdue",
+  "on_time"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-HRI-.YYYY.-",
+   "default": "LPL-HRI-.YYYY.-",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "raised_on",
+   "fieldtype": "Date",
+   "label": "Raised On",
+   "reqd": 1,
+   "default": "Today",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "HR Intervention\nSupervisor Corrective Action",
+   "default": "HR Intervention",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pillar",
+   "fieldtype": "Select",
+   "label": "HR Pillar",
+   "options": "Workforce Planning and Deployment\nLabour Productivity and Cost\nAttendance and Reliability\nSkills and Competency\nSupervisory Effectiveness\nSafety and Wellbeing\nEmployee Relations and Engagement\nHR Intervention Effectiveness",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "week",
+   "fieldtype": "Data",
+   "label": "Week",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_where",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Select",
+   "label": "Shift",
+   "options": "Both\nDay\nNight",
+   "default": "Both"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_who",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor Concerned",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "supervisor_name",
+   "fieldtype": "Data",
+   "label": "Supervisor Name",
+   "fetch_from": "supervisor.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "issue_section",
+   "fieldtype": "Section Break",
+   "label": "Issue and Assessment"
+  },
+  {
+   "fieldname": "observation",
+   "fieldtype": "Small Text",
+   "label": "What Was Seen",
+   "reqd": 1
+  },
+  {
+   "fieldname": "implication",
+   "fieldtype": "Small Text",
+   "label": "What It Means for the Workforce"
+  },
+  {
+   "fieldname": "column_break_issue",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "suspected_cause",
+   "fieldtype": "Small Text",
+   "label": "Root or Suspected Cause"
+  },
+  {
+   "fieldname": "assessment",
+   "fieldtype": "Small Text",
+   "label": "HR Assessment"
+  },
+  {
+   "fieldname": "action_section",
+   "fieldtype": "Section Break",
+   "label": "Intervention"
+  },
+  {
+   "fieldname": "intervention",
+   "fieldtype": "Select",
+   "label": "Intervention",
+   "options": "Capacity and Deployment Review\nCompetency and Work Allocation Review\nTargeted Coaching and Reassessment\nAttendance Review and Engagement\nSafety Accountability and Refresher\nLeadership and Relations Review\nRetention Risk Review\nSupervisory Effectiveness Review\nProcess or SOP Correction\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "action_detail",
+   "fieldtype": "Small Text",
+   "label": "Action Detail"
+  },
+  {
+   "fieldname": "column_break_action",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "responsible",
+   "fieldtype": "Link",
+   "label": "Responsible",
+   "options": "User",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "target_date",
+   "fieldtype": "Date",
+   "label": "Target Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "expected_outcome",
+   "fieldtype": "Small Text",
+   "label": "Expected Outcome"
+  },
+  {
+   "fieldname": "evidence_section",
+   "fieldtype": "Section Break",
+   "label": "Evidence of Impact"
+  },
+  {
+   "fieldname": "kpi",
+   "fieldtype": "Select",
+   "label": "KPI Tracked",
+   "options": "\nAttendance %\nUnauthorised Absence\nOvertime % of Labour Cost\nOvertime Hours\nLabour Cost per Unit\nOutput per Person-Shift\nPPE Compliance %\nSafety Incidents\nWaste Value\nComplaint Value\nTraining Coverage %\nRepeat Incidents\nOpen Grievances\nSupervisor People Score\nTurnover %\nPulse Score %"
+  },
+  {
+   "fieldname": "baseline",
+   "fieldtype": "Float",
+   "label": "Baseline"
+  },
+  {
+   "fieldname": "latest",
+   "fieldtype": "Float",
+   "label": "Latest"
+  },
+  {
+   "fieldname": "change",
+   "fieldtype": "Float",
+   "label": "Change",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Data",
+   "label": "Result",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_evidence",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actual_outcome",
+   "fieldtype": "Small Text",
+   "label": "Actual Outcome"
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "Evidence of Improvement"
+  },
+  {
+   "fieldname": "evidence_file",
+   "fieldtype": "Attach",
+   "label": "Evidence File"
+  },
+  {
+   "fieldname": "estimated_saving",
+   "fieldtype": "Currency",
+   "label": "Estimated Saving",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "verified",
+   "fieldtype": "Check",
+   "label": "Verified",
+   "permlevel": 1,
+   "description": "Ticked by the General Manager or Production Manager once the evidence is checked."
+  },
+  {
+   "fieldname": "status_section",
+   "fieldtype": "Section Break",
+   "label": "Status"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nIn Progress\nCompleted\nClosed",
+   "default": "Open",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "closed_on",
+   "fieldtype": "Date",
+   "label": "Closed On"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "days_open",
+   "fieldtype": "Int",
+   "label": "Days Open",
+   "read_only": 1
+  },
+  {
+   "fieldname": "overdue",
+   "fieldtype": "Check",
+   "label": "Overdue",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "on_time",
+   "fieldtype": "Data",
+   "label": "Closed on Time",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Intervention",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "permlevel": 1,
+   "read": 1,
+   "write": 0
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "permlevel": 1,
+   "read": 1,
+   "write": 0
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Head of Department",
+   "permlevel": 1,
+   "read": 1,
+   "write": 0
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "permlevel": 1,
+   "read": 1,
+   "write": 0
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "permlevel": 1,
+   "read": 1,
+   "write": 0
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "permlevel": 1,
+   "read": 1,
+   "write": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "title_field": "observation",
+ "allow_import": 1,
+ "track_changes": 1
+}

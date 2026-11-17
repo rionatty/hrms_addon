@@ -260,6 +260,19 @@ CARDS = {
             ("Graduate Trainee Progress", "Graduate Trainee Progress", REPORT),
             ("Talent Movement", "Talent Movement", REPORT),
         ]),
+        # the plant's HR Manufacturing Excellence workbook, on the desk
+        # (excellence.py, 17 Nov 2026)
+        ("Manufacturing Excellence", [
+            ("Shift Report", "Shift Report", DOCTYPE),
+            ("People Log", "People Log", DOCTYPE),
+            ("HR Intervention", "HR Intervention", DOCTYPE),
+            ("HR Excellence Scorecard", "HR Excellence Scorecard", REPORT),
+            ("Shift Scorecard", "Shift Scorecard", REPORT),
+            ("Supervisor Scorecard", "Supervisor Scorecard", REPORT),
+            ("Repeat Cases", "Repeat Cases", REPORT),
+            ("Work Section", "Work Section", DOCTYPE),
+            ("Manufacturing Excellence Settings", "Manufacturing Excellence Settings", DOCTYPE),
+        ]),
         # The role's balanced scorecard is carried on Frappe HR's own
         # Appraisal Template (bsc.py), so there is one template document,
         # not two: their page never listed it, and this puts it on the page.
@@ -565,6 +578,16 @@ SIDEBAR = {
         ("Succession Plan", "Succession Plan", DOCTYPE, None, "Succession Position"),
         ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE, None,
          "Succession Plan"),
+        # Manufacturing Excellence (excellence.py, 17 Nov 2026)
+        ("Shift Report", "Shift Report", DOCTYPE, None, "Graduate Trainee Program"),
+        ("People Log", "People Log", DOCTYPE, None, "Shift Report"),
+        ("HR Intervention", "HR Intervention", DOCTYPE, None, "People Log"),
+        ("HR Excellence Scorecard", "HR Excellence Scorecard", REPORT, "Reports", None),
+        ("Shift Scorecard", "Shift Scorecard", REPORT, "Reports", None),
+        ("Supervisor Scorecard", "Supervisor Scorecard", REPORT, "Reports", None),
+        ("Repeat Cases", "Repeat Cases", REPORT, "Reports", None),
+        ("Work Section", "Work Section", DOCTYPE, "Setup", None),
+        ("Manufacturing Excellence Settings", "Manufacturing Excellence Settings", DOCTYPE, "Setup", None),
         ("Succession Coverage", "Succession Coverage", REPORT, "Reports", None),
         ("Performance Analytics", "Performance Analytics", REPORT, "Reports", None),
         # talent, linked with the appraisal (5 Oct 2026): the month first,
@@ -733,6 +756,7 @@ GROUPS = {
         ("Promotions", "trending-up", ["Employee Promotion", "Employee Position Change"]),
         ("Talent", "award", ["talent-board", "Talent Review", "Talent Placement", "Talent Program",
                              "Succession Position", "Succession Plan", "Graduate Trainee Program"]),
+        ("Manufacturing Excellence", "factory", ["Shift Report", "People Log", "HR Intervention"]),
     ],
     "Loans": [
         ("Loans", "hand-coins", ["Employee Loan"]),

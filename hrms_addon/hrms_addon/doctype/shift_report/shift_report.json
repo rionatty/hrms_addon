@@ -1,0 +1,696 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 18:00:00.000000",
+ "description": "One section's shift: output, machines, waste, complaints, safety, people and overtime, with its score.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "report_date",
+  "shift",
+  "work_section",
+  "week",
+  "column_break_where",
+  "branch",
+  "company",
+  "unit",
+  "column_break_who",
+  "supervisor",
+  "supervisor_name",
+  "production_officer",
+  "order_no",
+  "output_section",
+  "target",
+  "actual_output",
+  "column_break_output",
+  "housekeeping",
+  "machines_section",
+  "machines",
+  "machines_running",
+  "column_break_machines",
+  "stop_hours",
+  "downtime_reason",
+  "losses_section",
+  "waste_qty",
+  "waste_value",
+  "column_break_complaints",
+  "complaint_value",
+  "column_break_safety",
+  "safety_incidents",
+  "near_misses",
+  "people_section",
+  "staff_planned",
+  "staff_on_shift",
+  "unauthorised_absent",
+  "column_break_time",
+  "late_arrivals",
+  "early_departures",
+  "column_break_ppe",
+  "wearing_ppe",
+  "ot_hours",
+  "result_section",
+  "score",
+  "status",
+  "weakest_area",
+  "weakest_action",
+  "column_break_result",
+  "labour_cost",
+  "labour_per_unit",
+  "labour_budget",
+  "absence_cost",
+  "comment",
+  "details_section",
+  "factor_output",
+  "factor_waste",
+  "factor_complaints",
+  "factor_uptime",
+  "factor_attendance",
+  "factor_safety",
+  "factor_housekeeping",
+  "factor_ppe",
+  "column_break_details",
+  "machine_hours",
+  "hours_lost",
+  "uptime",
+  "achievement",
+  "attendance_rate",
+  "ppe_rate",
+  "column_break_labour_detail",
+  "regular_labour",
+  "ot_cost",
+  "required_crew",
+  "adequacy",
+  "output_per_person",
+  "not_wearing",
+  "title",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-SHR-.YYYY.-",
+   "default": "LPL-SHR-.YYYY.-",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "report_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "default": "Today",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Select",
+   "label": "Shift",
+   "options": "Day\nNight",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "week",
+   "fieldtype": "Data",
+   "label": "Week",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_where",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "work_section.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "work_section.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit",
+   "fetch_from": "work_section.unit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_who",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "supervisor_name",
+   "fieldtype": "Data",
+   "label": "Supervisor Name",
+   "fetch_from": "supervisor.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "production_officer",
+   "fieldtype": "Link",
+   "label": "Production Officer",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "order_no",
+   "fieldtype": "Data",
+   "label": "Order or Job No."
+  },
+  {
+   "fieldname": "output_section",
+   "fieldtype": "Section Break",
+   "label": "Output"
+  },
+  {
+   "fieldname": "target",
+   "fieldtype": "Float",
+   "label": "Target",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "actual_output",
+   "fieldtype": "Float",
+   "label": "Actual Output",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_output",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "housekeeping",
+   "fieldtype": "Percent",
+   "label": "Housekeeping",
+   "reqd": 1
+  },
+  {
+   "fieldname": "machines_section",
+   "fieldtype": "Section Break",
+   "label": "Machines and Downtime"
+  },
+  {
+   "fieldname": "machines",
+   "fieldtype": "Int",
+   "label": "Machines in Section",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "machines_running",
+   "fieldtype": "Int",
+   "label": "Machines Running",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_machines",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "stop_hours",
+   "fieldtype": "Float",
+   "label": "Stopped Hours on Running Machines",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "downtime_reason",
+   "fieldtype": "Select",
+   "label": "Main Downtime Reason",
+   "options": "\nMechanical Breakdown\nElectrical Breakdown\nPower Outage\nNo Raw Material\nNo Order\nNo Operator\nChangeover\nPlanned Maintenance\nOther"
+  },
+  {
+   "fieldname": "losses_section",
+   "fieldtype": "Section Break",
+   "label": "Waste, Complaints and Safety"
+  },
+  {
+   "fieldname": "waste_qty",
+   "fieldtype": "Float",
+   "label": "Waste Quantity",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "waste_value",
+   "fieldtype": "Currency",
+   "label": "Waste Value",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_complaints",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "complaint_value",
+   "fieldtype": "Currency",
+   "label": "Complaint Value",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_safety",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "safety_incidents",
+   "fieldtype": "Int",
+   "label": "Safety Incidents",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "near_misses",
+   "fieldtype": "Int",
+   "label": "Near Misses Reported",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "people_section",
+   "fieldtype": "Section Break",
+   "label": "People"
+  },
+  {
+   "fieldname": "staff_planned",
+   "fieldtype": "Int",
+   "label": "Staff Planned",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "staff_on_shift",
+   "fieldtype": "Int",
+   "label": "Staff on Shift",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "unauthorised_absent",
+   "fieldtype": "Int",
+   "label": "Unauthorised Absent",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_time",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "late_arrivals",
+   "fieldtype": "Int",
+   "label": "Late Arrivals",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "early_departures",
+   "fieldtype": "Int",
+   "label": "Early Departures",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_ppe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "wearing_ppe",
+   "fieldtype": "Int",
+   "label": "Wearing Full PPE",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "ot_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Person-Hours",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "read_only": 1,
+   "in_list_view": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "On Target\nAttention\nCritical",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "weakest_area",
+   "fieldtype": "Data",
+   "label": "Weakest Area",
+   "read_only": 1
+  },
+  {
+   "fieldname": "weakest_action",
+   "fieldtype": "Small Text",
+   "label": "What HR and the Supervisor Do",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "labour_cost",
+   "fieldtype": "Currency",
+   "label": "Labour Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "labour_per_unit",
+   "fieldtype": "Currency",
+   "label": "Labour Cost per Unit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "labour_budget",
+   "fieldtype": "Currency",
+   "label": "Labour Budget",
+   "read_only": 1
+  },
+  {
+   "fieldname": "absence_cost",
+   "fieldtype": "Currency",
+   "label": "Paid Absence Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "comment",
+   "fieldtype": "Small Text",
+   "label": "Supervisor Comment or Corrective Action"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "factor_output",
+   "fieldtype": "Float",
+   "label": "Output",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_waste",
+   "fieldtype": "Float",
+   "label": "Waste",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_complaints",
+   "fieldtype": "Float",
+   "label": "Complaints",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_uptime",
+   "fieldtype": "Float",
+   "label": "Machine Uptime",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_attendance",
+   "fieldtype": "Float",
+   "label": "Attendance",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_safety",
+   "fieldtype": "Float",
+   "label": "Safety",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_housekeeping",
+   "fieldtype": "Float",
+   "label": "Housekeeping",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "factor_ppe",
+   "fieldtype": "Float",
+   "label": "PPE",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "machine_hours",
+   "fieldtype": "Float",
+   "label": "Machine Hours Available",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hours_lost",
+   "fieldtype": "Float",
+   "label": "Machine Hours Lost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "uptime",
+   "fieldtype": "Percent",
+   "label": "Uptime",
+   "read_only": 1
+  },
+  {
+   "fieldname": "achievement",
+   "fieldtype": "Percent",
+   "label": "Achievement",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attendance_rate",
+   "fieldtype": "Percent",
+   "label": "Attendance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ppe_rate",
+   "fieldtype": "Percent",
+   "label": "PPE",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_labour_detail",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "regular_labour",
+   "fieldtype": "Currency",
+   "label": "Regular Labour",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ot_cost",
+   "fieldtype": "Currency",
+   "label": "Overtime Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "required_crew",
+   "fieldtype": "Int",
+   "label": "Required Crew",
+   "read_only": 1
+  },
+  {
+   "fieldname": "adequacy",
+   "fieldtype": "Percent",
+   "label": "Staffing Adequacy",
+   "read_only": 1
+  },
+  {
+   "fieldname": "output_per_person",
+   "fieldtype": "Float",
+   "label": "Output per Person-Shift",
+   "read_only": 1
+  },
+  {
+   "fieldname": "not_wearing",
+   "fieldtype": "Int",
+   "label": "Not Wearing PPE",
+   "read_only": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "hidden": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Shift Report",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Shift Report",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "submit": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "is_submittable": 1,
+ "autoname": "naming_series:",
+ "title_field": "title",
+ "allow_import": 1,
+ "track_changes": 1
+}

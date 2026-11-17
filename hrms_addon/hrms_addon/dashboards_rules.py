@@ -838,6 +838,13 @@ ATTENTION = (
      "training", OVERDUE),
     ("certificates_run_out", "Certificate run out", "Certificates run out", "Employee Certification", "training",
      OVERDUE),
+    # Manufacturing Excellence (excellence.py): interventions past their
+    # date, cases past the 15 days the Employment Act gives to impose a
+    # penalty (s.62(5))
+    ("interventions_overdue", "HR intervention past its target date", "HR interventions past their target date",
+     "HR Intervention", "performance", OVERDUE),
+    ("cases_past_limit", "Case past its 15 days to impose a penalty", "Cases past their 15 days to impose a penalty",
+     "Disciplinary Case", "relations", OVERDUE),
     ("requisitions_waiting", "Job requisition waiting for approval", "Job requisitions waiting for approval",
      "Job Requisition", "recruitment", TODAY),
     ("interviews_unscored", "Interview waiting for the panel's feedback", "Interviews waiting for the panel's feedback",
@@ -900,6 +907,10 @@ ATTENTION = (
     # top talent somebody might lose (talent blueprint, section 10: "Retention risk")
     ("top_talent_at_risk", "Top talent at flight risk", "Top talent at flight risk", "Talent Placement",
      "performance", SOON),
+    # Manufacturing Excellence (excellence.py): shift reports nobody has
+    # checked yet
+    ("shift_reports_unchecked", "Shift report not yet checked", "Shift reports not yet checked", "Shift Report",
+     "performance", SOON),
     ("requisitions_to_assess", "Training requisition to assess", "Training requisitions to assess",
      "Training Requisition", "training", SOON),
     ("trainings_not_closed", "Training held but not closed", "Trainings held but not closed", "Training Event",
@@ -930,7 +941,7 @@ ATTENTION_COMPANY = {
     "encashments_waiting", "additional_draft", "output_runs_draft", "advance_runs_draft", "employee_advances_waiting",
     "penalties_waiting", "reviews_waiting", "trainings_not_closed", "suspensions_ending", "documents_expired",
     "exit_interviews_waiting", "training_overdue", "certificates_run_out", "certificates_running_out",
-    "top_talent_at_risk",
+    "top_talent_at_risk", "shift_reports_unchecked", "interventions_overdue", "cases_past_limit",
 }
 
 
@@ -977,6 +988,11 @@ def attention_filters(key, day_of, company=None):
         "penalties_waiting": {"docstatus": 0, "approval_status": PENDING},
         "reviews_waiting": {"docstatus": 0, "status": ["in", list(REVIEW_WAITING)]},
         "top_talent_at_risk": {"docstatus": 1, "top_talent": 1, "flight_risk": ["in", ["High", "Medium"]]},
+        "shift_reports_unchecked": {"docstatus": 0, "report_date": ["between", [EVER, "{yesterday}"]]},
+        "interventions_overdue": {"status": ["in", ["Open", "In Progress"]],
+                                  "target_date": ["between", [EVER, "{yesterday}"]]},
+        "cases_past_limit": {"docstatus": 0, "status": ["not in", ["Closed", "Cancelled"]],
+                             "penalty_due_by": ["between", [EVER, "{yesterday}"]]},
         "requisitions_to_assess": {"docstatus": 1, "status": "Submitted"},
         "trainings_not_closed": {"docstatus": 0, "event_status": "Scheduled", "end_time": ["between", [EVER, "{yesterday}"]]},
         "assessments_waiting": {"docstatus": 0, "status": ["in", list(ASSESSMENT_WAITING)]},

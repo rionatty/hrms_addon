@@ -1,0 +1,295 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 18:00:00.000000",
+ "description": "A production section of a plant: its unit, standards per shift, labour cost and supervisors.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_name",
+  "branch",
+  "department",
+  "company",
+  "column_break_kind",
+  "unit",
+  "labour_type",
+  "shift_reports",
+  "counts_to_output",
+  "is_active",
+  "standards_section",
+  "target_per_shift",
+  "crew_per_shift",
+  "column_break_standards",
+  "machines",
+  "approved_establishment",
+  "labour_section",
+  "labour_budget_per_unit",
+  "labour_rate",
+  "overtime_rate",
+  "column_break_labour",
+  "rates_from_payroll",
+  "rates_note",
+  "supervisors_section",
+  "supervisors"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_name",
+   "fieldtype": "Data",
+   "label": "Section",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "remember_last_selected_value": 1
+  },
+  {
+   "fieldname": "column_break_kind",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Select",
+   "label": "Output Unit",
+   "options": "Kg\nPcs\nMetres\nLots\nJobs",
+   "default": "Kg",
+   "reqd": 1
+  },
+  {
+   "fieldname": "labour_type",
+   "fieldtype": "Select",
+   "label": "Labour Type",
+   "options": "Direct\nIndirect",
+   "default": "Direct"
+  },
+  {
+   "fieldname": "shift_reports",
+   "fieldtype": "Check",
+   "label": "Takes Shift Reports",
+   "default": "1",
+   "description": "A Shift Report is due from it every working shift."
+  },
+  {
+   "fieldname": "counts_to_output",
+   "fieldtype": "Check",
+   "label": "Counts to Plant Output",
+   "default": "1"
+  },
+  {
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "default": "1",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "standards_section",
+   "fieldtype": "Section Break",
+   "label": "Standards per Shift"
+  },
+  {
+   "fieldname": "target_per_shift",
+   "fieldtype": "Float",
+   "label": "Target per Shift",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "crew_per_shift",
+   "fieldtype": "Int",
+   "label": "Crew per Shift",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_standards",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "machines",
+   "fieldtype": "Int",
+   "label": "Machines",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "approved_establishment",
+   "fieldtype": "Int",
+   "label": "Approved Establishment",
+   "non_negative": 1,
+   "description": "Approved head count, both shifts."
+  },
+  {
+   "fieldname": "labour_section",
+   "fieldtype": "Section Break",
+   "label": "Labour Cost"
+  },
+  {
+   "fieldname": "labour_budget_per_unit",
+   "fieldtype": "Currency",
+   "label": "Labour Budget per Unit",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "labour_rate",
+   "fieldtype": "Currency",
+   "label": "Labour Cost per Person-Shift",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "overtime_rate",
+   "fieldtype": "Currency",
+   "label": "Overtime Cost per Hour",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_labour",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rates_from_payroll",
+   "fieldtype": "Button",
+   "label": "Rates from Payroll"
+  },
+  {
+   "fieldname": "rates_note",
+   "fieldtype": "Small Text",
+   "label": "How the Rates Were Worked Out",
+   "read_only": 1
+  },
+  {
+   "fieldname": "supervisors_section",
+   "fieldtype": "Section Break",
+   "label": "Supervisors"
+  },
+  {
+   "fieldname": "supervisors",
+   "fieldtype": "Table",
+   "label": "Supervisors",
+   "options": "Work Section Supervisor"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Work Section",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "search_fields": "section_name,branch,department",
+ "allow_import": 1,
+ "track_changes": 1,
+ "show_name_in_global_search": 1
+}

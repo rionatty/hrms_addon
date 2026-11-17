@@ -1,0 +1,518 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 18:00:00.000000",
+ "description": "The weights, bands, targets and legal limits behind the shift, supervisor and HR Excellence scores.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "weights_section",
+  "weight_output",
+  "weight_waste",
+  "weight_complaints",
+  "weight_uptime",
+  "column_break_weights",
+  "weight_attendance",
+  "weight_safety",
+  "weight_housekeeping",
+  "weight_ppe",
+  "pillars_section",
+  "pillar_planning",
+  "pillar_productivity",
+  "pillar_attendance",
+  "pillar_skills",
+  "column_break_pillars",
+  "pillar_supervision",
+  "pillar_safety",
+  "pillar_relations",
+  "pillar_interventions",
+  "supervisor_section",
+  "sup_reporting",
+  "sup_attendance",
+  "sup_ppe",
+  "sup_safety",
+  "column_break_supervisor",
+  "sup_housekeeping",
+  "sup_conduct",
+  "sup_closure",
+  "sup_coaching",
+  "bands_section",
+  "green_from",
+  "column_break_bands",
+  "amber_from",
+  "operating_section",
+  "shift_hours",
+  "shifts_per_week",
+  "safety_penalty",
+  "conduct_penalty",
+  "column_break_operating",
+  "waste_limit",
+  "complaint_limit",
+  "labour_section",
+  "paid_days",
+  "column_break_labour",
+  "ot_base_hours",
+  "ot_multiplier",
+  "targets_section",
+  "attendance_target",
+  "unauthorised_ceiling",
+  "overtime_ceiling",
+  "fatigue_ot",
+  "ppe_target",
+  "reporting_target",
+  "column_break_targets",
+  "staffing_low",
+  "staffing_high",
+  "coverage_target",
+  "closure_target",
+  "coaching_per_week",
+  "pulse_target",
+  "turnover_ceiling",
+  "red_flag_safety",
+  "discipline_section",
+  "penalty_limit_days",
+  "suspension_cap_days",
+  "suspension_window_days",
+  "column_break_discipline",
+  "case_days",
+  "lookback_months"
+ ],
+ "fields": [
+  {
+   "fieldname": "weights_section",
+   "fieldtype": "Section Break",
+   "label": "Shift Score Weights",
+   "description": "Must total 100."
+  },
+  {
+   "fieldname": "weight_output",
+   "fieldtype": "Float",
+   "label": "Output",
+   "default": "25"
+  },
+  {
+   "fieldname": "weight_waste",
+   "fieldtype": "Float",
+   "label": "Waste",
+   "default": "15"
+  },
+  {
+   "fieldname": "weight_complaints",
+   "fieldtype": "Float",
+   "label": "Complaints",
+   "default": "10"
+  },
+  {
+   "fieldname": "weight_uptime",
+   "fieldtype": "Float",
+   "label": "Machine Uptime",
+   "default": "12"
+  },
+  {
+   "fieldname": "column_break_weights",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "weight_attendance",
+   "fieldtype": "Float",
+   "label": "Attendance",
+   "default": "8"
+  },
+  {
+   "fieldname": "weight_safety",
+   "fieldtype": "Float",
+   "label": "Safety",
+   "default": "10"
+  },
+  {
+   "fieldname": "weight_housekeeping",
+   "fieldtype": "Float",
+   "label": "Housekeeping",
+   "default": "8"
+  },
+  {
+   "fieldname": "weight_ppe",
+   "fieldtype": "Float",
+   "label": "PPE",
+   "default": "12"
+  },
+  {
+   "fieldname": "pillars_section",
+   "fieldtype": "Section Break",
+   "label": "HR Excellence Weights",
+   "description": "Must total 100."
+  },
+  {
+   "fieldname": "pillar_planning",
+   "fieldtype": "Float",
+   "label": "Workforce Planning and Deployment",
+   "default": "15"
+  },
+  {
+   "fieldname": "pillar_productivity",
+   "fieldtype": "Float",
+   "label": "Labour Productivity and Cost",
+   "default": "20"
+  },
+  {
+   "fieldname": "pillar_attendance",
+   "fieldtype": "Float",
+   "label": "Attendance and Reliability",
+   "default": "15"
+  },
+  {
+   "fieldname": "pillar_skills",
+   "fieldtype": "Float",
+   "label": "Skills and Competency",
+   "default": "15"
+  },
+  {
+   "fieldname": "column_break_pillars",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pillar_supervision",
+   "fieldtype": "Float",
+   "label": "Supervisory Effectiveness",
+   "default": "15"
+  },
+  {
+   "fieldname": "pillar_safety",
+   "fieldtype": "Float",
+   "label": "Safety and Wellbeing",
+   "default": "10"
+  },
+  {
+   "fieldname": "pillar_relations",
+   "fieldtype": "Float",
+   "label": "Employee Relations and Engagement",
+   "default": "5"
+  },
+  {
+   "fieldname": "pillar_interventions",
+   "fieldtype": "Float",
+   "label": "HR Intervention Effectiveness",
+   "default": "5"
+  },
+  {
+   "fieldname": "supervisor_section",
+   "fieldtype": "Section Break",
+   "label": "Supervisor Weights",
+   "description": "Must total 100. Machines, materials and orders are left out: they are not in the supervisor's hands."
+  },
+  {
+   "fieldname": "sup_reporting",
+   "fieldtype": "Float",
+   "label": "Shift Reporting",
+   "default": "15"
+  },
+  {
+   "fieldname": "sup_attendance",
+   "fieldtype": "Float",
+   "label": "Attendance",
+   "default": "15"
+  },
+  {
+   "fieldname": "sup_ppe",
+   "fieldtype": "Float",
+   "label": "PPE Enforcement",
+   "default": "15"
+  },
+  {
+   "fieldname": "sup_safety",
+   "fieldtype": "Float",
+   "label": "Safety Leadership",
+   "default": "15"
+  },
+  {
+   "fieldname": "column_break_supervisor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sup_housekeeping",
+   "fieldtype": "Float",
+   "label": "Housekeeping",
+   "default": "10"
+  },
+  {
+   "fieldname": "sup_conduct",
+   "fieldtype": "Float",
+   "label": "Team Conduct",
+   "default": "10"
+  },
+  {
+   "fieldname": "sup_closure",
+   "fieldtype": "Float",
+   "label": "Actions Closed on Time",
+   "default": "10"
+  },
+  {
+   "fieldname": "sup_coaching",
+   "fieldtype": "Float",
+   "label": "Coaching",
+   "default": "10"
+  },
+  {
+   "fieldname": "bands_section",
+   "fieldtype": "Section Break",
+   "label": "Bands"
+  },
+  {
+   "fieldname": "green_from",
+   "fieldtype": "Float",
+   "label": "Green From",
+   "default": "90"
+  },
+  {
+   "fieldname": "column_break_bands",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amber_from",
+   "fieldtype": "Float",
+   "label": "Amber From",
+   "default": "75",
+   "description": "Below Amber is Red."
+  },
+  {
+   "fieldname": "operating_section",
+   "fieldtype": "Section Break",
+   "label": "Operating"
+  },
+  {
+   "fieldname": "shift_hours",
+   "fieldtype": "Float",
+   "label": "Hours per Shift",
+   "default": "12"
+  },
+  {
+   "fieldname": "shifts_per_week",
+   "fieldtype": "Int",
+   "label": "Shifts per Section per Week",
+   "default": "12",
+   "description": "6 days of 2 shifts is 12."
+  },
+  {
+   "fieldname": "safety_penalty",
+   "fieldtype": "Float",
+   "label": "Points off per Safety Incident",
+   "default": "25"
+  },
+  {
+   "fieldname": "conduct_penalty",
+   "fieldtype": "Float",
+   "label": "Points off per Supervision Case",
+   "default": "25",
+   "description": "Taken off the supervisor's conduct score for each case put down to inadequate supervision."
+  },
+  {
+   "fieldname": "column_break_operating",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "waste_limit",
+   "fieldtype": "Currency",
+   "label": "Waste Limit per Section per Week",
+   "default": "1000000",
+   "description": "At or above it the waste score is 0."
+  },
+  {
+   "fieldname": "complaint_limit",
+   "fieldtype": "Currency",
+   "label": "Complaint Limit per Section per Week",
+   "default": "1000000"
+  },
+  {
+   "fieldname": "labour_section",
+   "fieldtype": "Section Break",
+   "label": "Labour Cost"
+  },
+  {
+   "fieldname": "paid_days",
+   "fieldtype": "Float",
+   "label": "Paid Days per Month",
+   "default": "26"
+  },
+  {
+   "fieldname": "column_break_labour",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ot_base_hours",
+   "fieldtype": "Float",
+   "label": "Normal Hours per Day",
+   "default": "8"
+  },
+  {
+   "fieldname": "ot_multiplier",
+   "fieldtype": "Float",
+   "label": "Overtime Multiplier",
+   "default": "1.5"
+  },
+  {
+   "fieldname": "targets_section",
+   "fieldtype": "Section Break",
+   "label": "HR Targets"
+  },
+  {
+   "fieldname": "attendance_target",
+   "fieldtype": "Percent",
+   "label": "Attendance Target",
+   "default": "95"
+  },
+  {
+   "fieldname": "unauthorised_ceiling",
+   "fieldtype": "Percent",
+   "label": "Unauthorised Absence Ceiling",
+   "default": "1"
+  },
+  {
+   "fieldname": "overtime_ceiling",
+   "fieldtype": "Percent",
+   "label": "Overtime Ceiling (Share of Labour Cost)",
+   "default": "8"
+  },
+  {
+   "fieldname": "fatigue_ot",
+   "fieldtype": "Float",
+   "label": "Fatigue Watch (Overtime Hours per Person-Shift)",
+   "default": "1.5"
+  },
+  {
+   "fieldname": "ppe_target",
+   "fieldtype": "Percent",
+   "label": "PPE Target",
+   "default": "98"
+  },
+  {
+   "fieldname": "reporting_target",
+   "fieldtype": "Percent",
+   "label": "Shift Reports Entered Target",
+   "default": "95"
+  },
+  {
+   "fieldname": "column_break_targets",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "staffing_low",
+   "fieldtype": "Percent",
+   "label": "Staffing Band Low",
+   "default": "90"
+  },
+  {
+   "fieldname": "staffing_high",
+   "fieldtype": "Percent",
+   "label": "Staffing Band High",
+   "default": "110"
+  },
+  {
+   "fieldname": "coverage_target",
+   "fieldtype": "Percent",
+   "label": "Training Coverage Target",
+   "default": "80"
+  },
+  {
+   "fieldname": "closure_target",
+   "fieldtype": "Percent",
+   "label": "Actions Closed on Time Target",
+   "default": "90"
+  },
+  {
+   "fieldname": "coaching_per_week",
+   "fieldtype": "Float",
+   "label": "Coaching Sessions per Supervisor per Week",
+   "default": "1"
+  },
+  {
+   "fieldname": "pulse_target",
+   "fieldtype": "Percent",
+   "label": "Engagement Pulse Target",
+   "default": "70"
+  },
+  {
+   "fieldname": "turnover_ceiling",
+   "fieldtype": "Percent",
+   "label": "Monthly Turnover Ceiling",
+   "default": "2"
+  },
+  {
+   "fieldname": "red_flag_safety",
+   "fieldtype": "Int",
+   "label": "Red Flag at Safety Incidents",
+   "default": "1"
+  },
+  {
+   "fieldname": "discipline_section",
+   "fieldtype": "Section Break",
+   "label": "Discipline"
+  },
+  {
+   "fieldname": "penalty_limit_days",
+   "fieldtype": "Int",
+   "label": "Days to Impose a Penalty",
+   "default": "15",
+   "description": "Employment Act s.62(5): a penalty not imposed within these days of becoming aware is waived."
+  },
+  {
+   "fieldname": "suspension_cap_days",
+   "fieldtype": "Int",
+   "label": "Most Suspension Days in the Window",
+   "default": "15",
+   "description": "Employment Act s.62(4)."
+  },
+  {
+   "fieldname": "suspension_window_days",
+   "fieldtype": "Int",
+   "label": "Suspension Window (Days)",
+   "default": "183",
+   "description": "Six months is 183."
+  },
+  {
+   "fieldname": "column_break_discipline",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "case_days",
+   "fieldtype": "Int",
+   "label": "Target Days to Decide a Case",
+   "default": "14"
+  },
+  {
+   "fieldname": "lookback_months",
+   "fieldtype": "Int",
+   "label": "Repeat Cases Look Back (Months)",
+   "default": "12"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 18:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Manufacturing Excellence Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1,
+ "track_changes": 1
+}

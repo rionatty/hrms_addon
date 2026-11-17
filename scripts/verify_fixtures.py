@@ -708,6 +708,9 @@ if by_dt.get(EM):
                  "custom_union_member": ("Documents", "custom_sacco_member"),
                  "custom_ppe_size": ("Documents", "custom_union_member"),
                  "custom_plant_cost_centre": ("Documents", "custom_ppe_size"),
+                 # the production section, one of the plant's, under the plant and
+                 # Frappe HR's grade beside it (excellence.py)
+                 "custom_work_section": ("Overview", "grade"),
                  # LPL/HR/26 (the bank account, NSSF and TIN form) and LPL/HR/33
                  # (the wages phone number) sit with Frappe's own bank details
                  "custom_bank_branch": ("Salary", "bank_name"),

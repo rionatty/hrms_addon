@@ -14,6 +14,8 @@
   "column_break_1",
   "branch",
   "section",
+  "work_section",
+  "shift",
   "company",
   "status",
   "incident_section",
@@ -37,6 +39,14 @@
   "recommendation",
   "investigated_by",
   "investigated_on",
+  "cause_section",
+  "cause",
+  "suggested_route",
+  "case_cost",
+  "column_break_cause",
+  "aware_on",
+  "penalty_due_by",
+  "legal_flags",
   "charge_section",
   "charge_issued_on",
   "charge_remarks",
@@ -156,6 +166,20 @@
    "fieldname": "section",
    "fieldtype": "Data",
    "label": "Section"
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Work Section",
+   "options": "Work Section",
+   "fetch_from": "employee.custom_work_section",
+   "fetch_if_empty": 1
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Select",
+   "label": "Shift",
+   "options": "\nDay\nNight"
   },
   {
    "fieldname": "company",
@@ -302,6 +326,54 @@
    "label": "On",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "cause_section",
+   "fieldtype": "Section Break",
+   "label": "Cause and Legal Limits",
+   "description": "Classify the cause first: only negligence, deliberate misconduct or a gross act go the disciplinary route."
+  },
+  {
+   "fieldname": "cause",
+   "fieldtype": "Select",
+   "label": "Cause",
+   "options": "\nOperational Mistake\nSkills Gap\nNegligence\nDeliberate Misconduct\nSystem or Process Failure\nUnclear Instructions\nInadequate Supervision",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "suggested_route",
+   "fieldtype": "Small Text",
+   "label": "Route",
+   "read_only": 1
+  },
+  {
+   "fieldname": "case_cost",
+   "fieldtype": "Currency",
+   "label": "Cost of the Incident",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_cause",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "aware_on",
+   "fieldtype": "Date",
+   "label": "Aware On",
+   "default": "Today",
+   "description": "The day the company learnt of it. The 15 days to impose a penalty run from here."
+  },
+  {
+   "fieldname": "penalty_due_by",
+   "fieldtype": "Date",
+   "label": "Penalty Due By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legal_flags",
+   "fieldtype": "Small Text",
+   "label": "Legal Flags",
+   "read_only": 1
   },
   {
    "fieldname": "charge_section",
@@ -600,7 +672,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-06 20:00:00.000000",
+ "modified": "2026-11-17 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Disciplinary Case",

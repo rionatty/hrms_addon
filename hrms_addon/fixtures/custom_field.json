@@ -10395,6 +10395,19 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Employee-custom_work_section",
+  "dt": "Employee",
+  "fieldname": "custom_work_section",
+  "fieldtype": "Link",
+  "insert_after": "grade",
+  "module": "HRMS Addon",
+  "options": "Work Section",
+  "label": "Section",
+  "in_standard_filter": 1,
+  "description": "The production section they work in, one of their plant's."
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Employee",
   "fieldname": "custom_pay_category",
   "fieldtype": "Select",
