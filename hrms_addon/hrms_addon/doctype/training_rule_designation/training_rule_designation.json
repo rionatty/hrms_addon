@@ -1,0 +1,32 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "description": "Who a Training Rule applies to.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "designation"
+ ],
+ "fields": [
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Rule Designation",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

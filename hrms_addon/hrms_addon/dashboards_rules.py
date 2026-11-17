@@ -833,6 +833,11 @@ ATTENTION = (
     ("documents_expired", "Employee document expired", "Employee documents expired", "Employee", "people", OVERDUE),
     ("clearances_late", "Clearance not signed off by the last day", "Clearances not signed off by the last day",
      "Clearance Form", "tenure", OVERDUE),
+    # Learning (learning.py): what the training rules require, past its due date, and certificates run out
+    ("training_overdue", "Required training overdue", "Required trainings overdue", "Employee Training Requirement",
+     "training", OVERDUE),
+    ("certificates_run_out", "Certificate run out", "Certificates run out", "Employee Certification", "training",
+     OVERDUE),
     ("requisitions_waiting", "Job requisition waiting for approval", "Job requisitions waiting for approval",
      "Job Requisition", "recruitment", TODAY),
     ("interviews_unscored", "Interview waiting for the panel's feedback", "Interviews waiting for the panel's feedback",
@@ -898,6 +903,8 @@ ATTENTION = (
      "training", SOON),
     ("assessments_waiting", "Training needs assessment waiting", "Training needs assessments waiting",
      "Training Needs Assessment", "training", SOON),
+    ("certificates_running_out", "Certificate running out within 90 days", "Certificates running out within 90 days",
+     "Employee Certification", "training", SOON),
     ("suspensions_ending", "Suspension ending this week", "Suspensions ending this week", "Employee Suspension",
      "relations", SOON),
     ("reviews_due", "Onboarding review due", "Onboarding reviews due", "Onboarding Review", "tenure", SOON),
@@ -919,7 +926,7 @@ ATTENTION_COMPANY = {
     "attendance_requests", "shift_requests", "late_notices", "uploads_with_problems", "plans_waiting",
     "encashments_waiting", "additional_draft", "output_runs_draft", "advance_runs_draft", "employee_advances_waiting",
     "penalties_waiting", "reviews_waiting", "trainings_not_closed", "suspensions_ending", "documents_expired",
-    "exit_interviews_waiting",
+    "exit_interviews_waiting", "training_overdue", "certificates_run_out", "certificates_running_out",
 }
 
 
@@ -968,6 +975,9 @@ def attention_filters(key, day_of, company=None):
         "requisitions_to_assess": {"docstatus": 1, "status": "Submitted"},
         "trainings_not_closed": {"docstatus": 0, "event_status": "Scheduled", "end_time": ["between", [EVER, "{yesterday}"]]},
         "assessments_waiting": {"docstatus": 0, "status": ["in", list(ASSESSMENT_WAITING)]},
+        "training_overdue": {"status": "Overdue"},
+        "certificates_run_out": {"status": "Expired"},
+        "certificates_running_out": {"status": "Due Soon"},
         "suspensions_ending": {"docstatus": 1, "status": SUSPENDED, "report_back_on": ["between", ["{today}", "{week}"]]},
         "clearances_late": {"docstatus": 0, "leaving_date": ["between", [EVER, "{yesterday}"]]},
         "evaluations_due": {"docstatus": 0, "end_of_probation": ["between", [EVER, "{week}"]]},

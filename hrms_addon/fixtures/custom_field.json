@@ -11447,6 +11447,63 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Training Program-custom_training_category",
+  "dt": "Training Program",
+  "fieldname": "custom_training_category",
+  "fieldtype": "Link",
+  "insert_after": "custom_pass_mark",
+  "label": "Category",
+  "options": "Training Category",
+  "description": "Its column in the Training Matrix.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_delivery_mode",
+  "dt": "Training Program",
+  "fieldname": "custom_delivery_mode",
+  "fieldtype": "Select",
+  "insert_after": "custom_training_category",
+  "label": "Delivery",
+  "options": "\nClassroom\nOn the Job\nOnline\nExternal\nToolbox Talk",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_duration_hours",
+  "dt": "Training Program",
+  "fieldname": "custom_duration_hours",
+  "fieldtype": "Float",
+  "insert_after": "custom_delivery_mode",
+  "label": "Duration (Hours)",
+  "non_negative": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_cost_per_person",
+  "dt": "Training Program",
+  "fieldname": "custom_cost_per_person",
+  "fieldtype": "Currency",
+  "insert_after": "custom_duration_hours",
+  "label": "Cost per Person",
+  "non_negative": 1,
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_certification",
+  "dt": "Training Program",
+  "fieldname": "custom_certification",
+  "fieldtype": "Link",
+  "insert_after": "custom_cost_per_person",
+  "label": "Gives Certificate",
+  "options": "Certification",
+  "description": "Those who pass hold it, unchecked, from the session's last day.",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Employee-custom_bank_code",
   "dt": "Employee",
   "fieldname": "custom_bank_code",

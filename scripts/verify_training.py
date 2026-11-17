@@ -597,7 +597,9 @@ for doctype_name, event, function in (("Training Event", "validate", "event_vali
                                       ("Training Feedback", "validate", "feedback_validate"),
                                       ("Training Feedback", "on_submit", "feedback_on_submit"),
                                       ("Training Feedback", "on_cancel", "feedback_on_cancel")):
-    if (events.get(doctype_name) or {}).get(event) != "hrms_addon.hrms_addon.training.%s" % function:
+    # a list where the Learning module hangs a handler of its own beside it (learning.py)
+    hung = (events.get(doctype_name) or {}).get(event)
+    if "hrms_addon.hrms_addon.training.%s" % function not in (hung if isinstance(hung, list) else [hung]):
         fail.append("doc_events %s %s must be training.%s" % (doctype_name, event, function))
 if "hrms_addon.hrms_addon.training.daily" not in ((hooks.get("scheduler_events") or {}).get("daily") or []):
     fail.append("the scheduler runs training.daily every day (the month-before and session reminders)")

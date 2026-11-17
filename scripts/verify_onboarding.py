@@ -812,7 +812,10 @@ for event, function in EVENTS.items():
         fail.append("doc_events Employee Onboarding %s must be onboarding.%s" % (event, function))
     if not re.search(r"^def %s\(doc, method=None\):" % function, glue, re.M):
         fail.append("onboarding.%s(doc, method=None) is missing" % function)
-if ((hooks.get("doc_events") or {}).get("Employee") or {}).get("on_update") != "hrms_addon.hrms_addon.onboarding.link_onboarding" \
+_employee_on_update = ((hooks.get("doc_events") or {}).get("Employee") or {}).get("on_update")
+# the Learning module hangs a handler of its own there too (learning.employee_on_update)
+if "hrms_addon.hrms_addon.onboarding.link_onboarding" not in (
+        _employee_on_update if isinstance(_employee_on_update, list) else [_employee_on_update]) \
         or not re.search(r"^def link_onboarding\(employee, method=None\):", glue, re.M):
     fail.append("doc_events Employee on_update must be onboarding.link_onboarding(employee, method=None)")
 if "hrms_addon.hrms_addon.onboarding.setup_workflow_on_migrate" not in (hooks.get("after_migrate") or []) \

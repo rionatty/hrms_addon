@@ -457,6 +457,9 @@ after_migrate = [
     # Training Calendar (General Manager). See tna_approval.py and
     # calendar_approval.py.
     "hrms_addon.hrms_addon.training.setup_workflows_on_migrate",
+    # Learning: the training categories and the certificate alert ladder,
+    # made once and then HR's (learning.py)
+    "hrms_addon.hrms_addon.learning.setup_on_migrate",
     # The Annual Leave Plan (HODs, then the HR Officer) and LPL/HR/15's own
     # three signatures on Frappe HR's Leave Application. See leave_approval.py
     # and leave_plan_approval.py.
@@ -927,6 +930,11 @@ fixtures = [
                     "Training Result Employee-custom_marks",
                     "Training Result Employee-custom_effective",
                     "Training Program-custom_pass_mark",
+                    "Training Program-custom_training_category",
+                    "Training Program-custom_delivery_mode",
+                    "Training Program-custom_duration_hours",
+                    "Training Program-custom_cost_per_person",
+                    "Training Program-custom_certification",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -2188,8 +2196,13 @@ doc_events = {
             "hrms_addon.hrms_addon.exits.employee_validate",
         ],
         # the candidate's onboarding learns its Employee even once its tasks
-        # are all done, which Frappe HR's own link skips (onboarding.py)
-        "on_update": "hrms_addon.hrms_addon.onboarding.link_onboarding",
+        # are all done, which Frappe HR's own link skips (onboarding.py);
+        # and one who joined, moved, was promoted or regraded has their
+        # training requirements worked out afresh (learning.py)
+        "on_update": [
+            "hrms_addon.hrms_addon.onboarding.link_onboarding",
+            "hrms_addon.hrms_addon.learning.employee_on_update",
+        ],
     },
     # The session and the evaluation form of Luuka's training process
     # (training.py): submitting the event says the training was held; each
@@ -2198,19 +2211,43 @@ doc_events = {
         # the Trainers table behind Frappe HR's Trainer Name, the programme
         # from the course, nobody booked twice
         "validate": "hrms_addon.hrms_addon.training.event_validate",
-        "on_submit": "hrms_addon.hrms_addon.training.event_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.training.event_on_cancel",
-        # a draft one deleted: its requisitions and its schedule line let go
-        "on_trash": "hrms_addon.hrms_addon.training.event_on_trash",
+        # held, changed or cancelled: what its people have done, and the
+        # certificate its training gives those who passed (learning.py)
+        "on_submit": [
+            "hrms_addon.hrms_addon.training.event_on_submit",
+            "hrms_addon.hrms_addon.learning.event_changed",
+        ],
+        "on_update_after_submit": "hrms_addon.hrms_addon.learning.event_changed",
+        "on_cancel": [
+            "hrms_addon.hrms_addon.training.event_on_cancel",
+            "hrms_addon.hrms_addon.learning.event_changed",
+        ],
+        # a draft one deleted: its requisitions and its schedule line let go,
+        # and no training requirement names it as its proof
+        "on_trash": [
+            "hrms_addon.hrms_addon.training.event_on_trash",
+            "hrms_addon.hrms_addon.learning.event_on_trash",
+        ],
     },
     # Only those who attended get a result; the marks say whether the
     # training worked, and reach a new employee's onboarding
     "Training Result": {
         "validate": "hrms_addon.hrms_addon.training.result_validate",
         "before_update_after_submit": "hrms_addon.hrms_addon.training.result_marks",
-        "on_submit": "hrms_addon.hrms_addon.training.result_on_submit",
-        "on_update_after_submit": "hrms_addon.hrms_addon.training.result_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.training.result_on_cancel",
+        # marks given or taken back: who passed, for their requirements and
+        # the certificate the training gives (learning.py)
+        "on_submit": [
+            "hrms_addon.hrms_addon.training.result_on_submit",
+            "hrms_addon.hrms_addon.learning.result_changed",
+        ],
+        "on_update_after_submit": [
+            "hrms_addon.hrms_addon.training.result_on_submit",
+            "hrms_addon.hrms_addon.learning.result_changed",
+        ],
+        "on_cancel": [
+            "hrms_addon.hrms_addon.training.result_on_cancel",
+            "hrms_addon.hrms_addon.learning.result_changed",
+        ],
     },
     "Training Feedback": {
         "validate": "hrms_addon.hrms_addon.training.feedback_validate",
@@ -2318,6 +2355,17 @@ scheduler_events = {
         # Talent Council with its Monthly Talent Report (talent.py)
         "hrms_addon.hrms_addon.talent.monthly",
     ],
+    "daily_long": [
+        # Learning: everyone's training requirements brought up to date, each
+        # certificate's expiry chased rung by rung (180 days to the day it
+        # runs out), and training falling due or overdue told (learning.py)
+        "hrms_addon.hrms_addon.learning.daily",
+    ],
+    "weekly": [
+        # each plant's HR told how much of the required training is done,
+        # and the departments furthest behind (learning.py)
+        "hrms_addon.hrms_addon.learning.weekly",
+    ],
 }
 
 # Testing
@@ -2383,6 +2431,7 @@ override_doctype_dashboards = {
     "Employee Onboarding": "hrms_addon.hrms_addon.connections.employee_onboarding_dashboard",
     "Job Opening": "hrms_addon.hrms_addon.connections.job_opening_dashboard",
     "Training Event": "hrms_addon.hrms_addon.connections.training_event_dashboard",
+    "Training Program": "hrms_addon.hrms_addon.connections.training_program_dashboard",
 }
 
 # exempt linked doctypes from being automatically cancelled

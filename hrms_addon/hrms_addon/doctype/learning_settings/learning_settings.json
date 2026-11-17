@@ -1,0 +1,163 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "description": "When training and certificates fall due, who is told, and how the Passport's score is made.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "due_section",
+  "due_soon_days",
+  "certificate_due_soon_days",
+  "column_break_due",
+  "only_verified",
+  "alerts_section",
+  "alert_tiers",
+  "notices_section",
+  "notify_due_soon",
+  "notify_overdue",
+  "weekly_digest",
+  "score_section",
+  "weight_training",
+  "weight_competency",
+  "weight_assessment",
+  "column_break_score",
+  "matrix_green_from",
+  "matrix_amber_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "due_section",
+   "fieldtype": "Section Break",
+   "label": "Due Dates"
+  },
+  {
+   "fieldname": "due_soon_days",
+   "fieldtype": "Int",
+   "label": "Training Due Soon (Days Before)",
+   "default": "30",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "certificate_due_soon_days",
+   "fieldtype": "Int",
+   "label": "Certificate Due Soon (Days Before)",
+   "default": "90",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_due",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "only_verified",
+   "fieldtype": "Check",
+   "label": "Only Checked Certificates Count",
+   "description": "A certificate HR have not yet checked counts unless this is ticked."
+  },
+  {
+   "fieldname": "alerts_section",
+   "fieldtype": "Section Break",
+   "label": "Certificate Alerts"
+  },
+  {
+   "fieldname": "alert_tiers",
+   "fieldtype": "Table",
+   "label": "Alerts",
+   "options": "Certification Alert Tier"
+  },
+  {
+   "fieldname": "notices_section",
+   "fieldtype": "Section Break",
+   "label": "Training Notices"
+  },
+  {
+   "fieldname": "notify_due_soon",
+   "fieldtype": "Check",
+   "label": "Tell the Employee and Supervisor When Training Falls Due",
+   "default": "1"
+  },
+  {
+   "fieldname": "notify_overdue",
+   "fieldtype": "Check",
+   "label": "Tell the Supervisor and Head of Department When It Is Overdue",
+   "default": "1"
+  },
+  {
+   "fieldname": "weekly_digest",
+   "fieldtype": "Check",
+   "label": "Weekly Compliance to HR",
+   "default": "1"
+  },
+  {
+   "fieldname": "score_section",
+   "fieldtype": "Section Break",
+   "label": "Training & Competency Score",
+   "description": "Each part counts once there is a figure for it."
+  },
+  {
+   "fieldname": "weight_training",
+   "fieldtype": "Percent",
+   "label": "Training Done",
+   "default": "40"
+  },
+  {
+   "fieldname": "weight_competency",
+   "fieldtype": "Percent",
+   "label": "Competency",
+   "default": "35"
+  },
+  {
+   "fieldname": "weight_assessment",
+   "fieldtype": "Percent",
+   "label": "Assessments",
+   "default": "25"
+  },
+  {
+   "fieldname": "column_break_score",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "matrix_green_from",
+   "fieldtype": "Percent",
+   "label": "Matrix Green From",
+   "default": "85"
+  },
+  {
+   "fieldname": "matrix_amber_from",
+   "fieldtype": "Percent",
+   "label": "Matrix Amber From",
+   "default": "65"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Learning Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1,
+ "track_changes": 1
+}

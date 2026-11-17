@@ -13,6 +13,7 @@ get_dashboard_data).
   Employee             its reviews, probation evaluations and contracts
   Employee Onboarding  what its approval set off: the same three
   Job Opening          the shortlist and the interview report for the post
+  Training Program     the rules that require it and who must do it
 
 A count is only found where the other document carries a plain Link field
 to this one: Frappe filters {fieldname: name} on the target
@@ -35,6 +36,8 @@ PERFORMANCE_DOCS = ["Appraisal", "Performance Improvement Plan"]
 ATTENDANCE_DOCS = ["Off Duty Request", "Gate Pass"]
 # the disciplinary record, and any suspension it came to
 DISCIPLINE_DOCS = ["Disciplinary Case", "Employee Suspension"]
+# what the rules require of the person, and the certificates they hold (learning.py)
+LEARNING_DOCS = ["Employee Training Requirement", "Employee Certification"]
 
 
 def employee_dashboard(data=None):
@@ -46,6 +49,7 @@ def employee_dashboard(data=None):
     transactions.append({"label": _("Performance"), "items": list(PERFORMANCE_DOCS)})
     transactions.append({"label": _("Attendance"), "items": list(ATTENDANCE_DOCS)})
     transactions.append({"label": _("Discipline"), "items": list(DISCIPLINE_DOCS)})
+    transactions.append({"label": _("Learning"), "items": list(LEARNING_DOCS)})
     return data
 
 
@@ -65,6 +69,21 @@ def training_event_dashboard(data=None):
     data = data or {}
     data.setdefault("non_standard_fieldnames", {}).update({"Training Requisition": "training_event"})
     data.setdefault("transactions", []).append({"label": _("Requested By"), "items": ["Training Requisition"]})
+    return data
+
+
+def training_program_dashboard(data=None):
+    """Training Program: the Training Rules that require it, who must do it,
+    and the certification it renews, on top of Frappe HR's own Training
+    Event. Each names the programme as `training_program`, as Frappe HR's
+    own dashboard counts it, except the certification's `renewal_program`."""
+    data = data or {}
+    data.setdefault("non_standard_fieldnames", {}).update({"Training Rule": "training_program",
+                                                           "Employee Training Requirement": "training_program",
+                                                           "Certification": "renewal_program"})
+    data.setdefault("transactions", []).append({"label": _("Learning"),
+                                                "items": ["Training Rule", "Employee Training Requirement",
+                                                          "Certification"]})
     return data
 
 

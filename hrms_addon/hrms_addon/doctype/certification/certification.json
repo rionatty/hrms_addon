@@ -1,0 +1,132 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "description": "A certificate an employee may hold, and how long it lasts.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "certification_name",
+  "issuing_body",
+  "level",
+  "column_break_cert",
+  "validity_months",
+  "training_category",
+  "renewal_program",
+  "cpd_hours",
+  "renewal_section",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "certification_name",
+   "fieldtype": "Data",
+   "label": "Certification",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "issuing_body",
+   "fieldtype": "Data",
+   "label": "Issuing Body",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "level",
+   "fieldtype": "Data",
+   "label": "Level"
+  },
+  {
+   "fieldname": "column_break_cert",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "validity_months",
+   "fieldtype": "Int",
+   "label": "Valid For (Months)",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "description": "0 if it does not expire."
+  },
+  {
+   "fieldname": "training_category",
+   "fieldtype": "Link",
+   "label": "Category",
+   "options": "Training Category",
+   "default": "Certification"
+  },
+  {
+   "fieldname": "renewal_program",
+   "fieldtype": "Link",
+   "label": "Renewed By",
+   "options": "Training Program",
+   "description": "The training that renews it."
+  },
+  {
+   "fieldname": "cpd_hours",
+   "fieldtype": "Float",
+   "label": "CPD Hours to Renew",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "renewal_section",
+   "fieldtype": "Section Break",
+   "label": "Renewal Requirements"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Renewal Requirements"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Certification",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "field:certification_name",
+ "naming_rule": "By fieldname",
+ "allow_import": 1,
+ "allow_rename": 1,
+ "track_changes": 1,
+ "search_fields": "issuing_body"
+}

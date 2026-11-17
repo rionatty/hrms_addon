@@ -1,0 +1,211 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "description": "Who must do which training, or hold which certificate, by when and how often.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_name",
+  "requirement_type",
+  "training_program",
+  "certification",
+  "column_break_rule",
+  "enabled",
+  "due_within_days",
+  "repeat",
+  "applies_from",
+  "scope_section",
+  "company",
+  "operators_only",
+  "branches",
+  "column_break_scope",
+  "departments",
+  "designations",
+  "grades",
+  "employment_types",
+  "notes_section",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "label": "Rule",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "requirement_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Onboarding\nMandatory\nRefresher\nCertification",
+   "default": "Mandatory",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "training_program",
+   "fieldtype": "Link",
+   "label": "Training",
+   "options": "Training Program",
+   "in_list_view": 1,
+   "depends_on": "eval:doc.requirement_type!='Certification'",
+   "mandatory_depends_on": "eval:doc.requirement_type!='Certification'"
+  },
+  {
+   "fieldname": "certification",
+   "fieldtype": "Link",
+   "label": "Certificate to Hold",
+   "options": "Certification",
+   "in_list_view": 1,
+   "depends_on": "eval:doc.requirement_type=='Certification'",
+   "mandatory_depends_on": "eval:doc.requirement_type=='Certification'"
+  },
+  {
+   "fieldname": "column_break_rule",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "due_within_days",
+   "fieldtype": "Int",
+   "label": "Due Within (Days)",
+   "default": "30",
+   "non_negative": 1,
+   "description": "From the date of joining for onboarding, else from coming under the rule."
+  },
+  {
+   "fieldname": "repeat",
+   "fieldtype": "Select",
+   "label": "Repeat",
+   "options": "Once\nEvery 3 Months\nEvery 6 Months\nEvery Year\nEvery 2 Years\nEvery 3 Years",
+   "default": "Once",
+   "depends_on": "eval:doc.requirement_type!='Certification'"
+  },
+  {
+   "fieldname": "applies_from",
+   "fieldtype": "Date",
+   "label": "Applies From",
+   "default": "Today",
+   "description": "Nobody is due before this date."
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Applies To",
+   "description": "Leave a list empty for everyone."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "operators_only",
+   "fieldtype": "Check",
+   "label": "Machine Operators Only"
+  },
+  {
+   "fieldname": "branches",
+   "fieldtype": "Table MultiSelect",
+   "label": "Plants",
+   "options": "Training Rule Branch"
+  },
+  {
+   "fieldname": "column_break_scope",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "departments",
+   "fieldtype": "Table MultiSelect",
+   "label": "Departments",
+   "options": "Training Rule Department"
+  },
+  {
+   "fieldname": "designations",
+   "fieldtype": "Table MultiSelect",
+   "label": "Job Titles",
+   "options": "Training Rule Designation"
+  },
+  {
+   "fieldname": "grades",
+   "fieldtype": "Table MultiSelect",
+   "label": "Grades",
+   "options": "Training Rule Grade"
+  },
+  {
+   "fieldname": "employment_types",
+   "fieldtype": "Table MultiSelect",
+   "label": "Employment Types",
+   "options": "Training Rule Employment Type"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "field:rule_name",
+ "naming_rule": "By fieldname",
+ "allow_import": 1,
+ "allow_rename": 1,
+ "track_changes": 1
+}

@@ -1,0 +1,318 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "description": "What each employee must do, from the Training Rules, and what was recommended for them.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "requirement_type",
+  "training_program",
+  "certification",
+  "training_category",
+  "column_break_status",
+  "status",
+  "due_date",
+  "completed_on",
+  "valid_until",
+  "employee_section",
+  "company",
+  "branch",
+  "column_break_employee",
+  "department",
+  "designation",
+  "source_section",
+  "training_rule",
+  "required_since",
+  "recommended_by",
+  "reason",
+  "column_break_source",
+  "evidence_type",
+  "evidence",
+  "last_result",
+  "alerts_sent"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "requirement_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Onboarding\nMandatory\nRefresher\nCertification\nRecommended",
+   "default": "Recommended",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "training_program",
+   "fieldtype": "Link",
+   "label": "Training",
+   "options": "Training Program",
+   "in_list_view": 1,
+   "depends_on": "eval:doc.requirement_type!='Certification'",
+   "read_only_depends_on": "eval:doc.training_rule"
+  },
+  {
+   "fieldname": "certification",
+   "fieldtype": "Link",
+   "label": "Certificate to Hold",
+   "options": "Certification",
+   "read_only": 1,
+   "depends_on": "eval:doc.requirement_type=='Certification'"
+  },
+  {
+   "fieldname": "training_category",
+   "fieldtype": "Link",
+   "label": "Category",
+   "options": "Training Category",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nDue Soon\nOverdue\nCompliant\nNot Applicable",
+   "default": "Pending",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date",
+   "in_list_view": 1,
+   "read_only_depends_on": "eval:doc.training_rule"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Date",
+   "label": "Last Done",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Date",
+   "label": "Counts Until",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "employee_section",
+   "fieldtype": "Section Break",
+   "label": "Employee",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_employee",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Why It Is Needed"
+  },
+  {
+   "fieldname": "training_rule",
+   "fieldtype": "Link",
+   "label": "Rule",
+   "options": "Training Rule",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "required_since",
+   "fieldtype": "Date",
+   "label": "Required Since",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "recommended_by",
+   "fieldtype": "Link",
+   "label": "Recommended By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason",
+   "depends_on": "eval:!doc.training_rule"
+  },
+  {
+   "fieldname": "column_break_source",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evidence_type",
+   "fieldtype": "Link",
+   "label": "Proof Type",
+   "options": "DocType",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Dynamic Link",
+   "label": "Proof",
+   "options": "evidence_type",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "last_result",
+   "fieldtype": "Data",
+   "label": "Last Result",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "alerts_sent",
+   "fieldtype": "Data",
+   "label": "Alerts Sent",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Employee Training Requirement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "due_date",
+ "sort_order": "ASC",
+ "states": [],
+ "autoname": "TRQ-.YYYY.-.#####",
+ "naming_rule": "Expression (old style)",
+ "allow_import": 1,
+ "track_changes": 1,
+ "title_field": "employee_name",
+ "search_fields": "employee_name,training_program",
+ "show_title_field_in_link": 1
+}

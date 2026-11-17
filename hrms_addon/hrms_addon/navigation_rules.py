@@ -187,6 +187,21 @@ CARDS = {
             ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE),
             ("Meeting Record", "Meeting Record", DOCTYPE),
         ]),
+        # Learning (learning.py): each employee's passport, what the rules
+        # require of them and the certificates they hold, how far each plant
+        # is, and the rules, catalogue and settings behind it
+        ("Learning", [
+            ("Learning Passport", "learning-passport", PAGE),
+            ("Employee Training Requirement", "Employee Training Requirement", DOCTYPE),
+            ("Employee Certification", "Employee Certification", DOCTYPE),
+            ("Training Matrix", "Training Matrix", REPORT),
+            ("Training Compliance", "Training Compliance", REPORT),
+            ("Certification Expiry", "Certification Expiry", REPORT),
+            ("Training Rule", "Training Rule", DOCTYPE),
+            ("Certification", "Certification", DOCTYPE),
+            ("Training Category", "Training Category", DOCTYPE),
+            ("Learning Settings", "Learning Settings", DOCTYPE),
+        ]),
     ],
     # Frappe HR ships the Performance page with its Appraisal Overview chart
     # and nothing else — no cards, no links — so it reads as an empty page
@@ -636,6 +651,17 @@ SIDEBAR = {
         ("Training Needs Form", "Training Needs Form", DOCTYPE, "Setup", None),
         ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
         ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),
+        # Learning (learning.py)
+        ("Learning Passport", "learning-passport", PAGE, None, "hr-calendar"),
+        ("Employee Training Requirement", "Employee Training Requirement", DOCTYPE, None, "learning-passport"),
+        ("Employee Certification", "Employee Certification", DOCTYPE, None, "Employee Training Requirement"),
+        ("Training Matrix", "Training Matrix", REPORT, "Reports", None),
+        ("Training Compliance", "Training Compliance", REPORT, "Reports", None),
+        ("Certification Expiry", "Certification Expiry", REPORT, "Reports", None),
+        ("Training Rule", "Training Rule", DOCTYPE, "Setup", None),
+        ("Certification", "Certification", DOCTYPE, "Setup", None),
+        ("Training Category", "Training Category", DOCTYPE, "Setup", None),
+        ("Learning Settings", "Learning Settings", DOCTYPE, "Setup", None),
         ("Disciplinary Case", "Disciplinary Case", DOCTYPE, None, "Employee Grievance"),
         ("Employee Suspension", "Employee Suspension", DOCTYPE, None, "Disciplinary Case"),
         ("Safety Incident", "Safety Incident", DOCTYPE, None, "Employee Suspension"),
@@ -714,7 +740,8 @@ GROUPS = {
         ("Contracts", "file-text", ["Employee Contract", "Employee Position Change", "Employee Transfer",
                                     "Employee Data Change Request"]),
         ("Training", "graduation-cap", ["Training Requisition", "Training Needs Assessment", "Training Calendar",
-                                        "Monthly Training Schedule"]),
+                                        "Monthly Training Schedule", "Employee Training Requirement",
+                                        "Employee Certification"]),
         ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
                                          "Safety Incident", "Medical Treatment Order"]),
         ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement",
@@ -762,6 +789,8 @@ SHORT_LABELS = {
     "Employee Transfer": "Transfer",
     "Training Needs Assessment": "Needs Assessment",
     "Monthly Training Schedule": "Monthly Schedule",
+    "Employee Training Requirement": "Requirements",
+    "Employee Certification": "Certificates",
     "Employee Grievance": "Grievance",
     "Employee Separation": "Separation",
     "Full and Final Statement": "Final Settlement",
@@ -769,7 +798,8 @@ SHORT_LABELS = {
 
 # the icon of an entry of ours that stays at the top of a sidebar, above
 # the groups: what it opens -> icon
-TOP_ICONS = {"hr-calendar": "calendar", "attendance-board": "layout-grid", "leave-overview": "chart-column"}
+TOP_ICONS = {"hr-calendar": "calendar", "attendance-board": "layout-grid", "leave-overview": "chart-column",
+             "learning-passport": "graduation-cap"}
 
 CARD_BREAK, LINK, SECTION = "Card Break", "Link", "Section Break"
 

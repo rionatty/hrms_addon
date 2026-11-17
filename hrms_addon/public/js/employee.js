@@ -60,6 +60,11 @@ frappe.ui.form.on("Employee", {
 		}
 		if (hrms_addon.talent_card) hrms_addon.talent_card.attach(frm, frm.doc.name);
 		ha_employee_improvement_plan(frm);
+		// what the training rules require of them, their certificates and the
+		// sessions they attended (page learning-passport, learning.py)
+		if (!frm.is_new()) {
+			frm.add_custom_button(__("Learning Passport"), () => frappe.set_route("learning-passport", frm.doc.name), __("View"));
+		}
 		if (frm.doc.status !== "Left" || !frappe.user.has_role("Executive Director")) return;
 		frm.add_custom_button(__("Reinstate"), () => {
 			frappe.prompt(

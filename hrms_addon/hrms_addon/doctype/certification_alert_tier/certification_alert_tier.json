@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "description": "Who a certificate's alert goes to, so many days before it runs out.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "days_before",
+  "employee",
+  "supervisor",
+  "head_of_department",
+  "hr",
+  "management"
+ ],
+ "fields": [
+  {
+   "fieldname": "days_before",
+   "fieldtype": "Int",
+   "label": "Days Before Expiry",
+   "reqd": 1,
+   "in_list_view": 1,
+   "non_negative": 1,
+   "description": "0 is the day it runs out."
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Check",
+   "label": "Employee",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Check",
+   "label": "Supervisor",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "head_of_department",
+   "fieldtype": "Check",
+   "label": "Head of Department",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "hr",
+   "fieldtype": "Check",
+   "label": "HR",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "management",
+   "fieldtype": "Check",
+   "label": "Management",
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Certification Alert Tier",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}
