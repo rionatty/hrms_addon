@@ -423,8 +423,25 @@ if len(schedule) != 3 or round(sum(amount for _m, amount in schedule), 2) != 100
 if [month.month for month, _a in schedule] != [10, 11, 12]:
     fail.append("the instalments run month by month from the first: %s" % (schedule,))
 odd = V.recovery_schedule(100, 3, "2026-10-31")
-if [a for _m, a in odd] != [33.33, 33.33, 33.34]:
-    fail.append("the rounding goes on the last instalment: %s" % (odd,))
+if [a for _m, a in odd] != [33, 33, 34]:
+    fail.append("whole shillings, what is left over on the last instalment: %s" % (odd,))
+if [a for _m, a in V.recovery_schedule(100000.5, 2, "2026-10-31")] != [50000, 50000.5]:
+    fail.append("an amount with a fraction keeps it on the last instalment, so the parts add back to the whole")
+# Luuka's Accounts Manager, 17 Nov 2026: "for decimals 4-0. We round down ie 180.4 becomes 180. Then for decimals
+# above 5-9, we round up ie 180.5 becomes 181"
+for value, want in ((180.4, 180), (180.5, 181), (180.49, 180), (180.9, 181), (2.675, 3), (0.5, 1), (0, 0), (None, 0),
+                    ("1500.5", 1501)):
+    if V.whole_shillings(value) != want:
+        fail.append("whole_shillings(%r) is %r, not %r" % (value, V.whole_shillings(value), want))
+for kind, gross, want in ((V.SALARY_ADVANCE, 800001, 320000), (V.SALARY_ADVANCE, 800002, 320001),
+                         (V.LEAVE_ADVANCE, 300001, 180001), (V.SPECIAL_ADVANCE, 300001, 150001)):
+    if V.entitled(kind, gross) != want:
+        fail.append("what may be advanced is in whole shillings, a half up: %s of %s is %s" % (kind, gross,
+                                                                                          V.entitled(kind, gross)))
+if (V.line_amount(320000.5, 0), V.line_amount(320000, 150000.4)) != (320001, 150000):
+    fail.append("a run's line is in whole shillings: %s" % ((V.line_amount(320000.5, 0), V.line_amount(320000, 150000.4)),))
+if V.kept_amount(320000, 250000.5, 320000) != (250001, 1) or V.kept_amount(320000, 320000.4, 320000) != (320000, 0):
+    fail.append("an amount set by hand is kept in whole shillings; one rounding to the run's own is the run's")
 if V.recovery_schedule(0, 3, "2026-10-31") != []:
     fail.append("nothing is recovered from nothing")
 if V.outstanding(100000, 40000) != 60000:

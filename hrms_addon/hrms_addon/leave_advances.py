@@ -166,6 +166,9 @@ def _fill_amount(doc, leave, s):
     doc.allowed_amount = ceiling or 0
     if doc.docstatus == 0 and not flt(doc.get("amount")) and ceiling:
         doc.amount = ceiling
+    elif doc.docstatus == 0 and flt(doc.get("amount")):
+        # in whole shillings, a half up, as the Accounts Manager rounds (17 Nov 2026)
+        doc.amount = rules.whole_shillings(doc.amount)
 
 
 def _pay_category(employee):

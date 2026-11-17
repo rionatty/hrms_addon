@@ -133,8 +133,16 @@ if R.first_deduction("2027-02-21") != D(2027, 2, 25):
 schedule = R.recovery_schedule(600000, 3, "2027-02-21")
 if schedule != [(D(2027, 2, 25), 200000.0), (D(2027, 3, 25), 200000.0), (D(2027, 4, 25), 200000.0)]:
     fail.append("recovery_schedule: equal months from the first, each on the 25th: %s" % schedule)
-if [amount for _month, amount in R.recovery_schedule(100000, 3, "2027-02-01")] != [33333.33, 33333.33, 33333.34]:
-    fail.append("recovery_schedule: the rounding goes on the last month")
+if [amount for _month, amount in R.recovery_schedule(100000, 3, "2027-02-01")] != [33333, 33333, 33334]:
+    fail.append("recovery_schedule: whole shillings, what is left over on the last month")
+# Luuka's Accounts Manager, 17 Nov 2026: "for decimals 4-0. We round down ie 180.4 becomes 180. Then for decimals
+# above 5-9, we round up ie 180.5 becomes 181"
+for value, want in ((180.4, 180), (180.5, 181), (180.49, 180), (180.9, 181), (2.675, 3), (0.5, 1), (0, 0), (None, 0),
+                    ("1500.5", 1501)):
+    if R.whole_shillings(value) != want:
+        fail.append("whole_shillings(%r) is %r, not %r" % (value, R.whole_shillings(value), want))
+if (R.allowed(300001), R.allowed(300000)) != (180001, 180000):
+    fail.append("the most a leave advance may be is in whole shillings, a half up: %s" % (R.allowed(300001),))
 if R.recovery_schedule(0, 1, "2027-02-01") or R.recovery_schedule(1000, 1, None):
     fail.append("recovery_schedule: nothing for nothing, nothing with no first month")
 for args, want in (((0, "Draft"), R.DRAFT), ((0, R.PENDING), R.PENDING), ((0, R.REJECTED), R.REJECTED),
@@ -272,6 +280,10 @@ for needle, why in (
     ('lines = [row.as_dict() for row in doc.get("employees") or [] if cint(row.include)]',
      "the file pays the lines included"),
     ("bank.refuse_empty(lines)", "a missing bank detail left blank, no empty file (bank_file.py)"),
+    ('    elif doc.docstatus == 0 and flt(doc.get("amount")):\n'
+     '        # in whole shillings, a half up, as the Accounts Manager rounds (17 Nov 2026)\n'
+     '        doc.amount = rules.whole_shillings(doc.amount)',
+     "an amount typed on the advance is in whole shillings too"),
     ("bank_file_rules.workbook(bank_file_rules.rows(lines))", "the bank's six columns, as the payroll's file"),
     ('"""The employee\'s Bank Code, else the one set on their bank in the Bank\n    list, as the payroll\'s bank file '
      'reads it (bank_file.py)."""\n    from hrms_addon.hrms_addon import bank_file\n\n    return '

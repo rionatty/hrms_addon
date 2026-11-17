@@ -36,6 +36,7 @@ is until someone changes it.
 
 import calendar
 import datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 DEFAULTS = {
     "advance_percent": 60.0,
@@ -128,11 +129,12 @@ def gross_basis(pay_category, monthly_gross, recent_gross=(), months=2):
 
 
 def allowed(gross, settings=None):
-    """The most that may be advanced: the percentage of gross."""
+    """The most that may be advanced: the percentage of gross, in whole
+    shillings."""
     s = _settings(settings)
     if gross is None or _num(gross) <= 0:
         return None
-    return round(_num(gross) * s["advance_percent"] / 100.0, 2)
+    return whole_shillings(_num(gross) * s["advance_percent"] / 100.0)
 
 
 def eligibility_errors(facts, settings=None):
@@ -195,14 +197,14 @@ def first_deduction(leave_ends):
 
 
 def recovery_schedule(amount, instalments, first_month):
-    """[(payroll date, amount)]: equal instalments, the rounding on the last
-    one so the parts add back to the whole."""
+    """[(payroll date, amount)]: equal instalments in whole shillings, what
+    is left over on the last one so the parts add back to the whole."""
     amount = round(_num(amount), 2)
     instalments = max(1, int(_num(instalments) or 1))
     first = payroll_date(first_month)
     if not first or amount <= 0:
         return []
-    each = round(amount / instalments, 2)
+    each = whole_shillings(amount / instalments)
     rows, taken = [], 0.0
     for n in range(instalments):
         due = each if n < instalments - 1 else round(amount - taken, 2)
@@ -286,6 +288,12 @@ def _date(value):
         return datetime.date(*(int(part) for part in str(value)[:10].split("-")))
     except (ValueError, TypeError):
         return None
+
+
+def whole_shillings(value):
+    """To the shilling, a half up, as Luuka's Accounts Manager rounds (17 Nov 2026): .0 to .4 down, .5 to .9 up, so
+    180.4 is 180 and 180.5 is 181. Decimal, so a binary float's .499999 never rounds the wrong way."""
+    return int(Decimal(str(_num(value))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _num(value):

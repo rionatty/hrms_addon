@@ -50,6 +50,7 @@ DocType's own defaults are checked against it (scripts/verify_salary_advance.py)
 """
 
 import datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 LEAVE_ADVANCE = "Leave Advance"
 SALARY_ADVANCE = "Salary Advance"
@@ -278,12 +279,12 @@ def entitled(kind, gross, pay_category=None, settings=None, average_gross=None):
     gross = _num(gross)
     if kind == SALARY_ADVANCE:
         if pay_category == PER_METER and _num(s["per_meter_amount"]) > 0:
-            return round(_num(s["per_meter_amount"]), 2)
-        return round(gross * _num(s["salary_percent"]) / 100.0, 2) if gross else None
+            return whole_shillings(s["per_meter_amount"])
+        return whole_shillings(gross * _num(s["salary_percent"]) / 100.0) if gross else None
     if kind == LEAVE_ADVANCE:
         base = _num(average_gross) if pay_category == PER_METER and _num(average_gross) else gross
-        return round(base * _num(s["leave_percent"]) / 100.0, 2) if base else None
-    return round(gross * _num(s["special_percent"]) / 100.0, 2) if gross else None
+        return whole_shillings(base * _num(s["leave_percent"]) / 100.0) if base else None
+    return whole_shillings(gross * _num(s["special_percent"]) / 100.0) if gross else None
 
 
 # ── The Salary Advance Request and the monthly run ────────────────────
@@ -355,11 +356,11 @@ def joins_run(request, processed_on, settings=None):
 def line_amount(entitlement, requested):
     """What is paid: the amount asked for, up to what is allowed; the full
     amount allowed when nothing in particular was asked for; nothing when
-    the allowance cannot be worked out."""
+    the allowance cannot be worked out. In whole shillings."""
     entitlement, requested = _num(entitlement), _num(requested)
     if 0 < requested < entitlement:
-        return round(requested, 2)
-    return round(entitlement, 2)
+        return whole_shillings(requested)
+    return whole_shillings(entitlement)
 
 
 def kept_amount(worked_out, entered, saved=None, adjusted=0):
@@ -368,10 +369,10 @@ def kept_amount(worked_out, entered, saved=None, adjusted=0):
     manager and HR officer", AMOUNT_SETTERS). An amount changed since the line was last saved is
     set by hand and stays so; clearing it, or setting it back to what the run works out, hands it back to the run.
     The allowance still holds: more than it does not qualify (eligibility_errors). Returns (amount, adjusted)."""
-    worked_out, entered = round(_num(worked_out), 2), round(_num(entered), 2)
+    worked_out, entered = whole_shillings(worked_out), whole_shillings(entered)
     if entered <= 0 or entered == worked_out:
         return worked_out, 0
-    if adjusted or (saved is not None and entered != round(_num(saved), 2)):
+    if adjusted or (saved is not None and entered != whole_shillings(saved)):
         return entered, 1
     return worked_out, 0
 
@@ -578,14 +579,14 @@ def _day(value):
 
 
 def recovery_schedule(amount, instalments, first_month):
-    """[(month, amount)] — equal instalments, the rounding on the last one
-    so the parts add back to the whole."""
+    """[(month, amount)] — equal instalments in whole shillings, what is
+    left over on the last one so the parts add back to the whole."""
     amount = round(_num(amount), 2)
     instalments = max(1, int(instalments or DEFAULT_INSTALMENTS))
     month = _date(first_month)
     if not month or amount <= 0:
         return []
-    each = round(amount / instalments, 2)
+    each = whole_shillings(amount / instalments)
     rows, taken = [], 0.0
     for n in range(instalments):
         due = each if n < instalments - 1 else round(amount - taken, 2)
@@ -667,6 +668,12 @@ def _date(value):
         return datetime.date(*(int(part) for part in text.split("-")))
     except (ValueError, TypeError):
         return None
+
+
+def whole_shillings(value):
+    """To the shilling, a half up, as Luuka's Accounts Manager rounds (17 Nov 2026): .0 to .4 down, .5 to .9 up, so
+    180.4 is 180 and 180.5 is 181. Decimal, so a binary float's .499999 never rounds the wrong way."""
+    return int(Decimal(str(_num(value))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
 def _num(value):
