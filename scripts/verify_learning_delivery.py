@@ -215,8 +215,12 @@ for name, controller in (("Training Application Review", "review_validate"),
     source = read("hrms_addon", "hrms_addon", "doctype", folder, folder + ".py")
     check("wiring: %s calls learning_delivery.%s" % (name, controller),
           "learning_delivery.%s(self)" % controller in source and "\ndef %s(" % controller in GLUE)
+T_REPORTERS = {"System Manager", "HR Manager", "HR User"} | {
+    role for role, ptypes in T.PERMISSIONS["Training Event"].items() if "report" in ptypes}
 for folder in ("training_attendance", "training_effectiveness"):
     spec = json.load(open(os.path.join(APP, "report", folder, folder + ".json"), encoding="utf-8"))
+    check("wiring: everyone %s is for may report on the Training Event" % spec["name"],
+          {row["role"] for row in spec["roles"]} <= T_REPORTERS, {row["role"] for row in spec["roles"]} - T_REPORTERS)
     check("wiring: %s reads held sessions through the user's permissions" % spec["name"],
           "frappe.get_list(\"Training Event\"" in read("hrms_addon", "hrms_addon", "report", folder, folder + ".py"))
 

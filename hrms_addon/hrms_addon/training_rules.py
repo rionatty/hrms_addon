@@ -119,13 +119,19 @@ SESSION_STARTS, SESSION_ENDS = datetime.time(7, 0), datetime.time(9, 0)  # the u
 # so with its Training Event (Frappe HR gives HR User neither); the Head of
 # Department, or the supervisor who raised the requisition, confirms the
 # participants on the draft session. Granted on every migrate, never
-# revoked (workflows.py).
-NEW_ROLES = ("Head of Department", "Supervisor")
+# revoked (workflows.py). The training reports (attendance, effectiveness,
+# ROI, providers, learning health) open only to those who may report on the
+# Training Event, so the Head of Department and management read it too
+# (17 Nov 2026).
+NEW_ROLES = ("Head of Department", "Supervisor", "General Manager", "Executive Director", "Auditor")
 PERMISSIONS = {
     "Training Event": {
         "HR User": ("read", "write", "create", "submit", "report", "export", "print"),
-        "Head of Department": ("read", "write"),
+        "Head of Department": ("read", "write", "report", "print"),
         "Supervisor": ("read", "write"),
+        "General Manager": ("read", "report", "print"),
+        "Executive Director": ("read", "report", "print"),
+        "Auditor": ("read", "report", "print"),
     },
     "Training Feedback": {"HR User": ("read", "write", "create", "submit")},
     "Training Program": {"HR User": ("read", "write", "create")},
