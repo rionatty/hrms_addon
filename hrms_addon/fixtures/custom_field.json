@@ -10501,6 +10501,7 @@
   "modified": "2026-11-17 15:00:00.000000",
   "label": "Salary Advance Set by Hand",
   "default": "0",
+  "permlevel": 1,
   "description": "Their salary advance is typed on Salary Advance Processing and may be above the limit in Advance Settings."
  },
  {

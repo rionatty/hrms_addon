@@ -721,6 +721,11 @@ if (tick.get("fieldtype"), tick.get("label"), tick.get("insert_after")) != (
         "Check", "Salary Advance Set by Hand", "custom_salary_advance_section") \
         or "Employee-custom_advance_set_by_hand" not in read("hrms_addon", "hooks.py"):
     fail.append("the Employee carries Salary Advance Set by Hand, shipped with the fixtures: %s" % tick)
+# HR's alone, as the salary and bank details are (security_rules.PROTECTED_LEVEL): the employee neither sees nor sets
+# it on their own record
+SECURITY = load("security_rules")
+if tick.get("permlevel") != SECURITY.PROTECTED_LEVEL or "Employee" in SECURITY.PRIVILEGED_ROLES:
+    fail.append("Salary Advance Set by Hand is at the protected level, HR's and Payroll's only: %s" % tick.get("permlevel"))
 print("a line's amount set by hand: kept, said, posted, by HR only; above the share of gross where the Employee says")
 
 if fail:
