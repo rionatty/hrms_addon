@@ -99,10 +99,14 @@ HOD, HRM, PRODUCTION, GM, ED = "Head of Department", "HR Manager", "Production M
     "Executive Director"
 NEW_ROLES = ("Supervisor", HOD, PRODUCTION, GM, ED)
 # Frappe HR gives the Appraisal to HR Manager and Employee only; the people
-# who sign it need to read and write it, and the HR Officer to raise it
+# who sign it need to read and write it, and the HR Officer to raise it. The
+# HR Manager cancels a completed one (the workflow's Cancel) and HR amend a
+# cancelled one (Luuka, 16 Nov 2026: "Cancelled appraisa;s can not be
+# amended"): Frappe HR gives the HR Manager neither right
 PERMISSIONS = {
     DOCTYPE: {
-        "HR User": ("read", "write", "create", "submit", "cancel"),
+        "HR User": ("read", "write", "create", "submit", "cancel", "amend"),
+        HRM: ("read", "write", "create", "submit", "cancel", "amend"),
         "Supervisor": ("read", "write", "submit"),
         HOD: ("read", "write", "submit"),
         PRODUCTION: ("read", "write", "submit"),

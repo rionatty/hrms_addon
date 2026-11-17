@@ -74,7 +74,8 @@ const HA_SHEET_HEADS = [
 	...["Q1", "Q2", "Q3", "Q4"].flatMap((quarter) => [
 		[`${quarter} Comments`, "head"],
 		[`${quarter} %\nAchieved`, "head dark"],
-		[`${quarter} Wtd\nScore`, "head dark"],
+		// the score is the system's: the sheet works none out (appraisal_sheet.py)
+		[`${quarter} Score\n(system)`, "head dark"],
 	]),
 ];
 const HA_SIGNATORIES = [

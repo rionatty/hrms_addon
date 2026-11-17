@@ -338,7 +338,14 @@ if [row for row in A.STATES if row["state"] == A.COMPLETED and row.get("doc_stat
     fail.append("the General Manager's approval submits the appraisal")
 if "Production Manager" not in A.NEW_ROLES:
     fail.append("the Production Manager signs the form and appears nowhere else: the role must be created")
-for role, ptypes in (("HR User", ("read", "write", "create", "submit")), ("Supervisor", ("read", "write")),
+# the HR Manager cancels a completed appraisal by the workflow's Cancel, and HR amend a cancelled one (Luuka,
+# 16 Nov 2026: "Cancelled appraisa;s can not be amended"): Frappe HR gives the HR Manager neither right
+if not [row for row in A.TRANSITIONS if (row["state"], row["action"], row["allowed"])
+        == (A.COMPLETED, A.CANCEL, "HR Manager")]:
+    fail.append("the HR Manager cancels a completed appraisal")
+for role, ptypes in (("HR User", ("read", "write", "create", "submit", "cancel", "amend")),
+                     ("HR Manager", ("read", "write", "create", "submit", "cancel", "amend")),
+                     ("Supervisor", ("read", "write")),
                      ("Production Manager", ("read", "write")), ("General Manager", ("read", "write"))):
     granted = (A.PERMISSIONS.get("Appraisal") or {}).get(role) or ()
     missing = [ptype for ptype in ptypes if ptype not in granted]
@@ -1477,8 +1484,8 @@ SH = load("appraisal_sheet")
 if tuple(floor for floor, *_rest in SH.BSC_BANDS) != tuple(floor for floor, _name in S.BANDS) or \
         tuple(name for _floor, name, *_rest in SH.BSC_BANDS) != tuple(name for _floor, name in S.BANDS):
     fail.append("the sheet rates on the scorecard's own bands")
-if tuple(SH.SUPERVISORY_BANDS) != tuple(R.BANDS) or tuple(SH.RATINGS) != tuple(R.RATINGS):
-    fail.append("the supervisory sheet rates on LPL/HR/18's bands and scale")
+if tuple(SH.RATINGS) != tuple(R.RATINGS):
+    fail.append("the supervisory sheet rates on LPL/HR/18's scale")
 if SH.MAX_OBJECTIVES != R.MAX_OBJECTIVES or (SH.FORM_BSC, SH.FORM_SUPERVISORY) != (S.FORM_BSC, S.FORM_SUPERVISORY):
     fail.append("the sheet and the rules name the forms and the limits alike")
 if [key for key, _question in SH.QUESTIONS] != [key for key, _question in R.QUESTIONS]:
@@ -1530,9 +1537,8 @@ if not first or card["J%d" % first].protection.locked or not card["G%d" % first]
     fail.append("only the quarter being appraised is open: Q2's % open, Q1's locked")
 if first and card["G%d" % first].value != 0.9:
     fail.append("an earlier quarter shows what was recorded for it (Q1 90%% as 0.9): %s" % card["G%d" % first].value)
-if first and card["K%d" % first].value != '=IF(J%d="","",E%d*J%d)' % (first, first, first):
-    fail.append("a quarter scores weight times percent, as the system does, without the workbook's tenth: %s"
-                % card["K%d" % first].value)
+if first and (card["K%d" % first].value is not None or card["K11"].value != "Q2 Score\n(system)"):
+    fail.append("a quarter's score is left to the system: %s" % card["K%d" % first].value)
 if first and card["F%d" % first].value != "On track.":
     fail.append("an earlier quarter's comments show against its KPIs")
 if first and (card["I%d" % first].protection.locked is not False or not card["F%d" % first].protection.locked):
@@ -1543,23 +1549,61 @@ if first and ((card["E%d" % first].value, card["E%d" % (first + 1)].value) != (3
               or "E%d:E%d" % (first, first + 1) in [str(span) for span in card.merged_cells.ranges]):
     fail.append("every KPI carries its own weight on its own row")
 if first and (card["P11"].value != "Q4 %\nAchieved" or not card["P%d" % first].protection.locked
-              or card["Q%d" % first].value != '=IF(P%d="","",E%d*P%d)' % (first, first, first)):
+              or card["Q%d" % first].value is not None):
     fail.append("the fourth quarter is on the sheet, locked until it is appraised")
-total_row = next(row for row in range(12, 30) if card["A%d" % row].value == "WEIGHT CHECK & QUARTERLY TOTALS")
-summary_row = next((row for row in range(total_row, total_row + 8) if card["A%d" % row].value == "Financial"), None)
-if not summary_row or card["E%d" % summary_row].value != "=SUMIF($S$12:$S$14,$A%d,$E$12:$E$14)" % summary_row \
-        or "SUMIF($S$12:$S$14,$A%d,$H$12:$H$14)" % summary_row not in str(card["F%d" % summary_row].value):
-    fail.append("the perspectives below the KPIs sum them up by the key each KPI row carries: %s"
-                % (summary_row and card["E%d" % summary_row].value))
-scored_row = next((row for row in range(12, card.max_row + 1) if card["A%d" % row].value == "Overall score"), None)
-overall_row = next((row for row in range(12, card.max_row + 1)
-                    if str(card["A%d" % row].value or "").startswith("OVERALL SCORE")), None)
-if not scored_row or card["F%d" % scored_row].value != 81.5 \
-        or card["I%d" % scored_row].value != '=IFERROR(Q%d,"")' % overall_row \
-        or card["L%d" % scored_row].value is not None or card["O%d" % scored_row].value is not None:
-    fail.append("the year so far: Q1 as its own appraisal recorded it, Q2 from this sheet, the later ones blank")
-if not scored_row or card["Q%d" % (scored_row + 1)].value != '=IFERROR(AVERAGE(F%d:Q%d),"")' % (scored_row, scored_row):
-    fail.append("the year to date is the average of the quarters appraised")
+# Luuka, 16 Nov 2026: the computations are hidden from the supervisors, and a filled sheet showed "the final results
+# as well, even the formulars". The sheet works nothing out: no formula in any cell, no score, no total, no rating.
+formulas = [(sheet.title, cell.coordinate) for sheet in book.worksheets for line in sheet.iter_rows() for cell in line
+            if isinstance(cell.value, str) and cell.value.startswith("=")]
+if formulas:
+    fail.append("no cell of the sheet holds a formula: %s" % formulas[:5])
+total_row = next((row for row in range(12, 30) if card["A%d" % row].value == "WEIGHT CHECK"), None)
+if not total_row or (card["E%d" % total_row].value, card["F%d" % total_row].value) != (80, "\u2713 Total = 80%"):
+    fail.append("the weights the scorecard gives are added up as it is downloaded: %r"
+                % ((total_row and (card["E%d" % total_row].value, card["F%d" % total_row].value)),))
+if (SH._weight_check(50.0, 80), SH._weight_check(79.333, 80), SH._weight_check(80.004, 80)) != (
+        "\u26a0 Total must = 80%, currently 50%", "\u26a0 Total must = 80%, currently 79.33%", "\u2713 Total = 80%"):
+    fail.append("weights that do not make the total are said, as a person writes them: %s"
+                % (SH._weight_check(79.333, 80),))
+if not total_row or "worked out by the system" not in str(card["H%d" % total_row].value):
+    fail.append("the weight check's row says the scores are the system's")
+# a scorecard whose weights do not add up: the sheet adds them as they are and says so
+short = load_workbook(io.BytesIO(SH.build([dict(
+    BSC_DATA, name="HR-APR-2026-00015",
+    kpis=[{"perspective": "Financial", "kpi": "Savings", "weight": 30.5},
+          {"perspective": "Financial", "kpi": "Variance", "weight": 19.25}],
+    competencies=[{"competency": "One", "weight": 12}])]))).worksheets[0]
+short_rows = {short["A%d" % row].value: row for row in range(1, short.max_row + 1)}
+if (short["E%d" % short_rows.get("WEIGHT CHECK", 1)].value, short["F%d" % short_rows.get("WEIGHT CHECK", 1)].value,
+        short["J%d" % short_rows.get("COMPETENCY WEIGHT CHECK", 1)].value,
+        short["L%d" % short_rows.get("COMPETENCY WEIGHT CHECK", 1)].value) != (
+        49.75, "\u26a0 Total must = 80%, currently 49.75%", 12, "\u26a0 Total must = 20%, currently 12%"):
+    fail.append("weights that do not add up are added as they are, and said: %s"
+                % ([short["E%d" % short_rows.get("WEIGHT CHECK", 1)].value,
+                    short["J%d" % short_rows.get("COMPETENCY WEIGHT CHECK", 1)].value],))
+labels = [str(card["A%d" % row].value or "") for row in range(1, card.max_row + 1)]
+if not total_row or "Financial" in labels[total_row:] or any(
+        label.startswith(("PERSPECTIVES", "OVERALL SCORE  (", "Overall score", "YEAR TO DATE", "RATING"))
+        for label in labels):
+    fail.append("no perspective sums, overall score, rating or year to date on the sheet")
+if not any(label.startswith("OVERALL SCORE, RATING AND YEAR TO DATE") and "worked out by the system" in label
+           for label in labels):
+    fail.append("the sheet says the system works out the overall score, the rating and the year to date")
+if 81.5 in [cell.value for line in card.iter_rows() for cell in line]:
+    fail.append("an earlier quarter's result is not on the sheet either")
+if "worked out by the system" not in str(card["A9"].value) or "works itself out" in str(card["A9"].value):
+    fail.append("the scorecard's note says the system scores it")
+lpl_labels = [str(lpl["A%d" % row].value or "") for row in range(1, lpl.max_row + 1)]
+if not any(label.startswith("SECTION C") and "worked out by the system" in label for label in lpl_labels) \
+        or sum(1 for label in lpl_labels if label.startswith("SCORE  (out of") and "worked out by the system" in label) != 2 \
+        or any(label.startswith(("TOTAL SCORE", "OVERALL RATING", "Employee's own total")) for label in lpl_labels) \
+        or "work themselves out" in str(lpl["A9"].value):
+    fail.append("the supervisory sheet leaves both section scores, the total and the rating to the system")
+section_b_row = next((row for row in range(1, card.max_row + 1) if card["A%d" % row].value == "COMPETENCY WEIGHT CHECK"),
+                     None)
+if not section_b_row or (card["J%d" % section_b_row].value, card["L%d" % section_b_row].value) != (20, "\u2713 Total = 20%"):
+    fail.append("the competencies' weights are added up as it is downloaded: %r"
+                % ((section_b_row and (card["J%d" % section_b_row].value, card["L%d" % section_b_row].value)),))
 checks = [(check.type, check.formula1, check.formula2) for check in card.data_validations.dataValidation
           if first and "J%d" % first in str(check.sqref).split() and "J%d" % (first + 1) in str(check.sqref).split()]
 if checks != [("decimal", "0", "1")]:
@@ -1644,8 +1688,8 @@ for needle, why in (
 ):
     if needle not in glue_appraisals:
         fail.append("appraisals.py: %s (%r not found)" % (why, needle))
-print("the sheet: Luuka's own form per appraisal, locked but for the period appraised, scored by the system's "
-      "rules, read back whatever it is renamed to, every sheet of it")
+print("the sheet: Luuka's own form per appraisal, locked but for the period appraised, no score or formula on it, "
+      "read back whatever it is renamed to, every sheet of it")
 
 # A cycle's sheet that would come out empty is explained on the form, not
 # as the bare 417 page a refused download opens (Oct 2026)
@@ -1937,8 +1981,12 @@ if validate_now.index("_carry_earlier_quarters(doc)") > validate_now.index("bsc.
 for name, needles in (
     ("_settle_quarter", ('doc.custom_quarter = before.custom_quarter', "approval.BEFORE_SUPERVISOR",
                          'bsc_rules.quarter_of(getdate(start).month)', 'cycle.custom_quarter')),
-    ("_year_appraisals", ('filters["custom_plan"] = doc.custom_plan', '"between", ["%s-01-01" % year',
-                          'order_by="docstatus asc, modified asc"', '"name": ["!=", doc.name or ""]')),
+    # a plan's quarters and those made by hand in the same year (Luuka, 16 Nov 2026: a stand-alone appraisal's
+    # marks were in no average)
+    ("_year_appraisals", ("searches = [dict(base, custom_plan=doc.custom_plan)]",
+                          'searches.append(dict(base, custom_plan=["is", "not set"], **within))',
+                          '"between", ["%s-01-01" % year', '"name": ["!=", doc.name or ""]',
+                          'sorted(rows, key=lambda row: (row.docstatus or 0, str(row.modified or "")))')),
     ("_carry_earlier_quarters", ("found = (earlier.get(each) or {}).get(key) or {}", "if each == quarter:", "row.set(bsc_rules.percent_field(each)",
                                  "row.set(bsc_rules.comments_field(each)")),
     ("_year_so_far", ("bsc_rules.QUARTERS[:bsc_rules.QUARTERS.index(quarter) + 1]",

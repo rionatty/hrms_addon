@@ -503,25 +503,36 @@ def _mark_pip(doc):
 
 def _year_appraisals(doc):
     """{quarter: row} of the employee's other appraisals of the year this
-    one is in: the same plan's, or, for one made by hand, those of the same
-    calendar year. One a quarter: a submitted one before an open one, the
-    last changed before an earlier."""
+    one is in: the same plan's and those made by hand, outside any plan, in
+    the same calendar year; for one made by hand, all of its calendar year.
+    One a quarter: a submitted one before an open one, the last changed
+    before an earlier.
+
+    Until 16 Nov 2026 a plan's appraisal looked at its plan's only, so one
+    made by hand in its place was in no average: "the generated stand alone
+    appraisal marks are not added to the average of the other quaters"."""
     if not doc.get("employee"):
         return {}
-    filters = {"employee": doc.employee, "docstatus": ["!=", 2], "name": ["!=", doc.name or ""],
-               "custom_quarter": ["in", list(bsc_rules.QUARTERS)]}
+    base = {"employee": doc.employee, "docstatus": ["!=", 2], "name": ["!=", doc.name or ""],
+            "custom_quarter": ["in", list(bsc_rules.QUARTERS)]}
+    year = getdate(doc.start_date).year if doc.get("start_date") else None
+    within = {"start_date": ["between", ["%s-01-01" % year, "%s-12-31" % year]]} if year else None
     if doc.get("custom_plan"):
-        filters["custom_plan"] = doc.custom_plan
-    elif doc.get("start_date"):
-        year = getdate(doc.start_date).year
-        filters["start_date"] = ["between", ["%s-01-01" % year, "%s-12-31" % year]]
+        searches = [dict(base, custom_plan=doc.custom_plan)]
+        if within:
+            searches.append(dict(base, custom_plan=["is", "not set"], **within))
+    elif within:
+        searches = [dict(base, **within)]
     else:
         return {}
+    rows = []
+    for filters in searches:
+        rows += frappe.get_all("Appraisal", filters=filters, fields=[
+            "name", "docstatus", "modified", "custom_quarter", "custom_form_type", approval.STATE_FIELD,
+            "custom_total_score", "custom_band", "custom_bsc_section_a_score", "custom_bsc_section_b_score",
+            "custom_factors_score", "custom_objectives_score"])
     found = {}
-    for row in frappe.get_all("Appraisal", filters=filters, order_by="docstatus asc, modified asc", fields=[
-            "name", "docstatus", "custom_quarter", "custom_form_type", approval.STATE_FIELD, "custom_total_score",
-            "custom_band", "custom_bsc_section_a_score", "custom_bsc_section_b_score", "custom_factors_score",
-            "custom_objectives_score"]):
+    for row in sorted(rows, key=lambda row: (row.docstatus or 0, str(row.modified or ""))):
         found[row.custom_quarter] = row
     return found
 
