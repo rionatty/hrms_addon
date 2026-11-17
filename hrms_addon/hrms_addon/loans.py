@@ -696,6 +696,9 @@ def _make_deductions(doc, rows=None):
         deduction = frappe.get_doc({
             "doctype": "Additional Salary", "employee": doc.employee, "company": doc.company,
             "salary_component": component, "amount": flt(row.get("total")), "payroll_date": row.get("payroll_date"),
+            # a loan is lent in shillings: an expatriate's comes off the USD slip at the payroll's rate
+            # (Luuka, 17 Nov 2026: "when posting additional salary it should be in shilling")
+            "currency": frappe.get_cached_value("Company", doc.company, "default_currency"),
             "overwrite_salary_structure_amount": 0, "ref_doctype": doc.doctype, "ref_docname": doc.name,
         })
         deduction.flags.ignore_permissions = True

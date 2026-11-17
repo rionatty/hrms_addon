@@ -493,6 +493,9 @@ if "Workflow Transition" not in body(glue, "_roles_acting"):
     fail.append("whoever acts next is read off the Workflow as set up in the desk")
 if "_cancel_untaken(doc)" not in body(glue, "loan_on_cancel") or "already recovered" not in body(glue, "loan_on_cancel"):
     fail.append("a loan part repaid is repaid or written off, not cancelled; one not yet taken loses its deductions")
+# Luuka, 17 Nov 2026: "when posting additional salary it should be in shilling": an expatriate's too
+if '"currency": frappe.get_cached_value("Company", doc.company, "default_currency"),' not in body(glue, "_make_deductions"):
+    fail.append("a loan's deductions are in shillings, the company's currency, whatever the employee is paid in")
 if "_taken(name)" not in body(glue, "_cancel_untaken"):
     fail.append("a month a slip has taken is left as it is")
 if "ensure_loan_account(company)" not in body(glue, "_component") or \

@@ -470,6 +470,12 @@ paying = part("run_on_submit")
 if "advance.submit()" not in paying or "advance.workflow_state = approval.APPROVED" not in paying \
         or "approval.PAID" in paying or "_bank_entry(" not in paying:
     fail.append("submitting the run makes each advance, approved and not yet paid, and one bank entry for Finance")
+# an expatriate's advance is in shillings, and so is its recovery (Luuka, 17 Nov 2026: "when posting additional
+# salary it should be in shilling"): the advance takes the company's currency, the deduction the advance's
+if '"currency": frappe.get_cached_value("Company", doc.company, "default_currency"),' not in paying \
+        or '"currency": doc.get("currency"), "overwrite_salary_structure_amount": 0,' not in read(
+            "hrms_addon", "hrms_addon", "advances.py").split("def schedule_recovery(", 1)[-1]:
+    fail.append("a salary advance and its recovery are in shillings, whatever the employee is paid in")
 entry = part("_bank_entry")
 if '"reference_type": ADVANCE' not in entry or '"is_advance": "Yes"' not in entry:
     fail.append("the bank entry pays each advance against itself, so its recovery follows the payment")

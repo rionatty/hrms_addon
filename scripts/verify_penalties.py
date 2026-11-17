@@ -262,6 +262,10 @@ controller = read("hrms_addon", "hrms_addon", "doctype", "employee_penalty", "em
 for method in ("validate", "on_submit", "on_cancel"):
     if "    def %s(self):\n        penalties.penalty_%s(self)" % (method, method) not in controller:
         fail.append("the Employee Penalty controller must hand %s to penalties.penalty_%s" % (method, method))
+# Luuka, 17 Nov 2026: "when posting additional salary it should be in shilling": an expatriate's too
+if '"currency": frappe.get_cached_value("Company", doc.company, "default_currency"),' not in glue.split("def _make_deductions(", 1)[-1].split("\ndef ", 1)[0]:
+    fail.append("a penalty's deductions are in shillings, the company's currency, whatever the employee is "
+                "paid in")
 print("glue: the rules followed, the loan's schedule, the payroll taking the deduction")
 
 # ── 4. The signatures ─────────────────────────────────────────────────
