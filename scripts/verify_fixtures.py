@@ -733,9 +733,10 @@ if by_dt.get(EM):
                  "custom_bank_loan_cb": ("Salary", "custom_bank_loan_bank"),
                  "custom_bank_loan_until": ("Salary", "custom_bank_loan_cb"),
                  # whose salary advance is typed on the run, above the share
-                 # of gross (Luuka, 17 Nov 2026; advance_rules.eligibility_errors)
-                 "custom_salary_advance_section": ("Salary", "custom_bank_loan_until"),
-                 "custom_advance_set_by_hand": ("Salary", "custom_salary_advance_section"),
+                 # of gross (Luuka, 17 Nov 2026; advance_rules.eligibility_errors),
+                 # at the top of the tab under the Payroll Cost Center (18 Nov:
+                 # "add them under salary tab")
+                 "custom_advance_set_by_hand": ("Salary", "payroll_cost_center"),
                  # how gross is earned, beside Frappe HR's own Employment Type
                  # (minutes §4.6; the Per Meter salary advance reads it)
                  "custom_pay_category": ("Overview", "employment_type"),
@@ -866,6 +867,8 @@ if by_dt.get(EG):
 # already imported it. Anything removed must be deleted by a listed patch,
 # or the leftover gets placed by the sorter walk (see section 4).
 REMOVED = (
+    # the Salary Advance section under Bank Loan: the tick moved to the top of the Salary tab (18 Nov 2026)
+    "Employee-custom_salary_advance_section",
     "Job Requisition-custom_section",
     "Job Opening-custom_section",
     "Job Requisition-custom_recruitment_section",

@@ -718,7 +718,7 @@ if 'if not employee or not _has("Employee", "custom_advance_set_by_hand"):' not 
 fixture = {row["name"]: row for row in json.loads(read("hrms_addon", "fixtures", "custom_field.json"))}
 tick = fixture.get("Employee-custom_advance_set_by_hand") or {}
 if (tick.get("fieldtype"), tick.get("label"), tick.get("insert_after")) != (
-        "Check", "Salary Advance Set by Hand", "custom_salary_advance_section") \
+        "Check", "Salary Advance Set by Hand", "payroll_cost_center") \
         or "Employee-custom_advance_set_by_hand" not in read("hrms_addon", "hooks.py"):
     fail.append("the Employee carries Salary Advance Set by Hand, shipped with the fixtures: %s" % tick)
 # HR's alone, as the salary and bank details are (security_rules.PROTECTED_LEVEL): the employee neither sees nor sets
