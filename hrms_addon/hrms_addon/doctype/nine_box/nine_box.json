@@ -1,0 +1,141 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "The nine cells of the talent grid: each one's name, colour, action and decision.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "box",
+  "box_name",
+  "performance_band",
+  "potential_band",
+  "column_break_box",
+  "colour",
+  "suggested_decision",
+  "top_talent",
+  "action_section",
+  "default_action"
+ ],
+ "fields": [
+  {
+   "fieldname": "box",
+   "fieldtype": "Int",
+   "label": "Box",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "box_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "performance_band",
+   "fieldtype": "Link",
+   "label": "Performance",
+   "options": "Performance Band",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "potential_band",
+   "fieldtype": "Link",
+   "label": "Potential",
+   "options": "Potential Band",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_box",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "colour",
+   "fieldtype": "Select",
+   "label": "Colour",
+   "options": "Red\nOrange\nYellow\nBlue\nGreen",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "suggested_decision",
+   "fieldtype": "Select",
+   "label": "Suggested Decision",
+   "options": "Succession Pipeline\nPromotion\nReplacement\nRetain in Role\nImprove"
+  },
+  {
+   "fieldname": "top_talent",
+   "fieldtype": "Check",
+   "label": "Top Talent",
+   "description": "In the succession pool, and flight risk watched."
+  },
+  {
+   "fieldname": "action_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "default_action",
+   "fieldtype": "Small Text",
+   "label": "What To Do"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Nine Box",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 0,
+   "write": 1,
+   "import": 1,
+   "delete": 0
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "box",
+ "sort_order": "ASC",
+ "states": [],
+ "autoname": "format:Box {box}",
+ "naming_rule": "Expression",
+ "title_field": "box_name",
+ "show_title_field_in_link": 1,
+ "search_fields": "box_name",
+ "track_changes": 1
+}

@@ -44,7 +44,7 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, format_date, getdate, today
 
-from hrms_addon.hrms_addon import people, pips, talent_rules as rules
+from hrms_addon.hrms_addon import people, pips, talent_masters as masters, talent_rules as rules
 
 REVIEW = "Talent Review"
 PLACEMENT = "Talent Placement"
@@ -60,7 +60,9 @@ CLEARANCE = "Clearance Form"
 CLOSED_REQUISITION = ("Cancelled", "Rejected", "Filled")
 # what points at a plan, a programme: each is cancelled on its own, so
 # neither cancel offers to cancel them nor is refused for them
-POSITION_RECORDS = (PROGRAM, CHANGE, SEPARATION, TRAINEE)
+# the Succession Plan (succession_plans.py) names its roles too: a role cancelled leaves the plan as it was
+PLAN = "Succession Plan"
+POSITION_RECORDS = (PROGRAM, CHANGE, SEPARATION, TRAINEE, PLAN)
 PROGRAM_RECORDS = (POSITION, CHANGE, PLACEMENT, REQUISITION)
 
 
@@ -211,7 +213,7 @@ def _fill_performance(doc):
     doc.appraisal = year["appraisal"]
     doc.performance_score = year["score"]
     doc.appraisal_band = year["band"]
-    doc.performance_band = rules.performance_band(year["score"])
+    doc.performance_band = rules.performance_band(year["score"], masters.grid())
     doc.set("quarter_results", [{"quarter": row["quarter"], "appraisal": row["appraisal"],
                                  "total": row["total"], "band": row["band"]} for row in year["quarters"]])
     _carry_competencies(doc, [row.name for row in appraisals])
@@ -246,8 +248,8 @@ def _carry_competencies(doc, appraisals):
 def _fill_potential(doc):
     doc.potential_score = rules.potential_score({
         "ability": doc.get("ability"), "aspiration": doc.get("aspiration"),
-        "engagement": doc.get("engagement")})
-    doc.potential_band = rules.potential_band(doc.potential_score)
+        "engagement": doc.get("engagement")}, masters.grid())
+    doc.potential_band = rules.potential_band(doc.potential_score, masters.grid())
     doc.competency_average = rules.competency_average(
         [row.as_dict() for row in doc.get("competencies") or []])
 
@@ -257,7 +259,8 @@ def _fill_box(doc):
     colour and what it says to do. The potential is the line manager's
     until calibration moves it (talent_board.move)."""
     box = rules.box_for(doc.get("performance_band"),
-                        rules.effective_potential(doc.get("potential_band"), doc.get("calibrated_potential")))
+                        rules.effective_potential(doc.get("potential_band"), doc.get("calibrated_potential")),
+                        masters.grid())
     if not box:
         for field in ("box", "box_name", "box_colour", "default_action", "suggested_decision"):
             doc.set(field, None)
@@ -268,7 +271,7 @@ def _fill_box(doc):
     doc.box_colour = box["colour"]
     doc.default_action = box["action"]
     doc.suggested_decision = box["decision"]
-    doc.top_talent = 1 if rules.is_top_talent(box["box"]) else 0
+    doc.top_talent = 1 if rules.is_top_talent(box["box"], masters.grid()) else 0
 
 
 def _check_placement_step(doc):
@@ -349,9 +352,31 @@ def _tell_placement(doc, state):
 
 def placement_on_submit(doc, method=None):
     """Finalised. Test case 9: the placement locks, a development plan is
-    drawn up from it, and the training in that plan goes to L&D."""
+    drawn up from it, and the training in that plan goes to L&D. The
+    employee's earlier plans learn whether this box reaches what they aimed
+    at."""
     _draw_up_development_plan(doc)
     _flag_flight_risk(doc)
+    _mark_targets(doc)
+
+
+def _nine_box(box):
+    """The Nine Box record of a box number."""
+    return frappe.db.get_value("Nine Box", {"box": cint(box)}, "name") if box else None
+
+
+def _mark_targets(doc):
+    """Each earlier development plan of the employee with a target box: is
+    the box this review gave them at least that, on both axes?"""
+    if not (doc.get("employee") and doc.get("box")):
+        return
+    numbers = {row.name: cint(row.box) for row in frappe.get_all("Nine Box", fields=["name", "box"])}
+    for plan in frappe.get_all(PROGRAM, filters={"employee": doc.employee, "docstatus": ["!=", 2],
+                                                 "placement": ["!=", doc.name], "target_box": ["is", "set"]},
+                               fields=["name", "target_box", "target_reached"]):
+        reached = 1 if rules.target_reached(doc.box, numbers.get(plan.target_box)) else 0
+        if reached != cint(plan.target_reached):
+            frappe.db.set_value(PROGRAM, plan.name, "target_reached", reached, update_modified=False)
 
 
 def placement_on_cancel(doc, method=None):
@@ -376,6 +401,7 @@ def _draw_up_development_plan(doc):
             "program_type": program_type, "start_date": today(),
             "end_date": add_days(today(), 365), "placement": doc.name,
             "talent_review": doc.get("talent_review"), "box_name": doc.get("box_name"),
+            "target_box": _nine_box(rules.target_box(doc.get("box"))),
             "objectives": "\n".join(row.theme for row in doc.get("themes") or []
                                     if (row.theme or "").strip()) or None,
             "actions": [{"action": row.theme, "by_when": add_days(today(), 180),
@@ -428,7 +454,7 @@ def _program_type_for(box):
     """Which programme the box asks for. The three boxes with the
     potential to lead get leadership; the middle of the grid gets a
     mentor; everyone else gets training."""
-    if cint(box) in rules.TOP_TALENT:
+    if rules.is_top_talent(box, masters.grid()):
         return "Leadership Development"
     if cint(box) in (3, 5, 7):
         return "Mentoring and Coaching"
@@ -491,7 +517,7 @@ def _ask_hr_to_submit(requisition, branch, department, who, why):
 def _flag_flight_risk(doc):
     """Test case 22: top talent somebody might lose is told to HR and the
     council, once."""
-    if not (doc.get("top_talent") and doc.get("flight_risk") in ("High", "Medium")):
+    if not (doc.get("top_talent") and doc.get("flight_risk") in masters.watched_risks()):
         return
     if doc.get("risk_notified"):
         return
@@ -742,7 +768,12 @@ def position_validate(doc, method=None):
 
 def _fill_bench(doc):
     """Test case 13: how deep the bench is, and whether the role is
-    covered — worked out from the successors, never typed."""
+    covered — worked out from the successors, never typed. A successor
+    named from a placement and given no readiness is suggested the one the
+    Readiness Levels draw from their box."""
+    for row in doc.get("candidates") or []:
+        if not row.get("readiness") and row.get("placement"):
+            row.readiness = masters.suggested_readiness(frappe.db.get_value(PLACEMENT, row.placement, "box"))
     _count_bench(doc)
     if not doc.gap:
         doc.gap_confirmed = 0
@@ -1660,7 +1691,8 @@ def _record_milestone(appraisal):
             continue
         milestone.score = flt(appraisal.get("custom_total_score") or appraisal.get("final_score"))
         milestone.competency_check = _competency_level(appraisal)
-        milestone.result = rules.milestone_outcome(milestone.score, final=_is_final(trainee, milestone))
+        milestone.result = rules.milestone_outcome(milestone.score, final=_is_final(trainee, milestone),
+                                                   pass_mark=masters.grid()["pass_mark"])
         milestone.assessed_by = frappe.session.user
         trainee.flags.ignore_permissions = True
         trainee.save()
@@ -1744,6 +1776,7 @@ def monthly():
 
 def daily():
     _open_review_cycles()
+    _raise_due_milestones()
     _chase_milestones()
     _watch_top_talent()
     _watch_exits()
@@ -1760,6 +1793,60 @@ def _open_review_cycles():
         except Exception:
             frappe.log_error(title="HRMS Addon: opening a talent review")
     frappe.db.commit()
+
+
+def _raise_due_milestones():
+    """Blueprint section 9, "Trainee milestone due": a trainee in rotation
+    whose next milestone falls due within the days Talent Settings give is
+    moved to Under Assessment, which raises the milestone's appraisal, and
+    their rotation supervisor, mentor and HR are told."""
+    from hrms_addon.hrms_addon import trainee_approval as approval
+
+    s = masters.settings()
+    if not cint(s.get("auto_milestones")):
+        return
+    by_day = add_days(today(), cint(s.get("milestone_lead_days")))
+    due = frappe.get_all("Trainee Milestone",
+                         filters={"parenttype": TRAINEE, "due_on": ["<=", by_day], "appraisal": ["is", "not set"],
+                                  "result": ["in", ("", None)]},
+                         fields=["parent", "milestone", "due_on"], order_by="due_on asc", limit=200)
+    for parent in dict.fromkeys(row.parent for row in due):
+        trainee = frappe.get_doc(TRAINEE, parent)
+        if trainee.docstatus != 0 or trainee.get("workflow_state") != approval.IN_ROTATION:
+            continue
+        from frappe.model.workflow import apply_workflow
+
+        try:
+            trainee = apply_workflow(trainee, approval.ASSESS)
+        except Exception:
+            frappe.log_error(title="HRMS Addon: raising a trainee's milestone appraisal")
+            frappe.clear_last_message()
+            continue
+        milestone = next((row for row in trainee.milestones if row.appraisal and not row.result), None)
+        if milestone:
+            _tell_milestone_due(trainee, milestone)
+    frappe.db.commit()
+
+
+def _tell_milestone_due(trainee, milestone):
+    users = list(people.hr_officers(trainee.get("home_branch"), trainee.get("home_department")))
+    for employee in (_rotation_supervisor(trainee), trainee.get("mentor")):
+        user = frappe.db.get_value("Employee", employee, "user_id") if employee else None
+        if user:
+            users.append(user)
+    if users:
+        people.notify(list(dict.fromkeys(users)), "Appraisal", milestone.appraisal,
+                      _("{0}'s milestone {1} falls due on {2}: its appraisal is ready to be filled in.").format(
+                          trainee.trainee_name, milestone.milestone, format_date(milestone.due_on)))
+
+
+def _rotation_supervisor(trainee):
+    """The supervisor of the rotation the trainee is on today, else of the last one begun."""
+    day = getdate(today())
+    begun = [row for row in trainee.get("rotations") or [] if row.from_date and getdate(row.from_date) <= day]
+    current = [row for row in begun if not row.to_date or getdate(row.to_date) >= day]
+    rows = current or begun
+    return rows[-1].supervisor if rows else None
 
 
 def _chase_milestones():
@@ -1788,9 +1875,12 @@ def _chase_milestones():
 def _watch_top_talent():
     """Test case 22, for a risk flagged after the placement was
     finalised."""
+    watched = masters.watched_risks()
+    if not watched:
+        return
     for name in frappe.get_all(PLACEMENT, filters={"docstatus": 1, "top_talent": 1,
                                                    "risk_notified": ["!=", 1],
-                                                   "flight_risk": ["in", ("High", "Medium")]},
+                                                   "flight_risk": ["in", watched]},
                                pluck="name", limit=200):
         try:
             _flag_flight_risk(frappe.get_doc(PLACEMENT, name))
@@ -1832,8 +1922,9 @@ def _link_openings():
 def talent_grid():
     """The Talent Card's nine boxes, a row per potential band (high to
     low), performance low to high across: each cell's number and name."""
-    return [[{"box": rules.BOXES[(performance, potential)]["box"],
-              "name": rules.BOXES[(performance, potential)]["name"]}
+    boxes = masters.grid()["boxes"]
+    return [[{"box": boxes[(performance, potential)]["box"],
+              "name": boxes[(performance, potential)]["name"]}
              for performance in (rules.LOW, rules.MEETING, rules.EXCEEDING)]
             for potential in (rules.POTENTIAL_HIGH, rules.POTENTIAL_MODERATE, rules.POTENTIAL_LOW)]
 
@@ -2007,11 +2098,12 @@ def _unmark_actions(plan, training_event):
 
 # ── 9. Wiring ─────────────────────────────────────────────────────────
 def setup_workflows_on_migrate():
-    from hrms_addon.hrms_addon import (succession_approval, talent_approval,
+    from hrms_addon.hrms_addon import (succession_approval, succession_plan_approval, talent_approval,
                                        talent_program_approval, trainee_approval, workflows)
 
     for module, label in ((talent_approval, "talent placement"),
                           (talent_program_approval, "talent programme"),
                           (succession_approval, "succession position"),
+                          (succession_plan_approval, "succession plan"),
                           (trainee_approval, "graduate trainee")):
         workflows.setup_on_migrate(module, label)

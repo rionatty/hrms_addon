@@ -1,0 +1,32 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "A box a readiness level draws its successors from.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "nine_box"
+ ],
+ "fields": [
+  {
+   "fieldname": "nine_box",
+   "fieldtype": "Link",
+   "label": "Box",
+   "options": "Nine Box",
+   "reqd": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Readiness Level Box",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

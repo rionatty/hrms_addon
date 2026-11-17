@@ -1042,7 +1042,8 @@ for target, constant, script in (("Succession Position", "POSITION_RECORDS", "su
     names = {
         {"PROGRAM": "Talent Program", "CHANGE": "Employee Position Change", "SEPARATION": "Employee Separation",
          "TRAINEE": "Graduate Trainee Program", "POSITION": "Succession Position",
-         "PLACEMENT": "Talent Placement", "REQUISITION": "Training Requisition"}.get(name.strip(), name.strip())
+         "PLACEMENT": "Talent Placement", "REQUISITION": "Training Requisition",
+         "PLAN": "Succession Plan"}.get(name.strip(), name.strip())
         for name in (spelled.group(1).split(",") if spelled else []) if name.strip()}
     if not wanted <= names:
         fail.append("talent.%s must leave alone %s, which point at a %s" % (constant, sorted(wanted - names), target))
@@ -1201,9 +1202,10 @@ for method in ("talent_follow_through", "talent_plan_progress"):
     if "frappe.has_permission(" not in body_of(glue, method):
         fail.append("talent.%s answers only a reader who may open the document" % method)
 if "def talent_grid(" in glue:
-    names = re.findall(r'rules\.BOXES\[\(performance, potential\)\]\["(\w+)"\]', body_of(glue, "talent_grid"))
-    if set(names) != {"box", "name"}:
-        fail.append("talent.talent_grid prints each cell's number and name from talent_rules.BOXES")
+    # the boxes as HR keep them (Nine Box, talent_masters.grid), the built-in ones where nothing is kept
+    names = re.findall(r'boxes\[\(performance, potential\)\]\["(\w+)"\]', body_of(glue, "talent_grid"))
+    if set(names) != {"box", "name"} or 'boxes = masters.grid()["boxes"]' not in body_of(glue, "talent_grid"):
+        fail.append("talent.talent_grid prints each cell's number and name from the grid as HR keep it")
 # the box stays where only HR and the council read it (case 10): nothing of
 # it is copied into the themes the line manager reads, or into the plan the
 # employee and the mentor read

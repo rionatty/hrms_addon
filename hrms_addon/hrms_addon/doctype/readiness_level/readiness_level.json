@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "How ready a successor is: Ready Now, Ready in 1-2 Years, Emerging, or a Gap.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "readiness",
+  "rank",
+  "horizon",
+  "boxes",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "readiness",
+   "fieldtype": "Data",
+   "label": "Readiness",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "rank",
+   "fieldtype": "Int",
+   "label": "Order",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "horizon",
+   "fieldtype": "Data",
+   "label": "Horizon",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "boxes",
+   "fieldtype": "Table MultiSelect",
+   "label": "Drawn From",
+   "options": "Readiness Level Box",
+   "description": "A successor from one of these boxes is suggested this readiness."
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Readiness Level",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 0,
+   "write": 1,
+   "import": 1,
+   "delete": 0
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "rank",
+ "sort_order": "ASC",
+ "states": [],
+ "autoname": "field:readiness",
+ "naming_rule": "By fieldname",
+ "track_changes": 1
+}

@@ -457,6 +457,10 @@ after_migrate = [
     # Training Calendar (General Manager). See tna_approval.py and
     # calendar_approval.py.
     "hrms_addon.hrms_addon.training.setup_workflows_on_migrate",
+    # the talent grid as HR keep it: the bands, the nine boxes, the readiness
+    # levels and Talent Settings, made once from the built-in grid
+    # (talent_masters.py)
+    "hrms_addon.hrms_addon.talent_masters.setup_on_migrate",
     # Learning: the training categories and the certificate alert ladder,
     # made once and then HR's (learning.py)
     "hrms_addon.hrms_addon.learning.setup_on_migrate",
@@ -1719,6 +1723,13 @@ permission_query_conditions = {
     "Interview Feedback": "hrms_addon.hrms_addon.interview_access.feedback_query_conditions",
     "Interview Shortlist": "hrms_addon.hrms_addon.interview_access.shortlist_query_conditions",
     "Interview Report": "hrms_addon.hrms_addon.interview_access.report_query_conditions",
+    # Talent: a line manager sees their team's placements, plans, roles and
+    # trainees; a head of department their departments'; a mentor their
+    # mentees'; an employee their own development plan (talent_access.py)
+    "Talent Placement": "hrms_addon.hrms_addon.talent_access.placement_query_conditions",
+    "Talent Program": "hrms_addon.hrms_addon.talent_access.program_query_conditions",
+    "Succession Position": "hrms_addon.hrms_addon.talent_access.position_query_conditions",
+    "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_query_conditions",
 }
 
 has_permission = {
@@ -1729,6 +1740,11 @@ has_permission = {
     "Interview Type": "hrms_addon.hrms_addon.interview_access.type_has_permission",
     "Interview Shortlist": "hrms_addon.hrms_addon.interview_access.shortlist_has_permission",
     "Interview Report": "hrms_addon.hrms_addon.interview_access.report_has_permission",
+    # the same for each record opened (talent_access.py)
+    "Talent Placement": "hrms_addon.hrms_addon.talent_access.placement_has_permission",
+    "Talent Program": "hrms_addon.hrms_addon.talent_access.program_has_permission",
+    "Succession Position": "hrms_addon.hrms_addon.talent_access.position_has_permission",
+    "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_has_permission",
 }
 
 # DocType Class

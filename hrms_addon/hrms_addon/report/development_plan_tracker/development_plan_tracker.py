@@ -4,12 +4,14 @@
 """Development Plan Tracker (test cases 1 and 9): every development
 plan, how many of its actions are done and how many are past their date,
 the training it sent to L&D and what came of it (the sessions booked,
-attended and found effective) — the plans most behind first."""
+attended and found effective) — the plans most behind first. For HR and
+the Talent Council, the box each plan aims at and whether a later review
+has placed the employee there (talent.py, _mark_targets)."""
 
 import frappe
 from frappe import _
 
-from hrms_addon.hrms_addon import talent_reports
+from hrms_addon.hrms_addon import talent_board, talent_reports
 
 
 def execute(filters=None):
@@ -18,9 +20,10 @@ def execute(filters=None):
     for field in ("program_type", "branch", "department"):
         if filters.get(field):
             conditions[field] = filters.get(field)
+    boxes = talent_board.can_see_boxes()
     plans = frappe.get_list("Talent Program", filters=conditions, fields=[
         "name", "employee", "employee_name", "program_type", "workflow_state", "start_date", "end_date", "mentor",
-        "training_requisition"], limit_page_length=0)
+        "training_requisition"] + (["target_box", "target_reached"] if boxes else []), limit_page_length=0)
     progress = talent_reports.plan_progress([row.name for row in plans])
     trained = talent_reports.training_progress([row.name for row in plans])
     rows = [dict(row, **progress.get(row.name, {}), **trained.get(row.name, {})) for row in plans]
@@ -36,10 +39,10 @@ def execute(filters=None):
         {"value": sum(row.get("attended") or 0 for row in rows), "label": _("Trainings attended"),
          "datatype": "Int", "indicator": "Green"},
     ]
-    return columns(), rows, None, None, summary
+    return columns(boxes), rows, None, None, summary
 
 
-def columns():
+def columns(boxes=False):
     return [
         {"label": _("Plan"), "fieldname": "name", "fieldtype": "Link", "options": "Talent Program", "width": 140},
         {"label": _("Employee"), "fieldname": "employee", "fieldtype": "Link", "options": "Employee", "width": 120},
@@ -59,4 +62,7 @@ def columns():
         {"label": _("Trainings"), "fieldname": "trainings", "fieldtype": "Int", "width": 85},
         {"label": _("Attended"), "fieldname": "attended", "fieldtype": "Int", "width": 85},
         {"label": _("Effective"), "fieldname": "effective", "fieldtype": "Int", "width": 85},
-    ]
+    ] + ([
+        {"label": _("Target Box"), "fieldname": "target_box", "fieldtype": "Link", "options": "Nine Box", "width": 130},
+        {"label": _("Target Reached"), "fieldname": "target_reached", "fieldtype": "Check", "width": 110},
+    ] if boxes else [])

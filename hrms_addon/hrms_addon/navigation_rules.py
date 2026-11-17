@@ -236,9 +236,18 @@ CARDS = {
             ("Talent Placement", "Talent Placement", DOCTYPE),
             ("Talent Program", "Talent Program", DOCTYPE),
             ("Succession Position", "Succession Position", DOCTYPE),
+            ("Succession Plan", "Succession Plan", DOCTYPE),
             ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE),
             ("Succession Coverage", "Succession Coverage", REPORT),
             ("Performance Analytics", "Performance Analytics", REPORT),
+        ]),
+        # the grid as HR keep it (talent_masters.py, 17 Nov 2026)
+        ("Talent Setup", [
+            ("Performance Band", "Performance Band", DOCTYPE),
+            ("Potential Band", "Potential Band", DOCTYPE),
+            ("Nine Box", "Nine Box", DOCTYPE),
+            ("Readiness Level", "Readiness Level", DOCTYPE),
+            ("Talent Settings", "Talent Settings", DOCTYPE),
         ]),
         # what talent comes to, month by month and person by person (5 Oct 2026)
         ("Talent Reports", [
@@ -249,6 +258,7 @@ CARDS = {
             ("Development Plan Tracker", "Development Plan Tracker", REPORT),
             ("Programme Effectiveness", "Programme Effectiveness", REPORT),
             ("Graduate Trainee Progress", "Graduate Trainee Progress", REPORT),
+            ("Talent Movement", "Talent Movement", REPORT),
         ]),
         # The role's balanced scorecard is carried on Frappe HR's own
         # Appraisal Template (bsc.py), so there is one template document,
@@ -544,8 +554,9 @@ SIDEBAR = {
         ("Talent Placement", "Talent Placement", DOCTYPE, None, "Talent Review"),
         ("Talent Program", "Talent Program", DOCTYPE, None, "Talent Placement"),
         ("Succession Position", "Succession Position", DOCTYPE, None, "Talent Program"),
+        ("Succession Plan", "Succession Plan", DOCTYPE, None, "Succession Position"),
         ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE, None,
-         "Succession Position"),
+         "Succession Plan"),
         ("Succession Coverage", "Succession Coverage", REPORT, "Reports", None),
         ("Performance Analytics", "Performance Analytics", REPORT, "Reports", None),
         # talent, linked with the appraisal (5 Oct 2026): the month first,
@@ -557,6 +568,12 @@ SIDEBAR = {
         ("Development Plan Tracker", "Development Plan Tracker", REPORT, "Reports", None),
         ("Programme Effectiveness", "Programme Effectiveness", REPORT, "Reports", None),
         ("Graduate Trainee Progress", "Graduate Trainee Progress", REPORT, "Reports", None),
+        ("Talent Movement", "Talent Movement", REPORT, "Reports", None),
+        ("Performance Band", "Performance Band", DOCTYPE, "Setup", None),
+        ("Potential Band", "Potential Band", DOCTYPE, "Setup", None),
+        ("Nine Box", "Nine Box", DOCTYPE, "Setup", None),
+        ("Readiness Level", "Readiness Level", DOCTYPE, "Setup", None),
+        ("Talent Settings", "Talent Settings", DOCTYPE, "Setup", None),
         # Appraisal Template is Frappe HR's own entry, already under Setup,
         # and the scorecard is built on it: it is left exactly where it is
         ("BSC Competency", "BSC Competency", DOCTYPE, "Setup", None),
@@ -707,7 +724,7 @@ GROUPS = {
         ("Goals and Feedback", "target", ["Goal", "Employee Performance Feedback"]),
         ("Promotions", "trending-up", ["Employee Promotion", "Employee Position Change"]),
         ("Talent", "award", ["talent-board", "Talent Review", "Talent Placement", "Talent Program",
-                             "Succession Position", "Graduate Trainee Program"]),
+                             "Succession Position", "Succession Plan", "Graduate Trainee Program"]),
     ],
     "Loans": [
         ("Loans", "hand-coins", ["Employee Loan"]),

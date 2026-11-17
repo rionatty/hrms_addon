@@ -105,6 +105,84 @@ ATTENTION = (1, 2, 4)
 # box -> (performance band, potential band)
 BOX_AXES = {spec["box"]: key for key, spec in BOXES.items()}
 DECISIONS = ("Succession Pipeline", "Promotion", "Replacement", "Retain in Role", "Improve")
+COLOURS = ("Red", "Orange", "Yellow", "Blue", "Green")
+PERFORMANCE_NAMES = (LOW, MEETING, EXCEEDING)
+POTENTIAL_NAMES = (POTENTIAL_LOW, POTENTIAL_MODERATE, POTENTIAL_HIGH)
+
+
+# ── The grid as HR keep it (blueprint section 3: "business rules must be
+# configurable") ──────────────────────────────────────────────────────
+# Performance Band and Potential Band hold where each band starts, Nine Box
+# each cell's name, colour, action, decision and whether it is top talent,
+# Talent Settings how ability, aspiration and engagement weigh and the
+# trainee pass mark. The grid stays three by three: the band names and the
+# box numbers are what everything else (the board, the reports, succession)
+# is keyed on, so HR change what each means, not what there is.
+def grid_from(performance=None, potential=None, boxes=None, settings=None):
+    """The grid as kept, the built-in values for whatever is not.
+
+    performance, potential: [{"name": band, "score_from": floor}], all three
+    or none counts; boxes: [{"box", "box_name", "colour", "default_action",
+    "suggested_decision", "top_talent"}]; settings: {"weight_ability",
+    "weight_aspiration", "weight_engagement", "trainee_pass_mark"}.
+    """
+    settings = settings or {}
+    kept = {int(_number(row.get("box"))): row for row in boxes or () if row.get("box") not in (None, "")}
+    table = {}
+    for key, spec in BOXES.items():
+        row = kept.get(spec["box"])
+        cell = dict(spec, top=spec["box"] in TOP_TALENT)
+        if row:
+            cell.update({"name": _text(row.get("box_name")) or spec["name"],
+                         "colour": row.get("colour") if row.get("colour") in COLOURS else spec["colour"],
+                         "action": _text(row.get("default_action")) or spec["action"],
+                         "decision": row.get("suggested_decision") if row.get("suggested_decision") in DECISIONS
+                         else spec["decision"],
+                         "top": bool(int(_number(row.get("top_talent"))))})
+        table[key] = cell
+    weights = {name: (_number(settings.get("weight_" + name))
+                      if settings.get("weight_" + name) not in (None, "") else 1.0)
+               for name in POTENTIAL_DIMENSIONS}
+    if not sum(weights.values()):
+        weights = dict.fromkeys(POTENTIAL_DIMENSIONS, 1.0)
+    pass_mark = settings.get("trainee_pass_mark")
+    return {"performance_bands": _bands(performance, PERFORMANCE_BANDS),
+            "potential_bands": _bands(potential, POTENTIAL_BANDS),
+            "boxes": table, "top_talent": tuple(sorted(cell["box"] for cell in table.values() if cell["top"])),
+            "weights": weights,
+            "pass_mark": _number(pass_mark) if pass_mark not in (None, "") and _number(pass_mark) > 0 else PASS_MARK}
+
+
+def _bands(rows, built_in):
+    names = [name for _floor, name in built_in]
+    kept = {row.get("name"): _number(row.get("score_from")) for row in rows or ()
+            if row.get("name") in names and row.get("score_from") not in (None, "")}
+    if set(kept) != set(names) or band_errors([(name, kept[name]) for name in reversed(names)]):
+        return built_in
+    return tuple(sorted(((kept[name], name) for name in names), key=lambda band: -band[0]))
+
+
+def band_errors(bands):
+    """Why a set of bands cannot stand. bands: [(name, where it starts)],
+    lowest first. The lowest starts at nought and each starts above the one
+    below it, under a hundred."""
+    errors = []
+    floors = [_number(floor) for _name, floor in bands]
+    if floors and floors[0] != 0:
+        errors.append("The lowest band starts at 0.")
+    if any(later <= earlier for earlier, later in zip(floors, floors[1:])):
+        errors.append("Each band starts above the one below it.")
+    if any(floor < 0 or floor >= 100 for floor in floors):
+        errors.append("A band starts at 0 or more, and under 100.")
+    return errors
+
+
+def band_ranges(bands):
+    """[(name, from, up to)] lowest first, each up to where the next starts
+    (the highest up to 100)."""
+    ordered = sorted(bands, key=lambda band: _number(band[1]))
+    return [(name, _number(floor), _number(ordered[index + 1][1]) if index + 1 < len(ordered) else 100.0)
+            for index, (name, floor) in enumerate(ordered)]
 
 # ── The programme ─────────────────────────────────────────────────────
 PROGRAM_TYPES = ("Leadership Development", "Mentoring and Coaching",
@@ -139,38 +217,43 @@ FACTOR_OUT_OF = 5.0
 
 
 # ── Reading the two axes ──────────────────────────────────────────────
-def performance_band(score):
+def performance_band(score, grid=None):
     """The appraisal's own score, put in a band. Nothing is re-entered."""
     if score is None or score == "":
         return None
-    return next(name for floor, name in PERFORMANCE_BANDS if _number(score) >= floor)
+    bands = (grid or {}).get("performance_bands") or PERFORMANCE_BANDS
+    return next(name for floor, name in bands if _number(score) >= floor)
 
 
-def potential_score(assessment):
-    """Ability, aspiration and engagement, each out of ten and each worth
-    the same, as a score out of a hundred. A dimension left blank is not
-    counted, so a half-finished assessment does not read as a low one."""
-    given = [_number(assessment.get(name)) for name in POTENTIAL_DIMENSIONS
+def potential_score(assessment, grid=None):
+    """Ability, aspiration and engagement, each out of ten, weighed as
+    Talent Settings say (the same, by default), as a score out of a hundred.
+    A dimension left blank is not counted, so a half-finished assessment
+    does not read as a low one."""
+    weights = (grid or {}).get("weights") or dict.fromkeys(POTENTIAL_DIMENSIONS, 1.0)
+    given = [(_number(assessment.get(name)), _number(weights.get(name, 1.0))) for name in POTENTIAL_DIMENSIONS
              if assessment.get(name) not in (None, "")]
-    if not given:
+    weight = sum(share for _score, share in given)
+    if not given or not weight:
         return None
-    return round(sum(given) / len(given) * (100.0 / DIMENSION_OUT_OF), 2)
+    return round(sum(score * share for score, share in given) / weight * (100.0 / DIMENSION_OUT_OF), 2)
 
 
-def potential_band(score):
+def potential_band(score, grid=None):
     if score is None or score == "":
         return None
-    return next(name for floor, name in POTENTIAL_BANDS if _number(score) >= floor)
+    bands = (grid or {}).get("potential_bands") or POTENTIAL_BANDS
+    return next(name for floor, name in bands if _number(score) >= floor)
 
 
-def box_for(performance, potential):
-    """The one cell the two bands resolve to."""
-    found = BOXES.get((performance, potential))
+def box_for(performance, potential, grid=None):
+    """The one cell the two bands resolve to, as HR keep it."""
+    found = ((grid or {}).get("boxes") or BOXES).get((performance, potential))
     return dict(found) if found else None
 
 
-def is_top_talent(box):
-    return _number(box) in TOP_TALENT
+def is_top_talent(box, grid=None):
+    return _number(box) in ((grid or {}).get("top_talent") or TOP_TALENT)
 
 
 def competency_average(rows):
@@ -433,13 +516,77 @@ def final_milestone(due_on, is_last, programme_ends=None):
     return bool(is_last)
 
 
-def milestone_outcome(score, final=False):
-    """What a milestone score comes to."""
+def milestone_outcome(score, final=False, pass_mark=None):
+    """What a milestone score comes to, against the pass mark Talent
+    Settings keep (60 by default)."""
     if score in (None, ""):
         return None
-    if _number(score) < PASS_MARK:
+    if _number(score) < (_number(pass_mark) if pass_mark not in (None, "") and _number(pass_mark) > 0 else PASS_MARK):
         return "Fail"
     return "Final Pass" if final else "Pass"
+
+
+# ── Where a development plan aims, and how people moved (batch 5) ─────
+# A box's place on each axis: performance across (0 Low to 2 Exceeding),
+# potential up (0 Low to 2 High).
+def box_place(box):
+    box = int(_number(box))
+    if box not in BOX_AXES:
+        return None
+    return (box - 1) // 3, (box - 1) % 3
+
+
+def target_box(box):
+    """Where a development plan aims by default: the box one performance
+    band up in the same potential row; the right-hand column keeps its box."""
+    place = box_place(box)
+    if place is None:
+        return None
+    return int(_number(box)) + 3 if place[0] < 2 else int(_number(box))
+
+
+def target_reached(box, target):
+    """Whether a box is at least the target on both axes."""
+    now, aim = box_place(box), box_place(target)
+    if now is None or aim is None:
+        return False
+    return now[0] >= aim[0] and now[1] >= aim[1]
+
+
+UP, DOWN, ACROSS, SAME, NEW, OUT = "Up", "Down", "Across", "Same", "New", "Not Placed"
+
+
+def box_movement(before, after):
+    """How someone moved between two reviews: Up where neither axis fell
+    and one rose, Down where neither rose and one fell, Across where one
+    rose and the other fell; New with no earlier box, Not Placed with no
+    later one."""
+    was, now = box_place(before) if before not in (None, "") else None, \
+        box_place(after) if after not in (None, "") else None
+    if was is None and now is None:
+        return None
+    if was is None:
+        return NEW
+    if now is None:
+        return OUT
+    if was == now:
+        return SAME
+    if now[0] >= was[0] and now[1] >= was[1]:
+        return UP
+    if now[0] <= was[0] and now[1] <= was[1]:
+        return DOWN
+    return ACROSS
+
+
+def readiness_for(box, levels):
+    """The readiness a box suggests for a successor, from the Readiness
+    Levels' "drawn from" boxes, the nearest first. levels: [(readiness,
+    rank, [boxes])]. None where no level draws from that box."""
+    box = int(_number(box)) if box not in (None, "") else None
+    for readiness, _rank, boxes in sorted(levels or (), key=lambda level: _number(level[1])):
+        if box is not None and box in [int(_number(item)) for item in boxes or ()]:
+            return readiness
+    return None
 
 
 def next_trainee_state(state, result):
@@ -567,15 +714,16 @@ def move_errors(facts):
     return errors
 
 
-def board(placements):
-    """The grid as the board draws it.
+def board(placements, grid=None):
+    """The grid as the board draws it, its cells named as HR keep them.
 
     placements: [{"name", "employee", "employee_name", "box", ...}]. Returns
     {"cells": [{"box", "name", "colour", "action", "people"}] in box order,
     "unplaced": the placements with no box yet (no appraisal, or not
     rated), "strips": the top, core and attention counts, "total"}."""
+    table = (grid or {}).get("boxes") or BOXES
     cells = {spec["box"]: {"box": spec["box"], "name": spec["name"], "colour": spec["colour"],
-                           "action": spec["action"], "people": []} for spec in BOXES.values()}
+                           "action": spec["action"], "people": []} for spec in table.values()}
     unplaced = []
     for row in placements or []:
         box = int(_number(row.get("box"))) if row.get("box") not in (None, "") else None
@@ -584,8 +732,11 @@ def board(placements):
         cell["people"].sort(key=lambda row: (-_number(row.get("performance_score")),
                                              str(row.get("employee_name") or "")))
     placed = sum(len(cell["people"]) for cell in cells.values())
+    top = tuple((grid or {}).get("top_talent") or TOP_TALENT)
+    attention = tuple(box for box in ATTENTION if box not in top)
+    core = tuple(box for box in sorted(cells) if box not in top and box not in attention)
     strips = {name: sum(len(cells[box]["people"]) for box in boxes)
-              for name, boxes in (("top", TOP_TALENT), ("core", CORE), ("attention", ATTENTION))}
+              for name, boxes in (("top", top), ("core", core), ("attention", attention))}
     return {"cells": [cells[box] for box in sorted(cells)], "unplaced": unplaced, "strips": strips,
             "total": placed}
 

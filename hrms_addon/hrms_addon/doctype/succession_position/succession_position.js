@@ -12,7 +12,8 @@ frappe.ui.form.on("Succession Position", {
 		// what points at a plan is cancelled on its own (talent.position_on_cancel)
 		frm.ignore_doctypes_on_cancel_all = [
 			...new Set([...(frm.ignore_doctypes_on_cancel_all || []),
-				"Talent Program", "Employee Position Change", "Employee Separation", "Graduate Trainee Program"]),
+				"Talent Program", "Employee Position Change", "Employee Separation", "Graduate Trainee Program",
+				"Succession Plan"]),
 		];
 	},
 	refresh(frm) {

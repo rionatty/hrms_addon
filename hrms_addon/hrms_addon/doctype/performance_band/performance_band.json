@@ -1,0 +1,98 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "Where each performance band of the nine-box grid starts: Low, Meeting and Exceeding.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "band_name",
+  "score_from",
+  "score_to",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "band_name",
+   "fieldtype": "Data",
+   "label": "Band",
+   "reqd": 1,
+   "unique": 1,
+   "set_only_once": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "score_from",
+   "fieldtype": "Float",
+   "label": "Starts At",
+   "reqd": 1,
+   "non_negative": 1,
+   "in_list_view": 1,
+   "description": "The performance score out of 100 the band starts at."
+  },
+  {
+   "fieldname": "score_to",
+   "fieldtype": "Float",
+   "label": "Up To",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Performance Band",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 0,
+   "write": 1,
+   "import": 1,
+   "delete": 0
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "score_from",
+ "sort_order": "ASC",
+ "states": [],
+ "autoname": "field:band_name",
+ "naming_rule": "By fieldname",
+ "track_changes": 1
+}

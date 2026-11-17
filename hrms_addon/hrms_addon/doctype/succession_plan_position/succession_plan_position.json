@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "A critical role in a succession plan.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "succession_position",
+  "designation",
+  "branch",
+  "department",
+  "incumbent_name",
+  "risk_level",
+  "single_person_role",
+  "coverage",
+  "ready_now",
+  "ready_soon",
+  "emerging",
+  "position_state"
+ ],
+ "fields": [
+  {
+   "fieldname": "succession_position",
+   "fieldtype": "Link",
+   "label": "Critical Role",
+   "options": "Succession Position",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Job Title",
+   "options": "Designation",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "incumbent_name",
+   "fieldtype": "Data",
+   "label": "Holder",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Data",
+   "label": "Risk",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "single_person_role",
+   "fieldtype": "Check",
+   "label": "Single-Person Role",
+   "read_only": 1
+  },
+  {
+   "fieldname": "coverage",
+   "fieldtype": "Data",
+   "label": "Coverage",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "ready_now",
+   "fieldtype": "Int",
+   "label": "Ready Now",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "ready_soon",
+   "fieldtype": "Int",
+   "label": "Ready in 1-2 Years",
+   "read_only": 1
+  },
+  {
+   "fieldname": "emerging",
+   "fieldtype": "Int",
+   "label": "Emerging",
+   "read_only": 1
+  },
+  {
+   "fieldname": "position_state",
+   "fieldtype": "Data",
+   "label": "Role Status",
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Succession Plan Position",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

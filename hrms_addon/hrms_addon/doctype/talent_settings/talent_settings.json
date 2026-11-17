@@ -1,0 +1,127 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "How potential is weighed, which flight risks are alerted, and how trainee milestones are raised.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "potential_section",
+  "weight_ability",
+  "weight_aspiration",
+  "weight_engagement",
+  "risk_section",
+  "watch_high",
+  "watch_medium",
+  "trainee_section",
+  "trainee_pass_mark",
+  "column_break_trainee",
+  "auto_milestones",
+  "milestone_lead_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "potential_section",
+   "fieldtype": "Section Break",
+   "label": "Potential",
+   "description": "How much each counts in the potential score."
+  },
+  {
+   "fieldname": "weight_ability",
+   "fieldtype": "Float",
+   "label": "Ability",
+   "default": "1",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "weight_aspiration",
+   "fieldtype": "Float",
+   "label": "Aspiration",
+   "default": "1",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "weight_engagement",
+   "fieldtype": "Float",
+   "label": "Engagement",
+   "default": "1",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "risk_section",
+   "fieldtype": "Section Break",
+   "label": "Flight Risk"
+  },
+  {
+   "fieldname": "watch_high",
+   "fieldtype": "Check",
+   "label": "Alert on High Flight Risk",
+   "default": "1"
+  },
+  {
+   "fieldname": "watch_medium",
+   "fieldtype": "Check",
+   "label": "Alert on Medium Flight Risk",
+   "default": "1"
+  },
+  {
+   "fieldname": "trainee_section",
+   "fieldtype": "Section Break",
+   "label": "Graduate Trainees"
+  },
+  {
+   "fieldname": "trainee_pass_mark",
+   "fieldtype": "Percent",
+   "label": "Milestone Pass Mark",
+   "default": "60"
+  },
+  {
+   "fieldname": "column_break_trainee",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "auto_milestones",
+   "fieldtype": "Check",
+   "label": "Raise Milestone Appraisals Automatically",
+   "default": "1"
+  },
+  {
+   "fieldname": "milestone_lead_days",
+   "fieldtype": "Int",
+   "label": "Days Before the Milestone",
+   "default": "7",
+   "non_negative": 1,
+   "depends_on": "auto_milestones"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Talent Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "issingle": 1,
+ "track_changes": 1
+}

@@ -897,6 +897,9 @@ ATTENTION = (
      "loans", SOON),
     ("reviews_waiting", "Performance review waiting for sign-off", "Performance reviews waiting for sign-off",
      "Performance Review", "performance", SOON),
+    # top talent somebody might lose (talent blueprint, section 10: "Retention risk")
+    ("top_talent_at_risk", "Top talent at flight risk", "Top talent at flight risk", "Talent Placement",
+     "performance", SOON),
     ("requisitions_to_assess", "Training requisition to assess", "Training requisitions to assess",
      "Training Requisition", "training", SOON),
     ("trainings_not_closed", "Training held but not closed", "Trainings held but not closed", "Training Event",
@@ -927,6 +930,7 @@ ATTENTION_COMPANY = {
     "encashments_waiting", "additional_draft", "output_runs_draft", "advance_runs_draft", "employee_advances_waiting",
     "penalties_waiting", "reviews_waiting", "trainings_not_closed", "suspensions_ending", "documents_expired",
     "exit_interviews_waiting", "training_overdue", "certificates_run_out", "certificates_running_out",
+    "top_talent_at_risk",
 }
 
 
@@ -972,6 +976,7 @@ def attention_filters(key, day_of, company=None):
         "employee_advances_waiting": {"docstatus": 0, "custom_advance_status": PENDING},
         "penalties_waiting": {"docstatus": 0, "approval_status": PENDING},
         "reviews_waiting": {"docstatus": 0, "status": ["in", list(REVIEW_WAITING)]},
+        "top_talent_at_risk": {"docstatus": 1, "top_talent": 1, "flight_risk": ["in", ["High", "Medium"]]},
         "requisitions_to_assess": {"docstatus": 1, "status": "Submitted"},
         "trainings_not_closed": {"docstatus": 0, "event_status": "Scheduled", "end_time": ["between", [EVER, "{yesterday}"]]},
         "assessments_waiting": {"docstatus": 0, "status": ["in", list(ASSESSMENT_WAITING)]},

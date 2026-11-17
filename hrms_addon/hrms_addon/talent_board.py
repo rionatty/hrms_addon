@@ -34,7 +34,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate, today
 
-from hrms_addon.hrms_addon import talent, talent_approval as approval, talent_rules as rules
+from hrms_addon.hrms_addon import talent, talent_approval as approval, talent_masters, talent_rules as rules
 
 PLACEMENT, REVIEW, PROGRAM = talent.PLACEMENT, talent.REVIEW, talent.PROGRAM
 POSITION, TRAINEE = talent.POSITION, talent.TRAINEE
@@ -93,7 +93,7 @@ def get_board(review=None, branch=None, department=None, grade=None, plan=None):
     for row in shown:
         row["moved"] = 1 if row.name in moved else 0
         row["state"] = row.get("workflow_state") or approval.DRAFT
-    composed = rules.board(shown)
+    composed = rules.board(shown, talent_masters.grid())
     states = {}
     for row in shown:
         states[row["state"]] = states.get(row["state"], 0) + 1

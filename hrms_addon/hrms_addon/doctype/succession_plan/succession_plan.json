@@ -1,0 +1,315 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 14:00:00.000000",
+ "description": "A year's critical roles and their benches, reviewed by the Talent Council as one.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "title",
+  "plan_year",
+  "company",
+  "column_break_plan",
+  "branch",
+  "department",
+  "plan_owner",
+  "status",
+  "positions_section",
+  "get_positions",
+  "positions",
+  "bench_section",
+  "total_positions",
+  "covered",
+  "at_risk",
+  "column_break_bench",
+  "gaps",
+  "single_person_roles",
+  "ready_now",
+  "council_section",
+  "council_remarks",
+  "return_remarks",
+  "column_break_council",
+  "sent_by",
+  "sent_on",
+  "finalised_by",
+  "finalised_on",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-SPL-.YYYY.-",
+   "default": "LPL-SPL-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "plan_year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_plan",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_standard_filter": 1,
+   "description": "Leave empty for every plant."
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "description": "Leave empty for every department."
+  },
+  {
+   "fieldname": "plan_owner",
+   "fieldtype": "Link",
+   "label": "Plan Owner",
+   "options": "User"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nCouncil Review\nFinalised\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "positions_section",
+   "fieldtype": "Section Break",
+   "label": "Critical Roles"
+  },
+  {
+   "fieldname": "get_positions",
+   "fieldtype": "Button",
+   "label": "Get Positions"
+  },
+  {
+   "fieldname": "positions",
+   "fieldtype": "Table",
+   "label": "Critical Roles",
+   "options": "Succession Plan Position",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "bench_section",
+   "fieldtype": "Section Break",
+   "label": "Bench Strength"
+  },
+  {
+   "fieldname": "total_positions",
+   "fieldtype": "Int",
+   "label": "Roles",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "covered",
+   "fieldtype": "Int",
+   "label": "Covered",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "at_risk",
+   "fieldtype": "Int",
+   "label": "At Risk",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_bench",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "gaps",
+   "fieldtype": "Int",
+   "label": "Gaps",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "single_person_roles",
+   "fieldtype": "Int",
+   "label": "Single-Person Roles",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "ready_now",
+   "fieldtype": "Int",
+   "label": "Ready Now",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "council_section",
+   "fieldtype": "Section Break",
+   "label": "Council"
+  },
+  {
+   "fieldname": "council_remarks",
+   "fieldtype": "Text",
+   "label": "Council's Remarks",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "return_remarks",
+   "fieldtype": "Small Text",
+   "label": "Return Remarks",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_council",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sent_by",
+   "fieldtype": "Link",
+   "label": "Sent to Council By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Date",
+   "label": "Sent On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "finalised_by",
+   "fieldtype": "Link",
+   "label": "Finalised By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "finalised_on",
+   "fieldtype": "Date",
+   "label": "Finalised On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Succession Plan",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Succession Plan",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "is_submittable": 1,
+ "title_field": "title",
+ "track_changes": 1
+}

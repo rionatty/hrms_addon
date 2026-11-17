@@ -9,7 +9,7 @@ people sit, so it is for HR and the Talent Council."""
 import frappe
 from frappe import _
 
-from hrms_addon.hrms_addon import talent_reports, talent_rules as rules
+from hrms_addon.hrms_addon import talent_masters, talent_reports, talent_rules as rules
 
 
 def execute(filters=None):
@@ -22,7 +22,7 @@ def execute(filters=None):
             conditions[field] = filters.get(field)
     placed = frappe.get_list("Talent Placement", filters=conditions, fields=["employee_name", "box"],
                              limit_page_length=0) if review else []
-    board = rules.board(placed)
+    board = rules.board(placed, talent_masters.grid())
     rows = [{"box": cell["box"], "cell": _(cell["name"]), "people": len(cell["people"]),
              "share": rules.share(len(cell["people"]), board["total"]), "action": _(cell["action"]),
              "names": ", ".join(sorted(row.get("employee_name") or "" for row in cell["people"]))}
