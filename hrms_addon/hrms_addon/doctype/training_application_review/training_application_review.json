@@ -1,0 +1,291 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 20:00:00.000000",
+ "description": "A supervisor's review of how a trainee applies a training on the job (Kirkpatrick level 3).",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "training_event",
+  "training_program",
+  "event_end",
+  "column_break_trainee",
+  "employee",
+  "employee_name",
+  "department",
+  "branch",
+  "company",
+  "column_break_supervisor",
+  "supervisor",
+  "supervisor_name",
+  "reviewer",
+  "due_on",
+  "status",
+  "review_section",
+  "applied",
+  "behaviour",
+  "competency",
+  "column_break_review",
+  "evidence",
+  "comments",
+  "score",
+  "reviewed_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-TAR-.YYYY.-",
+   "default": "LPL-TAR-.YYYY.-",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "training_event",
+   "fieldtype": "Link",
+   "label": "Training Event",
+   "options": "Training Event",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "training_program",
+   "fieldtype": "Link",
+   "label": "Training Program",
+   "options": "Training Program",
+   "fetch_from": "training_event.training_program",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "event_end",
+   "fieldtype": "Date",
+   "label": "Session Ended",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_trainee",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Trainee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Trainee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "fetch_from": "employee.department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "employee.branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_supervisor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "supervisor_name",
+   "fieldtype": "Data",
+   "label": "Supervisor Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewer",
+   "fieldtype": "Link",
+   "label": "Reviewer",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "due_on",
+   "fieldtype": "Date",
+   "label": "Due On",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nDone",
+   "default": "Pending",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "review_section",
+   "fieldtype": "Section Break",
+   "label": "Review",
+   "description": "What the trainee does on the job since the training."
+  },
+  {
+   "fieldname": "applied",
+   "fieldtype": "Select",
+   "label": "Has the Trainee Applied It?",
+   "options": "\nApplied in Full\nApplied in Part\nNot Applied"
+  },
+  {
+   "fieldname": "behaviour",
+   "fieldtype": "Select",
+   "label": "Behaviour Change",
+   "options": "\n1 No Change\n2 Little Change\n3 Some Change\n4 Clear Change\n5 Marked Change"
+  },
+  {
+   "fieldname": "competency",
+   "fieldtype": "Select",
+   "label": "Competency",
+   "options": "\nImproved\nPartly Improved\nNot Improved"
+  },
+  {
+   "fieldname": "column_break_review",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evidence",
+   "fieldtype": "Small Text",
+   "label": "What You Saw"
+  },
+  {
+   "fieldname": "comments",
+   "fieldtype": "Small Text",
+   "label": "Comments"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Percent",
+   "label": "Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviewed_on",
+   "fieldtype": "Date",
+   "label": "Reviewed On",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 20:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Application Review",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "write": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "title_field": "employee_name",
+ "track_changes": 1
+}

@@ -945,6 +945,8 @@ fixtures = [
                     "Training Program-custom_duration_hours",
                     "Training Program-custom_cost_per_person",
                     "Training Program-custom_certification",
+                    "Training Program-custom_kpis_section",
+                    "Training Program-custom_kpis",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -1738,6 +1740,9 @@ permission_query_conditions = {
     "Talent Program": "hrms_addon.hrms_addon.talent_access.program_query_conditions",
     "Succession Position": "hrms_addon.hrms_addon.talent_access.position_query_conditions",
     "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_query_conditions",
+    # a supervisor sees the training reviews that are theirs to give
+    # (learning_delivery.py)
+    "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_query",
 }
 
 has_permission = {
@@ -1753,6 +1758,7 @@ has_permission = {
     "Talent Program": "hrms_addon.hrms_addon.talent_access.program_has_permission",
     "Succession Position": "hrms_addon.hrms_addon.talent_access.position_has_permission",
     "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_has_permission",
+    "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_permission",
 }
 
 # DocType Class
@@ -2272,10 +2278,14 @@ doc_events = {
         "on_submit": [
             "hrms_addon.hrms_addon.training.result_on_submit",
             "hrms_addon.hrms_addon.learning.result_changed",
+            # a trainee who did not pass told, with their supervisor and HR
+            # (learning_delivery.py)
+            "hrms_addon.hrms_addon.learning_delivery.result_failed",
         ],
         "on_update_after_submit": [
             "hrms_addon.hrms_addon.training.result_on_submit",
             "hrms_addon.hrms_addon.learning.result_changed",
+            "hrms_addon.hrms_addon.learning_delivery.result_failed",
         ],
         "on_cancel": [
             "hrms_addon.hrms_addon.training.result_on_cancel",
@@ -2399,6 +2409,10 @@ scheduler_events = {
         # certificate's expiry chased rung by rung (180 days to the day it
         # runs out), and training falling due or overdue told (learning.py)
         "hrms_addon.hrms_addon.learning.daily",
+        # Training evaluation: each trainee's supervisor asked how they
+        # apply it, and the programme's KPIs measured before and after
+        # (learning_delivery.py)
+        "hrms_addon.hrms_addon.learning_delivery.daily",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,

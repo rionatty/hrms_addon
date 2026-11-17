@@ -22,7 +22,12 @@
   "weight_assessment",
   "column_break_score",
   "matrix_green_from",
-  "matrix_amber_from"
+  "matrix_amber_from",
+  "evaluation_section",
+  "application_review_days",
+  "column_break_evaluation",
+  "impact_review_days",
+  "impact_window_days"
  ],
  "fields": [
   {
@@ -127,10 +132,42 @@
    "fieldtype": "Percent",
    "label": "Matrix Amber From",
    "default": "65"
+  },
+  {
+   "fieldname": "evaluation_section",
+   "fieldtype": "Section Break",
+   "label": "Evaluation After Training"
+  },
+  {
+   "fieldname": "application_review_days",
+   "fieldtype": "Int",
+   "label": "Days Before the Supervisor Is Asked",
+   "default": "30",
+   "non_negative": 1,
+   "description": "After a session, each trainee's supervisor is asked how they apply it (level 3)."
+  },
+  {
+   "fieldname": "column_break_evaluation",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "impact_review_days",
+   "fieldtype": "Int",
+   "label": "Days Before the Impact Is Measured",
+   "default": "60",
+   "non_negative": 1,
+   "description": "After a session, the programme's KPIs are measured before and after (level 4)."
+  },
+  {
+   "fieldname": "impact_window_days",
+   "fieldtype": "Int",
+   "label": "Days Measured Before and After",
+   "default": "30",
+   "non_negative": 1
   }
  ],
  "links": [],
- "modified": "2026-11-17 09:00:00.000000",
+ "modified": "2026-11-17 20:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Learning Settings",

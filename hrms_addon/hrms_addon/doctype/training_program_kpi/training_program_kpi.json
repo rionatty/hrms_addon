@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 20:00:00.000000",
+ "description": "A KPI a training programme is meant to move.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "kpi",
+  "kpi_name",
+  "better",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "kpi",
+   "fieldtype": "Select",
+   "label": "KPI",
+   "options": "Waste Value\nComplaint Value\nMachine Hours Lost\nSafety Incidents\nPPE Compliance %\nAttendance %\nOutput per Person-Shift\nShift Score\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "kpi_name",
+   "fieldtype": "Data",
+   "label": "KPI Name",
+   "in_list_view": 1,
+   "description": "When the KPI is Other."
+  },
+  {
+   "fieldname": "better",
+   "fieldtype": "Select",
+   "label": "Better When",
+   "options": "\nHigher\nLower",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Data",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 20:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Program KPI",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

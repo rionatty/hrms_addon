@@ -1,0 +1,326 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 20:00:00.000000",
+ "description": "A training's effect on a KPI, before and after (Kirkpatrick level 4).",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "training_event",
+  "training_program",
+  "event_end",
+  "column_break_place",
+  "branch",
+  "company",
+  "work_section",
+  "kpi_section",
+  "kpi",
+  "kpi_name",
+  "better",
+  "column_break_kpi",
+  "from_shift_reports",
+  "measured",
+  "status",
+  "values_section",
+  "baseline_from",
+  "baseline_to",
+  "baseline",
+  "column_break_after",
+  "after_from",
+  "after_to",
+  "after",
+  "column_break_result",
+  "change",
+  "change_percent",
+  "result",
+  "value_section",
+  "benefit",
+  "notes",
+  "column_break_value",
+  "measured_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-TIR-.YYYY.-",
+   "default": "LPL-TIR-.YYYY.-",
+   "hidden": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "training_event",
+   "fieldtype": "Link",
+   "label": "Training Event",
+   "options": "Training Event",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "training_program",
+   "fieldtype": "Link",
+   "label": "Training Program",
+   "options": "Training Program",
+   "fetch_from": "training_event.training_program",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "event_end",
+   "fieldtype": "Date",
+   "label": "Session Ended",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_place",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "training_event.custom_branch",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "training_event.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section Measured",
+   "options": "Work Section"
+  },
+  {
+   "fieldname": "kpi_section",
+   "fieldtype": "Section Break",
+   "label": "KPI"
+  },
+  {
+   "fieldname": "kpi",
+   "fieldtype": "Select",
+   "label": "KPI",
+   "options": "Waste Value\nComplaint Value\nMachine Hours Lost\nSafety Incidents\nPPE Compliance %\nAttendance %\nOutput per Person-Shift\nShift Score\nOther",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "kpi_name",
+   "fieldtype": "Data",
+   "label": "KPI Name",
+   "depends_on": "eval:doc.kpi=='Other'"
+  },
+  {
+   "fieldname": "better",
+   "fieldtype": "Select",
+   "label": "Better When",
+   "options": "\nHigher\nLower",
+   "read_only_depends_on": "eval:doc.kpi!='Other'"
+  },
+  {
+   "fieldname": "column_break_kpi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_shift_reports",
+   "fieldtype": "Button",
+   "label": "From Shift Reports"
+  },
+  {
+   "fieldname": "measured",
+   "fieldtype": "Check",
+   "label": "Measured"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nMeasured",
+   "default": "Open",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "values_section",
+   "fieldtype": "Section Break",
+   "label": "Before and After"
+  },
+  {
+   "fieldname": "baseline_from",
+   "fieldtype": "Date",
+   "label": "Before From"
+  },
+  {
+   "fieldname": "baseline_to",
+   "fieldtype": "Date",
+   "label": "Before To"
+  },
+  {
+   "fieldname": "baseline",
+   "fieldtype": "Float",
+   "label": "Before"
+  },
+  {
+   "fieldname": "column_break_after",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "after_from",
+   "fieldtype": "Date",
+   "label": "After From"
+  },
+  {
+   "fieldname": "after_to",
+   "fieldtype": "Date",
+   "label": "After To"
+  },
+  {
+   "fieldname": "after",
+   "fieldtype": "Float",
+   "label": "After"
+  },
+  {
+   "fieldname": "column_break_result",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "change",
+   "fieldtype": "Float",
+   "label": "Change",
+   "read_only": 1
+  },
+  {
+   "fieldname": "change_percent",
+   "fieldtype": "Percent",
+   "label": "Change %",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Data",
+   "label": "Result",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "value_section",
+   "fieldtype": "Section Break",
+   "label": "Value"
+  },
+  {
+   "fieldname": "benefit",
+   "fieldtype": "Currency",
+   "label": "Estimated Benefit",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_value",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "measured_by",
+   "fieldtype": "Link",
+   "label": "Measured By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 20:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Impact Review",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "naming_series:",
+ "title_field": "kpi",
+ "track_changes": 1
+}

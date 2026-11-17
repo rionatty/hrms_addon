@@ -11545,6 +11545,28 @@
  },
  {
   "doctype": "Custom Field",
+  "name": "Training Program-custom_kpis_section",
+  "dt": "Training Program",
+  "fieldname": "custom_kpis_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_certification",
+  "module": "HRMS Addon",
+  "label": "Impact KPIs"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_kpis",
+  "dt": "Training Program",
+  "fieldname": "custom_kpis",
+  "fieldtype": "Table",
+  "insert_after": "custom_kpis_section",
+  "module": "HRMS Addon",
+  "options": "Training Program KPI",
+  "label": "KPIs",
+  "description": "What each session should move: a Training Impact Review measures each one before and after."
+ },
+ {
+  "doctype": "Custom Field",
   "name": "Employee-custom_bank_code",
   "dt": "Employee",
   "fieldname": "custom_bank_code",

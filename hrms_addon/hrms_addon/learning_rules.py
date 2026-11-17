@@ -73,6 +73,10 @@ DEFAULTS = {
     "weight_training": 40, "weight_competency": 35, "weight_assessment": 25,
     # the Training Matrix's colours
     "matrix_green_from": 85, "matrix_amber_from": 65,
+    # Kirkpatrick levels 3 and 4: when a trainee's supervisor is asked how
+    # they apply it, when the programme's KPIs are measured, and over how
+    # many days before and after (learning_delivery.py)
+    "application_review_days": 30, "impact_review_days": 60, "impact_window_days": 30,
 }
 
 # the blueprint's categories, in the order the matrix shows them; the
