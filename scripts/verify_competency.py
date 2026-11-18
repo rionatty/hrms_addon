@@ -165,8 +165,12 @@ check("glue: the reassessments newly due go on one sheet a section, every certif
       and "learning_sheets.reassessment_sheets(due)" in body("daily"))
 check("glue: the reports read the counting assessments through the user's permissions",
       "frappe.get_list(ASSESSMENT" in body("counting_rows") and "rules.SUPERSEDED" in body("counting_rows"))
+# the Manufacturing Excellence rebuild (18 Nov 2026) reads the counting assessments by plant and section with
+# GROUP BY (excellence_summary.competency) instead of a list of employee numbers
 check("glue: the scorecard reads competency and critical competency", "competency.coverage_for(ids)"
-      in read("hrms_addon", "hrms_addon", "excellence.py"))
+      in read("hrms_addon", "hrms_addon", "excellence.py") or (
+          "frappe.get_list(ASSESSMENT" in read("hrms_addon", "hrms_addon", "excellence_summary.py")
+          and '"Superseded"' in read("hrms_addon", "hrms_addon", "excellence_summary.py")))
 
 # ── 4. Wiring ─────────────────────────────────────────────────────────
 HOOKS = read("hrms_addon", "hooks.py")
