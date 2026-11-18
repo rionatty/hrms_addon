@@ -553,10 +553,14 @@ def sections_in(company=None, branch=None, section=None, reporting=False):
 
 
 def shift_rows(start, end, company=None, branch=None, section=None, shift=None, supervisor=None):
-    """The submitted shifts of a period as their Section Day Summary rows,
-    which rules.totals() sums."""
+    """The submitted shifts of a period as day summary rows, which
+    rules.totals() sums: one section's read from its Shift Reports (the
+    learning module's KPIs before and after a training), else the stored
+    Section Day Summaries."""
     from hrms_addon.hrms_addon import excellence_summary
 
+    if section and not (company or branch or supervisor):
+        return excellence_summary.report_rows(start, end, section, shift)
     return excellence_summary.day_rows(start, end, company, branch, section, shift, supervisor)
 
 

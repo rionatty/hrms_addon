@@ -53,9 +53,17 @@ def _sums():
 # ── Writing ───────────────────────────────────────────────────────────
 def write_shift(doc):
     """A submitted shift's day summary and downtime, and its section's week."""
+    values = summary_values(doc)
+    _upsert(DAY, _key(doc.work_section, values["summary_date"], doc.shift), values)
+    _write_downtime(doc, values)
+    rebuild_week(doc.work_section, values["week"])
+
+
+def summary_values(doc, s=None):
+    """What a submitted Shift Report's day summary holds."""
     from hrms_addon.hrms_addon import excellence
 
-    s = settings()
+    s = s or settings()
     section = frappe.get_cached_doc(SECTION, doc.work_section)
     standard = excellence.section_standard(section, doc.report_date)
     waste_cap, complaint_cap = rules.caps(standard, s)
@@ -72,9 +80,7 @@ def write_shift(doc):
                   supervisor=doc.get("supervisor"), supervisor_name=doc.get("supervisor_name"),
                   production_officer=doc.get("production_officer"), shift_report=doc.name,
                   plant_day_sheet=doc.get("plant_day_sheet"), score=doc.score, status=doc.status)
-    _upsert(DAY, _key(doc.work_section, day, doc.shift), values)
-    _write_downtime(doc, values)
-    rebuild_week(doc.work_section, values["week"])
+    return values
 
 
 def remove_shift(doc):
@@ -258,6 +264,20 @@ def scope_totals(filters):
 def section_totals(filters):
     """{section: totals} with each section's unit."""
     return {section: total for (section, _unit), total in grouped(filters, ("work_section", "unit")).items()}
+
+
+def report_rows(start, end, section, shift=None):
+    """One section's submitted Shift Reports of a period read straight, as
+    their day summaries: the few shifts a training's KPI is measured on, so
+    that a report whose summary is not written yet still counts."""
+    s = settings()
+    filters = {"work_section": section, "docstatus": 1,
+               "report_date": ["between", [str(getdate(start)), str(getdate(end))]]}
+    if shift:
+        filters["shift"] = shift
+    names = frappe.get_list(SHIFT_REPORT, filters=filters, pluck="name", order_by="report_date asc",
+                            limit_page_length=0)
+    return [summary_values(frappe.get_doc(SHIFT_REPORT, name), s) for name in names]
 
 
 def day_rows(start, end, company=None, branch=None, section=None, shift=None, supervisor=None):
