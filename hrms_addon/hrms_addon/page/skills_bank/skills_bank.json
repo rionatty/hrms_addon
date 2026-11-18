@@ -1,0 +1,45 @@
+{
+ "content": null,
+ "creation": "2026-11-18 09:00:00.000000",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "search",
+ "idx": 0,
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "skills-bank",
+ "owner": "Administrator",
+ "page_name": "skills-bank",
+ "roles": [
+  {
+   "role": "HR User"
+  },
+  {
+   "role": "HR Manager"
+  },
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Head of Department"
+  },
+  {
+   "role": "Supervisor"
+  },
+  {
+   "role": "Production Manager"
+  },
+  {
+   "role": "General Manager"
+  },
+  {
+   "role": "Executive Director"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Skills Bank"
+}

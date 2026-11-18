@@ -24,3 +24,58 @@ hrms_addon.sheet_progress = function (frm) {
 		setTimeout(() => !frm.is_dirty() && frm.doc.docstatus === 1 && frm.reload_doc(), 5000);
 	}
 };
+
+// The learning library (learning_library.py): open a piece of content,
+// acknowledge it, or take its quiz; then call back.
+hrms_addon.open_content = function (assignment, done) {
+	const call = (method, args) =>
+		frappe.xcall("hrms_addon.hrms_addon.learning_library." + method, Object.assign({ assignment: assignment }, args || {}), "POST");
+	call("start").then((content) => {
+		if (content.content_type === "Quiz") {
+			hrms_addon.take_quiz(assignment, done);
+			return;
+		}
+		const where = content.file || content.url;
+		if (where) window.open(where, "_blank");
+		const dialog = new frappe.ui.Dialog({
+			title: content.title,
+			fields: [{ fieldtype: "HTML", fieldname: "body" }],
+			primary_action_label: __("I Have Read It"),
+			primary_action() {
+				call("acknowledge").then((found) => {
+					dialog.hide();
+					frappe.show_alert({ message: __(found.status), indicator: "green" });
+					done && done();
+				});
+			},
+		});
+		dialog.fields_dict.body.$wrapper.html(content.body || (where ? `<p>${__("It opened in a new tab.")}</p>` : ""));
+		dialog.show();
+	});
+};
+
+hrms_addon.take_quiz = function (assignment, done) {
+	frappe.xcall("hrms_addon.hrms_addon.learning_library.quiz", { assignment: assignment }).then((quiz) => {
+		const fields = (quiz.questions || []).map((question, index) => ({
+			fieldname: question.name,
+			fieldtype: question.options.length ? "Select" : "Data",
+			label: `${index + 1}. ${question.question}`,
+			options: question.options.length ? [""].concat(question.options).join("\n") : undefined,
+		}));
+		const dialog = new frappe.ui.Dialog({
+			title: quiz.title,
+			fields: fields,
+			primary_action_label: __("Submit"),
+			primary_action(values) {
+				frappe
+					.xcall("hrms_addon.hrms_addon.learning_library.submit_quiz", { assignment: assignment, answers: JSON.stringify(values) }, "POST")
+					.then((found) => {
+						dialog.hide();
+						frappe.msgprint(__("{0}%: {1} (pass mark {2}%).", [found.score, __(found.status), found.pass_mark]));
+						done && done();
+					});
+			},
+		});
+		dialog.show();
+	});
+};

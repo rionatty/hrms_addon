@@ -121,3 +121,5 @@ hrms_addon.patches.v1_0.talent_indexes
 hrms_addon.patches.v1_0.lms_indexes
 # Learning: HR's own list of KPIs and kinds of test, the programmes' Other KPIs moved onto it
 hrms_addon.patches.v1_0.lms_training_kpis
+# Learning: one competency framework, its categories seeded and the skills placed in them
+hrms_addon.patches.v1_0.lms_competency_framework

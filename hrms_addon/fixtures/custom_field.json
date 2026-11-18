@@ -11594,7 +11594,7 @@
   "dt": "Skill",
   "fieldname": "custom_branch",
   "fieldtype": "Link",
-  "insert_after": "custom_skill_type",
+  "insert_after": "custom_competency_category",
   "module": "HRMS Addon",
   "label": "Plant",
   "options": "Branch",
@@ -13300,5 +13300,62 @@
   "module": "HRMS Addon",
   "label": "Training Provider",
   "options": "Training Provider"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Skill-custom_competency_category",
+  "dt": "Skill",
+  "fieldname": "custom_competency_category",
+  "fieldtype": "Link",
+  "insert_after": "custom_skill_type",
+  "module": "HRMS Addon",
+  "label": "Category",
+  "options": "Competency Category",
+  "in_standard_filter": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Skill-custom_cover_per_shift",
+  "dt": "Skill",
+  "fieldname": "custom_cover_per_shift",
+  "fieldtype": "Int",
+  "insert_after": "custom_certification",
+  "module": "HRMS Addon",
+  "label": "Needed per Shift",
+  "non_negative": 1,
+  "description": "Blank: Learning Settings."
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Skill-custom_framework_section",
+  "dt": "Skill",
+  "fieldname": "custom_framework_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_cover_per_shift",
+  "module": "HRMS Addon",
+  "label": "Levels and Machines",
+  "collapsible": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Skill-custom_level_descriptors",
+  "dt": "Skill",
+  "fieldname": "custom_level_descriptors",
+  "fieldtype": "Table",
+  "insert_after": "custom_framework_section",
+  "module": "HRMS Addon",
+  "label": "Levels",
+  "options": "Skill Level Descriptor"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Skill-custom_machines",
+  "dt": "Skill",
+  "fieldname": "custom_machines",
+  "fieldtype": "Table",
+  "insert_after": "custom_level_descriptors",
+  "module": "HRMS Addon",
+  "label": "Machines",
+  "options": "Skill Machine"
  }
 ]
