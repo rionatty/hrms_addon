@@ -15,6 +15,18 @@ frappe.ui.form.on("Graduate Trainee Program", {
 				frappe.set_route("Form", "Talent Placement", frm.doc.placement)
 			);
 		}
+		if (!frm.is_new() && frm.doc.docstatus === 0) {
+			frm.add_custom_button(__("Assess a Rotation"), () =>
+				frappe.new_doc("Rotation Assessment", { trainee_program: frm.doc.name }), __("Record"));
+			frm.add_custom_button(__("Mentoring Session"), () =>
+				frappe.new_doc("Mentoring Session", { trainee_program: frm.doc.name, mentor: frm.doc.mentor }), __("Record"));
+		}
+		if (!frm.is_new()) {
+			frm.add_custom_button(__("Rotation Assessments"), () =>
+				frappe.set_route("List", "Rotation Assessment", { trainee_program: frm.doc.name }), __("View"));
+			frm.add_custom_button(__("Mentoring Sessions"), () =>
+				frappe.set_route("List", "Mentoring Session", { trainee_program: frm.doc.name }), __("View"));
+		}
 	},
 	say_where(frm) {
 		frm.dashboard.clear_headline();

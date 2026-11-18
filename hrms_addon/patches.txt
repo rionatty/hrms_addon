@@ -110,3 +110,10 @@ hrms_addon.patches.v1_0.advance_tick_on_salary_tab
 hrms_addon.patches.v1_0.board_facts_from_snapshots
 hrms_addon.patches.v1_0.board_fact_indexes
 hrms_addon.patches.v1_0.board_member_access
+hrms_addon.patches.v1_0.talent_client_grid
+hrms_addon.patches.v1_0.talent_potential_by_rater
+hrms_addon.patches.v1_0.talent_calibration_to_log
+hrms_addon.patches.v1_0.talent_plan_actions
+hrms_addon.patches.v1_0.talent_review_plants
+hrms_addon.patches.v1_0.talent_permissions
+hrms_addon.patches.v1_0.talent_indexes

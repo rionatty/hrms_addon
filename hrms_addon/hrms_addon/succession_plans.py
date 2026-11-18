@@ -8,10 +8,13 @@ talent.py section 4).
 
   plan_validate    each role's bench as the role holds it, the plan's figures,
                    no role in two plans of a year, the step checked and stamped
-  plan_on_update   sent to the council: every role still nominating goes with it
-  plan_on_submit   finalised: the council confirms every role before it, and
-                   each confirmation does what the role's own does (successors
-                   developed, a gap raised to resourcing)
+  plan_on_update   sent to the council: every role still nominating goes with
+                   it, in the background (talent_jobs), one digest a person
+  plan_on_submit   finalised: the council confirms every role before it, in
+                   the background, and each confirmation does what the role's
+                   own does (successors developed, a gap raised to
+                   resourcing); a role that cannot be confirmed is left in
+                   the job's log with the reason
   get_positions    the year's roles for the plan's company, plant and department
   refresh_plan     a finalised plan's benches read again
 """
@@ -20,7 +23,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, today
 
-from hrms_addon.hrms_addon import people, succession_plan_approval as approval
+from hrms_addon.hrms_addon import people, succession_plan_approval as approval, talent_jobs
 
 PLAN = "Succession Plan"
 ROW = "Succession Plan Position"
@@ -105,29 +108,42 @@ def plan_on_update(doc):
     old_state = before.get("workflow_state") if before else None
     if old_state == doc.get("workflow_state") or doc.get("workflow_state") != approval.COUNCIL_REVIEW:
         return
-    _move(approval.to_send([{"succession_position": row.succession_position, "state": row.position_state}
-                            for row in doc.get("positions") or []]), "Send to Council")
-    _refresh(doc)
-    users = people.people_for(COUNCIL, doc.get("branch"), doc.get("department"))
-    if users:
-        people.notify(users, PLAN, doc.name, _("{0} is with the council: {1} role(s), {2} of them a gap.").format(
-            doc.get("title") or doc.name, cint(doc.total_positions), cint(doc.gaps)))
+    roles = approval.to_send([{"succession_position": row.succession_position, "state": row.position_state}
+                              for row in doc.get("positions") or []])
+    talent_jobs.start("plan_send", PLAN, doc.name, "hrms_addon.hrms_addon.succession_plans.move_job",
+                      plan=doc.name, positions=roles, action="Send to Council")
 
 
 def plan_on_submit(doc):
-    """Finalised: the council confirms every role before it."""
-    _move(approval.to_confirm([{"succession_position": row.succession_position, "state": row.position_state}
-                               for row in doc.get("positions") or []]), "Confirm")
-    _refresh(doc)
+    """Finalised: the council confirms every role before it, in the background."""
+    roles = approval.to_confirm([{"succession_position": row.succession_position, "state": row.position_state}
+                                 for row in doc.get("positions") or []])
+    talent_jobs.start("plan_finalise", PLAN, doc.name, "hrms_addon.hrms_addon.succession_plans.move_job",
+                      plan=doc.name, positions=roles, action="Confirm")
 
 
-def _move(positions, action):
-    """Each role taken its own step, as the user taking the plan's: a role
-    that refuses stops the plan's step with its own reason."""
+def move_job(context, plan, positions, action):
+    """Each role taken its own step, as the user taking the plan's; a role
+    that refuses is left with its reason. Then the plan reads its roles
+    again, and the council hears once."""
     from frappe.model.workflow import apply_workflow
 
-    for name in positions:
-        apply_workflow(frappe.get_doc(POSITION, name), action)
+    context.doctype = POSITION
+    titles = {row.name: row.designation for row in frappe.get_all(
+        POSITION, filters={"name": ["in", positions or []]}, fields=["name", "designation"])} if positions else {}
+    context.each(positions or [], lambda name: apply_workflow(frappe.get_doc(POSITION, name), action),
+                 label=lambda name: titles.get(name) or name)
+    doc = frappe.get_doc(PLAN, plan)
+    _refresh(doc)
+    users = people.people_for(COUNCIL, doc.get("branch"), doc.get("department"))
+    if action == "Send to Council":
+        message = _("{0} is with the council: {1} role(s), {2} of them a gap.").format(
+            doc.get("title") or doc.name, cint(doc.total_positions), cint(doc.gaps))
+    else:
+        message = _("{0} is finalised: {1} role(s) confirmed, {2} left with a reason.").format(
+            doc.get("title") or doc.name, context.done, len(context.left))
+    talent_jobs.tell(list(users) + list(people.hr_officers(doc.get("branch"), doc.get("department"))), PLAN,
+                     doc.name, message)
 
 
 def _refresh(doc):

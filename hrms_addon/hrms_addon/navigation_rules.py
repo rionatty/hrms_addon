@@ -257,6 +257,19 @@ CARDS = {
             ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE),
             ("Succession Coverage", "Succession Coverage", REPORT),
             ("Performance Analytics", "Performance Analytics", REPORT),
+            # the talent rebuild (18 Nov 2026): the executives' page, potential
+            # by rater, calibration by session, pools and flight risk
+            ("Talent Command", "talent-command", PAGE),
+            ("Potential Assessment", "Potential Assessment", DOCTYPE),
+            ("Calibration Session", "Calibration Session", DOCTYPE),
+            ("Talent Pool", "Talent Pool", DOCTYPE),
+            ("Flight Risk Assessment", "Flight Risk Assessment", DOCTYPE),
+        ]),
+        # the graduate pipeline in depth (graduates.py)
+        ("Graduate Trainees", [
+            ("Graduate Cohort", "Graduate Cohort", DOCTYPE),
+            ("Rotation Assessment", "Rotation Assessment", DOCTYPE),
+            ("Mentoring Session", "Mentoring Session", DOCTYPE),
         ]),
         # the grid as HR keep it (talent_masters.py, 17 Nov 2026)
         ("Talent Setup", [
@@ -265,6 +278,9 @@ CARDS = {
             ("Nine Box", "Nine Box", DOCTYPE),
             ("Readiness Level", "Readiness Level", DOCTYPE),
             ("Talent Settings", "Talent Settings", DOCTYPE),
+            ("Potential Criterion", "Potential Criterion", DOCTYPE),
+            ("Criticality Factor", "Criticality Factor", DOCTYPE),
+            ("Retention Driver", "Retention Driver", DOCTYPE),
         ]),
         # what talent comes to, month by month and person by person (5 Oct 2026)
         ("Talent Reports", [
@@ -276,6 +292,9 @@ CARDS = {
             ("Programme Effectiveness", "Programme Effectiveness", REPORT),
             ("Graduate Trainee Progress", "Graduate Trainee Progress", REPORT),
             ("Talent Movement", "Talent Movement", REPORT),
+            # what was moved in calibration, and what each background step did
+            ("Talent Calibration Log", "Talent Calibration Log", DOCTYPE),
+            ("Talent Job Log", "Talent Job Log", DOCTYPE),
         ]),
         # the plant's HR Manufacturing Excellence workbook, on the desk
         # (excellence.py, 17 Nov 2026)
@@ -610,6 +629,20 @@ SIDEBAR = {
         ("Succession Plan", "Succession Plan", DOCTYPE, None, "Succession Position"),
         ("Graduate Trainee Program", "Graduate Trainee Program", DOCTYPE, None,
          "Succession Plan"),
+        # the talent rebuild (18 Nov 2026), each in the Talent group (GROUPS)
+        ("Talent Command", "talent-command", PAGE, None, None),
+        ("Potential Assessment", "Potential Assessment", DOCTYPE, None, "Talent Placement"),
+        ("Calibration Session", "Calibration Session", DOCTYPE, None, "Potential Assessment"),
+        ("Talent Pool", "Talent Pool", DOCTYPE, None, "Succession Plan"),
+        ("Flight Risk Assessment", "Flight Risk Assessment", DOCTYPE, None, "Talent Pool"),
+        ("Graduate Cohort", "Graduate Cohort", DOCTYPE, None, "Graduate Trainee Program"),
+        ("Rotation Assessment", "Rotation Assessment", DOCTYPE, None, "Graduate Cohort"),
+        ("Mentoring Session", "Mentoring Session", DOCTYPE, None, "Rotation Assessment"),
+        ("Talent Calibration Log", "Talent Calibration Log", DOCTYPE, "Reports", None),
+        ("Talent Job Log", "Talent Job Log", DOCTYPE, "Reports", None),
+        ("Potential Criterion", "Potential Criterion", DOCTYPE, "Setup", None),
+        ("Criticality Factor", "Criticality Factor", DOCTYPE, "Setup", None),
+        ("Retention Driver", "Retention Driver", DOCTYPE, "Setup", None),
         # Manufacturing Excellence (excellence.py, 17 Nov 2026)
         ("Shift Report", "Shift Report", DOCTYPE, None, "Graduate Trainee Program"),
         ("People Log", "People Log", DOCTYPE, None, "Shift Report"),
@@ -818,8 +851,10 @@ GROUPS = {
                                 "Appraisal Results", "Performance Improvement Plan"]),
         ("Goals and Feedback", "target", ["Goal", "Employee Performance Feedback"]),
         ("Promotions", "trending-up", ["Employee Promotion", "Employee Position Change"]),
-        ("Talent", "award", ["talent-board", "Talent Review", "Talent Placement", "Talent Program",
-                             "Succession Position", "Succession Plan", "Graduate Trainee Program"]),
+        ("Talent", "award", ["talent-command", "talent-board", "Talent Review", "Talent Placement",
+                             "Potential Assessment", "Calibration Session", "Talent Program", "Succession Position",
+                             "Succession Plan", "Talent Pool", "Flight Risk Assessment", "Graduate Trainee Program",
+                             "Graduate Cohort", "Rotation Assessment", "Mentoring Session"]),
         ("Manufacturing Excellence", "factory", ["Shift Report", "People Log", "HR Intervention"]),
     ],
     "Loans": [
@@ -888,6 +923,13 @@ SHORT_LABELS = {
     "Talent Program": "Program",
     "Succession Position": "Succession",
     "Graduate Trainee Program": "Graduate Trainees",
+    "Potential Assessment": "Potential",
+    "Calibration Session": "Calibration",
+    "Talent Pool": "Pools",
+    "Flight Risk Assessment": "Flight Risk",
+    "Graduate Cohort": "Cohorts",
+    "Rotation Assessment": "Rotation Assessments",
+    "Mentoring Session": "Mentoring",
     "Salary Advance Request": "Advance Request",
     "Salary Advance Processing": "Advance Processing",
     "Employee Penalty": "Penalty",

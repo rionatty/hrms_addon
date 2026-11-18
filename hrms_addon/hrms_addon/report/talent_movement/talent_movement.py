@@ -31,6 +31,12 @@ def execute(filters=None):
         moved = rules.box_movement(before.box if before else None, after.box if after else None)
         if not moved or (filters.get("movement") and moved != filters.get("movement")):
             continue
+        if filters.get("from_box") not in (None, "") and int(filters.get("from_box") or 0) != int(
+                (before.box if before else 0) or 0):
+            continue
+        if filters.get("to_box") not in (None, "") and int(filters.get("to_box") or 0) != int(
+                (after.box if after else 0) or 0):
+            continue
         row = after or before
         data.append({
             "employee": employee, "employee_name": row.employee_name, "branch": row.branch,

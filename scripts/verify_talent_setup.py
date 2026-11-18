@@ -77,16 +77,17 @@ kept = R.grid_from([{"name": "Low", "score_from": 0}, {"name": "Meeting", "score
                    [{"box": 9, "box_name": "Top Talent", "colour": "Green", "default_action": "Keep and grow",
                      "suggested_decision": "Promotion", "top_talent": 1},
                     {"box": 6, "box_name": "Future Leader", "colour": "Purple", "top_talent": 0}],
-                   {"weight_ability": 2, "weight_aspiration": 1, "weight_engagement": 1, "trainee_pass_mark": 70})
+                   {"trainee_pass_mark": 70},
+                   [{"name": "Ability", "weight": 2, "active": 1}, {"name": "Aspiration", "weight": 1, "active": 1},
+                    {"name": "Old", "weight": 3, "active": 0}, {"name": "Unweighed", "weight": 0, "active": 1}])
 check("bands where HR start them: 64 is Low, 65 Meeting, 85 Exceeding",
       [R.performance_band(score, kept) for score in (64, 65, 84.9, 85)] == ["Low", "Meeting", "Meeting", "Exceeding"]
       and R.performance_band(64) == "Meeting")
 check("potential bands too", [R.potential_band(score, kept) for score in (49, 50, 75)] == ["Low", "Moderate", "High"])
-check("ability weighing twice the others: 10, 5, 5 makes 75, not 66.67",
-      R.potential_score({"ability": 10, "aspiration": 5, "engagement": 5}, kept) == 75.0
-      and R.potential_score({"ability": 10, "aspiration": 5, "engagement": 5}) == 66.67)
-check("a dimension left blank is still not counted, weights or no weights",
-      R.potential_score({"ability": 8}, kept) == 80.0 and R.potential_score({}, kept) is None)
+check("the criteria weighed as kept: an inactive one or one weighing nought is left out",
+      kept["weights"] == {"Ability": 2.0, "Aspiration": 1.0}, kept["weights"])
+check("the guide's shares as kept, the built-in ones where none is",
+      kept["boxes"][("Exceeding", "High")]["guide"] == R.GUIDE[9] and abs(sum(R.GUIDE.values()) - 100) < 0.01)
 check("a box named, coloured and decided as HR keep it; a colour the grid does not have is not taken",
       R.box_for("Exceeding", "High", kept)["name"] == "Top Talent"
       and R.box_for("Exceeding", "High", kept)["decision"] == "Promotion"
@@ -106,9 +107,14 @@ check("half a set of bands, or one that does not climb, is not taken",
       R.grid_from([{"name": "Low", "score_from": 0}])["performance_bands"] == R.PERFORMANCE_BANDS
       and R.grid_from([{"name": "Low", "score_from": 0}, {"name": "Meeting", "score_from": 90},
                        {"name": "Exceeding", "score_from": 80}])["performance_bands"] == R.PERFORMANCE_BANDS)
-check("weights all nought fall back to equal",
-      R.grid_from(settings={"weight_ability": 0, "weight_aspiration": 0, "weight_engagement": 0})["weights"]
-      == {"ability": 1.0, "aspiration": 1.0, "engagement": 1.0})
+check("no criteria kept: no weights (each rating then counts once)", R.grid_from()["weights"] == {})
+check("the boxes in the blueprint's own words",
+      [R.BOXES[key]["name"] for key in sorted(R.BOXES, key=lambda key: R.BOXES[key]["box"])]
+      == ["Under-performer", "Inconsistent Player", "Growth Talent", "Effective / Specialist", "Core Player",
+          "Future Leader", "Trusted Professional", "High Performer", "Star / Top Talent"]
+      and R.BOXES[("Exceeding", "High")]["action"] == "Retain, reward, fast-track, successor."
+      and R.BOXES[("Low", "Low")]["action"] == "Formal PMS support; decide.")
+check("the old seed kept for the patch that renames it", R.OLD_SEED[9][0] == "Star" and len(R.OLD_SEED) == 9)
 check("bands refused: not from nought, not climbing, at or over a hundred",
       R.band_errors([("Low", 0), ("Meeting", 60), ("Exceeding", 80)]) == []
       and R.band_errors([("Low", 5), ("Meeting", 60), ("Exceeding", 80)]) == ["The lowest band starts at 0."]
@@ -177,6 +183,16 @@ check("HR, the council and those who oversee see everything their roles open",
       and A.narrowed(["Supervisor", "Employee"]) and A.narrowed(["Head of Department"]) and A.narrowed(["Employee"]))
 check("a team is everyone below, directly or through others",
       A.team_from("M", {"M": ["A", "B"], "A": ["C"], "C": ["D"], "X": ["Y"]}) == {"A", "B", "C", "D"})
+TREE = A.scope_of(["Supervisor"], "M", (), (), tree=(10, 20), user="m@x")
+check("a manager's team read off the Employee tree: strictly inside their lft and rgt",
+      A.visible("Talent Placement", {"employee": "C", "employee_place": (11, 12)}, TREE)
+      and not A.visible("Talent Placement", {"employee": "Q", "employee_place": (21, 22)}, TREE)
+      and not A.visible("Talent Placement", {"employee": "M", "employee_place": (10, 20)}, TREE)
+      and "ha_team.lft > 10 and ha_team.rgt < 20" in A.conditions("Talent Placement", TREE, lambda v: "'%s'" % v))
+check("an employee's tree place gives no team", A.scope_of(["Employee"], "E", tree=(1, 9))["tree"] is None)
+check("a rater sees the assessments they made",
+      A.visible("Potential Assessment", {"employee": "Q", "rater": "m@x"}, TREE)
+      and "`rater` = 'm@x'" in A.conditions("Potential Assessment", TREE, lambda v: "'%s'" % v))
 SUP = A.scope_of(["Supervisor", "Employee"], "M", {"A", "C"})
 HOD = A.scope_of(["Head of Department"], "H", (), {"Extrusion"})
 EMP = A.scope_of(["Employee"], "E", {"Z"}, {"Printing"})
@@ -216,17 +232,16 @@ PLANS = read("hrms_addon", "hrms_addon", "succession_plans.py")
 ACCESS = read("hrms_addon", "hrms_addon", "talent_access.py")
 HOOKS = read("hrms_addon", "hooks.py")
 for needle, what in (('rules.performance_band(year["score"], masters.grid())', "performance read on the bands kept"),
-                     ('"engagement": doc.get("engagement")}, masters.grid())', "potential weighed as kept"),
-                     ("rules.potential_band(doc.potential_score, masters.grid())", "potential on the bands kept"),
+                     ("potential.fill_placement(doc)", "potential from the raters' assessments"),
                      ('rules.is_top_talent(box["box"], masters.grid())', "top talent as flagged"),
                      ("rules.is_top_talent(box, masters.grid())", "the programme a box asks for, as flagged"),
-                     ('doc.get("flight_risk") in masters.watched_risks()', "the flight risks alerted on"),
+                     ("watched = masters.watched_risks()", "the flight risks alerted on"),
                      ('pass_mark=masters.grid()["pass_mark"]', "the trainee pass mark kept"),
                      ('"target_box": _nine_box(rules.target_box(doc.get("box")))', "a plan's target box"),
                      ("    _mark_targets(doc)", "earlier plans told whether their target is reached"),
                      ("masters.suggested_readiness(", "a successor's readiness suggested from their box")):
     check("talent.py: " + what, needle in TALENT)
-raise_due = body_of(TALENT, "_raise_due_milestones")
+raise_due = body_of(TALENT, "_raise_due_milestones") + body_of(TALENT, "_raise_milestones_by")
 check("talent.py: a milestone falling due moves the trainee to Under Assessment, which raises the appraisal",
       "apply_workflow(trainee, approval.ASSESS)" in raise_due and 'cint(s.get("milestone_lead_days"))' in raise_due
       and '"appraisal": ["is", "not set"]' in raise_due and "approval.IN_ROTATION" in raise_due)
@@ -238,10 +253,14 @@ check("talent_masters: band names stay, each band above the one below",
 check("talent_masters: the grid read once a request and forgotten when a master changes",
       'getattr(frappe.local, _CACHE, None)' in MASTERS and "forget()" in body_of(MASTERS, "master_on_update"))
 check("talent_masters: seeded once from the built-in grid", all(needle in body_of(MASTERS, "setup_on_migrate") for needle in
-                                                                ("rules.BOXES", "READINESS_SEED", "SETTINGS_SEED")))
-check("succession_plans: each role takes its own step with the plan's, as the user taking it",
+                                                                ("rules.BOXES", "READINESS_SEED", "SETTINGS_SEED",
+                                                                 "_seed_lists()")))
+check("talent_masters: Ready Now drawn from boxes 9 and 6", "(rules.READY_NOW, \"Within 3 months\", (9, 6))" in MASTERS)
+check("succession_plans: each role takes its own step with the plan's, as the user taking it, in the background",
       "apply_workflow(frappe.get_doc(POSITION, name), action)" in PLANS
-      and '"Send to Council")' in body_of(PLANS, "plan_on_update") and '"Confirm")' in body_of(PLANS, "plan_on_submit"))
+      and 'action="Send to Council")' in body_of(PLANS, "plan_on_update")
+      and 'action="Confirm")' in body_of(PLANS, "plan_on_submit")
+      and "talent_jobs.start(" in body_of(PLANS, "plan_on_submit"))
 check("succession_plans: no role in two plans of a year", "is already in {1}" in PLANS
       and '"plan_year": doc.get("plan_year")' in PLANS)
 check("talent_access: has_permission answers a bool", all(
@@ -270,9 +289,10 @@ check("a box: its number set once, its bands read-only, a colour of the grid's, 
       and nine["suggested_decision"]["options"].split("\n") == list(R.DECISIONS) and "top_talent" in nine)
 check("readiness: drawn from boxes", fields("Readiness Level")["boxes"]["options"] == "Readiness Level Box")
 settings = fields("Talent Settings")
-check("Talent Settings: the weights, the flight risks, the pass mark, the milestones",
-      {"weight_ability", "weight_aspiration", "weight_engagement", "watch_high", "watch_medium", "trainee_pass_mark",
-       "auto_milestones", "milestone_lead_days"} <= set(settings))
+check("Talent Settings: the raters' spread, the flight risks, the probabilities, the guide, the pass mark",
+      {"rater_spread", "watch_high", "watch_medium", "probability_high", "probability_medium", "probability_low",
+       "retirement_months", "guide_tolerance", "trainee_pass_mark", "auto_milestones", "milestone_lead_days",
+       "rotation_criteria"} <= set(settings) and not {"weight_ability", "weight_aspiration"} & set(settings))
 plan = fields("Succession Plan")
 check("the plan: year, scope, roles, bench, council, stamps",
       {"plan_year", "company", "branch", "department", "plan_owner", "positions", "total_positions", "gaps",

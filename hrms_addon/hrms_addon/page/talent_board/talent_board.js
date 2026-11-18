@@ -6,12 +6,14 @@
  * Three views of the same people:
  *   Nine-box     everyone in a review in their cell, filtered by plant,
  *                department and grade; the talent card of whoever is
- *                clicked opens beside the grid. In calibration HR moves a
- *                person up or down their column by dragging them, and says
- *                why: performance is the appraisal's, so a move across
- *                columns is refused. The steps taken for everybody at once
- *                — send to the council, finalise, return — are in the
- *                Actions menu, each placement taken as it is on its form.
+ *                clicked opens beside the grid. In calibration HR move a
+ *                person on either axis by dragging them, and say why; the
+ *                move goes into the calibration session that covers them
+ *                (applied when it is submitted) or straight on. Each box
+ *                shows its first people and pages through the rest. The
+ *                steps taken for everybody at once (send to the council,
+ *                finalise, return) are in the Actions menu and run in the
+ *                background, the board following their progress.
  *   Succession   every critical role with its holder, the risk of losing
  *                them and the successors named by readiness, gaps first
  *   Trainees     every graduate trainee by the stage they are at, with
@@ -28,8 +30,6 @@ frappe.provide("hrms_addon");
 const TB_ORDER = [[3, 6, 9], [2, 5, 8], [1, 4, 7]];
 const TB_POTENTIAL = ["High", "Moderate", "Low"];
 const TB_PERFORMANCE = ["Low", "Meeting", "Exceeding"];
-// box -> its column (performance band)
-const TB_COLUMN = { 1: "Low", 2: "Low", 3: "Low", 4: "Meeting", 5: "Meeting", 6: "Meeting", 7: "Exceeding", 8: "Exceeding", 9: "Exceeding" };
 const TB_SHOWN = 6;
 // the page's three views: name -> (label, method, the filters it reads)
 const TB_VIEWS = {
@@ -46,7 +46,7 @@ const TB_STYLE = `
 .tb-title { font-size: 18px; font-weight: 600; color: var(--heading-color, var(--text-color)); }
 .tb-pill { border-radius: 999px; padding: 2px 10px; font-size: 12px; background: var(--control-bg); color: var(--text-muted); }
 .tb-pill.tb-live { background: #FBF1D3; color: #6B4F00; }
-.tb-tiles { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tb-tiles { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 .tb-tile { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; }
 .tb-tile small { display: block; color: var(--text-muted); font-size: 11.5px; }
 .tb-tile b { font-size: 20px; font-weight: 600; }
@@ -178,7 +178,36 @@ hrms_addon.TalentBoard = class TalentBoard {
 		page.set_secondary_action(__("Refresh"), () => this.refresh(), "refresh");
 		this.picked = null;
 		this.open = {};
+		this.more = {};
 		this.view = "grid";
+		page.add_inner_button(__("Talent Command"), () => frappe.set_route("talent-command"));
+	}
+
+	// a background step followed to its end: its progress shown, then what it did
+	follow(log, title) {
+		const dialog = frappe.show_progress(title, 0, 100, __("Queued"));
+		const done = (state) => {
+			frappe.realtime.off("talent_job", handler);
+			dialog.hide();
+			frappe.xcall("hrms_addon.hrms_addon.talent_jobs.get_log", { log }).then((found) => {
+				const left = found.lines || [];
+				frappe.msgprint({
+					title,
+					indicator: left.length ? "orange" : "green",
+					message: frappe.utils.escape_html(found.summary || "") + (left.length
+						? "<br><br>" + __("Left as they were:") + "<ul>" + left.map(([who, why]) =>
+							`<li>${frappe.utils.escape_html(who || "")}: ${frappe.utils.escape_html(why || "")}</li>`).join("") + "</ul>"
+						: ""),
+				});
+				this.refresh();
+			});
+		};
+		const handler = (message) => {
+			if (!message || message.log !== log) return;
+			frappe.show_progress(title, message.progress || 0, 100, __("{0} of {1}", [message.done + message.left, message.total]));
+			if (message.finished) done(message.status);
+		};
+		frappe.realtime.on("talent_job", handler);
 	}
 
 	// a plan picked: the board shows its latest review, so whichever review
@@ -264,7 +293,8 @@ hrms_addon.TalentBoard = class TalentBoard {
 		const board = data.board || { cells: [], unplaced: [], total: 0 };
 		const strips = data.strips || {};
 		const states = data.states || {};
-		const waiting = (board.unplaced || []).length;
+		const waiting = board.waiting || 0;
+		const off = (data.guide || []).filter((row) => row.variance !== null && row.variance !== undefined && Math.abs(row.variance) > 5);
 		const tile = (label, value, extra) =>
 			`<div class="tb-tile"><small>${esc(label)}</small><b>${value}</b>${extra ? `<em>${extra}</em>` : ""}</div>`;
 		const strip = (name) => (strips[name] || { count: 0, share: 0 });
@@ -284,21 +314,34 @@ hrms_addon.TalentBoard = class TalentBoard {
 				${tile(__("Needs attention"), strip("attention").count, `${strip("attention").share}%`)}
 				${tile(__("Top talent at risk"), data.flight_risk || 0)}
 				${tile(__("On an improvement plan"), data.on_pip || 0)}
-				${tile(__("Moved in calibration"), (data.movers || []).length)}
+				${tile(__("Moved in calibration"), (data.movers || []).length, data.pending ? __("{0} pending", [data.pending]) : "")}
+				${tile(__("Raters disagree"), data.disagree || 0)}
+				${tile(__("Boxes off the guide"), off.length, off.map((row) => row.box).join(", "))}
 			</div>
 			<div class="tb-main">
 				<div class="tb-grid">${this.grid(board)}</div>
 				<div class="tb-panel"><div class="tb-panel-empty">${esc(__("Click a person to see their talent card."))}</div></div>
 			</div>
 			<div class="tb-lower">
-				<div class="tb-box"><h6>${esc(__("Waiting to be placed"))}</h6>${board.total || (board.unplaced || []).length
-					? this.waiting(board.unplaced || []) : this.nobody(data)}</div>
+				<div class="tb-box"><h6>${esc(__("Waiting to be placed"))} ${waiting ? `(${waiting})` : ""}</h6>${board.total || waiting
+					? this.waiting(board.unplaced || [], waiting) : this.nobody(data)}</div>
 				<div class="tb-box"><h6>${esc(__("Moved in calibration"))}</h6>${this.movers(data.movers || [])}</div>
 			</div>`);
 		this.bind();
 		this.body.find(".tb-draft").on("click", () =>
 			frappe.xcall("hrms_addon.hrms_addon.talent.draft_placements", { review: data.review.name })
-				.then(() => this.refresh()));
+				.then((result) => {
+					if (result && result.log) this.follow(result.log, __("Draft Placements"));
+					else this.refresh();
+				}));
+		this.body.find(".tb-load-waiting").on("click", (event) => {
+			const shown = this.body.find(".tb-waiting tr").length;
+			frappe.xcall("hrms_addon.hrms_addon.talent_board.get_waiting", Object.assign({ review: data.review.name, start: shown }, this.args()))
+				.then((rows) => {
+					this.body.find(".tb-waiting").append(this.waiting_rows(rows || []));
+					if (shown + (rows || []).length >= waiting) $(event.currentTarget).remove();
+				});
+		});
 		this.actions(data);
 		if (this.picked) this.show_card(this.picked);
 	}
@@ -311,16 +354,18 @@ hrms_addon.TalentBoard = class TalentBoard {
 		TB_ORDER.forEach((row, index) => {
 			html += `<div class="tb-axis tb-y">${esc(__("{0} potential", [__(TB_POTENTIAL[index])]))}</div>`;
 			row.forEach((box) => {
-				const cell = cells[box] || { box, name: "", colour: "", action: "", people: [] };
+				const cell = cells[box] || { box, name: "", colour: "", action: "", people: [], count: 0 };
 				const tint = hrms_addon.talent_card.tints[cell.colour] || ["var(--control-bg)", "var(--text-color)"];
-				const people = cell.people || [];
+				const people = (cell.people || []).concat(this.more[box] || []);
+				const count = cell.count || people.length;
 				const shown = this.open[box] ? people : people.slice(0, TB_SHOWN);
+				const rest = this.open[box] ? count - people.length : count - shown.length;
 				html += `<div class="tb-cell" data-box="${box}" style="background:${tint[0]};color:${tint[1]}">
-					<div class="tb-cell-head"><span>${box} · ${esc(__(cell.name))}</span><span>${people.length}</span></div>
+					<div class="tb-cell-head"><span>${box} · ${esc(__(cell.name))}</span><span>${count}</span></div>
 					<div class="tb-cell-act">${esc(__(cell.action))}</div>
 					${shown.map((person) => this.chip(person)).join("")}
-					${people.length > TB_SHOWN ? `<div class="tb-more" data-more="${box}">${esc(this.open[box]
-						? __("Show fewer") : __("{0} more", [people.length - TB_SHOWN]))}</div>` : ""}
+					${rest > 0 ? `<div class="tb-more" data-more="${box}">${esc(__("{0} more", [rest]))}</div>` : ""}
+					${this.open[box] && people.length > TB_SHOWN ? `<div class="tb-more" data-fewer="${box}">${esc(__("Show fewer"))}</div>` : ""}
 				</div>`;
 			});
 		});
@@ -338,6 +383,10 @@ hrms_addon.TalentBoard = class TalentBoard {
 			flags.push(`<span class="tb-flag tb-risk" title="${esc(__("Flight risk {0}", [__(person.flight_risk)]))}">${esc(__("Risk"))}</span>`);
 		}
 		if (person.moved) flags.push(`<span class="tb-flag tb-moved" title="${esc(__("Moved in calibration"))}">${esc(__("Moved"))}</span>`);
+		if (person.pending_box) {
+			flags.push(`<span class="tb-flag tb-moved" title="${esc(__("Moved to box {0} in a calibration session, applied when it is submitted", [person.pending_box]))}">→ ${person.pending_box}</span>`);
+		}
+		if (person.raters_disagree) flags.push(`<span class="tb-flag tb-risk" title="${esc(__("Raters disagree"))}">≠</span>`);
 		const score = person.performance_score !== null && person.performance_score !== undefined
 			? format_number(person.performance_score, null, 0) : "";
 		return `<div class="tb-chip ${draggable ? "tb-drag" : ""} ${this.picked === person.employee ? "tb-picked" : ""}"
@@ -357,22 +406,28 @@ hrms_addon.TalentBoard = class TalentBoard {
 			(data.can_draft ? `<button class="btn btn-primary btn-xs tb-draft" style="margin-top:8px">${esc(__("Draft Placements"))}</button>` : "");
 	}
 
-	waiting(rows) {
+	waiting(rows, total) {
 		const esc = frappe.utils.escape_html;
 		if (!rows.length) return `<div class="tb-empty">${esc(__("Everyone in the review is placed."))}</div>`;
-		return `<table class="tb-list">${rows.map((row) => `<tr>
+		return `<table class="tb-list tb-waiting">${this.waiting_rows(rows)}</table>` + (total > rows.length
+			? `<button class="btn btn-default btn-xs tb-load-waiting" style="margin-top:8px">${esc(__("Show more"))}</button>` : "");
+	}
+
+	waiting_rows(rows) {
+		const esc = frappe.utils.escape_html;
+		return rows.map((row) => `<tr>
 			<td><a href="/app/talent-placement/${encodeURIComponent(row.name)}">${esc(row.employee_name || row.employee)}</a></td>
 			<td>${esc(row.designation || "")}</td>
 			<td>${esc(row.performance_score === null || row.performance_score === undefined
-				? __("No completed appraisal this year") : __("Potential not rated"))}</td></tr>`).join("")}</table>`;
+				? __("No completed appraisal this year") : __("Potential not rated"))}</td></tr>`).join("");
 	}
 
 	movers(rows) {
 		const esc = frappe.utils.escape_html;
 		if (!rows.length) return `<div class="tb-empty">${esc(__("Nobody has been moved."))}</div>`;
 		return `<table class="tb-list">${rows.map((row) => `<tr>
-			<td>${esc(row.employee_name || row.employee)}</td>
-			<td>${row.from_box} → ${row.to_box}</td>
+			<td>${esc(row.employee_name || row.employee)}${row.event === "Proposed" ? ` <span class="tb-flag tb-moved">${esc(__("Pending"))}</span>` : ""}</td>
+			<td>${row.from_box || ""} → ${row.to_box || ""}${row.axis ? ` <span class="text-muted">${esc(__(row.axis))}</span>` : ""}</td>
 			<td>${esc(row.reason || "")}</td>
 			<td class="text-muted">${esc(frappe.user.full_name(row.moved_by) || row.moved_by || "")}</td></tr>`).join("")}</table>`;
 	}
@@ -386,8 +441,23 @@ hrms_addon.TalentBoard = class TalentBoard {
 			this.show_card(this.picked);
 		});
 		this.body.find("[data-more]").on("click", (event) => {
-			const box = $(event.currentTarget).attr("data-more");
-			this.open[box] = !this.open[box];
+			const box = parseInt($(event.currentTarget).attr("data-more"), 10);
+			const cell = (this.data.board.cells || []).find((each) => each.box === box) || { people: [] };
+			const loaded = (cell.people || []).length + (this.more[box] || []).length;
+			if (this.open[box] && loaded < (cell.count || 0)) {
+				frappe.xcall("hrms_addon.hrms_addon.talent_board.get_cell",
+					Object.assign({ review: this.data.review.name, box, start: loaded }, this.args()))
+					.then((rows) => {
+						this.more[box] = (this.more[box] || []).concat(rows || []);
+						this.render(this.data);
+					});
+				return;
+			}
+			this.open[box] = true;
+			this.render(this.data);
+		});
+		this.body.find("[data-fewer]").on("click", (event) => {
+			this.open[$(event.currentTarget).attr("data-fewer")] = false;
 			this.render(this.data);
 		});
 		this.body.find(".tb-chip[draggable]").on("dragstart", (event) => {
@@ -400,9 +470,9 @@ hrms_addon.TalentBoard = class TalentBoard {
 			.on("dragover", (event) => {
 				if (!this.dragging) return;
 				const box = parseInt($(event.currentTarget).attr("data-box"), 10);
-				const same = TB_COLUMN[box] === TB_COLUMN[this.dragging.box];
-				$(event.currentTarget).toggleClass("tb-over", same).toggleClass("tb-refuse", !same);
-				if (same) event.preventDefault();
+				const other = box !== this.dragging.box;
+				$(event.currentTarget).toggleClass("tb-over", other);
+				if (other) event.preventDefault();
 			})
 			.on("dragleave drop", (event) => $(event.currentTarget).removeClass("tb-over tb-refuse"))
 			.on("drop", (event) => {
@@ -438,7 +508,12 @@ hrms_addon.TalentBoard = class TalentBoard {
 						placement: moving.placement, to_box: box, reason: values.reason,
 					})
 					.then((result) => {
-						frappe.show_alert({ message: __("{0} moved to {1}", [moving.name, `${result.box} · ${__(result.box_name)}`]), indicator: "green" });
+						frappe.show_alert({
+							message: result.pending
+								? __("{0} moved to {1} in session {2}: applied when it is submitted", [moving.name, `${result.box} · ${__(result.box_name || "")}`, result.session])
+								: __("{0} moved to {1}", [moving.name, `${result.box} · ${__(result.box_name || "")}`]),
+							indicator: "green",
+						});
 						this.refresh();
 					}),
 			__("Move {0} to {1}", [moving.name, `${box} · ${__(cell.name || "")}`]),
@@ -487,7 +562,9 @@ hrms_addon.TalentBoard = class TalentBoard {
 			const people = (role.slate || []).filter((row) => row.readiness === readiness);
 			return `<div><h6>${esc(label)}</h6>${people.length ? people.map((row) => `<div class="tb-chip">
 				<span class="tb-av">${esc(hrms_addon.talent_card.initials(row.employee_name))}</span>
-				<span class="tb-nm">${esc(row.employee_name || row.employee)}</span>${box(row.box)}</div>`).join("")
+				<span class="tb-nm">${row.rank ? `${row.rank}. ` : ""}${esc(row.employee_name || row.employee)}</span>${box(row.box)}${
+					row.other_roles ? `<span class="tb-flag tb-risk" title="${esc(__("Named for {0} other role(s)", [row.other_roles]))}">+${row.other_roles}</span>` : ""}${
+					row.emergency_cover ? `<span class="tb-flag tb-moved" title="${esc(__("Emergency cover"))}">E</span>` : ""}</div>`).join("")
 				: `<div class="tb-none">${esc(__("Nobody"))}</div>`}</div>`;
 		}).join("");
 		const sub = [role.branch, role.department].filter(Boolean).map(esc).join(" · ");
@@ -513,7 +590,9 @@ hrms_addon.TalentBoard = class TalentBoard {
 		return `<div class="tb-role">
 			<div class="tb-role-head"><a href="/app/succession-position/${encodeURIComponent(role.name)}">${esc(role.designation || role.name)}</a>
 				<span class="tb-pill ${TB_COVERAGE[role.coverage] || ""}">${esc(__(role.coverage || "Gap"))}</span>
-				${role.risk_level ? `<span class="tb-pill ${TB_RISK[role.risk_level] || ""}">${esc(__("{0} risk if lost", [__(role.risk_level)]))}</span>` : ""}
+				${role.risk_level ? `<span class="tb-pill ${TB_RISK[role.risk_level] || ""}">${esc(role.role_risk !== null && role.role_risk !== undefined
+					? __("{0} risk if lost, {1} of 100", [__(role.risk_level), format_number(role.role_risk, null, 0)])
+					: __("{0} risk if lost", [__(role.risk_level)]))}</span>` : ""}
 				${role.single_person_role ? `<span class="tb-pill">${esc(__("One person only"))}</span>` : ""}</div>
 			<div class="tb-role-sub">${sub}</div>
 			<div class="tb-role-holder">${holder}</div>
@@ -575,16 +654,8 @@ hrms_addon.TalentBoard = class TalentBoard {
 				.xcall("hrms_addon.hrms_addon.talent_board.advance", Object.assign({ action, remarks }, this.args(),
 					{ review: this.data.review.name }))
 				.then((result) => {
-					const left = result.left || [];
-					frappe.msgprint({
-						title: __(action),
-						indicator: left.length ? "orange" : "green",
-						message: __("{0} placement(s) done.", [result.done]) + (left.length
-							? "<br><br>" + __("Left as they were:") + "<ul>" + left.map(([who, why]) =>
-								`<li>${frappe.utils.escape_html(who)}: ${frappe.utils.escape_html(why)}</li>`).join("") + "</ul>"
-							: ""),
-					});
-					this.refresh();
+					if (result && result.log) this.follow(result.log, __(action));
+					else this.refresh();
 				});
 		if (returning) {
 			frappe.prompt([{ fieldname: "remarks", fieldtype: "Small Text", label: __("What they must have before they come back"), reqd: 1 }],

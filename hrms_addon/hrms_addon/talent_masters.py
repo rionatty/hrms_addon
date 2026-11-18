@@ -14,8 +14,12 @@ rules must be configurable"). The rules are in talent_rules.py
                       it is top talent; its bands follow its number
   Readiness Level     the four readiness levels: their names and order stay,
                       their horizon and the boxes they draw from are HR's
-  Talent Settings     the potential weights, the flight risks alerted on and
-                      the trainee milestones raised ahead of their day
+  Talent Settings     the flight risks alerted on, the probability of losing
+                      a holder, when raters disagree, how far off the guide
+                      is flagged and the trainee milestones raised ahead
+  Potential Criterion what potential is rated on (potential_rules.SEED);
+  Criticality Factor  what losing a critical role costs; why people leave:
+  Retention Driver    lists made once and then HR's
   setup_on_migrate    the masters made once from the built-in grid
 """
 
@@ -30,13 +34,19 @@ PERFORMANCE, POTENTIAL, BOX, READINESS, SETTINGS = (
 BAND_NAMES = {PERFORMANCE: rules.PERFORMANCE_NAMES, POTENTIAL: rules.POTENTIAL_NAMES}
 BUILT_IN = {PERFORMANCE: rules.PERFORMANCE_BANDS, POTENTIAL: rules.POTENTIAL_BANDS}
 # the blueprint's readiness scale: (readiness, horizon, the boxes it draws from)
-READINESS_SEED = ((rules.READY_NOW, "Within 3 months", (9,)),
+# Ready now draws from the Stars and the Future Leaders (boxes 9 and 6), as
+# the blueprint's readiness scale says; 1-2 years from the Future Leaders and
+# the High Performers
+READINESS_SEED = ((rules.READY_NOW, "Within 3 months", (9, 6)),
                   (rules.READY_SOON, "Needs development first", (6, 8)),
                   (rules.EMERGING, "Longer term", (3, 5)),
                   (rules.GAP, "No internal successor", ()))
-SETTINGS_SEED = {"weight_ability": 1, "weight_aspiration": 1, "weight_engagement": 1, "watch_high": 1,
-                 "watch_medium": 1, "trainee_pass_mark": rules.PASS_MARK, "auto_milestones": 1,
-                 "milestone_lead_days": 7}
+SETTINGS_SEED = {"watch_high": 1, "watch_medium": 1, "trainee_pass_mark": rules.PASS_MARK, "auto_milestones": 1,
+                 "milestone_lead_days": 7, "rater_spread": 1, "probability_high": 60, "probability_medium": 35,
+                 "probability_low": 10, "retirement_months": 24, "guide_tolerance": 5}
+CRITERION, FACTOR, DRIVER = "Potential Criterion", "Criticality Factor", "Retention Driver"
+DRIVER_SEED = ("Pay", "Career growth", "Relationship with the manager", "Workload", "Recognition",
+               "Personal or family", "Outside offer", "Relocation", "Working conditions")
 _CACHE = "ha_talent_grid"
 
 
@@ -47,8 +57,8 @@ def grid():
     if cached is None:
         cached = rules.grid_from(_kept(PERFORMANCE, ["name", "score_from"]), _kept(POTENTIAL, ["name", "score_from"]),
                                  _kept(BOX, ["box", "box_name", "colour", "default_action", "suggested_decision",
-                                             "top_talent"]),
-                                 settings())
+                                             "top_talent", "guide_share"]),
+                                 settings(), _kept(CRITERION, ["name", "weight", "active"]))
         setattr(frappe.local, _CACHE, cached)
     return cached
 
@@ -136,14 +146,47 @@ def readiness_validate(doc):
 
 
 def settings_validate(doc):
-    if not sum(flt(doc.get(key)) for key in ("weight_ability", "weight_aspiration", "weight_engagement")):
-        frappe.throw(_("Ability, aspiration and engagement cannot all weigh nought."), title=_(SETTINGS))
     if not 0 < flt(doc.get("trainee_pass_mark")) <= 100:
         frappe.throw(_("The milestone pass mark is above 0 and at most 100."), title=_(SETTINGS))
+    for key in ("probability_high", "probability_medium", "probability_low"):
+        if not 0 <= flt(doc.get(key)) <= 100:
+            frappe.throw(_("A probability of loss is 0 to 100."), title=_(SETTINGS))
+    if flt(doc.get("rater_spread")) < 0:
+        frappe.throw(_("The spread between raters is 0 or more."), title=_(SETTINGS))
+
+
+def guide():
+    """{box: share} of the distribution guide, as kept on the Nine Box records."""
+    return {cell["box"]: cell.get("guide") for cell in grid()["boxes"].values()}
 
 
 def master_on_update(doc):
     forget()
+
+
+def _seed_lists():
+    """The potential criteria, the criticality factors and the retention
+    drivers the module starts with, made once and then HR's; the guide's
+    shares where a box has none."""
+    from hrms_addon.hrms_addon import potential_rules, succession_rules
+
+    for spec in potential_rules.SEED:
+        if not frappe.db.exists(CRITERION, spec["criterion"]):
+            frappe.get_doc({"doctype": CRITERION, "criterion_name": spec["criterion"], "weight": spec["weight"],
+                            "active": 1, "evidence_from": spec["evidence_from"],
+                            "levels": [{"level": number, "descriptor": text}
+                                       for number, text in enumerate(spec["levels"], 1)]}).insert(
+                ignore_permissions=True)
+    for name, weight, description in succession_rules.FACTOR_SEED:
+        if not frappe.db.exists(FACTOR, name):
+            frappe.get_doc({"doctype": FACTOR, "factor_name": name, "weight": weight,
+                            "description": description}).insert(ignore_permissions=True)
+    for name in DRIVER_SEED:
+        if not frappe.db.exists(DRIVER, name):
+            frappe.get_doc({"doctype": DRIVER, "driver_name": name}).insert(ignore_permissions=True)
+    for row in frappe.get_all(BOX, fields=["name", "box", "guide_share"]):
+        if not flt(row.guide_share) and cint(row.box) in rules.GUIDE:
+            frappe.db.set_value(BOX, row.name, "guide_share", rules.GUIDE[cint(row.box)], update_modified=False)
 
 
 def suggested_readiness(box):
@@ -166,16 +209,24 @@ def setup_on_migrate():
             if not frappe.db.exists(BOX, {"box": spec["box"]}):
                 frappe.get_doc({"doctype": BOX, "box": spec["box"], "box_name": spec["name"],
                                 "colour": spec["colour"], "default_action": spec["action"],
-                                "suggested_decision": spec["decision"],
+                                "suggested_decision": spec["decision"], "guide_share": rules.GUIDE[spec["box"]],
                                 "top_talent": 1 if spec["box"] in rules.TOP_TALENT else 0}).insert(ignore_permissions=True)
         for readiness, horizon, boxes in READINESS_SEED:
             if not frappe.db.exists(READINESS, readiness):
                 frappe.get_doc({"doctype": READINESS, "readiness": readiness, "horizon": horizon,
                                 "boxes": [{"nine_box": frappe.db.get_value(BOX, {"box": box}, "name")}
                                           for box in boxes]}).insert(ignore_permissions=True)
+        _seed_lists()
         doc = frappe.get_single(SETTINGS)
+        missing = {key: value for key, value in SETTINGS_SEED.items() if doc.get(key) in (None, "")}
         if doc.get("trainee_pass_mark") in (None, "", 0):
-            doc.update(SETTINGS_SEED)
+            missing = dict(SETTINGS_SEED)
+        if not doc.get("rotation_criteria"):
+            from hrms_addon.hrms_addon import graduate_rules
+
+            missing["rotation_criteria"] = [{"criterion": name} for name in graduate_rules.CRITERIA]
+        if missing:
+            doc.update(missing)
             doc.flags.ignore_permissions = True
             doc.save()
         forget()

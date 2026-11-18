@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "autoname": "field:criterion_name",
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "criterion_name",
+  "weight",
+  "active",
+  "column_break_criterion",
+  "evidence_from",
+  "description",
+  "levels_section",
+  "levels"
+ ],
+ "fields": [
+  {
+   "fieldname": "criterion_name",
+   "fieldtype": "Data",
+   "label": "Criterion",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "weight",
+   "fieldtype": "Float",
+   "label": "Weight",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "default": "1",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_criterion",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evidence_from",
+   "fieldtype": "Select",
+   "label": "Evidence From",
+   "options": "\nCompetency Levels\nCompetency Growth\nAppraisal Competencies",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "levels_section",
+   "fieldtype": "Section Break",
+   "label": "Levels"
+  },
+  {
+   "fieldname": "levels",
+   "fieldtype": "Table",
+   "label": "Levels",
+   "options": "Potential Criterion Level"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Potential Criterion",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1
+  }
+ ],
+ "sort_field": "criterion_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -48,6 +48,9 @@ SUPERVISOR = "Supervisor"
 COUNCIL = "Talent Council"
 NEW_ROLES = (COUNCIL,)
 PERMISSIONS = {}
+# a Succession Plan moves all its roles a step at once (succession_plans.py):
+# its digest tells the council, not Frappe's email a role
+SEND_EMAIL_ALERT = 0
 
 HR = (HR_OFFICER, HRM)
 MANAGERS = (SUPERVISOR, HOD)

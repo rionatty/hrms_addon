@@ -3,49 +3,61 @@
 
 """The Talent Board (page/talent_board): one review on one grid, and the
 talent card of each person on it (Luuka, 5 Oct 2026: the module had every
-form and no way to manage talent with them).
+form and no way to manage talent with them). Built for a review of the
+whole staff: the grid is counted in SQL, each cell shows its first people
+and pages through the rest, and the steps over everybody run in the
+background.
 
-  get_board  the review's placements in their boxes (the review picked, or
-             the latest of the appraisal plan picked), filtered by plant,
-             department and grade, with the three strips, the steps they
-             are at and the movers (test cases 6 to 8 and 21)
-  start_review  the review of an appraisal plan none reads yet, started
-             from the board
+  get_board  the review on the grid (the review picked, or the latest of
+             the appraisal plan picked), filtered by plant, department and
+             grade: each box counted, its first people, the steps they are
+             at, the moves waiting in a calibration session, the movers
+             (from the calibration log) and those waiting to be placed
+  get_cell, get_waiting
+             the next people of a box, and of those waiting to be placed
+  start_review  the review of an appraisal plan none reads yet
   get_card   one employee's talent card: the year as their appraisals hold
-             it, the potential, the competency evidence, the box over the
-             years, the benches they are on, their development plan, flight
-             risk and improvement plan. Shown on the board, the Employee
-             form and the Appraisal form
-  move       calibration on the board: a placement moved up or down its
-             column, with the reason, written into the movers (case 7)
+             it, the potential by criterion and rater, the competency
+             evidence, the box over the years, the benches they are on,
+             their development plan, flight risk over time and the
+             retention actions. Shown on the board, the Employee form and
+             the Appraisal form
+  move       calibration on the board: a placement moved on either axis,
+             with the reason, into the draft session that covers it, else
+             at once (calibration.board_move)
   advance    the next step for every placement on the board at the step it
-             applies to — send to the council, finalise, return — each
-             taken as it is on the form, so each is checked and signed
-  get_succession  every critical role, its holder and the risk of losing
-             them, and the successors named by readiness (cases 11 to 15)
-  get_trainees  every graduate trainee by stage, with the milestone each is
-             working towards (cases 16 to 20)
+             applies to (send to the council, finalise, return), in the
+             background (talent_jobs): each taken as it is on its form, so
+             each is checked and signed, one that cannot go left with the
+             reason, and one digest a person
+  get_succession  every critical role, its holder, the risk of losing them
+             and the successors ranked, with their boxes
+  get_trainees  every graduate trainee by stage
 
 Only those who may see the boxes may use any of it: permission level 1 of
-the Talent Placement, which HR and the Talent Council have (case 10).
+the Talent Placement, which HR, the Talent Council and the executives have
+(case 10).
 """
 
 import frappe
 from frappe import _
 from frappe.utils import cint, getdate, today
 
-from hrms_addon.hrms_addon import talent, talent_approval as approval, talent_masters, talent_rules as rules
+from hrms_addon.hrms_addon import talent, talent_approval as approval, talent_jobs, talent_masters
+from hrms_addon.hrms_addon import talent_rules as rules
 
 PLACEMENT, REVIEW, PROGRAM = talent.PLACEMENT, talent.REVIEW, talent.PROGRAM
 POSITION, TRAINEE = talent.POSITION, talent.TRAINEE
 # the roles nobody can fill first, then the ones that would cost most to lose
 COVERAGE_ORDER = {rules.POSITION_GAP: 0, rules.AT_RISK: 1, rules.COVERED: 2}
 RISK_ORDER = {"High": 0, "Medium": 1, "Low": 2}
+PER_CELL = 12
+PAGE = 50
 
 BOARD_FIELDS = ["name", "employee", "employee_name", "designation", "department", "branch", "grade",
                 "workflow_state", "docstatus", "box", "box_name", "performance_score", "performance_band",
-                "potential_score", "potential_band", "calibrated_potential", "top_talent", "flight_risk",
-                "on_pip", "submitted_box"]
+                "potential_score", "potential_band", "calibrated_potential", "calibrated_performance", "top_talent",
+                "flight_risk", "on_pip", "submitted_box", "raters", "raters_disagree"]
 # what each bulk action does: action -> the state it applies to
 BULK = {approval.TO_COUNCIL: approval.CALIBRATION, approval.RETURN: approval.CALIBRATION,
         approval.FINALISE: approval.COUNCIL_REVIEW, approval.RETURN_TO_CALIBRATION: approval.COUNCIL_REVIEW}
@@ -60,6 +72,24 @@ def can_see_boxes(user=None):
 def _check_access():
     if not can_see_boxes():
         frappe.throw(_("The talent board is for HR and the Talent Council."), frappe.PermissionError)
+
+
+def _where(review, branch=None, department=None, grade=None):
+    """The board's filters as SQL on `tabTalent Placement` p."""
+    parts, values = ["p.talent_review = %(review)s", "p.docstatus < 2"], {"review": review}
+    for field, value in (("branch", branch), ("department", department), ("grade", grade)):
+        if value:
+            parts.append("p.%s = %%(%s)s" % (field, field))
+            values[field] = value
+    return " and ".join(parts), values
+
+
+def _people(where, values, extra="", order="p.performance_score desc, p.employee_name asc", start=0,
+            length=PER_CELL):
+    return frappe.db.sql("""select {fields} from `tabTalent Placement` p where {where} {extra}
+                            order by {order} limit %(start)s, %(length)s""".format(
+        fields=", ".join("p.%s" % field for field in BOARD_FIELDS), where=where, extra=extra, order=order),
+        dict(values, start=cint(start), length=cint(length)), as_dict=True)
 
 
 @frappe.whitelist()
@@ -81,38 +111,67 @@ def get_board(review=None, branch=None, department=None, grade=None, plan=None):
                                                                     "department", "docstatus"], as_dict=True)
                 if plan else None,
                 "can_start": 1 if plan and frappe.has_permission(REVIEW, "create") else 0}
-    everyone = frappe.get_all(PLACEMENT, filters={"talent_review": review, "docstatus": ["<", 2]},
-                              fields=BOARD_FIELDS, limit=5000)
-    scope = {"branch": branch, "department": department, "grade": grade}
-    shown = [row for row in everyone if all(not value or row.get(field) == value for field, value in scope.items())]
-    movers = frappe.get_all("Talent Calibration Entry",
-                            filters={"parent": review, "parenttype": REVIEW},
-                            fields=["placement", "employee", "employee_name", "from_box", "to_box", "moved_by",
-                                    "moved_on", "reason"], order_by="idx asc", limit=500)
-    moved = {row.placement for row in movers}
-    for row in shown:
-        row["moved"] = 1 if row.name in moved else 0
-        row["state"] = row.get("workflow_state") or approval.DRAFT
-    composed = rules.board(shown, talent_masters.grid())
-    states = {}
-    for row in shown:
-        states[row["state"]] = states.get(row["state"], 0) + 1
+    from hrms_addon.hrms_addon import calibration, calibration_rules
+
+    where, values = _where(review, branch, department, grade)
+    watched = talent_masters.watched_risks() or ["-"]
+    counts = {cint(row.box): cint(row.n) for row in frappe.db.sql(
+        """select p.box, count(*) as n from `tabTalent Placement` p where {0} and p.box between 1 and 9
+           group by p.box""".format(where), values, as_dict=True)}
+    sums = frappe.db.sql("""
+        select count(*) as total,
+               sum(case when p.box between 1 and 9 then 0 else 1 end) as waiting,
+               sum(case when p.top_talent = 1 and p.flight_risk in %(watched)s then 1 else 0 end) as flight_risk,
+               sum(case when p.on_pip = 1 then 1 else 0 end) as on_pip,
+               sum(case when p.raters_disagree = 1 then 1 else 0 end) as disagree
+        from `tabTalent Placement` p where {0}""".format(where), dict(values, watched=watched), as_dict=True)[0]
+    states = {row.state: cint(row.n) for row in frappe.db.sql(
+        """select coalesce(p.workflow_state, 'Draft') as state, count(*) as n from `tabTalent Placement` p
+           where {0} group by p.workflow_state""".format(where), values, as_dict=True)}
+    grid = talent_masters.grid()
+    waiting = calibration.pending(review)
+    cells = []
+    for cell in sorted(grid["boxes"].values(), key=lambda cell: cell["box"]):
+        people = _people(where, values, "and p.box = %d" % cell["box"]) if counts.get(cell["box"]) else []
+        for row in people:
+            _mark(row, waiting)
+        cells.append({"box": cell["box"], "name": cell["name"], "colour": cell["colour"], "action": cell["action"],
+                      "count": counts.get(cell["box"], 0), "guide": cell.get("guide"), "people": people})
+    placed = sum(counts.values())
+    top = tuple(grid.get("top_talent") or rules.TOP_TALENT)
+    attention = tuple(box for box in rules.ATTENTION if box not in top)
+    core = tuple(box for box in range(1, 10) if box not in top and box not in attention)
+    strips = {name: sum(counts.get(box, 0) for box in boxes)
+              for name, boxes in (("top", top), ("core", core), ("attention", attention))}
+    unplaced = _people(where, values, "and (p.box is null or p.box = 0)", order="p.employee_name asc", length=25) \
+        if cint(sums.waiting) else []
+    shown = {row.name for cell in cells for row in cell["people"]}
+    movers = [row for row in calibration.movers(review, limit=500)
+              if all(not value or row.get(field) == value for field, value in (("branch", branch),
+                                                                               ("department", department)))][:100]
+    for row in movers:
+        row["shown"] = 1 if row.get("placement") in shown else 0
+    spread = calibration_rules.distribution({}, counts, talent_masters.guide())
     roles = frappe.get_roles()
+    options = {field: [row[0] for row in frappe.db.sql(
+        "select distinct p.{0} from `tabTalent Placement` p where p.talent_review = %(review)s and p.docstatus < 2 "
+        "and p.{0} is not null and p.{0} != '' order by p.{0}".format(field), {"review": review})]
+        for field in ("branch", "department", "grade")}
     return {
         "reviews": reviews,
         "review": next((row for row in reviews if row.name == review), None)
         or frappe.db.get_value(REVIEW, review, ["name", "title", "review_year", "status", "appraisal_plan"],
                                as_dict=True),
-        "board": composed,
+        "board": {"cells": cells, "unplaced": unplaced, "waiting": cint(sums.waiting), "total": placed,
+                  "per_cell": PER_CELL},
         "states": states,
-        "strips": {name: {"count": count, "share": rules.share(count, composed["total"])}
-                   for name, count in composed["strips"].items()},
-        "flight_risk": len([row for row in shown if cint(row.get("top_talent"))
-                            and row.get("flight_risk") in ("High", "Medium")]),
-        "on_pip": len([row for row in shown if cint(row.get("on_pip"))]),
-        "movers": [row for row in movers if row.placement in {each.name for each in shown}],
-        "options": {field: sorted({row.get(field) for row in everyone if row.get(field)})
-                    for field in ("branch", "department", "grade")},
+        "strips": {name: {"count": count, "share": rules.share(count, placed)} for name, count in strips.items()},
+        "guide": [{"box": row["box"], "guide": row["guide"], "share": row["calibrated_share"],
+                   "variance": row["variance"]} for row in spread],
+        "flight_risk": cint(sums.flight_risk), "on_pip": cint(sums.on_pip), "disagree": cint(sums.disagree),
+        "pending": len(waiting),
+        "movers": movers,
+        "options": options,
         "actions": [action for action, state in BULK.items()
                     if states.get(state) and any(transition[0] == action
                                                  for transition in approval.next_states(state, roles))],
@@ -121,6 +180,35 @@ def get_board(review=None, branch=None, department=None, grade=None, plan=None):
         # a review nobody is in yet offers Draft Placements to whoever may write it
         "can_draft": 1 if frappe.has_permission(REVIEW, "write", doc=review) else 0,
     }
+
+
+def _mark(row, waiting):
+    row["state"] = row.get("workflow_state") or approval.DRAFT
+    row["moved"] = 1 if row.get("calibrated_potential") or row.get("calibrated_performance") else 0
+    row["pending_box"] = waiting.get(row.name)
+
+
+@frappe.whitelist()
+def get_cell(review, box, start=0, branch=None, department=None, grade=None):
+    """The next people of a box, PAGE at a time."""
+    _check_access()
+    from hrms_addon.hrms_addon import calibration
+
+    where, values = _where(review, branch, department, grade)
+    people = _people(where, values, "and p.box = %d" % cint(box), start=cint(start), length=PAGE)
+    waiting = calibration.pending(review)
+    for row in people:
+        _mark(row, waiting)
+    return people
+
+
+@frappe.whitelist()
+def get_waiting(review, start=0, branch=None, department=None, grade=None):
+    """The next of those waiting to be placed, PAGE at a time."""
+    _check_access()
+    where, values = _where(review, branch, department, grade)
+    return _people(where, values, "and (p.box is null or p.box = 0)", order="p.employee_name asc",
+                   start=cint(start), length=PAGE)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -152,6 +240,7 @@ def start_review(appraisal_plan):
                                     frappe.get_all(REVIEW, pluck="name")),
         "review_year": plan.year, "appraisal_plan": plan.name, "appraisal_cycle": opened[0].appraisal_cycle,
         "opens_on": today(), "company": plan.company, "branch": plan.get("branch"),
+        "plants": [{"branch": plan.branch}] if plan.get("branch") else [],
         "department": plan.get("department"),
     })
     doc.insert()
@@ -160,11 +249,11 @@ def start_review(appraisal_plan):
 
 @frappe.whitelist(methods=["POST"])
 def move(placement, to_box, reason=None):
-    """Test case 7 on the board: the peer group moves a placement up or down
-    its column — potential is theirs to weigh across the plants, performance
-    is the appraisal's — and says why; the move is written into the movers
-    (talent._record_calibration). Moving it back to the line manager's own
-    rating takes the calibration off."""
+    """Test case 7 on the board: the peer group moves a placement on either
+    axis and says why. Where a draft calibration session covers it, the
+    move is written into the session, applied when it is submitted; else
+    it is applied at once. Either way it is in the calibration log. Moving
+    it back to its own ratings takes the calibration off."""
     _check_access()
     doc = frappe.get_doc(PLACEMENT, placement)
     doc.check_permission("write")
@@ -172,56 +261,63 @@ def move(placement, to_box, reason=None):
                                 "from_box": doc.get("box"), "to_box": to_box, "reason": reason})
     if errors:
         frappe.throw("<br>".join(_(message) for message in errors), title=_("Calibration"))
-    potential = rules.box_axes(to_box)[1]
-    doc.calibrated_potential = None if potential == doc.get("potential_band") else potential
-    doc.calibration_reason = reason
-    # the calibrated potential is at permission level 1, which is checked
-    # here (_check_access) rather than left for the save to quietly undo
-    doc.flags.ignore_permissions = True
-    doc.save()
-    return {"box": doc.box, "box_name": doc.box_name}
+    from hrms_addon.hrms_addon import calibration
+
+    return calibration.board_move(doc, cint(to_box), reason)
 
 
 @frappe.whitelist(methods=["POST"])
 def advance(review, action, branch=None, department=None, grade=None, remarks=None):
     """The step `action` for every placement on the board at the state it
-    applies to, as the workflow allows the user. Each is saved as it is
-    from the form, so each is checked, signed and told; one that cannot go
-    is left, with the reason. Returns {"done": n, "left": [[name, why]]}."""
+    applies to, as the workflow allows the user, in the background. Returns
+    {"queued": 1, "log"}: the board follows the log."""
     _check_access()
     if action not in BULK:
         frappe.throw(_("{0} is not a step the board takes.").format(action))
+    allowed = dict(approval.next_states(BULK[action], frappe.get_roles()))
+    if action not in allowed:
+        frappe.throw(_("You may not {0} placements.").format(_(action).lower()), frappe.PermissionError)
+    if action in (approval.RETURN, approval.RETURN_TO_CALIBRATION) and not (remarks or "").strip():
+        frappe.throw(_("Write what the placements must have before they come back."))
+    log = talent_jobs.start("advance", REVIEW, review, "hrms_addon.hrms_addon.talent_board.advance_job",
+                            review=review, action=action, branch=branch, department=department, grade=grade,
+                            remarks=remarks)
+    return {"queued": 1, "log": log}
+
+
+def advance_job(context, review, action, branch=None, department=None, grade=None, remarks=None):
+    """The background step, as the user who asked: each placement at the
+    state saved or submitted as from its form, in a savepoint of its own."""
     state = BULK[action]
     allowed = dict(approval.next_states(state, frappe.get_roles()))
     if action not in allowed:
         frappe.throw(_("You may not {0} placements.").format(_(action).lower()), frappe.PermissionError)
     returning = action in (approval.RETURN, approval.RETURN_TO_CALIBRATION)
-    if returning and not (remarks or "").strip():
-        frappe.throw(_("Write what the placements must have before they come back."))
     filters = {"talent_review": review, "workflow_state": state, "docstatus": 0}
     for field, value in (("branch", branch), ("department", department), ("grade", grade)):
         if value:
             filters[field] = value
-    done, left = 0, []
-    for number, name in enumerate(frappe.get_all(PLACEMENT, filters=filters, pluck="name", limit=5000)):
+    rows = {row.name: row for row in frappe.get_all(PLACEMENT, filters=filters, fields=["name", "employee_name"],
+                                                    order_by="name asc", limit_page_length=0)}
+    context.doctype = PLACEMENT
+
+    def work(name):
         doc = frappe.get_doc(PLACEMENT, name)
         doc.workflow_state = allowed[action]
         if returning:
             doc.return_remarks = remarks
-        # each placement in a savepoint of its own: one that is refused
-        # takes back only what it wrote
-        savepoint = "ha_talent_advance_%d" % number
-        frappe.db.savepoint(savepoint)
-        try:
-            if allowed[action] == approval.FINALISED:
-                doc.submit()
-            else:
-                doc.save()
-            done += 1
-        except Exception as error:  # noqa: BLE001 - each placement stands alone
-            frappe.db.rollback(save_point=savepoint)
-            left.append([doc.get("employee_name") or doc.employee, _plain(error)])
-    return {"done": done, "left": left}
+        if allowed[action] == approval.FINALISED:
+            doc.submit()
+        else:
+            doc.save()
+
+    context.each(list(rows), work, label=lambda name: rows[name].employee_name or name)
+    title = frappe.db.get_value(REVIEW, review, "title") or review
+    users = list(talent.people.hr_officers(branch, department))
+    if allowed[action] == approval.COUNCIL_REVIEW:
+        users += list(talent.people.people_for("Talent Council", branch, department))
+    talent_jobs.tell(users, REVIEW, review, _("{0}: {1} placement(s) now at {2}, {3} left with a reason.").format(
+        title, context.done, _(allowed[action]), len(context.left)))
 
 
 @frappe.whitelist()
@@ -247,38 +343,55 @@ def get_card(employee, review=None):
             "box": doc.get("box"), "box_name": doc.get("box_name"), "colour": doc.get("box_colour"),
             "action": doc.get("default_action"), "decision": doc.get("suggested_decision"),
             "performance": doc.get("performance_score"), "performance_band": doc.get("performance_band"),
+            "calibrated_performance": doc.get("calibrated_performance"),
             "appraisal_band": doc.get("appraisal_band"), "appraisal": doc.get("appraisal"),
             "potential": doc.get("potential_score"), "potential_band": doc.get("potential_band"),
             "calibrated_potential": doc.get("calibrated_potential"),
-            "dimensions": {name: doc.get(name) for name in rules.POTENTIAL_DIMENSIONS},
+            "raters": cint(doc.get("raters")), "rater_spread": doc.get("rater_spread"),
+            "raters_disagree": cint(doc.get("raters_disagree")),
+            "criteria": [{"criterion": row.criterion, "average": row.average, "lowest": row.lowest,
+                          "highest": row.highest} for row in doc.get("potential_summary") or []],
             "competencies": sorted([{"competency": row.competency, "level": row.level} for row in doc.competencies],
                                    key=lambda row: -(row["level"] or 0))[:6],
             "quarters": [{"quarter": row.quarter, "total": row.total, "band": row.band, "appraisal": row.appraisal}
                          for row in doc.get("quarter_results") or []],
             "flight_risk": doc.get("flight_risk"), "impact_of_loss": doc.get("impact_of_loss"),
+            "risk_assessed_on": doc.get("risk_assessed_on"),
+            "retention": [{"action": row.action, "status": row.status, "due": row.due}
+                          for row in doc.get("retention_actions") or [] if row.status not in ("Done", "Dropped")],
             "rationale": doc.get("rationale"), "top_talent": cint(doc.get("top_talent")),
             "on_pip": cint(doc.get("on_pip")), "improvement_plan": doc.get("improvement_plan"),
             "management_decision": doc.get("management_decision"),
             "development_plan": doc.get("development_plan"),
         }
-    card["history"] = [{"year": _year_of(row.talent_review), "box": row.box, "box_name": row.box_name}
-                       for row in frappe.get_all(PLACEMENT, filters={"employee": employee, "docstatus": 1},
-                                                 fields=["talent_review", "box", "box_name"],
-                                                 order_by="creation asc", limit=10)]
-    card["successor_for"] = [
-        {"position": row.parent, "role": frappe.db.get_value(POSITION, row.parent, "designation"),
-         "readiness": row.readiness}
-        for row in frappe.get_all("Succession Candidate", filters={"employee": employee, "parenttype": POSITION},
-                                  fields=["parent", "readiness"], limit=10)
-        if frappe.db.get_value(POSITION, row.parent, "docstatus") != 2]
+    card["history"] = [{"year": row.review_year, "box": row.box, "box_name": row.box_name}
+                       for row in frappe.db.sql("""
+                           select review.review_year, p.box, p.box_name from `tabTalent Placement` p
+                           left join `tabTalent Review` review on review.name = p.talent_review
+                           where p.employee = %(employee)s and p.docstatus = 1
+                           order by review.review_year asc, p.creation asc""", {"employee": employee}, as_dict=True)]
+    card["risk_history"] = frappe.get_all("Flight Risk Assessment", filters={"employee": employee},
+                                          fields=["assessed_on", "risk"], order_by="assessed_on desc", limit=5)
+    card["successor_for"] = frappe.db.sql("""
+        select candidate.parent as position, position.designation as role, candidate.readiness, candidate.rank
+        from `tabSuccession Candidate` candidate
+        join `tabSuccession Position` position on position.name = candidate.parent
+        where candidate.parenttype = 'Succession Position' and candidate.employee = %(employee)s
+          and position.docstatus < 2""", {"employee": employee}, as_dict=True)
     card["holds"] = frappe.get_all(POSITION, filters={"incumbent": employee, "docstatus": ["<", 2]},
-                                   fields=["name", "designation", "coverage", "risk_level"], limit=5)
+                                   fields=["name", "designation", "coverage", "risk_level", "role_risk"], limit=5)
+    card["pools"] = frappe.db.sql("""
+        select pool.name, pool.pool_name, member.status from `tabTalent Pool Member` member
+        join `tabTalent Pool` pool on pool.name = member.parent
+        where member.parenttype = 'Talent Pool' and member.employee = %(employee)s and member.status != 'Exited'
+        """, {"employee": employee}, as_dict=True)
     plan = frappe.get_all(PROGRAM, filters={"employee": employee, "docstatus": ["<", 2]},
-                          fields=["name", "program_type", "workflow_state", "start_date", "end_date"],
+                          fields=["name", "program_type", "workflow_state", "start_date", "end_date",
+                                  "approved_investment"],
                           order_by="creation desc", limit=1)
     if plan:
-        actions = frappe.get_all("Development Action", filters={"parent": plan[0].name, "parenttype": PROGRAM},
-                                 fields=["completed_on"], limit=100)
+        actions = frappe.get_all(talent.ACTION, filters={"parent": plan[0].name, "parenttype": PROGRAM},
+                                 fields=["completed_on"], limit=200)
         card["plan"] = dict(plan[0], actions=len(actions),
                             completed=len([row for row in actions if row.completed_on]))
     trainee = frappe.get_all(TRAINEE, filters={"employee": employee, "docstatus": ["<", 2]},
@@ -290,25 +403,16 @@ def get_card(employee, review=None):
     return card
 
 
-def _year_of(review):
-    return frappe.db.get_value(REVIEW, review, "review_year") if review else None
-
-
-def _plain(error):
-    """A refusal as the user reads it: the message, without the markup."""
-    text = str(error.args[0]) if getattr(error, "args", None) else str(error)
-    return frappe.utils.strip_html(text).strip() or type(error).__name__
-
-
 @frappe.whitelist()
 def get_succession(branch=None, department=None):
     """Test cases 11 to 15 on the board: every critical role, who holds it
-    and what losing them would cost, the successors named for it by
-    readiness with where each sits on the grid, and how covered the roles
-    are, the gaps first. A holder on their way out shows what is filling
-    the role: the promotion drafted for a successor, or the requisition for
-    a replacement and the opening it became."""
+    and what losing them would cost, the successors named for it in the
+    council's order with where each sits on the grid, and how covered the
+    roles are, the gaps first. A holder on their way out shows what is
+    filling the role."""
     _check_access()
+    from hrms_addon.hrms_addon import succession_risk, succession_rules
+
     filters = {"docstatus": ["<", 2]}
     for field, value in (("branch", branch), ("department", department)):
         if value:
@@ -316,20 +420,23 @@ def get_succession(branch=None, department=None):
     positions = frappe.get_all(POSITION, filters=filters, fields=[
         "name", "designation", "department", "branch", "incumbent", "incumbent_name", "single_person_role",
         "risk_level", "coverage", "bench_depth", "gap", "gap_confirmed", "job_opening", "workflow_state",
-        "retirement_or_exit_due"], limit=500)
+        "retirement_or_exit_due", "role_risk", "impact_score", "loss_probability", "successors"],
+        limit_page_length=0)
     names = [row.name for row in positions]
     candidates = frappe.get_all("Succession Candidate", filters={"parent": ["in", names], "parenttype": POSITION},
-                                fields=["parent", "employee", "employee_name", "candidate_designation", "readiness"],
-                                order_by="idx asc", limit=5000) if names else []
-    boxes = _latest_boxes([row.employee for row in candidates] + [row.incumbent for row in positions])
+                                fields=["parent", "employee", "employee_name", "candidate_designation", "readiness",
+                                        "rank", "emergency_cover", "other_roles"],
+                                order_by="idx asc", limit_page_length=0) if names else []
+    boxes = succession_risk.latest_boxes([row.employee for row in candidates] + [row.incumbent for row in positions])
     slates = {}
     for row in candidates:
         found = boxes.get(row.employee) or {}
         slates.setdefault(row.parent, []).append(dict(row, box=found.get("box"), box_name=found.get("box_name"),
-                                                      colour=found.get("box_colour")))
+                                                      colour=found.get("box_colour"),
+                                                      flight_risk=found.get("flight_risk")))
     drafted = talent.drafted_for_many(names)
     for position in positions:
-        position["slate"] = rules.readiness_order(slates.get(position.name, []))
+        position["slate"] = succession_rules.ranked(slates.get(position.name, []))
         held = boxes.get(position.incumbent) or {}
         position["incumbent_box"] = held.get("box")
         position["incumbent_risk"] = held.get("flight_risk")
@@ -340,32 +447,30 @@ def get_succession(branch=None, department=None):
         position["requisition"] = found.get("requisition")
         position["opening"] = found.get("opening")
     positions.sort(key=lambda row: (COVERAGE_ORDER.get(row.coverage, 3), RISK_ORDER.get(row.risk_level, 3),
-                                    str(row.designation or "")))
+                                    -(row.role_risk or 0), str(row.designation or "")))
     summary = {"roles": len(positions)}
     for name in (rules.COVERED, rules.AT_RISK, rules.POSITION_GAP):
         summary[name] = len([row for row in positions if row.coverage == name])
     summary["covered_share"] = rules.share(summary[rules.COVERED], len(positions))
     summary["single_person"] = len([row for row in positions if cint(row.single_person_role)])
     summary["high_risk"] = len([row for row in positions if row.risk_level == "High"])
+    summary["bench"] = succession_rules.bench_index([{"ready_now": len([row for row in position["slate"]
+                                                                        if row.get("readiness") == rules.READY_NOW]),
+                                                      "successors": position.successors or len(position["slate"])}
+                                                     for position in positions])
     return {"positions": positions, "summary": summary}
 
 
 def _latest_boxes(employees):
-    """Each employee's box on their latest finalised placement, and the
-    flight risk it carries."""
-    employees = sorted({name for name in employees if name})
-    if not employees:
-        return {}
-    found = {}
-    for row in frappe.get_all(PLACEMENT, filters={"employee": ["in", employees], "docstatus": 1},
-                              fields=["employee", "box", "box_name", "box_colour", "flight_risk", "creation"],
-                              order_by="creation asc", limit=5000):
-        found[row.employee] = row
-    return found
+    """Each employee's box on their latest finalised placement, newest first
+    and without a cut-off (succession_risk.latest_boxes)."""
+    from hrms_addon.hrms_addon import succession_risk
+
+    return succession_risk.latest_boxes(employees)
 
 
 @frappe.whitelist()
-def get_trainees(branch=None):
+def get_trainees(branch=None, cohort=None):
     """Test cases 16 to 20 on the board: every graduate trainee by the stage
     they are at, with their mentor, how far they are and the milestone
     they are working towards."""
@@ -373,16 +478,18 @@ def get_trainees(branch=None):
     filters = {"docstatus": ["<", 2]}
     if branch:
         filters["home_branch"] = branch
+    if cohort:
+        filters["cohort"] = cohort
     rows = frappe.get_all(TRAINEE, filters=filters, fields=[
-        "name", "trainee_name", "cohort", "workflow_state", "mentor_name", "home_branch", "designation",
-        "start_date", "end_date", "milestones_passed", "average_score", "last_result", "employee"],
-        order_by="start_date desc", limit=1000)
+        "name", "trainee_name", "cohort", "discipline", "workflow_state", "mentor_name", "home_branch", "designation",
+        "start_date", "end_date", "milestones_passed", "average_score", "last_result", "employee",
+        "rotation_assessments", "mentoring_sessions"], order_by="start_date desc", limit_page_length=0)
     names = [row.name for row in rows]
     due = {}
     for row in frappe.get_all("Trainee Milestone", filters={"parent": ["in", names], "parenttype": TRAINEE,
                                                              "result": ["in", ("", None)]},
-                              fields=["parent", "milestone", "due_on"], order_by="due_on asc", limit=5000) \
-            if names else []:
+                              fields=["parent", "milestone", "due_on"], order_by="due_on asc",
+                              limit_page_length=0) if names else []:
         due.setdefault(row.parent, row)
     today_ = getdate(today())
     for row in rows:

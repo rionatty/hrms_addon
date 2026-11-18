@@ -44,9 +44,11 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, flt, format_date, getdate, today
 
-from hrms_addon.hrms_addon import people, pips, talent_masters as masters, talent_rules as rules
+from hrms_addon.hrms_addon import people, pips, talent_jobs, talent_masters as masters, talent_rules as rules
 
 REVIEW = "Talent Review"
+# a development plan's own actions (the appraisal keeps Development Action)
+ACTION = "Talent Plan Action"
 PLACEMENT = "Talent Placement"
 PROGRAM = "Talent Program"
 POSITION = "Succession Position"
@@ -79,79 +81,132 @@ def review_validate(doc, method=None):
 def draft_placements(review):
     """Test case 21: when a cycle opens, a draft placement for everyone
     eligible. Eligible means there is a submitted appraisal to read a
-    performance band from — without one the placement would have nothing
-    on its left-hand axis.
+    performance band from: without one the placement would have nothing on
+    its left-hand axis. A review runs to the whole staff, so the placements
+    are drafted in the background (talent_jobs); whoever asked follows it
+    on the board and is told when it is done.
     """
     cycle = frappe.get_doc(REVIEW, review)
     cycle.check_permission("write")
-    made = _draft_placements(cycle)
-    if made:
-        frappe.msgprint(_("{0} placements drafted.").format(made))
-    elif not frappe.db.exists("Appraisal", dict(_review_source(cycle), docstatus=1)):
+    if not _review_source(cycle):
+        frappe.throw(_("Name the appraisal plan the review reads, so there are appraisals to place "
+                       "people from."), title=_(REVIEW))
+    if not frappe.db.exists("Appraisal", dict(_review_source(cycle), docstatus=1)):
         # nobody to place is not everybody placed: say what is missing
         frappe.msgprint(_("Nobody can be placed yet. No appraisal in {0} has been completed.").format(
             cycle.get("appraisal_plan") or cycle.get("appraisal_cycle")))
-    else:
-        frappe.msgprint(_("Everyone with a completed appraisal already has a placement in this review."))
-    return made
+        return {"queued": 0}
+    log = talent_jobs.start("draft", REVIEW, cycle.name, "hrms_addon.hrms_addon.talent.draft_job", review=cycle.name)
+    return {"queued": 1, "log": log}
 
 
-def _draft_placements(cycle):
+def plants_of(cycle):
+    """The plants a review covers: its Plants, else the one plant of a review
+    set up before it could cover several, else every plant."""
+    plants = [row.branch for row in cycle.get("plants") or [] if row.get("branch")]
+    if not plants and cycle.get("branch"):
+        plants = [cycle.branch]
+    return plants
+
+
+def to_place(cycle):
+    """Everyone the review should place and has not: on the staff (a
+    suspension included, suspensions.py), with a completed appraisal in its
+    year, in its company, plants and department. One placement a person:
+    the year has a completed appraisal for each quarter, each of them the
+    same person. Three queries, whatever the size of the staff."""
     source = _review_source(cycle)
     if not source:
         frappe.throw(_("Name the appraisal plan the review reads, so there are appraisals to place "
                        "people from."), title=_(REVIEW))
-    scope = {"company": cycle.get("company"), "branch": cycle.get("branch"),
-             "department": cycle.get("department")}
-    appraisals = frappe.get_all(
-        "Appraisal", filters=dict(source, docstatus=1),
-        fields=["name", "employee", "employee_name", "custom_total_score", "final_score"],
-        limit=5000)
-    have = set(frappe.get_all(PLACEMENT, filters={"talent_review": cycle.name,
-                                                  "docstatus": ["<", 2]},
-                              pluck="employee"))
+    employees = sorted(set(frappe.get_all("Appraisal", filters=dict(source, docstatus=1), pluck="employee",
+                                          limit_page_length=0)))
+    if not employees:
+        return []
+    have = set(frappe.get_all(PLACEMENT, filters={"talent_review": cycle.name, "docstatus": ["<", 2]},
+                              pluck="employee", limit_page_length=0))
+    filters = {"name": ["in", employees], "status": ["in", ("Active", "Suspended")]}
+    if cycle.get("company"):
+        filters["company"] = cycle.company
+    if cycle.get("department"):
+        filters["department"] = cycle.department
+    plants = plants_of(cycle)
+    if plants:
+        filters["branch"] = ["in", plants]
+    return [row for row in frappe.get_all("Employee", filters=filters, fields=["name", "company", "employee_name"],
+                                          order_by="name asc", limit_page_length=0)
+            if row.name not in have]
+
+
+def _place(review, row):
+    placement = frappe.get_doc({"doctype": PLACEMENT, "talent_review": review, "employee": row.name,
+                                "company": row.company})
+    placement.flags.ignore_permissions = True
+    placement.flags.ignore_mandatory = True
+    placement.insert()
+    return placement.name
+
+
+def draft_job(context, review):
+    """The background step: a draft placement for each, committed in chunks."""
+    cycle = frappe.get_doc(REVIEW, review)
+    rows = {row.name: row for row in to_place(cycle)}
+    context.doctype = "Employee"
+    context.each(list(rows), lambda name: _place(cycle.name, rows[name]),
+                 label=lambda name: rows[name].employee_name or name)
+    _mark_drafted(cycle, context.done)
+    started = frappe.db.get_value(talent_jobs.LOG, context.log, "started_by")
+    talent_jobs.tell([started], REVIEW, cycle.name, _("{0}: {1} placements drafted.").format(
+        cycle.get("title") or cycle.name, context.done))
+
+
+def _draft_placements(cycle):
+    """The same at once, in the request: what is drafted."""
     made = 0
-    for row in appraisals:
-        # one placement a person: the year has a completed appraisal for
-        # each quarter, and each of them is the same person
-        if row.employee in have:
-            continue
-        have.add(row.employee)
-        employee = frappe.db.get_value(
-            "Employee", row.employee,
-            ["status", "company", "branch", "department", "designation"], as_dict=True)
-        # a suspended employee is still on the staff (suspensions.py)
-        if not employee or employee.status not in ("Active", "Suspended"):
-            continue
-        if any(value and employee.get(field) != value for field, value in scope.items()):
-            continue
+    for row in to_place(cycle):
         try:
-            placement = frappe.get_doc({
-                "doctype": PLACEMENT, "talent_review": cycle.name, "employee": row.employee,
-                "company": employee.company})
-            placement.flags.ignore_permissions = True
-            placement.flags.ignore_mandatory = True
-            placement.insert()
+            _place(cycle.name, row)
         except Exception:
             frappe.log_error(title="HRMS Addon: drafting a talent placement")
             continue
         made += 1
+    _mark_drafted(cycle, made)
+    return made
+
+
+def _mark_drafted(cycle, made):
     cycle.db_set({"placements_created": cint(cycle.get("placements_created")) + made,
                   "drafted_on": today()}, update_modified=False)
-    if made and cycle.status == "Draft":
+    if made and cycle.get("status") == "Draft":
         cycle.db_set("status", "Open", update_modified=False)
-    return made
 
 
 # ── 2. The placement ──────────────────────────────────────────────────
 def placement_validate(doc, method=None):
     from hrms_addon.hrms_addon import talent_approval as approval
 
+    from hrms_addon.hrms_addon import retention
+
     _fill_performance(doc)
     _fill_potential(doc)
     _fill_box(doc)
     _check_placement_step(doc)
+    retention.retention_validate(doc)
     doc.status = doc.get("workflow_state") or doc.get("status") or approval.DRAFT
+
+
+def placement_on_update(doc, method=None):
+    """A flight risk set or changed on the form is kept as an assessment."""
+    from hrms_addon.hrms_addon import retention
+
+    retention.placement_changed(doc)
+
+
+def placement_before_update_after_submit(doc, method=None):
+    """A finalised placement's retention actions, checked as they are kept."""
+    from hrms_addon.hrms_addon import retention
+
+    retention.retention_validate(doc)
 
 
 # what a placement reads off each of the year's appraisals
@@ -246,10 +301,13 @@ def _carry_competencies(doc, appraisals):
 
 
 def _fill_potential(doc):
-    doc.potential_score = rules.potential_score({
-        "ability": doc.get("ability"), "aspiration": doc.get("aspiration"),
-        "engagement": doc.get("engagement")}, masters.grid())
-    doc.potential_band = rules.potential_band(doc.potential_score, masters.grid())
+    """The potential from the raters' submitted Potential Assessments
+    (potential.py), never typed on the placement; the competency evidence
+    averaged beside it."""
+    from hrms_addon.hrms_addon import potential
+
+    if doc.docstatus == 0:
+        potential.fill_placement(doc)
     doc.competency_average = rules.competency_average(
         [row.as_dict() for row in doc.get("competencies") or []])
 
@@ -258,15 +316,16 @@ def _fill_box(doc):
     """Test case 6: the two bands resolve to one cell, with its name, its
     colour and what it says to do. The potential is the line manager's
     until calibration moves it (talent_board.move)."""
-    box = rules.box_for(doc.get("performance_band"),
+    box = rules.box_for(rules.effective_performance(doc.get("performance_band"), doc.get("calibrated_performance")),
                         rules.effective_potential(doc.get("potential_band"), doc.get("calibrated_potential")),
                         masters.grid())
     if not box:
-        for field in ("box", "box_name", "box_colour", "default_action", "suggested_decision"):
+        for field in ("box", "nine_box", "box_name", "box_colour", "default_action", "suggested_decision"):
             doc.set(field, None)
         doc.top_talent = 0
         return
     doc.box = box["box"]
+    doc.nine_box = _nine_box(box["box"])
     doc.box_name = box["name"]
     doc.box_colour = box["colour"]
     doc.default_action = box["action"]
@@ -286,17 +345,20 @@ def _check_placement_step(doc):
         if new_state == approval.CALIBRATION and old_state in (None, approval.DRAFT):
             errors = rules.placement_errors({
                 "employee": doc.get("employee"), "talent_review": doc.get("talent_review"),
-                "performance_score": doc.get("performance_score"),
-                "ability": doc.get("ability"), "aspiration": doc.get("aspiration"),
-                "engagement": doc.get("engagement"),
+                "performance_score": doc.get("performance_score"), "raters": doc.get("raters"),
                 "rationale": doc.get("rationale")}) + errors
         if errors:
             frappe.throw("<br>".join(_(message) for message in errors), title=_(PLACEMENT))
         if new_state == approval.DRAFT:
             # back with the line manager: they place the employee afresh,
             # and calibration starts again from what they submit
+            from hrms_addon.hrms_addon import calibration
+
+            calibration.revert(doc)
             doc.submitted_box = None
             doc.calibrated_potential = None
+            doc.calibrated_performance = None
+            doc.calibration_session = None
             _fill_box(doc)
         elif old_state in (None, approval.DRAFT) and new_state == approval.CALIBRATION:
             doc.submitted_box = doc.get("box")
@@ -308,61 +370,66 @@ def _check_placement_step(doc):
         doc.set(field, value)
     if old_state != new_state and new_state in approval.PENDING_STATES:
         _tell_placement(doc, new_state)
-    _record_calibration(doc, before)
-
-
-def _record_calibration(doc, before):
-    """Test case 7: a box moved during calibration is written into the
-    cycle, with who moved it and why, so HR can see the movers."""
-    from hrms_addon.hrms_addon import talent_approval as approval
-
-    if doc.get("workflow_state") != approval.CALIBRATION or not before:
-        return
-    was = before.get("box")
-    if not was or was == doc.get("box") or not doc.get("talent_review"):
-        return
-    errors = rules.calibration_errors({
-        "from_box": was, "to_box": doc.get("box"),
-        "reason": doc.get("calibration_reason"), "moved_by": frappe.session.user})
-    if errors:
-        frappe.throw("<br>".join(_(message) for message in errors), title=_("Calibration"))
-    cycle = frappe.get_doc(REVIEW, doc.talent_review)
-    cycle.append("calibration", {
-        "placement": doc.name, "employee": doc.employee, "employee_name": doc.get("employee_name"),
-        "from_box": was, "to_box": doc.box, "moved_by": frappe.session.user, "moved_on": today(),
-        "reason": doc.calibration_reason})
-    cycle.flags.ignore_permissions = True
-    cycle.save()
-    if cycle.status in ("Draft", "Open"):
-        cycle.db_set("status", "In Calibration", update_modified=False)
+    if old_state != new_state and new_state == approval.CALIBRATION and doc.get("talent_review"):
+        status = frappe.db.get_value(REVIEW, doc.talent_review, "status")
+        if status in ("Draft", "Open"):
+            frappe.db.set_value(REVIEW, doc.talent_review, "status", "In Calibration", update_modified=False)
 
 
 def _tell_placement(doc, state):
+    """Who a placement waits for. Calibration is HR's (only HR move it on),
+    and HR hear of the placements that came into it once a day, as one
+    digest (calibration_digest), not one alert a placement; the council
+    hears of the placements sent to it, one message a step."""
     from hrms_addon.hrms_addon import talent_approval as approval
 
-    users = people.people_for(approval.ROLE_WAITING[state], doc.get("branch"),
-                              doc.get("department"))
-    if not users:
+    if state == approval.CALIBRATION:
         return
-    message = _("Talent placement for {0} is waiting at {1}.").format(
-        doc.get("employee_name") or doc.employee, state)
-    people.notify(list(users), doc.doctype, doc.name, message)
-    people.assign(doc.doctype, doc.name, users, message)
+    users = people.people_for(approval.ROLE_WAITING[state], doc.get("branch"), doc.get("department"))
+    if users:
+        talent_jobs.tell(list(users), doc.doctype, doc.name, _("Talent placement for {0} is waiting at {1}.").format(
+            doc.get("employee_name") or doc.employee, state))
+
+
+def calibration_digest():
+    """Daily: the placements that came into calibration since yesterday,
+    told to each plant's HR Officers as one message, counted by review."""
+    from hrms_addon.hrms_addon import talent_approval as approval
+    from hrms_addon.hrms_addon.queries import aggregate
+
+    rows = frappe.get_all(PLACEMENT, filters={"workflow_state": approval.CALIBRATION, "docstatus": 0,
+                                              "submitted_on": [">=", add_days(today(), -1)]},
+                          fields=["talent_review", "branch", "department", aggregate("COUNT", "*", "n")],
+                          group_by="talent_review, branch, department", limit_page_length=0)
+    entries = []
+    for row in rows:
+        title = frappe.db.get_value(REVIEW, row.talent_review, "title") or row.talent_review
+        line = _("{0}: {1} placement(s) from {2} ready to calibrate").format(
+            title, row.n, row.department or row.branch or _("the review"))
+        entries += [(user, line, REVIEW, row.talent_review) for user in people.hr_officers(row.branch, row.department)]
+    talent_jobs.send_digest(entries, _("Placements waiting in calibration"), "Talent Review", None)
 
 
 def placement_on_submit(doc, method=None):
     """Finalised. Test case 9: the placement locks, a development plan is
     drawn up from it, and the training in that plan goes to L&D. The
     employee's earlier plans learn whether this box reaches what they aimed
-    at."""
+    at. A finalise over a whole board runs in the background
+    (talent_board.advance), and what it tells HR goes as one digest."""
     _draw_up_development_plan(doc)
     _flag_flight_risk(doc)
     _mark_targets(doc)
 
 
 def _nine_box(box):
-    """The Nine Box record of a box number."""
-    return frappe.db.get_value("Nine Box", {"box": cint(box)}, "name") if box else None
+    """The Nine Box record of a box number, read once a request."""
+    if not box:
+        return None
+    found = getattr(frappe.local, "ha_nine_box_names", None)
+    if found is None:
+        found = {cint(row.box): row.name for row in frappe.get_all("Nine Box", fields=["name", "box"])}
+        frappe.local.ha_nine_box_names = found
+    return found.get(cint(box))
 
 
 def _mark_targets(doc):
@@ -404,11 +471,11 @@ def _draw_up_development_plan(doc):
             "target_box": _nine_box(rules.target_box(doc.get("box"))),
             "objectives": "\n".join(row.theme for row in doc.get("themes") or []
                                     if (row.theme or "").strip()) or None,
-            "actions": [{"action": row.theme, "by_when": add_days(today(), 180),
+            "actions": [{"action": row.theme, "by_when": add_days(today(), 180), "action_owner": doc.employee,
                          "by_whom": doc.get("employee_name") or doc.employee}
                         for row in doc.get("themes") or []]
             + [{"action": row.action, "duration": row.duration, "by_when": row.by_when,
-                "by_whom": row.by_whom, "estimated_cost": row.estimated_cost}
+                "by_whom": row.by_whom, "approved_cost": row.estimated_cost}
                for row in agreed if (row.action or "").strip()],
         })
         program.flags.ignore_permissions = True
@@ -510,16 +577,19 @@ def _ask_hr_to_submit(requisition, branch, department, who, why):
         return
     message = _("Training is requested for {0} ({1}). Submit requisition {2} so it goes into the Training "
                 "Needs Assessment.").format(who, why, requisition)
-    people.notify(list(users), REQUISITION, requisition, message)
-    people.assign(REQUISITION, requisition, users, message)
+    talent_jobs.tell(list(users), REQUISITION, requisition, message)
+    talent_jobs.assign(REQUISITION, requisition, users, message)
 
 
 def _flag_flight_risk(doc):
     """Test case 22: top talent somebody might lose is told to HR and the
-    council, once."""
-    if not (doc.get("top_talent") and doc.get("flight_risk") in masters.watched_risks()):
-        return
-    if doc.get("risk_notified"):
+    council, once a level (succession_rules.alert_needed). A finalise over a
+    whole board tells them in one digest."""
+    from hrms_addon.hrms_addon import succession_rules
+
+    watched = masters.watched_risks()
+    if not succession_rules.alert_needed(doc.get("top_talent"), doc.get("flight_risk"), watched,
+                                         doc.get("risk_alerted")):
         return
     users = list(people.hr_officers(doc.get("branch"), doc.get("department")))
     # people_for, not holders: holders hands back rows, and the council
@@ -527,12 +597,12 @@ def _flag_flight_risk(doc):
     users += list(people.people_for("Talent Council", doc.get("branch"), doc.get("department")))
     if not users:
         return
-    people.notify(list(dict.fromkeys(users)), doc.doctype, doc.name,
-                  _("{0} is in box {1} ({2}) and flagged {3} flight risk. Retention action is "
-                    "the council's to take.").format(
-                      doc.get("employee_name") or doc.employee, doc.get("box"),
-                      doc.get("box_name"), str(doc.flight_risk).lower()))
-    doc.db_set("risk_notified", 1, update_modified=False)
+    talent_jobs.tell(list(dict.fromkeys(users)), doc.doctype, doc.name,
+                     _("{0} is in box {1} ({2}) and flagged {3} flight risk. Retention action is "
+                       "the council's to take.").format(
+                         doc.get("employee_name") or doc.employee, doc.get("box"),
+                         doc.get("box_name"), str(doc.flight_risk).lower()))
+    doc.db_set({"risk_notified": 1, "risk_alerted": doc.flight_risk}, update_modified=False)
 
 
 # ── 3. The programme ──────────────────────────────────────────────────
@@ -540,8 +610,27 @@ def program_validate(doc, method=None):
     from hrms_addon.hrms_addon import talent_program_approval as approval
 
     _fill_program_scores(doc)
+    _fill_program_actions(doc)
     _check_program_step(doc)
     doc.status = doc.get("workflow_state") or doc.get("status") or approval.DRAFT
+
+
+def _fill_program_actions(doc):
+    """Each action's status and progress kept with its completion date, and
+    the plan's cost and its 70/20/10 mix read off them."""
+    for row in doc.get("actions") or []:
+        row.status, row.progress, completed = rules.action_state(row.as_dict(), today())
+        if completed and not row.get("completed_on"):
+            row.completed_on = completed
+    errors = rules.action_errors([row.as_dict() for row in doc.get("actions") or []])
+    if errors:
+        frappe.throw("<br>".join(_(message) for message in errors), title=_(PROGRAM))
+    found = rules.plan_investment([row.as_dict() for row in doc.get("actions") or []])
+    doc.approved_investment = found["approved"]
+    doc.actual_investment = found["actual"]
+    doc.experience_share = found["mix"][rules.EXPERIENCE]
+    doc.exposure_share = found["mix"][rules.EXPOSURE]
+    doc.education_share = found["mix"][rules.EDUCATION]
 
 
 def _fill_program_scores(doc):
@@ -618,9 +707,9 @@ def _tell_program(doc):
     users = [name for name in dict.fromkeys(users) if name]
     if not users:
         return
-    people.notify(users, doc.doctype, doc.name,
-                  _("{0} is on the {1} programme.").format(
-                      doc.get("employee_name") or doc.employee, doc.program_type))
+    talent_jobs.tell(users, doc.doctype, doc.name,
+                     _("{0} is on the {1} programme.").format(
+                         doc.get("employee_name") or doc.employee, doc.program_type))
 
 
 def program_on_submit(doc, method=None):
@@ -651,10 +740,10 @@ def program_on_submit(doc, method=None):
     # decision meant
     users = people.hr_officers(doc.get("branch"), doc.get("department"))
     if users:
-        people.notify(list(users), doc.doctype, doc.name,
-                      _("{0} was put in the succession pipeline, but there is no succession "
-                        "position to add them to. Name the role they are being grown for.").format(
-                          doc.get("employee_name") or doc.employee))
+        talent_jobs.tell(list(users), doc.doctype, doc.name,
+                         _("{0} was put in the succession pipeline, but there is no succession "
+                           "position to add them to. Name the role they are being grown for.").format(
+                             doc.get("employee_name") or doc.employee))
 
 
 def program_on_cancel(doc, method=None):
@@ -682,7 +771,7 @@ def _promote_from_program(doc):
     else:
         message = _("{0}'s programme closed with a decision to promote: position change {1} is drafted. "
                     "Name the new role, complete it and send it for signature.").format(name, change)
-    people.notify(list(users), doc.doctype, doc.name, message)
+    talent_jobs.tell(list(users), doc.doctype, doc.name, message)
     return change
 
 
@@ -701,7 +790,7 @@ def _replace_from_program(doc):
             name, held.designation or doc.get("designation"), doc.name))
     users = people.hr_officers(doc.get("branch"), doc.get("department"))
     if users:
-        people.notify(list(users), doc.doctype, doc.name, (
+        talent_jobs.tell(list(users), doc.doctype, doc.name, (
             _("{0}'s programme closed with a decision to replace them: job requisition {1} is drafted. "
               "Complete it and send it for approval.").format(name, requisition) if requisition else
             _("{0}'s programme closed with a decision to replace them, and no job requisition could be "
@@ -758,10 +847,11 @@ def _refresh_bench(doc):
 
 # ── 4. Succession ─────────────────────────────────────────────────────
 def position_validate(doc, method=None):
-    from hrms_addon.hrms_addon import succession_approval as approval
+    from hrms_addon.hrms_addon import succession_approval as approval, succession_risk
 
     _fill_bench(doc)
     _restart_exit_watch(doc)
+    succession_risk.fill(doc)
     _check_position_step(doc)
     doc.status = doc.get("workflow_state") or doc.get("status") or approval.DRAFT
 
@@ -848,8 +938,8 @@ def _tell_position(doc, state):
     if not users:
         return
     message = _("Succession for {0} is waiting at {1}.").format(doc.designation, state)
-    people.notify(list(users), doc.doctype, doc.name, message)
-    people.assign(doc.doctype, doc.name, users, message)
+    talent_jobs.tell(list(users), doc.doctype, doc.name, message)
+    talent_jobs.assign(doc.doctype, doc.name, users, message)
 
 
 def position_on_submit(doc, method=None):
@@ -871,8 +961,11 @@ def position_before_update_after_submit(doc, method=None):
     """A confirmed plan changed: successors added or a new holder named.
     The bench is counted again, and the exit watch restarted for a new
     holder or a new last day."""
+    from hrms_addon.hrms_addon import succession_risk
+
     _count_bench(doc)
     _restart_exit_watch(doc)
+    succession_risk.fill(doc)
 
 
 def position_on_update_after_submit(doc, method=None):
@@ -937,9 +1030,9 @@ def _plan_successor_development(doc):
         made.append(program)
     users = people.hr_officers(doc.get("branch"), doc.get("department")) if made else []
     if users:
-        people.notify(list(users), doc.doctype, doc.name,
-                      _("Development plans are drafted for the successors to {0}: {1}. Enrol each to start "
-                        "it.").format(doc.designation, ", ".join(
+        talent_jobs.tell(list(users), doc.doctype, doc.name,
+                         _("Development plans are drafted for the successors to {0}: {1}. Enrol each to start "
+                           "it.").format(doc.designation, ", ".join(
                           "%s (%s)" % (program.get("employee_name") or program.employee, program.name)
                           for program in made)))
     return made
@@ -978,7 +1071,7 @@ def separation_on_cancel(doc, method=None):
         position = frappe.db.get_value(POSITION, name, ["designation", "branch", "department"], as_dict=True)
         users = people.hr_officers(position.branch, position.department) if names else []
         if users:
-            people.notify(list(users), POSITION, name,
+            talent_jobs.tell(list(users), POSITION, name,
                           _("{0} is no longer leaving {1}. Close what was drafted for the exit if it is not "
                             "needed: {2}.").format(doc.get("employee_name") or doc.employee,
                                                    position.designation, ", ".join(names)))
@@ -1087,7 +1180,7 @@ def _tell_council(doc, message):
     users += list(people.people_for("Talent Council", doc.get("branch"), doc.get("department")))
     users = list(dict.fromkeys(users))
     if users:
-        people.notify(users, POSITION, doc.name, message)
+        talent_jobs.tell(users, POSITION, doc.name, message)
 
 
 def drafted_for(position):
@@ -1390,6 +1483,8 @@ def _send_needs_to_ld(doc):
 def trainee_from_applicant(job_applicant, cohort=None, start_date=None):
     """Test case 16: the applicant in resourcing becomes a trainee on
     hire, state Recruited."""
+    from hrms_addon.hrms_addon import graduates
+
     existing = frappe.db.get_value(TRAINEE, {"job_applicant": job_applicant,
                                              "docstatus": ["<", 2]}, "name")
     if existing:
@@ -1408,7 +1503,8 @@ def trainee_from_applicant(job_applicant, cohort=None, start_date=None):
     doc = frappe.get_doc({
         "doctype": TRAINEE, "job_applicant": job_applicant,
         "trainee_name": applicant.applicant_name,
-        "cohort": cohort or _("Graduate Intake {0}").format(getdate(today()).year),
+        "cohort": graduates.cohort_of_text(cohort or _("Graduate Intake {0}").format(getdate(today()).year),
+                                           opening.company),
         "company": opening.company or frappe.defaults.get_user_default("Company"),
         "home_department": opening.department, "home_branch": applicant.custom_branch,
         "designation": applicant.designation or opening.designation,
@@ -1418,8 +1514,9 @@ def trainee_from_applicant(job_applicant, cohort=None, start_date=None):
 
 
 def trainee_validate(doc, method=None):
-    from hrms_addon.hrms_addon import trainee_approval as approval
+    from hrms_addon.hrms_addon import graduates, trainee_approval as approval
 
+    graduates.trainee_milestones(doc)
     _fill_trainee(doc)
     _check_trainee_step(doc)
     doc.status = doc.get("workflow_state") or doc.get("status") or approval.RECRUITED
@@ -1533,7 +1630,7 @@ def _tell_trainee(doc, state):
     if not users:
         return
     message = _("Graduate trainee {0} is at {1}.").format(doc.trainee_name, state)
-    people.notify(list(dict.fromkeys(users)), doc.doctype, doc.name, message)
+    talent_jobs.tell(list(dict.fromkeys(users)), doc.doctype, doc.name, message)
 
 
 def trainee_on_submit(doc, method=None):
@@ -1605,7 +1702,7 @@ def _raise_trainee_exit(doc):
     doc.db_set("separation", existing, update_modified=False)
     users = people.hr_officers(doc.get("home_branch"), doc.get("home_department"))
     if users:
-        people.notify(list(users), "Employee Separation", existing,
+        talent_jobs.tell(list(users), "Employee Separation", existing,
                       _("{0} has left the graduate trainee programme. Their exit is open.").format(
                           doc.trainee_name))
     return existing
@@ -1698,9 +1795,9 @@ def _record_milestone(appraisal):
         trainee.save()
         users = people.hr_officers(trainee.get("home_branch"), trainee.get("home_department"))
         if users:
-            people.notify(list(users), TRAINEE, trainee.name,
-                          _("Milestone {0} for {1} is assessed: {2} out of 100, {3}.").format(
-                              milestone.milestone, trainee.trainee_name, milestone.score, milestone.result))
+            talent_jobs.tell(list(users), TRAINEE, trainee.name,
+                             _("Milestone {0} for {1} is assessed: {2} out of 100, {3}.").format(
+                                 milestone.milestone, trainee.trainee_name, milestone.score, milestone.result))
 
 
 def _competency_level(appraisal):
@@ -1775,12 +1872,17 @@ def monthly():
 
 
 def daily():
+    from hrms_addon.hrms_addon import calibration, succession_risk
+
     _open_review_cycles()
     _raise_due_milestones()
     _chase_milestones()
     _watch_top_talent()
     _watch_exits()
     _link_openings()
+    calibration_digest()
+    calibration.daily()
+    succession_risk.daily()
 
 
 def _open_review_cycles():
@@ -1789,8 +1891,10 @@ def _open_review_cycles():
     for name in frappe.get_all(REVIEW, filters={"status": "Draft",
                                                 "opens_on": ["<=", today()]}, pluck="name"):
         try:
-            _draft_placements(frappe.get_doc(REVIEW, name))
+            # the whole staff is drafted in the background, a review at a time
+            talent_jobs.start("draft", REVIEW, name, "hrms_addon.hrms_addon.talent.draft_job", review=name)
         except Exception:
+            frappe.clear_last_message()
             frappe.log_error(title="HRMS Addon: opening a talent review")
     frappe.db.commit()
 
@@ -1799,13 +1903,23 @@ def _raise_due_milestones():
     """Blueprint section 9, "Trainee milestone due": a trainee in rotation
     whose next milestone falls due within the days Talent Settings give is
     moved to Under Assessment, which raises the milestone's appraisal, and
-    their rotation supervisor, mentor and HR are told."""
-    from hrms_addon.hrms_addon import trainee_approval as approval
-
+    their rotation supervisor, mentor and HR are told, each once a day."""
     s = masters.settings()
     if not cint(s.get("auto_milestones")):
         return
     by_day = add_days(today(), cint(s.get("milestone_lead_days")))
+    frappe.flags[talent_jobs._DIGEST] = []
+    try:
+        _raise_milestones_by(by_day)
+        entries = frappe.flags.get(talent_jobs._DIGEST) or []
+    finally:
+        frappe.flags[talent_jobs._DIGEST] = None
+    talent_jobs.send_digest(entries, _("Trainee milestones due"), TRAINEE, None)
+
+
+def _raise_milestones_by(by_day):
+    from hrms_addon.hrms_addon import trainee_approval as approval
+
     due = frappe.get_all("Trainee Milestone",
                          filters={"parenttype": TRAINEE, "due_on": ["<=", by_day], "appraisal": ["is", "not set"],
                                   "result": ["in", ("", None)]},
@@ -1835,7 +1949,7 @@ def _tell_milestone_due(trainee, milestone):
         if user:
             users.append(user)
     if users:
-        people.notify(list(dict.fromkeys(users)), "Appraisal", milestone.appraisal,
+        talent_jobs.tell(list(dict.fromkeys(users)), "Appraisal", milestone.appraisal,
                       _("{0}'s milestone {1} falls due on {2}: its appraisal is ready to be filled in.").format(
                           trainee.trainee_name, milestone.milestone, format_date(milestone.due_on)))
 
@@ -1851,24 +1965,24 @@ def _rotation_supervisor(trainee):
 
 def _chase_milestones():
     """A milestone that has fallen due and has no result yet is somebody's
-    to do something about."""
+    to do something about: each plant's HR told once a day, in one digest."""
     rows = frappe.get_all(
         "Trainee Milestone",
         filters={"parenttype": TRAINEE, "due_on": ["<=", today()], "result": ["in", ("", None)]},
-        fields=["name", "parent", "milestone", "due_on"], limit=200)
+        fields=["name", "parent", "milestone", "due_on"], limit=0)
+    trainees = {row.name: row for row in frappe.get_all(
+        TRAINEE, filters={"name": ["in", sorted({row.parent for row in rows})], "docstatus": 0},
+        fields=["name", "trainee_name", "home_branch", "home_department"], limit=0)} if rows else {}
+    entries = []
     for row in rows:
-        trainee = frappe.db.get_value(TRAINEE, row.parent,
-                                      ["trainee_name", "status", "home_branch",
-                                       "home_department", "docstatus"], as_dict=True)
-        if not trainee or trainee.docstatus != 0:
+        trainee = trainees.get(row.parent)
+        if not trainee:
             continue
-        users = people.hr_officers(trainee.home_branch, trainee.home_department)
-        if not users:
-            continue
-        people.notify(list(users), TRAINEE, row.parent,
-                      _("Milestone {0} for {1} was due on {2} and has no result.").format(
-                          row.milestone, trainee.trainee_name,
-                          frappe.utils.format_date(row.due_on)))
+        line = _("Milestone {0} for {1} was due on {2} and has no result.").format(
+            row.milestone, trainee.trainee_name, frappe.utils.format_date(row.due_on))
+        entries += [(user, line, TRAINEE, row.parent)
+                    for user in people.hr_officers(trainee.home_branch, trainee.home_department)]
+    talent_jobs.send_digest(entries, _("Trainee milestones with no result"), TRAINEE, None)
     frappe.db.commit()
 
 
@@ -1878,14 +1992,20 @@ def _watch_top_talent():
     watched = masters.watched_risks()
     if not watched:
         return
-    for name in frappe.get_all(PLACEMENT, filters={"docstatus": 1, "top_talent": 1,
-                                                   "risk_notified": ["!=", 1],
-                                                   "flight_risk": ["in", watched]},
-                               pluck="name", limit=200):
-        try:
-            _flag_flight_risk(frappe.get_doc(PLACEMENT, name))
-        except Exception:
-            frappe.log_error(title="HRMS Addon: flight-risk alert")
+    frappe.flags[talent_jobs._DIGEST] = []
+    try:
+        for name in frappe.get_all(PLACEMENT, filters={"docstatus": 1, "top_talent": 1,
+                                                       "risk_alerted": ["in", ("", None)],
+                                                       "flight_risk": ["in", watched]},
+                                   pluck="name", limit=0):
+            try:
+                _flag_flight_risk(frappe.get_doc(PLACEMENT, name))
+            except Exception:
+                frappe.log_error(title="HRMS Addon: flight-risk alert")
+        entries = frappe.flags.get(talent_jobs._DIGEST) or []
+    finally:
+        frappe.flags[talent_jobs._DIGEST] = None
+    talent_jobs.send_digest(entries, _("Top talent at flight risk"), "Report", "Top Talent and Flight Risk")
     frappe.db.commit()
 
 
@@ -2079,20 +2199,22 @@ def _drop_training_row(plan, row):
 def _mark_actions(plan, topic, day, training_event):
     """The plan's actions of the session's topic, done the day it was held,
     unless someone has already said when they were."""
-    actions = frappe.get_all("Development Action", filters={"parent": plan, "parenttype": PROGRAM},
-                             fields=["name", "action", "completed_on"], limit=0)
+    actions = frappe.get_all(ACTION, filters={"parent": plan, "parenttype": PROGRAM},
+                             fields=["name", "action", "completed_on", "training_event"], limit=0)
     for row in rules.actions_for_topic(actions, topic):
         if not row.get("completed_on"):
-            frappe.db.set_value("Development Action", row.name, {"completed_on": day, "training_event": training_event},
+            frappe.db.set_value(ACTION, row.name, {"completed_on": day, "done_at_session": training_event,
+                                                   "training_event": row.get("training_event") or training_event,
+                                                   "status": rules.DONE, "progress": 100},
                                 update_modified=False)
 
 
 def _unmark_actions(plan, training_event):
     """Only what this session marked: a date someone typed stays."""
-    for name in frappe.get_all("Development Action", filters={"parent": plan, "parenttype": PROGRAM,
-                                                              "training_event": training_event},
+    for name in frappe.get_all(ACTION, filters={"parent": plan, "parenttype": PROGRAM,
+                                                "done_at_session": training_event},
                                pluck="name", limit=0):
-        frappe.db.set_value("Development Action", name, {"completed_on": None, "training_event": None},
+        frappe.db.set_value(ACTION, name, {"completed_on": None, "done_at_session": None, "status": "In Progress"},
                             update_modified=False)
 
 
@@ -2107,3 +2229,28 @@ def setup_workflows_on_migrate():
                           (succession_plan_approval, "succession plan"),
                           (trainee_approval, "graduate trainee")):
         workflows.setup_on_migrate(module, label)
+
+
+# the indexes a review of the whole staff is read by: (doctype, [fields])
+INDEXES = (
+    (PLACEMENT, ["talent_review", "workflow_state"]),
+    (PLACEMENT, ["employee", "docstatus"]),
+    (PLACEMENT, ["talent_review", "box"]),
+    ("Succession Candidate", ["employee"]),
+    ("Trainee Milestone", ["appraisal"]),
+    ("Talent Calibration Log", ["talent_review", "moved_on"]),
+    ("Potential Assessment", ["placement", "docstatus"]),
+)
+
+
+def add_indexes():
+    """on_doctype_update of the Talent Placement, and the patch talent_indexes:
+    each index once. A speed-up only, so one a table will not take holds
+    nothing else up."""
+    for doctype, fields in INDEXES:
+        if not frappe.db.table_exists(doctype):
+            continue
+        try:
+            frappe.db.add_index(doctype, fields, index_name="ha_%s" % "_".join(fields))
+        except Exception:
+            frappe.log_error(title="HRMS Addon: index on %s %s" % (doctype, ", ".join(fields)), defer_insert=True)

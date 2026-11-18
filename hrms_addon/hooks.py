@@ -318,6 +318,8 @@ jinja = {
         "hrms_addon.hrms_addon.talent.talent_grid",
         "hrms_addon.hrms_addon.talent.talent_follow_through",
         "hrms_addon.hrms_addon.talent.talent_plan_progress",
+        # the Talent Council Pack print of a review (talent_council.py)
+        "hrms_addon.hrms_addon.talent_council.talent_council_pack",
         # the Pay Slip print: the Salary Slip's lines that are money, its
         # totals and its days, laid out as Luuka's own slip (payslip.py)
         "hrms_addon.hrms_addon.payslip.pay_slip",
@@ -1757,6 +1759,12 @@ permission_query_conditions = {
     "Talent Program": "hrms_addon.hrms_addon.talent_access.program_query_conditions",
     "Succession Position": "hrms_addon.hrms_addon.talent_access.position_query_conditions",
     "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_query_conditions",
+    # a rater's potential assessments, a line manager's team's flight risk,
+    # a mentor's sessions, a rotation supervisor's assessments (talent rebuild)
+    "Potential Assessment": "hrms_addon.hrms_addon.talent_access.assessment_query_conditions",
+    "Flight Risk Assessment": "hrms_addon.hrms_addon.talent_access.risk_query_conditions",
+    "Mentoring Session": "hrms_addon.hrms_addon.graduates.session_query_conditions",
+    "Rotation Assessment": "hrms_addon.hrms_addon.graduates.rotation_query_conditions",
     # a supervisor sees the training reviews that are theirs to give
     # (learning_delivery.py)
     "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_query",
@@ -1775,6 +1783,11 @@ has_permission = {
     "Talent Program": "hrms_addon.hrms_addon.talent_access.program_has_permission",
     "Succession Position": "hrms_addon.hrms_addon.talent_access.position_has_permission",
     "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_has_permission",
+    # only the mentor writes their sessions (graduates.py)
+    "Potential Assessment": "hrms_addon.hrms_addon.talent_access.assessment_has_permission",
+    "Flight Risk Assessment": "hrms_addon.hrms_addon.talent_access.risk_has_permission",
+    "Mentoring Session": "hrms_addon.hrms_addon.graduates.session_has_permission",
+    "Rotation Assessment": "hrms_addon.hrms_addon.graduates.rotation_has_permission",
     "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_permission",
 }
 
@@ -2535,6 +2548,10 @@ auto_cancel_exempted_doctypes = ["Interview Shortlist", "Interview Report"]
 # -----------------------------------------------------------
 
 # ignore_links_on_delete = ["Communication", "ToDo"]
+# Talent's histories keep the placement they were about: a draft placement
+# deleted leaves its calibration moves, flight risk and job lines behind as
+# they were written (calibration.py, retention.py, talent_jobs.py)
+ignore_links_on_delete = ["Talent Calibration Log", "Flight Risk Assessment", "Talent Job Log"]
 
 # Request Events
 # ----------------

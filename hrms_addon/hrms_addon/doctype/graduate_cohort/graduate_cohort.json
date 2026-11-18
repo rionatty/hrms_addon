@@ -1,0 +1,193 @@
+{
+ "actions": [],
+ "autoname": "field:cohort_name",
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "cohort_name",
+  "intake_year",
+  "company",
+  "column_break_cohort",
+  "start_date",
+  "end_date",
+  "coordinator",
+  "coordinator_name",
+  "status",
+  "milestones_section",
+  "milestones",
+  "figures_section",
+  "trainees",
+  "in_programme",
+  "column_break_figures",
+  "confirmed",
+  "exited"
+ ],
+ "fields": [
+  {
+   "fieldname": "cohort_name",
+   "fieldtype": "Data",
+   "label": "Cohort",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "intake_year",
+   "fieldtype": "Int",
+   "label": "Intake Year",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "column_break_cohort",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Starts"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "Ends"
+  },
+  {
+   "fieldname": "coordinator",
+   "fieldtype": "Link",
+   "label": "Coordinator",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "coordinator_name",
+   "fieldtype": "Data",
+   "label": "Coordinator's Name",
+   "read_only": 1,
+   "fetch_from": "coordinator.employee_name"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nRunning\nClosed",
+   "default": "Open",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "milestones_section",
+   "fieldtype": "Section Break",
+   "label": "Milestones"
+  },
+  {
+   "fieldname": "milestones",
+   "fieldtype": "Table",
+   "label": "Milestones",
+   "options": "Cohort Milestone"
+  },
+  {
+   "fieldname": "figures_section",
+   "fieldtype": "Section Break",
+   "label": "Trainees"
+  },
+  {
+   "fieldname": "trainees",
+   "fieldtype": "Int",
+   "label": "Trainees",
+   "read_only": 1
+  },
+  {
+   "fieldname": "in_programme",
+   "fieldtype": "Int",
+   "label": "In the Programme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_figures",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "confirmed",
+   "fieldtype": "Int",
+   "label": "Confirmed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "exited",
+   "fieldtype": "Int",
+   "label": "Left",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Graduate Cohort",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Mentor",
+   "read": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1
+  }
+ ],
+ "sort_field": "cohort_name",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

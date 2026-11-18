@@ -23,6 +23,11 @@ extrusion and in printing until somebody sits the managers down together.
 "Line manager" here is Luuka's Supervisor and Head of Department roles,
 which is what the rest of this app calls the two people above an employee.
 The Talent Council is new, and so is Mentor.
+
+A review moves the whole staff a step at a time, from the board, so no
+step emails anyone one placement at a time (SEND_EMAIL_ALERT): HR hear
+of what came into calibration once a day, and a step over the board ends in
+one digest a person (talent_jobs.py).
 """
 
 DOCTYPE = "Talent Placement"
@@ -52,6 +57,8 @@ COUNCIL = "Talent Council"
 MENTOR = "Mentor"
 NEW_ROLES = (COUNCIL, MENTOR)
 PERMISSIONS = {}
+# Frappe's own Workflow email, one a document a step: off (workflows.py)
+SEND_EMAIL_ALERT = 0
 
 MANAGERS = (SUPERVISOR, HOD)
 HR = (HR_OFFICER, HRM)
@@ -61,9 +68,9 @@ STATES = (
     *({"state": DRAFT, "allow_edit": role, "status": DRAFT, "style": "", "send_email": 0}
       for role in MANAGERS + HR),
     *({"state": CALIBRATION, "allow_edit": role, "status": CALIBRATION, "style": "Warning",
-       "send_email": 1} for role in MANAGERS + HR),
+       "send_email": 0} for role in MANAGERS + HR),
     *({"state": COUNCIL_REVIEW, "allow_edit": role, "status": COUNCIL_REVIEW, "style": "Warning",
-       "send_email": 1} for role in (COUNCIL, HRM)),
+       "send_email": 0} for role in (COUNCIL, HRM)),
     *({"state": FINALISED, "allow_edit": role, "status": FINALISED, "style": "Success",
        "send_email": 0, "doc_status": "1"} for role in (COUNCIL, HRM)),
     {"state": CANCELLED, "allow_edit": HRM, "status": CANCELLED, "style": "Danger",
@@ -91,7 +98,8 @@ STAMPS = {
     COUNCIL_REVIEW: ("finalised_by", "finalised_on"),
 }
 ALL_STAMP_FIELDS = tuple(field for pair in STAMPS.values() for field in pair)
-ROLE_WAITING = {CALIBRATION: HOD, COUNCIL_REVIEW: COUNCIL}
+# who a placement waits for: only HR move it on from calibration
+ROLE_WAITING = {CALIBRATION: HR_OFFICER, COUNCIL_REVIEW: COUNCIL}
 
 
 def compute_stamps(old_state, new_state, user, today, current):

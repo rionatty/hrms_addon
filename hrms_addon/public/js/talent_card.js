@@ -128,10 +128,19 @@ html[data-theme="dark"] .ha-tc-bar i b { background: #5B8FC7; }
 				}
 			}
 			html += row(__("Potential"), potential);
-			const dims = placed.dimensions || {};
-			if (["ability", "aspiration", "engagement"].some((name) => dims[name] !== null && dims[name] !== undefined)) {
-				html += row(__("Ability, aspiration, engagement"),
-					["ability", "aspiration", "engagement"].map((name) => number(dims[name], 1) || "–").join(" · "));
+			if (placed.raters) {
+				html += row(__("Rated by"), `${esc(placed.raters === 1 ? __("1 rater") : __("{0} raters", [placed.raters]))}${
+					placed.raters_disagree ? ` <span class="ha-tc-amber">${esc(__("who disagree"))}</span>` : ""}`);
+			}
+			if ((placed.criteria || []).length) {
+				html += `<div class="ha-tc-label">${esc(__("Potential by criterion, 1 to 5"))}</div>`;
+				html += placed.criteria
+					.map((c) => `<div class="ha-tc-bar"><em title="${esc(c.criterion)}">${esc(__(c.criterion))}</em>
+						<i><b style="width:${Math.max(0, Math.min(100, (c.average || 0) * 20))}%"></b></i><s>${number(c.average, 1)}</s></div>`)
+					.join("");
+			}
+			if (placed.calibrated_performance) {
+				html += row(__("Performance after calibration"), `<span class="ha-tc-amber">${esc(__(placed.calibrated_performance))}</span>`);
 			}
 			if ((placed.competencies || []).length) {
 				html += `<div class="ha-tc-label">${esc(__("Competencies, from the appraisals"))}</div>`;
@@ -145,6 +154,13 @@ html[data-theme="dark"] .ha-tc-bar i b { background: #5B8FC7; }
 				html += row(__("Flight risk"), `<span class="${tone}">${esc(__(placed.flight_risk))}</span>${
 					placed.impact_of_loss ? ` <span class="text-muted">· ${esc(__("impact {0}", [__(placed.impact_of_loss).toLowerCase()]))}</span>` : ""}`);
 			}
+			if ((card.risk_history || []).length > 1) {
+				html += row(__("Flight risk over time"), card.risk_history
+					.map((r) => `${esc(frappe.datetime.str_to_user(r.assessed_on))} ${esc(__(r.risk))}`).join(" · "));
+			}
+			(placed.retention || []).forEach((r) => {
+				html += row(__("Retention action"), `${esc(r.action)} · ${esc(__(r.status))}${r.due ? ` · ${esc(frappe.datetime.str_to_user(r.due))}` : ""}`);
+			});
 			if (placed.management_decision) {
 				html += row(__("Management's decision"), esc(__(placed.management_decision)));
 			}
@@ -158,7 +174,11 @@ html[data-theme="dark"] .ha-tc-bar i b { background: #5B8FC7; }
 				.join(" · "));
 		}
 		(card && card.successor_for || []).forEach((s) => {
-			html += row(__("Successor for"), `${link("Succession Position", s.position, s.role || s.position)} · ${esc(__(s.readiness || ""))}`);
+			html += row(__("Successor for"), `${link("Succession Position", s.position, s.role || s.position)} · ${esc(__(s.readiness || ""))}${
+				s.rank ? ` · ${esc(__("ranked {0}", [s.rank]))}` : ""}`);
+		});
+		(card && card.pools || []).forEach((p) => {
+			html += row(__("Talent pool"), `${link("Talent Pool", p.name, p.pool_name)} · ${esc(__(p.status || ""))}`);
 		});
 		(card && card.holds || []).forEach((h) => {
 			html += row(__("Holds a critical role"), `${link("Succession Position", h.name, h.designation)} · ${esc(__(h.coverage || ""))}`);

@@ -20,9 +20,15 @@ frappe.ui.form.on("Succession Position", {
 		frm.trigger("say_coverage");
 		// test case 12: successors are nominated from the finalised talent
 		// pool, so the picker offers finalised placements only
-		frm.fields_dict.candidates.grid.get_field("placement").get_query = () => ({
-			filters: { docstatus: 1, status: "Finalised" },
-		});
+		const grid = frm.fields_dict.candidates && frm.fields_dict.candidates.grid;
+		if (grid) {
+			grid.get_field("placement").get_query = () => ({
+				filters: { docstatus: 1, status: "Finalised" },
+			});
+		}
+		if (!frm.is_new() && frm.doc.docstatus < 2) {
+			frm.add_custom_button(__("Nominate from a Pool"), () => frm.trigger("nominate_from_pool"));
+		}
 		if (frm.doc.job_opening) {
 			frm.add_custom_button(__("Job Opening"), () =>
 				frappe.set_route("Form", "Job Opening", frm.doc.job_opening)
@@ -48,6 +54,41 @@ frappe.ui.form.on("Succession Position", {
 				` ${__("in 1-2 years")}: <b>${frm.doc.ready_soon || 0}</b>,` +
 				` ${__("emerging")}: <b>${frm.doc.emerging || 0}</b></span>`
 		);
+	},
+	// successors named from a pool's confirmed members, each suggested the
+	// readiness their box draws (talent_pools.nominate_from_pool)
+	nominate_from_pool(frm) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Nominate from a Pool"),
+			fields: [
+				{ fieldname: "pool", fieldtype: "Link", options: "Talent Pool", label: __("Talent Pool"), reqd: 1,
+					get_query: () => ({ filters: { status: "Confirmed", company: frm.doc.company } }),
+					change: () => {
+						const pool = dialog.get_value("pool");
+						if (!pool) return;
+						frappe.xcall("hrms_addon.hrms_addon.talent_pools.pool_members",
+							{ pool, designation: frm.doc.designation }).then((rows) => {
+							dialog.fields_dict.members.df.options = (rows || []).map((row) => ({
+								value: row.employee, label: `${row.employee_name || row.employee} (${__(row.readiness)})`,
+							}));
+							dialog.fields_dict.members.refresh();
+						});
+					} },
+				{ fieldname: "members", fieldtype: "MultiCheck", label: __("Members"), options: [] },
+			],
+			primary_action_label: __("Nominate"),
+			primary_action: (values) => {
+				const employees = dialog.fields_dict.members.get_checked_options();
+				if (!employees.length) return;
+				frappe.xcall("hrms_addon.hrms_addon.talent_pools.nominate_from_pool",
+					{ position: frm.doc.name, pool: values.pool, employees }).then((added) => {
+					dialog.hide();
+					frappe.show_alert({ message: __("{0} successors added", [added || 0]), indicator: "green" });
+					frm.reload_doc();
+				});
+			},
+		});
+		dialog.show();
 	},
 	show_follow_through(frm) {
 		if (frm.is_new()) return;

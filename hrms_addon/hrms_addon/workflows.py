@@ -15,6 +15,8 @@ for the Interview Report). This builds it on the site, on every migrate:
   TRANSITIONS     rows of state, action, next_state, allowed and, where a
                   route depends on the document, a condition on `doc`
   DOCTYPE, WORKFLOW_NAME, STATE_FIELD
+  SEND_EMAIL_ALERT  optional, 1 when left out: 0 where documents move in
+                  bulk and the module tells people its own way, once
   STATUS_FIELD    optional: where the states' status goes when the doctype has
                   no `status` field
 
@@ -271,7 +273,7 @@ def _ensure_workflow(rules):
             workflow.document_type == rules.DOCTYPE
             and workflow.workflow_state_field == rules.STATE_FIELD
             and workflow.is_active
-            and workflow.send_email_alert
+            and int(workflow.send_email_alert or 0) == int(getattr(rules, "SEND_EMAIL_ALERT", 1))
             and _rows(workflow.states, state_keys) == _rows(states, state_keys)
             and _rows(workflow.transitions, transition_keys) == _rows(transitions, transition_keys)
         )
@@ -284,7 +286,7 @@ def _ensure_workflow(rules):
     workflow.document_type = rules.DOCTYPE
     workflow.workflow_state_field = rules.STATE_FIELD
     workflow.is_active = 1
-    workflow.send_email_alert = 1
+    workflow.send_email_alert = int(getattr(rules, "SEND_EMAIL_ALERT", 1))
     workflow.set("states", states)
     workflow.set("transitions", transitions)
     workflow.save(ignore_permissions=True)

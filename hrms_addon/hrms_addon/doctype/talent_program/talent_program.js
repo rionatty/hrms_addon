@@ -1,11 +1,10 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 //
-// The development plan (test cases 1 to 3, and 9): how far it has got —
-// the actions done out of all of them, and those past their date — and
-// the date each action was done, a column of this plan's actions. The
-// appraisal keeps the same actions table, and its own grid is left as it
-// is. The links go to whatever the plan came from or went to.
+// The development plan (test cases 1 to 3, and 9): how far it has got,
+// the actions done out of all of them and those past their date, what it
+// costs and its mix of experience, exposure and education (the 70/20/10
+// rule). The links go to whatever the plan came from or went to.
 
 frappe.ui.form.on("Talent Program", {
 	setup(frm) {
@@ -17,13 +16,6 @@ frappe.ui.form.on("Talent Program", {
 		];
 	},
 	refresh(frm) {
-		const grid = frm.fields_dict.actions && frm.fields_dict.actions.grid;
-		const done = frappe.meta.get_docfield("Development Action", "completed_on", frm.doc.name);
-		if (grid && done && !done.in_list_view) {
-			done.in_list_view = 1;
-			done.columns = 2;
-			grid.reset_grid();
-		}
 		ha_plan_progress(frm);
 		const go = (label, doctype, name) => {
 			if (name) frm.add_custom_button(__(label), () => frappe.set_route("Form", doctype, name), __("Open"));
@@ -32,11 +24,18 @@ frappe.ui.form.on("Talent Program", {
 		go("Succession Plan", "Succession Position", frm.doc.succession_position);
 		go("Nine-Box Placement", "Talent Placement", frm.doc.placement);
 		go("Training Requisition", "Training Requisition", frm.doc.training_requisition);
+		if (!frm.is_new()) {
+			frm.add_custom_button(__("Mentoring Session"), () =>
+				frappe.new_doc("Mentoring Session", { talent_program: frm.doc.name, mentor: frm.doc.mentor }), __("Open"));
+		}
 	},
 });
 
-frappe.ui.form.on("Development Action", {
+frappe.ui.form.on("Talent Plan Action", {
 	completed_on(frm) {
+		ha_plan_progress(frm);
+	},
+	status(frm) {
 		ha_plan_progress(frm);
 	},
 	actions_remove(frm) {
@@ -48,11 +47,11 @@ frappe.ui.form.on("Development Action", {
 // trainings L&D booked for it (the Training table, filled from L&D).
 function ha_plan_progress(frm) {
 	frm.dashboard.clear_headline();
-	const rows = frm.doc.actions || [];
+	const rows = (frm.doc.actions || []).filter((row) => row.status !== "Dropped");
 	if (frm.is_new() || !rows.length) return;
-	const done = rows.filter((row) => row.completed_on).length;
+	const done = rows.filter((row) => row.completed_on || row.status === "Done").length;
 	const today = frappe.datetime.get_today();
-	const late = rows.filter((row) => !row.completed_on && row.by_when && row.by_when < today).length;
+	const late = rows.filter((row) => !row.completed_on && row.status !== "Done" && row.by_when && row.by_when < today).length;
 	const share = Math.round((100 * done) / rows.length);
 	const trainings = frm.doc.trainings || [];
 	const attended = trainings.filter((row) => row.attendance === "Present").length;
@@ -64,6 +63,12 @@ function ha_plan_progress(frm) {
 			(late ? `<span class="indicator-pill red">${__("{0} past their date", [late])}</span>` : "") +
 			(trainings.length
 				? `<span style="margin-left:12px">${__("{0} of {1} trainings attended", [attended, trainings.length])}</span>`
-				: "")
+				: "") +
+			(frm.doc.approved_investment
+				? `<span style="margin-left:12px">${__("{0} approved, {1} spent", [format_currency(frm.doc.approved_investment),
+					format_currency(frm.doc.actual_investment || 0)])}</span>`
+				: "") +
+			`<span style="margin-left:12px" class="text-muted">${__("Experience {0}%, exposure {1}%, education {2}%", [
+				frm.doc.experience_share || 0, frm.doc.exposure_share || 0, frm.doc.education_share || 0])}</span>`
 	);
 }
