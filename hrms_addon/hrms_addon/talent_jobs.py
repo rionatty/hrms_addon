@@ -186,6 +186,19 @@ def flush(context):
     frappe.flags[_DIGEST] = []
 
 
+def send_digest(entries, subject, doctype=None, name=None):
+    """A digest outside a job (the daily checks): one message a person, its
+    lines what is theirs. entries: [(user, line, doctype, name)]; the message
+    opens `doctype` `name`, else the first line's document."""
+    for user, found in rules.digest(entries).items():
+        lines = "".join("<li>%s</li>" % frappe.utils.escape_html(line) for line, _doctype, _name in found["lines"])
+        if found["more"]:
+            lines += "<li>%s</li>" % _("and {0} more").format(found["more"])
+        first = found["lines"][0] if found["lines"] else (None, None, None)
+        title = "%s: %d" % (subject, found["count"])
+        people.notify([user], doctype or first[1], name or first[2], title, "<p>%s</p><ul>%s</ul>" % (title, lines))
+
+
 @frappe.whitelist()
 def get_log(log):
     """A step's log, for the page that started it."""

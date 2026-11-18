@@ -13,13 +13,15 @@ from frappe.utils import getdate, today
 def execute(filters=None):
     filters = frappe._dict(filters or {})
     conditions = {"docstatus": ["<", 2]}
-    if filters.get("cohort"):
-        conditions["cohort"] = filters.cohort
+    for field in ("cohort", "discipline"):
+        if filters.get(field):
+            conditions[field] = filters.get(field)
     if filters.get("branch"):
         conditions["home_branch"] = filters.branch
     trainees = frappe.get_list("Graduate Trainee Program", filters=conditions, fields=[
-        "name", "trainee_name", "cohort", "workflow_state", "mentor_name", "home_branch", "start_date", "end_date",
-        "milestones_passed", "average_score", "employee"], limit_page_length=0)
+        "name", "trainee_name", "cohort", "discipline", "workflow_state", "mentor_name", "home_branch", "start_date",
+        "end_date", "milestones_passed", "average_score", "employee", "rotation_assessments", "mentoring_sessions"],
+        limit_page_length=0)
     names = [row.name for row in trainees]
     rotations, due = {}, {}
     for row in frappe.get_all("Trainee Rotation", filters={"parent": ["in", names],
@@ -60,7 +62,8 @@ def columns():
         {"label": _("Trainee"), "fieldname": "name", "fieldtype": "Link", "options": "Graduate Trainee Program",
          "width": 140},
         {"label": _("Name"), "fieldname": "trainee_name", "fieldtype": "Data", "width": 170},
-        {"label": _("Cohort"), "fieldname": "cohort", "fieldtype": "Data", "width": 160},
+        {"label": _("Cohort"), "fieldname": "cohort", "fieldtype": "Link", "options": "Graduate Cohort", "width": 160},
+        {"label": _("Discipline"), "fieldname": "discipline", "fieldtype": "Data", "width": 130},
         {"label": _("Stage"), "fieldname": "workflow_state", "fieldtype": "Data", "width": 130},
         {"label": _("Mentor"), "fieldname": "mentor_name", "fieldtype": "Data", "width": 150},
         {"label": _("Plant"), "fieldname": "home_branch", "fieldtype": "Link", "options": "Branch", "width": 100},
@@ -68,6 +71,8 @@ def columns():
         {"label": _("Ends"), "fieldname": "end_date", "fieldtype": "Date", "width": 100},
         {"label": _("Rotations Done"), "fieldname": "rotations_done", "fieldtype": "Int", "width": 110},
         {"label": _("Rotations"), "fieldname": "rotations", "fieldtype": "Int", "width": 85},
+        {"label": _("Rotations Assessed"), "fieldname": "rotation_assessments", "fieldtype": "Int", "width": 120},
+        {"label": _("Mentoring Sessions"), "fieldname": "mentoring_sessions", "fieldtype": "Int", "width": 120},
         {"label": _("Milestones Passed"), "fieldname": "milestones_passed", "fieldtype": "Int", "width": 125},
         {"label": _("Average Score"), "fieldname": "average_score", "fieldtype": "Float", "width": 110},
         {"label": _("Next Milestone"), "fieldname": "next_milestone", "fieldtype": "Data", "width": 140},

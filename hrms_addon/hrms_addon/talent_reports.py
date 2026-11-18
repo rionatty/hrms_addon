@@ -38,7 +38,7 @@ def check_boxes():
 def plan_progress(plans, day=None):
     """{plan: {"actions", "done", "late", "share"}} for the plans named."""
     names = list(plans or [])
-    rows = frappe.get_all("Development Action", filters={"parent": ["in", names], "parenttype": PROGRAM},
+    rows = frappe.get_all(talent.ACTION, filters={"parent": ["in", names], "parenttype": PROGRAM},
                           fields=["parent", "completed_on", "by_when"], limit=0) if names else []
     by_plan = {}
     for row in rows:
@@ -78,11 +78,12 @@ def month(day=None):
             if cint(row.top_talent) and row.flight_risk in ("High", "Medium") else ""
         event(row.finalised_on, _("Nine-box"), row.employee_name,
               _("Finalised in box {0}, {1}{2}").format(row.box, _(row.box_name or ""), risk), PLACEMENT, row.name)
-    moves = frappe.get_all("Talent Calibration Entry", filters={"parenttype": talent.REVIEW, "moved_on": within},
-                           fields=["parent", "placement", "employee_name", "from_box", "to_box", "reason", "moved_on"],
-                           limit=0)
+    moves = frappe.get_all("Talent Calibration Log", filters={"event": ["in", ("Moved", "Applied")],
+                                                              "moved_on": ["between", [start, end + " 23:59:59"]]},
+                           fields=["talent_review", "placement", "employee_name", "from_box", "to_box", "reason",
+                                   "moved_on"], limit=0)
     for row in moves:
-        event(row.moved_on, _("Calibration"), row.employee_name,
+        event(str(row.moved_on)[:10], _("Calibration"), row.employee_name,
               _("Moved from box {0} to box {1}: {2}").format(row.from_box, row.to_box, row.reason or ""),
               PLACEMENT, row.placement)
     confirmed = frappe.get_all(POSITION, filters={"docstatus": 1, "confirmed_on": within}, fields=[
@@ -101,7 +102,7 @@ def month(day=None):
         event(row.handed_over_on, _("Succession"), row.incumbent_name,
               _("Took over as {0} from {1}").format(row.designation, row.previous_incumbent_name or _("the holder")),
               POSITION, row.name)
-    done = frappe.get_all("Development Action", filters={"parenttype": PROGRAM, "completed_on": within},
+    done = frappe.get_all(talent.ACTION, filters={"parenttype": PROGRAM, "completed_on": within},
                           fields=["parent", "action", "completed_on"], limit=0)
     owners = {row.name: row.employee_name for row in frappe.get_all(
         PROGRAM, filters={"name": ["in", sorted({row.parent for row in done})]},
@@ -123,8 +124,9 @@ def month(day=None):
             if row.workflow_state != "Exited" else _("Left the programme: {0}").format(row.exit_reason or "")
         event(row.confirmed_on, _("Graduate trainees"), row.trainee_name, what, TRAINEE, row.name)
     events.sort(key=lambda row: (str(row["date"] or ""), row["area"]))
-    late = frappe.get_all("Development Action", filters={"parenttype": PROGRAM, "completed_on": ["is", "not set"],
-                                                         "by_when": ["<=", end]}, pluck="name", limit=0)
+    late = frappe.get_all(talent.ACTION, filters={"parenttype": PROGRAM, "completed_on": ["is", "not set"],
+                                                         "by_when": ["<=", end],
+                                                  "status": ["not in", ("Done", "Dropped")]}, pluck="name", limit=0)
     summary = {
         "finalised": len(finalised),
         "top_talent": len([row for row in finalised if cint(row.top_talent)]),

@@ -23,7 +23,9 @@ def execute(filters=None):
     boxes = talent_board.can_see_boxes()
     plans = frappe.get_list("Talent Program", filters=conditions, fields=[
         "name", "employee", "employee_name", "program_type", "workflow_state", "start_date", "end_date", "mentor",
-        "training_requisition"] + (["target_box", "target_reached"] if boxes else []), limit_page_length=0)
+        "training_requisition", "approved_investment", "actual_investment", "experience_share", "exposure_share",
+        "education_share", "mentoring_sessions"] + (["target_box", "target_reached"] if boxes else []),
+        limit_page_length=0)
     progress = talent_reports.plan_progress([row.name for row in plans])
     trained = talent_reports.training_progress([row.name for row in plans])
     rows = [dict(row, **progress.get(row.name, {}), **trained.get(row.name, {})) for row in plans]
@@ -38,6 +40,10 @@ def execute(filters=None):
          "datatype": "Int", "indicator": "Red"},
         {"value": sum(row.get("attended") or 0 for row in rows), "label": _("Trainings attended"),
          "datatype": "Int", "indicator": "Green"},
+        {"value": sum(row.get("approved_investment") or 0 for row in rows), "label": _("Approved"),
+         "datatype": "Currency", "indicator": "Blue"},
+        {"value": sum(row.get("actual_investment") or 0 for row in rows), "label": _("Spent"),
+         "datatype": "Currency", "indicator": "Blue"},
     ]
     return columns(boxes), rows, None, None, summary
 
@@ -62,6 +68,12 @@ def columns(boxes=False):
         {"label": _("Trainings"), "fieldname": "trainings", "fieldtype": "Int", "width": 85},
         {"label": _("Attended"), "fieldname": "attended", "fieldtype": "Int", "width": 85},
         {"label": _("Effective"), "fieldname": "effective", "fieldtype": "Int", "width": 85},
+        {"label": _("Approved"), "fieldname": "approved_investment", "fieldtype": "Currency", "width": 110},
+        {"label": _("Spent"), "fieldname": "actual_investment", "fieldtype": "Currency", "width": 110},
+        {"label": _("Experience %"), "fieldname": "experience_share", "fieldtype": "Percent", "width": 100},
+        {"label": _("Exposure %"), "fieldname": "exposure_share", "fieldtype": "Percent", "width": 95},
+        {"label": _("Education %"), "fieldname": "education_share", "fieldtype": "Percent", "width": 95},
+        {"label": _("Mentoring Sessions"), "fieldname": "mentoring_sessions", "fieldtype": "Int", "width": 110},
     ] + ([
         {"label": _("Target Box"), "fieldname": "target_box", "fieldtype": "Link", "options": "Nine Box", "width": 130},
         {"label": _("Target Reached"), "fieldname": "target_reached", "fieldtype": "Check", "width": 110},

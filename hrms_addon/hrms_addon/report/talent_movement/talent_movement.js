@@ -16,6 +16,8 @@ frappe.query_reports["Talent Movement"] = {
 			fieldtype: "Select",
 			options: "\nUp\nDown\nAcross\nSame\nNew\nNot Placed",
 		},
+		{ fieldname: "from_box", label: __("From Box"), fieldtype: "Int" },
+		{ fieldname: "to_box", label: __("To Box"), fieldtype: "Int" },
 	],
 	formatter(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);

@@ -4,6 +4,8 @@
 frappe.query_reports["Nine-Box Distribution"] = {
 	filters: [
 		{ fieldname: "talent_review", label: __("Talent Review"), fieldtype: "Link", options: "Talent Review" },
+		{ fieldname: "compared_with", label: __("Compared With"), fieldtype: "Link", options: "Talent Review" },
+		{ fieldname: "split_by", label: __("Side by Side"), fieldtype: "Select", options: "Plant\nDepartment", default: "Plant" },
 		{ fieldname: "branch", label: __("Plant"), fieldtype: "Link", options: "Branch" },
 		{ fieldname: "department", label: __("Department"), fieldtype: "Link", options: "Department" },
 		{ fieldname: "grade", label: __("Grade"), fieldtype: "Link", options: "Employee Grade" },

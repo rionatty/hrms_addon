@@ -6,5 +6,6 @@ frappe.query_reports["Top Talent and Flight Risk"] = {
 		{ fieldname: "talent_review", label: __("Talent Review"), fieldtype: "Link", options: "Talent Review" },
 		{ fieldname: "branch", label: __("Plant"), fieldtype: "Link", options: "Branch" },
 		{ fieldname: "department", label: __("Department"), fieldtype: "Link", options: "Department" },
+		{ fieldname: "flight_risk", label: __("Flight Risk"), fieldtype: "Select", options: "\nHigh\nMedium\nLow" },
 	],
 };
