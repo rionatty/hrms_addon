@@ -1,7 +1,7 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 
-// The shift reports of a period, grouped (shift_scorecard.py).
+// The submitted shifts of a period, grouped and scored from their totals (shift_scorecard.py).
 const SHS_LIGHTS = {
 	"On Target": "green",
 	Attention: "orange",
@@ -57,7 +57,7 @@ frappe.query_reports["Shift Scorecard"] = {
 			fieldname: "group_by",
 			label: __("Group By"),
 			fieldtype: "Select",
-			options: "Section\nSupervisor\nWeek\nDay\nShift",
+			options: "Section\nPlant\nSupervisor\nWeek\nDay\nShift",
 			default: "Section",
 		},
 	],

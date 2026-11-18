@@ -1,0 +1,256 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "order_no",
+  "customer",
+  "product",
+  "item",
+  "column_break_where",
+  "finishing_section",
+  "branch",
+  "company",
+  "unit",
+  "quantity_section",
+  "order_qty",
+  "order_value",
+  "budget_per_unit",
+  "column_break_status",
+  "status",
+  "released_on",
+  "due_on",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "order_no",
+   "fieldtype": "Data",
+   "label": "Order No.",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Data",
+   "label": "Customer",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "product",
+   "fieldtype": "Data",
+   "label": "Product or Specification",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "column_break_where",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "finishing_section",
+   "fieldtype": "Link",
+   "label": "Finishing Section",
+   "options": "Work Section",
+   "reqd": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "fetch_from": "finishing_section.branch",
+   "read_only": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "finishing_section.company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit",
+   "fetch_from": "finishing_section.unit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quantity_section",
+   "fieldtype": "Section Break",
+   "label": "Quantity and Value"
+  },
+  {
+   "fieldname": "order_qty",
+   "fieldtype": "Float",
+   "label": "Order Quantity",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "order_value",
+   "fieldtype": "Currency",
+   "label": "Order Value",
+   "reqd": 1,
+   "non_negative": 1
+  },
+  {
+   "fieldname": "budget_per_unit",
+   "fieldtype": "Currency",
+   "label": "Budget per Unit",
+   "non_negative": 1,
+   "description": "Conversion cost a unit may carry. Empty takes the settings' share of the order value."
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nRunning\nCompleted\nCancelled",
+   "default": "Open",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "released_on",
+   "fieldtype": "Date",
+   "label": "Released On",
+   "default": "Today"
+  },
+  {
+   "fieldname": "due_on",
+   "fieldtype": "Date",
+   "label": "Due On"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Plant Order",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "autoname": "field:order_no",
+ "allow_import": 1,
+ "track_changes": 1,
+ "search_fields": "customer,product"
+}

@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-11-17 18:00:00.000000",
- "description": "One section's shift: output, machines, waste, complaints, safety, people and overtime, with its score.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -14,22 +13,28 @@
   "branch",
   "company",
   "unit",
+  "plant_day_sheet",
   "column_break_who",
   "supervisor",
   "supervisor_name",
   "production_officer",
   "order_no",
+  "shift_key",
   "output_section",
   "target",
   "actual_output",
   "column_break_output",
   "housekeeping",
+  "outputs_section",
+  "outputs",
   "machines_section",
   "machines",
   "machines_running",
   "column_break_machines",
   "stop_hours",
   "downtime_reason",
+  "downtime_section",
+  "downtime",
   "losses_section",
   "waste_qty",
   "waste_value",
@@ -42,12 +47,17 @@
   "staff_planned",
   "staff_on_shift",
   "unauthorised_absent",
+  "not_marked",
   "column_break_time",
   "late_arrivals",
   "early_departures",
+  "ot_hours",
   "column_break_ppe",
   "wearing_ppe",
-  "ot_hours",
+  "clock_fetched_on",
+  "fetch_crew",
+  "crew_section",
+  "crew",
   "result_section",
   "score",
   "status",
@@ -82,6 +92,7 @@
   "adequacy",
   "output_per_person",
   "not_wearing",
+  "absent",
   "title",
   "amended_from"
  ],
@@ -92,17 +103,18 @@
    "label": "Series",
    "options": "LPL-SHR-.YYYY.-",
    "default": "LPL-SHR-.YYYY.-",
-   "hidden": 1,
-   "reqd": 1
+   "reqd": 1,
+   "hidden": 1
   },
   {
    "fieldname": "report_date",
    "fieldtype": "Date",
    "label": "Date",
    "reqd": 1,
-   "default": "Today",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "default": "Today",
+   "search_index": 1
   },
   {
    "fieldname": "shift",
@@ -111,7 +123,8 @@
    "options": "Day\nNight",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "work_section",
@@ -120,13 +133,15 @@
    "options": "Work Section",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "week",
    "fieldtype": "Data",
    "label": "Week",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_where",
@@ -139,7 +154,8 @@
    "options": "Branch",
    "fetch_from": "work_section.branch",
    "read_only": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "company",
@@ -157,6 +173,14 @@
    "read_only": 1
   },
   {
+   "fieldname": "plant_day_sheet",
+   "fieldtype": "Link",
+   "label": "Plant Day Sheet",
+   "options": "Plant Day Sheet",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
    "fieldname": "column_break_who",
    "fieldtype": "Column Break"
   },
@@ -164,7 +188,8 @@
    "fieldname": "supervisor",
    "fieldtype": "Link",
    "label": "Supervisor",
-   "options": "Employee"
+   "options": "Employee",
+   "search_index": 1
   },
   {
    "fieldname": "supervisor_name",
@@ -182,7 +207,18 @@
   {
    "fieldname": "order_no",
    "fieldtype": "Data",
-   "label": "Order or Job No."
+   "label": "Order or Job No.",
+   "depends_on": "eval:doc.order_no",
+   "read_only": 1
+  },
+  {
+   "fieldname": "shift_key",
+   "fieldtype": "Data",
+   "label": "Key",
+   "read_only": 1,
+   "hidden": 1,
+   "unique": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "output_section",
@@ -192,15 +228,13 @@
   {
    "fieldname": "target",
    "fieldtype": "Float",
-   "label": "Target",
-   "non_negative": 1
+   "label": "Target"
   },
   {
    "fieldname": "actual_output",
    "fieldtype": "Float",
    "label": "Actual Output",
-   "reqd": 1,
-   "non_negative": 1
+   "reqd": 1
   },
   {
    "fieldname": "column_break_output",
@@ -213,6 +247,19 @@
    "reqd": 1
   },
   {
+   "fieldname": "outputs_section",
+   "fieldtype": "Section Break",
+   "label": "Output by Order",
+   "collapsible": 1,
+   "description": "When lines are entered, the output and waste are their totals."
+  },
+  {
+   "fieldname": "outputs",
+   "fieldtype": "Table",
+   "label": "Output by Order",
+   "options": "Shift Output"
+  },
+  {
    "fieldname": "machines_section",
    "fieldtype": "Section Break",
    "label": "Machines and Downtime"
@@ -220,14 +267,12 @@
   {
    "fieldname": "machines",
    "fieldtype": "Int",
-   "label": "Machines in Section",
-   "non_negative": 1
+   "label": "Machines in Section"
   },
   {
    "fieldname": "machines_running",
    "fieldtype": "Int",
-   "label": "Machines Running",
-   "non_negative": 1
+   "label": "Machines Running"
   },
   {
    "fieldname": "column_break_machines",
@@ -236,14 +281,26 @@
   {
    "fieldname": "stop_hours",
    "fieldtype": "Float",
-   "label": "Stopped Hours on Running Machines",
-   "non_negative": 1
+   "label": "Stopped Hours on Running Machines"
   },
   {
    "fieldname": "downtime_reason",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Main Downtime Reason",
-   "options": "\nMechanical Breakdown\nElectrical Breakdown\nPower Outage\nNo Raw Material\nNo Order\nNo Operator\nChangeover\nPlanned Maintenance\nOther"
+   "options": "Downtime Reason"
+  },
+  {
+   "fieldname": "downtime_section",
+   "fieldtype": "Section Break",
+   "label": "Downtime Events",
+   "collapsible": 1,
+   "description": "When events are entered, the hours lost are their total."
+  },
+  {
+   "fieldname": "downtime",
+   "fieldtype": "Table",
+   "label": "Downtime Events",
+   "options": "Shift Downtime"
   },
   {
    "fieldname": "losses_section",
@@ -253,15 +310,12 @@
   {
    "fieldname": "waste_qty",
    "fieldtype": "Float",
-   "label": "Waste Quantity",
-   "non_negative": 1
+   "label": "Waste Quantity"
   },
   {
    "fieldname": "waste_value",
    "fieldtype": "Currency",
-   "label": "Waste Value",
-   "reqd": 1,
-   "non_negative": 1
+   "label": "Waste Value"
   },
   {
    "fieldname": "column_break_complaints",
@@ -270,8 +324,7 @@
   {
    "fieldname": "complaint_value",
    "fieldtype": "Currency",
-   "label": "Complaint Value",
-   "non_negative": 1
+   "label": "Complaint Value"
   },
   {
    "fieldname": "column_break_safety",
@@ -280,14 +333,12 @@
   {
    "fieldname": "safety_incidents",
    "fieldtype": "Int",
-   "label": "Safety Incidents",
-   "non_negative": 1
+   "label": "Safety Incidents"
   },
   {
    "fieldname": "near_misses",
    "fieldtype": "Int",
-   "label": "Near Misses Reported",
-   "non_negative": 1
+   "label": "Near Misses Reported"
   },
   {
    "fieldname": "people_section",
@@ -297,21 +348,23 @@
   {
    "fieldname": "staff_planned",
    "fieldtype": "Int",
-   "label": "Staff Planned",
-   "non_negative": 1
+   "label": "Staff Planned"
   },
   {
    "fieldname": "staff_on_shift",
    "fieldtype": "Int",
-   "label": "Staff on Shift",
-   "reqd": 1,
-   "non_negative": 1
+   "label": "Staff on Shift"
   },
   {
    "fieldname": "unauthorised_absent",
    "fieldtype": "Int",
-   "label": "Unauthorised Absent",
-   "non_negative": 1
+   "label": "Unauthorised Absent"
+  },
+  {
+   "fieldname": "not_marked",
+   "fieldtype": "Int",
+   "label": "Not Marked",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_time",
@@ -320,14 +373,17 @@
   {
    "fieldname": "late_arrivals",
    "fieldtype": "Int",
-   "label": "Late Arrivals",
-   "non_negative": 1
+   "label": "Late Arrivals"
   },
   {
    "fieldname": "early_departures",
    "fieldtype": "Int",
-   "label": "Early Departures",
-   "non_negative": 1
+   "label": "Early Departures"
+  },
+  {
+   "fieldname": "ot_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Person-Hours"
   },
   {
    "fieldname": "column_break_ppe",
@@ -336,15 +392,31 @@
   {
    "fieldname": "wearing_ppe",
    "fieldtype": "Int",
-   "label": "Wearing Full PPE",
-   "reqd": 1,
-   "non_negative": 1
+   "label": "Wearing Full PPE"
   },
   {
-   "fieldname": "ot_hours",
-   "fieldtype": "Float",
-   "label": "Overtime Person-Hours",
-   "non_negative": 1
+   "fieldname": "clock_fetched_on",
+   "fieldtype": "Datetime",
+   "label": "Fetched from the Clock",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fetch_crew",
+   "fieldtype": "Button",
+   "label": "Fetch from Clock"
+  },
+  {
+   "fieldname": "crew_section",
+   "fieldtype": "Section Break",
+   "label": "Crew",
+   "collapsible": 1,
+   "description": "From the clock: the people rostered on the shift. Tick Without PPE for anyone seen without it."
+  },
+  {
+   "fieldname": "crew",
+   "fieldtype": "Table",
+   "label": "Crew",
+   "options": "Shift Crew"
   },
   {
    "fieldname": "result_section",
@@ -556,25 +628,30 @@
    "read_only": 1
   },
   {
+   "fieldname": "absent",
+   "fieldtype": "Int",
+   "label": "Absent",
+   "read_only": 1
+  },
+  {
    "fieldname": "title",
    "fieldtype": "Data",
    "label": "Title",
-   "hidden": 1,
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
    "options": "Shift Report",
-   "no_copy": 1,
-   "print_hide": 1,
    "read_only": 1,
+   "no_copy": 1,
    "search_index": 1
   }
  ],
  "links": [],
- "modified": "2026-11-17 18:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Shift Report",

@@ -23,6 +23,13 @@
   "severity",
   "incident_date",
   "reported_by",
+  "case_type",
+  "quantity",
+  "unit",
+  "plant_order",
+  "supervisor_on_shift",
+  "supervisor_on_shift_name",
+  "employment",
   "column_break_2",
   "allegation",
   "incident_evidence",
@@ -173,7 +180,8 @@
    "label": "Work Section",
    "options": "Work Section",
    "fetch_from": "employee.custom_work_section",
-   "fetch_if_empty": 1
+   "fetch_if_empty": 1,
+   "search_index": 1
   },
   {
    "fieldname": "shift",
@@ -225,13 +233,61 @@
    "fieldname": "incident_date",
    "fieldtype": "Date",
    "label": "Date of Offence",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "reported_by",
    "fieldtype": "Link",
    "label": "Reported By",
    "options": "User"
+  },
+  {
+   "fieldname": "case_type",
+   "fieldtype": "Select",
+   "label": "Case Type",
+   "options": "Disciplinary\nGrievance\nAttendance\nSafety",
+   "default": "Disciplinary",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "label": "Quantity Affected",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit",
+   "fetch_from": "work_section.unit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "plant_order",
+   "fieldtype": "Link",
+   "label": "Order",
+   "options": "Plant Order"
+  },
+  {
+   "fieldname": "supervisor_on_shift",
+   "fieldtype": "Link",
+   "label": "Supervisor on Shift",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "supervisor_on_shift_name",
+   "fieldtype": "Data",
+   "label": "Supervisor Name",
+   "fetch_from": "supervisor_on_shift.employee_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "employment",
+   "fieldtype": "Select",
+   "label": "Employment",
+   "options": "\nPermanent\nCasual",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_2",

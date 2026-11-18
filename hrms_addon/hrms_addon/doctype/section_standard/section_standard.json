@@ -1,0 +1,118 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "effective_from",
+  "target_per_shift",
+  "crew_per_shift",
+  "machines",
+  "approved_establishment",
+  "labour_budget_per_unit",
+  "labour_rate",
+  "overtime_rate",
+  "waste_limit",
+  "complaint_limit",
+  "note"
+ ],
+ "fields": [
+  {
+   "fieldname": "effective_from",
+   "fieldtype": "Date",
+   "label": "From",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "target_per_shift",
+   "fieldtype": "Float",
+   "label": "Target per Shift",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "crew_per_shift",
+   "fieldtype": "Int",
+   "label": "Crew per Shift",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "machines",
+   "fieldtype": "Int",
+   "label": "Machines",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "approved_establishment",
+   "fieldtype": "Int",
+   "label": "Approved Establishment",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "labour_budget_per_unit",
+   "fieldtype": "Currency",
+   "label": "Labour Budget per Unit",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "labour_rate",
+   "fieldtype": "Currency",
+   "label": "Labour Cost per Person-Shift",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "overtime_rate",
+   "fieldtype": "Currency",
+   "label": "Overtime Cost per Hour",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "waste_limit",
+   "fieldtype": "Currency",
+   "label": "Waste Limit per Week",
+   "in_list_view": 1,
+   "non_negative": 1,
+   "columns": 1,
+   "description": "Empty takes the settings' limit."
+  },
+  {
+   "fieldname": "complaint_limit",
+   "fieldtype": "Currency",
+   "label": "Complaint Limit per Week",
+   "non_negative": 1,
+   "description": "Empty takes the settings' limit."
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Data",
+   "label": "Note"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Section Standard",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

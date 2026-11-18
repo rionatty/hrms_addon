@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-11-17 18:00:00.000000",
- "description": "The weights, bands, targets and legal limits behind the shift, supervisor and HR Excellence scores.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -68,13 +67,24 @@
   "pulse_target",
   "turnover_ceiling",
   "red_flag_safety",
+  "housekeeping_target",
   "discipline_section",
   "penalty_limit_days",
   "suspension_cap_days",
   "suspension_window_days",
   "column_break_discipline",
   "case_days",
-  "lookback_months"
+  "lookback_months",
+  "orders_section",
+  "budget_percent",
+  "column_break_orders",
+  "marginal_band",
+  "reports_section",
+  "hide_names",
+  "column_break_reports",
+  "send_brief",
+  "guide_section",
+  "guide_html"
  ],
  "fields": [
   {
@@ -442,6 +452,12 @@
    "default": "1"
   },
   {
+   "fieldname": "housekeeping_target",
+   "fieldtype": "Percent",
+   "label": "Housekeeping Target",
+   "default": "85"
+  },
+  {
    "fieldname": "discipline_section",
    "fieldtype": "Section Break",
    "label": "Discipline"
@@ -482,10 +498,66 @@
    "fieldtype": "Int",
    "label": "Repeat Cases Look Back (Months)",
    "default": "12"
+  },
+  {
+   "fieldname": "orders_section",
+   "fieldtype": "Section Break",
+   "label": "Order Feasibility"
+  },
+  {
+   "fieldname": "budget_percent",
+   "fieldtype": "Percent",
+   "label": "Default Labour and Loss Budget",
+   "default": "12",
+   "description": "A share of the order value, for orders with no budget per unit."
+  },
+  {
+   "fieldname": "column_break_orders",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "marginal_band",
+   "fieldtype": "Percent",
+   "label": "Marginal Band",
+   "default": "10",
+   "description": "Up to this over budget is Marginal; beyond it, Not Feasible."
+  },
+  {
+   "fieldname": "reports_section",
+   "fieldtype": "Section Break",
+   "label": "Reports and the Brief"
+  },
+  {
+   "fieldname": "hide_names",
+   "fieldtype": "Check",
+   "label": "Hide Names in Case Reports",
+   "default": "0",
+   "description": "Employee numbers are shown instead."
+  },
+  {
+   "fieldname": "column_break_reports",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "send_brief",
+   "fieldtype": "Check",
+   "label": "E-mail the HR Partner Brief on Mondays",
+   "default": "1"
+  },
+  {
+   "fieldname": "guide_section",
+   "fieldtype": "Section Break",
+   "label": "Guide",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "guide_html",
+   "fieldtype": "HTML",
+   "label": "Guide"
   }
  ],
  "links": [],
- "modified": "2026-11-17 18:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Manufacturing Excellence Settings",

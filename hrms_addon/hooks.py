@@ -1590,6 +1590,8 @@ fixtures = [
                     "Employee Grievance-custom_answer_cb",
                     "Employee Grievance-custom_appeals_authority",
                     "Employee Grievance-custom_appeal_outcome",
+                    # the grievance's section, for the section scorecards (excellence.py)
+                    "Employee Grievance-custom_work_section",
                     "Grievance Type-custom_lpl_section",
                     "Grievance Type-custom_timeline_days",
                     "Grievance Type-custom_lpl_cb",
@@ -2289,6 +2291,11 @@ doc_events = {
     "Disciplinary Case": {
         "validate": "hrms_addon.hrms_addon.excellence.case_validate",
     },
+    # Manufacturing Excellence (excellence.py): the request's and each line's
+    # Work Section beside the section text they always had
+    "Overtime Request": {
+        "validate": "hrms_addon.hrms_addon.excellence.fill_section",
+    },
     "Employee": {
         # The Status picked (one of Luuka's, an Employee Status) sets Frappe's
         # own, the System Status, before Frappe validates it: an employee who
@@ -2438,7 +2445,8 @@ doc_events = {
 scheduler_events = {
     "daily": [
         # HR interventions past their target date told to their owner; open
-        # cases' legal flags brought up to date (excellence.py)
+        # cases' legal flags brought up to date; yesterday's plant day sheets
+        # made (excellence.py)
         "hrms_addon.hrms_addon.excellence.daily",
         # an application saved for later and not finished in 30 days goes (careers.py)
         "hrms_addon.hrms_addon.careers.purge_drafts",
@@ -2556,12 +2564,21 @@ scheduler_events = {
         # the providers rated and ranked; accreditations and contracts running
         # out told (learning_providers.py)
         "hrms_addon.hrms_addon.learning_providers.daily",
+        # Manufacturing Excellence: the summaries of the shifts submitted or
+        # cancelled in the last two days checked (excellence_summary.py)
+        "hrms_addon.hrms_addon.excellence_summary.nightly",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,
         # and the departments furthest behind (learning.py)
         "hrms_addon.hrms_addon.learning.weekly",
     ],
+    "cron": {
+        # Manufacturing Excellence, Monday 06:00: last week's summaries
+        # checked, the interventions' KPIs read, the HR Partner Briefs built
+        # and sent to each plant's managers and HR (excellence.py)
+        "0 6 * * 1": ["hrms_addon.hrms_addon.excellence.weekly"],
+    },
 }
 
 # Testing

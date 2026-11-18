@@ -123,3 +123,10 @@ hrms_addon.patches.v1_0.lms_indexes
 hrms_addon.patches.v1_0.lms_training_kpis
 # Learning: one competency framework, its categories seeded and the skills placed in them
 hrms_addon.patches.v1_0.lms_competency_framework
+# Manufacturing Excellence rebuild (18 Nov 2026): masters, dated standards and roster, shift keys and order lines,
+# one Work Section on the other modules' documents, the stored summaries, the indexes
+hrms_addon.patches.v1_0.excellence_masters_and_history
+hrms_addon.patches.v1_0.excellence_shift_keys_and_lines
+hrms_addon.patches.v1_0.excellence_section_links
+hrms_addon.patches.v1_0.excellence_summaries
+hrms_addon.patches.v1_0.excellence_indexes

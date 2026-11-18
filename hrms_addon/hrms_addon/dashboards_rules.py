@@ -856,6 +856,10 @@ ATTENTION = (
      "HR Monthly Snapshot", "people", OVERDUE),
     ("board_actions_overdue", "Board action past its due quarter", "Board actions past their due quarter",
      "Board Action", "people", OVERDUE),
+    # a plant's day sheet of a past day with shifts neither entered nor
+    # marked Not Worked (excellence_sheet.py)
+    ("day_sheets_missing", "Day sheet with shifts not entered", "Day sheets with shifts not entered",
+     "Plant Day Sheet", "performance", OVERDUE),
     ("requisitions_waiting", "Job requisition waiting for approval", "Job requisitions waiting for approval",
      "Job Requisition", "recruitment", TODAY),
     ("interviews_unscored", "Interview waiting for the panel's feedback", "Interviews waiting for the panel's feedback",
@@ -881,6 +885,10 @@ ATTENTION = (
      "Allowance Request", "expenses", TODAY),
     ("hearings_week", "Disciplinary hearing this week", "Disciplinary hearings this week", "Disciplinary Case",
      "relations", TODAY),
+    # a plant's day sheet entered and waiting for its one approval
+    # (excellence_sheet.py)
+    ("day_sheets_unapproved", "Day sheet waiting for approval", "Day sheets waiting for approval", "Plant Day Sheet",
+     "performance", TODAY),
     ("suspensions_waiting", "Suspension waiting for approval", "Suspensions waiting for approval",
      "Employee Suspension", "relations", TODAY),
     ("settlements_waiting", "Final settlement waiting for the payroll", "Final settlements waiting for the payroll",
@@ -958,6 +966,7 @@ ATTENTION_COMPANY = {
     "top_talent_at_risk", "shift_reports_unchecked", "interventions_overdue", "cases_past_limit",
     "application_reviews_overdue", "reassessments_due", "training_budgets_near",
     "board_months_failed", "board_actions_overdue",
+    "day_sheets_missing", "day_sheets_unapproved",
 }
 
 
@@ -1012,6 +1021,8 @@ def attention_filters(key, day_of, company=None):
         "board_months_failed": {"status": "Failed"},
         "board_actions_overdue": {"status": ["in", ["Not Started", "On Track", "At Risk"]],
                                   "due_date": ["between", [EVER, "{yesterday}"]]},
+        "day_sheets_missing": {"docstatus": 0, "missing_rows": [">", 0], "sheet_date": ["between", [EVER, "{yesterday}"]]},
+        "day_sheets_unapproved": {"docstatus": 0, "missing_rows": 0, "sheet_date": ["between", [EVER, "{yesterday}"]]},
         "requisitions_to_assess": {"docstatus": 1, "status": "Submitted"},
         "trainings_not_closed": {"docstatus": 0, "event_status": "Scheduled", "end_time": ["between", [EVER, "{yesterday}"]]},
         "assessments_waiting": {"docstatus": 0, "status": ["in", list(ASSESSMENT_WAITING)]},

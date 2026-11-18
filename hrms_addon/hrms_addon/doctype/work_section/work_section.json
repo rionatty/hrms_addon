@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-11-17 18:00:00.000000",
- "description": "A production section of a plant: its unit, standards per shift, labour cost and supervisors.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -18,9 +17,11 @@
   "standards_section",
   "target_per_shift",
   "crew_per_shift",
-  "column_break_standards",
   "machines",
+  "column_break_standards",
   "approved_establishment",
+  "waste_limit",
+  "complaint_limit",
   "labour_section",
   "labour_budget_per_unit",
   "labour_rate",
@@ -28,7 +29,11 @@
   "column_break_labour",
   "rates_from_payroll",
   "rates_note",
-  "supervisors_section",
+  "history_section",
+  "standards",
+  "roster_section",
+  "assignments",
+  "old_roster_section",
   "supervisors"
  ],
  "fields": [
@@ -46,7 +51,8 @@
    "options": "Branch",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "department",
@@ -88,7 +94,7 @@
    "fieldtype": "Check",
    "label": "Takes Shift Reports",
    "default": "1",
-   "description": "A Shift Report is due from it every working shift."
+   "description": "A row on the plant's day sheet every working shift."
   },
   {
    "fieldname": "counts_to_output",
@@ -100,13 +106,14 @@
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Active",
-   "default": "1",
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "default": "1"
   },
   {
    "fieldname": "standards_section",
    "fieldtype": "Section Break",
-   "label": "Standards per Shift"
+   "label": "Standards in Force Today",
+   "description": "A change is kept as a standard from today; the earlier ones stay below."
   },
   {
    "fieldname": "target_per_shift",
@@ -121,14 +128,14 @@
    "non_negative": 1
   },
   {
-   "fieldname": "column_break_standards",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "machines",
    "fieldtype": "Int",
    "label": "Machines",
    "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_standards",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "approved_establishment",
@@ -136,6 +143,20 @@
    "label": "Approved Establishment",
    "non_negative": 1,
    "description": "Approved head count, both shifts."
+  },
+  {
+   "fieldname": "waste_limit",
+   "fieldtype": "Currency",
+   "label": "Waste Limit per Week",
+   "non_negative": 1,
+   "description": "Empty takes the settings' limit."
+  },
+  {
+   "fieldname": "complaint_limit",
+   "fieldtype": "Currency",
+   "label": "Complaint Limit per Week",
+   "non_negative": 1,
+   "description": "Empty takes the settings' limit."
   },
   {
    "fieldname": "labour_section",
@@ -152,7 +173,8 @@
    "fieldname": "labour_rate",
    "fieldtype": "Currency",
    "label": "Labour Cost per Person-Shift",
-   "non_negative": 1
+   "non_negative": 1,
+   "description": "Used for shifts without a crew from the clock."
   },
   {
    "fieldname": "overtime_rate",
@@ -176,19 +198,44 @@
    "read_only": 1
   },
   {
-   "fieldname": "supervisors_section",
+   "fieldname": "history_section",
    "fieldtype": "Section Break",
-   "label": "Supervisors"
+   "label": "Standards by Date"
+  },
+  {
+   "fieldname": "standards",
+   "fieldtype": "Table",
+   "label": "Standards",
+   "options": "Section Standard"
+  },
+  {
+   "fieldname": "roster_section",
+   "fieldtype": "Section Break",
+   "label": "Roster"
+  },
+  {
+   "fieldname": "assignments",
+   "fieldtype": "Table",
+   "label": "Roster",
+   "options": "Section Assignment"
+  },
+  {
+   "fieldname": "old_roster_section",
+   "fieldtype": "Section Break",
+   "label": "Roster before Dates",
+   "collapsible": 1,
+   "hidden": 1
   },
   {
    "fieldname": "supervisors",
    "fieldtype": "Table",
    "label": "Supervisors",
-   "options": "Work Section Supervisor"
+   "options": "Work Section Supervisor",
+   "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-11-17 18:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Work Section",

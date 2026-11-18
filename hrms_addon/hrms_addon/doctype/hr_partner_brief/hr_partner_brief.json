@@ -1,0 +1,379 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "week",
+  "branch",
+  "company",
+  "column_break_when",
+  "week_start",
+  "week_end",
+  "status",
+  "built_on",
+  "sent_on",
+  "money_section",
+  "waste_value",
+  "complaint_value",
+  "money_lost",
+  "over_limit",
+  "column_break_money",
+  "not_wearing",
+  "absent",
+  "hours_lost",
+  "safety_incidents",
+  "column_break_score",
+  "plant_score",
+  "plant_status",
+  "verdict",
+  "where_section",
+  "top_sections",
+  "coach_section",
+  "supervisors",
+  "follow_section",
+  "open_interventions",
+  "column_break_follow",
+  "overdue_interventions",
+  "column_break_raised",
+  "raised_interventions",
+  "points_section",
+  "talking_points",
+  "signals_section",
+  "signals",
+  "questions_section",
+  "questions",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "week",
+   "fieldtype": "Data",
+   "label": "Week",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_when",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "week_start",
+   "fieldtype": "Date",
+   "label": "From",
+   "read_only": 1
+  },
+  {
+   "fieldname": "week_end",
+   "fieldtype": "Date",
+   "label": "To",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nSent",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "built_on",
+   "fieldtype": "Datetime",
+   "label": "Built On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "sent_on",
+   "fieldtype": "Datetime",
+   "label": "Sent On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "money_section",
+   "fieldtype": "Section Break",
+   "label": "The Business Case"
+  },
+  {
+   "fieldname": "waste_value",
+   "fieldtype": "Currency",
+   "label": "Waste and Rejects",
+   "read_only": 1
+  },
+  {
+   "fieldname": "complaint_value",
+   "fieldtype": "Currency",
+   "label": "Customer Complaints",
+   "read_only": 1
+  },
+  {
+   "fieldname": "money_lost",
+   "fieldtype": "Currency",
+   "label": "Money Lost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "over_limit",
+   "fieldtype": "Int",
+   "label": "Sections over a Limit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_money",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "not_wearing",
+   "fieldtype": "Int",
+   "label": "Person-Shifts without Full PPE",
+   "read_only": 1
+  },
+  {
+   "fieldname": "absent",
+   "fieldtype": "Int",
+   "label": "Person-Shifts Absent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hours_lost",
+   "fieldtype": "Float",
+   "label": "Machine Hours Lost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "safety_incidents",
+   "fieldtype": "Int",
+   "label": "Safety Incidents",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_score",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "plant_score",
+   "fieldtype": "Float",
+   "label": "Plant Score",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "plant_status",
+   "fieldtype": "Data",
+   "label": "Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "verdict",
+   "fieldtype": "Small Text",
+   "label": "Verdict",
+   "read_only": 1
+  },
+  {
+   "fieldname": "where_section",
+   "fieldtype": "Section Break",
+   "label": "Where the Money Went"
+  },
+  {
+   "fieldname": "top_sections",
+   "fieldtype": "Table",
+   "label": "Sections",
+   "options": "HR Partner Brief Section"
+  },
+  {
+   "fieldname": "coach_section",
+   "fieldtype": "Section Break",
+   "label": "Supervisors to Coach"
+  },
+  {
+   "fieldname": "supervisors",
+   "fieldtype": "Table",
+   "label": "Supervisors",
+   "options": "HR Partner Brief Supervisor"
+  },
+  {
+   "fieldname": "follow_section",
+   "fieldtype": "Section Break",
+   "label": "Accountability"
+  },
+  {
+   "fieldname": "open_interventions",
+   "fieldtype": "Int",
+   "label": "Interventions Open",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_follow",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "overdue_interventions",
+   "fieldtype": "Int",
+   "label": "Interventions Overdue",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_raised",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "raised_interventions",
+   "fieldtype": "Int",
+   "label": "Raised This Week",
+   "read_only": 1
+  },
+  {
+   "fieldname": "points_section",
+   "fieldtype": "Section Break",
+   "label": "Talking Points"
+  },
+  {
+   "fieldname": "talking_points",
+   "fieldtype": "Text",
+   "label": "Talking Points"
+  },
+  {
+   "fieldname": "signals_section",
+   "fieldtype": "Section Break",
+   "label": "Workforce Signals"
+  },
+  {
+   "fieldname": "signals",
+   "fieldtype": "Table",
+   "label": "Signals",
+   "options": "HR Partner Brief Signal"
+  },
+  {
+   "fieldname": "questions_section",
+   "fieldtype": "Section Break",
+   "label": "Questions for the Plant Manager"
+  },
+  {
+   "fieldname": "questions",
+   "fieldtype": "Table",
+   "label": "Questions",
+   "options": "HR Partner Brief Question"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "HR Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "HR Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Partner Brief",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "week_start",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "title_field": "week"
+}

@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "work_section",
+  "waste_value",
+  "complaint_value",
+  "score",
+  "status",
+  "weakest_area"
+ ],
+ "fields": [
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "waste_value",
+   "fieldtype": "Currency",
+   "label": "Waste",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "complaint_value",
+   "fieldtype": "Currency",
+   "label": "Complaints",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Data",
+   "label": "Status",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "weakest_area",
+   "fieldtype": "Data",
+   "label": "Weakest Area",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Partner Brief Section",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

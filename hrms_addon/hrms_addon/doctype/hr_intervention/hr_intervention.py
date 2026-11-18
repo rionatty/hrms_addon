@@ -1,7 +1,7 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""A workforce issue and what HR did about it (Manufacturing Excellence, 17 Nov 2026)."""
+"""A workforce issue and what HR did about it (Manufacturing Excellence): the signal that raised it and its KPI read week by week."""
 
 from frappe.model.document import Document
 

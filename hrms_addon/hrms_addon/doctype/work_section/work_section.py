@@ -1,7 +1,7 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""A plant's production section (Manufacturing Excellence, 17 Nov 2026): named Section - Plant."""
+"""A plant's production section (Manufacturing Excellence): named Section - Plant, with its dated standards and roster."""
 
 from frappe.model.document import Document
 

@@ -1,0 +1,167 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "employment",
+  "rostered_shift",
+  "status",
+  "unauthorised",
+  "late_minutes",
+  "early_minutes",
+  "column_break_pay",
+  "ot_hours",
+  "ot_cost",
+  "day_rate",
+  "day_cost",
+  "absence_cost",
+  "no_ppe",
+  "incidents",
+  "near_misses",
+  "attendance"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "employment",
+   "fieldtype": "Select",
+   "label": "Employment",
+   "options": "Permanent\nCasual",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rostered_shift",
+   "fieldtype": "Link",
+   "label": "Rostered Shift",
+   "options": "Shift Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Present\nHalf Day\nWork From Home\nOn Leave\nAbsent\nNot Marked",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "unauthorised",
+   "fieldtype": "Check",
+   "label": "Unauthorised",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "late_minutes",
+   "fieldtype": "Int",
+   "label": "Minutes Late",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "early_minutes",
+   "fieldtype": "Int",
+   "label": "Minutes Early",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_pay",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ot_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Hours",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "ot_cost",
+   "fieldtype": "Currency",
+   "label": "Overtime Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "day_rate",
+   "fieldtype": "Currency",
+   "label": "Day Rate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "day_cost",
+   "fieldtype": "Currency",
+   "label": "Day Cost",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "absence_cost",
+   "fieldtype": "Currency",
+   "label": "Paid Absence Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "no_ppe",
+   "fieldtype": "Check",
+   "label": "Without PPE",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "incidents",
+   "fieldtype": "Int",
+   "label": "Incidents",
+   "read_only": 1
+  },
+  {
+   "fieldname": "near_misses",
+   "fieldtype": "Int",
+   "label": "Near Misses",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attendance",
+   "fieldtype": "Link",
+   "label": "Attendance",
+   "options": "Attendance",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Shift Crew",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

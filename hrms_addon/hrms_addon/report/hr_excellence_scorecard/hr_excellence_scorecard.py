@@ -6,7 +6,8 @@ its HR Excellence sheet): eight pillars weighed into one score for a week,
 month or quarter, a plant, a section and a shift, each with the figures
 behind it. A pillar with no data is left out and the others re-weighted; a
 safety incident, a legal flag or a grievance open too long marks the period
-critical whatever the score (excellence_rules.pillars).
+critical whatever the score (excellence_rules.pillars). Read from the stored
+summaries through the user's permissions (excellence_summary.period_facts).
 """
 
 import frappe
@@ -20,7 +21,7 @@ PERCENT = {
     "Overtime Share of Labour Cost", "Attendance", "Unauthorised Absence", "Shift Reports Entered",
     "Required Training Done", "Skills at the Level Needed", "Critical Skills at the Level Needed",
     "Actions Closed on Time", "PPE Compliance", "Housekeeping",
-    "Cases Routed to Coaching or a Process Fix", "Turnover", "Engagement Pulse (Last 3 Months)",
+    "Cases Routed to Coaching or a Process Fix", "Turnover", "Engagement Pulse (Last 3 Months)", "Absenteeism",
 }
 MONEY = {"Labour Cost per Kg", "Total Labour Cost", "Overtime Cost", "Paid Absence Cost",
          "Estimated Savings, Verified"}
@@ -107,7 +108,7 @@ def chart(card):
 
 def summary(card, facts):
     t = facts["totals"]
-    a = rules.averages(t)
+    a = card["averages"]
     light = {"On Target": "Green", "Attention": "Orange"}.get(card["status"], "Red")
     return [
         {"value": card["composite"], "label": _("HR Excellence Score"), "datatype": "Float", "indicator": light},
@@ -119,5 +120,6 @@ def summary(card, facts):
          "datatype": "Float"},
         {"value": facts.get("legal_flags") or 0, "label": _("Legal Flags Open"), "datatype": "Int",
          "indicator": "Red" if facts.get("legal_flags") else "Green"},
-        {"value": t["count"], "label": _("Shift Reports"), "datatype": "Int"},
+        {"value": a["score"], "label": _("Production Score"), "datatype": "Float"},
+        {"value": t["count"], "label": _("Shifts"), "datatype": "Int"},
     ]

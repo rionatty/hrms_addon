@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-11-17 18:00:00.000000",
- "description": "A workforce issue: what was seen, HR's assessment, the intervention, its owner, target date and evidence.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -18,6 +17,12 @@
   "column_break_who",
   "supervisor",
   "supervisor_name",
+  "signal_section",
+  "signal_source",
+  "signal_period",
+  "column_break_signal",
+  "section_week",
+  "signal",
   "issue_section",
   "observation",
   "implication",
@@ -43,6 +48,8 @@
   "evidence_file",
   "estimated_saving",
   "verified",
+  "readings_section",
+  "kpi_readings",
   "status_section",
   "status",
   "closed_on",
@@ -67,7 +74,8 @@
    "label": "Raised On",
    "reqd": 1,
    "default": "Today",
-   "in_list_view": 1
+   "in_list_view": 1,
+   "search_index": 1
   },
   {
    "fieldname": "source",
@@ -101,7 +109,8 @@
    "label": "Section",
    "options": "Work Section",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "shift",
@@ -116,7 +125,8 @@
    "label": "Plant",
    "options": "Branch",
    "read_only": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "company",
@@ -133,7 +143,8 @@
    "fieldname": "supervisor",
    "fieldtype": "Link",
    "label": "Supervisor Concerned",
-   "options": "Employee"
+   "options": "Employee",
+   "search_index": 1
   },
   {
    "fieldname": "supervisor_name",
@@ -141,6 +152,39 @@
    "label": "Supervisor Name",
    "fetch_from": "supervisor.employee_name",
    "read_only": 1
+  },
+  {
+   "fieldname": "signal_section",
+   "fieldtype": "Section Break",
+   "label": "Signal",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "signal_source",
+   "fieldtype": "Select",
+   "label": "Raised From",
+   "options": "Manual\nSection Signals\nLabour Cost Flag\nRed Flag\nShift Score\nRepeat Cases",
+   "default": "Manual"
+  },
+  {
+   "fieldname": "signal_period",
+   "fieldtype": "Data",
+   "label": "Period"
+  },
+  {
+   "fieldname": "column_break_signal",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_week",
+   "fieldtype": "Link",
+   "label": "Week Record",
+   "options": "Section Week Summary"
+  },
+  {
+   "fieldname": "signal",
+   "fieldtype": "Small Text",
+   "label": "Signal"
   },
   {
    "fieldname": "issue_section",
@@ -207,7 +251,8 @@
    "fieldtype": "Date",
    "label": "Target Date",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "search_index": 1
   },
   {
    "fieldname": "expected_outcome",
@@ -233,7 +278,8 @@
   {
    "fieldname": "latest",
    "fieldtype": "Float",
-   "label": "Latest"
+   "label": "Latest",
+   "description": "From the readings below when there are any."
   },
   {
    "fieldname": "change",
@@ -280,6 +326,18 @@
    "description": "Ticked by the General Manager or Production Manager once the evidence is checked."
   },
   {
+   "fieldname": "readings_section",
+   "fieldtype": "Section Break",
+   "label": "KPI Readings",
+   "description": "Read every Monday from the week's figures; add your own as Manual."
+  },
+  {
+   "fieldname": "kpi_readings",
+   "fieldtype": "Table",
+   "label": "Readings",
+   "options": "Intervention KPI Reading"
+  },
+  {
    "fieldname": "status_section",
    "fieldtype": "Section Break",
    "label": "Status"
@@ -307,7 +365,8 @@
    "fieldname": "days_open",
    "fieldtype": "Int",
    "label": "Days Open",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Up to the day it was last saved while open."
   },
   {
    "fieldname": "overdue",
@@ -324,7 +383,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-17 18:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HR Intervention",

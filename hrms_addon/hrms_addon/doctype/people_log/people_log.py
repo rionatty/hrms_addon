@@ -1,7 +1,7 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""One people activity on the floor (Manufacturing Excellence, 17 Nov 2026)."""
+"""One people activity on the floor (Manufacturing Excellence), with who took part."""
 
 from frappe.model.document import Document
 
