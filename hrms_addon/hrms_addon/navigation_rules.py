@@ -452,12 +452,27 @@ CARDS = {
         ("Manpower", [
             ("Monthly Manpower and Headcount", "Monthly Manpower and Headcount", REPORT),
         ]),
-        # the quarterly HR board pack: the month snapshots it is made of, the
-        # figures Finance type, and the deck (board_pack.py, 17 Nov 2026)
+        # the quarterly HR board pack: the dashboard, the report and its deck,
+        # the actions it carries, the targets, the figures Finance type, the
+        # month builds and the facts they are made of, and the reports each
+        # figure opens (board_pack.py, board_facts.py, board_dashboard.py)
         ("Board Pack", [
+            ("Board Dashboard", "board-dashboard", PAGE),
             ("HR Board Report", "HR Board Report", DOCTYPE),
-            ("HR Monthly Snapshot", "HR Monthly Snapshot", DOCTYPE),
+            ("Board Action", "Board Action", DOCTYPE),
+            ("Board KPI Target", "Board KPI Target", DOCTYPE),
             ("Board Finance Figures", "Board Finance Figures", DOCTYPE),
+            ("HR Monthly Snapshot", "HR Monthly Snapshot", DOCTYPE),
+            ("HR Employee Month", "HR Employee Month", DOCTYPE),
+            ("HR Movement", "HR Movement", DOCTYPE),
+            ("HR Pay Fact", "HR Pay Fact", DOCTYPE),
+            ("HR Safety Fact", "HR Safety Fact", DOCTYPE),
+            ("Board Head Count", "Board Head Count", REPORT),
+            ("Board Leavers", "Board Leavers", REPORT),
+            ("Board Hires", "Board Hires", REPORT),
+            ("Board Incidents", "Board Incidents", REPORT),
+            ("Board Pay by Component", "Board Pay by Component", REPORT),
+            ("Board Data Quality", "Board Data Quality", REPORT),
             ("Board Report Settings", "Board Report Settings", DOCTYPE),
         ]),
         # the specimen on file and the signatures given (signatures.py)
@@ -755,6 +770,26 @@ SIDEBAR = {
         ("Skill", "Skill", DOCTYPE, "Setup", None),
         ("Employee Separation Template", "Employee Separation Template", DOCTYPE, "Setup", None),
     ],
+    # the HR board pack, laid out under its own two headings (GROUPS)
+    "HR Setup": [
+        ("Board Dashboard", "board-dashboard", PAGE, None, None),
+        ("HR Board Report", "HR Board Report", DOCTYPE, None, None),
+        ("Board Action", "Board Action", DOCTYPE, None, None),
+        ("Board KPI Target", "Board KPI Target", DOCTYPE, None, None),
+        ("Board Finance Figures", "Board Finance Figures", DOCTYPE, None, None),
+        ("HR Monthly Snapshot", "HR Monthly Snapshot", DOCTYPE, None, None),
+        ("Board Report Settings", "Board Report Settings", DOCTYPE, None, None),
+        ("HR Employee Month", "HR Employee Month", DOCTYPE, None, None),
+        ("HR Movement", "HR Movement", DOCTYPE, None, None),
+        ("HR Pay Fact", "HR Pay Fact", DOCTYPE, None, None),
+        ("HR Safety Fact", "HR Safety Fact", DOCTYPE, None, None),
+        ("Board Head Count", "Board Head Count", REPORT, None, None),
+        ("Board Leavers", "Board Leavers", REPORT, None, None),
+        ("Board Hires", "Board Hires", REPORT, None, None),
+        ("Board Incidents", "Board Incidents", REPORT, None, None),
+        ("Board Pay by Component", "Board Pay by Component", REPORT, None, None),
+        ("Board Data Quality", "Board Data Quality", REPORT, None, None),
+    ],
     "Expenses": [
         ("Allowance Request", "Allowance Request", DOCTYPE, None, "Expense Claim"),
         ("Allowance Type", "Allowance Type", DOCTYPE, "Setup", None),
@@ -827,6 +862,13 @@ GROUPS = {
         ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement",
                              "Gratuity", "Serving Notice"]),
     ],
+    "HR Setup": [
+        ("Board Pack", "presentation", ["board-dashboard", "HR Board Report", "Board Action", "Board KPI Target",
+                                        "Board Finance Figures", "HR Monthly Snapshot", "Board Report Settings"]),
+        ("Board Figures", "chart-column", ["Board Head Count", "Board Leavers", "Board Hires", "Board Incidents",
+                                           "Board Pay by Component", "Board Data Quality", "HR Employee Month",
+                                           "HR Movement", "HR Pay Fact", "HR Safety Fact"]),
+    ],
     "Expenses": [
         ("Claims", "receipt", ["Expense Claim", "Employee Advance", "Allowance Request"]),
         ("Travel", "plane", ["Travel Request", "Vehicle Log"]),
@@ -874,6 +916,22 @@ SHORT_LABELS = {
     "Employee Grievance": "Grievance",
     "Employee Separation": "Separation",
     "Full and Final Statement": "Final Settlement",
+    # the board pack (HR Setup)
+    "HR Board Report": "Board Report",
+    "Board Action": "Actions",
+    "Board KPI Target": "KPI Targets",
+    "Board Finance Figures": "Finance Figures",
+    "HR Monthly Snapshot": "Month Builds",
+    "Board Head Count": "Head Count",
+    "Board Leavers": "Leavers",
+    "Board Hires": "Hires",
+    "Board Incidents": "Incidents",
+    "Board Pay by Component": "Pay by Component",
+    "Board Data Quality": "Data Quality",
+    "HR Employee Month": "Employee Months",
+    "HR Movement": "Movements",
+    "HR Pay Fact": "Pay Lines",
+    "HR Safety Fact": "Safety Lines",
 }
 
 # the icon of an entry of ours that stays at the top of a sidebar, above

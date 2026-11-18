@@ -852,6 +852,12 @@ ATTENTION = (
      "HR Intervention", "performance", OVERDUE),
     ("cases_past_limit", "Case past its 15 days to impose a penalty", "Cases past their 15 days to impose a penalty",
      "Disciplinary Case", "relations", OVERDUE),
+    # the HR board pack (board_facts.py, board_pack.py): a month whose build
+    # failed, and a board action still open past the quarter it was due in
+    ("board_months_failed", "Board pack month whose build failed", "Board pack months whose build failed",
+     "HR Monthly Snapshot", "people", OVERDUE),
+    ("board_actions_overdue", "Board action past its due quarter", "Board actions past their due quarter",
+     "Board Action", "people", OVERDUE),
     ("requisitions_waiting", "Job requisition waiting for approval", "Job requisitions waiting for approval",
      "Job Requisition", "recruitment", TODAY),
     ("interviews_unscored", "Interview waiting for the panel's feedback", "Interviews waiting for the panel's feedback",
@@ -953,6 +959,7 @@ ATTENTION_COMPANY = {
     "exit_interviews_waiting", "training_overdue", "certificates_run_out", "certificates_running_out",
     "top_talent_at_risk", "shift_reports_unchecked", "interventions_overdue", "cases_past_limit",
     "application_reviews_overdue", "reassessments_due", "training_budgets_near",
+    "board_months_failed", "board_actions_overdue",
 }
 
 
@@ -1004,6 +1011,9 @@ def attention_filters(key, day_of, company=None):
                                   "target_date": ["between", [EVER, "{yesterday}"]]},
         "cases_past_limit": {"docstatus": 0, "status": ["not in", ["Closed", "Cancelled"]],
                              "penalty_due_by": ["between", [EVER, "{yesterday}"]]},
+        "board_months_failed": {"status": "Failed"},
+        "board_actions_overdue": {"status": ["in", ["Not Started", "On Track", "At Risk"]],
+                                  "due_date": ["between", [EVER, "{yesterday}"]]},
         "requisitions_to_assess": {"docstatus": 1, "status": "Submitted"},
         "trainings_not_closed": {"docstatus": 0, "event_status": "Scheduled", "end_time": ["between", [EVER, "{yesterday}"]]},
         "assessments_waiting": {"docstatus": 0, "status": ["in", list(ASSESSMENT_WAITING)]},
