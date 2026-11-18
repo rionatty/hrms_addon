@@ -82,10 +82,12 @@ INDEXES = {
     "Competency Assessment": (("employee", "skill"),),
     "Training Application Review": (("training_event", "employee"), ("reviewer", "status")),
     "Training Attendance": (("training_event", "session_date"), ("branch", "session_date")),
+    "Learning Content Assignment": (("employee", "status"), ("branch", "work_section")),
 }
 UNIQUE = {
     REQUIREMENT: ("employee", "training_rule"),
     "Training Attendance": ("training_event", "employee", "session_date"),
+    "Learning Content Assignment": ("learning_content", "employee"),
 }
 
 
