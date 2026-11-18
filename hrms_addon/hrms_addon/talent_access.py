@@ -30,21 +30,15 @@ def scope(user=None):
         setattr(frappe.local, _CACHE, cache)
     if user not in cache:
         roles = frappe.get_roles(user)
-        me = frappe.db.get_value("Employee", {"user_id": user}, "name") if user not in ("Guest",) else None
-        team = rules.team_from(me, _reports()) if me and set(roles) & set(rules.MANAGERS) else set()
+        found = frappe.db.get_value("Employee", {"user_id": user}, ["name", "lft", "rgt"], as_dict=True) \
+            if user not in ("Guest",) else None
+        me = found.name if found else None
+        tree = (found.lft, found.rgt) if found and set(roles) & set(rules.MANAGERS) else None
         departments = set(frappe.get_all("User Permission", filters={"user": user, "allow": "Department"},
                                          pluck="for_value")) if rules.HEAD in roles else set()
-        cache[user] = {"narrowed": rules.narrowed(roles), "scope": rules.scope_of(roles, me, team, departments)}
+        cache[user] = {"narrowed": rules.narrowed(roles),
+                       "scope": rules.scope_of(roles, me, (), departments, tree=tree, user=user)}
     return cache[user]
-
-
-def _reports():
-    """{manager: [their direct reports]} for everyone still employed."""
-    out = {}
-    for row in frappe.get_all("Employee", filters={"reports_to": ["is", "set"], "status": ["!=", "Left"]},
-                              fields=["name", "reports_to"], limit_page_length=0):
-        out.setdefault(row.reports_to, []).append(row.name)
-    return out
 
 
 def _allowed(doctype, doc, user):
@@ -52,7 +46,11 @@ def _allowed(doctype, doc, user):
     if not found["narrowed"]:
         return True
     spec = rules.DOCTYPES[doctype]
-    record = {field: doc.get(field) for field in (spec["employee"], spec.get("mentor"), spec["department"]) if field}
+    record = {field: doc.get(field) for field in (spec["employee"], spec.get("mentor"), spec["department"],
+                                                  spec.get("rater")) if field}
+    if found["scope"].get("tree") and doc.get(spec["employee"]):
+        place = frappe.db.get_value("Employee", doc.get(spec["employee"]), ["lft", "rgt"])
+        record["employee_place"] = tuple(place) if place else None
     if spec.get("rotations"):
         record["rotation_supervisors"] = [row.get("supervisor") for row in doc.get("rotations") or []
                                           if row.get("supervisor")]
@@ -83,6 +81,14 @@ def trainee_has_permission(doc, ptype=None, user=None):
     return _allowed("Graduate Trainee Program", doc, user or frappe.session.user)
 
 
+def assessment_has_permission(doc, ptype=None, user=None):
+    return _allowed("Potential Assessment", doc, user or frappe.session.user)
+
+
+def risk_has_permission(doc, ptype=None, user=None):
+    return _allowed("Flight Risk Assessment", doc, user or frappe.session.user)
+
+
 # ── permission_query_conditions ───────────────────────────────────────
 def placement_query_conditions(user=None, doctype=None):
     return _conditions("Talent Placement", user or frappe.session.user)
@@ -98,3 +104,11 @@ def position_query_conditions(user=None, doctype=None):
 
 def trainee_query_conditions(user=None, doctype=None):
     return _conditions("Graduate Trainee Program", user or frappe.session.user)
+
+
+def assessment_query_conditions(user=None, doctype=None):
+    return _conditions("Potential Assessment", user or frappe.session.user)
+
+
+def risk_query_conditions(user=None, doctype=None):
+    return _conditions("Flight Risk Assessment", user or frappe.session.user)

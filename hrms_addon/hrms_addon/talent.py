@@ -2229,3 +2229,28 @@ def setup_workflows_on_migrate():
                           (succession_plan_approval, "succession plan"),
                           (trainee_approval, "graduate trainee")):
         workflows.setup_on_migrate(module, label)
+
+
+# the indexes a review of the whole staff is read by: (doctype, [fields])
+INDEXES = (
+    (PLACEMENT, ["talent_review", "workflow_state"]),
+    (PLACEMENT, ["employee", "docstatus"]),
+    (PLACEMENT, ["talent_review", "box"]),
+    ("Succession Candidate", ["employee"]),
+    ("Trainee Milestone", ["appraisal"]),
+    ("Talent Calibration Log", ["talent_review", "moved_on"]),
+    ("Potential Assessment", ["placement", "docstatus"]),
+)
+
+
+def add_indexes():
+    """on_doctype_update of the Talent Placement, and the patch talent_indexes:
+    each index once. A speed-up only, so one a table will not take holds
+    nothing else up."""
+    for doctype, fields in INDEXES:
+        if not frappe.db.table_exists(doctype):
+            continue
+        try:
+            frappe.db.add_index(doctype, fields, index_name="ha_%s" % "_".join(fields))
+        except Exception:
+            frappe.log_error(title="HRMS Addon: index on %s %s" % (doctype, ", ".join(fields)), defer_insert=True)

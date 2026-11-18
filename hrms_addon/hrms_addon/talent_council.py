@@ -4,7 +4,7 @@
 """The Talent Council pack of a review: the print format (print_format/
 talent_council_pack, on the Talent Review) and the same as slides.
 
-  pack           the jinja method the print reads: the review's figures
+  talent_council_pack  the jinja method the print reads: the review's figures
                  (talent_command.figures) and the decisions taken in it
   decisions      what the review came to: the placements finalised by their
                  suggested decision, the successors the council endorsed,
@@ -34,7 +34,7 @@ def _allowed(review):
     return bool(review) and talent_board.can_see_boxes() and frappe.has_permission(REVIEW, "read", doc=review)
 
 
-def pack(review):
+def talent_council_pack(review):
     """The council pack's figures, for whoever may read the review and the
     boxes; nothing for anybody else."""
     if not _allowed(review):
@@ -81,7 +81,7 @@ def download_deck(review):
     except ImportError:
         frappe.throw(_("The deck needs python-pptx on the server. Run: bench pip install python-pptx"),
                      title=_("Talent Council Pack"))
-    content = _Deck(doc, pack(review)).build()
+    content = _Deck(doc, talent_council_pack(review)).build()
     frappe.local.response.filename = "%s Council Pack.pptx" % (doc.title or doc.name)
     frappe.local.response.filecontent = content
     frappe.local.response.type = "binary"

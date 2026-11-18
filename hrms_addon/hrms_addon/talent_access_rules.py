@@ -13,7 +13,10 @@ HR, the Talent Council and those who oversee (the auditor, management)
 see every record their roles open. Anyone else sees:
 
   a line manager (Supervisor, Head of Department)  the records of their
-      team: everyone who reports to them, directly or through others
+      team: everyone who reports to them, directly or through others, read
+      off the Employee tree (lft and rgt), never by loading every reports_to
+  a rater                                          the potential assessments
+      they made
   a Head of Department                             also the records of the
       departments their User Permissions give them
   a mentor                                         the development plans and
@@ -35,6 +38,8 @@ MENTOR = "Mentor"
 # mentor, its department, and whether its own employee may read it
 DOCTYPES = {
     "Talent Placement": {"employee": "employee", "department": "department", "own": False},
+    "Potential Assessment": {"employee": "employee", "department": "department", "own": False, "rater": "rater"},
+    "Flight Risk Assessment": {"employee": "employee", "department": "department", "own": False},
     "Talent Program": {"employee": "employee", "mentor": "mentor", "department": "department", "own": True},
     "Succession Position": {"employee": "incumbent", "department": "department", "own": False},
     "Graduate Trainee Program": {"employee": "employee", "mentor": "mentor", "department": "home_department",
@@ -47,13 +52,23 @@ def narrowed(roles):
     return not set(roles or ()) & set(WHOLE_VIEW)
 
 
-def scope_of(roles, me, team=(), departments=()):
-    """What the user may see by: {"me", "team", "departments", "mentor"}."""
+def scope_of(roles, me, team=(), departments=(), tree=None, user=None):
+    """What the user may see by: {"me", "user", "team", "tree",
+    "departments", "mentor"}. tree: (lft, rgt) of the user's own place in
+    the Employee tree; everyone strictly inside it reports to them."""
     roles = set(roles or ())
     manager = bool(roles & set(MANAGERS))
-    return {"me": me, "team": set(team or ()) if manager else set(),
+    bounds = tuple(tree) if manager and tree and tree[0] is not None and tree[1] is not None else None
+    return {"me": me, "user": user, "team": set(team or ()) if manager else set(), "tree": bounds,
             "departments": set(departments or ()) if HEAD in roles else set(),
             "mentor": MENTOR in roles or bool(me)}
+
+
+def below(bounds, place):
+    """Whether an employee's place (lft, rgt) is inside a manager's."""
+    if not bounds or not place or place[0] is None or place[1] is None:
+        return False
+    return int(place[0]) > int(bounds[0]) and int(place[1]) < int(bounds[1])
 
 
 def visible(doctype, record, scope):
@@ -67,6 +82,10 @@ def visible(doctype, record, scope):
     if spec.get("own") and me and employee == me:
         return True
     if employee and employee in scope.get("team", ()):
+        return True
+    if employee and below(scope.get("tree"), record.get("employee_place")):
+        return True
+    if spec.get("rater") and scope.get("user") and record.get(spec["rater"]) == scope.get("user"):
         return True
     if record.get(spec["department"]) and record.get(spec["department"]) in scope.get("departments", ()):
         return True
@@ -96,6 +115,12 @@ def conditions(doctype, scope, quote):
     if spec.get("own") and me:
         parts.append("%s.`%s` = %s" % (table, spec["employee"], quote(me)))
     among(spec["employee"], scope.get("team", ()))
+    if scope.get("tree"):
+        low, high = (int(value) for value in scope["tree"])
+        parts.append("%s.`%s` in (select ha_team.name from `tabEmployee` ha_team where ha_team.lft > %d "
+                     "and ha_team.rgt < %d)" % (table, spec["employee"], low, high))
+    if spec.get("rater") and scope.get("user"):
+        parts.append("%s.`%s` = %s" % (table, spec["rater"], quote(scope["user"])))
     among(spec["department"], scope.get("departments", ()))
     if me and scope.get("mentor") and spec.get("mentor"):
         parts.append("%s.`%s` = %s" % (table, spec["mentor"], quote(me)))
