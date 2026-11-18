@@ -120,9 +120,9 @@ def _settle(employee, skill, leaving=None):
 
 
 def daily():
-    """Where each counting assessment stands today, every certificate and
-    supervisor read once for the whole run; a reassessment newly due goes on
-    the supervisor's list."""
+    """Where each counting assessment stands today, every certificate read
+    once for the whole run; the reassessments newly due go to each section's
+    supervisors on one Skills Assessment Sheet (learning_sheets)."""
     day = today()
     rows = frappe.get_all(ASSESSMENT, filters={"status": ["!=", rules.SUPERSEDED]}, fields=FIELDS,
                           limit_page_length=0)
@@ -138,24 +138,10 @@ def daily():
         if status == rules.REASSESS:
             due.append(row)
     if due:
-        _ask_reassessment(due)
+        from hrms_addon.hrms_addon import learning_sheets
+
+        learning_sheets.reassessment_sheets(due)
     return due
-
-
-def _ask_reassessment(due):
-    """Each reassessment newly due on the supervisor's list, the supervisors
-    read once for all of them."""
-    from hrms_addon.hrms_addon import people
-
-    bosses = dict(frappe.get_all("Employee", filters={"name": ["in", list({row.employee for row in due})]},
-                                 fields=["name", "reports_to"], as_list=True, limit_page_length=0))
-    users = dict(frappe.get_all("Employee", filters={"name": ["in", list({boss for boss in bosses.values() if boss})
-                                                             or [""]]},
-                                fields=["name", "user_id"], as_list=True, limit_page_length=0))
-    for row in due:
-        user = users.get(bosses.get(row.employee))
-        if user:
-            people.assign(ASSESSMENT, row.name, [user], _("Reassess {0} in {1}").format(row.employee_name, row.skill))
 
 
 # ── What the reports and the scorecard read ───────────────────────────

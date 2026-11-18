@@ -118,6 +118,8 @@ app_include_js = [
     # picture, its groups, what waits for the user in it and the document
     # most often made there, over Frappe's own cards (module_pages.py)
     "/assets/hrms_addon/js/hrms_addon_module_pages.js",
+    # what the learning forms share: an entry sheet's progress (learning_sheets.py)
+    "/assets/hrms_addon/js/hrms_addon_learning.js",
 ]
 
 
@@ -977,6 +979,18 @@ fixtures = [
                     "Training Event-custom_no_show_rate",
                     "Training Event-custom_waitlist_section",
                     "Training Event-custom_waitlist",
+                    # a trainee's pre-test, gain, attempt and kind of test; the levels a programme is evaluated at
+                    # (learning_sheets.py, learning_delivery.py)
+                    "Training Result Employee-custom_pre_test",
+                    "Training Result Employee-custom_gain",
+                    "Training Result Employee-custom_attempt",
+                    "Training Result Employee-custom_assessment_type",
+                    "Training Program-custom_levels_section",
+                    "Training Program-custom_level_reaction",
+                    "Training Program-custom_level_learning",
+                    "Training Program-custom_levels_cb",
+                    "Training Program-custom_level_behaviour",
+                    "Training Program-custom_level_impact",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -1773,6 +1787,8 @@ permission_query_conditions = {
     # a supervisor sees the training reviews that are theirs to give
     # (learning_delivery.py)
     "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_query",
+    # a supervisor's own sheet of trainees to review (learning_sheets.py)
+    "Application Review Sheet": "hrms_addon.hrms_addon.learning_sheets.review_sheet_query",
 }
 
 has_permission = {
@@ -1789,6 +1805,7 @@ has_permission = {
     "Succession Position": "hrms_addon.hrms_addon.talent_access.position_has_permission",
     "Graduate Trainee Program": "hrms_addon.hrms_addon.talent_access.trainee_has_permission",
     "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_permission",
+    "Application Review Sheet": "hrms_addon.hrms_addon.learning_sheets.review_sheet_permission",
 }
 
 # DocType Class
@@ -2358,6 +2375,11 @@ doc_events = {
     # (learning_attendance.py)
     "Monthly Training Schedule": {
         "validate": "hrms_addon.hrms_addon.learning_attendance.schedule_validate",
+    },
+    # a toolbox talk evaluated at levels 1 and 2 only; each KPI weighed
+    # (learning_delivery.py)
+    "Training Program": {
+        "validate": "hrms_addon.hrms_addon.learning_delivery.programme_validate",
     },
 }
 

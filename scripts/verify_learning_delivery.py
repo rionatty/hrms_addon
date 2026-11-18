@@ -142,8 +142,33 @@ check("paper: a supervisor may answer, not raise or delete", [
     (row.get("create", 0), row.get("write", 0), row.get("delete", 0)) for row in
     doctype("Training Application Review")["permissions"] if row["role"] == "Supervisor"] == [(0, 1, 0)])
 IMPACT = fields("Training Impact Review")
-check("paper: the impact's KPIs are the rules'", options("Training Impact Review", "kpi") == list(R.KPI_NAMES)
-      and options("Training Program KPI", "kpi") == list(R.KPI_NAMES))
+check("paper: the KPIs are HR's own list, seeded with the ones the Shift Reports give",
+      fields("Training Impact Review")["kpi"]["options"] == "Training KPI"
+      and fields("Training Program KPI")["kpi"]["options"] == "Training KPI"
+      and [name for name, _better, _unit, _measure in R.SEEDED_KPIS] == [name for name in R.KPI_NAMES if name != R.OTHER]
+      and all(measure in R.MEASURE_KEY for _name, _better, _unit, measure in R.SEEDED_KPIS)
+      and options("Training KPI", "shift_measure") == [label for label, _key in R.MEASURES]
+      and options("Training KPI", "better") == [R.HIGHER, R.LOWER])
+check("paper: a programme's KPI has its target and weight, the review its worth and whether the target was met",
+      {"target", "weight", "value_per_unit"} <= set(fields("Training Program KPI"))
+      and {"target", "weight", "value_per_unit", "target_met"} <= set(fields("Training Impact Review"))
+      and fields("Training Impact Review")["benefit"].get("read_only") == 1)
+check("rules: a KPI's worth is its change the right way at its value per unit",
+      R.benefit(-200000, R.LOWER, 0.5) == 100000.0 and R.benefit(5, R.HIGHER, 1000) == 5000.0
+      and R.benefit(-5, R.HIGHER, 1000) == -5000.0 and R.benefit(5, R.HIGHER, 0) == 0.0)
+check("rules: the target met the right way", R.target_met(90, 85, R.HIGHER) == 1 and R.target_met(90, 85, R.LOWER) == 0
+      and R.target_met(None, 85, R.LOWER) is None)
+check("rules: a level is evaluated unless turned off; a toolbox talk is 1 and 2 only",
+      R.programme_levels({"custom_level_behaviour": 0, "custom_level_impact": 0})
+      == {"reaction": True, "learning": True, "behaviour": False, "impact": False}
+      and R.programme_levels({}) == {"reaction": True, "learning": True, "behaviour": True, "impact": True})
+check("rules: the weighted share of KPIs improved", R.impact_share([{"result": R.IMPROVED, "weight": 3},
+                                                                   {"result": R.WORSE, "weight": 1},
+                                                                   {"result": ""}]) == 75.0
+      and R.impact_share([]) is None)
+check("rules: a Shift Report measure by its name", R.measure_value("Waste", TOTALS, AVERAGES) == 500000.0
+      and R.measure_value("Output per Person", TOTALS, AVERAGES) == 25.0 and R.measure_value("Rain", TOTALS, AVERAGES)
+      is None)
 check("paper: what the glue sets on an impact review is on it", {
     "training_event", "training_program", "event_end", "branch", "company", "work_section", "kpi", "kpi_name",
     "better", "measured", "status", "baseline_from", "baseline_to", "baseline", "after_from", "after_to", "after",
@@ -184,9 +209,13 @@ def body(name):
 check("glue: reviews and impacts from held sessions only", '"docstatus": 1, "event_status": ["!=", "Cancelled"]'
       in body("daily") and "rules.due_now(event.end_time, s[\"application_review_days\"], day)" in body("daily")
       and "rules.due_now(event.end_time, s[\"impact_review_days\"], day)" in body("daily"))
-check("glue: one review a trainee a session, to their supervisor", 'frappe.db.exists(REVIEW, {"training_event": '
-      'event.name, "employee": employee})' in body("_raise_review") and "facts.reports_to" in body("_raise_review")
-      and "people.assign(REVIEW" in body("_raise_review"))
+check("glue: one review a trainee a session, all of a supervisor's on one sheet on their list",
+      'frappe.db.exists(REVIEW, {"training_event": event.name, "employee": employee})' in body("_raise_review")
+      and "facts.reports_to" in body("_raise_review")
+      and "learning_sheets.review_sheet_for(event, supervisor, reviews" in body("_raise_reviews"))
+check("glue: a level a programme does not evaluate raises nothing",
+      'if wanted["behaviour"] and' in body("daily") and 'if wanted["impact"] and' in body("daily"))
+check("glue: the benefit worked out, never typed", "rules.benefit(change, doc.better" in body("impact_validate"))
 check("glue: one impact review a KPI a session, to the plant's HR", "(row.kpi, row.kpi_name or \"\") in have"
       in body("_raise_impacts") and "people.hr_officers(event.custom_branch)" in body("_raise_impacts"))
 check("glue: measured from the section's shift reports", "excellence.shift_rows(start, end, section=doc.work_section)"

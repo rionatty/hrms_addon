@@ -188,6 +188,14 @@
    "fieldname": "evidence",
    "fieldtype": "Small Text",
    "label": "What Was Seen"
+  },
+  {
+   "fieldname": "assessment_sheet",
+   "fieldtype": "Link",
+   "label": "Skills Assessment Sheet",
+   "options": "Skills Assessment Sheet",
+   "read_only": 1,
+   "no_copy": 1
   }
  ],
  "field_order": [
@@ -216,7 +224,8 @@
   "induction_done",
   "training_event",
   "column_break_detail",
-  "evidence"
+  "evidence",
+  "assessment_sheet"
  ],
  "permissions": [
   {

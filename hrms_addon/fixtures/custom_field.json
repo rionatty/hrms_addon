@@ -13180,5 +13180,114 @@
   "label": "Waiting List",
   "options": "Training Event Waitlist",
   "no_copy": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Result Employee-custom_pre_test",
+  "dt": "Training Result Employee",
+  "fieldname": "custom_pre_test",
+  "fieldtype": "Percent",
+  "insert_after": "custom_effective",
+  "module": "HRMS Addon",
+  "label": "Pre-Test",
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Result Employee-custom_gain",
+  "dt": "Training Result Employee",
+  "fieldname": "custom_gain",
+  "fieldtype": "Float",
+  "insert_after": "custom_pre_test",
+  "module": "HRMS Addon",
+  "label": "Gain",
+  "read_only": 1,
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Result Employee-custom_attempt",
+  "dt": "Training Result Employee",
+  "fieldname": "custom_attempt",
+  "fieldtype": "Int",
+  "insert_after": "custom_gain",
+  "module": "HRMS Addon",
+  "label": "Attempt",
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Result Employee-custom_assessment_type",
+  "dt": "Training Result Employee",
+  "fieldname": "custom_assessment_type",
+  "fieldtype": "Link",
+  "insert_after": "custom_attempt",
+  "module": "HRMS Addon",
+  "label": "Assessment Type",
+  "options": "Assessment Type",
+  "allow_on_submit": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_levels_section",
+  "dt": "Training Program",
+  "fieldname": "custom_levels_section",
+  "fieldtype": "Section Break",
+  "insert_after": "custom_kpis",
+  "module": "HRMS Addon",
+  "label": "Evaluation Levels"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_level_reaction",
+  "dt": "Training Program",
+  "fieldname": "custom_level_reaction",
+  "fieldtype": "Check",
+  "insert_after": "custom_levels_section",
+  "module": "HRMS Addon",
+  "label": "Level 1 Reaction",
+  "default": "1"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_level_learning",
+  "dt": "Training Program",
+  "fieldname": "custom_level_learning",
+  "fieldtype": "Check",
+  "insert_after": "custom_level_reaction",
+  "module": "HRMS Addon",
+  "label": "Level 2 Learning",
+  "default": "1"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_levels_cb",
+  "dt": "Training Program",
+  "fieldname": "custom_levels_cb",
+  "fieldtype": "Column Break",
+  "insert_after": "custom_level_learning",
+  "module": "HRMS Addon"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_level_behaviour",
+  "dt": "Training Program",
+  "fieldname": "custom_level_behaviour",
+  "fieldtype": "Check",
+  "insert_after": "custom_levels_cb",
+  "module": "HRMS Addon",
+  "label": "Level 3 Behaviour",
+  "default": "1"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Program-custom_level_impact",
+  "dt": "Training Program",
+  "fieldname": "custom_level_impact",
+  "fieldtype": "Check",
+  "insert_after": "custom_level_behaviour",
+  "module": "HRMS Addon",
+  "label": "Level 4 Results",
+  "default": "1"
  }
 ]

@@ -622,6 +622,11 @@ def create_evaluations(training_event):
     event.check_permission("write")
     if event.docstatus != 1:
         frappe.throw(_("Mark the attendance and submit the Training Event first: the training must have been held."))
+    from hrms_addon.hrms_addon import learning_delivery
+
+    levels = learning_delivery.programme_levels([event.training_program]).get(event.training_program)
+    if levels and not levels["reaction"]:
+        frappe.throw(_("{0} is not evaluated by the trainees.").format(event.training_program))
     made = 0
     for row in event.employees:
         if row.attendance != rules.PRESENT:

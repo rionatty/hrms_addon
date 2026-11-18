@@ -25,7 +25,7 @@ from frappe.utils import add_days, cint, flt, getdate, today
 from hrms_addon.hrms_addon import learning_delivery_rules as rules
 
 REVIEW, IMPACT, EVENT = "Training Application Review", "Training Impact Review", "Training Event"
-KPI_ROWS = "Training Program KPI"
+KPI_ROWS, KPI = "Training Program KPI", "Training KPI"
 HR_ROLES = ("HR Manager", "HR User", "System Manager")
 SEE_ALL = HR_ROLES + ("General Manager", "Executive Director", "Auditor")
 
@@ -44,18 +44,46 @@ def daily():
     events = frappe.get_all(EVENT, filters={"docstatus": 1, "event_status": ["!=", "Cancelled"],
                                             "end_time": ["between", [add_days(day, -longest), add_days(day, 1)]]},
                             fields=["name", "training_program", "start_time", "end_time", "custom_branch", "company"])
+    levels = programme_levels({event.training_program for event in events if event.training_program})
     for event in events:
         try:
             rows = frappe.get_all("Training Event Employee", filters={"parent": event.name, "parenttype": EVENT},
                                   fields=["employee", "attendance"], order_by="idx asc")
             present = rules.reviewees({"employees": rows})
-            if rules.due_now(event.end_time, s["application_review_days"], day):
-                for employee in present:
-                    _raise_review(event, employee, day)
-            if rules.due_now(event.end_time, s["impact_review_days"], day):
+            wanted = levels.get(event.training_program) or rules.programme_levels({})
+            if wanted["behaviour"] and rules.due_now(event.end_time, s["application_review_days"], day):
+                _raise_reviews(event, present, day)
+            if wanted["impact"] and rules.due_now(event.end_time, s["impact_review_days"], day):
                 _raise_impacts(event, present, s)
         except Exception:
             frappe.log_error(title="HRMS Addon: training reviews for %s" % event.name)
+
+
+def programme_levels(programmes):
+    """{programme: {level: evaluated}} in one read; a programme with no level
+    fields yet is evaluated at all four."""
+    programmes = [name for name in programmes or () if name]
+    if not programmes:
+        return {}
+    meta = frappe.get_meta("Training Program")
+    fields = ["name"] + [field for _level, field in rules.LEVELS if meta.has_field(field)]
+    return {row.name: rules.programme_levels(row) for row in frappe.get_all(
+        "Training Program", filters={"name": ["in", programmes]}, fields=fields, limit_page_length=0)}
+
+
+def _raise_reviews(event, present, day):
+    """A review for each trainee who came, then one sheet a supervisor with
+    their trainees' reviews on it, on their list once (learning_sheets)."""
+    from hrms_addon.hrms_addon import learning_sheets
+
+    by_supervisor = {}
+    for employee in present:
+        review = _raise_review(event, employee, day)
+        if review:
+            by_supervisor.setdefault(review.supervisor, []).append(review)
+    for supervisor, reviews in by_supervisor.items():
+        learning_sheets.review_sheet_for(event, supervisor, reviews, add_days(day, rules.REVIEW_DAYS_TO_ANSWER))
+    return by_supervisor
 
 
 def _raise_review(event, employee, day):
@@ -73,40 +101,50 @@ def _raise_review(event, employee, day):
                           "reviewer": reviewer, "due_on": add_days(day, rules.REVIEW_DAYS_TO_ANSWER),
                           "status": rules.PENDING})
     doc.insert(ignore_permissions=True)
-    if reviewer:
-        from hrms_addon.hrms_addon import people
+    return doc
 
-        people.assign(REVIEW, doc.name, [reviewer],
-                      _("How {0} has applied {1}").format(facts.employee_name,
-                                                         event.training_program or event.name), date=doc.due_on)
-    return doc.name
+
+def kpi_facts(names):
+    """{kpi: its unit, way, source, measure, value per unit and window} from
+    HR's list (Training KPI)."""
+    names = [name for name in names or () if name]
+    if not names:
+        return {}
+    return {row.name: row for row in frappe.get_all(
+        KPI, filters={"name": ["in", names]},
+        fields=["name", "unit", "better", "source", "shift_measure", "value_per_unit", "window_days"],
+        limit_page_length=0)}
 
 
 def _raise_impacts(event, present, s):
     if not event.training_program:
         return []
     kpis = frappe.get_all(KPI_ROWS, filters={"parent": event.training_program, "parenttype": "Training Program"},
-                          fields=["kpi", "kpi_name", "better"], order_by="idx asc")
+                          fields=["kpi", "kpi_name", "target", "weight", "value_per_unit"], order_by="idx asc")
     if not kpis:
         return []
+    facts = kpi_facts([row.kpi for row in kpis])
     have = {(row.kpi, row.kpi_name or "") for row in frappe.get_all(
         IMPACT, filters={"training_event": event.name}, fields=["kpi", "kpi_name"])}
     sections = frappe.get_all("Employee", filters={"name": ["in", present or [""]]}, pluck="custom_work_section")
     section = rules.main_section(sections)
-    before_from, before_to, after_from, after_to = rules.impact_windows(event.start_time, event.end_time,
-                                                                        s["impact_window_days"])
     made = []
     for row in kpis:
         if (row.kpi, row.kpi_name or "") in have:
             continue
+        kpi = facts.get(row.kpi) or frappe._dict()
+        window = cint(kpi.get("window_days")) or s["impact_window_days"]
+        before_from, before_to, after_from, after_to = rules.impact_windows(event.start_time, event.end_time, window)
         doc = frappe.get_doc({"doctype": IMPACT, "training_event": event.name,
                               "training_program": event.training_program, "event_end": getdate(event.end_time),
                               "branch": event.custom_branch, "company": event.company, "work_section": section,
-                              "kpi": row.kpi, "kpi_name": row.kpi_name, "better": row.better,
+                              "kpi": row.kpi, "kpi_name": row.kpi_name, "better": kpi.get("better"),
+                              "target": row.get("target"), "weight": row.get("weight") or 1,
+                              "value_per_unit": flt(row.get("value_per_unit")) or flt(kpi.get("value_per_unit")),
                               "baseline_from": before_from, "baseline_to": before_to, "after_from": after_from,
                               "after_to": after_to, "status": rules.OPEN})
-        if section and row.kpi in rules.KPI_FROM_SHIFTS:
-            _measure(doc)
+        if section and kpi.get("source") == rules.SHIFT_REPORTS and kpi.get("shift_measure"):
+            _measure(doc, kpi.get("shift_measure"))
         doc.insert(ignore_permissions=True)
         made.append(doc.name)
         from hrms_addon.hrms_addon import people
@@ -116,16 +154,18 @@ def _raise_impacts(event, present, s):
     return made
 
 
-def _measure(doc):
+def _measure(doc, measure=None):
     """The KPI before and after, from the section's Shift Reports."""
     from hrms_addon.hrms_addon import excellence
 
+    if measure is None:
+        measure = (kpi_facts([doc.kpi]).get(doc.kpi) or {}).get("shift_measure") or rules.KPI_FROM_SHIFTS.get(doc.kpi)
     s = excellence.settings()
     values = []
     for start, end in ((doc.baseline_from, doc.baseline_to), (doc.after_from, doc.after_to)):
         rows = excellence.shift_rows(start, end, section=doc.work_section)
         totals = excellence.rules.totals(rows, s)
-        values.append(rules.kpi_from_totals(doc.kpi, totals, excellence.rules.averages(totals)))
+        values.append(rules.measure_value(measure, totals, excellence.rules.averages(totals)))
     if values[0] is not None and values[1] is not None:
         doc.baseline, doc.after, doc.measured = values[0], values[1], 1
     return values
@@ -135,7 +175,8 @@ def _measure(doc):
 def impact_from_shift_reports(name):
     doc = frappe.get_doc(IMPACT, name)
     doc.check_permission("write")
-    if doc.kpi not in rules.KPI_FROM_SHIFTS:
+    kpi = kpi_facts([doc.kpi]).get(doc.kpi) or {}
+    if kpi.get("source") != rules.SHIFT_REPORTS or not kpi.get("shift_measure"):
         frappe.throw(_("{0} is not on the Shift Reports: type its values.").format(doc.kpi_name or doc.kpi),
                      title=_(IMPACT))
     if not doc.work_section:
@@ -184,20 +225,38 @@ def review_permission(doc, ptype=None, user=None):
 
 # ── Level 4 ───────────────────────────────────────────────────────────
 def impact_validate(doc):
-    if doc.kpi in rules.KPI_BETTER:
-        doc.better = rules.KPI_BETTER[doc.kpi]
-    if doc.kpi != rules.OTHER:
+    """The KPI's way and worth from HR's list; the change, whether it improved
+    and reached the target, and what it is worth, worked out, never typed."""
+    kpi = kpi_facts([doc.kpi]).get(doc.kpi) if doc.get("kpi") else None
+    if kpi:
+        doc.better = kpi.better or doc.get("better")
         doc.kpi_name = None
+        if not flt(doc.get("value_per_unit")):
+            doc.value_per_unit = flt(kpi.value_per_unit)
     for message in rules.impact_errors(doc.as_dict()):
         frappe.throw(_(message), title=_(IMPACT))
     if cint(doc.get("measured")) or flt(doc.get("baseline")) or flt(doc.get("after")):
         change, percent, result = rules.impact_result(doc.better, flt(doc.baseline), flt(doc.after))
         doc.change, doc.change_percent, doc.result = change or 0, percent or 0, result
         doc.measured, doc.status = 1, rules.MEASURED
+        doc.benefit = rules.benefit(change, doc.better, doc.get("value_per_unit"))
+        doc.target_met = rules.target_met(flt(doc.after), doc.get("target"), doc.better) or 0
         if not doc.get("measured_by"):
             doc.measured_by = frappe.session.user
     else:
         doc.change, doc.change_percent, doc.result, doc.status, doc.measured = 0, 0, "", rules.OPEN, 0
+        doc.benefit, doc.target_met = 0, 0
+
+
+def programme_validate(doc, method=None):
+    """A new toolbox talk is evaluated at levels 1 and 2 only; HR may turn any
+    level on or off for a programme."""
+    if doc.is_new() and doc.get("custom_delivery_mode") == rules.TOOLBOX:
+        if frappe.get_meta("Training Program").has_field("custom_level_behaviour"):
+            doc.custom_level_behaviour, doc.custom_level_impact = 0, 0
+    for row in doc.get("custom_kpis") or []:
+        if not flt(row.get("weight")):
+            row.weight = 1
 
 
 # ── Level 2 ───────────────────────────────────────────────────────────
