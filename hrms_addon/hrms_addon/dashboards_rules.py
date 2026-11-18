@@ -590,12 +590,6 @@ GROUPS = {
         "function": "COUNT", "filters": {"docstatus": 1, "end_date": [">=", "{year}"]}, "company": True,
         "draw": "donut", "none": "No rating", "empty": "No appraisal completed this year", "note": "Completed appraisals",
     },
-    "nine_box": {
-        "title": "Nine-Box Placements", "icon": "performance", "doctype": "Talent Placement", "by": "box_name",
-        "function": "COUNT", "filters": {"docstatus": 1}, "company": True, "draw": "bars", "none": "Not placed",
-        "empty": "No placement finalised", "note": "Finalised placements",
-        "bands": {"Star": "good", "High Performer": "good", "High Potential": "good", "Risk": "overdue"},
-    },
     "training_types": {
         "title": "Trainings This Year by Type", "icon": "ring", "doctype": "Training Event", "by": "type",
         "function": "COUNT", "filters": {"docstatus": 1, "start_time": [">=", "{year}"]}, "company": True,
@@ -799,7 +793,11 @@ PANELS = {
     # the latest period's deductions, line by line: what is owed to URA, NSSF and the rest
     "deductions": ("Deductions Last Period", NORMAL, (("Salary Slip",),), "money", MONEY_ROLES, True),
     "score_by_department": ("Average Score by Department", NORMAL, (("Appraisal",),), "performance", None, False),
+    # the latest talent review only, each box in its own colour (dashboards.panel_nine_box)
+    "nine_box": ("Nine-Box Placements", NORMAL, (("Talent Placement",),), "performance", None, False),
 }
+# a Nine Box record's colour as a bar's band
+NINE_BOX_BANDS = {"Red": OVERDUE, "Orange": TODAY, "Yellow": SOON, "Blue": LATER, "Green": GOOD}
 for _key, _spec in GROUPS.items():
     PANELS[_key] = (_spec["title"], NORMAL, ((_spec["doctype"],),), _spec["icon"], None, bool(_spec.get("money")))
 for _key, _spec in MONTHLY.items():

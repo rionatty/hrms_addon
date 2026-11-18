@@ -94,7 +94,7 @@ def assessment_validate(doc):
         level = int(round(flt(row.get("score")))) if flt(row.get("score")) else 0
         row.descriptor = (spec.get("levels") or {}).get(level) if level else None
         row.source = rules.source_after_edit(row.get("score"), row.get("suggested_score"), row.get("source"))
-    if doc.docstatus == 1:
+    if doc.docstatus == 1 and not doc.flags.get("migrating"):
         errors = rules.assessment_errors({"placement": doc.placement, "rater": doc.rater,
                                           "rater_role": doc.get("rater_role"),
                                           "ratings": [row.as_dict() for row in doc.get("ratings") or []]}, weights())

@@ -643,6 +643,27 @@ class Reader:
         return {"kind": "bars", "percent": 1, "rows": parts, "note": "Completed this year",
                 "empty": "No appraisal completed this year"}
 
+    def panel_nine_box(self):
+        """The latest talent review's placements by box, never every year's, each bar in the colour its Nine Box
+        record keeps."""
+        from hrms_addon.hrms_addon import talent_command, talent_masters
+
+        review = talent_command.latest_review(self.company)
+        if not review:
+            return {"kind": "bars", "rows": [], "empty": "No talent review yet"}
+        filters = {"talent_review": review, "docstatus": ["<", 2], "box": ["between", [1, 9]]}
+        rows = frappe.get_list("Talent Placement", filters=filters, fields=["box", aggregate("COUNT", "*", "total")],
+                               group_by="box", order_by="box asc", limit_page_length=0)
+        cells = {cell["box"]: cell for cell in talent_masters.grid()["boxes"].values()}
+        parts = rules.ranked([{"label": "%s %s" % (row.box, cells.get(int(row.box or 0), {}).get("name", "")),
+                               "value": row.total, "key": row.box} for row in rows], "label", "value", shown=9)
+        for part in parts:
+            part["route"] = ["List", "Talent Placement"]
+            part["filters"] = dict(filters, box=part["key"])
+            part["band"] = rules.NINE_BOX_BANDS.get(cells.get(int(part["key"] or 0), {}).get("colour"))
+        return {"kind": "bars", "rows": parts, "note": frappe.db.get_value("Talent Review", review, "title") or review,
+                "empty": "Nobody is placed in this review yet"}
+
     # ── Declared in dashboards_rules.py ──
     def declared_group(self, spec):
         """A breakdown: a sum or a count for each value of a field, as bars or a ring, each opening its documents."""

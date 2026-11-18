@@ -107,3 +107,10 @@ hrms_addon.patches.v1_0.advance_paid_on_payment
 hrms_addon.patches.v1_0.casual_hours_hr_officer
 hrms_addon.patches.v1_0.employee_edits_by_hr
 hrms_addon.patches.v1_0.advance_tick_on_salary_tab
+hrms_addon.patches.v1_0.talent_client_grid
+hrms_addon.patches.v1_0.talent_potential_by_rater
+hrms_addon.patches.v1_0.talent_calibration_to_log
+hrms_addon.patches.v1_0.talent_plan_actions
+hrms_addon.patches.v1_0.talent_review_plants
+hrms_addon.patches.v1_0.talent_permissions
+hrms_addon.patches.v1_0.talent_indexes
