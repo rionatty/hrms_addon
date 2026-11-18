@@ -1,10 +1,10 @@
 # Copyright (c) 2026, CyveTech and contributors
 # For license information, please see license.txt
 
-"""A line of the board pack's strategic people agenda."""
+"""Where HR's words on the board report go against its figures."""
 
 from frappe.model.document import Document
 
 
-class BoardAgendaLine(Document):
+class BoardTextFlag(Document):
     pass

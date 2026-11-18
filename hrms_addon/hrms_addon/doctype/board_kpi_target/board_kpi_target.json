@@ -1,0 +1,185 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "metric",
+  "branch",
+  "column_break_target",
+  "from_date",
+  "to_date",
+  "target_section",
+  "target",
+  "direction",
+  "unit",
+  "column_break_bands",
+  "amber_band",
+  "red_band",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "metric",
+   "fieldtype": "Select",
+   "label": "Metric",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "options": "Monthly Attrition\nCasual Churn\nPermanent Churn\nPermanent Share\nRegrettable Exits\nStaff Cost to Revenue\nOvertime Share of Wage Bill\nLabour Cost per kg\nRevenue per Employee\nOutput per Employee\nRevenue to Wage Cost\nLTIFR\nIncidents\nTraining Hours per Employee\nAbsence Rate\nClock Attendance\nTime to Fill\n90-Day Retention\nSuccession Coverage\nSkills Gap\nData Issues\nOverdue Safety Actions"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Blank for the company."
+  },
+  {
+   "fieldname": "column_break_target",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "description": "Blank while it stands."
+  },
+  {
+   "fieldname": "target_section",
+   "fieldtype": "Section Break",
+   "label": "Target"
+  },
+  {
+   "fieldname": "target",
+   "fieldtype": "Float",
+   "label": "Target",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "direction",
+   "fieldtype": "Select",
+   "label": "Direction",
+   "options": "Lower is Better\nHigher is Better",
+   "reqd": 1
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_bands",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amber_band",
+   "fieldtype": "Float",
+   "label": "Amber Band",
+   "description": "Off target by more than this is Watch."
+  },
+  {
+   "fieldname": "red_band",
+   "fieldtype": "Float",
+   "label": "Red Band",
+   "description": "Off target by more than this is Action Needed."
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board KPI Target",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Board Member",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "from_date",
+ "sort_order": "DESC",
+ "states": [],
+ "allow_import": 1,
+ "track_changes": 1
+}

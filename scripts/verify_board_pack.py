@@ -1,4 +1,4 @@
-"""Verify the HR board pack (batch 7, 17 Nov 2026), without a bench:
+"""Verify the HR board pack (batch 7, 17 Nov 2026; on its facts, 18 Nov 2026), without a bench:
 
     python scripts/verify_board_pack.py
 
@@ -6,13 +6,17 @@ Luuka's quarterly HR Board Report (LPL HR Board Report Q3 2026): head count by p
 attrition, churn by employment type with the movement reconciliation, the year on year comparison, the wage bill and
 its components, overtime, labour cost against revenue and safety, with HR's own words, as a deck and a workbook.
 Decided with the user: revenue and kilograms are typed in each quarter by Finance; the wage bill is the payroll's.
+Since 18 Nov 2026 every figure is a GROUP BY over the facts (verify_board_facts.py), and the review's five figure bugs
+are put right: expatriates and casuals are populations, never rows overlapping the components; staff cost is
+Finance's for each plant and month where typed; a New Position is an addition and no requisition is unclassified;
+near misses are not incidents; the people and pay with no plant are a row of their own.
 
-  1  the rules: a month's snapshot by plant, and the quarter's tables from three of them, the quarter before and the
-     same quarter a year before
+  1  the rules: a quarter's tables from its months, the quarter before and the same quarter a year before; a
+     quarter in one line for the trends
   2  the paper: every field the rules, the glue and the deck name is on its doctype
   3  the glue: what it reads, what it leaves alone, who may ask it
-  4  the deck: every section of Luuka's own, from the figures and the report's words
-  5  wiring: the monthly snapshot, the seed, the menus, the forms' buttons
+  4  the deck: every section of Luuka's own and what was added, from the figures and the report's words
+  5  wiring: the seed, the menus, the forms' buttons
 """
 import ast
 import importlib.util
@@ -66,134 +70,110 @@ def body_of(source, name):
 R = load("board_pack_rules")
 
 # ── 1. The rules ──────────────────────────────────────────────────────
-check("a quarter's months, the quarter before, the label",
+check("a quarter's months, the quarter before, the label, the quarters back",
       R.quarter_months(2026, "Q3") == [(2026, 7), (2026, 8), (2026, 9)] and R.quarter_before(2026, "Q1") == (2025, "Q4")
       and R.quarter_before(2026, "Q3") == (2026, "Q2") and R.label(2026, "Q3") == "July – September 2026"
-      and R.quarter_of("2026-11-17") == (2026, "Q4"))
-check("casual is paid by the week; everyone else permanent",
-      [R.kind_of({"pay_category": category}) for category in ("Weekly", "Per Piece", "Monthly", "Per Meter", None)]
-      == ["Casual", "Casual", "Permanent", "Permanent", "Permanent"])
-import datetime  # noqa: E402
+      and R.quarter_of("2026-11-17") == (2026, "Q4") and R.short_label(2026, "Q3") == "Q3 26"
+      and R.quarters_back(2026, "Q2", 4) == [(2025, "Q3"), (2025, "Q4"), (2026, "Q1"), (2026, "Q2")])
 
-D = datetime.date
-check("employed on a day: joined by it, not relieved before it",
-      R.employed_on({"date_of_joining": "2026-07-01"}, D(2026, 7, 1))
-      and R.employed_on({"date_of_joining": "2020-01-01", "relieving_date": "2026-07-31"}, D(2026, 7, 31))
-      and not R.employed_on({"date_of_joining": "2020-01-01", "relieving_date": "2026-07-30"}, D(2026, 7, 31))
-      and not R.employed_on({"date_of_joining": "2026-08-01"}, D(2026, 7, 31)))
-check("still employed when the day is over: one whose last day it was is not",
-      not R.employed_after({"date_of_joining": "2020-01-01", "relieving_date": "2026-06-30"}, D(2026, 6, 30))
-      and R.employed_after({"date_of_joining": "2026-06-30"}, D(2026, 6, 30)))
-PEOPLE = [
-    {"name": "A", "branch": "K", "gender": "Male", "pay_category": "Monthly", "date_of_joining": "2020-01-01"},
-    {"name": "B", "branch": "K", "gender": "Female", "pay_category": "Weekly", "date_of_joining": "2026-07-10"},
-    {"name": "C", "branch": "K", "gender": "Male", "pay_category": "Weekly", "date_of_joining": "2025-01-01",
-     "relieving_date": "2026-07-20", "regrettable": 1},
-    {"name": "D", "branch": "N", "gender": "Female", "pay_category": "Monthly", "date_of_joining": "2026-07-01",
-     "hire_reason": "New Addition"},
-    {"name": "E", "branch": "N", "gender": "Male", "pay_category": "Monthly", "date_of_joining": "2019-03-01",
-     "relieving_date": "2026-06-30"},
-    {"name": "F", "branch": "M", "gender": "Male", "pay_category": "Monthly", "date_of_joining": "2019-03-01",
-     "relieving_date": "2026-07-15"},
-]
-SLIPS = [{"branch": "K", "employee": "A", "gross": 1000, "components": {"Basic Salary": 800, "Overtime 1": 200}},
-         {"branch": "K", "employee": "B", "gross": 300, "components": {}},
-         {"branch": "N", "employee": "D", "gross": 5000, "foreign": True, "components": {"Basic Salary": 4000}}]
-snap = R.snapshot(PEOPLE, SLIPS, [{"branch": "K", "severity": "Lost Time"}, {"branch": "K", "severity": "Near Miss"}],
-                  {"K": {"revenue": 1e9, "output_kg": 2000, "staff_cost": 0}}, "2026-07-01", "2026-07-31",
-                  {"Basic Salary": "Basic", "Overtime 1": "Overtime"})
-K, N = snap["K"], snap["N"]
-check("the month's head count: opening, closing, permanent and casual, male and female",
-      (K["opening"], K["closing"], K["permanent"], K["casual"], K["male"], K["female"]) == (2, 2, 1, 1, 1, 1)
-      and (K["permanent_opening"], K["casual_opening"]) == (1, 1), K)
-check("one who left the day before the month is not in it", (N["opening"], N["closing"], N["exits"]) == (0, 1, 0), N)
-check("hires and exits by type; a regrettable loss counted",
-      (K["hires"], K["hires_casual"], K["exits"], K["exits_casual"], K["regrettable"]) == (1, 1, 1, 1, 1))
-check("a hire against a New Addition requisition is an addition; any other a replacement",
-      (K["replacements"], K["additions"], N["additions"]) == (1, 0, 1))
-check("the wage bill and its groups; what no group claims is Other; a casual's pay and an expatriate's apart",
-      (K["wage_bill"], K["basic"], K["overtime"], K["other_pay"], K["casual_pay"], N["expatriates"], N["basic"],
-       N["other_pay"]) == (1300, 800, 200, 300, 300, 5000, 4000, 1000), (K, N))
-check("an exit nobody marked regrettable is not", (snap["M"]["exits"], snap["M"]["regrettable"]) == (1, 0), snap["M"])
-check("incidents and their severity", (K["incidents"], K["lost_time"], K["near_misses"]) == (2, 1, 1))
-check("Finance's figures for the plant", (K["revenue"], K["output_kg"]) == (1e9, 2000))
-check("a plant with nothing at all is left out", "Z" not in R.snapshot([], [], [], {"Z": {}}, "2026-07-01", "2026-07-31"))
+
+def month(**values):
+    return values
+
+
+# a quarter of two plants and the people with no plant, as board_facts.month_figures gives it
+JULY = {"Kawempe": month(opening=100, closing=104, casual=20, casual_opening=18, hires=8, hires_casual=5,
+                         replacements=5, additions=2, unclassified=1, exits=4, exits_casual=3, regrettable=1,
+                         voluntary=3, involuntary=1, transfers_in=0, transfers_out=1, conversions=2, payroll_heads=103,
+                         male=70, female=34, wage_bill=1000, basic=600, overtime=80, special_overtime=20, other_pay=50,
+                         expatriates=150, casual_pay=100, overtime_all=120, revenue=10000, output_kg=2000,
+                         staff_cost=1200, incidents=2, near_misses=3, lost_time=1, hours_worked=20000, days_lost=4),
+        "Namanve": month(opening=50, closing=52, casual=10, casual_opening=10, hires=3, hires_casual=1, replacements=3,
+                         exits=2, exits_casual=1, transfers_in=1, payroll_heads=52, male=30, female=22, wage_bill=500,
+                         basic=400, casual_pay=100, revenue=4000, output_kg=1000, incidents=1, hours_worked=10000),
+        "No Plant": month(opening=2, closing=3, hires=1, unclassified=1, payroll_heads=0, wage_bill=30, basic=30)}
+AUGUST = {"Kawempe": dict(JULY["Kawempe"], opening=104, closing=106, staff_cost=0),
+          "Namanve": dict(JULY["Namanve"], opening=52, closing=53, transfers_in=0, hires=1),
+          "No Plant": dict(JULY["No Plant"], opening=3, closing=3, hires=0, unclassified=0)}
+SEPTEMBER = {"Kawempe": dict(AUGUST["Kawempe"], opening=106, closing=101, exits=9, exits_casual=6),
+             "Namanve": dict(AUGUST["Namanve"], opening=53, closing=54),
+             "No Plant": dict(AUGUST["No Plant"])}
+BEFORE = {"Kawempe": month(closing=99, casual=19), "Namanve": month(closing=50, casual=10), "No Plant": month(closing=2)}
+LAST = [{"Kawempe": month(opening=90, closing=90, casual=30, casual_opening=30, exits=2, exits_casual=2, hires=2,
+                          wage_bill=800, basic=500, expatriates=100, casual_pay=200, overtime_all=60, incidents=4)}] * 3
+PREVIOUS = [{"Kawempe": month(opening=97, closing=99, hires=3, wage_bill=900, revenue=9000, staff_cost=950,
+                              output_kg=1800, regrettable=1)}] * 3
+Q = R.quarter([JULY, AUGUST, SEPTEMBER], BEFORE, LAST, None, 5.0, PREVIOUS)
+check("the plants in order, the people with no plant a row of their own and last",
+      Q["plants"] == ["Kawempe", "Namanve", "No Plant"], Q["plants"])
+total = Q["head_count"][-1]
+check("the plants add up to the total: no plant left out of the table but counted in it",
+      total["total"] == sum(row["total"] for row in Q["head_count"][:-1]) == 158, Q["head_count"])
+kawempe = Q["head_count"][0]
+check("head count: permanent (with the expatriates) and casual, QoQ, the permanent share then and now, conversions",
+      (kawempe["permanent"], kawempe["casual"], kawempe["qoq"], kawempe["permanent_share_start"],
+       kawempe["permanent_share_end"], kawempe["conversions"]) == (81, 20, 2, 80.8, 80.2, 6), kawempe)
+hiring = Q["recruitment"][-1]
+check("recruitment: replacements, additions, the hires with no requisition apart",
+      (hiring["replacements"], hiring["additions"], hiring["unclassified"], hiring["total"])
+      == (24, 6, 4, 30), hiring)
+gone = Q["exits"][0]
+check("exits month by month, the months over the target marked, voluntary and involuntary",
+      [entry["rate"] for entry in gone["months"]] == [3.9, 3.8, 8.7] and gone["over_target_months"] == [2]
+      and gone["over_target"] and (gone["voluntary"], gone["involuntary"]) == (9, 3), gone)
+recon = Q["reconciliation"]
+check("the reconciliation: opening + hires - exits + transfers in - transfers out, for each plant and the total",
+      all(row["expected"] == row["opening"] + row["hires"] - row["exits"] + row["transfers_in"] - row["transfers_out"]
+          and row["variance"] == row["reported"] - row["expected"] for row in recon)
+      and [row["plant"] for row in recon] == ["Kawempe", "Namanve", "No Plant", None]
+      and (recon[-1]["opening"], recon[-1]["transfers_in"], recon[-1]["transfers_out"]) == (152, 1, 3), recon)
+check("and the payroll's heads beside the closing", recon[0]["payroll_heads"] == 103
+      and recon[0]["payroll_variance"] == recon[0]["reported"] - 103, recon[0])
+components = Q["components"]
+check("the components of the permanent staff's pay, then expatriates and casuals: rows that add up to the wage bill",
+      [row["group"] for row in components] == list(R.GROUPS) + ["Expatriates", "Casuals"]
+      and round(sum(row["now"] for row in components), 2) == Q["components_total"]["wage_bill"] == 4590.0
+      and Q["components_total"]["now"] == Q["components_total"]["wage_bill"], (components, Q["components_total"]))
+labour = Q["labour_cost"][0]
+check("staff cost: Finance's for July where typed, the wage bill for August and September",
+      labour["staff_cost"] == 1200 + 1000 + 1000 and labour["from_finance"] == "Part"
+      and labour["monthly_share"] == [12.0, 10.0, 10.0], labour)
+check("and the total is each plant's own, never one typed figure for all",
+      Q["labour_cost"][-1]["staff_cost"] == 3200 + 1500 + 90, Q["labour_cost"][-1])
+check("output per employee and revenue per employee", labour["output_per_employee_month"] == 19
+      and labour["revenue_per_employee"] == 289, labour)
+safe = Q["safety"][0]
+check("safety: incidents without the near misses, near misses apart, LTIFR from the hours worked",
+      (safe["total"], safe["near_misses"], safe["lost_time"], safe["ltifr"]) == (6, 9, 3, 50.0), safe)
+pay = Q["wage_bill"][0]
+check("the wage bill against the quarter before and a year before, overtime of every kind and its share",
+      (pay["wage_bill"], pay["qoq"], pay["yoy"], pay["overtime"], pay["overtime_share"])
+      == (3000, 11.1, 25.0, 360, 12.0), pay)
+check("the totals row follows the plants", all(rows[-1]["plant"] is None for rows in (
+    Q["head_count"], Q["recruitment"], Q["exits"], Q["churn"], Q["reconciliation"], Q["wage_bill"], Q["labour_cost"],
+    Q["safety"], Q["people"])))
+check("no year before: the comparisons say so rather than nought",
+      R.quarter([JULY], None, [], None)["recruitment"][0]["last_year"] is None
+      and R.quarter([JULY], None, [], None)["head_count"][0]["qoq"] is None)
+line = R.summary([JULY, AUGUST, SEPTEMBER])
+check("a quarter in one line: head count, attrition, churn, pay, cost per kg, safety",
+      (line["head_count"], line["attrition"], line["hires"], line["exits"], line["wage_bill"], line["incidents"],
+       line["near_misses"]) == (158, 4.8, 30, 23, 4590.0, 9, 9) and set(R.SUMMARY_FIELDS) <= set(line), line)
+check("and for one plant", R.summary([JULY, AUGUST, SEPTEMBER], "Namanve")["head_count"] == 54)
+check("a quarter with nothing is blank, not nought", R.summary([])["head_count"] is None)
+check("monthly attrition: exits over the average of opening and closing",
+      R.attrition(3, 100, 120) == 2.7 and R.attrition(1, 0, 0) is None)
+check("a change as a percentage; none from nothing", R.change(120, 100) == 20.0 and R.change(5, 0) is None)
 check("each earning's group from its name, until HR say otherwise",
       [R.component_group(name) for name in ("Basic Salary", "Overtime 1", "Special Overtime", "Per Meter 6",
                                             "Arrear", "OT 3", "LST", "")]
       == ["Basic", "Overtime", "Special Overtime", "Per Meter", "Arrears", "Overtime", "Other", "Other"])
-check("monthly attrition: exits over the average of opening and closing",
-      R.attrition(3, 100, 120) == 2.7 and R.attrition(1, 0, 0) is None)
-check("a change as a percentage; none from nothing", R.change(120, 100) == 20.0 and R.change(5, 0) is None)
-
-
-def month(closing, opening, exits, hires=0, wage=1e8, revenue=0, kg=0, staff=0, incidents=0, perm=None):
-    perm = closing if perm is None else perm
-    return dict(dict.fromkeys(R.COUNTS + R.AMOUNTS, 0), closing=closing, opening=opening, exits=exits, hires=hires,
-                permanent=perm, casual=closing - perm, permanent_opening=opening, exits_permanent=exits,
-                hires_permanent=hires, replacements=hires, wage_bill=wage, revenue=revenue, output_kg=kg,
-                staff_cost=staff, incidents=incidents, basic=wage, overtime=wage / 10, male=closing)
-
-
-NOW = [{"K": month(100, 98, 2, 4, revenue=1e9, kg=2e5, incidents=1)},
-       {"K": month(102, 100, 3, 5, revenue=1.1e9, kg=2.1e5)},
-       {"K": month(104, 102, 6, 8, revenue=1.2e9, kg=2.2e5, staff=1.5e8)}]
-BEFORE = {"K": month(98, 97, 1, perm=90)}
-LAST = [{"K": month(80, 79, 1, 2, wage=8e7, incidents=2)} for _ in range(3)]
-PREVIOUS = [{"K": month(97, 96, 1, 3, wage=9e7, revenue=9e8)} for _ in range(3)]
-Q = R.quarter(NOW, BEFORE, LAST, ["K"], 5.0, PREVIOUS)
-head = Q["head_count"][0]
-check("head count at the quarter's end, its share, against the quarter before, the permanent share then and now",
-      (head["total"], head["share"], head["qoq"], head["permanent_share_start"], head["permanent_share_end"])
-      == (104, 100.0, 6, 91.8, 100.0), head)
-check("the months' head count, now and a year before", Q["monthly_head_count"] == [100, 102, 104]
-      and Q["monthly_head_count_last_year"] == [80, 80, 80])
-check("recruitment: the quarter's hires against the quarter before and a year before",
-      (Q["recruitment"][0]["total"], Q["recruitment"][0]["previous"], Q["recruitment"][0]["last_year"]) == (17, 9, 6))
-ex = Q["exits"][0]
-check("exits month by month with their attrition, the quarter's average, a year before",
-      [entry["rate"] for entry in ex["months"]] == [2.0, 3.0, 5.8] and ex["total"] == 11 and ex["average"] == 3.6
-      and ex["last_year_average"] == 1.3 and ex["over_target"], ex)
-recon = Q["reconciliation"][-1]
-check("the reconciliation: opening, plus hires, less exits, against what is reported",
-      (recon["opening"], recon["hires"], recon["exits"], recon["expected"], recon["reported"], recon["variance"])
-      == (98, 17, 11, 104, 104, 0), recon)
-churn = Q["churn"][0]
-check("churn by type over the quarter, a year before beside it",
-      churn["permanent"] == (11, 10.9) and churn["permanent_last_year"] == (3, 3.8), churn)
-pay = Q["wage_bill"][0]
-check("the wage bill: month by month, cost per kg, against the quarter before and a year before",
-      pay["wage_bill"] == 3e8 and pay["months"][0]["cost_per_kg"] == 500 and pay["qoq"] == 11.1 and pay["yoy"] == 25.0
-      and pay["per_employee_month"] == 980392, pay)
-labour = Q["labour_cost"][0]
-check("labour cost: Finance's staff cost where typed, the wage bill where not",
-      labour["staff_cost"] == 1.5e8 and labour["from_finance"] and labour["share"] == 4.5
-      and labour["monthly_share"] == [10.0, 9.1, 12.5], labour)
-check("revenue per employee and output per employee a month", labour["revenue_per_employee"] == 32352941
-      and labour["output_per_employee_month"] == 2059, labour)
-check("components against a year before, and each one's share of the increase",
-      [(row["group"], row["share_of_increase"]) for row in Q["components"][:2]] == [("Basic", 100.0), ("Per Meter", 0.0)]
-      and Q["components"][0]["yoy"] == 25.0, Q["components"])
-check("safety: incidents by month, the quarter against a year before",
-      Q["safety"][0]["months"] == [1, 0, 0] and Q["safety"][0]["total"] == 1 and Q["safety"][0]["last_year"] == 6)
-check("the totals row follows the plants", all(rows[-1]["plant"] is None for rows in (
-    Q["head_count"], Q["recruitment"], Q["exits"], Q["churn"], Q["reconciliation"], Q["wage_bill"], Q["labour_cost"],
-    Q["safety"])))
-check("no year before: the comparisons say so rather than nought",
-      R.quarter(NOW, None, [], ["K"])["recruitment"][0]["last_year"] is None
-      and R.quarter(NOW, None, [], ["K"])["head_count"][0]["qoq"] is None)
-check("the board's eight areas and seven metrics, ready to fill", len(R.default_ratings()) == 8
-      and [row["metric"] for row in R.default_metrics()] == list(R.METRICS))
 
 # ── 2. The paper ──────────────────────────────────────────────────────
-plant = fields("HR Snapshot Plant")
-for field in R.COUNTS + R.AMOUNTS:
-    check("HR Snapshot Plant has %s" % field, field in plant)
 snapshot = fields("HR Monthly Snapshot")
-check("a snapshot: company, month, source, locked, plants, totals",
-      {"company", "month_start", "source", "locked", "built_on", "build", "plants", "total_closing", "total_wage_bill"}
-      <= set(snapshot) and snapshot["source"]["options"].split("\n") == ["System", "Imported"]
-      and doctype("HR Monthly Snapshot").get("allow_import") == 1)
+check("a month's build: company, month, source, status, locked", {"company", "month_start", "source", "status",
+                                                                   "locked", "built_on", "build"} <= set(snapshot)
+      and snapshot["source"]["options"].split("\n") == ["System", "Imported"])
 line = fields("Board Finance Line")
 check("Finance's line: plant, month, revenue, output, staff cost",
       {"branch", "month_start", "revenue", "output_kg", "staff_cost"} <= set(line))
@@ -202,8 +182,9 @@ check("Finance's quarter: company, year, quarter, lines", {"company", "year", "q
 roles = {row["role"] for row in doctype("Board Finance Figures")["permissions"] if row.get("write")}
 check("Finance type their own figures", {"Accounts Manager", "Accounts User", "Finance Officer", "HR Manager"} <= roles)
 settings = fields("Board Report Settings")
-check("the settings: the attrition target and the component groups",
-      {"attrition_target", "component_groups"} <= set(settings)
+check("the settings: hours in a day, the months built each night, the trend tolerance, the component groups, "
+      "the past months built", {"hours_per_day", "refresh_months", "trend_tolerance", "component_groups",
+                                "build_company", "build_from", "build_months"} <= set(settings)
       and fields("Board Component Group")["component_group"]["options"].split("\n") == list(R.GROUPS))
 report = fields("HR Board Report")
 DECK = read("hrms_addon", "hrms_addon", "board_deck.py")
@@ -211,74 +192,109 @@ named = set(re.findall(r'self\.doc\.get\("(\w+)"\)', DECK)) | set(re.findall(r"s
 named -= {"get", "quarter", "year"}
 for field in sorted(named):
     check("HR Board Report has %s, which the deck reads" % field, field in report)
-check("the report's ratings are the board's", fields("Board Health Rating")["rating"]["options"].split("\n")[1:]
-      == list(R.RATINGS))
 check("the report is approved by the HR Manager", any(row["role"] == "HR Manager" and row.get("submit")
                                                      for row in doctype("HR Board Report")["permissions"])
       and doctype("HR Board Report").get("is_submittable") == 1)
+check("the board reads the report", any(row["role"] == "Board Member" and row.get("read")
+                                        for row in doctype("HR Board Report")["permissions"]))
 safety = fields("Safety Incident")
 for field in ("severity", "hazard", "off_site", "corrective_action", "capa_owner", "capa_due", "capa_status",
-              "capa_closed_on"):
-    check("Safety Incident has %s, kept up after it is recorded" % field,
-          field in safety and safety[field].get("allow_on_submit") == 1)
+              "capa_closed_on", "sick_days"):
+    check("Safety Incident has %s" % field, field in safety)
 check("a safety incident's severities are the board's", safety["severity"]["options"].split("\n")[1:]
       == list(R.SEVERITIES))
 custom = json.load(open(os.path.join(PACKAGE, "fixtures", "custom_field.json"), encoding="utf-8"))
-check("a separation may be marked a regrettable loss", any(row["name"] == "Employee Separation-custom_regrettable"
-                                                         and row.get("allow_on_submit") for row in custom))
+for name in ("Employee Separation-custom_regrettable", "Employee Separation-custom_reason",
+             "Employee Separation-custom_exit_type", "Employee-custom_is_foreign", "Employee-custom_pay_category",
+             "Employee-custom_work_section", "Job Requisition-custom_reason_type"):
+    check("the custom field the facts read ships: %s" % name, any(row["name"] == name for row in custom))
+reasons = next(row for row in custom if row["name"] == "Job Requisition-custom_reason_type")["options"].split("\n")
+check("a requisition's reasons are those the hire classes read", {"New Position", "Replacement", "New Addition"}
+      <= set(reasons), reasons)
 
 # ── 3. The glue ───────────────────────────────────────────────────────
 GLUE = read("hrms_addon", "hrms_addon", "board_pack.py")
-check("no SQL of its own", "frappe.db.sql" not in GLUE)
-check("the rules decide", "rules.snapshot(" in GLUE and "rules.quarter(" in GLUE)
-check("a locked or imported month stands as it is",
-      'cint(doc.locked) or doc.get("source") == "Imported"' in body_of(GLUE, "rebuild_snapshot")
-      and 'not cint(doc.locked) and doc.get("source") != "Imported"' in body_of(GLUE, "take_snapshot"))
-check("on the 1st, the month just ended", "(first - datetime.timedelta(days=1)).replace(day=1)" in body_of(GLUE, "monthly"))
-check("the payroll's wage bill: submitted slips, in the company's currency, statistical lines left out",
-      '"docstatus": 1' in body_of(GLUE, "_slips") and '"statistical_component": 0' in GLUE
-      and '"do_not_include_in_total": 0' in GLUE and "base_gross_pay" in GLUE)
-check("a hire's reason from their requisition: applicant, opening, requisition",
-      all(name in body_of(GLUE, "_hire_reasons") for name in ("Job Applicant", "Job Opening", "Job Requisition",
-                                                               "custom_reason_type")))
-check("the quarter takes the quarter before and the same quarter a year before",
-      "rules.quarter_before(year, quarter)" in GLUE and "_snapshot(company, y - 1, m)" in GLUE)
+check("the figures from the facts: a GROUP BY over them for the eight quarters, the old plant rows gone",
+      "board_facts.month_figures(company, first, last)" in body_of(GLUE, "quarter_figures")
+      and "HR Snapshot Plant" not in GLUE and "rules.quarter(" in GLUE and "rules.summary(" in GLUE)
+check("a month not built is missing, not nought", "board_facts.ready(company, window)" in GLUE
+      and "if ready.get(day) else None" in GLUE)
+check("the KPIs and the ratings from the figures, the insights drafted",
+      all(needle in body_of(GLUE, "quarter_figures") for needle in ("kpi.board_kpis(", "kpi.area_ratings(",
+                                                                    "kpi.insights(figures)")))
+check("HR's own words kept: a draft only where they wrote nothing",
+      'if doc.meta.has_field(field) and not (doc.get(field) or "").strip():' in body_of(GLUE, "_take")
+      and 'if not (doc.get("regrettable_note") or "").strip()' in body_of(GLUE, "_take"))
+check("HR's words checked against the figures", "kpi.text_flags(" in body_of(GLUE, "_take"))
+check("a rating or a KPI HR set themselves needs their reason, the rest follow the figures",
+      "kpi.override_errors(" in body_of(GLUE, "report_validate") and "kpi.settle(" in body_of(GLUE, "report_validate"))
+check("approved, the figures taken afresh, refused while a month is missing, its months locked; cancelled, let go",
+      "quarter_figures(" in body_of(GLUE, "report_before_submit") and 'figures["missing"]' in
+      body_of(GLUE, "report_before_submit") and "board_facts.lock(" in body_of(GLUE, "report_on_submit")
+      and "board_facts.unlock(" in body_of(GLUE, "report_on_cancel"))
+check("each action as it stood when the board approved the pack", '"updates"' in body_of(GLUE, "_record_actions")
+      and "_record_actions(doc)" in body_of(GLUE, "report_on_submit"))
+check("the training value is the learning module's", "learning_value.value_by(" in body_of(GLUE, "_training_value"))
+check("the sessions' attendance counted in one query, not one per session",
+      "frappe.db.count(" not in body_of(GLUE, "_training_held"))
+check("succession and talent risk from the talent records", all(name in body_of(GLUE, "_talent") for name in (
+    "Succession Position", "Talent Placement", "Competency Assessment")))
 check("every method asks the reader's permission first",
-      all("doc.check_permission(" in body_of(GLUE, name) for name in ("add_finance_lines", "rebuild_snapshot",
-                                                                      "get_figures", "download_deck",
-                                                                      "download_workbook")))
+      all("doc.check_permission(" in body_of(GLUE, name) for name in ("add_finance_lines", "get_figures",
+                                                                      "download_deck", "download_workbook",
+                                                                      "report_actions", "build_from_settings")))
 check("an approved report's figures stand", "The report is approved: its figures stand." in GLUE)
-check("the regrettable losses written in where HR have written nothing",
-      'if not (doc.get("regrettable_note") or "").strip()' in body_of(GLUE, "get_figures"))
+check("the deck has the company's logo, else keeps its place", "company_logo" in body_of(GLUE, "_logo")
+      and "logo=_logo(doc.company)" in GLUE)
 
 # ── 4. The deck ───────────────────────────────────────────────────────
 tree = ast.parse(DECK)
 deck_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "_Deck")
 methods = {node.name for node in deck_class.body if isinstance(node, ast.FunctionDef)}
-for slide in ("cover", "contents", "summary", "head_count", "head_count_yoy", "recruitment", "exits", "churn",
-              "comparative", "wage_bill", "components", "labour_cost", "metrics", "learning", "training_value",
-              "safety", "memoriam", "achievements", "agenda", "outlook", "closing"):
+for slide in ("cover", "contents", "summary", "scorecard", "trends", "head_count", "head_count_yoy", "recruitment",
+              "exits", "churn", "comparative", "wage_bill", "components", "labour_cost", "metrics", "talent",
+              "learning", "training_value", "safety", "memoriam", "achievements", "agenda", "outlook", "closing"):
     check("the deck has its %s slide, in the build" % slide,
           slide in methods and re.search(r"self\.%s[,)]" % slide, body_of_method(DECK, "build")))
+check("traffic lights on the ratings and the KPIs", "self.dot(" in body_of_method(DECK, "summary")
+      and "self.dot(" in body_of_method(DECK, "metrics") and "self.legend(" in DECK)
+check("each change coloured by whether it is good news", "good_or_bad(" in body_of_method(DECK, "comparative")
+      and "good_or_bad(" in body_of_method(DECK, "components") and "good_or_bad(" in body_of_method(DECK, "safety"))
+check("the figures their deck left out drawn: the months over target, the permanent share, output per employee, "
+      "near misses, days lost",
+      'entry.get("over_target")' in body_of_method(DECK, "exits")
+      and "permanent share" in body_of_method(DECK, "head_count")
+      and "output_per_employee_month" in body_of_method(DECK, "labour_cost")
+      and "near_misses" in body_of_method(DECK, "safety") and "days_lost" in body_of_method(DECK, "safety"))
+check("eight quarters of trends, charted", "self.chart(" in body_of_method(DECK, "trends")
+      and 'self.f.get("trends")' in body_of_method(DECK, "trends"))
+check("each slide's definitions at its foot", "DEFINITIONS[foot]" in body_of_method(DECK, "slide")
+      and DECK.count('foot="') >= 10)
+check("a place kept for the logo", '"LOGO"' in body_of_method(DECK, "mark") and "add_picture(" in body_of_method(DECK, "mark"))
+check("talent risk and succession from the figures", 'self.f.get("talent")' in body_of_method(DECK, "talent"))
+check("the agenda and the priorities are the board actions", 'self.f.get("actions")' in body_of_method(DECK, "agenda")
+      and 'self.f.get("actions")' in body_of_method(DECK, "outlook"))
 check("the deck needs python-pptx, and says so", "bench pip install python-pptx" in DECK)
-check("native charts and tables, so the board can still edit them",
-      "add_chart(" in DECK and "add_table(" in DECK)
+check("native charts and tables, so the board can still edit them", "add_chart(" in DECK and "add_table(" in DECK)
 check("the deck is refused before there are figures", "Get the figures first" in DECK)
 
 # ── 5. Wiring ─────────────────────────────────────────────────────────
 HOOKS = read("hrms_addon", "hooks.py")
-check("hooks: the month's snapshot on the 1st", re.search(
-    r'"monthly": \[.*?"hrms_addon\.hrms_addon\.board_pack\.monthly"', HOOKS, re.S))
-check("hooks: the component groups seeded on migrate", '"hrms_addon.hrms_addon.board_pack.setup_on_migrate"' in HOOKS)
+check("hooks: the component groups, the board's role and target seeded on migrate",
+      '"hrms_addon.hrms_addon.board_pack.setup_on_migrate"' in HOOKS)
 check("hooks: the regrettable flag shipped", '"Employee Separation-custom_regrettable"' in HOOKS)
 NAV = read("hrms_addon", "hrms_addon", "navigation_rules.py")
-for name in ("HR Board Report", "HR Monthly Snapshot", "Board Finance Figures", "Board Report Settings"):
+for name in ("HR Board Report", "HR Monthly Snapshot", "Board Finance Figures", "Board Report Settings",
+             "Board Action", "Board KPI Target"):
     check("the HR Setup page's Board Pack card lists %s" % name, '("%s", "%s", DOCTYPE)' % (name, name) in NAV)
-for doctype_name, method in (("board_finance_figures", "add_finance_lines"), ("hr_monthly_snapshot", "rebuild_snapshot"),
-                             ("hr_board_report", "get_figures")):
+check("the Board Pack card and the sidebar open the dashboard", '("Board Dashboard", "board-dashboard", PAGE)' in NAV
+      and '("Board Dashboard", "board-dashboard", PAGE, None, None)' in NAV)
+for doctype_name, method in (("board_finance_figures", "board_pack.add_finance_lines"),
+                             ("hr_monthly_snapshot", "board_facts.build"),
+                             ("hr_board_report", "board_pack.get_figures"),
+                             ("board_report_settings", "board_pack.build_from_settings")):
     script = read("hrms_addon", "hrms_addon", "doctype", doctype_name, doctype_name + ".js")
-    check("%s's button asks board_pack.%s" % (doctype_name, method),
-          '"hrms_addon.hrms_addon.board_pack.%s"' % method in script)
+    check("%s's button asks %s" % (doctype_name, method), '"hrms_addon.hrms_addon.%s"' % method in script)
 REPORT_JS = read("hrms_addon", "hrms_addon", "doctype", "hr_board_report", "hr_board_report.js")
 check("the report offers the deck and the workbook once it has figures",
       "download_deck" in REPORT_JS and "download_workbook" in REPORT_JS and "frm.doc.figures_json" in REPORT_JS)

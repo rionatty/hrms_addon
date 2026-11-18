@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "year",
+  "quarter",
+  "status",
+  "progress",
+  "note",
+  "updated_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "quarter",
+   "fieldtype": "Select",
+   "label": "Quarter",
+   "options": "\nQ1\nQ2\nQ3\nQ4",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nNot Started\nOn Track\nAt Risk\nDone\nDropped",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "progress",
+   "fieldtype": "Percent",
+   "label": "Progress",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "in_list_view": 1,
+   "columns": 4
+  },
+  {
+   "fieldname": "updated_on",
+   "fieldtype": "Date",
+   "label": "Updated On",
+   "in_list_view": 1,
+   "columns": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Action Update",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

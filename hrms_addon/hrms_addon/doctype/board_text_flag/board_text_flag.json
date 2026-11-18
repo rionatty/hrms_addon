@@ -1,0 +1,40 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "field_label",
+  "issue"
+ ],
+ "fields": [
+  {
+   "fieldname": "field_label",
+   "fieldtype": "Data",
+   "label": "Text",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "issue",
+   "fieldtype": "Small Text",
+   "label": "What the Figures Say",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 7
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Board Text Flag",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

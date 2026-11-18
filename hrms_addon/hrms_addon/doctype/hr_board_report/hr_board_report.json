@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-11-17 16:00:00.000000",
- "description": "The quarter's HR board pack: the figures from the month snapshots, HR's words beside them, and the deck.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -17,6 +16,7 @@
   "get_figures",
   "built_on",
   "figures_preview",
+  "text_flags",
   "figures_json",
   "summary_tab",
   "headline",
@@ -48,15 +48,15 @@
   "ld_pipeline",
   "training_value",
   "safety_tab",
+  "ehs_insight",
   "ehs_actions",
   "ehs_critical",
   "memoriam",
   "agenda_tab",
   "plant_notes",
   "company_milestones",
-  "agenda",
+  "actions_html",
   "challenges",
-  "priorities",
   "amended_from"
  ],
  "fields": [
@@ -137,6 +137,14 @@
    "fieldname": "figures_preview",
    "fieldtype": "HTML",
    "label": "Figures"
+  },
+  {
+   "fieldname": "text_flags",
+   "fieldtype": "Table",
+   "label": "Words Against the Figures",
+   "options": "Board Text Flag",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "figures_json",
@@ -239,7 +247,7 @@
    "fieldname": "labour_method",
    "fieldtype": "Small Text",
    "label": "Labour Cost: Method",
-   "default": "Staff costs are Finance's figure where typed, else the payroll wage bill; revenue as Finance typed it."
+   "default": "Staff costs are Finance's figure for each plant and month where typed, else the payroll wage bill; revenue as Finance typed it."
   },
   {
    "fieldname": "labour_insight",
@@ -307,6 +315,11 @@
    "label": "Safety"
   },
   {
+   "fieldname": "ehs_insight",
+   "fieldtype": "Small Text",
+   "label": "Safety: Key Insight"
+  },
+  {
    "fieldname": "ehs_actions",
    "fieldtype": "Text",
    "label": "Our Actions",
@@ -341,21 +354,14 @@
    "description": "One per line."
   },
   {
-   "fieldname": "agenda",
-   "fieldtype": "Table",
-   "label": "Strategic People Agenda",
-   "options": "Board Agenda Line"
+   "fieldname": "actions_html",
+   "fieldtype": "HTML",
+   "label": "Board Actions"
   },
   {
    "fieldname": "challenges",
    "fieldtype": "Text",
    "label": "Key Challenges",
-   "description": "One per line."
-  },
-  {
-   "fieldname": "priorities",
-   "fieldtype": "Text",
-   "label": "Next Quarter's Priorities",
    "description": "One per line."
   },
   {
@@ -369,7 +375,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-17 16:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HR Board Report",
@@ -434,6 +440,13 @@
   },
   {
    "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Board Member",
    "read": 1,
    "report": 1,
    "print": 1,
