@@ -12,7 +12,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
-from hrms_addon.hrms_addon import learning_delivery_rules as rules, training_rules
+from hrms_addon.hrms_addon import learning_delivery_rules as rules, learning_sheets_rules as sheets_rules, training_rules
 from hrms_addon.hrms_addon.learning_delivery import IMPACT, REVIEW
 
 
@@ -29,11 +29,11 @@ def execute(filters=None):
     result_event = {row.name: row.training_event for row in results}
     marks = frappe.get_all("Training Result Employee", filters={"parenttype": "Training Result",
                                                                 "parent": ["in", list(result_event) or [""]]},
-                           fields=["parent", "custom_effective"])
+                           fields=["parent", "custom_effective", "custom_marks", "custom_pre_test"])
     reviews = frappe.get_all(REVIEW, filters={"training_event": ["in", names]},
                              fields=["training_event", "status", "score", "applied"])
     impacts = frappe.get_all(IMPACT, filters={"training_event": ["in", names]}, fields=["training_event", "result",
-                                                                                        "benefit"])
+                                                                                        "benefit", "weight"])
     programme_of = {event.name: event.training_program or _("No Programme") for event in events}
     grouped = {}
     for event in events:
@@ -43,6 +43,10 @@ def execute(filters=None):
                                 "evaluation_score": event.custom_evaluation_score})
     for row in marks:
         grouped[programme_of[result_event[row.parent]]]["results"].append({"effective": row.custom_effective})
+        if row.custom_effective:
+            grouped[programme_of[result_event[row.parent]]].setdefault("tests", []).append(
+                {"pre": row.custom_pre_test if row.custom_pre_test not in (None, "") and row.custom_pre_test else None,
+                 "post": row.custom_marks, "passed": row.custom_effective == training_rules.EFFECTIVE})
     for row in reviews:
         grouped[programme_of[row.training_event]]["reviews"].append(row)
     for row in impacts:
@@ -53,7 +57,10 @@ def execute(filters=None):
         group = grouped[programme]
         found = rules.effectiveness(group["events"], group["results"], group["reviews"], group["impacts"],
                                     training_rules.EFFECTIVE)
-        data.append(dict(found, programme=programme, benefit=group["benefit"]))
+        tests = sheets_rules.learning_figures(group.get("tests") or [])
+        data.append(dict(found, programme=programme, benefit=group["benefit"], pre_test=tests["pre_test"],
+                         post_test=tests["post_test"], gain=tests["gain"],
+                         impact_share=rules.impact_share(group["impacts"])))
     return columns(), data
 
 
@@ -81,11 +88,15 @@ def columns():
         {"fieldname": "reaction", "label": _("1 Reaction %"), "fieldtype": "Percent", "width": 100},
         {"fieldname": "assessed", "label": _("2 Assessed"), "fieldtype": "Int", "width": 90},
         {"fieldname": "pass_rate", "label": _("2 Pass Rate %"), "fieldtype": "Percent", "width": 110},
+        {"fieldname": "pre_test", "label": _("2 Pre-Test %"), "fieldtype": "Percent", "width": 105},
+        {"fieldname": "post_test", "label": _("2 Post-Test %"), "fieldtype": "Percent", "width": 110},
+        {"fieldname": "gain", "label": _("2 Knowledge Gain"), "fieldtype": "Float", "precision": 1, "width": 120},
         {"fieldname": "reviews_done", "label": _("3 Reviews Done"), "fieldtype": "Int", "width": 110},
         {"fieldname": "reviews", "label": _("3 Reviews Raised"), "fieldtype": "Int", "width": 110},
         {"fieldname": "application", "label": _("3 Application Score"), "fieldtype": "Percent", "width": 130},
         {"fieldname": "applied_rate", "label": _("3 Applied %"), "fieldtype": "Percent", "width": 100},
         {"fieldname": "kpis", "label": _("4 KPIs Measured"), "fieldtype": "Int", "width": 110},
         {"fieldname": "kpis_improved", "label": _("4 KPIs Improved"), "fieldtype": "Int", "width": 110},
-        {"fieldname": "benefit", "label": _("4 Estimated Benefit"), "fieldtype": "Currency", "width": 140},
+        {"fieldname": "impact_share", "label": _("4 Weighted Improvement %"), "fieldtype": "Percent", "width": 150},
+        {"fieldname": "benefit", "label": _("4 Benefit"), "fieldtype": "Currency", "width": 140},
     ]

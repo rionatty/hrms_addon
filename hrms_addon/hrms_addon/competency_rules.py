@@ -116,6 +116,18 @@ def coverage(rows):
     return sum(1 for row in rows if row.get("status") == COMPETENT), len(rows)
 
 
+def score_of(rows):
+    """An employee's competency score, out of 100: each skill assessed, its
+    level against the level it needs (at most all of it), averaged. None
+    while nothing is assessed."""
+    rows = [row for row in rows or () if row.get("status") != SUPERSEDED and level_of(row.get("level"))]
+    if not rows:
+        return None
+    parts = [min(1.0, level_of(row.get("level")) / float(level_of(row.get("required_level")) or DEFAULT_REQUIRED))
+             for row in rows]
+    return round(100.0 * sum(parts) / len(parts), 1)
+
+
 def assessment_errors(row, today):
     errors = []
     if not level_of(row.get("level")):

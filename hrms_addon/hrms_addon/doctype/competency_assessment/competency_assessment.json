@@ -4,7 +4,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "links": [],
- "modified": "2026-11-17 21:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Competency Assessment",
@@ -161,7 +161,8 @@
    "options": "Competent\nGap\nCertificate Needed\nReassessment Due\nSuperseded",
    "read_only": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "detail_section",
@@ -187,6 +188,14 @@
    "fieldname": "evidence",
    "fieldtype": "Small Text",
    "label": "What Was Seen"
+  },
+  {
+   "fieldname": "assessment_sheet",
+   "fieldtype": "Link",
+   "label": "Skills Assessment Sheet",
+   "options": "Skills Assessment Sheet",
+   "read_only": 1,
+   "no_copy": 1
   }
  ],
  "field_order": [
@@ -215,7 +224,8 @@
   "induction_done",
   "training_event",
   "column_break_detail",
-  "evidence"
+  "evidence",
+  "assessment_sheet"
  ],
  "permissions": [
   {

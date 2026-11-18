@@ -22,6 +22,7 @@ frappe.query_reports["Training Compliance"] = {
 		},
 		{ fieldname: "branch", label: __("Plant"), fieldtype: "Link", options: "Branch" },
 		{ fieldname: "department", label: __("Department"), fieldtype: "Link", options: "Department" },
+		{ fieldname: "work_section", label: __("Section"), fieldtype: "Link", options: "Work Section" },
 		{ fieldname: "designation", label: __("Job Title"), fieldtype: "Link", options: "Designation" },
 		{ fieldname: "training_category", label: __("Category"), fieldtype: "Link", options: "Training Category" },
 		{ fieldname: "mandatory_only", label: __("Mandatory Categories Only"), fieldtype: "Check" },

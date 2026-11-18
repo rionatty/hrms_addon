@@ -47,11 +47,32 @@ def _has_certificate(employee, certification):
                                pluck="name", limit=1))
 
 
-def _status(row, skill, day):
+def _status(row, skill, day, held=None):
+    """Where the assessment stands today. held: the (employee, certification)
+    pairs with a valid certificate, read once for a whole run (_valid_pairs);
+    without it the one certificate is looked up."""
     certification = skill.get("custom_certification")
+    if not certification:
+        has = True
+    elif held is not None:
+        has = (row.get("employee"), certification) in held
+    else:
+        has = _has_certificate(row.get("employee"), certification)
     return rules.status_of(row.get("level"), rules.level_of(row.get("required_level")) or rules.DEFAULT_REQUIRED,
-                           row.get("next_due"), day, bool(certification),
-                           _has_certificate(row.get("employee"), certification) if certification else True)
+                           row.get("next_due"), day, bool(certification), has)
+
+
+def _valid_pairs(employees, certifications):
+    """{(employee, certification)} of the certificates valid now, in one read."""
+    from hrms_addon.hrms_addon import learning_rules
+
+    employees, certifications = list(employees or ()), list(certifications or ())
+    if not employees or not certifications:
+        return set()
+    return {(row.employee, row.certification) for row in frappe.get_all(
+        CERTIFICATE, filters={"employee": ["in", employees], "certification": ["in", certifications],
+                              "status": ["in", [learning_rules.VALID, learning_rules.DUE_SOON]]},
+        fields=["employee", "certification"], limit_page_length=0)}
 
 
 def assessment_validate(doc):
@@ -99,25 +120,28 @@ def _settle(employee, skill, leaving=None):
 
 
 def daily():
-    """Where each counting assessment stands today; a reassessment newly due
-    goes on the employee's supervisor's list."""
-    from hrms_addon.hrms_addon import people
-
+    """Where each counting assessment stands today, every certificate read
+    once for the whole run; the reassessments newly due go to each section's
+    supervisors on one Skills Assessment Sheet (learning_sheets)."""
     day = today()
-    skills = {}
-    for row in frappe.get_all(ASSESSMENT, filters={"status": ["!=", rules.SUPERSEDED]}, fields=FIELDS):
-        if row.skill not in skills:
-            skills[row.skill] = frappe.get_cached_doc(SKILL, row.skill).as_dict()
-        status = _status(row, skills[row.skill], day)
+    rows = frappe.get_all(ASSESSMENT, filters={"status": ["!=", rules.SUPERSEDED]}, fields=FIELDS,
+                          limit_page_length=0)
+    skills = {name: frappe.get_cached_doc(SKILL, name).as_dict() for name in {row.skill for row in rows}}
+    held = _valid_pairs({row.employee for row in rows},
+                        {skill.get("custom_certification") for skill in skills.values() if skill.get("custom_certification")})
+    due = []
+    for row in rows:
+        status = _status(row, skills[row.skill], day, held)
         if status == row.status:
             continue
         frappe.db.set_value(ASSESSMENT, row.name, "status", status, update_modified=False)
         if status == rules.REASSESS:
-            supervisor = frappe.db.get_value("Employee", row.employee, "reports_to")
-            user = frappe.db.get_value("Employee", supervisor, "user_id") if supervisor else None
-            if user:
-                people.assign(ASSESSMENT, row.name, [user],
-                              _("Reassess {0} in {1}").format(row.employee_name, row.skill))
+            due.append(row)
+    if due:
+        from hrms_addon.hrms_addon import learning_sheets
+
+        learning_sheets.reassessment_sheets(due)
+    return due
 
 
 # ── What the reports and the scorecard read ───────────────────────────
@@ -146,6 +170,18 @@ def skills_in(filters):
             continue
         found.append(row)
     return found
+
+
+def scores_for(employees):
+    """{employee: their competency score} from the assessments that count,
+    read once for all of them."""
+    rows = {}
+    if employees:
+        for row in frappe.get_all(ASSESSMENT, filters={"employee": ["in", list(employees)],
+                                                       "status": ["!=", rules.SUPERSEDED]},
+                                  fields=["employee", "level", "required_level", "status"], limit_page_length=0):
+            rows.setdefault(row.employee, []).append(row)
+    return {employee: rules.score_of(mine) for employee, mine in rows.items()}
 
 
 def coverage_for(people):

@@ -118,6 +118,8 @@ app_include_js = [
     # picture, its groups, what waits for the user in it and the document
     # most often made there, over Frappe's own cards (module_pages.py)
     "/assets/hrms_addon/js/hrms_addon_module_pages.js",
+    # what the learning forms share: an entry sheet's progress (learning_sheets.py)
+    "/assets/hrms_addon/js/hrms_addon_learning.js",
 ]
 
 
@@ -966,6 +968,33 @@ fixtures = [
                     "Training Event-custom_time_cost",
                     "Training Event-custom_total_cost",
                     "Training Event-custom_cost_per_trainee",
+                    # the session's venue and seats, its attendance figures and waiting list (learning_attendance.py)
+                    "Training Event-custom_venue",
+                    "Training Event-custom_capacity",
+                    "Training Event-custom_seats_left",
+                    "Training Event-custom_allow_walk_in",
+                    "Training Event-custom_attendance_section",
+                    "Training Event-custom_registered",
+                    "Training Event-custom_attended",
+                    "Training Event-custom_attendance_cb",
+                    "Training Event-custom_attendance_rate",
+                    "Training Event-custom_no_show_rate",
+                    "Training Event-custom_waitlist_section",
+                    "Training Event-custom_waitlist",
+                    # a trainee's pre-test, gain, attempt and kind of test; the levels a programme is evaluated at
+                    # (learning_sheets.py, learning_delivery.py)
+                    "Training Result Employee-custom_pre_test",
+                    "Training Result Employee-custom_gain",
+                    "Training Result Employee-custom_attempt",
+                    "Training Result Employee-custom_assessment_type",
+                    "Training Program-custom_levels_section",
+                    "Training Program-custom_level_reaction",
+                    "Training Program-custom_level_learning",
+                    "Training Program-custom_levels_cb",
+                    "Training Program-custom_level_behaviour",
+                    "Training Program-custom_level_impact",
+                    # the session's provider, rated after it (learning_providers.py)
+                    "Training Event-custom_provider",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -1768,6 +1797,8 @@ permission_query_conditions = {
     # a supervisor sees the training reviews that are theirs to give
     # (learning_delivery.py)
     "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_query",
+    # a supervisor's own sheet of trainees to review (learning_sheets.py)
+    "Application Review Sheet": "hrms_addon.hrms_addon.learning_sheets.review_sheet_query",
 }
 
 has_permission = {
@@ -1789,6 +1820,7 @@ has_permission = {
     "Mentoring Session": "hrms_addon.hrms_addon.graduates.session_has_permission",
     "Rotation Assessment": "hrms_addon.hrms_addon.graduates.rotation_has_permission",
     "Training Application Review": "hrms_addon.hrms_addon.learning_delivery.review_permission",
+    "Application Review Sheet": "hrms_addon.hrms_addon.learning_sheets.review_sheet_permission",
 }
 
 # DocType Class
@@ -2284,14 +2316,25 @@ doc_events = {
             # its costs added up, the trainees' time with them
             # (learning_value.py)
             "hrms_addon.hrms_addon.learning_value.event_costs",
+            # its venue and seats, the waiting list moved up, the clash check
+            # (learning_attendance.py)
+            "hrms_addon.hrms_addon.learning_attendance.event_validate",
+            # its provider from its supplier (learning_providers.py)
+            "hrms_addon.hrms_addon.learning_providers.event_validate",
         ],
         "before_update_after_submit": "hrms_addon.hrms_addon.learning_value.event_costs",
-        # every save: the year's training budgets brought up to date
-        "on_update": "hrms_addon.hrms_addon.learning_value.event_changed",
+        # every save: the year's training budgets brought up to date, and a row
+        # of attendance per participant per day (learning_attendance.py)
+        "on_update": [
+            "hrms_addon.hrms_addon.learning_value.event_changed",
+            "hrms_addon.hrms_addon.learning_attendance.event_on_update",
+        ],
         # held, changed or cancelled: what its people have done, and the
         # certificate its training gives those who passed (learning.py)
         "on_submit": [
             "hrms_addon.hrms_addon.training.event_on_submit",
+            # held: a day nobody marked is a no-show (learning_attendance.py)
+            "hrms_addon.hrms_addon.learning_attendance.event_on_submit",
             "hrms_addon.hrms_addon.learning.event_changed",
             "hrms_addon.hrms_addon.learning_value.event_changed",
         ],
@@ -2324,21 +2367,52 @@ doc_events = {
             # a trainee who did not pass told, with their supervisor and HR
             # (learning_delivery.py)
             "hrms_addon.hrms_addon.learning_delivery.result_failed",
+            "hrms_addon.hrms_addon.learning_providers.result_changed",
         ],
         "on_update_after_submit": [
             "hrms_addon.hrms_addon.training.result_on_submit",
             "hrms_addon.hrms_addon.learning.result_changed",
             "hrms_addon.hrms_addon.learning_delivery.result_failed",
+            "hrms_addon.hrms_addon.learning_providers.result_changed",
         ],
         "on_cancel": [
             "hrms_addon.hrms_addon.training.result_on_cancel",
             "hrms_addon.hrms_addon.learning.result_changed",
+            # the session's provider rated again (learning_providers.py)
+            "hrms_addon.hrms_addon.learning_providers.result_changed",
         ],
     },
     "Training Feedback": {
         "validate": "hrms_addon.hrms_addon.training.feedback_validate",
-        "on_submit": "hrms_addon.hrms_addon.training.feedback_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.training.feedback_on_cancel",
+        # each evaluation also rates the session's provider (learning_providers.py)
+        "on_submit": [
+            "hrms_addon.hrms_addon.training.feedback_on_submit",
+            "hrms_addon.hrms_addon.learning_providers.feedback_changed",
+        ],
+        "on_cancel": [
+            "hrms_addon.hrms_addon.training.feedback_on_cancel",
+            "hrms_addon.hrms_addon.learning_providers.feedback_changed",
+        ],
+    },
+    # Learning: a safety incident recorded sets off the refreshers that ask
+    # for one (learning_loop.py)
+    "Safety Incident": {
+        "on_submit": "hrms_addon.hrms_addon.learning_loop.incident_on_submit",
+    },
+    # two lines of the month's schedule sharing a venue or a trainer at once
+    # (learning_attendance.py)
+    "Monthly Training Schedule": {
+        "validate": "hrms_addon.hrms_addon.learning_attendance.schedule_validate",
+    },
+    # a toolbox talk evaluated at levels 1 and 2 only; each KPI weighed
+    # (learning_delivery.py)
+    "Training Program": {
+        "validate": "hrms_addon.hrms_addon.learning_delivery.programme_validate",
+    },
+    # the calendar's planned spend against what remains of the year's budget
+    # (learning_value.py)
+    "Training Calendar": {
+        "validate": "hrms_addon.hrms_addon.learning_value.calendar_budget",
     },
 }
 
@@ -2462,6 +2536,12 @@ scheduler_events = {
         # before it built again on the long queue, a month at a time; a locked
         # or imported month never (board_facts.py)
         "hrms_addon.hrms_addon.board_facts.nightly",
+        # Learning: those back from a long absence asked for their refreshers
+        # (learning_loop.py)
+        "hrms_addon.hrms_addon.learning_loop.daily",
+        # the providers rated and ranked; accreditations and contracts running
+        # out told (learning_providers.py)
+        "hrms_addon.hrms_addon.learning_providers.daily",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,

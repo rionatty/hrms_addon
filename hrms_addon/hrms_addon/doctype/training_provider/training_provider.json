@@ -1,0 +1,364 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "provider_name",
+  "provider_type",
+  "supplier",
+  "status",
+  "column_break_provider",
+  "phone",
+  "email",
+  "website",
+  "address",
+  "expertise_section",
+  "expertise",
+  "expertise_notes",
+  "people_section",
+  "contacts",
+  "trainers",
+  "paper_section",
+  "accreditations",
+  "contracts",
+  "ranking_section",
+  "provider_rank",
+  "score",
+  "trend",
+  "ranked_on",
+  "column_break_scores",
+  "cost_score",
+  "quality_score",
+  "feedback_score",
+  "column_break_scores_2",
+  "learning_score",
+  "impact_score",
+  "figures_section",
+  "sessions",
+  "trainees",
+  "column_break_figures",
+  "spend",
+  "cost_per_trainee",
+  "ratings"
+ ],
+ "fields": [
+  {
+   "fieldname": "provider_name",
+   "fieldtype": "Data",
+   "label": "Provider",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "provider_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "External\nIn-House",
+   "default": "External",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "label": "Supplier",
+   "options": "Supplier",
+   "search_index": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive",
+   "default": "Active",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_provider",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "label": "Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "website",
+   "fieldtype": "Data",
+   "label": "Website"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "expertise_section",
+   "fieldtype": "Section Break",
+   "label": "Expertise"
+  },
+  {
+   "fieldname": "expertise",
+   "fieldtype": "Table MultiSelect",
+   "label": "Areas",
+   "options": "Training Provider Expertise"
+  },
+  {
+   "fieldname": "expertise_notes",
+   "fieldtype": "Small Text",
+   "label": "Expertise"
+  },
+  {
+   "fieldname": "people_section",
+   "fieldtype": "Section Break",
+   "label": "Contacts and Trainers"
+  },
+  {
+   "fieldname": "contacts",
+   "fieldtype": "Table",
+   "label": "Contacts",
+   "options": "Training Provider Contact"
+  },
+  {
+   "fieldname": "trainers",
+   "fieldtype": "Table",
+   "label": "Trainers",
+   "options": "Training Provider Trainer"
+  },
+  {
+   "fieldname": "paper_section",
+   "fieldtype": "Section Break",
+   "label": "Accreditations and Contracts"
+  },
+  {
+   "fieldname": "accreditations",
+   "fieldtype": "Table",
+   "label": "Accreditations",
+   "options": "Training Provider Accreditation"
+  },
+  {
+   "fieldname": "contracts",
+   "fieldtype": "Table",
+   "label": "Contracts",
+   "options": "Training Provider Contract"
+  },
+  {
+   "fieldname": "ranking_section",
+   "fieldtype": "Section Break",
+   "label": "Ranking"
+  },
+  {
+   "fieldname": "provider_rank",
+   "fieldtype": "Int",
+   "label": "Rank",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "trend",
+   "fieldtype": "Float",
+   "label": "Trend",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1,
+   "description": "Last three sessions against the ones before."
+  },
+  {
+   "fieldname": "ranked_on",
+   "fieldtype": "Date",
+   "label": "Ranked On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_scores",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_score",
+   "fieldtype": "Float",
+   "label": "Cost",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "quality_score",
+   "fieldtype": "Float",
+   "label": "Quality",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "feedback_score",
+   "fieldtype": "Float",
+   "label": "Participant Feedback",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_scores_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "learning_score",
+   "fieldtype": "Float",
+   "label": "Learning Outcomes",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "impact_score",
+   "fieldtype": "Float",
+   "label": "Business Impact",
+   "read_only": 1,
+   "precision": "1",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "figures_section",
+   "fieldtype": "Section Break",
+   "label": "Sessions"
+  },
+  {
+   "fieldname": "sessions",
+   "fieldtype": "Int",
+   "label": "Sessions",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "trainees",
+   "fieldtype": "Int",
+   "label": "Trainees",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_figures",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "spend",
+   "fieldtype": "Currency",
+   "label": "Spend",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "cost_per_trainee",
+   "fieldtype": "Currency",
+   "label": "Cost per Trainee",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "ratings",
+   "fieldtype": "Table",
+   "label": "Ratings",
+   "options": "Training Provider Rating",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Provider",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "import": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Finance Officer",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1
+  }
+ ],
+ "sort_field": "provider_rank",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "field:provider_name",
+ "naming_rule": "By fieldname",
+ "allow_import": 1,
+ "title_field": "provider_name",
+ "search_fields": "supplier,provider_type"
+}

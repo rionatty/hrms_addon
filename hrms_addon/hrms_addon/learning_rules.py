@@ -80,7 +80,47 @@ DEFAULTS = {
     # the skills cover: competent people needed in each skill per shift, and
     # the shifts (competency.py)
     "cover_per_shift": 2, "cover_shifts": 2,
+    # the Learning Health Score's nine parts, weighed (learning_centre.py)
+    "health_mandatory": 20, "health_certification": 15, "health_coverage": 10, "health_competency": 10,
+    "health_attendance": 10, "health_assessment": 10, "health_effectiveness": 10, "health_budget": 5,
+    "health_critical": 10,
+    # the providers ranked on the brief's five factors (learning_providers.py)
+    "provider_cost": 20, "provider_quality": 20, "provider_feedback": 20, "provider_learning": 20,
+    "provider_impact": 20,
+    # a trainee signing in this many minutes after the start is Late; two
+    # sessions sharing a trainer or a venue are refused while this is ticked
+    # (learning_attendance.py)
+    "late_after_minutes": 15, "block_clashes": 1,
+    # a certificate's renewal asked for at its first alert (learning.py)
+    "renewal_requisition": 1,
 }
+
+# the Learning Health Score's parts, in the order the Command Centre shows them
+HEALTH_PARTS = (("mandatory", "Mandatory Compliance"), ("certification", "Certification Compliance"),
+                ("coverage", "Training Coverage"), ("competency", "Competency Coverage"),
+                ("attendance", "Attendance"), ("assessment", "Assessment Performance"),
+                ("effectiveness", "Training Effectiveness"), ("budget", "Budget Utilisation"),
+                ("critical", "Critical Skills Coverage"))
+# the brief's five factors a provider is ranked on
+PROVIDER_FACTORS = (("cost", "Cost"), ("quality", "Quality"), ("feedback", "Participant Feedback"),
+                    ("learning", "Learning Outcomes"), ("impact", "Business Impact"))
+
+# ── What sets a refresher off ─────────────────────────────────────────
+SAFETY_INCIDENT, PROCESS_CHANGE, NEW_EQUIPMENT = "Safety Incident", "Process Change", "New Equipment"
+AUDIT_FINDING, COMPLAINT, DEFECT = "Audit Finding", "Customer Complaint", "Quality Defect"
+LONG_ABSENCE, MOVED = "Long Absence", "Transfer or Promotion"
+TRIGGERS = (SAFETY_INCIDENT, PROCESS_CHANGE, NEW_EQUIPMENT, AUDIT_FINDING, COMPLAINT, DEFECT, LONG_ABSENCE,
+            MOVED)
+# recorded by HR on a Learning Trigger; the others come from their own records
+RECORDED_TRIGGERS = (PROCESS_CHANGE, NEW_EQUIPMENT, AUDIT_FINDING, COMPLAINT, DEFECT)
+THE_EMPLOYEE, THEIR_SECTION, THEIR_DEPARTMENT = "The Employee", "Their Section", "Their Department"
+REACHES = (THE_EMPLOYEE, THEIR_SECTION, THEIR_DEPARTMENT)
+TRIGGER_TYPES = (MANDATORY, REFRESHER)
+
+# ── A requirement booked ──────────────────────────────────────────────
+REQUESTED, BOOKED = "Requested", "Booked"
+BOOKINGS = (REQUESTED, BOOKED)
+CHUNK = 100
 
 # the blueprint's categories, in the order the matrix shows them; the
 # mandatory ones flagged
@@ -134,7 +174,30 @@ def settings_errors(settings):
         errors.append("An alert is sent so many days before expiry, or on the day (0).")
     if len(days) != len(set(days)):
         errors.append("Each alert is for a different number of days.")
+    for prefix, parts, what in (("health_", HEALTH_PARTS, "health score's"), ("provider_", PROVIDER_FACTORS,
+                                                                             "provider ranking's")):
+        weights = [_num(settings.get(prefix + key)) for key, _label in parts if settings.get(prefix + key)
+                   not in (None, "")]
+        if any(weight < 0 for weight in weights) or (weights and not sum(weights)):
+            errors.append("The %s weights must be nought or more, and not all nought." % what)
+    if _num(settings.get("late_after_minutes")) < 0:
+        errors.append("Late After cannot be less than nought minutes.")
     return errors
+
+
+def weights(settings, prefix, parts):
+    """{part: weight} as the settings hold them, the defaults where empty."""
+    s = _settings(settings)
+    return {key: _num(s.get(prefix + key, DEFAULTS.get(prefix + key))) for key, _label in parts}
+
+
+def weighted(values, weights_by_key):
+    """The weighted average of the values there is a figure for (None: none),
+    re-weighted over those, so a part with no data neither helps nor harms."""
+    have = [(_num(values[key]), _num(weight)) for key, weight in weights_by_key.items()
+            if values.get(key) is not None and _num(weight) > 0]
+    total = sum(weight for _value, weight in have)
+    return round(sum(value * weight for value, weight in have) / total, 1) if total else None
 
 
 # ── The rule ──────────────────────────────────────────────────────────
@@ -153,11 +216,42 @@ def rule_errors(rule):
     if _num(rule.get("due_within_days")) < 0:
         errors.append("Due Within cannot be less than nought days.")
     repeat = rule.get("repeat") or ONCE
+    trigger = rule.get("trigger")
     if repeat not in REPEAT_MONTHS:
         errors.append("Repeat is one of: %s." % ", ".join(REPEAT_MONTHS))
-    elif kind == REFRESHER and not REPEAT_MONTHS[repeat]:
+    elif kind == REFRESHER and not REPEAT_MONTHS[repeat] and not trigger:
         errors.append("A refresher is repeated: say how often.")
+    if trigger:
+        if trigger not in TRIGGERS:
+            errors.append("Set Off By is one of: %s." % ", ".join(TRIGGERS))
+        if kind not in TRIGGER_TYPES:
+            errors.append("Only a mandatory training or a refresher is set off by an event.")
+        if (rule.get("trigger_reach") or THE_EMPLOYEE) not in REACHES:
+            errors.append("Reaches is one of: %s." % ", ".join(REACHES))
+        if trigger == LONG_ABSENCE and _num(rule.get("absence_days")) < 1:
+            errors.append("Say how many days away count as a long absence.")
     return errors
+
+
+def triggered(rule):
+    """Whether the rule asks only once something has set it off."""
+    return bool(rule.get("trigger"))
+
+
+def trigger_due(rule, triggered_on):
+    """A set-off requirement is due so many days after the event."""
+    day = _date(triggered_on)
+    return day + datetime.timedelta(days=int(_num(rule.get("due_within_days")))) if day else None
+
+
+def reached_by(rule, employee, trigger_employee):
+    """Whether an event about `trigger_employee` reaches `employee` under the
+    rule: the person themselves, or everyone in their section or department."""
+    reach = rule.get("trigger_reach") or THE_EMPLOYEE
+    if reach == THE_EMPLOYEE:
+        return employee.get("name") == trigger_employee.get("name")
+    field = "work_section" if reach == THEIR_SECTION else "department"
+    return bool(trigger_employee.get(field)) and employee.get(field) == trigger_employee.get(field)
 
 
 def repeat_months(rule):
@@ -208,15 +302,19 @@ def first_due(rule, employee, required_since):
 
 
 # ── Done, and how long it counts ──────────────────────────────────────
-def programme_state(first, months, completions):
+def programme_state(first, months, completions, since=None):
     """What the record shows for a training: {"completed_on", "valid_until",
     "due_date", "evidence"}.
 
     completions: [(day, evidence)] of the times it was done and passed. The
     last counts: for `months` after it when the training is repeated, for
     good when it is not. Then it is due again on the day it stops counting.
+    since: what was done before this day does not count (a refresher set off
+    by an incident wants the training again, whatever was done before).
     """
-    done = [(_date(day), evidence) for day, evidence in completions or () if _date(day)]
+    since = _date(since)
+    done = [(_date(day), evidence) for day, evidence in completions or ()
+            if _date(day) and (since is None or _date(day) >= since)]
     if not done:
         return {"completed_on": None, "valid_until": None, "due_date": _date(first), "evidence": None}
     day, evidence = max(done, key=lambda item: item[0])
@@ -450,7 +548,103 @@ def event_hours(start, end, programme_hours=None, recorded=None):
     return round(_num(programme_hours), 2)
 
 
+# ── Many employees at once ────────────────────────────────────────────
+def chunks(items, size=CHUNK):
+    """The items in parts of `size`, in their order."""
+    items = list(items or ())
+    return [items[start:start + size] for start in range(0, len(items), max(1, int(size)))]
+
+
+# ── The day's digest ──────────────────────────────────────────────────
+DIGEST_SHOWN = 25
+
+
+def digest_lines(items, shown=DIGEST_SHOWN):
+    """A digest's lines: the overdue first, then the soonest due, at most
+    `shown`, and a last line saying how many more there are.
+
+    items: [{"status", "due_date", "line"}]."""
+    order = {OVERDUE: 0, EXPIRED: 0, DUE_SOON: 1}
+    ordered = sorted(items or (), key=lambda item: (order.get(item.get("status"), 2),
+                                                     str(_date(item.get("due_date")) or ""), item.get("line") or ""))
+    lines = [item["line"] for item in ordered[:shown]]
+    if len(ordered) > shown:
+        lines.append("And %d more." % (len(ordered) - shown))
+    return lines
+
+
+def digest_counts(items):
+    """(overdue, due soon) among a digest's items."""
+    statuses = [item.get("status") for item in items or ()]
+    return (sum(1 for status in statuses if status in (OVERDUE, EXPIRED)),
+            sum(1 for status in statuses if status == DUE_SOON))
+
+
+# ── Booked ────────────────────────────────────────────────────────────
+def booking_of(sessions, requisition_open=False, today=None):
+    """What a requirement shows of the session it is booked on: (status,
+    session, day). Booked on the soonest session still to be held, else
+    Requested while a requisition for it is open, else nothing.
+
+    sessions: [(day, session)] the employee is booked on for the training."""
+    today = _date(today)
+    ahead = sorted((_date(day), name) for day, name in sessions or ()
+                   if _date(day) and (today is None or _date(day) >= today))
+    if ahead:
+        return BOOKED, ahead[0][1], ahead[0][0]
+    if requisition_open:
+        return REQUESTED, None, None
+    return None, None, None
+
+
+# ── Gaps raised as requisitions ───────────────────────────────────────
+def gap_groups(rows):
+    """Requirements due or overdue, not yet booked or requested, grouped by
+    training, plant and section (the department where there is no section):
+    [{"training_program", "branch", "work_section", "department", "rows"}],
+    the largest group first. Certificates are renewed through their own
+    training, named on the row."""
+    groups = {}
+    for row in rows or ():
+        if row.get("status") not in (DUE_SOON, OVERDUE) or row.get("booking_status"):
+            continue
+        programme = row.get("training_program")
+        if not programme:
+            continue
+        key = (programme, row.get("branch") or "", row.get("work_section") or "",
+               "" if row.get("work_section") else (row.get("department") or ""))
+        group = groups.setdefault(key, {"training_program": programme, "branch": row.get("branch"),
+                                        "work_section": row.get("work_section"),
+                                        "department": row.get("department"), "rows": []})
+        if row.get("employee") not in {item.get("employee") for item in group["rows"]}:
+            group["rows"].append(row)
+    found = list(groups.values())
+    for group in found:
+        departments = [row.get("department") for row in group["rows"] if row.get("department")]
+        if departments:
+            group["department"] = max(sorted(set(departments)), key=departments.count)
+    return sorted(found, key=lambda group: (-len(group["rows"]), group["training_program"], group["branch"] or "",
+                                            group["work_section"] or "", group["department"] or ""))
+
+
+def gap_text(rows, today):
+    """Why a requisition raised from gaps is needed, in a line."""
+    overdue = sum(1 for row in rows if row.get("status") == OVERDUE)
+    soonest = min((_date(row.get("due_date")) for row in rows if _date(row.get("due_date"))), default=None)
+    parts = ["%d required by the training rules" % len(rows)]
+    if overdue:
+        parts.append("%d overdue" % overdue)
+    if soonest:
+        parts.append("the first due %s" % soonest.isoformat())
+    return ", ".join(parts) + "."
+
+
 # ── Dates and numbers ─────────────────────────────────────────────────
+def add_days(day, days):
+    day = _date(day)
+    return day + datetime.timedelta(days=int(days)) if day else None
+
+
 def add_months(day, months):
     """The same day so many months on, or the month's last day where the
     month is shorter (31 Jan + 1 month = 28 or 29 Feb)."""

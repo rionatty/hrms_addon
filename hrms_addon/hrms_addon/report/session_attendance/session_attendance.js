@@ -1,8 +1,9 @@
 // Copyright (c) 2026, CyveTech and contributors
 // For license information, please see license.txt
 
-// Who came to each session, or each employee's sessions (training_attendance.py).
-frappe.query_reports["Training Attendance"] = {
+// Who was invited, registered and came to each session, or by employee,
+// department or plant (session_attendance.py).
+frappe.query_reports["Session Attendance"] = {
 	filters: [
 		{
 			fieldname: "company",
@@ -21,6 +22,13 @@ frappe.query_reports["Training Attendance"] = {
 			reqd: 1,
 		},
 		{ fieldname: "to_date", label: __("To"), fieldtype: "Date", default: frappe.datetime.get_today(), reqd: 1 },
-		{ fieldname: "view", label: __("View"), fieldtype: "Select", options: "Session\nEmployee", default: "Session" },
+		{
+			fieldname: "view",
+			label: __("View"),
+			fieldtype: "Select",
+			options: "Session\nEmployee\nDepartment\nPlant",
+			default: "Session",
+		},
+		{ fieldname: "include_scheduled", label: __("Sessions to Come Too"), fieldtype: "Check" },
 	],
 };

@@ -21,3 +21,10 @@ class CompetencyAssessment(Document):
         from hrms_addon.hrms_addon import competency
 
         competency.assessment_on_trash(self)
+
+
+def on_doctype_update():
+    """The composite indexes it is looked up by (learning.INDEXES)."""
+    from hrms_addon.hrms_addon import learning
+
+    learning.add_indexes("Competency Assessment")

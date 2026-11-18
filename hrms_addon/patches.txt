@@ -117,3 +117,7 @@ hrms_addon.patches.v1_0.talent_plan_actions
 hrms_addon.patches.v1_0.talent_review_plants
 hrms_addon.patches.v1_0.talent_permissions
 hrms_addon.patches.v1_0.talent_indexes
+# Learning at scale: the requirements one per employee and rule, the learning records indexed
+hrms_addon.patches.v1_0.lms_indexes
+# Learning: HR's own list of KPIs and kinds of test, the programmes' Other KPIs moved onto it
+hrms_addon.patches.v1_0.lms_training_kpis

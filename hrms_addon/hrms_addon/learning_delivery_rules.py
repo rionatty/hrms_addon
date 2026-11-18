@@ -101,6 +101,28 @@ KPI_FROM_SHIFTS = {name: how for name, _better, how in IMPACT_KPIS if how}
 IMPROVED, WORSE, NO_CHANGE = "Improved", "Worse", "No Change"
 OPEN, MEASURED = "Open", "Measured"
 
+# The KPIs are HR's own list since 18 Nov 2026 (Training KPI): each with its
+# unit, which way is better, where it is read from, what a unit of it is
+# worth and over how many days it is measured. These are the ones seeded,
+# the Shift Report measures by the names HR see.
+SHIFT_REPORTS, MANUAL = "Shift Reports", "Manual"
+SOURCES = (SHIFT_REPORTS, MANUAL)
+MEASURES = (("Waste", "waste"), ("Complaints", "complaints"), ("Machine Hours Lost", "hours_lost"),
+            ("Safety Incidents", "incidents"), ("PPE Compliance", "ppe"), ("Attendance", "attendance"),
+            ("Output per Person", "output_per_person"), ("Shift Score", "score"))
+MEASURE_KEY = dict(MEASURES)
+# name, which way is better, unit, measure on the Shift Reports
+SEEDED_KPIS = (("Waste Value", LOWER, "UGX", "Waste"), ("Complaint Value", LOWER, "UGX", "Complaints"),
+               ("Machine Hours Lost", LOWER, "Hours", "Machine Hours Lost"),
+               ("Safety Incidents", LOWER, "Incidents", "Safety Incidents"),
+               ("PPE Compliance %", HIGHER, "%", "PPE Compliance"), ("Attendance %", HIGHER, "%", "Attendance"),
+               ("Output per Person-Shift", HIGHER, "Units", "Output per Person"),
+               ("Shift Score", HIGHER, "Points", "Shift Score"))
+# the levels a programme is evaluated at; a toolbox talk skips 3 and 4
+LEVELS = (("reaction", "custom_level_reaction"), ("learning", "custom_level_learning"),
+          ("behaviour", "custom_level_behaviour"), ("impact", "custom_level_impact"))
+TOOLBOX = "Toolbox Talk"
+
 
 def impact_windows(start, end, window):
     """(before from, before to, after from, after to): the `window` days before
@@ -112,10 +134,17 @@ def impact_windows(start, end, window):
 
 
 def kpi_from_totals(kpi, totals, averages):
-    """A KPI from the Shift Reports' totals() and averages() for a window; None
-    when the window has no shift reports."""
+    """A seeded KPI from the Shift Reports' totals() and averages() for a
+    window; None when the window has no shift reports."""
     how = KPI_FROM_SHIFTS.get(kpi)
-    if not how or not totals.get("count"):
+    return measure_value(how, totals, averages) if how else None
+
+
+def measure_value(measure, totals, averages):
+    """A Shift Report measure (its name as HR see it, or its key) for a window;
+    None when the window has no shift reports."""
+    how = MEASURE_KEY.get(measure, measure)
+    if not how or how not in MEASURE_KEY.values() or not totals.get("count"):
         return None
     if how in ("waste", "complaints", "hours_lost", "incidents"):
         return round(_num(totals.get(how)), 2)
@@ -125,6 +154,46 @@ def kpi_from_totals(kpi, totals, averages):
     if how == "output_per_person":
         return round(_num(totals.get("actual")) / totals["on_shift"], 2) if totals.get("on_shift") else None
     return averages.get("score")
+
+
+def benefit(change, better, value_per_unit):
+    """What a change in a KPI is worth: each unit of improvement at the KPI's
+    value per unit (negative where it went the wrong way); nothing without
+    a change or a value."""
+    if change in (None, "") or not better or not _num(value_per_unit):
+        return 0.0
+    improvement = _num(change) if better == HIGHER else -_num(change)
+    return round(improvement * _num(value_per_unit), 2)
+
+
+def target_met(after, target, better):
+    """Whether the value after the training reached the programme's target."""
+    if after in (None, "") or target in (None, "") or not better:
+        return None
+    return int(_num(after) >= _num(target)) if better == HIGHER else int(_num(after) <= _num(target))
+
+
+def level_on(value):
+    """A programme's level is evaluated unless it was turned off: a level
+    never set (older programmes) counts as on."""
+    return value is None or value == "" or int(_num(value)) == 1
+
+
+def programme_levels(programme):
+    """{level: on} for a programme's row (with its custom_level_* fields)."""
+    programme = programme or {}
+    return {level: level_on(programme.get(field)) for level, field in LEVELS}
+
+
+def impact_share(impacts):
+    """The weighted share of a programme's KPIs that improved: each KPI by its
+    weight (1 where none is given); None while none is measured."""
+    measured = [row for row in impacts or () if row.get("result")]
+    total = sum(_num(row.get("weight")) or 1.0 for row in measured)
+    if not total:
+        return None
+    return round(100.0 * sum((_num(row.get("weight")) or 1.0) for row in measured
+                             if row.get("result") == IMPROVED) / total, 1)
 
 
 def impact_result(better, baseline, after):
@@ -140,9 +209,11 @@ def impact_result(better, baseline, after):
 
 def impact_errors(review):
     errors = []
+    if not review.get("kpi"):
+        errors.append("Pick the KPI.")
     if review.get("kpi") == OTHER and not (review.get("kpi_name") or "").strip():
         errors.append("Name the KPI.")
-    if review.get("kpi") == OTHER and not review.get("better"):
+    if review.get("kpi") and not review.get("better"):
         errors.append("Say whether higher or lower is better.")
     for first, last, label in (("baseline_from", "baseline_to", "before"), ("after_from", "after_to", "after")):
         if _date(review.get(first)) and _date(review.get(last)) and _date(review.get(last)) < _date(review.get(first)):

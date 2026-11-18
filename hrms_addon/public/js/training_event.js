@@ -43,6 +43,38 @@ frappe.ui.form.on("Training Event", {
 			grid.clear_custom_buttons();
 		}
 		if (frm.is_new()) return;
+		// the day rows, the sign-in table and the seats (learning_attendance.py)
+		if (frm.doc.docstatus < 2 && frm.doc.event_status !== "Cancelled") {
+			frm.add_custom_button(__("Sign-In"), () => frappe.set_route("training-sign-in", frm.doc.name), __("Attendance"));
+			frm.add_custom_button(
+				__("Attendance Days"),
+				() => frappe.set_route("List", "Training Attendance", { training_event: frm.doc.name }),
+				__("Attendance")
+			);
+		}
+		if (frm.doc.docstatus === 0 && frm.doc.event_status !== "Cancelled") {
+			const seat = (action, employee) =>
+				frappe
+					.xcall("hrms_addon.hrms_addon.learning_attendance." + action, { training_event: frm.doc.name, employee: employee || null }, "POST")
+					.then((found) => {
+						frappe.show_alert({ message: __(found.status), indicator: found.status === "Withdrawn" ? "orange" : "green" });
+						frm.reload_doc();
+					});
+			frm.add_custom_button(__("Register Me"), () => seat("register"), __("Registration"));
+			frm.add_custom_button(__("Withdraw Me"), () => seat("withdraw"), __("Registration"));
+			if (frappe.user.has_role(["HR Manager", "HR User", "System Manager", "Supervisor"])) {
+				frm.add_custom_button(
+					__("Register an Employee"),
+					() =>
+						frappe.prompt(
+							{ fieldname: "employee", label: __("Employee"), fieldtype: "Link", options: "Employee", reqd: 1 },
+							(values) => seat("register", values.employee),
+							__("Register an Employee")
+						),
+					__("Registration")
+				);
+			}
+		}
 		if (frm.doc.docstatus === 0) {
 			frm.dashboard.set_headline(
 				__("Mark each participant Present or Absent, attach the signed attendance sheet, then Submit: the training was held.")

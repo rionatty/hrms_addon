@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "training_event",
+  "training_program",
+  "session_date",
+  "trainees",
+  "cost",
+  "cost_per_trainee",
+  "quality",
+  "feedback",
+  "learning",
+  "impact"
+ ],
+ "fields": [
+  {
+   "fieldname": "training_event",
+   "fieldtype": "Link",
+   "label": "Session",
+   "options": "Training Event",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "training_program",
+   "fieldtype": "Link",
+   "label": "Training",
+   "options": "Training Program",
+   "read_only": 1
+  },
+  {
+   "fieldname": "session_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "read_only": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "trainees",
+   "fieldtype": "Int",
+   "label": "Trainees",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cost_per_trainee",
+   "fieldtype": "Currency",
+   "label": "Cost per Trainee",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "quality",
+   "fieldtype": "Percent",
+   "label": "Quality",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "feedback",
+   "fieldtype": "Percent",
+   "label": "Feedback",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "learning",
+   "fieldtype": "Percent",
+   "label": "Learning",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "impact",
+   "fieldtype": "Percent",
+   "label": "Impact",
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Training Provider Rating",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 0
+}

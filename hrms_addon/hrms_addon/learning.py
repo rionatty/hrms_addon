@@ -47,6 +47,10 @@ PROGRAMME = "Training Program"
 EVENT = "Training Event"
 RESULT = "Training Result"
 EVENT_CANCELLED = "Cancelled"
+# learning content an employee completed counts as doing its training
+# (learning_library.py): its assignments are named LCA-...
+CONTENT_ASSIGNMENT, CONTENT_PREFIX = "Learning Content Assignment", "LCA-"
+CONTENT_DONE = ("Completed", "Passed")
 # who sees anyone's passport (narrowed by their own permissions on the Employee)
 HR_ROLES = ("System Manager", "HR Manager")
 LOOK_ROLES = ("HR User", "General Manager", "Executive Director", "Head of Department", "Supervisor")
@@ -54,7 +58,10 @@ HEAD_ROLE, GM_ROLE = "Head of Department", "General Manager"
 # the Employee fields a rule reads: a change to one of them is, to the rules,
 # a move, a promotion or a new grade
 WATCHED = ("company", "branch", "department", "designation", "grade", "employment_type", "status",
-           "date_of_joining", "custom_operates_machinery")
+           "date_of_joining", "custom_operates_machinery", "custom_work_section")
+# a change to one of these is a transfer or a promotion, which sets off the
+# refreshers that ask for it
+MOVES = ("branch", "department", "designation", "grade", "custom_work_section")
 CHILD_TABLES = (("branches", "Training Rule Branch", "branch"),
                 ("departments", "Training Rule Department", "department"),
                 ("designations", "Training Rule Designation", "designation"),
@@ -63,8 +70,23 @@ CHILD_TABLES = (("branches", "Training Rule Branch", "branch"),
 # what a requirement's record holds, as refresh_employee writes it
 KEPT = ("employee_name", "requirement_type", "training_program", "certification", "training_category",
         "due_date", "completed_on", "valid_until", "status", "company", "branch", "department",
-        "designation", "training_rule", "required_since", "evidence_type", "evidence", "last_result")
-CHUNK = 100
+        "designation", "training_rule", "required_since", "evidence_type", "evidence", "last_result",
+        "work_section", "booking_status", "booked_event", "booked_for", "requisition", "triggered_on")
+CHUNK = rules.CHUNK
+# a requisition still asking for its training
+REQUISITION_DONE = ("Closed", "Cancelled")
+# the composite indexes the learning records are looked up by (add_indexes),
+# and the pairs that may be there once only
+INDEXES = {
+    REQUIREMENT: (("status", "due_date"), ("branch", "department")),
+    "Competency Assessment": (("employee", "skill"),),
+    "Training Application Review": (("training_event", "employee"), ("reviewer", "status")),
+    "Training Attendance": (("training_event", "session_date"), ("branch", "session_date")),
+}
+UNIQUE = {
+    REQUIREMENT: ("employee", "training_rule"),
+    "Training Attendance": ("training_event", "employee", "session_date"),
+}
 
 
 # ── Settings ──────────────────────────────────────────────────────────
@@ -127,6 +149,10 @@ def rule_validate(doc):
         doc.repeat = rules.ONCE
     else:
         doc.certification = None
+    if not doc.get("trigger"):
+        doc.trigger_reach, doc.absence_days = None, 0
+    elif not doc.get("trigger_reach"):
+        doc.trigger_reach = rules.THE_EMPLOYEE
     if not doc.get("applies_from"):
         doc.applies_from = today()
 
@@ -183,7 +209,7 @@ def requirement_validate(doc):
 
 def _fill(doc, state, last_result):
     doc.completed_on, doc.valid_until = state["completed_on"], state["valid_until"]
-    doc.evidence_type = EVENT if state["evidence"] else None
+    doc.evidence_type = _proof_type(state["evidence"]) if state["evidence"] else None
     doc.evidence = state["evidence"]
     doc.last_result = last_result
 
@@ -207,7 +233,6 @@ def certificate_validate(doc):
         # a new expiry is chased afresh
         doc.alerts_sent = None
     doc.status = rules.certificate_status(doc.as_dict(), day, settings())
-    doc.days_to_expiry = rules.days_left(doc.expiry_date, day)
 
 
 def _refuse_twice(doc):
@@ -291,10 +316,18 @@ def _let_go(name):
 # ── What changes the picture ──────────────────────────────────────────
 def employee_on_update(doc, method=None):
     """A new employee, or one moved, promoted, regraded or gone: the rules
-    decide afresh what they need."""
+    decide afresh what they need, and a move sets off the refreshers that
+    ask for one."""
     before = doc.get_doc_before_save()
     if before and not any(str(before.get(field) or "") != str(doc.get(field) or "") for field in WATCHED):
         return
+    if before and doc.get("status") == rules.ACTIVE and any(
+            str(before.get(field) or "") != str(doc.get(field) or "") for field in MOVES):
+        frappe.enqueue("hrms_addon.hrms_addon.learning.trigger", queue="short", enqueue_after_commit=True,
+                       kind=rules.MOVED, employees=[doc.name], day=today(),
+                       note=_("Moved to {0}").format(", ".join(str(doc.get(field)) for field in MOVES
+                                                               if doc.get(field) and str(before.get(field) or "")
+                                                               != str(doc.get(field) or ""))))
     refresh_later([doc.name])
 
 
@@ -382,14 +415,14 @@ def refresh_rule(rule):
     """Everyone the rule asks something of, and everyone it asked before."""
     rules_by_name = _rules([rule], enabled_only=False)
     if not rules_by_name:
-        return
+        return {"added": 0, "changed": 0}
     employees = set(frappe.get_all("Employee", filters={"status": rules.ACTIVE}, pluck="name"))
-    employees |= set(frappe.get_all(REQUIREMENT, filters={"training_rule": rule}, pluck="employee"))
-    _refresh_many(sorted(employees), rules_by_name, only_rule=rule)
+    employees |= set(frappe.get_all(REQUIREMENT, filters={"training_rule": rule}, pluck="employee", distinct=True))
+    return _refresh_many(sorted(employees), rules_by_name, only_rule=rule)
 
 
 def refresh_employees(employees):
-    _refresh_many(employees, _rules())
+    return _refresh_many(sorted({employee for employee in employees or () if employee}), _rules())
 
 
 def refresh_all():
@@ -397,77 +430,115 @@ def refresh_all():
     employees = set(frappe.get_all("Employee", filters={"status": rules.ACTIVE}, pluck="name"))
     employees |= set(frappe.get_all(REQUIREMENT, filters={"status": ["!=", rules.NOT_APPLICABLE]},
                                     pluck="employee", distinct=True))
-    _refresh_many(sorted(employees), _rules())
+    return _refresh_many(sorted(employees), _rules())
 
 
 def _refresh_many(employees, rules_by_name, only_rule=None):
+    """A hundred employees at a time, each part read in a handful of queries
+    and committed before the next, so a refresh of the whole company neither
+    holds a long transaction nor asks the database once per person."""
     s, day = settings(), getdate(today())
-    for start in range(0, len(employees), CHUNK):
-        for employee in employees[start:start + CHUNK]:
-            refresh_employee(employee, rules_by_name, s, day, only_rule)
-        frappe.db.commit()
-
-
-def refresh_employee(employee, rules_by_name=None, s=None, day=None, only_rule=None):
-    """Bring one employee's requirements up to date. Returns
-    {"added", "changed"}.
-
-    Every rule that applies to them has its requirement, worked out from
-    what they attended and passed and the certificates they hold; one that
-    no longer applies (they moved, were promoted, left; the rule was
-    disabled) is kept as Not Applicable. A recommendation is worked out the
-    same way, its due date the one given.
-    """
-    rules_by_name = _rules() if rules_by_name is None else rules_by_name
-    s, day = s or settings(), day or getdate(today())
-    facts = _employee(employee)
-    if not facts:
-        return {"added": 0, "changed": 0}
-    rows = frappe.get_all(REQUIREMENT, filters={"employee": employee}, fields=["name"] + list(KEPT),
-                          limit_page_length=0)
-    by_rule = {row.training_rule: row for row in rows if row.training_rule}
-    done, results = _completions([employee])
-    done, results = done.get(employee, {}), results.get(employee, {})
-    held = _certificates([employee]).get(employee, {})
     added = changed = 0
-    for name, rule in rules_by_name.items():
-        if only_rule and name != only_rule:
-            continue
-        row = by_rule.get(name)
-        values = _wanted(rule, facts, row, done, results, held, s, day)
-        if values:
-            if row:
-                changed += _write(row, values)
-            else:
-                _insert(values)
-                added += 1
-        elif row and row.status != rules.NOT_APPLICABLE:
-            changed += _write(row, _employee_values(facts, {"status": rules.NOT_APPLICABLE}))
-    if not only_rule:
-        for row in rows:
-            if row.training_rule and row.training_rule not in rules_by_name \
-                    and row.status != rules.NOT_APPLICABLE:
-                changed += _write(row, {"status": rules.NOT_APPLICABLE})
-            elif not row.training_rule:
-                changed += _write(row, _recommended(row, facts, done, results, s, day))
+    for part in rules.chunks(employees, CHUNK):
+        found = _refresh_chunk(part, rules_by_name, s, day, only_rule)
+        added, changed = added + found["added"], changed + found["changed"]
+        frappe.db.commit()
     return {"added": added, "changed": changed}
 
 
-def _wanted(rule, facts, row, done, results, held, s, day):
+def refresh_employee(employee, rules_by_name=None, s=None, day=None, only_rule=None):
+    """One employee brought up to date: {"added", "changed"}."""
+    rules_by_name = _rules() if rules_by_name is None else rules_by_name
+    return _refresh_chunk([employee], rules_by_name, s or settings(), day or getdate(today()), only_rule)
+
+
+def _refresh_chunk(employees, rules_by_name, s, day, only_rule=None):
+    """Bring a part of the staff's requirements up to date. Returns
+    {"added", "changed"}.
+
+    Everything the part needs is read once for all of it: who they are, what
+    they hold now, what they attended and passed, the sessions they are
+    booked on, their certificates and the requisitions still open for them.
+    Every rule that applies to an employee has its requirement, worked out
+    from that; one that no longer applies (they moved, were promoted, left;
+    the rule was disabled) is kept as Not Applicable. A recommendation is
+    worked out the same way, its due date the one given.
+    """
+    facts = _employees(employees)
+    filters = {"employee": ["in", list(employees)]}
+    if only_rule:
+        filters["training_rule"] = only_rule
+    rows = frappe.get_all(REQUIREMENT, filters=filters, fields=["name", "employee"] + list(KEPT),
+                          limit_page_length=0)
+    mine = {}
+    for row in rows:
+        mine.setdefault(row.employee, []).append(row)
+    done, results, booked = _participation(employees, day)
+    held = _certificates(employees)
+    requested = _open_requisitions([row.requisition for row in rows if row.get("requisition")])
+    renewals = _renewal_programmes([rule.get("certification") for rule in rules_by_name.values()
+                                    if rule.get("certification")])
+    added = changed = 0
+    for employee in employees:
+        person = facts.get(employee)
+        if not person:
+            continue
+        theirs = mine.get(employee, [])
+        by_rule = {row.training_rule: row for row in theirs if row.training_rule}
+        context = {"done": done.get(employee, {}), "results": results.get(employee, {}),
+                   "held": held.get(employee, {}), "booked": booked.get(employee, {}), "requested": requested,
+                   "renewals": renewals}
+        for name, rule in rules_by_name.items():
+            if only_rule and name != only_rule:
+                continue
+            row = by_rule.get(name)
+            values = _wanted(rule, person, row, context, s, day)
+            if values:
+                if row:
+                    changed += _write(row, values)
+                else:
+                    _insert(values)
+                    added += 1
+            elif row and row.status != rules.NOT_APPLICABLE:
+                changed += _write(row, _employee_values(person, {"status": rules.NOT_APPLICABLE,
+                                                                 "booking_status": None, "booked_event": None,
+                                                                 "booked_for": None}))
+        if not only_rule:
+            for row in theirs:
+                if row.training_rule and row.training_rule not in rules_by_name \
+                        and row.status != rules.NOT_APPLICABLE:
+                    changed += _write(row, {"status": rules.NOT_APPLICABLE})
+                elif not row.training_rule:
+                    changed += _write(row, _recommended(row, person, context, s, day))
+    return {"added": added, "changed": changed}
+
+
+def _wanted(rule, facts, row, context, s, day):
     """The record the rule asks for, or None where it asks nothing of them."""
     if not (cint(rule.get("enabled")) and rules.in_scope(rule, facts)):
         return None
-    # required since they came under the rule; afresh if it had stopped applying
-    since = row.required_since if row and row.status != rules.NOT_APPLICABLE and row.required_since else day
-    first = rules.first_due(rule, facts, since)
+    if rules.triggered(rule):
+        # asked only once an event set it off, and afresh each time: what was
+        # done before the event does not count
+        on = row.get("triggered_on") if row else None
+        if not on or (row.status == rules.NOT_APPLICABLE and not row.get("retriggered")):
+            return None
+        since, first, after = getdate(on), rules.trigger_due(rule, on), on
+    else:
+        # required since they came under the rule; afresh if it had stopped applying
+        since = row.required_since if row and row.status != rules.NOT_APPLICABLE and row.required_since else day
+        first, after = rules.first_due(rule, facts, since), None
     if first is None:
         return None
     if rule["requirement_type"] == rules.CERTIFICATION:
-        state = rules.certificate_state(first, held.get(rule["certification"]), s["only_verified"])
+        state = rules.certificate_state(first, context["held"].get(rule["certification"]), s["only_verified"])
         proof, last = CERTIFICATE, None
+        programme = context["renewals"].get(rule["certification"])
     else:
-        state = rules.programme_state(first, rules.repeat_months(rule), done.get(rule["training_program"]))
-        proof, last = EVENT, results.get(rule["training_program"])
+        state = rules.programme_state(first, rules.repeat_months(rule), context["done"].get(rule["training_program"]),
+                                      since=after)
+        proof, last = _proof_type(state["evidence"]), context["results"].get(rule["training_program"])
+        programme = rule["training_program"]
     values = _employee_values(facts, {
         "employee": facts.name, "requirement_type": rule["requirement_type"],
         "training_program": rule.get("training_program"), "certification": rule.get("certification"),
@@ -477,24 +548,43 @@ def _wanted(rule, facts, row, done, results, held, s, day):
         "evidence_type": proof if state["evidence"] else None, "evidence": state["evidence"], "last_result": last,
     })
     values["status"] = rules.status_on(values, day, s)
+    values.update(_booking(values, row, programme, context, day))
     return values
 
 
-def _recommended(row, facts, done, results, s, day):
+def _proof_type(evidence):
+    """A session's name, or a learning content assignment's (LCA-...)."""
+    return CONTENT_ASSIGNMENT if str(evidence or "").startswith(CONTENT_PREFIX) else EVENT
+
+
+def _booking(values, row, programme, context, day):
+    """Booked on a session still to be held, or Requested while a requisition
+    for it is open; nothing once it is done and counting."""
+    if values.get("status") == rules.COMPLIANT:
+        return {"booking_status": None, "booked_event": None, "booked_for": None}
+    sessions = context["booked"].get(programme) if programme else None
+    open_request = bool(row and row.get("requisition") and row.get("requisition") in context["requested"])
+    status, event, on = rules.booking_of(sessions, open_request, day)
+    return {"booking_status": status, "booked_event": event, "booked_for": on}
+
+
+def _recommended(row, facts, context, s, day):
     if facts.status != rules.ACTIVE:
         return {"status": rules.NOT_APPLICABLE}
-    state = rules.programme_state(row.due_date, 0, done.get(row.training_program))
+    state = rules.programme_state(row.due_date, 0, context["done"].get(row.training_program))
     values = _employee_values(facts, {
         "completed_on": state["completed_on"], "valid_until": state["valid_until"],
-        "evidence_type": EVENT if state["evidence"] else None, "evidence": state["evidence"],
-        "last_result": results.get(row.training_program)})
+        "evidence_type": _proof_type(state["evidence"]) if state["evidence"] else None,
+        "evidence": state["evidence"], "last_result": context["results"].get(row.training_program)})
     values["status"] = rules.status_on(dict(row, **values, status=None), day, s)
+    values.update(_booking(values, row, row.training_program, context, day))
     return values
 
 
 def _employee_values(facts, values):
     values.update({"employee_name": facts.employee_name, "company": facts.company, "branch": facts.branch,
-                   "department": facts.department, "designation": facts.designation})
+                   "department": facts.department, "designation": facts.designation,
+                   "work_section": facts.get("work_section")})
     return values
 
 
@@ -509,15 +599,51 @@ def _write(row, values):
 
 
 def _insert(values):
-    """A rule's requirement, written as it is: nothing about it is typed in."""
+    """A rule's requirement, written as it is: nothing about it is typed in.
+    An employee holds one per rule (the table's unique key): where another
+    job wrote it first, that one is brought up to date instead."""
     doc = frappe.new_doc(REQUIREMENT)
     doc.update(values)
     doc.flags.ignore_permissions = True
     doc.set_new_name()
     doc.owner = doc.modified_by = frappe.session.user
     doc.creation = doc.modified = now()
-    doc.db_insert()
+    try:
+        doc.db_insert()
+    except Exception as error:
+        twice = tuple(getattr(frappe, name) for name in ("UniqueValidationError", "DuplicateEntryError")
+                      if hasattr(frappe, name))
+        if not (twice and isinstance(error, twice)):
+            raise
+        frappe.clear_last_message()
+        found = frappe.db.get_value(REQUIREMENT, {"employee": values.get("employee"),
+                                                  "training_rule": values.get("training_rule")},
+                                    ["name"] + list(KEPT), as_dict=True)
+        if not found:
+            raise
+        _write(found, values)
+        return found.name
     return doc.name
+
+
+def add_indexes(doctype=None):
+    """on_doctype_update and the lms_indexes patch: the composite indexes the
+    learning records are looked up by, and the pairs held once only. A
+    speed-up and a guard; a table that will not take one (old duplicates,
+    say) is logged and holds nothing else up."""
+    for name in ([doctype] if doctype else sorted(set(INDEXES) | set(UNIQUE))):
+        if not frappe.db.table_exists(name):
+            continue
+        for fields in INDEXES.get(name, ()):
+            try:
+                frappe.db.add_index(name, list(fields))
+            except Exception:
+                frappe.log_error(title="Learning: index on %s %s" % (name, ", ".join(fields)))
+        if UNIQUE.get(name):
+            try:
+                frappe.db.add_unique(name, list(UNIQUE[name]), constraint_name="unique_" + "_".join(UNIQUE[name]))
+            except Exception:
+                frappe.log_error(title="Learning: unique key on %s" % name)
 
 
 # ── What the engine reads ─────────────────────────────────────────────
@@ -529,7 +655,8 @@ def _rules(names=None, enabled_only=True):
     found = {row.name: dict(row) for row in frappe.get_all(
         RULE, filters=filters,
         fields=["name", "enabled", "requirement_type", "training_program", "certification", "due_within_days",
-                "repeat", "applies_from", "company", "operators_only"], limit_page_length=0)}
+                "repeat", "applies_from", "company", "operators_only", "trigger", "trigger_reach",
+                "absence_days"], limit_page_length=0)}
     if not found:
         return {}
     for table, child, field in CHILD_TABLES:
@@ -555,49 +682,132 @@ def _certification_category(certification):
     return frappe.db.get_value(CERTIFICATION, certification, "training_category") if certification else None
 
 
+EMPLOYEE_FIELDS = ["name", "employee_name", "status", "company", "branch", "department", "designation", "grade",
+                   "employment_type", "date_of_joining", "reports_to", "user_id"]
+
+
+def _employee_fields():
+    fields = list(EMPLOYEE_FIELDS)
+    for field in ("custom_operates_machinery", "custom_work_section", "cell_number"):
+        if _has("Employee", field):
+            fields.append(field)
+    return fields
+
+
+def _facts(row):
+    row.operates_machinery = row.get("custom_operates_machinery")
+    row.work_section = row.get("custom_work_section")
+    return row
+
+
 def _employee(employee):
-    fields = ["name", "employee_name", "status", "company", "branch", "department", "designation", "grade",
-              "employment_type", "date_of_joining", "reports_to", "user_id"]
-    if _has("Employee", "custom_operates_machinery"):
-        fields.append("custom_operates_machinery")
-    facts = frappe.db.get_value("Employee", employee, fields, as_dict=True)
-    if facts:
-        facts.operates_machinery = facts.get("custom_operates_machinery")
-    return facts
+    facts = frappe.db.get_value("Employee", employee, _employee_fields(), as_dict=True)
+    return _facts(facts) if facts else facts
+
+
+def _employees(names):
+    """{employee: what the rules read of them}, in one read."""
+    names = [name for name in names or () if name]
+    if not names:
+        return {}
+    return {row.name: _facts(row) for row in frappe.get_all("Employee", filters={"name": ["in", names]},
+                                                            fields=_employee_fields(), limit_page_length=0)}
 
 
 def _completions(employees):
-    """({employee: {training: [(day, session)]}}, {employee: {training: last result}}): the sessions
+    """({employee: {training: [(day, proof)]}}, {employee: {training: last result}}): the sessions
     each attended and passed, and how the last one went."""
-    done, last = {}, {}
-    present = frappe.get_all("Training Event Employee",
-                             filters={"parenttype": EVENT, "employee": ["in", list(employees)],
-                                      "attendance": training_rules.PRESENT},
-                             fields=["parent", "employee"], limit_page_length=0)
-    if not present:
-        return done, last
-    events = {row.name: row for row in frappe.get_all(
-        EVENT, filters={"name": ["in", list({row.parent for row in present})], "docstatus": 1,
-                        "event_status": ["!=", EVENT_CANCELLED]},
-        fields=["name", "training_program", "start_time", "end_time"], limit_page_length=0)}
-    results = _results(list(events), list(employees))
-    attempts = {}
-    for row in present:
-        event = events.get(row.parent)
-        if not event or not event.training_program:
-            continue
-        day = getdate(event.end_time or event.start_time) if (event.end_time or event.start_time) else None
-        result = results.get((event.name, row.employee), {})
-        failed = result.get("custom_effective") == training_rules.NOT_EFFECTIVE
-        attempts.setdefault((row.employee, event.training_program), []).append((day, event.name, result, failed))
-        if not failed and day:
-            done.setdefault(row.employee, {}).setdefault(event.training_program, []).append((day, event.name))
-    for (employee, programme), tries in attempts.items():
-        day, _event, result, failed = max(tries, key=lambda attempt: str(attempt[0]))
-        last.setdefault(employee, {})[programme] = _result_text(day, result, failed)
+    done, last, _booked = _participation(employees)
     return done, last
 
 
+def _participation(employees, day=None):
+    """What a part of the staff did and will do, from one read of the
+    sessions they are on:
+      done    {employee: {training: [(day, proof)]}}: the sessions they
+              attended and passed, and the learning content they completed
+      last    {employee: {training: how the last session went}}
+      booked  {employee: {training: [(day, session)]}}: the sessions still to
+              be held (a draft, not cancelled) they are on"""
+    done, last, booked = {}, {}, {}
+    employees = list(employees or ())
+    if not employees:
+        return done, last, booked
+    rows = frappe.get_all("Training Event Employee", filters={"parenttype": EVENT, "employee": ["in", employees]},
+                          fields=["parent", "employee", "attendance"], limit_page_length=0)
+    events = {row.name: row for row in frappe.get_all(
+        EVENT, filters={"name": ["in", list({row.parent for row in rows}) or [""]],
+                        "event_status": ["!=", EVENT_CANCELLED], "docstatus": ["<", 2]},
+        fields=["name", "training_program", "start_time", "end_time", "docstatus"],
+        limit_page_length=0)} if rows else {}
+    held = [name for name, event in events.items() if event.docstatus == 1]
+    results = _results(held, employees)
+    attempts = {}
+    for row in rows:
+        event = events.get(row.parent)
+        if not event or not event.training_program:
+            continue
+        when = getdate(event.end_time or event.start_time) if (event.end_time or event.start_time) else None
+        if event.docstatus == 0:
+            booked.setdefault(row.employee, {}).setdefault(event.training_program, []).append(
+                (getdate(event.start_time) if event.start_time else when, event.name))
+            continue
+        if row.attendance != training_rules.PRESENT:
+            continue
+        result = results.get((event.name, row.employee), {})
+        failed = result.get("custom_effective") == training_rules.NOT_EFFECTIVE
+        attempts.setdefault((row.employee, event.training_program), []).append((when, event.name, result, failed))
+        if not failed and when:
+            done.setdefault(row.employee, {}).setdefault(event.training_program, []).append((when, event.name))
+    for (employee, programme), tries in attempts.items():
+        when, _event, result, failed = max(tries, key=lambda attempt: str(attempt[0]))
+        last.setdefault(employee, {})[programme] = _result_text(when, result, failed)
+    for employee, programmes in _content_done(employees).items():
+        for programme, proofs in programmes.items():
+            done.setdefault(employee, {}).setdefault(programme, []).extend(proofs)
+    return done, last, booked
+
+
+def _content_done(employees):
+    """{employee: {training: [(day, assignment)]}}: learning content linked to
+    a training that each completed (and acknowledged, where it asks for that)
+    or whose quiz they passed (learning_library.py)."""
+    out = {}
+    for row in frappe.get_all(CONTENT_ASSIGNMENT, filters={"employee": ["in", list(employees)],
+                                                           "training_program": ["is", "set"],
+                                                           "status": ["in", list(CONTENT_DONE)]},
+                              fields=["name", "employee", "training_program", "completed_on"], limit_page_length=0):
+        if row.completed_on:
+            out.setdefault(row.employee, {}).setdefault(row.training_program, []).append(
+                (getdate(row.completed_on), row.name))
+    return out
+
+
+def _open_requisitions(names):
+    """The requisitions among these still asking for their training."""
+    names = list({name for name in names or () if name})
+    if not names:
+        return set()
+    return set(frappe.get_all("Training Requisition", filters={"name": ["in", names], "docstatus": ["<", 2],
+                                                               "status": ["not in", list(REQUISITION_DONE)]},
+                              pluck="name"))
+
+
+def _renewal_programmes(certifications):
+    """{certification: the training that renews it}: the one it names, else
+    a training that gives it."""
+    certifications = list({name for name in certifications or () if name})
+    if not certifications:
+        return {}
+    found = {row.name: row.renewal_program for row in frappe.get_all(
+        CERTIFICATION, filters={"name": ["in", certifications]}, fields=["name", "renewal_program"],
+        limit_page_length=0) if row.renewal_program}
+    if _has(PROGRAMME, "custom_certification") and len(found) < len(certifications):
+        for row in frappe.get_all(PROGRAMME, filters={"custom_certification": ["in", certifications]},
+                                  fields=["name", "custom_certification"], order_by="name asc",
+                                  limit_page_length=0):
+            found.setdefault(row.custom_certification, row.name)
+    return found
 def _result_text(day, result, failed):
     when = frappe.utils.format_date(day) if day else ""
     if _marked(result):
@@ -674,41 +884,103 @@ def _has(doctype, fieldname):
 # ── Every day ─────────────────────────────────────────────────────────
 def daily():
     """Everything brought up to date (whatever a job missed), each
-    certificate's expiry chased, and training falling due or overdue told."""
+    certificate's expiry chased, and training falling due or overdue told:
+    each person told gets one digest for the day, whatever it lists."""
     refresh_all()
     s, day = settings(), getdate(today())
-    chase_certificates(s, day)
-    chase_requirements(s, day)
+    digest = Digest()
+    chase_certificates(s, day, digest)
+    chase_requirements(s, day, digest)
+    digest.send()
     frappe.db.commit()
 
 
-def chase_certificates(s=None, day=None):
-    """Each certificate's status and days left; the alert of the rung it has
-    reached, sent once, to the people that rung names."""
+class Digest:
+    """What each person is told today, gathered from every chase and sent as
+    one notice each: never one per employee or per certificate. Those with
+    no user of their own are sent an SMS where the settings ask for it
+    (learning_loop.message_employees)."""
+
+    def __init__(self):
+        self.items, self.texts = {}, {}
+
+    def add(self, user, item, doctype, name):
+        if user:
+            self.items.setdefault(user, []).append(dict(item, doctype=doctype, name=name))
+
+    def text(self, employee, line):
+        """A line for an employee who has no user to be told through."""
+        if employee:
+            self.texts.setdefault(employee, []).append(line)
+
+    def send(self):
+        from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
+
+        for user, items in sorted(self.items.items()):
+            overdue, soon = rules.digest_counts(items)
+            subject = _("Learning: {0} overdue, {1} due soon.").format(overdue, soon) if overdue or soon \
+                else _("Learning: {0} to look at.").format(len(items))
+            body = "<br>".join(frappe.utils.escape_html(line) for line in rules.digest_lines(items))
+            notice = {"type": people.alert_type(), "subject": subject, "email_content": body}
+            if len(items) == 1:
+                notice.update(document_type=items[0]["doctype"], document_name=items[0]["name"])
+            else:
+                notice["link"] = "/app/learning-command-centre"
+            enqueue_create_notification([user], notice)
+        if self.texts:
+            from hrms_addon.hrms_addon import learning_loop
+
+            learning_loop.message_employees(self.texts)
+        sent = len(self.items)
+        self.items, self.texts = {}, {}
+        return sent
+
+
+def chase_certificates(s=None, day=None, digest=None):
+    """Each certificate's status as it stands today; the alert of the rung it
+    has reached, sent once, to the people that rung names. The days left are
+    worked out when the certificate is read, never written each day. The
+    first alert asks for the renewal (learning_loop.renewal_requisitions)."""
     s, day = s or settings(), day or getdate(today())
-    staff = {}
+    own = digest is None
+    digest = Digest() if own else digest
+    due = []
     for cert in frappe.get_all(CERTIFICATE, filters={"status": ["not in", [rules.RENEWED, rules.REVOKED]]},
                                fields=["name", "employee", "employee_name", "certification", "certificate_no",
-                                       "expiry_date", "status", "days_to_expiry", "verification_status",
-                                       "revoked", "renewed_by", "alerts_sent"], limit_page_length=0):
+                                       "expiry_date", "status", "verification_status", "revoked", "renewed_by",
+                                       "alerts_sent", "renewal_requisition"], limit_page_length=0):
         status = rules.certificate_status(cert, day, s)
-        left = rules.days_left(cert.expiry_date, day)
-        if status != cert.status or left != cert.days_to_expiry:
-            frappe.db.set_value(CERTIFICATE, cert.name, {"status": status, "days_to_expiry": left},
-                                update_modified=False)
+        if status != cert.status:
+            frappe.db.set_value(CERTIFICATE, cert.name, "status", status, update_modified=False)
         if status in (rules.RENEWED, rules.REVOKED) or cert.verification_status == rules.REJECTED:
             continue
+        left = rules.days_left(cert.expiry_date, day)
         rung = rules.tier_due(left, s["tiers"], rules.sent_list(cert.alerts_sent))
-        if rung is None:
-            continue
-        if cert.employee not in staff:
-            staff[cert.employee] = _employee(cert.employee)
-        employee = staff[cert.employee]
+        if rung is not None:
+            due.append((cert, left, rung))
+    staff = _staff({cert.employee for cert, _left, _rung in due})
+    cache, renew = {}, []
+    for cert, left, rung in due:
+        employee = staff.get(cert.employee)
         if employee and employee.status == rules.ACTIVE:
-            users = audience_users(rules.audiences_for(s["tiers"], rung), employee)
-            people.notify(users, CERTIFICATE, cert.name, _expiry_text(cert, left))
+            item = {"status": rules.EXPIRED if left < 0 else rules.DUE_SOON, "due_date": cert.expiry_date,
+                    "line": _expiry_text(cert, left)}
+            audiences = rules.audiences_for(s["tiers"], rung)
+            for user in audience_users(audiences, employee, cache):
+                digest.add(user, item, CERTIFICATE, cert.name)
+            if rules.EMPLOYEE in audiences and not employee.user_id:
+                digest.text(employee.name, item["line"])
+            if not rules.sent_list(cert.alerts_sent) and not cert.renewal_requisition:
+                renew.append(cert)
         frappe.db.set_value(CERTIFICATE, cert.name, "alerts_sent", rules.with_sent(cert.alerts_sent, rung),
                             update_modified=False)
+    if renew and cint(s.get("renewal_requisition")):
+        from hrms_addon.hrms_addon import learning_loop
+
+        learning_loop.renewal_requisitions([cert.name for cert in renew])
+    if own:
+        digest.send()
+    return due
 
 
 def _expiry_text(cert, left):
@@ -723,61 +995,200 @@ def _expiry_text(cert, left):
     return _("{0} ran out {1} day(s) ago, on {2}.").format(what, -left, on)
 
 
-def audience_users(audiences, employee):
-    """The users each rung of the ladder names, for this employee."""
+def audience_users(audiences, employee, cache=None):
+    """The users each rung of the ladder names, for this employee. `cache`
+    keeps who holds a role in a plant and department for the rest of a run."""
+    cache = {} if cache is None else cache
+
+    def holding(role, branch, department=None):
+        key = (role, branch, department)
+        if key not in cache:
+            cache[key] = (people.hr_officers(branch, department) if role == "HR"
+                          else people.people_for(role, branch, department))
+        return cache[key]
+
     users = []
     if rules.EMPLOYEE in audiences:
         users.append(employee.user_id)
     if rules.SUPERVISOR in audiences:
         users.append(_supervisor_user(employee))
     if rules.HEAD in audiences:
-        users += people.people_for(HEAD_ROLE, employee.branch, employee.department)
+        users += holding(HEAD_ROLE, employee.branch, employee.department)
     if rules.HR in audiences:
-        users += people.hr_officers(employee.branch, employee.department)
+        users += holding("HR", employee.branch, employee.department)
     if rules.MANAGEMENT in audiences:
-        users += people.people_for(GM_ROLE, employee.branch)
+        users += holding(GM_ROLE, employee.branch)
     return [user for user in dict.fromkeys(users) if user]
 
 
 def _supervisor_user(employee):
+    if "supervisor_user" in employee:
+        return employee.supervisor_user
     return frappe.db.get_value("Employee", employee.reports_to, "user_id") if employee.get("reports_to") else None
 
 
-def chase_requirements(s=None, day=None):
+def _staff(names):
+    """{employee: their facts and their supervisor's user}, in two reads."""
+    staff = _employees(names)
+    bosses = {person.reports_to for person in staff.values() if person.get("reports_to")}
+    users = dict(frappe.get_all("Employee", filters={"name": ["in", list(bosses)]}, fields=["name", "user_id"],
+                                as_list=True, limit_page_length=0)) if bosses else {}
+    for person in staff.values():
+        person.supervisor_user = users.get(person.get("reports_to"))
+    return staff
+
+
+def chase_requirements(s=None, day=None, digest=None):
     """Training falling due told to the employee and their supervisor, and
-    overdue to them and the head of department: once per due date, one
-    notice per employee for all that is new."""
+    overdue to them and the head of department, once per due date: each
+    person told gets it in their digest for the day, every employee they
+    are told about in it."""
     s, day = s or settings(), day or getdate(today())
     if not (s.get("notify_due_soon") or s.get("notify_overdue")):
-        return
-    news = {}
+        return []
+    own = digest is None
+    digest = Digest() if own else digest
+    news = []
     for row in frappe.get_all(REQUIREMENT, filters={"status": ["in", [rules.DUE_SOON, rules.OVERDUE]]},
                               fields=["name", "employee", "status", "due_date", "valid_until", "training_program",
-                                      "certification", "alerts_sent"], limit_page_length=0):
+                                      "certification", "alerts_sent", "booking_status", "booked_for"],
+                              limit_page_length=0):
         wanted = s.get("notify_overdue") if row.status == rules.OVERDUE else s.get("notify_due_soon")
         mark = "%s %s" % (row.status, row.due_date or "")
         sent = [part for part in (row.alerts_sent or "").split(";") if part]
         if not wanted or mark in sent:
             continue
-        news.setdefault((row.employee, row.status), []).append(row)
+        news.append(row)
         # only this due date's marks are kept: the next round is told afresh
         kept = [part for part in sent if part.endswith(" %s" % (row.due_date or ""))]
         frappe.db.set_value(REQUIREMENT, row.name, "alerts_sent", ";".join(kept + [mark]), update_modified=False)
-    for (employee_name, status), rows in news.items():
-        employee = _employee(employee_name)
+    staff = _staff({row.employee for row in news})
+    cache = {}
+    for row in news:
+        employee = staff.get(row.employee)
         if not employee or employee.status != rules.ACTIVE:
             continue
+        status = row.status
         audiences = [rules.EMPLOYEE, rules.SUPERVISOR] + ([rules.HEAD] if status == rules.OVERDUE else [])
-        users = audience_users(audiences, employee)
-        what = ", ".join("%s (%s)" % (row.training_program or row.certification,
-                                      frappe.utils.format_date(row.due_date)) for row in rows)
-        subject = (_("Training overdue for {0}: {1}.") if status == rules.OVERDUE
-                   else _("Training due soon for {0}: {1}.")).format(employee.employee_name, what)
-        target = (REQUIREMENT, rows[0].name) if len(rows) == 1 else ("Employee", employee.name)
-        people.notify(users, target[0], target[1], subject)
+        item = {"status": status, "due_date": row.due_date, "line": _requirement_text(row, employee)}
+        for user in audience_users(audiences, employee, cache):
+            digest.add(user, item, REQUIREMENT, row.name)
+        if not employee.user_id:
+            digest.text(employee.name, item["line"])
+    if own:
+        digest.send()
+    return news
+
+
+def _requirement_text(row, employee):
+    what = row.training_program or row.certification
+    on = frappe.utils.format_date(row.due_date)
+    text = (_("{0}: {1}, overdue since {2}.") if row.status == rules.OVERDUE
+            else _("{0}: {1}, due {2}.")).format(employee.employee_name, what, on)
+    if row.booking_status == rules.BOOKED and row.booked_for:
+        text += " " + _("Booked for {0}.").format(frappe.utils.format_date(row.booked_for))
+    return text
+
+
+# ── What sets a refresher off ─────────────────────────────────────────
+def trigger(kind, employees, day=None, note=None, days_away=None):
+    """An event that sets refreshers off (an incident, a move, a long
+    absence, a process change, new equipment...): each enabled rule set off
+    by `kind` asks again of everyone it reaches, due so many days from the
+    event, whatever they did before it. days_away: {employee: days} for a
+    long absence, each rule asking only of those away its number of days or
+    more. Returns the employees asked."""
+    day = getdate(day or today())
+    wanted = {name: rule for name, rule in _rules().items() if rule.get("trigger") == kind}
+    about = _employees(employees)
+    if not wanted or not about:
+        return []
+    s, asked = settings(), []
+    sections = {person.work_section for person in about.values() if person.get("work_section")}
+    departments = {person.department for person in about.values() if person.get("department")}
+    members = {}
+    if any(rule.get("trigger_reach") == rules.THEIR_SECTION for rule in wanted.values()) and sections \
+            and _has("Employee", "custom_work_section"):
+        for row in frappe.get_all("Employee", filters={"status": rules.ACTIVE, "custom_work_section": ["in", list(sections)]},
+                                  fields=["name", "custom_work_section"], limit_page_length=0):
+            members.setdefault(("section", row.custom_work_section), set()).add(row.name)
+    if any(rule.get("trigger_reach") == rules.THEIR_DEPARTMENT for rule in wanted.values()) and departments:
+        for row in frappe.get_all("Employee", filters={"status": rules.ACTIVE, "department": ["in", list(departments)]},
+                                  fields=["name", "department"], limit_page_length=0):
+            members.setdefault(("department", row.department), set()).add(row.name)
+    for name, rule in wanted.items():
+        reach = rule.get("trigger_reach") or rules.THE_EMPLOYEE
+        targets = set()
+        for person in about.values():
+            if days_away is not None and flt(days_away.get(person.name)) < cint(rule.get("absence_days")):
+                continue
+            if reach == rules.THEIR_SECTION and person.get("work_section"):
+                targets |= members.get(("section", person.work_section), set())
+            elif reach == rules.THEIR_DEPARTMENT and person.get("department"):
+                targets |= members.get(("department", person.department), set())
+            else:
+                targets.add(person.name)
+        for part in rules.chunks(sorted(targets), CHUNK):
+            facts = _employees(part)
+            have = {row.employee: row for row in frappe.get_all(
+                REQUIREMENT, filters={"training_rule": name, "employee": ["in", part]},
+                fields=["name", "employee", "triggered_on"] + [field for field in KEPT if field != "triggered_on"],
+                limit_page_length=0)}
+            for employee in part:
+                person = facts.get(employee)
+                if not person or not rules.in_scope(rule, person):
+                    continue
+                row = have.get(employee)
+                stamp = {"triggered_on": day, "trigger_note": (note or kind)[:140], "required_since": day,
+                         "status": rules.PENDING}
+                if row:
+                    if row.triggered_on and getdate(row.triggered_on) == day and row.status != rules.NOT_APPLICABLE:
+                        continue
+                    _write(row, stamp)
+                else:
+                    _insert(_employee_values(person, dict(stamp, employee=employee,
+                                                          requirement_type=rule["requirement_type"],
+                                                          training_program=rule.get("training_program"),
+                                                          training_category=rule.get("category"),
+                                                          training_rule=name,
+                                                          due_date=rules.trigger_due(rule, day))))
+                asked.append(employee)
+            _refresh_chunk(part, {name: rule}, s, getdate(today()), only_rule=name)
+            frappe.db.commit()
+    return sorted(set(asked))
 
 
 # ── Every week ────────────────────────────────────────────────────────
+def _grouped(doctype, filters, by):
+    """[{by..., "n"}]: how many records there are of each kind, counted by
+    the database (GROUP BY), not one by one here."""
+    from hrms_addon.hrms_addon import queries
+
+    return frappe.get_all(doctype, filters=filters, fields=list(by) + [queries.aggregate("COUNT", "*", "n")],
+                          group_by=", ".join(by), limit_page_length=0)
+
+
+def compliance_counts(filters, by, day=None):
+    """{key: {"required", "done", "overdue", "due_soon"}} of what the rules
+    ask, counted by the database for each value of `by` (a tuple of fields):
+    done is what was done and still counts on the day."""
+    day = getdate(day or today())
+    base = dict(filters or {}, status=["!=", rules.NOT_APPLICABLE], requirement_type=["!=", rules.RECOMMENDED])
+    out = {}
+
+    def add(rows, field):
+        for row in rows:
+            key = tuple(row.get(name) or "" for name in by)
+            out.setdefault(key, {"required": 0, "done": 0, "overdue": 0, "due_soon": 0})[field] += int(row.n or 0)
+
+    add(_grouped(REQUIREMENT, base, by), "required")
+    add(_grouped(REQUIREMENT, dict(base, completed_on=["is", "set"], valid_until=["is", "not set"]), by), "done")
+    add(_grouped(REQUIREMENT, dict(base, completed_on=["is", "set"], valid_until=[">=", str(day)]), by), "done")
+    for status, field in ((rules.OVERDUE, "overdue"), (rules.DUE_SOON, "due_soon")):
+        add(_grouped(REQUIREMENT, dict(base, status=status), by), field)
+    return out
+
+
 def weekly():
     """Each plant's HR told how much of what the rules ask is done, and the
     departments furthest behind (the blueprint's low branch compliance)."""
@@ -785,19 +1196,16 @@ def weekly():
     if not s.get("weekly_digest"):
         return
     plants = {}
-    for row in frappe.get_all(REQUIREMENT, filters={"status": ["!=", rules.NOT_APPLICABLE],
-                                                     "requirement_type": ["!=", rules.RECOMMENDED]},
-                              fields=["branch", "department", "status", "requirement_type", "completed_on",
-                                      "valid_until"], limit_page_length=0):
-        plants.setdefault(row.branch or "", {}).setdefault(row.department or "", []).append(row)
+    for (branch, department), counts in compliance_counts({}, ("branch", "department"), day).items():
+        plants.setdefault(branch, {})[department] = counts
     from frappe.desk.doctype.notification_log.notification_log import enqueue_create_notification
 
     for branch, departments in sorted(plants.items()):
-        every = [row for rows in departments.values() for row in rows]
-        done, required = rules.coverage_of(every, day)
-        overdue = sum(1 for row in every if row.status == rules.OVERDUE)
-        behind = sorted((rules.percent(*rules.coverage_of(rows, day)), department)
-                        for department, rows in departments.items() if department)
+        done = sum(counts["done"] for counts in departments.values())
+        required = sum(counts["required"] for counts in departments.values())
+        overdue = sum(counts["overdue"] for counts in departments.values())
+        behind = sorted((rules.percent(counts["done"], counts["required"]), department)
+                        for department, counts in departments.items() if department)
         behind = [(value, department) for value, department in behind
                   if value is not None and value < rules._num(s["matrix_green_from"])][:3]
         subject = _("Training at {0}: {1}% of what is required is done, {2} overdue.").format(
@@ -816,9 +1224,11 @@ def weekly():
 @frappe.whitelist()
 def passport(employee=None):
     """One employee's learning on a page: who they are, their light and
-    score, what is required of them, their certificates and the sessions
-    they attended. Their own; their team's for a supervisor; whoever the
-    user may read for HR and managers."""
+    score, what is required of them, their certificates, their skills, the
+    sessions they attended and are booked on, how their supervisor saw them
+    apply it, what it cost, their CPD and the learning content given them.
+    Their own; their team's for a supervisor; whoever the user may read for
+    HR and managers."""
     if not employee:
         employee = frappe.db.get_value("Employee", {"user_id": frappe.session.user}, "name")
         if not employee:
@@ -830,32 +1240,125 @@ def passport(employee=None):
         frappe.throw(_("Not permitted to see {0}'s passport.").format(facts.employee_name), frappe.PermissionError)
     s, day = settings(), getdate(today())
     requirements = frappe.get_all(REQUIREMENT, filters={"employee": employee},
-                                  fields=["name"] + list(KEPT) + ["reason"], order_by="due_date asc",
+                                  fields=["name"] + list(KEPT) + ["reason", "trigger_note"], order_by="due_date asc",
                                   limit_page_length=0)
     certificates = frappe.get_all(CERTIFICATE, filters={"employee": employee},
                                   fields=["name", "certification", "certificate_no", "issuing_body", "issue_date",
-                                          "expiry_date", "status", "days_to_expiry", "verification_status"],
+                                          "expiry_date", "status", "verification_status", "attachment", "cost"],
                                   order_by="expiry_date asc", limit_page_length=0)
+    for cert in certificates:
+        cert.days_to_expiry = rules.days_left(cert.expiry_date, day)
     history = _history(employee)
     year = [row for row in history if row["day"] and getdate(row["day"]).year == day.year]
     marked = [flt(row["marks"]) for row in history if row["marks"] is not None
               and row["day"] and (day - getdate(row["day"])).days <= 365]
     assessment = round(sum(marked) / len(marked), 1) if marked else None
-    figures = rules.summary(requirements, day, s, assessment=assessment)
+    skills = _skills(employee)
+    from hrms_addon.hrms_addon import competency_rules
+
+    competency = competency_rules.score_of(skills)
+    figures = rules.summary(requirements, day, s, assessment=assessment, competency=competency)
     supervisor = frappe.db.get_value("Employee", facts.reports_to, "employee_name") if facts.reports_to else None
     extra = frappe.db.get_value("Employee", employee, ["image", "employee_number"], as_dict=True) or {}
+    costs = _costs(employee, history, certificates, day)
     return {
         "employee": {"name": facts.name, "employee_name": facts.employee_name, "company": facts.company,
                      "branch": facts.branch, "department": facts.department, "designation": facts.designation,
                      "grade": facts.grade, "employment_type": facts.employment_type,
+                     "work_section": facts.get("work_section"),
                      "date_of_joining": facts.date_of_joining, "supervisor": supervisor, "status": facts.status,
-                     "image": extra.get("image"), "employee_number": extra.get("employee_number")},
-        "figures": dict(figures, assessment=assessment, hours=round(sum(row["hours"] for row in year), 1),
-                        sessions=len(year), year=day.year),
+                     "image": extra.get("image"), "employee_number": extra.get("employee_number"),
+                     "own": facts.get("user_id") == frappe.session.user},
+        "figures": dict(figures, assessment=assessment, competency=competency,
+                        hours=round(sum(row["hours"] for row in year), 1), sessions=len(year), year=day.year,
+                        cost=costs["total"], cpd_hours=_cpd_hours(employee, day)),
         "requirements": requirements, "certificates": certificates, "history": history[:50],
+        "skills": skills, "reviews": _reviews(employee), "upcoming": upcoming_sessions(employee, day),
+        "costs": costs, "cpd": _cpd(employee), "content": _content(employee),
         "is_hr": bool(set(frappe.get_roles()) & set(HR_ROLES + ("HR User",))),
         "today": str(day),
     }
+
+
+def _skills(employee):
+    """The skill assessments that count for them, the critical first."""
+    return frappe.get_all("Competency Assessment", filters={"employee": employee, "status": ["!=", "Superseded"]},
+                          fields=["name", "skill", "level", "required_level", "gap", "status", "critical",
+                                  "assessed_on", "next_due"],
+                          order_by="critical desc, skill asc", limit_page_length=0)
+
+
+def _reviews(employee):
+    """How their supervisor saw them apply each training (level 3)."""
+    return frappe.get_all("Training Application Review", filters={"employee": employee},
+                          fields=["name", "training_program", "training_event", "status", "score", "applied",
+                                  "behaviour", "competency", "due_on", "reviewed_on"],
+                          order_by="event_end desc", limit_page_length=20)
+
+
+def upcoming_sessions(employee, day=None):
+    """The sessions still to be held they are on or waiting for: when,
+    where, and whether they are invited, registered or on the waiting list."""
+    day = getdate(day or today())
+    names = frappe.get_all("Training Event Employee", filters={"parenttype": EVENT, "employee": employee},
+                           pluck="parent", limit_page_length=0)
+    waiting = []
+    if _has(EVENT, "custom_waitlist"):
+        waiting = frappe.get_all("Training Event Waitlist", filters={"parenttype": EVENT, "employee": employee,
+                                                                     "status": "Waiting"},
+                                 pluck="parent", limit_page_length=0)
+    if not names and not waiting:
+        return []
+    fields = ["name", "event_name", "training_program", "start_time", "end_time", "location"]
+    fields += [field for field in ("custom_venue",) if _has(EVENT, field)]
+    events = frappe.get_all(EVENT, filters={"name": ["in", list(set(names) | set(waiting))], "docstatus": 0,
+                                            "event_status": ["!=", EVENT_CANCELLED],
+                                            "end_time": [">=", str(day) + " 00:00:00"]},
+                            fields=fields, order_by="start_time asc", limit_page_length=20)
+    marked = {}
+    for row in frappe.get_all("Training Attendance", filters={"employee": employee,
+                                                              "training_event": ["in", [e.name for e in events] or [""]]},
+                              fields=["training_event", "status"], limit_page_length=0):
+        marked.setdefault(row.training_event, row.status)
+    for event in events:
+        event.venue = event.get("custom_venue") or event.location
+        event.place = "Waiting List" if event.name in waiting and event.name not in names \
+            else marked.get(event.name) or "Invited"
+    return events
+
+
+def _costs(employee, history, certificates, day):
+    """What their learning cost this year: their share of each session they
+    attended, and the certificates issued to them."""
+    held = [row["event"] for row in history if row["day"] and getdate(row["day"]).year == day.year]
+    sessions = 0.0
+    if held and _has(EVENT, "custom_cost_per_trainee"):
+        sessions = sum(flt(value) for value in frappe.get_all(EVENT, filters={"name": ["in", held]},
+                                                              pluck="custom_cost_per_trainee"))
+    certs = sum(flt(cert.get("cost")) for cert in certificates
+                if cert.get("issue_date") and getdate(cert.issue_date).year == day.year)
+    return {"sessions": round(sessions, 2), "certificates": round(certs, 2), "total": round(sessions + certs, 2),
+            "year": day.year}
+
+
+def _cpd(employee):
+    return frappe.get_all("CPD Log", filters={"employee": employee, "docstatus": ["<", 2]},
+                          fields=["name", "activity", "activity_type", "certification", "activity_date", "hours",
+                                  "points", "status"], order_by="activity_date desc", limit_page_length=20)
+
+
+def _cpd_hours(employee, day):
+    first = "%d-01-01" % day.year
+    return round(sum(flt(value) for value in frappe.get_all(
+        "CPD Log", filters={"employee": employee, "docstatus": 1, "status": ["!=", "Rejected"],
+                            "activity_date": [">=", first]}, pluck="hours")), 1)
+
+
+def _content(employee):
+    return frappe.get_all(CONTENT_ASSIGNMENT, filters={"employee": employee, "status": ["!=", "Withdrawn"]},
+                          fields=["name", "learning_content", "content_title", "content_type", "version", "status",
+                                  "due_date", "score", "attempts", "acknowledged_on", "completed_on"],
+                          order_by="due_date asc", limit_page_length=50)
 
 
 def can_see(facts):
