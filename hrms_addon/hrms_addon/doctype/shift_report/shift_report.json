@@ -651,7 +651,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-18 09:00:00.000000",
+ "modified": "2026-11-18 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Shift Report",
@@ -731,7 +731,8 @@
    "report": 1,
    "print": 1,
    "export": 1,
-   "submit": 1
+   "submit": 1,
+   "write": 1
   },
   {
    "role": "Head of Department",

@@ -94,7 +94,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-18 09:00:00.000000",
+ "modified": "2026-11-18 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Training KPI",
@@ -147,5 +147,6 @@
  "states": [],
  "track_changes": 1,
  "autoname": "field:kpi_name",
- "naming_rule": "By fieldname"
+ "naming_rule": "By fieldname",
+ "allow_import": 1
 }

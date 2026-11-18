@@ -288,7 +288,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-18 09:00:00.000000",
+ "modified": "2026-11-18 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HR Partner Brief",
@@ -304,8 +304,7 @@
    "create": 1,
    "write": 1,
    "delete": 1,
-   "share": 1,
-   "import": 1
+   "share": 1
   },
   {
    "role": "HR Manager",
@@ -317,8 +316,7 @@
    "create": 1,
    "write": 1,
    "delete": 1,
-   "share": 1,
-   "import": 1
+   "share": 1
   },
   {
    "role": "HR User",
@@ -328,8 +326,7 @@
    "export": 1,
    "email": 1,
    "create": 1,
-   "write": 1,
-   "import": 1
+   "write": 1
   },
   {
    "role": "Manufacturing Excellence Officer",
@@ -339,8 +336,7 @@
    "export": 1,
    "email": 1,
    "create": 1,
-   "write": 1,
-   "import": 1
+   "write": 1
   },
   {
    "role": "Production Manager",

@@ -43,7 +43,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-17 14:00:00.000000",
+ "modified": "2026-11-18 17:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Potential Band",
@@ -59,8 +59,7 @@
    "create": 1,
    "write": 1,
    "delete": 1,
-   "share": 1,
-   "import": 1
+   "share": 1
   },
   {
    "role": "HR Manager",
@@ -71,7 +70,6 @@
    "email": 1,
    "create": 0,
    "write": 1,
-   "import": 1,
    "delete": 0
   },
   {

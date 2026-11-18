@@ -84,7 +84,7 @@ def _grant_read_only():
     nothing."""
     doctypes = [name for name in list(our_doctypes()) + list(THEIR_DOCTYPES)
                 if frappe.db.exists("DocType", name)]
-    _grant(rules.read_only_grants(doctypes), permlevel=0)
+    _grant(rules.read_only_grants(doctypes), permlevel=0, tolerant=True)
 
 
 def _grant_level_one():
@@ -101,31 +101,53 @@ def grant(grants, permlevel=0):
     _grant(grants, permlevel=permlevel)
 
 
-def _grant(grants, permlevel=0):
+def _grant(grants, permlevel=0, tolerant=False):
+    """tolerant (the deploy's read-only grants): a doctype whose own rules
+    Frappe refuses is skipped and named on the deploy, and every other
+    doctype is still granted. Otherwise the refusal is raised."""
+    for doctype, roles in grants.items():
+        if not tolerant:
+            _grant_one(doctype, roles, permlevel)
+            continue
+        savepoint = "hrms_addon_grant"
+        frappe.db.savepoint(savepoint)
+        try:
+            _grant_one(doctype, roles, permlevel)
+        except Exception as error:
+            from frappe.utils import strip_html
+
+            frappe.db.rollback(save_point=savepoint)
+            frappe.clear_messages()
+            message = "HRMS Addon: read-only access not given on %s: %s" % (
+                doctype, strip_html(str(error)))
+            frappe.log_error(title=message[:140])
+            print(message)
+
+
+def _grant_one(doctype, roles, permlevel):
     from frappe.core.doctype.doctype.doctype import validate_permissions_for_doctype
     from frappe.permissions import add_permission, setup_custom_perms, update_permission_property
 
-    for doctype, roles in grants.items():
-        setup_custom_perms(doctype)
-        changed = False
-        for role, ptypes in roles.items():
-            if not frappe.db.exists("Role", role):
-                continue
-            rule = frappe.db.get_value(
-                "Custom DocPerm",
-                {"parent": doctype, "role": role, "permlevel": permlevel, "if_owner": 0},
-                ["name", *ptypes], as_dict=True)
-            if not rule:
-                add_permission(doctype, role, permlevel, ptypes[0])
-                rule = frappe._dict({ptypes[0]: 1})
+    setup_custom_perms(doctype)
+    changed = False
+    for role, ptypes in roles.items():
+        if not frappe.db.exists("Role", role):
+            continue
+        rule = frappe.db.get_value(
+            "Custom DocPerm",
+            {"parent": doctype, "role": role, "permlevel": permlevel, "if_owner": 0},
+            ["name", *ptypes], as_dict=True)
+        if not rule:
+            add_permission(doctype, role, permlevel, ptypes[0])
+            rule = frappe._dict({ptypes[0]: 1})
+            changed = True
+        for ptype in ptypes:
+            if not rule.get(ptype):
+                update_permission_property(doctype, role, permlevel, ptype, 1,
+                                           validate=False)
                 changed = True
-            for ptype in ptypes:
-                if not rule.get(ptype):
-                    update_permission_property(doctype, role, permlevel, ptype, 1,
-                                               validate=False)
-                    changed = True
-        if changed:
-            validate_permissions_for_doctype(doctype)
+    if changed:
+        validate_permissions_for_doctype(doctype)
 
 
 def _warn_about_leaks():
