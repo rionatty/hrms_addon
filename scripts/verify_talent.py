@@ -123,23 +123,19 @@ for score, band in ((0, T.LOW), (59.9, T.LOW), (60, T.MEETING), (79.9, T.MEETING
 if T.performance_band(None) is not None:
     fail.append("no appraisal means no band, not a low one")
 
-# test case 5: ability, aspiration and engagement, each out of ten
-if T.POTENTIAL_DIMENSIONS != ("ability", "aspiration", "engagement"):
-    fail.append("potential is ability, aspiration and engagement: %s" % (T.POTENTIAL_DIMENSIONS,))
-if T.potential_score({"ability": 8, "aspiration": 8, "engagement": 8}) != 80.0:
-    fail.append("eight out of ten on each is eighty out of a hundred")
-if T.potential_band(T.potential_score({"ability": 8, "aspiration": 8, "engagement": 8})) \
-        != T.POTENTIAL_HIGH:
-    fail.append("eighty is high potential")
-if T.potential_score({"ability": 9, "aspiration": None, "engagement": None}) != 90.0:
-    fail.append("a half-finished assessment averages what was given, not what was not")
-if T.potential_score({}) is not None:
-    fail.append("nothing rated is no score at all")
+# test case 5: potential is rated on Potential Assessments, criterion by
+# criterion and rater by rater (potential_rules.py, verify_talent_potential.py),
+# never typed on the placement
+if hasattr(T, "POTENTIAL_DIMENSIONS") or hasattr(T, "potential_score"):
+    fail.append("potential is no longer three numbers on the placement: it comes from the assessments")
+if T.potential_band(80) != T.POTENTIAL_HIGH or T.potential_band(60) != T.POTENTIAL_MODERATE \
+        or T.potential_band(59.9) != T.POTENTIAL_LOW:
+    fail.append("eighty is high potential, sixty moderate")
 if T.competency_average([{"level": 6}, {"level": 8}]) != 7.0:
     fail.append("the competency evidence averages out of ten")
 if T.competency_average([]) is not None:
     fail.append("no competencies carried over is no average")
-print("the axes: the appraisal's own score banded, the three dimensions rated")
+print("the axes: the appraisal's own score banded, potential from the raters")
 
 # ── 2. The grid ───────────────────────────────────────────────────────
 if len(T.BOXES) != 9:
@@ -174,14 +170,12 @@ print("the grid: nine named cells, and the three decisions the chart asks for")
 
 # ── 3. What each document must carry ──────────────────────────────────
 good = {"employee": "HR-EMP-1", "talent_review": "Talent Review 2026", "performance_score": 71.0,
-        "ability": 7, "aspiration": 8, "engagement": 6, "rationale": "Steady, and asks for more."}
+        "raters": 2, "rationale": "Steady, and asks for more."}
 expect("a complete placement", T.placement_errors(good))
 expect("no appraisal to read", T.placement_errors(dict(good, performance_score=None)),
        "no appraisal score")
-expect("potential half rated", T.placement_errors(dict(good, aspiration=None)),
-       "aspiration out of ten")
-expect("rated out of a hundred by mistake", T.placement_errors(dict(good, ability=70)),
-       "rated out of ten")
+expect("potential not rated by anybody", T.placement_errors(dict(good, raters=0)),
+       "Potential is not rated yet")
 expect("no rationale", T.placement_errors(dict(good, rationale="  ")), "rationale")
 
 # test case 7: a move in calibration is signed for
@@ -296,8 +290,9 @@ print("the documents: the placement, the programme, the bench and the trainee")
 
 # ── 4. The paper ──────────────────────────────────────────────────────
 placement = fields_of(doctype("Talent Placement"))
-for fieldname in ("talent_review", "employee", "appraisal", "performance_score",
-                  "performance_band", "ability", "aspiration", "engagement", "potential_score",
+for fieldname in ("talent_review", "employee", "appraisal", "performance_score", "performance_band", "raters",
+                  "potential_mean", "rater_spread", "raters_disagree", "potential_summary", "nine_box",
+                  "calibrated_performance", "calibration_session", "retention_actions", "potential_score",
                   "potential_band", "competencies", "box", "box_name", "box_colour",
                   "default_action", "suggested_decision", "rationale", "flight_risk",
                   "themes", "development_plan", "submitted_box", "calibration_reason"):
@@ -309,7 +304,7 @@ for fieldname in ("appraisal", "performance_score", "performance_band", "box", "
         fail.append("%s is read from elsewhere: it must be read-only" % fieldname)
 # test case 10: the grid is at permission level 1, the themes are not
 for fieldname in ("box", "box_name", "box_colour", "default_action", "performance_band",
-                  "potential_band", "suggested_decision"):
+                  "potential_band", "suggested_decision", "nine_box", "calibrated_performance", "retention_actions"):
     if placement.get(fieldname, {}).get("permlevel") != 1:
         fail.append("%s is the council's to see: it belongs at permission level 1" % fieldname)
 if placement.get("themes", {}).get("permlevel"):
@@ -325,11 +320,14 @@ if any(permlevel == 1 for role, permlevel in perms
     fail.append("a line manager rates potential; the grid itself is not theirs to read")
 
 review = fields_of(doctype("Talent Review"))
-for fieldname in ("appraisal_cycle", "opens_on", "calibration", "placements_created"):
+for fieldname in ("appraisal_cycle", "opens_on", "plants", "mid_year_on", "placements_created"):
     if fieldname not in review:
         fail.append("the review cycle has no %s" % fieldname)
-if review.get("calibration", {}).get("options") != "Talent Calibration Entry":
-    fail.append("the movers are recorded on the cycle")
+if "calibration" in review:
+    fail.append("the movers are kept in the Talent Calibration Log, insert only, not rewritten on the review")
+log_perms = doctype("Talent Calibration Log").get("permissions") or []
+if not log_perms or any(row.get("write") for row in log_perms):
+    fail.append("the calibration log is written once: nobody has write on it")
 
 program = fields_of(doctype("Talent Program"))
 for fieldname in ("program_type", "mentor", "actions", "training_requisition", "score_before",
@@ -337,9 +335,9 @@ for fieldname in ("program_type", "mentor", "actions", "training_requisition", "
                   "placement"):
     if fieldname not in program:
         fail.append("the programme has no %s" % fieldname)
-if program.get("actions", {}).get("options") != "Development Action":
-    fail.append("the programme's actions are the appraisal's own Development Action rows, so "
-                "Part E and the development plan are one shape")
+if program.get("actions", {}).get("options") != "Talent Plan Action":
+    fail.append("the programme's actions are its own Talent Plan Action rows (owner, type, skill, status, costs), "
+                "the appraisal keeps Development Action")
 
 position_fields = fields_of(doctype("Succession Position"))
 for fieldname in ("designation", "incumbent", "single_person_role", "risk_level", "candidates",
@@ -367,8 +365,8 @@ for fieldname in ("employee", "readiness", "placement", "development_needs",
                   "training_requisition"):
     if fieldname not in candidate:
         fail.append("a successor row has no %s" % fieldname)
-if set((candidate["readiness"].get("options") or "").split("\n")) != set(T.READINESS):
-    fail.append("the four readiness levels of test case 12: %s" % candidate["readiness"])
+if (candidate["readiness"].get("fieldtype"), candidate["readiness"].get("options")) != ("Link", "Readiness Level"):
+    fail.append("a successor's readiness is one of the Readiness Levels HR keep: %s" % candidate["readiness"])
 print("the paper: the placement, the cycle, the programme, the bench, the trainee")
 
 # ── 5. The glue ───────────────────────────────────────────────────────
@@ -391,9 +389,9 @@ for fieldname in sorted(set(re.findall(r'(?<![\w])doc\.get\("(\w+)"\)', glue))
         fail.append("talent.py reads or writes %s, which is on none of its documents" % fieldname)
 for needle, why in (
     ("rules.performance_band(", "the band comes off the appraisal score (case 4)"),
-    ("rules.potential_score(", "and the potential off the three dimensions (case 5)"),
+    ("potential.fill_placement(", "and the potential off the raters' assessments (case 5)"),
     ("rules.box_for(", "and the cell off the two bands (case 6)"),
-    ("rules.calibration_errors(", "a move in calibration is signed for (case 7)"),
+    ("calibration.revert(", "a placement back with its line manager loses its calibration, and the log says so (case 7)"),
     ('"BSC Appraisal Competency"', "the competency evidence is carried over, not typed (case 5)"),
     ("custom_total_score", "the appraisal's own score is read, never re-entered (case 4)"),
     ("rules.coverage(", "coverage is worked out from the bench (case 13)"),
@@ -519,7 +517,7 @@ if "Talent Council" not in [row["role"] for row in report.get("roles", [])]:
     fail.append("the council reads the coverage report")
 report_py = read("hrms_addon", "hrms_addon", "report", "succession_coverage",
                  "succession_coverage.py")
-for needle in ("rules.readiness_order(", "rules.bench_strength(", "incumbent", "risk_level"):
+for needle in ("succession_rules.ranked(", "rules.bench_strength(", "incumbent", "risk_level"):
     if needle not in report_py:
         fail.append("the coverage report shows the incumbent, the risk and the successors by "
                     "readiness (%r not found)" % needle)
@@ -576,8 +574,8 @@ for box, axes in ((1, ("Low", "Low")), (5, ("Meeting", "Moderate")), (9, ("Excee
         fail.append("box %d is %s, both ways round" % (box, axes))
 calibrating = {"state": P.CALIBRATION, "calibrating": P.CALIBRATION}
 expect("a move up the column, with its reason", T.move_errors(dict(calibrating, from_box=4, to_box=5, reason="x")))
-expect("a move across the columns",
-       T.move_errors(dict(calibrating, from_box=4, to_box=1, reason="x")), "Performance comes from the appraisal")
+expect("a move across the columns: performance is calibrated too",
+       T.move_errors(dict(calibrating, from_box=4, to_box=1, reason="x")))
 expect("a silent move", T.move_errors(dict(calibrating, from_box=4, to_box=5, reason=" ")), "why the placement moves")
 expect("a move to the same box", T.move_errors(dict(calibrating, from_box=5, to_box=5, reason="x")),
        "already in that box")
@@ -649,7 +647,7 @@ for needle, why in (
     ('"custom_outcome"', "and management's decision on the appraisal"),
     ("rules.effective_potential(", "the box is drawn from the calibrated potential (case 7)"),
     ("doc.calibrated_potential = None", "a placement back with the line manager starts calibration again"),
-    ("have.add(row.employee)", "one placement a person, though the year has an appraisal each quarter"),
+    ("if row.name not in have]", "one placement a person, though the year has an appraisal each quarter"),
     ("_agreed_actions(doc)", "the plan carries on from the year's development actions (case 9)"),
     ('row.get("completed_on")', "leaving out those already completed"),
     ("def appraisal_on_submit(", "a completed appraisal reaches talent at once"),
@@ -669,10 +667,10 @@ for needle, why in (
     ('get_permlevel_access("read", user=user)', "the board is for those who read the boxes (case 10)"),
     ("_check_access()", "and every method asks"),
     ("rules.move_errors(", "a move is judged by the rules (case 7)"),
-    ("doc.flags.ignore_permissions = True", "the calibrated potential is written once the access is checked"),
+    ("calibration.board_move(doc, cint(to_box), reason)", "the move goes into the session or straight on, logged"),
     ("approval.next_states(state, frappe.get_roles())", "the board steps only as the workflow lets the user (case 8)"),
-    ("frappe.db.savepoint(savepoint)", "each placement stands alone in a step taken together"),
-    ("frappe.db.rollback(save_point=savepoint)", "and one refused takes back only what it wrote"),
+    ("talent_jobs.start(\"advance\"", "a step over the whole board runs in the background"),
+    ("context.each(list(rows), work", "each placement in a savepoint of its own (talent_jobs.Context.each)"),
     ('return {"allowed": 0}', "the forms ask for the card quietly"),
 ):
     if needle not in board:
@@ -700,7 +698,8 @@ page_js = read("hrms_addon", "hrms_addon", "page", "talent_board", "talent_board
 for needle, why in (
     ('grid: ["Nine-box", "get_board"', "the page draws the board from the server"),
     ("talent_board.move", "a drag in calibration is a move"),
-    ("TB_COLUMN[box] === TB_COLUMN[this.dragging.box]", "and only up or down its column"),
+    ("const other = box !== this.dragging.box;", "on either axis"),
+    ("this.follow(result.log", "a step over the board followed to its end"),
     ("talent_board.advance", "the steps taken together"),
     ("hrms_addon.talent_card.render(", "the talent card beside the grid"),
 ):
@@ -745,8 +744,8 @@ for name in ("get_succession", "get_trainees"):
         fail.append("talent_board.%s is for those who read the boxes (case 10)" % name)
 for needle, why in (
     ("COVERAGE_ORDER = {rules.POSITION_GAP: 0", "the roles nobody can fill come first (case 13)"),
-    ('position["slate"] = rules.readiness_order(', "each bench readiest first (case 15)"),
-    ("_latest_boxes(", "each successor with where they sit on the grid"),
+    ('position["slate"] = succession_rules.ranked(', "each bench in the council's order, readiest first (case 15)"),
+    ("succession_risk.latest_boxes(", "each successor with where they sit on the grid, newest first"),
     ("for stage in rules.TRAINEE_STATES]", "the trainees by the workflow's own stages (cases 16 to 20)"),
 ):
     if needle not in board:
@@ -762,8 +761,7 @@ for needle in ("render_succession(", "render_trainees(", "hrms_addon.hrms_addon.
     if needle not in page_js:
         fail.append("talent_board.js draws each view (%r not found)" % needle)
 program_js = read("hrms_addon", "hrms_addon", "doctype", "talent_program", "talent_program.js")
-for needle, why in (('frappe.meta.get_docfield("Development Action", "completed_on", frm.doc.name)',
-                     "the plan shows when each action was done, on its own form only"),
+for needle, why in (('frappe.ui.form.on("Talent Plan Action"', "the plan's own actions drive its progress"),
                     ("ha_plan_progress(frm)", "and how far the plan has got")):
     if needle not in program_js:
         fail.append("talent_program.js: %s (%r not found)" % (why, needle))
@@ -800,8 +798,8 @@ for name in ("Nine-Box Distribution", "Top Talent and Flight Risk", "Calibration
 reports = read("hrms_addon", "hrms_addon", "talent_reports.py")
 for doctype_name, fieldname in (("Talent Placement", "finalised_on"), ("Succession Position", "confirmed_on"),
                                 ("Talent Program", "reviewed_on"), ("Graduate Trainee Program", "confirmed_on"),
-                                ("Talent Calibration Entry", "moved_on"), ("Development Action", "completed_on"),
-                                ("Development Action", "by_when")):
+                                ("Talent Calibration Log", "moved_on"), ("Talent Plan Action", "completed_on"),
+                                ("Talent Plan Action", "by_when")):
     if fieldname not in all_fields(doctype_name):
         fail.append("the month reads %s.%s, which is not a field" % (doctype_name, fieldname))
     if '"%s"' % fieldname not in reports:
@@ -1113,10 +1111,11 @@ def print_format(name):
 
 
 TALENT_PRINTS = {
-    "Talent Card": ("Talent Placement", ("Appraisal Quarter Result", "Talent Competency Level", "Development Theme"), [
+    "Talent Card": ("Talent Placement", ("Appraisal Quarter Result", "Talent Competency Level", "Development Theme",
+                                         "Talent Potential Score"), [
         "Talent Card", "Nine-Box Placement", "Performance, Year to Date", "Potential", "Retention", "Development",
         "Line Manager", "Talent Council"]),
-    "Individual Development Plan": ("Talent Program", ("Development Action", "Development Training"), [
+    "Individual Development Plan": ("Talent Program", ("Talent Plan Action", "Development Training"), [
         "Individual Development Plan", "Objectives", "Development Actions", "Estimated Cost", "Review",
         "Agreement", "Mentor or Coach", "<h4>Training</h4>", "Attendance"]),
     "Succession Slate": ("Succession Position", ("Succession Candidate",), [
@@ -1254,9 +1253,9 @@ trainings = plan_spec.get("trainings") or {}
 if (trainings.get("fieldtype"), trainings.get("options"), trainings.get("read_only"), trainings.get("allow_on_submit")) \
         != ("Table", "Development Training", 1, 1):
     fail.append("Talent Program.trainings: a read-only Development Training table, kept after the plan closes")
-action_spec = fields_of(doctype("Development Action")).get("training_event") or {}
+action_spec = fields_of(doctype("Talent Plan Action")).get("done_at_session") or {}
 if (action_spec.get("fieldtype"), action_spec.get("hidden")) != ("Data", 1):
-    fail.append("Development Action.training_event: the session that marked it, hidden, and no link a cancel "
+    fail.append("Talent Plan Action.done_at_session: the session that marked it, hidden, and no link a cancel "
                 "could trip on")
 requisition_link = fields_of(doctype("Training Requisition")).get("talent_program") or {}
 if (requisition_link.get("fieldtype"), requisition_link.get("options"), requisition_link.get("read_only")) \
@@ -1266,11 +1265,11 @@ for function, needles in (
         ("_push_to_ld", ('"talent_program": program.name', "rules.topic_rows(", "_ask_hr_to_submit(")),
         ("_send_needs_to_ld", ("rules.topic_rows(rules.plan_actions(", "_ask_hr_to_submit(")),
         ("_plan_successor_development", ('frappe.db.set_value(REQUISITION, row.training_requisition, "talent_program"',)),
-        ("_ask_hr_to_submit", ("people.hr_officers(", "people.notify(", "people.assign(")),
+        ("_ask_hr_to_submit", ("people.hr_officers(", "talent_jobs.tell(", "talent_jobs.assign(")),
         ("sync_training", ("_training_behind(", "_plans_for(", "event.docstatus == 2", "rules.ATTENDED",
                            "_mark_actions(", "_unmark_actions(", "_training_results(")),
         ("_mark_actions", ('if not row.get("completed_on"):', "rules.actions_for_topic(")),
-        ("_unmark_actions", ('"training_event": training_event}',)),
+        ("_unmark_actions", ('"done_at_session": training_event}',)),
         ("_add_training_row", (".db_insert()",)),
         ("forget_training", ("_drop_training_row(", "_unmark_actions(")),
         ("_draw_up_development_plan", ("if themes:\n        _push_to_ld(program, themes)",))):
@@ -1366,7 +1365,7 @@ for needle, why in (
         fail.append("talent_board.js: %s (%r not found)" % (why, needle))
 if board_js.index("plan: field(") > board_js.index("review: field("):
     fail.append("the Appraisal Plan picker comes before the Talent Review picker")
-if 'employee.status not in ("Active", "Suspended")' not in body_of(glue, "_draft_placements"):
+if '"status": ["in", ("Active", "Suspended")]' not in body_of(glue, "to_place"):
     fail.append("drafting places a suspended employee too: they are still on the staff")
 print("Oct 7: the appraisal plan picked on the board, its review shown or started from it; the suspended placed")
 

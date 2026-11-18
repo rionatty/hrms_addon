@@ -59,7 +59,7 @@ BOXES = {
     (LOW, POTENTIAL_LOW): {
         "box": 1, "name": "Under-performer", "colour": "Red",
         "action": "Formal PMS support; decide.",
-        "decision": "Improve"},
+        "decision": "Replacement"},
     (LOW, POTENTIAL_MODERATE): {
         "box": 2, "name": "Inconsistent Player", "colour": "Orange",
         "action": "Remove blockers; clear path.",

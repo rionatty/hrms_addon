@@ -96,7 +96,7 @@ def rotation_assessment_errors(facts):
 
 
 def rotation_outcome(recommendation, strengths=None, development=None):
-    """What the stint's row says of it, under 140 characters a line."""
+    """What the stint's row says of it, cut to 500 characters."""
     parts = [recommendation or ""]
     if _text(strengths):
         parts.append("Strengths: %s" % _text(strengths))

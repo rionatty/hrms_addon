@@ -180,6 +180,16 @@ MODULES = {
     "hrms_addon.hrms_addon.payroll_months": read("hrms_addon/hrms_addon/payroll_months.py"),
     "hrms_addon.hrms_addon.attendance_upload": read("hrms_addon/hrms_addon/attendance_upload.py"),
     "hrms_addon.hrms_addon.dashboards": read("hrms_addon/hrms_addon/dashboards.py"),
+    # the talent rebuild (18 Nov 2026)
+    "hrms_addon.hrms_addon.talent_jobs": read("hrms_addon/hrms_addon/talent_jobs.py"),
+    "hrms_addon.hrms_addon.potential": read("hrms_addon/hrms_addon/potential.py"),
+    "hrms_addon.hrms_addon.calibration": read("hrms_addon/hrms_addon/calibration.py"),
+    "hrms_addon.hrms_addon.retention": read("hrms_addon/hrms_addon/retention.py"),
+    "hrms_addon.hrms_addon.talent_pools": read("hrms_addon/hrms_addon/talent_pools.py"),
+    "hrms_addon.hrms_addon.succession_risk": read("hrms_addon/hrms_addon/succession_risk.py"),
+    "hrms_addon.hrms_addon.graduates": read("hrms_addon/hrms_addon/graduates.py"),
+    "hrms_addon.hrms_addon.talent_command": read("hrms_addon/hrms_addon/talent_command.py"),
+    "hrms_addon.hrms_addon.talent_council": read("hrms_addon/hrms_addon/talent_council.py"),
 }
 # A dict literal keeps the LAST of two equal keys, so a doctype named
 # twice in doc_events silently loses the first block's handlers. Nothing

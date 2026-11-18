@@ -23,6 +23,12 @@
   },
   {
    "role": "System Manager"
+  },
+  {
+   "role": "General Manager"
+  },
+  {
+   "role": "Executive Director"
   }
  ],
  "script": null,
