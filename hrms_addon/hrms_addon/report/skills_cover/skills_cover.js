@@ -21,6 +21,7 @@ frappe.query_reports["Skills Cover"] = {
 			options: "\nMachine or Area\nTechnical\nSafety\nQuality\nBehavioural\nLeadership",
 		},
 		{ fieldname: "critical_only", label: __("Critical Only"), fieldtype: "Check" },
+		{ fieldname: "view", label: __("View"), fieldtype: "Select", options: "Skill\nPlant and Shift", default: "Skill" },
 	],
 	formatter(value, row, column, data, default_formatter) {
 		const shown = default_formatter(value, row, column, data);

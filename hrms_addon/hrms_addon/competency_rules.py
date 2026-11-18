@@ -166,3 +166,93 @@ def _num(value):
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+# ── One framework (18 Nov 2026) ───────────────────────────────────────
+# the brief's competency categories; a skill's older type maps to one
+CATEGORIES = ("Core", "Functional", "Technical", "Safety", "Leadership", "Behavioural")
+TYPE_CATEGORY = {"Machine or Area": "Technical", "Technical": "Technical", "Safety": "Safety",
+                 "Quality": "Functional", "Behavioural": "Behavioural", "Leadership": "Leadership"}
+# what each level means where a skill says nothing of its own
+DEFAULT_DESCRIPTORS = (
+    (1, "Knows what the task is and why it matters; cannot do it yet."),
+    (2, "Knows the steps and the safety rules; does parts of it with help."),
+    (3, "Does the whole task with a skilled person checking."),
+    (4, "Does the whole task alone, to standard, every shift."),
+    (5, "Does it alone, sets it right when it goes wrong, and trains others."),
+)
+
+
+def profile_for(profiles, designation, work_section=None):
+    """The role profile that applies: the job title's for the section, else
+    the job title's for every section. profiles: [{"designation",
+    "work_section", "skills": [{"skill", "required_level", "critical", "weight"}]}]."""
+    exact = [row for row in profiles or () if row.get("designation") == designation
+             and work_section and row.get("work_section") == work_section]
+    general = [row for row in profiles or () if row.get("designation") == designation and not row.get("work_section")]
+    return (exact or general or [None])[0]
+
+
+def profile_level(profile, skill):
+    """(required level, critical) a profile gives a skill, or (None, None)."""
+    for row in (profile or {}).get("skills") or ():
+        if row.get("skill") == skill:
+            return level_of(row.get("required_level")), int(_num(row.get("critical"))) if row.get("critical") is not None \
+                else None
+    return None, None
+
+
+def role_fit(assessments, profile):
+    """How well someone fits a role's profile: {"fit" (out of 100, each skill
+    its level against the level needed, weighed), "gaps": [(skill, needed,
+    has)], "missing": [skill], "critical_gaps": [skill]}. assessments:
+    {skill: level}."""
+    rows = (profile or {}).get("skills") or ()
+    if not rows:
+        return {"fit": None, "gaps": [], "missing": [], "critical_gaps": []}
+    total = parts = 0.0
+    gaps, missing, critical = [], [], []
+    for row in rows:
+        needed = level_of(row.get("required_level")) or DEFAULT_REQUIRED
+        weight = _num(row.get("weight")) or 1.0
+        has = level_of((assessments or {}).get(row.get("skill")))
+        total += weight
+        parts += weight * min(1.0, (has or 0) / float(needed))
+        if not has:
+            missing.append(row.get("skill"))
+        if (has or 0) < needed:
+            gaps.append((row.get("skill"), needed, has or 0))
+            if int(_num(row.get("critical"))):
+                critical.append(row.get("skill"))
+    return {"fit": round(100.0 * parts / total, 1) if total else None, "gaps": gaps, "missing": missing,
+            "critical_gaps": critical}
+
+
+def shift_need(skill_need, default_need, crew):
+    """The competent people a skill needs on each shift: the skill's own
+    number, else the settings'; never more than the section's crew."""
+    need = int(_num(skill_need)) or int(_num(default_need)) or 1
+    return min(need, int(_num(crew))) if int(_num(crew)) else need
+
+
+def shift_cover(by_shift, need, shifts):
+    """A skill's cover in a plant across its shifts: {"status", "short"}.
+    by_shift: {shift: competent people}; shifts: the plant's shifts. No Cover
+    where nobody holds it, a Single Point of Failure where one person does,
+    Thin where a shift has fewer than needed, else OK."""
+    total = sum(by_shift.values())
+    if total == 0:
+        return {"status": NO_COVER, "short": list(shifts or ())}
+    if total == 1:
+        return {"status": SINGLE, "short": [shift for shift in shifts or () if by_shift.get(shift, 0) < need]}
+    short = [shift for shift in shifts or () if by_shift.get(shift, 0) < need]
+    return {"status": THIN if short else OK, "short": short}
+
+
+RISK = {NO_COVER: "red", SINGLE: "red", THIN: "amber", OK: "green", NOT_ASSESSED: "grey"}
+
+
+def level_names_from(minimum):
+    """The level names at or above a level, for a filter."""
+    minimum = max(1, min(5, int(_num(minimum)) or 1))
+    return list(LEVEL_NAMES[minimum - 1:])

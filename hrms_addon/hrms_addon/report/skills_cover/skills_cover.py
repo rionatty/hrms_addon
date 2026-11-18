@@ -15,6 +15,8 @@ from hrms_addon.hrms_addon import competency, competency_rules as rules
 
 def execute(filters=None):
     filters = frappe._dict(filters or {})
+    if filters.get("view") == "Plant and Shift":
+        return by_shift(filters)
     s = competency.settings()
     skills = competency.skills_in(filters)
     found = rules.current(competency.counting_rows(dict(filters, skill=None)))
@@ -50,3 +52,34 @@ def execute(filters=None):
                 "indicator": {"No Cover": "Red", "Single Point of Failure": "Red", "Thin": "Orange"}.get(name, "Green")}
                for name in (rules.NO_COVER, rules.SINGLE, rules.THIN, rules.OK)]
     return columns, data, None, None, summary
+
+
+def by_shift(filters):
+    """Each skill in each plant: the competent people on each of today's
+    shifts against those needed (the skill's own number, else the settings',
+    never more than its section's crew)."""
+    skills = competency.skills_in(filters)
+    if filters.get("critical_only"):
+        skills = [skill for skill in skills if skill.custom_critical]
+    found = competency.cover_by_shift([skill.name for skill in skills], filters.get("branch"))
+    shifts = sorted({shift for row in found for shift in row["by_shift"] if shift})
+    data = []
+    for row in found:
+        line = {"skill": row["skill"], "branch": row["branch"], "critical": row["critical"], "need": row["need"],
+                "cover": row["status"], "short": ", ".join(row["short"])}
+        for index, shift in enumerate(shifts):
+            line["shift_%d" % index] = row["by_shift"].get(shift, 0)
+        data.append(line)
+    order = {name: index for index, name in enumerate(rules.COVERS)}
+    data.sort(key=lambda row: (order[row["cover"]], not row["critical"], row["skill"], row["branch"]))
+    columns = [
+        {"fieldname": "skill", "label": _("Skill"), "fieldtype": "Link", "options": "Skill", "width": 180},
+        {"fieldname": "branch", "label": _("Plant"), "fieldtype": "Link", "options": "Branch", "width": 100},
+        {"fieldname": "critical", "label": _("Critical"), "fieldtype": "Check", "width": 70},
+        {"fieldname": "need", "label": _("Needed per Shift"), "fieldtype": "Int", "width": 120},
+    ] + [{"fieldname": "shift_%d" % index, "label": shift, "fieldtype": "Int", "width": 100}
+         for index, shift in enumerate(shifts)] + [
+        {"fieldname": "cover", "label": _("Cover"), "fieldtype": "Data", "width": 170},
+        {"fieldname": "short", "label": _("Short On"), "fieldtype": "Data", "width": 160},
+    ]
+    return columns, data

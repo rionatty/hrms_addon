@@ -993,6 +993,13 @@ fixtures = [
                     "Training Program-custom_level_impact",
                     # the session's provider, rated after it (learning_providers.py)
                     "Training Event-custom_provider",
+                    # a skill's category, its five levels described, the machines it runs, the people
+                    # needed on each shift (competency.py)
+                    "Skill-custom_competency_category",
+                    "Skill-custom_cover_per_shift",
+                    "Skill-custom_framework_section",
+                    "Skill-custom_level_descriptors",
+                    "Skill-custom_machines",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -2400,6 +2407,11 @@ doc_events = {
     # (learning_value.py)
     "Training Calendar": {
         "validate": "hrms_addon.hrms_addon.learning_value.calendar_budget",
+    },
+    # a skill's category from its type, its five levels described
+    # (competency.py)
+    "Skill": {
+        "validate": "hrms_addon.hrms_addon.competency.skill_validate",
     },
 }
 
