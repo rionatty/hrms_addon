@@ -1,0 +1,92 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "supervisor",
+  "supervisor_name",
+  "work_section",
+  "shift",
+  "score",
+  "weakest_area",
+  "action",
+  "people_index",
+  "focus"
+ ],
+ "fields": [
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "supervisor_name",
+   "fieldtype": "Data",
+   "label": "Name",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Data",
+   "label": "Shift",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "weakest_area",
+   "fieldtype": "Data",
+   "label": "Weakest Area",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "action",
+   "fieldtype": "Small Text",
+   "label": "Agreed HR Action"
+  },
+  {
+   "fieldname": "people_index",
+   "fieldtype": "Float",
+   "label": "People Index",
+   "precision": "1"
+  },
+  {
+   "fieldname": "focus",
+   "fieldtype": "Data",
+   "label": "Development Focus"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Partner Brief Supervisor",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

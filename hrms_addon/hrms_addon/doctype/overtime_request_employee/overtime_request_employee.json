@@ -8,6 +8,7 @@
   "employee",
   "employee_name",
   "section",
+  "work_section",
   "hours",
   "employment",
   "overtime_type",
@@ -44,6 +45,12 @@
    "fieldname": "section",
    "fieldtype": "Data",
    "label": "Section"
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Work Section",
+   "options": "Work Section"
   },
   {
    "fieldname": "hours",

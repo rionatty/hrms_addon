@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "plant_order",
+  "product",
+  "machine",
+  "good_qty",
+  "waste_qty",
+  "waste_value",
+  "reject_reason",
+  "column_break_share",
+  "labour_share",
+  "ot_hours_share",
+  "ot_cost_share",
+  "complaint_share",
+  "report_date",
+  "work_section",
+  "branch"
+ ],
+ "fields": [
+  {
+   "fieldname": "plant_order",
+   "fieldtype": "Link",
+   "label": "Order",
+   "options": "Plant Order",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "product",
+   "fieldtype": "Data",
+   "label": "Product or Specification",
+   "fetch_from": "plant_order.product",
+   "fetch_if_empty": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "machine",
+   "fieldtype": "Link",
+   "label": "Machine",
+   "options": "Machine",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "good_qty",
+   "fieldtype": "Float",
+   "label": "Good Quantity",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "waste_qty",
+   "fieldtype": "Float",
+   "label": "Waste Quantity",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "waste_value",
+   "fieldtype": "Currency",
+   "label": "Waste Value",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "reject_reason",
+   "fieldtype": "Data",
+   "label": "Reject Reason",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "column_break_share",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "labour_share",
+   "fieldtype": "Currency",
+   "label": "Labour Share",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ot_hours_share",
+   "fieldtype": "Float",
+   "label": "Overtime Hours Share",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ot_cost_share",
+   "fieldtype": "Currency",
+   "label": "Overtime Cost Share",
+   "read_only": 1
+  },
+  {
+   "fieldname": "complaint_share",
+   "fieldtype": "Currency",
+   "label": "Complaint Share",
+   "read_only": 1
+  },
+  {
+   "fieldname": "report_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "read_only": 1,
+   "hidden": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Shift Output",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

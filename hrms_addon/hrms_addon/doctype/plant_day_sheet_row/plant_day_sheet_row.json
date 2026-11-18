@@ -1,0 +1,262 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "work_section",
+  "shift",
+  "supervisor",
+  "shift_report",
+  "not_worked",
+  "target",
+  "machines",
+  "column_break_typed",
+  "actual_output",
+  "housekeeping",
+  "machines_running",
+  "stop_hours",
+  "downtime_reason",
+  "waste_qty",
+  "waste_value",
+  "complaint_value",
+  "wearing_ppe",
+  "comment",
+  "clock_section",
+  "staff_planned",
+  "staff_on_shift",
+  "unauthorised_absent",
+  "not_marked",
+  "column_break_clock",
+  "late_arrivals",
+  "early_departures",
+  "ot_hours",
+  "safety_incidents",
+  "near_misses",
+  "result_section",
+  "score",
+  "status",
+  "labour_cost"
+ ],
+ "fields": [
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "shift",
+   "fieldtype": "Select",
+   "label": "Shift",
+   "options": "Day\nNight",
+   "reqd": 1,
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Supervisor",
+   "options": "Employee"
+  },
+  {
+   "fieldname": "shift_report",
+   "fieldtype": "Link",
+   "label": "Shift Report",
+   "options": "Shift Report",
+   "read_only": 1
+  },
+  {
+   "fieldname": "not_worked",
+   "fieldtype": "Check",
+   "label": "Not Worked"
+  },
+  {
+   "fieldname": "target",
+   "fieldtype": "Float",
+   "label": "Target",
+   "read_only": 1
+  },
+  {
+   "fieldname": "machines",
+   "fieldtype": "Int",
+   "label": "Machines in Section",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_typed",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "actual_output",
+   "fieldtype": "Float",
+   "label": "Actual Output",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "housekeeping",
+   "fieldtype": "Percent",
+   "label": "Housekeeping",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "machines_running",
+   "fieldtype": "Int",
+   "label": "Machines Running"
+  },
+  {
+   "fieldname": "stop_hours",
+   "fieldtype": "Float",
+   "label": "Stopped Hours"
+  },
+  {
+   "fieldname": "downtime_reason",
+   "fieldtype": "Link",
+   "label": "Main Downtime Reason",
+   "options": "Downtime Reason"
+  },
+  {
+   "fieldname": "waste_qty",
+   "fieldtype": "Float",
+   "label": "Waste Quantity"
+  },
+  {
+   "fieldname": "waste_value",
+   "fieldtype": "Currency",
+   "label": "Waste Value",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "complaint_value",
+   "fieldtype": "Currency",
+   "label": "Complaint Value",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "wearing_ppe",
+   "fieldtype": "Int",
+   "label": "Wearing Full PPE",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "comment",
+   "fieldtype": "Small Text",
+   "label": "Comment"
+  },
+  {
+   "fieldname": "clock_section",
+   "fieldtype": "Section Break",
+   "label": "From the Clock"
+  },
+  {
+   "fieldname": "staff_planned",
+   "fieldtype": "Int",
+   "label": "Staff Planned",
+   "read_only": 1
+  },
+  {
+   "fieldname": "staff_on_shift",
+   "fieldtype": "Int",
+   "label": "Staff on Shift",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "unauthorised_absent",
+   "fieldtype": "Int",
+   "label": "Unauthorised Absent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "not_marked",
+   "fieldtype": "Int",
+   "label": "Not Marked",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_clock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "late_arrivals",
+   "fieldtype": "Int",
+   "label": "Late Arrivals",
+   "read_only": 1
+  },
+  {
+   "fieldname": "early_departures",
+   "fieldtype": "Int",
+   "label": "Early Departures",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ot_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Hours",
+   "read_only": 1
+  },
+  {
+   "fieldname": "safety_incidents",
+   "fieldtype": "Int",
+   "label": "Safety Incidents",
+   "read_only": 1
+  },
+  {
+   "fieldname": "near_misses",
+   "fieldtype": "Int",
+   "label": "Near Misses",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "score",
+   "fieldtype": "Float",
+   "label": "Score",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nOn Target\nAttention\nCritical",
+   "read_only": 1
+  },
+  {
+   "fieldname": "labour_cost",
+   "fieldtype": "Currency",
+   "label": "Labour Cost",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Plant Day Sheet Row",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

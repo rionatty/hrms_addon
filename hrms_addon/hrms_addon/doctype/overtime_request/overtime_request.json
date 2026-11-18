@@ -10,6 +10,7 @@
   "title",
   "overtime_date",
   "section",
+  "work_section",
   "column_break_1",
   "department",
   "branch",
@@ -81,6 +82,13 @@
    "fieldtype": "Data",
    "label": "Section",
    "in_list_view": 1
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Work Section",
+   "options": "Work Section",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_1",

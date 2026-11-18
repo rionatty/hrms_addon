@@ -1,0 +1,309 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "branch",
+  "sheet_date",
+  "week",
+  "company",
+  "status",
+  "column_break_counts",
+  "entered_rows",
+  "not_worked_rows",
+  "missing_rows",
+  "plant_score",
+  "column_break_people",
+  "staff_planned",
+  "staff_on_shift",
+  "money_lost",
+  "labour_cost",
+  "clock_section",
+  "clock_fetched_on",
+  "job_status",
+  "column_break_job",
+  "job_problems",
+  "rows_section",
+  "rows",
+  "remarks",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "sheet_date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "week",
+   "fieldtype": "Data",
+   "label": "Week",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nApproved\nCancelled",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "entered_rows",
+   "fieldtype": "Int",
+   "label": "Shifts Entered",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "not_worked_rows",
+   "fieldtype": "Int",
+   "label": "Shifts Not Worked",
+   "read_only": 1
+  },
+  {
+   "fieldname": "missing_rows",
+   "fieldtype": "Int",
+   "label": "Shifts Missing",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "plant_score",
+   "fieldtype": "Float",
+   "label": "Plant Score",
+   "read_only": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "column_break_people",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "staff_planned",
+   "fieldtype": "Int",
+   "label": "Staff Planned",
+   "read_only": 1
+  },
+  {
+   "fieldname": "staff_on_shift",
+   "fieldtype": "Int",
+   "label": "Staff on Shift",
+   "read_only": 1
+  },
+  {
+   "fieldname": "money_lost",
+   "fieldtype": "Currency",
+   "label": "Waste and Complaints",
+   "read_only": 1
+  },
+  {
+   "fieldname": "labour_cost",
+   "fieldtype": "Currency",
+   "label": "Labour Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "clock_section",
+   "fieldtype": "Section Break",
+   "label": "Clock and Approval"
+  },
+  {
+   "fieldname": "clock_fetched_on",
+   "fieldtype": "Datetime",
+   "label": "Fetched from the Clock",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "job_status",
+   "fieldtype": "Data",
+   "label": "Job",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_job",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "job_problems",
+   "fieldtype": "Small Text",
+   "label": "Problems",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "rows_section",
+   "fieldtype": "Section Break",
+   "label": "Shifts"
+  },
+  {
+   "fieldname": "rows",
+   "fieldtype": "Table",
+   "label": "Shifts",
+   "options": "Plant Day Sheet Row"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Plant Day Sheet",
+   "read_only": 1,
+   "no_copy": 1,
+   "search_index": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Plant Day Sheet",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Manufacturing Excellence Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1
+  },
+  {
+   "role": "Production Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "import": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "submit": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "sheet_date",
+ "sort_order": "DESC",
+ "states": [],
+ "is_submittable": 1,
+ "track_changes": 1,
+ "title_field": "branch"
+}
