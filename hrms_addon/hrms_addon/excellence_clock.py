@@ -3,8 +3,9 @@
 
 """A shift's crew from the clock (Manufacturing Excellence, 18 Nov 2026).
 
-The people a section's shift planned on are its employees (their Section)
-whose shift that day is the shift's: their Shift Assignment (made by the
+The people a section's shift planned on are its employees (their Section),
+less those its roster has leading it that day, whose shift that day is the
+shift's: their Shift Assignment (made by the
 Shift Rotations), else their default shift, else the shift their attendance
 was marked on, else Day. For each, from what the site already holds:
 
@@ -38,7 +39,8 @@ RATE_SECONDS = 40 * 24 * 3600
 def crew(section, day, shift, s, standard=None):
     """The crew of a section's shift on a day, as Shift Crew rows."""
     day = getdate(day)
-    employees = _section_people(section, day)
+    leads = _leads(section, day)
+    employees = [row for row in _section_people(section, day) if row.name not in leads]
     if not employees:
         return []
     names = [row.name for row in employees]
@@ -100,6 +102,15 @@ def fill(doc):
         doc.append("crew", row)
     doc.clock_fetched_on = now_datetime()
     return rows
+
+
+def _leads(section, day):
+    """Who the section's roster has leading it on the day (its supervisors and
+    production officers): they run the shift, they are not its crew."""
+    from hrms_addon.hrms_addon import excellence
+
+    rows = excellence.roster(frappe.get_cached_doc(excellence.SECTION, section))
+    return {employee for role in rules.ROSTER_ROLES for employee in rules.rostered(rows, day, None, role)}
 
 
 def _section_people(section, day):

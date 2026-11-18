@@ -108,7 +108,7 @@ def section_validate(doc):
 
 
 def _standard_row(row):
-    data = row.as_dict() if hasattr(row, "as_dict") else dict(row)
+    data = dict(row) if isinstance(row, dict) else row.as_dict()
     found = {field: data.get(field) for field in rules.STANDARD_FIELDS}
     found["effective_from"] = data.get("effective_from")
     found["note"] = data.get("note")
@@ -191,6 +191,9 @@ def machine_validate(doc):
 
 
 def order_validate(doc):
+    if doc.get("finishing_section"):
+        doc.branch, doc.company, doc.unit = frappe.db.get_value(SECTION, doc.finishing_section,
+                                                                ["branch", "company", "unit"])
     for message in rules.order_errors(doc.as_dict()):
         frappe.throw(_(message), title=_(ORDER))
 
@@ -237,7 +240,11 @@ def shift_validate(doc):
             doc.wearing_ppe = counted["on_shift"] - counted["no_ppe"]
     entry = doc.as_dict()
     entry["has_downtime_rows"] = bool(downtime)
-    for message in rules.entry_errors(entry):
+    checked = dict(entry)
+    if doc.get("plant_day_sheet") and not crew and not cint(doc.staff_on_shift):
+        # a day sheet's people come from the clock: PPE is checked against them once fetched
+        checked["wearing_ppe"] = checked["unauthorised_absent"] = 0
+    for message in rules.entry_errors(checked):
         frappe.throw(_(message), title=_(SHIFT_REPORT))
     if doc.docstatus < 2:
         doc.shift_key = shift_key(doc)
@@ -539,7 +546,8 @@ def sections_in(company=None, branch=None, section=None, reporting=False):
         filters["name"] = section
     if reporting:
         filters["shift_reports"] = 1
-    return frappe.get_all(SECTION, filters=filters, fields=["name", "branch", "labour_type", "unit",
+    # read as the user: one held to a plant counts that plant's sections alone
+    return frappe.get_list(SECTION, filters=filters, fields=["name", "branch", "labour_type", "unit",
                                                             "approved_establishment", "section_name"],
                           order_by="section_name asc", limit_page_length=0)
 

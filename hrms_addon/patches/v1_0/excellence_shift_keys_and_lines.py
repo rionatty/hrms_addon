@@ -12,7 +12,7 @@ before it.
 """
 
 import frappe
-from frappe.utils import getdate
+from frappe.utils import getdate, now
 
 
 def execute():
@@ -53,7 +53,9 @@ def execute():
                 "good_qty": report.actual_output, "waste_qty": report.waste_qty, "waste_value": report.waste_value,
                 "labour_share": report.labour_cost, "ot_hours_share": report.ot_hours,
                 "ot_cost_share": report.ot_cost, "complaint_share": report.complaint_value,
-                "report_date": report.report_date, "work_section": report.work_section, "branch": report.branch})
+                "report_date": report.report_date, "work_section": report.work_section, "branch": report.branch,
+                "name": frappe.generate_hash(length=10), "creation": now(), "modified": now(),
+                "owner": "Administrator", "modified_by": "Administrator"})
             line.db_insert()
         except Exception:
             frappe.db.rollback()

@@ -32,18 +32,25 @@ COACH, SHOWN = 5, 3
 
 
 def brief_autoname(doc):
+    # Frappe names a document before validating it: the week is written alike first
+    _week(doc)
     doc.name = "%s %s" % (doc.week, doc.branch or _("All Plants"))
 
 
-def brief_validate(doc):
-    doc.week = (doc.week or "").strip().upper().replace(" ", "")
+def _week(doc):
+    """The week written as 2026-W44, with its first and last day."""
+    week = (doc.week or "").strip().upper().replace(" ", "")
     try:
-        year, number = doc.week.split("-W")
+        year, number = week.split("-W")
         start, end = rules.period_bounds(rules.WEEK, int(year), int(number))
     except ValueError:
         frappe.throw(_("Write the week as 2026-W44."), title=_(BRIEF))
     doc.week = "%s-W%02d" % (year, int(number))
     doc.week_start, doc.week_end = start, end
+
+
+def brief_validate(doc):
+    _week(doc)
     if not doc.get("company"):
         doc.company = (frappe.defaults.get_user_default("Company")
                        or frappe.db.get_single_value("Global Defaults", "default_company"))

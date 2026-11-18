@@ -106,7 +106,7 @@ def _fill_rows(doc, s):
 
 def _row_summary(row, s, standards):
     """A row as the day summary its shift would make, for the sheet's own score."""
-    entry = row.as_dict() if hasattr(row, "as_dict") else dict(row)
+    entry = dict(row) if isinstance(row, dict) else row.as_dict()
     figures = rules.shift_figures(entry, standards.get(entry.get("work_section")) or {}, s)
     return rules.day_summary(entry, figures, s)
 

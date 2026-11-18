@@ -1557,7 +1557,7 @@ def sheet_errors(sheet_date, today, rows):
         if _num(row.get("not_worked")) and row_entered(row):
             errors.append("{0} {1} is marked Not Worked but has figures.".format(section_label(key[0]), key[1]))
         checked = dict(row)
-        if not _num(checked.get("staff_planned")):
+        if not _num(checked.get("staff_planned")) or not _num(checked.get("staff_on_shift")):
             # the people come from the clock: until they have, PPE is not checked against them
             checked["wearing_ppe"] = checked["unauthorised_absent"] = 0
         for message in entry_errors(checked):
