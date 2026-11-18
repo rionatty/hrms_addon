@@ -1,0 +1,427 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "month",
+  "employee",
+  "employee_name",
+  "column_break_identity",
+  "source",
+  "snapshot",
+  "where_section",
+  "branch",
+  "department",
+  "work_section",
+  "designation",
+  "grade",
+  "employment_type",
+  "column_break_where",
+  "population",
+  "pay_category",
+  "gender",
+  "age_band",
+  "tenure_band",
+  "is_foreign",
+  "opening_section",
+  "opening_branch",
+  "column_break_opening",
+  "opening_population",
+  "counts_section",
+  "heads",
+  "opening",
+  "closing",
+  "paid",
+  "column_break_counts",
+  "hired",
+  "exited",
+  "transferred",
+  "converted",
+  "movement_section",
+  "hire_reason",
+  "job_requisition",
+  "column_break_movement",
+  "exit_reason",
+  "exit_type",
+  "regrettable",
+  "measures_section",
+  "gross_pay",
+  "ot_pay",
+  "ot_hours",
+  "training_hours",
+  "column_break_measures",
+  "hours_worked",
+  "days_worked",
+  "days_absent",
+  "attendance_days",
+  "clock_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "month",
+   "fieldtype": "Date",
+   "label": "Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Any day in the month."
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Blank on an imported row for a group of people."
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_identity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "System\nImported",
+   "default": "Imported",
+   "read_only": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "snapshot",
+   "fieldtype": "Link",
+   "label": "Month's Build",
+   "options": "HR Monthly Snapshot",
+   "read_only": 1
+  },
+  {
+   "fieldname": "where_section",
+   "fieldtype": "Section Break",
+   "label": "As the Month Ended"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "work_section",
+   "fieldtype": "Link",
+   "label": "Section",
+   "options": "Work Section"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Link",
+   "label": "Designation",
+   "options": "Designation"
+  },
+  {
+   "fieldname": "grade",
+   "fieldtype": "Link",
+   "label": "Grade",
+   "options": "Employee Grade"
+  },
+  {
+   "fieldname": "employment_type",
+   "fieldtype": "Link",
+   "label": "Employment Type",
+   "options": "Employment Type"
+  },
+  {
+   "fieldname": "column_break_where",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "population",
+   "fieldtype": "Select",
+   "label": "Population",
+   "options": "\nPermanent\nCasual\nExpatriate",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "pay_category",
+   "fieldtype": "Data",
+   "label": "Pay Category"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Link",
+   "label": "Gender",
+   "options": "Gender",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "age_band",
+   "fieldtype": "Select",
+   "label": "Age Band",
+   "options": "\nUnder 25\n25-34\n35-44\n45-54\n55 and Over\nUnknown"
+  },
+  {
+   "fieldname": "tenure_band",
+   "fieldtype": "Select",
+   "label": "Tenure Band",
+   "options": "\nUnder 1 Year\n1-2 Years\n3-5 Years\n6-10 Years\nOver 10 Years"
+  },
+  {
+   "fieldname": "is_foreign",
+   "fieldtype": "Check",
+   "label": "Foreign"
+  },
+  {
+   "fieldname": "opening_section",
+   "fieldtype": "Section Break",
+   "label": "As the Month Began"
+  },
+  {
+   "fieldname": "opening_branch",
+   "fieldtype": "Link",
+   "label": "Plant at the Start",
+   "options": "Branch"
+  },
+  {
+   "fieldname": "column_break_opening",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "opening_population",
+   "fieldtype": "Select",
+   "label": "Population at the Start",
+   "options": "\nPermanent\nCasual\nExpatriate"
+  },
+  {
+   "fieldname": "counts_section",
+   "fieldtype": "Section Break",
+   "label": "Counts"
+  },
+  {
+   "fieldname": "heads",
+   "fieldtype": "Int",
+   "label": "Heads",
+   "default": "1",
+   "description": "People on the row: 1 for an employee."
+  },
+  {
+   "fieldname": "opening",
+   "fieldtype": "Int",
+   "label": "Opening"
+  },
+  {
+   "fieldname": "closing",
+   "fieldtype": "Int",
+   "label": "Closing"
+  },
+  {
+   "fieldname": "paid",
+   "fieldtype": "Int",
+   "label": "Paid"
+  },
+  {
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hired",
+   "fieldtype": "Int",
+   "label": "Hired"
+  },
+  {
+   "fieldname": "exited",
+   "fieldtype": "Int",
+   "label": "Exited"
+  },
+  {
+   "fieldname": "transferred",
+   "fieldtype": "Int",
+   "label": "Transferred"
+  },
+  {
+   "fieldname": "converted",
+   "fieldtype": "Int",
+   "label": "Converted"
+  },
+  {
+   "fieldname": "movement_section",
+   "fieldtype": "Section Break",
+   "label": "Joining and Leaving"
+  },
+  {
+   "fieldname": "hire_reason",
+   "fieldtype": "Select",
+   "label": "Hire Reason",
+   "options": "\nAddition\nReplacement\nUnclassified"
+  },
+  {
+   "fieldname": "job_requisition",
+   "fieldtype": "Link",
+   "label": "Job Requisition",
+   "options": "Job Requisition"
+  },
+  {
+   "fieldname": "column_break_movement",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "exit_reason",
+   "fieldtype": "Data",
+   "label": "Exit Reason"
+  },
+  {
+   "fieldname": "exit_type",
+   "fieldtype": "Select",
+   "label": "Exit Type",
+   "options": "\nVoluntary\nInvoluntary"
+  },
+  {
+   "fieldname": "regrettable",
+   "fieldtype": "Check",
+   "label": "Regrettable"
+  },
+  {
+   "fieldname": "measures_section",
+   "fieldtype": "Section Break",
+   "label": "The Month's Measures"
+  },
+  {
+   "fieldname": "gross_pay",
+   "fieldtype": "Currency",
+   "label": "Gross Pay",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "ot_pay",
+   "fieldtype": "Currency",
+   "label": "Overtime Pay",
+   "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "ot_hours",
+   "fieldtype": "Float",
+   "label": "Overtime Hours"
+  },
+  {
+   "fieldname": "training_hours",
+   "fieldtype": "Float",
+   "label": "Training Hours"
+  },
+  {
+   "fieldname": "column_break_measures",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hours_worked",
+   "fieldtype": "Float",
+   "label": "Hours Worked"
+  },
+  {
+   "fieldname": "days_worked",
+   "fieldtype": "Float",
+   "label": "Days Worked"
+  },
+  {
+   "fieldname": "days_absent",
+   "fieldtype": "Float",
+   "label": "Days Absent"
+  },
+  {
+   "fieldname": "attendance_days",
+   "fieldtype": "Float",
+   "label": "Attendance Days"
+  },
+  {
+   "fieldname": "clock_days",
+   "fieldtype": "Float",
+   "label": "Days on the Clock"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Employee Month",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1,
+   "email": 1,
+   "create": 1,
+   "write": 1,
+   "delete": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Payroll Officer",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  }
+ ],
+ "sort_field": "month",
+ "sort_order": "DESC",
+ "states": [],
+ "allow_import": 1,
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "track_changes": 1
+}

@@ -1,7 +1,6 @@
 {
  "actions": [],
  "creation": "2026-11-17 16:00:00.000000",
- "description": "A month's head count, movements, pay and safety by plant: what the board's quarter is made of.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -9,17 +8,40 @@
   "month_start",
   "source",
   "column_break_snapshot",
+  "status",
   "locked",
+  "locked_by",
   "built_on",
+  "as_at",
+  "progress",
   "build",
-  "plants_section",
-  "plants",
+  "build_error",
   "totals_section",
-  "total_closing",
+  "total_opening",
   "total_hires",
-  "column_break_totals",
   "total_exits",
-  "total_wage_bill"
+  "total_transfers",
+  "total_conversions",
+  "total_closing",
+  "column_break_totals",
+  "total_payroll_heads",
+  "total_wage_bill",
+  "reconciliation_variance",
+  "payroll_variance",
+  "reconciliation_section",
+  "reconciliation",
+  "quality_section",
+  "blank_branch",
+  "left_without_date",
+  "column_break_quality",
+  "hires_without_requisition",
+  "slips_without_branch",
+  "rows_section",
+  "employee_rows",
+  "movement_rows",
+  "column_break_rows",
+  "pay_rows",
+  "safety_rows"
  ],
  "fields": [
   {
@@ -28,7 +50,8 @@
    "label": "Company",
    "options": "Company",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "month_start",
@@ -46,17 +69,36 @@
    "options": "System\nImported",
    "default": "System",
    "in_list_view": 1,
-   "description": "Imported for the months before the system, as the board compares with them."
+   "description": "Imported for the months before the system."
   },
   {
    "fieldname": "column_break_snapshot",
    "fieldtype": "Column Break"
   },
   {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Not Built\nQueued\nBuilding\nBuilt\nFailed\nImported",
+   "default": "Not Built",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
    "fieldname": "locked",
    "fieldtype": "Check",
    "label": "Locked",
    "description": "Taken as it stands: not built from the site again."
+  },
+  {
+   "fieldname": "locked_by",
+   "fieldtype": "Link",
+   "label": "Locked By",
+   "options": "HR Board Report",
+   "read_only": 1,
+   "no_copy": 1
   },
   {
    "fieldname": "built_on",
@@ -66,21 +108,33 @@
    "no_copy": 1
   },
   {
+   "fieldname": "as_at",
+   "fieldtype": "Date",
+   "label": "As At",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "progress",
+   "fieldtype": "Percent",
+   "label": "Progress",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.status=='Building'"
+  },
+  {
    "fieldname": "build",
    "fieldtype": "Button",
-   "label": "Build from the Site",
-   "depends_on": "eval:!doc.locked && doc.source=='System'"
+   "label": "Build",
+   "depends_on": "eval:!doc.locked && doc.source=='System' && !doc.__islocal"
   },
   {
-   "fieldname": "plants_section",
-   "fieldtype": "Section Break",
-   "label": "Plants"
-  },
-  {
-   "fieldname": "plants",
-   "fieldtype": "Table",
-   "label": "Plants",
-   "options": "HR Snapshot Plant"
+   "fieldname": "build_error",
+   "fieldtype": "Small Text",
+   "label": "What Went Wrong",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.status=='Failed'"
   },
   {
    "fieldname": "totals_section",
@@ -88,9 +142,9 @@
    "label": "Totals"
   },
   {
-   "fieldname": "total_closing",
+   "fieldname": "total_opening",
    "fieldtype": "Int",
-   "label": "Closing Head Count",
+   "label": "Opening",
    "read_only": 1
   },
   {
@@ -100,24 +154,141 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_totals",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "total_exits",
    "fieldtype": "Int",
    "label": "Exits",
    "read_only": 1
   },
   {
+   "fieldname": "total_transfers",
+   "fieldtype": "Int",
+   "label": "Transfers",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_conversions",
+   "fieldtype": "Int",
+   "label": "Conversions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_closing",
+   "fieldtype": "Int",
+   "label": "Closing Head Count",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_totals",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_payroll_heads",
+   "fieldtype": "Int",
+   "label": "Paid",
+   "read_only": 1
+  },
+  {
    "fieldname": "total_wage_bill",
    "fieldtype": "Currency",
    "label": "Wage Bill",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciliation_variance",
+   "fieldtype": "Int",
+   "label": "Variance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payroll_variance",
+   "fieldtype": "Int",
+   "label": "Not Paid",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reconciliation_section",
+   "fieldtype": "Section Break",
+   "label": "Reconciliation"
+  },
+  {
+   "fieldname": "reconciliation",
+   "fieldtype": "Table",
+   "label": "By Plant",
+   "options": "HR Snapshot Reconciliation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quality_section",
+   "fieldtype": "Section Break",
+   "label": "Data Quality"
+  },
+  {
+   "fieldname": "blank_branch",
+   "fieldtype": "Int",
+   "label": "Active Employees with No Plant",
+   "read_only": 1
+  },
+  {
+   "fieldname": "left_without_date",
+   "fieldtype": "Int",
+   "label": "Left with No Relieving Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_quality",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "hires_without_requisition",
+   "fieldtype": "Int",
+   "label": "Hires with No Requisition",
+   "read_only": 1
+  },
+  {
+   "fieldname": "slips_without_branch",
+   "fieldtype": "Int",
+   "label": "Salary Slips with No Plant",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rows_section",
+   "fieldtype": "Section Break",
+   "label": "Rows",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "employee_rows",
+   "fieldtype": "Int",
+   "label": "Employee Months",
+   "read_only": 1
+  },
+  {
+   "fieldname": "movement_rows",
+   "fieldtype": "Int",
+   "label": "Movements",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_rows",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pay_rows",
+   "fieldtype": "Int",
+   "label": "Pay Lines",
+   "read_only": 1
+  },
+  {
+   "fieldname": "safety_rows",
+   "fieldtype": "Int",
+   "label": "Safety Lines",
    "read_only": 1
   }
  ],
  "links": [],
- "modified": "2026-11-17 16:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "HR Monthly Snapshot",
@@ -176,6 +347,13 @@
   },
   {
    "role": "Auditor",
+   "read": 1,
+   "report": 1,
+   "print": 1,
+   "export": 1
+  },
+  {
+   "role": "Board Member",
    "read": 1,
    "report": 1,
    "print": 1,

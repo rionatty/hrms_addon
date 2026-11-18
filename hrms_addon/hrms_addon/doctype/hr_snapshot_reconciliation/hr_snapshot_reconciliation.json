@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "branch",
+  "opening",
+  "hires",
+  "exits",
+  "transfers_in",
+  "transfers_out",
+  "expected",
+  "closing",
+  "variance",
+  "payroll_heads",
+  "payroll_variance"
+ ],
+ "fields": [
+  {
+   "fieldname": "branch",
+   "fieldtype": "Data",
+   "label": "Plant",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "opening",
+   "fieldtype": "Int",
+   "label": "Opening",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "hires",
+   "fieldtype": "Int",
+   "label": "Hires",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "exits",
+   "fieldtype": "Int",
+   "label": "Exits",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "transfers_in",
+   "fieldtype": "Int",
+   "label": "Transfers In",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "transfers_out",
+   "fieldtype": "Int",
+   "label": "Transfers Out",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "expected",
+   "fieldtype": "Int",
+   "label": "Expected",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "closing",
+   "fieldtype": "Int",
+   "label": "Closing",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "variance",
+   "fieldtype": "Int",
+   "label": "Variance",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "payroll_heads",
+   "fieldtype": "Int",
+   "label": "Paid",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "payroll_variance",
+   "fieldtype": "Int",
+   "label": "Not Paid",
+   "in_list_view": 1,
+   "read_only": 1,
+   "columns": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "HR Snapshot Reconciliation",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "istable": 1,
+ "editable_grid": 1
+}

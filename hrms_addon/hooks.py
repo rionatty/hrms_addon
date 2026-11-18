@@ -2430,9 +2430,6 @@ scheduler_events = {
         # the month just ended in talent, told to the HR Managers and the
         # Talent Council with its Monthly Talent Report (talent.py)
         "hrms_addon.hrms_addon.talent.monthly",
-        # the month just ended, by plant, for the HR board pack: head count,
-        # movements, pay and safety (board_pack.py)
-        "hrms_addon.hrms_addon.board_pack.monthly",
     ],
     "daily_long": [
         # Learning: everyone's training requirements brought up to date, each
@@ -2448,6 +2445,10 @@ scheduler_events = {
         "hrms_addon.hrms_addon.competency.daily",
         # the year's training budgets brought up to date (learning_value.py)
         "hrms_addon.hrms_addon.learning_value.daily",
+        # the HR board pack's facts: the month running and the open months
+        # before it built again on the long queue, a month at a time; a locked
+        # or imported month never (board_facts.py)
+        "hrms_addon.hrms_addon.board_facts.nightly",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,

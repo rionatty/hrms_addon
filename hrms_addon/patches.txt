@@ -107,3 +107,6 @@ hrms_addon.patches.v1_0.advance_paid_on_payment
 hrms_addon.patches.v1_0.casual_hours_hr_officer
 hrms_addon.patches.v1_0.employee_edits_by_hr
 hrms_addon.patches.v1_0.advance_tick_on_salary_tab
+hrms_addon.patches.v1_0.board_facts_from_snapshots
+hrms_addon.patches.v1_0.board_fact_indexes
+hrms_addon.patches.v1_0.board_member_access

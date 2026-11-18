@@ -1,21 +1,80 @@
 {
  "actions": [],
  "creation": "2026-11-17 16:00:00.000000",
- "description": "How the HR board pack counts: the attrition target and the wage bill's components.",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "attrition_target",
+  "hours_per_day",
+  "days_per_month",
+  "refresh_months",
+  "column_break_settings",
+  "trend_tolerance",
+  "build_section",
+  "build_company",
+  "build_from",
+  "column_break_build",
+  "build_months",
   "groups_section",
   "component_groups"
  ],
  "fields": [
   {
-   "fieldname": "attrition_target",
+   "fieldname": "hours_per_day",
+   "fieldtype": "Float",
+   "label": "Hours in a Day",
+   "default": "8",
+   "description": "Taken for a day at work the clock gave no hours for."
+  },
+  {
+   "fieldname": "days_per_month",
+   "fieldtype": "Int",
+   "label": "Days Worked in a Month",
+   "default": "26",
+   "description": "For a plant and month the clock gave no hours at all."
+  },
+  {
+   "fieldname": "refresh_months",
+   "fieldtype": "Int",
+   "label": "Months Built Again Each Night",
+   "default": "3",
+   "description": "Besides the month running. A locked month is never built again."
+  },
+  {
+   "fieldname": "column_break_settings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trend_tolerance",
    "fieldtype": "Percent",
-   "label": "Monthly Attrition Target",
-   "default": "5",
-   "description": "A plant over it in any month is flagged."
+   "label": "Trend Tolerance",
+   "default": "10",
+   "description": "With no target, worse than a year before by more than this is Watch, by twice it Action Needed."
+  },
+  {
+   "fieldname": "build_section",
+   "fieldtype": "Section Break",
+   "label": "Build Past Months"
+  },
+  {
+   "fieldname": "build_company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "build_from",
+   "fieldtype": "Date",
+   "label": "From",
+   "description": "Any day in the first month."
+  },
+  {
+   "fieldname": "column_break_build",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "build_months",
+   "fieldtype": "Button",
+   "label": "Build the Months"
   },
   {
    "fieldname": "groups_section",
@@ -31,7 +90,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-17 16:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Board Report Settings",

@@ -11,14 +11,16 @@ force, not from a payroll run, so the report answers before a run as well
 as after one — and so it is not payroll's to produce.
 
 It reads through Frappe's permissions, so a branch's HR Officer sees that
-branch's people.
+branch's people. Who is there when the month opens and closes is the board
+pack's own rule (board_facts_rules.employed_after), so this report and the
+board's head count always agree.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import flt, get_first_day, get_last_day, getdate, today
+from frappe.utils import add_days, flt, get_first_day, get_last_day, getdate, today
 
-from hrms_addon.hrms_addon import attendance_rules
+from hrms_addon.hrms_addon import attendance_rules, board_facts_rules
 
 
 def execute(filters=None):
@@ -45,10 +47,10 @@ def execute(filters=None):
         row = groups.setdefault(key, {
             "branch": key[0], "department": key[1], "opening": 0, "joined": 0, "left": 0,
             "closing": 0, "wage_bill": 0.0, "unpriced": 0})
-        here_at_open = bool(joined and joined < opens) and not (left and left < opens)
+        here_at_open = board_facts_rules.employed_after(joined, left, add_days(opens, -1))
         joined_now = bool(joined and opens <= joined <= closes)
         left_now = bool(left and opens <= left <= closes)
-        here_at_close = bool(joined and joined <= closes) and not (left and left <= closes)
+        here_at_close = board_facts_rules.employed_after(joined, left, closes)
         row["opening"] += 1 if here_at_open else 0
         row["joined"] += 1 if joined_now else 0
         row["left"] += 1 if left_now else 0
