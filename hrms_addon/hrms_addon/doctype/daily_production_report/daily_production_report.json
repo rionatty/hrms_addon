@@ -72,7 +72,9 @@
    "fieldtype": "Link",
    "label": "Work Section",
    "options": "Work Section",
-   "search_index": 1
+   "search_index": 1,
+   "fetch_from": "supervisor.custom_work_section",
+   "fetch_if_empty": 1
   },
   {
    "fieldname": "column_break_1",

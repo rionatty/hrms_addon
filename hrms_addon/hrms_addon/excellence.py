@@ -438,22 +438,20 @@ def _suspended_before(doc, s):
 
 # ── One section on the other modules' documents ──────────────────────
 def fill_section(doc, method=None):
-    """An Overtime Request's and a Daily Production Report's section as a
-    Work Section, beside the text they always had: from the section named,
-    else from the people on it."""
-    if doc.doctype == "Overtime Request":
-        lines = doc.get("employees") or []
-        named = [line.employee for line in lines if line.get("employee") and not line.get("work_section")]
-        sections = dict(frappe.get_all("Employee", filters={"name": ["in", named]},
-                                       fields=["name", EMPLOYEE_SECTION], as_list=True)) if named else {}
-        for line in lines:
-            if line.get("employee") and not line.get("work_section"):
-                line.work_section = sections.get(line.employee)
-        if not doc.get("work_section"):
-            doc.work_section = (_section_named(doc.get("section"), doc.get("branch"))
-                                or _most_common([line.get("work_section") for line in lines]))
-    elif not doc.get("work_section") and doc.get("supervisor"):
-        doc.work_section = frappe.db.get_value("Employee", doc.supervisor, EMPLOYEE_SECTION)
+    """An Overtime Request's section as a Work Section, beside the text it
+    always had: the section named, else the one most of its people are in.
+    Each line takes its employee's (a fetch, as the Daily Production Report
+    takes its supervisor's)."""
+    lines = doc.get("employees") or []
+    named = [line.employee for line in lines if line.get("employee") and not line.get("work_section")]
+    sections = dict(frappe.get_all("Employee", filters={"name": ["in", named]},
+                                   fields=["name", EMPLOYEE_SECTION], as_list=True)) if named else {}
+    for line in lines:
+        if line.get("employee") and not line.get("work_section"):
+            line.work_section = sections.get(line.employee)
+    if not doc.get("work_section"):
+        doc.work_section = (_section_named(doc.get("section"), doc.get("branch"))
+                            or _most_common([line.get("work_section") for line in lines]))
 
 
 def _section_named(text, branch):

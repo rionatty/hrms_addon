@@ -2048,9 +2048,7 @@ doc_events = {
     # arrears with it, as a Per Meter report's month is (piece_pay.py)
     "Daily Production Report": {
         "validate": ["hrms_addon.hrms_addon.output_pay.report_validate",
-                     "hrms_addon.hrms_addon.piece_pay.report_validate",
-                     # its Work Section from the supervisor's (excellence.py)
-                     "hrms_addon.hrms_addon.excellence.fill_section"],
+                     "hrms_addon.hrms_addon.piece_pay.report_validate"],
         "on_submit": "hrms_addon.hrms_addon.output_pay.report_on_submit",
         "on_cancel": ["hrms_addon.hrms_addon.piece_pay.report_on_cancel",
                       "hrms_addon.hrms_addon.output_pay.report_on_cancel"],

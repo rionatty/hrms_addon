@@ -9764,6 +9764,7 @@
   "insert_after": "custom_department",
   "fetch_from": "raised_by.custom_work_section",
   "fetch_if_empty": 1,
+  "no_copy": 1,
   "in_standard_filter": 1,
   "search_index": 1,
   "module": "HRMS Addon",
