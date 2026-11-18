@@ -991,6 +991,8 @@ fixtures = [
                     "Training Program-custom_levels_cb",
                     "Training Program-custom_level_behaviour",
                     "Training Program-custom_level_impact",
+                    # the session's provider, rated after it (learning_providers.py)
+                    "Training Event-custom_provider",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -2304,6 +2306,8 @@ doc_events = {
             # its venue and seats, the waiting list moved up, the clash check
             # (learning_attendance.py)
             "hrms_addon.hrms_addon.learning_attendance.event_validate",
+            # its provider from its supplier (learning_providers.py)
+            "hrms_addon.hrms_addon.learning_providers.event_validate",
         ],
         "before_update_after_submit": "hrms_addon.hrms_addon.learning_value.event_costs",
         # every save: the year's training budgets brought up to date, and a row
@@ -2350,21 +2354,32 @@ doc_events = {
             # a trainee who did not pass told, with their supervisor and HR
             # (learning_delivery.py)
             "hrms_addon.hrms_addon.learning_delivery.result_failed",
+            "hrms_addon.hrms_addon.learning_providers.result_changed",
         ],
         "on_update_after_submit": [
             "hrms_addon.hrms_addon.training.result_on_submit",
             "hrms_addon.hrms_addon.learning.result_changed",
             "hrms_addon.hrms_addon.learning_delivery.result_failed",
+            "hrms_addon.hrms_addon.learning_providers.result_changed",
         ],
         "on_cancel": [
             "hrms_addon.hrms_addon.training.result_on_cancel",
             "hrms_addon.hrms_addon.learning.result_changed",
+            # the session's provider rated again (learning_providers.py)
+            "hrms_addon.hrms_addon.learning_providers.result_changed",
         ],
     },
     "Training Feedback": {
         "validate": "hrms_addon.hrms_addon.training.feedback_validate",
-        "on_submit": "hrms_addon.hrms_addon.training.feedback_on_submit",
-        "on_cancel": "hrms_addon.hrms_addon.training.feedback_on_cancel",
+        # each evaluation also rates the session's provider (learning_providers.py)
+        "on_submit": [
+            "hrms_addon.hrms_addon.training.feedback_on_submit",
+            "hrms_addon.hrms_addon.learning_providers.feedback_changed",
+        ],
+        "on_cancel": [
+            "hrms_addon.hrms_addon.training.feedback_on_cancel",
+            "hrms_addon.hrms_addon.learning_providers.feedback_changed",
+        ],
     },
     # Learning: a safety incident recorded sets off the refreshers that ask
     # for one (learning_loop.py)
@@ -2380,6 +2395,11 @@ doc_events = {
     # (learning_delivery.py)
     "Training Program": {
         "validate": "hrms_addon.hrms_addon.learning_delivery.programme_validate",
+    },
+    # the calendar's planned spend against what remains of the year's budget
+    # (learning_value.py)
+    "Training Calendar": {
+        "validate": "hrms_addon.hrms_addon.learning_value.calendar_budget",
     },
 }
 
@@ -2505,6 +2525,9 @@ scheduler_events = {
         # Learning: those back from a long absence asked for their refreshers
         # (learning_loop.py)
         "hrms_addon.hrms_addon.learning_loop.daily",
+        # the providers rated and ranked; accreditations and contracts running
+        # out told (learning_providers.py)
+        "hrms_addon.hrms_addon.learning_providers.daily",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,

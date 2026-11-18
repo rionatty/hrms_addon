@@ -17,6 +17,9 @@
   "entries_section",
   "entries",
   "total_budget",
+  "training_budget",
+  "budget_remaining",
+  "budget_note",
   "comments_section",
   "comments",
   "approval_section",
@@ -122,6 +125,28 @@
    "read_only": 1
   },
   {
+   "fieldname": "training_budget",
+   "fieldtype": "Link",
+   "label": "Training Budget",
+   "options": "Training Budget",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "budget_remaining",
+   "fieldtype": "Currency",
+   "label": "Budget Remaining",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "budget_note",
+   "fieldtype": "Data",
+   "label": "Budget Check",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
    "fieldname": "comments_section",
    "fieldtype": "Section Break",
    "label": "Comments"
@@ -204,7 +229,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-09-21 09:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Training Calendar",

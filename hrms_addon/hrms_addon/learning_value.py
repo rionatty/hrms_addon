@@ -79,6 +79,13 @@ def budget_autoname(doc):
 
 
 def budget_validate(doc):
+    lines = [row.as_dict() for row in doc.get("lines") or []]
+    if lines:
+        errors = rules.line_errors(lines)
+        if errors:
+            frappe.throw("<br>".join(_(message) for message in errors), title=_(BUDGET))
+        # the budget is its lines where it has any
+        doc.amount = rules.lines_total(lines)
     if flt(doc.amount) <= 0:
         frappe.throw(_("The budget must be more than nought."), title=_(BUDGET))
     if not 0 < flt(doc.alert_at) <= 100:
@@ -298,3 +305,118 @@ def _health(label, ids, plant, filters, s):
     }
     score, status = rules.health(parts, s.get("matrix_green_from") or 85, s.get("matrix_amber_from") or 65)
     return dict(parts, plant=label, score=score, status=status)
+
+
+# ── Budget vs actual vs forecast (18 Nov 2026) ────────────────────────
+LINE = "Training Budget Line"
+
+
+def budget_vs_actual(filters):
+    """The year's budget lines against what sessions held cost and sessions
+    to come are expected to cost, grouped as asked, with the forecast and
+    what remains (learning_value_rules.budget_vs_actual). Every read is one
+    query for all the sessions or lines."""
+    from hrms_addon.hrms_addon import queries
+
+    filters = frappe._dict(filters or {})
+    year = cint(filters.get("year")) or getdate(today()).year
+    key = rules.GROUP_KEY.get(filters.get("group_by") or "Plant", "branch")
+    conditions = {"year": year}
+    for field in ("company", "branch", "department"):
+        if filters.get(field):
+            conditions[field] = filters.get(field)
+    budgets = frappe.get_list(BUDGET, filters=conditions, fields=["name", "branch", "department", "amount"],
+                              limit_page_length=0)
+    lines = frappe.get_all(LINE, filters={"parenttype": BUDGET, "parent": ["in", [b.name for b in budgets] or [""]]},
+                           fields=["parent", "branch", "department", "cost_center", "training_category",
+                                   "training_program", "provider", "month", "cost_type", "amount"],
+                           limit_page_length=0)
+    with_lines = {line.parent for line in lines}
+    plan = [dict(line) for line in lines]
+    for budget in budgets:
+        if budget.name not in with_lines:
+            plan.append({"branch": budget.branch, "department": budget.department, "amount": budget.amount,
+                         "month": ""})
+    events = {}
+    event_filters = {"docstatus": ["<", 2], "event_status": ["!=", "Cancelled"],
+                     "start_time": ["between", ["%d-01-01 00:00:00" % year, "%d-12-31 23:59:59" % year]]}
+    for field, column in (("company", "company"), ("branch", "custom_branch"), ("department", "custom_department")):
+        if filters.get(field):
+            event_filters[column] = filters.get(field)
+    meta = frappe.get_meta(EVENT)
+    fields = ["name", "custom_branch", "custom_department", "training_program", "supplier", "start_time", "docstatus"]
+    if meta.has_field("custom_provider"):
+        fields.append("custom_provider")
+    for event in frappe.get_list(EVENT, filters=event_filters, fields=fields, limit_page_length=0):
+        events[event.name] = event
+    names = list(events) or [""]
+    costs = frappe.get_all(COST_ROWS, filters={"parenttype": EVENT, "parent": ["in", names]},
+                           fields=["parent", "cost_type", "amount"], limit_page_length=0)
+    invited = {row.parent: row.n for row in frappe.get_all(
+        "Training Event Employee", filters={"parenttype": EVENT, "parent": ["in", names]},
+        fields=["parent", queries.aggregate("COUNT", "*", "n")], group_by="parent", limit_page_length=0)}
+    programmes = {row.name: row for row in frappe.get_all(
+        "Training Program", filters={"name": ["in", list({e.training_program for e in events.values()
+                                                         if e.training_program}) or [""]]},
+        fields=["name", "custom_training_category", "custom_cost_per_person"], limit_page_length=0)}
+    centres = {}
+    if frappe.get_meta("Department").has_field("payroll_cost_center"):
+        centres = dict(frappe.get_all("Department", filters={"name": ["in", list({e.custom_department for e in
+                                                                                  events.values()
+                                                                                  if e.custom_department}) or [""]]},
+                                      fields=["name", "payroll_cost_center"], as_list=True, limit_page_length=0))
+
+    def facts(event):
+        programme = programmes.get(event.training_program) or {}
+        return {"branch": event.custom_branch, "department": event.custom_department,
+                "training_category": programme.get("custom_training_category"),
+                "training_program": event.training_program, "provider": event.get("custom_provider"),
+                "month": rules.month_of(event.start_time), "cost_center": centres.get(event.custom_department)}
+
+    actuals, commitments, typed = [], [], set()
+    for row in costs:
+        event = events.get(row.parent)
+        if not event:
+            continue
+        typed.add(row.parent)
+        line = dict(facts(event), cost_type=row.cost_type, amount=flt(row.amount))
+        (actuals if event.docstatus == 1 else commitments).append(line)
+    for name, event in events.items():
+        if event.docstatus == 0 and name not in typed:
+            per_person = flt((programmes.get(event.training_program) or {}).get("custom_cost_per_person"))
+            if per_person and invited.get(name):
+                commitments.append(dict(facts(event), cost_type=None, amount=per_person * invited[name]))
+    now = getdate(today())
+    this_month = 13 if year < now.year else (1 if year > now.year else now.month)
+    return rules.budget_vs_actual(plan, actuals, commitments, key, this_month)
+
+
+def calendar_budget(doc, method=None):
+    """The calendar's planned spend against what remains of the year's
+    budget (the plant's, else the company's): kept on the calendar, and said
+    as it goes for approval or is approved when it is more."""
+    filters = {"company": doc.get("company"), "year": cint(doc.get("calendar_year"))}
+    name = None
+    if doc.get("branch"):
+        name = frappe.db.get_value(BUDGET, dict(filters, branch=doc.branch, department=["is", "not set"]), "name")
+    name = name or frappe.db.get_value(BUDGET, dict(filters, branch=["is", "not set"], department=["is", "not set"]),
+                                       "name")
+    if not name:
+        doc.training_budget, doc.budget_remaining, doc.budget_note = None, 0, None
+        return None
+    budget = frappe.db.get_value(BUDGET, name, ["name", "company", "year", "branch", "department", "amount"],
+                                 as_dict=True)
+    spent, committed = _used(budget)
+    remaining = flt(budget.amount) - spent - committed
+    over, by = rules.calendar_check(doc.get("total_budget"), remaining)
+    doc.training_budget, doc.budget_remaining = name, remaining
+    doc.budget_note = _("Exceeds what remains by {0}.").format(frappe.format_value(by, {"fieldtype": "Currency"})) \
+        if over else _("Within what remains.")
+    before = doc.get_doc_before_save()
+    moving = before and before.get("workflow_state") != doc.get("workflow_state")
+    if over and moving:
+        frappe.msgprint(_("The calendar plans {0}; {1} remains of {2}.").format(
+            frappe.format_value(doc.get("total_budget"), {"fieldtype": "Currency"}),
+            frappe.format_value(remaining, {"fieldtype": "Currency"}), name),
+            title=_("Over the Training Budget"), indicator="orange")
+    return over

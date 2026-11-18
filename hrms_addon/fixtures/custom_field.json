@@ -13289,5 +13289,16 @@
   "module": "HRMS Addon",
   "label": "Level 4 Results",
   "default": "1"
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Training Event-custom_provider",
+  "dt": "Training Event",
+  "fieldname": "custom_provider",
+  "fieldtype": "Link",
+  "insert_after": "supplier",
+  "module": "HRMS Addon",
+  "label": "Training Provider",
+  "options": "Training Provider"
  }
 ]
