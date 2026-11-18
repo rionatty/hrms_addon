@@ -217,7 +217,7 @@ for name, controller in (("Training Application Review", "review_validate"),
           "learning_delivery.%s(self)" % controller in source and "\ndef %s(" % controller in GLUE)
 T_REPORTERS = {"System Manager", "HR Manager", "HR User"} | {
     role for role, ptypes in T.PERMISSIONS["Training Event"].items() if "report" in ptypes}
-for folder in ("training_attendance", "training_effectiveness"):
+for folder in ("session_attendance", "training_effectiveness"):
     spec = json.load(open(os.path.join(APP, "report", folder, folder + ".json"), encoding="utf-8"))
     check("wiring: everyone %s is for may report on the Training Event" % spec["name"],
           {row["role"] for row in spec["roles"]} <= T_REPORTERS, {row["role"] for row in spec["roles"]} - T_REPORTERS)

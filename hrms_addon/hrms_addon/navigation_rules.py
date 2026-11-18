@@ -198,7 +198,12 @@ CARDS = {
             # (learning_delivery.py)
             ("Training Application Review", "Training Application Review", DOCTYPE),
             ("Training Impact Review", "Training Impact Review", DOCTYPE),
-            ("Training Attendance", "Training Attendance", REPORT),
+            # each person's days at each session, the sign-in table, the venues
+            # (learning_attendance.py)
+            ("Training Attendance", "Training Attendance", DOCTYPE),
+            ("Training Sign-In", "training-sign-in", PAGE),
+            ("Training Venue", "Training Venue", DOCTYPE),
+            ("Session Attendance", "Session Attendance", REPORT),
             ("Training Effectiveness", "Training Effectiveness", REPORT),
             # each employee's level in each skill, who covers what, the gaps
             # (competency.py)
@@ -723,9 +728,12 @@ SIDEBAR = {
         ("Learning Passport", "learning-passport", PAGE, None, "hr-calendar"),
         ("Employee Training Requirement", "Employee Training Requirement", DOCTYPE, None, "learning-passport"),
         ("Employee Certification", "Employee Certification", DOCTYPE, None, "Employee Training Requirement"),
-        ("Training Application Review", "Training Application Review", DOCTYPE, None, "Employee Certification"),
+        ("Training Attendance", "Training Attendance", DOCTYPE, None, "Employee Certification"),
+        ("Training Sign-In", "training-sign-in", PAGE, None, "Training Attendance"),
+        ("Training Application Review", "Training Application Review", DOCTYPE, None, "training-sign-in"),
         ("Training Impact Review", "Training Impact Review", DOCTYPE, None, "Training Application Review"),
-        ("Training Attendance", "Training Attendance", REPORT, "Reports", None),
+        ("Session Attendance", "Session Attendance", REPORT, "Reports", None),
+        ("Training Venue", "Training Venue", DOCTYPE, "Setup", None),
         ("Training Effectiveness", "Training Effectiveness", REPORT, "Reports", None),
         ("Competency Assessment", "Competency Assessment", DOCTYPE, None, "Training Impact Review"),
         ("Skills Matrix", "Skills Matrix", REPORT, "Reports", None),
@@ -824,7 +832,8 @@ GROUPS = {
                                     "Employee Data Change Request"]),
         ("Training", "graduation-cap", ["Training Requisition", "Training Needs Assessment", "Training Calendar",
                                         "Monthly Training Schedule", "Employee Training Requirement",
-                                        "Employee Certification", "Training Application Review",
+                                        "Employee Certification", "Training Attendance", "training-sign-in",
+                                        "Training Application Review",
                                         "Training Impact Review", "Competency Assessment",
                                         "Training Budget", "Learning Trigger", "CPD Log"]),
         ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
@@ -876,6 +885,8 @@ SHORT_LABELS = {
     "Monthly Training Schedule": "Monthly Schedule",
     "Employee Training Requirement": "Requirements",
     "Employee Certification": "Certificates",
+    "Training Attendance": "Attendance",
+    "training-sign-in": "Sign-In",
     "Employee Grievance": "Grievance",
     "Employee Separation": "Separation",
     "Full and Final Statement": "Final Settlement",

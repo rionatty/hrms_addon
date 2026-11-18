@@ -964,6 +964,19 @@ fixtures = [
                     "Training Event-custom_time_cost",
                     "Training Event-custom_total_cost",
                     "Training Event-custom_cost_per_trainee",
+                    # the session's venue and seats, its attendance figures and waiting list (learning_attendance.py)
+                    "Training Event-custom_venue",
+                    "Training Event-custom_capacity",
+                    "Training Event-custom_seats_left",
+                    "Training Event-custom_allow_walk_in",
+                    "Training Event-custom_attendance_section",
+                    "Training Event-custom_registered",
+                    "Training Event-custom_attended",
+                    "Training Event-custom_attendance_cb",
+                    "Training Event-custom_attendance_rate",
+                    "Training Event-custom_no_show_rate",
+                    "Training Event-custom_waitlist_section",
+                    "Training Event-custom_waitlist",
                     "Training Feedback-custom_ratings_section",
                     "Training Feedback-custom_ratings",
                     "Training Feedback-custom_score",
@@ -2271,14 +2284,23 @@ doc_events = {
             # its costs added up, the trainees' time with them
             # (learning_value.py)
             "hrms_addon.hrms_addon.learning_value.event_costs",
+            # its venue and seats, the waiting list moved up, the clash check
+            # (learning_attendance.py)
+            "hrms_addon.hrms_addon.learning_attendance.event_validate",
         ],
         "before_update_after_submit": "hrms_addon.hrms_addon.learning_value.event_costs",
-        # every save: the year's training budgets brought up to date
-        "on_update": "hrms_addon.hrms_addon.learning_value.event_changed",
+        # every save: the year's training budgets brought up to date, and a row
+        # of attendance per participant per day (learning_attendance.py)
+        "on_update": [
+            "hrms_addon.hrms_addon.learning_value.event_changed",
+            "hrms_addon.hrms_addon.learning_attendance.event_on_update",
+        ],
         # held, changed or cancelled: what its people have done, and the
         # certificate its training gives those who passed (learning.py)
         "on_submit": [
             "hrms_addon.hrms_addon.training.event_on_submit",
+            # held: a day nobody marked is a no-show (learning_attendance.py)
+            "hrms_addon.hrms_addon.learning_attendance.event_on_submit",
             "hrms_addon.hrms_addon.learning.event_changed",
             "hrms_addon.hrms_addon.learning_value.event_changed",
         ],
@@ -2331,6 +2353,11 @@ doc_events = {
     # for one (learning_loop.py)
     "Safety Incident": {
         "on_submit": "hrms_addon.hrms_addon.learning_loop.incident_on_submit",
+    },
+    # two lines of the month's schedule sharing a venue or a trainer at once
+    # (learning_attendance.py)
+    "Monthly Training Schedule": {
+        "validate": "hrms_addon.hrms_addon.learning_attendance.schedule_validate",
     },
 }
 
