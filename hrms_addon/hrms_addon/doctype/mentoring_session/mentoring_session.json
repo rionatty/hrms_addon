@@ -1,0 +1,192 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "trainee_program",
+  "talent_program",
+  "mentor",
+  "mentor_name",
+  "mentee",
+  "mentee_name",
+  "column_break_session",
+  "session_date",
+  "duration_minutes",
+  "mode",
+  "mentee_progress",
+  "next_session",
+  "notes_section",
+  "topics",
+  "actions_agreed",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-MS-.YYYY.-",
+   "default": "LPL-MS-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "trainee_program",
+   "fieldtype": "Link",
+   "label": "Graduate Trainee",
+   "options": "Graduate Trainee Program",
+   "search_index": 1
+  },
+  {
+   "fieldname": "talent_program",
+   "fieldtype": "Link",
+   "label": "Development Plan",
+   "options": "Talent Program",
+   "search_index": 1
+  },
+  {
+   "fieldname": "mentor",
+   "fieldtype": "Link",
+   "label": "Mentor",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "mentor_name",
+   "fieldtype": "Data",
+   "label": "Mentor's Name",
+   "read_only": 1,
+   "fetch_from": "mentor.employee_name"
+  },
+  {
+   "fieldname": "mentee",
+   "fieldtype": "Link",
+   "label": "Mentee",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mentee_name",
+   "fieldtype": "Data",
+   "label": "Mentee",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_session",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "session_date",
+   "fieldtype": "Date",
+   "label": "Held On",
+   "reqd": 1,
+   "default": "Today",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "duration_minutes",
+   "fieldtype": "Int",
+   "label": "Minutes"
+  },
+  {
+   "fieldname": "mode",
+   "fieldtype": "Select",
+   "label": "How",
+   "options": "In Person\nOnline\nOn the Job",
+   "default": "In Person"
+  },
+  {
+   "fieldname": "mentee_progress",
+   "fieldtype": "Select",
+   "label": "Progress",
+   "options": "\nOn Track\nSome Concerns\nOff Track",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "next_session",
+   "fieldtype": "Date",
+   "label": "Next Session"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "The Session"
+  },
+  {
+   "fieldname": "topics",
+   "fieldtype": "Small Text",
+   "label": "What Was Covered",
+   "reqd": 1
+  },
+  {
+   "fieldname": "actions_agreed",
+   "fieldtype": "Small Text",
+   "label": "Actions Agreed"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Mentoring Session",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Mentor",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "print": 1
+  }
+ ],
+ "sort_field": "session_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "mentee_name",
+ "track_changes": 1
+}

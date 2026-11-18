@@ -6,17 +6,25 @@
  "engine": "InnoDB",
  "field_order": [
   "potential_section",
-  "weight_ability",
-  "weight_aspiration",
-  "weight_engagement",
+  "rater_spread",
   "risk_section",
   "watch_high",
   "watch_medium",
+  "role_risk_section",
+  "probability_high",
+  "probability_medium",
+  "probability_low",
+  "column_break_role_risk",
+  "retirement_months",
+  "calibration_section",
+  "guide_tolerance",
   "trainee_section",
   "trainee_pass_mark",
   "column_break_trainee",
   "auto_milestones",
-  "milestone_lead_days"
+  "milestone_lead_days",
+  "rotation_section",
+  "rotation_criteria"
  ],
  "fields": [
   {
@@ -26,25 +34,10 @@
    "description": "How much each counts in the potential score."
   },
   {
-   "fieldname": "weight_ability",
+   "fieldname": "rater_spread",
    "fieldtype": "Float",
-   "label": "Ability",
-   "default": "1",
-   "non_negative": 1
-  },
-  {
-   "fieldname": "weight_aspiration",
-   "fieldtype": "Float",
-   "label": "Aspiration",
-   "default": "1",
-   "non_negative": 1
-  },
-  {
-   "fieldname": "weight_engagement",
-   "fieldtype": "Float",
-   "label": "Engagement",
-   "default": "1",
-   "non_negative": 1
+   "label": "Raters Disagree Above",
+   "default": "1"
   },
   {
    "fieldname": "risk_section",
@@ -62,6 +55,50 @@
    "fieldtype": "Check",
    "label": "Alert on Medium Flight Risk",
    "default": "1"
+  },
+  {
+   "fieldname": "role_risk_section",
+   "fieldtype": "Section Break",
+   "label": "Probability of Loss"
+  },
+  {
+   "fieldname": "probability_high",
+   "fieldtype": "Percent",
+   "label": "High Flight Risk",
+   "default": "60"
+  },
+  {
+   "fieldname": "probability_medium",
+   "fieldtype": "Percent",
+   "label": "Medium Flight Risk",
+   "default": "35"
+  },
+  {
+   "fieldname": "probability_low",
+   "fieldtype": "Percent",
+   "label": "Low Flight Risk",
+   "default": "10"
+  },
+  {
+   "fieldname": "column_break_role_risk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "retirement_months",
+   "fieldtype": "Int",
+   "label": "Retiring Within (Months)",
+   "default": "24"
+  },
+  {
+   "fieldname": "calibration_section",
+   "fieldtype": "Section Break",
+   "label": "Calibration"
+  },
+  {
+   "fieldname": "guide_tolerance",
+   "fieldtype": "Float",
+   "label": "Points Off the Guide Flagged",
+   "default": "5"
   },
   {
    "fieldname": "trainee_section",
@@ -91,10 +128,21 @@
    "default": "7",
    "non_negative": 1,
    "depends_on": "auto_milestones"
+  },
+  {
+   "fieldname": "rotation_section",
+   "fieldtype": "Section Break",
+   "label": "Rotation Assessment"
+  },
+  {
+   "fieldname": "rotation_criteria",
+   "fieldtype": "Table",
+   "label": "Criteria",
+   "options": "Talent Rotation Criterion"
   }
  ],
  "links": [],
- "modified": "2026-11-17 14:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Talent Settings",

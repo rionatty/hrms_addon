@@ -23,6 +23,7 @@
   "column_break_2",
   "appraisal_band",
   "performance_band",
+  "calibrated_performance",
   "pip_column",
   "on_pip",
   "improvement_plan",
@@ -31,17 +32,20 @@
   "quarters_section",
   "quarter_results",
   "potential_section",
-  "ability",
-  "aspiration",
-  "engagement",
+  "raters",
+  "potential_mean",
+  "rater_spread",
+  "raters_disagree",
   "column_break_3",
   "potential_score",
   "potential_band",
   "calibrated_potential",
   "competency_average",
+  "potential_summary",
   "competencies",
   "box_section",
   "box",
+  "nine_box",
   "box_name",
   "box_colour",
   "column_break_4",
@@ -49,6 +53,7 @@
   "suggested_decision",
   "top_talent",
   "submitted_box",
+  "calibration_session",
   "rationale",
   "calibration_reason",
   "risk_section",
@@ -57,6 +62,10 @@
   "column_break_5",
   "risk_notified",
   "impact_of_loss",
+  "risk_assessed_on",
+  "risk_alerted",
+  "retention_section",
+  "retention_actions",
   "development_section",
   "themes",
   "development_plan",
@@ -90,7 +99,8 @@
    "options": "Talent Review",
    "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "search_index": 1
   },
   {
    "fieldname": "employee",
@@ -98,7 +108,8 @@
    "label": "Employee",
    "options": "Employee",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "search_index": 1
   },
   {
    "fieldname": "employee_name",
@@ -203,6 +214,14 @@
    "permlevel": 1
   },
   {
+   "fieldname": "calibrated_performance",
+   "fieldtype": "Select",
+   "label": "Performance after Calibration",
+   "options": "\nLow\nMeeting\nExceeding",
+   "read_only": 1,
+   "permlevel": 1
+  },
+  {
    "fieldname": "pip_column",
    "fieldtype": "Column Break"
   },
@@ -253,25 +272,28 @@
    "description": "The line manager's rating, each out of 10."
   },
   {
-   "fieldname": "ability",
-   "fieldtype": "Float",
-   "label": "Ability",
-   "precision": "2",
-   "description": "Can they do the bigger job?"
+   "fieldname": "raters",
+   "fieldtype": "Int",
+   "label": "Raters",
+   "read_only": 1
   },
   {
-   "fieldname": "aspiration",
+   "fieldname": "potential_mean",
    "fieldtype": "Float",
-   "label": "Aspiration",
-   "precision": "2",
-   "description": "Do they want it?"
+   "label": "Weighted Mean (1 to 5)",
+   "read_only": 1
   },
   {
-   "fieldname": "engagement",
+   "fieldname": "rater_spread",
    "fieldtype": "Float",
-   "label": "Engagement",
-   "precision": "2",
-   "description": "Are they committed to the company?"
+   "label": "Spread Between Raters",
+   "read_only": 1
+  },
+  {
+   "fieldname": "raters_disagree",
+   "fieldtype": "Check",
+   "label": "Raters Disagree",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_3",
@@ -308,6 +330,13 @@
    "precision": "2"
   },
   {
+   "fieldname": "potential_summary",
+   "fieldtype": "Table",
+   "label": "Potential by Criterion",
+   "options": "Talent Potential Score",
+   "read_only": 1
+  },
+  {
    "fieldname": "competencies",
    "fieldtype": "Table",
    "label": "Competency Evidence",
@@ -326,6 +355,14 @@
    "read_only": 1,
    "permlevel": 1,
    "in_list_view": 1
+  },
+  {
+   "fieldname": "nine_box",
+   "fieldtype": "Link",
+   "label": "Nine Box",
+   "options": "Nine Box",
+   "read_only": 1,
+   "permlevel": 1
   },
   {
    "fieldname": "box_name",
@@ -379,6 +416,15 @@
    "print_hide": 1
   },
   {
+   "fieldname": "calibration_session",
+   "fieldtype": "Link",
+   "label": "Calibrated In",
+   "options": "Calibration Session",
+   "read_only": 1,
+   "permlevel": 1,
+   "no_copy": 1
+  },
+  {
    "fieldname": "rationale",
    "fieldtype": "Text",
    "label": "Rationale",
@@ -426,6 +472,35 @@
    "fieldtype": "Select",
    "label": "Impact of Loss",
    "options": "\nHigh\nMedium\nLow"
+  },
+  {
+   "fieldname": "risk_assessed_on",
+   "fieldtype": "Date",
+   "label": "Last Assessed",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "risk_alerted",
+   "fieldtype": "Data",
+   "label": "Alerted At",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "retention_section",
+   "fieldtype": "Section Break",
+   "label": "Retention Actions",
+   "permlevel": 1
+  },
+  {
+   "fieldname": "retention_actions",
+   "fieldtype": "Table",
+   "label": "Retention Actions",
+   "options": "Retention Action",
+   "permlevel": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "development_section",
@@ -519,7 +594,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-05 16:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Talent Placement",
@@ -556,19 +631,15 @@
    "role": "HR Manager"
   },
   {
+   "role": "Talent Council",
    "read": 1,
    "write": 1,
-   "create": 1,
-   "delete": 1,
+   "submit": 1,
    "report": 1,
    "export": 1,
    "print": 1,
    "email": 1,
-   "share": 1,
-   "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "role": "Talent Council"
+   "share": 1
   },
   {
    "read": 1,
@@ -626,6 +697,28 @@
    "read": 1,
    "permlevel": 1,
    "role": "HR User"
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "General Manager",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
+   "role": "Executive Director",
+   "permlevel": 1,
+   "read": 1
   }
  ],
  "sort_field": "modified",

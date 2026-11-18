@@ -32,6 +32,14 @@
   "actions_section",
   "actions",
   "training_requisition",
+  "investment_section",
+  "approved_investment",
+  "actual_investment",
+  "mentoring_sessions",
+  "column_break_investment",
+  "experience_share",
+  "exposure_share",
+  "education_share",
   "training_section",
   "trainings",
   "review_section",
@@ -234,7 +242,7 @@
    "fieldname": "actions",
    "fieldtype": "Table",
    "label": "Development Actions",
-   "options": "Development Action"
+   "options": "Talent Plan Action"
   },
   {
    "fieldname": "training_requisition",
@@ -243,6 +251,57 @@
    "options": "Training Requisition",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "investment_section",
+   "fieldtype": "Section Break",
+   "label": "Investment"
+  },
+  {
+   "fieldname": "approved_investment",
+   "fieldtype": "Currency",
+   "label": "Approved",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "actual_investment",
+   "fieldtype": "Currency",
+   "label": "Spent",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "mentoring_sessions",
+   "fieldtype": "Int",
+   "label": "Mentoring Sessions",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "column_break_investment",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "experience_share",
+   "fieldtype": "Percent",
+   "label": "Experience",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "exposure_share",
+   "fieldtype": "Percent",
+   "label": "Exposure",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "education_share",
+   "fieldtype": "Percent",
+   "label": "Education",
+   "read_only": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "training_section",
@@ -363,7 +422,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-11-17 14:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Talent Program",
@@ -412,19 +471,15 @@
    "role": "HR User"
   },
   {
+   "role": "Talent Council",
    "read": 1,
    "write": 1,
-   "create": 1,
-   "delete": 1,
+   "submit": 1,
    "report": 1,
    "export": 1,
    "print": 1,
    "email": 1,
-   "share": 1,
-   "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "role": "Talent Council"
+   "share": 1
   },
   {
    "read": 1,

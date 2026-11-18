@@ -1,0 +1,270 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "trainee_program",
+  "trainee_name",
+  "cohort",
+  "rotation",
+  "department",
+  "branch",
+  "from_date",
+  "to_date",
+  "column_break_assessor",
+  "supervisor",
+  "supervisor_name",
+  "assessed_on",
+  "overall_score",
+  "recommendation",
+  "criteria_section",
+  "criteria",
+  "comments_section",
+  "strengths",
+  "column_break_comments",
+  "development_areas",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-RA-.YYYY.-",
+   "default": "LPL-RA-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "trainee_program",
+   "fieldtype": "Link",
+   "label": "Graduate Trainee",
+   "options": "Graduate Trainee Program",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "trainee_name",
+   "fieldtype": "Data",
+   "label": "Trainee",
+   "read_only": 1,
+   "fetch_from": "trainee_program.trainee_name",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cohort",
+   "fieldtype": "Link",
+   "label": "Cohort",
+   "options": "Graduate Cohort",
+   "read_only": 1,
+   "fetch_from": "trainee_program.cohort",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "rotation",
+   "fieldtype": "Data",
+   "label": "Rotation",
+   "read_only": 1,
+   "hidden": 1
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Function",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From",
+   "read_only": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_assessor",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "supervisor",
+   "fieldtype": "Link",
+   "label": "Rotation Supervisor",
+   "options": "Employee",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "supervisor_name",
+   "fieldtype": "Data",
+   "label": "Supervisor's Name",
+   "read_only": 1,
+   "fetch_from": "supervisor.employee_name"
+  },
+  {
+   "fieldname": "assessed_on",
+   "fieldtype": "Date",
+   "label": "Assessed On",
+   "reqd": 1,
+   "default": "Today"
+  },
+  {
+   "fieldname": "overall_score",
+   "fieldtype": "Float",
+   "label": "Score out of 100",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "label": "Recommendation",
+   "options": "\nContinue Rotation\nExtend Rotation\nReady for Placement\nExit Programme",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "criteria_section",
+   "fieldtype": "Section Break",
+   "label": "Criteria"
+  },
+  {
+   "fieldname": "criteria",
+   "fieldtype": "Table",
+   "label": "Criteria",
+   "options": "Rotation Assessment Score",
+   "reqd": 1
+  },
+  {
+   "fieldname": "comments_section",
+   "fieldtype": "Section Break",
+   "label": "Comments"
+  },
+  {
+   "fieldname": "strengths",
+   "fieldtype": "Small Text",
+   "label": "Strengths"
+  },
+  {
+   "fieldname": "column_break_comments",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "development_areas",
+   "fieldtype": "Small Text",
+   "label": "To Develop"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Rotation Assessment",
+   "read_only": 1,
+   "no_copy": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Rotation Assessment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Supervisor",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "amend": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "amend": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Mentor",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "trainee_name",
+ "track_changes": 1
+}

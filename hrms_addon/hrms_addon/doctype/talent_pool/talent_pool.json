@@ -1,0 +1,262 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "pool_name",
+  "pool_type",
+  "pool_owner",
+  "company",
+  "column_break_pool",
+  "branch",
+  "talent_review",
+  "status",
+  "confirmed_by",
+  "confirmed_on",
+  "for_section",
+  "target_roles",
+  "column_break_for",
+  "eligible_boxes",
+  "members_section",
+  "get_members",
+  "members",
+  "active_members",
+  "confirmed_members",
+  "council_section",
+  "council_remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPL-POOL-.YYYY.-",
+   "default": "LPL-POOL-.YYYY.-",
+   "reqd": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "pool_name",
+   "fieldtype": "Data",
+   "label": "Pool",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "pool_type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "Leadership\nTechnical Specialist\nCritical Role\nHigh Potential\nGraduate",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "pool_owner",
+   "fieldtype": "Link",
+   "label": "Owner",
+   "options": "User"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_pool",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "label": "Plant",
+   "options": "Branch",
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "talent_review",
+   "fieldtype": "Link",
+   "label": "Drawn From Review",
+   "options": "Talent Review"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nConfirmed\nClosed",
+   "default": "Draft",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "confirmed_by",
+   "fieldtype": "Link",
+   "label": "Confirmed By",
+   "options": "User",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "confirmed_on",
+   "fieldtype": "Date",
+   "label": "Confirmed On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "for_section",
+   "fieldtype": "Section Break",
+   "label": "Who It Is For"
+  },
+  {
+   "fieldname": "target_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Target Roles",
+   "options": "Talent Pool Role"
+  },
+  {
+   "fieldname": "column_break_for",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "eligible_boxes",
+   "fieldtype": "Table MultiSelect",
+   "label": "Eligible Boxes",
+   "options": "Talent Pool Box"
+  },
+  {
+   "fieldname": "members_section",
+   "fieldtype": "Section Break",
+   "label": "Members"
+  },
+  {
+   "fieldname": "get_members",
+   "fieldtype": "Button",
+   "label": "Get Members"
+  },
+  {
+   "fieldname": "members",
+   "fieldtype": "Table",
+   "label": "Members",
+   "options": "Talent Pool Member"
+  },
+  {
+   "fieldname": "active_members",
+   "fieldtype": "Int",
+   "label": "Active Members",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confirmed_members",
+   "fieldtype": "Int",
+   "label": "Confirmed Members",
+   "read_only": 1
+  },
+  {
+   "fieldname": "council_section",
+   "fieldtype": "Section Break",
+   "label": "Talent Council"
+  },
+  {
+   "fieldname": "council_remarks",
+   "fieldtype": "Text",
+   "label": "Council's Remarks"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Talent Pool",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "System Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "permlevel": 1,
+   "read": 1,
+   "write": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1
+  },
+  {
+   "role": "HR User",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
+   "role": "Talent Council",
+   "read": 1,
+   "write": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Talent Council",
+   "permlevel": 1,
+   "read": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "pool_name",
+ "track_changes": 1
+}

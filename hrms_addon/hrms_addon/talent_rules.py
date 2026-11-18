@@ -15,25 +15,24 @@ falls into three bands. The line between Low and Meeting is the same sixty
 the performance module puts a PIP below, so a person on a PIP is a person
 in the bottom row — the two modules cannot disagree.
 
-Potential is judged by the line manager on three things the literature and
-Luuka's own council both use: whether they CAN (ability), whether they WANT
-to (aspiration), and whether they are here for it (engagement). Each is
-scored out of ten and they weigh the same, because no one at Luuka has
-argued one of them matters more. Competency levels come across from the
-appraisal as evidence for that judgement, not as a fourth score: a manager
-reads them and rates, rather than the grid rating on their behalf.
+Potential is rated on Potential Assessments, one a rater, against the
+Potential Criteria HR keep (ability, aspiration, engagement and learning
+agility to start with), each 1 to 5 and weighed as the criterion says
+(potential_rules.py). The placement takes the raters' weighted mean, out of
+a hundred (a 3 is 60, a 4 is 80), and is flagged where the raters disagree.
+Competency levels come across from the appraisal and from L&D as evidence
+for that judgement, not as a score of their own.
 
-THE GRID
+THE GRID (the talent blueprint v2.0, section 4, in Luuka's own words)
 
     potential                                                  performance
-                 Low (<60)          Meeting (60-79)    Exceeding (80+)
-    High (80+)   3 Potential Gem    6 High Potential   9 Star
-    Mod (60-79)  2 Inconsistent     5 Core Player      8 High Performer
-    Low (<60)    1 Risk             4 Average          7 Trusted Pro
+                 Low (<60)            Meeting (60-79)          Exceeding (80+)
+    High (80+)   3 Growth Talent      6 Future Leader          9 Star / Top Talent
+    Mod (60-79)  2 Inconsistent       5 Core Player            8 High Performer
+    Low (<60)    1 Under-performer    4 Effective / Specialist 7 Trusted Professional
 
-The three boxes on the right-hand column with potential to match — 6, 8 and
-9 — are the succession pool and the people worth losing sleep over, so they
-are the ones flight risk is watched on.
+Boxes 6, 8 and 9 are the succession pool and the people worth losing sleep
+over, so they are the ones flight risk is watched on.
 """
 
 import calendar
@@ -53,55 +52,69 @@ PERFORMANCE_BANDS = ((EXCEEDS_FROM, EXCEEDING), (MEETS_FROM, MEETING), (0.0, LOW
 POTENTIAL_BANDS = ((EXCEEDS_FROM, POTENTIAL_HIGH), (MEETS_FROM, POTENTIAL_MODERATE),
                    (0.0, POTENTIAL_LOW))
 
-POTENTIAL_DIMENSIONS = ("ability", "aspiration", "engagement")
-DIMENSION_OUT_OF = 10.0
-
 # ── The grid ──────────────────────────────────────────────────────────
-# (performance band, potential band) -> box
+# (performance band, potential band) -> box. The names and actions are the
+# blueprint's own (v2.0, section 4), word for word.
 BOXES = {
     (LOW, POTENTIAL_LOW): {
-        "box": 1, "name": "Risk", "colour": "Red",
-        "action": "Exit, or move to work that fits",
-        "decision": "Replacement"},
+        "box": 1, "name": "Under-performer", "colour": "Red",
+        "action": "Formal PMS support; decide.",
+        "decision": "Improve"},
     (LOW, POTENTIAL_MODERATE): {
         "box": 2, "name": "Inconsistent Player", "colour": "Orange",
-        "action": "Find out what is in the way, and coach",
+        "action": "Remove blockers; clear path.",
         "decision": "Improve"},
     (LOW, POTENTIAL_HIGH): {
-        "box": 3, "name": "Potential Gem", "colour": "Yellow",
-        "action": "Develop, or move to a better fit",
+        "box": 3, "name": "Growth Talent", "colour": "Yellow",
+        "action": "Coach; time to deliver; watch closely.",
         "decision": "Improve"},
     (MEETING, POTENTIAL_LOW): {
-        "box": 4, "name": "Average Performer", "colour": "Orange",
-        "action": "Lift performance in the role",
-        "decision": "Improve"},
+        "box": 4, "name": "Effective / Specialist", "colour": "Yellow",
+        "action": "Recognise; sustain.",
+        "decision": "Retain in Role"},
     (MEETING, POTENTIAL_MODERATE): {
         "box": 5, "name": "Core Player", "colour": "Yellow",
-        "action": "Grow in the role",
+        "action": "The dependable plant engine.",
         "decision": "Retain in Role"},
     (MEETING, POTENTIAL_HIGH): {
-        "box": 6, "name": "High Potential", "colour": "Blue",
-        "action": "Give a stretch assignment",
+        "box": 6, "name": "Future Leader", "colour": "Blue",
+        "action": "Stretch scope and exposure.",
         "decision": "Succession Pipeline"},
     (EXCEEDING, POTENTIAL_LOW): {
         "box": 7, "name": "Trusted Professional", "colour": "Yellow",
-        "action": "Keep, reward, and use as a teacher",
+        "action": "Protect, retain, use as expert.",
         "decision": "Retain in Role"},
     (EXCEEDING, POTENTIAL_MODERATE): {
         "box": 8, "name": "High Performer", "colour": "Blue",
-        "action": "Develop for the next role",
+        "action": "Deepen expertise; lateral growth.",
         "decision": "Promotion"},
     (EXCEEDING, POTENTIAL_HIGH): {
-        "box": 9, "name": "Star", "colour": "Green",
-        "action": "Put in the succession pool, and keep",
+        "box": 9, "name": "Star / Top Talent", "colour": "Green",
+        "action": "Retain, reward, fast-track, successor.",
         "decision": "Succession Pipeline"},
+}
+# the grid as the first build seeded it, before the blueprint's names: a
+# master still holding these was never changed by HR, and takes the new
+OLD_SEED = {
+    1: ("Risk", "Exit, or move to work that fits", "Red"),
+    2: ("Inconsistent Player", "Find out what is in the way, and coach", "Orange"),
+    3: ("Potential Gem", "Develop, or move to a better fit", "Yellow"),
+    4: ("Average Performer", "Lift performance in the role", "Orange"),
+    5: ("Core Player", "Grow in the role", "Yellow"),
+    6: ("High Potential", "Give a stretch assignment", "Blue"),
+    7: ("Trusted Professional", "Keep, reward, and use as a teacher", "Yellow"),
+    8: ("High Performer", "Develop for the next role", "Blue"),
+    9: ("Star", "Put in the succession pool, and keep", "Green"),
 }
 BOX_NAMES = tuple(BOXES[key]["name"] for key in sorted(BOXES, key=lambda k: BOXES[k]["box"]))
 TOP_TALENT = (6, 8, 9)
 # the board's three strips: the boxes worth keeping and growing, the middle
-# of the grid, and the ones somebody has to act on
-CORE = (3, 5, 7)
-ATTENTION = (1, 2, 4)
+# of the grid, and the ones somebody has to act on (coach, unblock, decide)
+CORE = (4, 5, 7)
+ATTENTION = (1, 2, 3)
+# a distribution guide to calibrate against: the share of a population each
+# box is expected to hold. HR keep it on the Nine Box records.
+GUIDE = {1: 5.0, 2: 10.0, 3: 5.0, 4: 10.0, 5: 35.0, 6: 10.0, 7: 5.0, 8: 10.0, 9: 10.0}
 # box -> (performance band, potential band)
 BOX_AXES = {spec["box"]: key for key, spec in BOXES.items()}
 DECISIONS = ("Succession Pipeline", "Promotion", "Replacement", "Retain in Role", "Improve")
@@ -113,44 +126,54 @@ POTENTIAL_NAMES = (POTENTIAL_LOW, POTENTIAL_MODERATE, POTENTIAL_HIGH)
 # ── The grid as HR keep it (blueprint section 3: "business rules must be
 # configurable") ──────────────────────────────────────────────────────
 # Performance Band and Potential Band hold where each band starts, Nine Box
-# each cell's name, colour, action, decision and whether it is top talent,
-# Talent Settings how ability, aspiration and engagement weigh and the
-# trainee pass mark. The grid stays three by three: the band names and the
-# box numbers are what everything else (the board, the reports, succession)
-# is keyed on, so HR change what each means, not what there is.
-def grid_from(performance=None, potential=None, boxes=None, settings=None):
+# each cell's name, colour, action, decision, whether it is top talent and
+# its share of the distribution guide, Potential Criterion how each part of
+# potential weighs, Talent Settings the trainee pass mark. The grid stays
+# three by three: the band names and the box numbers are what everything
+# else (the board, the reports, succession) is keyed on, so HR change what
+# each means, not what there is.
+def grid_from(performance=None, potential=None, boxes=None, settings=None, criteria=None):
     """The grid as kept, the built-in values for whatever is not.
 
     performance, potential: [{"name": band, "score_from": floor}], all three
     or none counts; boxes: [{"box", "box_name", "colour", "default_action",
-    "suggested_decision", "top_talent"}]; settings: {"weight_ability",
-    "weight_aspiration", "weight_engagement", "trainee_pass_mark"}.
+    "suggested_decision", "top_talent", "guide_share"}]; settings:
+    {"trainee_pass_mark"}; criteria: [{"name", "weight", "active"}].
     """
     settings = settings or {}
     kept = {int(_number(row.get("box"))): row for row in boxes or () if row.get("box") not in (None, "")}
     table = {}
     for key, spec in BOXES.items():
         row = kept.get(spec["box"])
-        cell = dict(spec, top=spec["box"] in TOP_TALENT)
+        cell = dict(spec, top=spec["box"] in TOP_TALENT, guide=GUIDE[spec["box"]])
         if row:
             cell.update({"name": _text(row.get("box_name")) or spec["name"],
                          "colour": row.get("colour") if row.get("colour") in COLOURS else spec["colour"],
                          "action": _text(row.get("default_action")) or spec["action"],
                          "decision": row.get("suggested_decision") if row.get("suggested_decision") in DECISIONS
                          else spec["decision"],
-                         "top": bool(int(_number(row.get("top_talent"))))})
+                         "top": bool(int(_number(row.get("top_talent")))),
+                         "guide": _number(row.get("guide_share")) if row.get("guide_share") not in (None, "")
+                         else GUIDE[spec["box"]]})
         table[key] = cell
-    weights = {name: (_number(settings.get("weight_" + name))
-                      if settings.get("weight_" + name) not in (None, "") else 1.0)
-               for name in POTENTIAL_DIMENSIONS}
-    if not sum(weights.values()):
-        weights = dict.fromkeys(POTENTIAL_DIMENSIONS, 1.0)
+    weights = {row.get("name"): _number(row.get("weight")) for row in criteria or ()
+               if row.get("name") and int(_number(row.get("active") if row.get("active") is not None else 1))
+               and _number(row.get("weight")) > 0}
     pass_mark = settings.get("trainee_pass_mark")
     return {"performance_bands": _bands(performance, PERFORMANCE_BANDS),
             "potential_bands": _bands(potential, POTENTIAL_BANDS),
             "boxes": table, "top_talent": tuple(sorted(cell["box"] for cell in table.values() if cell["top"])),
             "weights": weights,
             "pass_mark": _number(pass_mark) if pass_mark not in (None, "") and _number(pass_mark) > 0 else PASS_MARK}
+
+
+def box_of(number, grid=None):
+    """A box's cell as kept, by its number: {"box", "name", "colour", ...}."""
+    number = int(_number(number)) if number not in (None, "") else None
+    for cell in ((grid or {}).get("boxes") or BOXES).values():
+        if cell["box"] == number:
+            return dict(cell)
+    return None
 
 
 def _bands(rows, built_in):
@@ -225,18 +248,8 @@ def performance_band(score, grid=None):
     return next(name for floor, name in bands if _number(score) >= floor)
 
 
-def potential_score(assessment, grid=None):
-    """Ability, aspiration and engagement, each out of ten, weighed as
-    Talent Settings say (the same, by default), as a score out of a hundred.
-    A dimension left blank is not counted, so a half-finished assessment
-    does not read as a low one."""
-    weights = (grid or {}).get("weights") or dict.fromkeys(POTENTIAL_DIMENSIONS, 1.0)
-    given = [(_number(assessment.get(name)), _number(weights.get(name, 1.0))) for name in POTENTIAL_DIMENSIONS
-             if assessment.get(name) not in (None, "")]
-    weight = sum(share for _score, share in given)
-    if not given or not weight:
-        return None
-    return round(sum(score * share for score, share in given) / weight * (100.0 / DIMENSION_OUT_OF), 2)
+# a competency or an LPL/HR/18 factor, as the appraisal gives it, out of ten
+DIMENSION_OUT_OF = 10.0
 
 
 def potential_band(score, grid=None):
@@ -275,13 +288,8 @@ def placement_errors(facts):
     if facts.get("performance_score") in (None, ""):
         errors.append("There is no appraisal score for this employee in the cycle, so the "
                       "performance band cannot be read. Complete the appraisal first.")
-    missing = [name for name in POTENTIAL_DIMENSIONS if facts.get(name) in (None, "")]
-    if missing:
-        errors.append("Rate the employee on %s out of ten." % _and(missing))
-    for name in POTENTIAL_DIMENSIONS:
-        value = facts.get(name)
-        if value not in (None, "") and not 0 <= _number(value) <= DIMENSION_OUT_OF:
-            errors.append("%s is rated out of ten." % name.title())
+    if not int(_number(facts.get("raters"))):
+        errors.append("Potential is not rated yet. Submit a Potential Assessment for the employee first.")
     if not _text(facts.get("rationale")):
         errors.append("Write the rationale for the placement. The council reads it, not the grid.")
     return errors
@@ -688,11 +696,17 @@ def box_axes(box):
     return BOX_AXES.get(int(_number(box))) if box not in (None, "") else None
 
 
+def effective_performance(rated, calibrated=None):
+    """The performance band the box is drawn from: the one calibration gave,
+    else the appraisal's."""
+    return calibrated or rated
+
+
 def move_errors(facts):
     """A box moved on the board during calibration (test case 7). The peer
-    group moves a person up or down their column: potential is theirs to
-    weigh across the plants, performance is the appraisal's, and changing
-    it is done on the appraisal, not here.
+    group may move a person on either axis: potential is theirs to weigh
+    across the plants, and a performance band read off one plant's
+    appraisals may be calibrated against the others. Every move says why.
 
     facts: "state" (the placement's), "calibrating" (the state that means
     calibration), "from_box", "to_box", "reason"."""
@@ -706,12 +720,78 @@ def move_errors(facts):
     from_axes = box_axes(facts.get("from_box"))
     if from_axes and from_axes == to_axes:
         errors.append("The placement is already in that box.")
-    elif from_axes and from_axes[0] != to_axes[0]:
-        errors.append("Performance comes from the appraisal, so a placement moves up or down its "
-                      "column only. Correct the appraisal to change it.")
     if not _text(facts.get("reason")):
         errors.append("Say why the placement moves. Calibration is recorded, not silent.")
     return errors
+
+
+def calibrated_bands(rated_performance, rated_potential, to_box):
+    """What a move to a box sets: (calibrated performance, calibrated
+    potential), each None where it is the rated band itself, so moving back
+    takes the calibration off."""
+    axes = box_axes(to_box)
+    if not axes:
+        return None, None
+    performance, potential = axes
+    return (None if performance == rated_performance else performance,
+            None if potential == rated_potential else potential)
+
+
+# ── The development plan's actions (the 70/20/10 rule) ───────────────
+# Experience is learnt on the job, exposure from others, education on a
+# course: about 70, 20 and 10 of every hundred.
+EXPERIENCE, EXPOSURE, EDUCATION = "Experience", "Exposure", "Education"
+ACTION_TYPES = (EXPERIENCE, EXPOSURE, EDUCATION)
+MIX_GUIDE = {EXPERIENCE: 70, EXPOSURE: 20, EDUCATION: 10}
+ACTION_STATUSES = ("Not Started", "In Progress", "Done", "Dropped")
+DONE, DROPPED = "Done", "Dropped"
+
+
+def plan_investment(actions):
+    """What a plan costs: approved and spent, its actions by type and the
+    mix as shares of a hundred, against the 70/20/10 guide."""
+    rows = [row for row in actions or [] if row.get("status") != DROPPED]
+    counts = {kind: len([row for row in rows if row.get("action_type") == kind]) for kind in ACTION_TYPES}
+    typed = sum(counts.values())
+    return {"approved": round(sum(_number(row.get("approved_cost")) for row in rows), 2),
+            "actual": round(sum(_number(row.get("actual_cost")) for row in rows), 2),
+            "counts": counts,
+            "mix": {kind: share(counts[kind], typed) for kind in ACTION_TYPES},
+            "untyped": len(rows) - typed}
+
+
+def action_errors(rows):
+    """What a plan's actions must carry: something to do, a known type and
+    status, progress out of a hundred, a done action its date and an actual
+    cost no less than nought."""
+    errors = []
+    for number, row in enumerate(rows or [], 1):
+        if not _text(row.get("action")):
+            errors.append("Action %d has nothing to do." % number)
+        if row.get("action_type") and row["action_type"] not in ACTION_TYPES:
+            errors.append("Action %d is Experience, Exposure or Education." % number)
+        if row.get("status") and row["status"] not in ACTION_STATUSES:
+            errors.append("Action %d has an unknown status." % number)
+        if not 0 <= _number(row.get("progress")) <= 100:
+            errors.append("Action %d: progress is out of 100." % number)
+        if _number(row.get("approved_cost")) < 0 or _number(row.get("actual_cost")) < 0:
+            errors.append("Action %d: a cost is not below 0." % number)
+    return errors
+
+
+def action_state(row, today):
+    """A row's (status, progress, completed on) kept in step: a completion
+    date makes it Done at 100, and Done without one is done today."""
+    status = row.get("status") or (DONE if row.get("completed_on") else "Not Started")
+    progress = _number(row.get("progress"))
+    completed = row.get("completed_on")
+    if completed:
+        return DONE, 100.0, completed
+    if status == DONE:
+        return DONE, 100.0, str(today)[:10]
+    if status == "In Progress" and not progress:
+        progress = 0.0
+    return status, progress, None
 
 
 def board(placements, grid=None):
