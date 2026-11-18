@@ -210,10 +210,12 @@ TABS = (
         # on Frappe HR's Tenure page, whose Dashboard button opens the Tenure tab
         "key": "training", "title": "Training", "icon": "training", "roles": PEOPLE_ROLES,
         "anchors": ("Training Event", "Training Requisition"), "workspaces": (), "opens": "Tenure",
-        "cards": ("trainings_month", "trainings_held", "requisitions_open", "evaluation_score"),
+        # compliance and certificates first (the LMS rebuild, 18 Nov 2026)
+        "cards": ("training_compliance", "certificates_valid", "certificates_expiring", "trainings_month"),
         "panels": ("attention", "training_trend", "trainings_coming", "training_types"),
-        "reports": ("Training Report", "Programme Effectiveness", "Development Plan Tracker"),
-        "pages": (("hr-calendar", "HR Calendar"),),
+        "reports": ("Training Compliance", "Certification Expiry", "Training Report", "Programme Effectiveness",
+                    "Development Plan Tracker"),
+        "pages": (("learning-command-centre", "Learning Command Centre"), ("hr-calendar", "HR Calendar")),
     },
     {
         # discipline, grievances and safety, on the Tenure page too
@@ -277,6 +279,8 @@ REPORT_DOCTYPES = {
     "Top Talent and Flight Risk": "Talent Placement",
     "Appraisal Overview": "Appraisal",
     "Training Report": "Training Event",
+    "Training Compliance": "Employee Training Requirement",
+    "Certification Expiry": "Employee Certification",
     "Programme Effectiveness": "Talent Program",
     "Development Plan Tracker": "Talent Program",
     "Serving Notice": "Employee Separation",
@@ -448,6 +452,11 @@ FIGURES = {
         "filters": {"docstatus": 1, "start_time": [">=", "{year}"]}, "company": True, "note": "Since 1 January",
         "tone": "green",
     },
+    "certificates_expiring": {
+        "label": "Certificates Expiring", "kind": COUNT, "icon": "deadlines", "doctype": "Employee Certification",
+        "function": "COUNT", "filters": {"status": "Due Soon"}, "note": "Within 90 days", "tone": "amber",
+        "quiet": "green",
+    },
     "requisitions_open": {
         "label": "Requisitions Open", "kind": COUNT, "icon": "contracts", "doctype": "Training Requisition",
         "function": "COUNT", "filters": {"status": ["in", list(REQUISITION_OPEN)]},
@@ -501,6 +510,8 @@ CARDS = {
     "quarter_appraised": ("Appraised This Quarter", PERCENT, ("Appraisal",), "done", False),
     "quarter_score": ("Average This Quarter", PERCENT, ("Appraisal",), "performance", False),
     "evaluation_score": ("Average Evaluation", PERCENT, ("Training Event",), "training", False),
+    "training_compliance": ("Required Training Done", PERCENT, ("Employee Training Requirement",), "training", False),
+    "certificates_valid": ("Certificates Valid", PERCENT, ("Employee Certification",), "done", False),
     "probations_due": ("Probations Ending", COUNT, ("Employee",), "deadlines", False),
     "absence_month": ("Absence This Month", PERCENT, ("Attendance",), "attendance", False),
     "unmarked_today": ("Not Marked Today", COUNT, ("Attendance", "Employee"), "waiting", False),

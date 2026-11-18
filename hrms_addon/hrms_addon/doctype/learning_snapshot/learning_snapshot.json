@@ -1,0 +1,424 @@
+{
+ "actions": [],
+ "creation": "2026-11-18 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "month_start",
+  "source",
+  "column_break_snapshot",
+  "health_score",
+  "health_status",
+  "built_on",
+  "parts_section",
+  "part_mandatory",
+  "part_certification",
+  "part_coverage",
+  "part_competency",
+  "part_attendance",
+  "part_assessment",
+  "part_effectiveness",
+  "part_budget_use",
+  "part_critical",
+  "counts_section",
+  "headcount",
+  "required",
+  "done",
+  "overdue",
+  "due_soon",
+  "mandatory_required",
+  "mandatory_done",
+  "cert_valid",
+  "cert_expiring",
+  "cert_expired",
+  "trained",
+  "hours",
+  "sessions",
+  "attended",
+  "marked",
+  "assessed",
+  "passed",
+  "competent",
+  "skills_assessed",
+  "critical_ok",
+  "critical_total",
+  "reviews_done",
+  "review_score",
+  "kpis_measured",
+  "kpis_improved",
+  "spend",
+  "budget",
+  "lines_section",
+  "lines"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "month_start",
+   "fieldtype": "Date",
+   "label": "Month",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "label": "Source",
+   "options": "System\nImported",
+   "default": "System"
+  },
+  {
+   "fieldname": "column_break_snapshot",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "health_score",
+   "fieldtype": "Float",
+   "label": "Learning Health",
+   "precision": "1",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "health_status",
+   "fieldtype": "Data",
+   "label": "Health",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "built_on",
+   "fieldtype": "Datetime",
+   "label": "Built On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "parts_section",
+   "fieldtype": "Section Break",
+   "label": "Learning Health Parts"
+  },
+  {
+   "fieldname": "part_mandatory",
+   "fieldtype": "Percent",
+   "label": "Mandatory Compliance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_certification",
+   "fieldtype": "Percent",
+   "label": "Certification Compliance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_coverage",
+   "fieldtype": "Percent",
+   "label": "Training Coverage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_competency",
+   "fieldtype": "Percent",
+   "label": "Competency Coverage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_attendance",
+   "fieldtype": "Percent",
+   "label": "Attendance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_assessment",
+   "fieldtype": "Percent",
+   "label": "Assessment Performance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_effectiveness",
+   "fieldtype": "Percent",
+   "label": "Training Effectiveness",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_budget_use",
+   "fieldtype": "Percent",
+   "label": "Budget Utilisation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "part_critical",
+   "fieldtype": "Percent",
+   "label": "Critical Skills Coverage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "counts_section",
+   "fieldtype": "Section Break",
+   "label": "Figures",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "headcount",
+   "fieldtype": "Int",
+   "label": "Headcount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "required",
+   "fieldtype": "Int",
+   "label": "Required",
+   "read_only": 1
+  },
+  {
+   "fieldname": "done",
+   "fieldtype": "Int",
+   "label": "Done",
+   "read_only": 1
+  },
+  {
+   "fieldname": "overdue",
+   "fieldtype": "Int",
+   "label": "Overdue",
+   "read_only": 1
+  },
+  {
+   "fieldname": "due_soon",
+   "fieldtype": "Int",
+   "label": "Due Soon",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mandatory_required",
+   "fieldtype": "Int",
+   "label": "Mandatory Required",
+   "read_only": 1
+  },
+  {
+   "fieldname": "mandatory_done",
+   "fieldtype": "Int",
+   "label": "Mandatory Done",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cert_valid",
+   "fieldtype": "Int",
+   "label": "Certificates Valid",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cert_expiring",
+   "fieldtype": "Int",
+   "label": "Certificates Expiring",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cert_expired",
+   "fieldtype": "Int",
+   "label": "Certificates Run Out",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trained",
+   "fieldtype": "Int",
+   "label": "Trained in 12 Months",
+   "read_only": 1
+  },
+  {
+   "fieldname": "hours",
+   "fieldtype": "Float",
+   "label": "Hours",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sessions",
+   "fieldtype": "Int",
+   "label": "Sessions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "attended",
+   "fieldtype": "Int",
+   "label": "Days Attended",
+   "read_only": 1
+  },
+  {
+   "fieldname": "marked",
+   "fieldtype": "Int",
+   "label": "Days Marked",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assessed",
+   "fieldtype": "Int",
+   "label": "Assessed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "passed",
+   "fieldtype": "Int",
+   "label": "Passed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "competent",
+   "fieldtype": "Int",
+   "label": "Skills Competent",
+   "read_only": 1
+  },
+  {
+   "fieldname": "skills_assessed",
+   "fieldtype": "Int",
+   "label": "Skills Assessed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "critical_ok",
+   "fieldtype": "Int",
+   "label": "Critical Skills Covered",
+   "read_only": 1
+  },
+  {
+   "fieldname": "critical_total",
+   "fieldtype": "Int",
+   "label": "Critical Skills",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reviews_done",
+   "fieldtype": "Int",
+   "label": "Application Reviews",
+   "read_only": 1
+  },
+  {
+   "fieldname": "review_score",
+   "fieldtype": "Float",
+   "label": "Application Score Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "kpis_measured",
+   "fieldtype": "Int",
+   "label": "KPIs Measured",
+   "read_only": 1
+  },
+  {
+   "fieldname": "kpis_improved",
+   "fieldtype": "Int",
+   "label": "KPIs Improved",
+   "read_only": 1
+  },
+  {
+   "fieldname": "spend",
+   "fieldtype": "Currency",
+   "label": "Spend",
+   "read_only": 1
+  },
+  {
+   "fieldname": "budget",
+   "fieldtype": "Currency",
+   "label": "Budget",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lines_section",
+   "fieldtype": "Section Break",
+   "label": "By Plant and Department"
+  },
+  {
+   "fieldname": "lines",
+   "fieldtype": "Table",
+   "label": "Lines",
+   "options": "Learning Snapshot Line"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-18 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "HRMS Addon",
+ "name": "Learning Snapshot",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1,
+   "import": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "create": 1,
+   "write": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "General Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Executive Director",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1
+  },
+  {
+   "role": "Management Viewer",
+   "read": 1,
+   "report": 1,
+   "print": 1
+  },
+  {
+   "role": "Auditor",
+   "read": 1,
+   "report": 1
+  },
+  {
+   "role": "Head of Department",
+   "read": 1,
+   "print": 1
+  }
+ ],
+ "sort_field": "month_start",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "allow_import": 1,
+ "title_field": "company",
+ "search_fields": "company,month_start"
+}

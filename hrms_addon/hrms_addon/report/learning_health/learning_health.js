@@ -10,6 +10,8 @@ frappe.query_reports["Learning Health"] = {
 			options: "Company",
 			default: frappe.defaults.get_user_default("Company"),
 		},
+		{ fieldname: "branch", label: __("Plant"), fieldtype: "Link", options: "Branch" },
+		{ fieldname: "month", label: __("Month"), fieldtype: "Date" },
 	],
 	formatter(value, row, column, data, default_formatter) {
 		const shown = default_formatter(value, row, column, data);

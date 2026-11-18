@@ -518,6 +518,28 @@ class Reader:
         return rules.card("evaluation_score", score, tone="blue", route=["List", "Training Event"], filters=held,
                           note="Of %d trainings evaluated" % how_many if how_many else "No training evaluated yet")
 
+    # learning (learning.py): what the rules ask that is done and still counts, and the certificates valid
+    def card_training_compliance(self):
+        asked = self.mine(status=["!=", "Not Applicable"], requirement_type=["!=", "Recommended"])
+        required = count("Employee Training Requirement", asked)
+        done = count("Employee Training Requirement", dict(asked, completed_on=["is", "set"],
+                                                           valid_until=["is", "not set"])) + count(
+            "Employee Training Requirement", dict(asked, valid_until=[">=", self.days["{today}"]]))
+        overdue = count("Employee Training Requirement", dict(asked, status="Overdue"))
+        rate = round(100.0 * done / required, 1) if required else 0
+        return rules.card("training_compliance", rate, tone="green" if rate >= 85 else "amber" if rate >= 65 else "rose",
+                          note="%d overdue" % overdue if overdue else "None overdue",
+                          route=["query-report", "Training Compliance"])
+
+    def card_certificates_valid(self):
+        held = self.mine(status=["in", ["Valid", "Due Soon", "Expired"]])
+        total_held = count("Employee Certification", held)
+        expired = count("Employee Certification", dict(held, status="Expired"))
+        rate = round(100.0 * (total_held - expired) / total_held, 1) if total_held else 0
+        return rules.card("certificates_valid", rate, tone="rose" if expired else "green",
+                          note="%d run out" % expired if expired else "None run out",
+                          route=["List", "Employee Certification"], filters={"status": "Expired"} if expired else None)
+
     def card_probations_due(self):
         due = self.mine(status="Active", custom_probation_end_date=["between", [self.days["{today}"], self.days["{in30}"]]])
         rows = frappe.get_list("Employee", filters=due, fields=["name", "custom_probation_status"], limit_page_length=0)
