@@ -260,6 +260,79 @@ check("a session's hours: the result's, else its own length, else the programme'
 check("a month on is the same day, or the month's last", R.add_months(D(2026, 1, 31), 1) == D(2026, 2, 28)
       and R.add_months(D(2024, 1, 31), 1) == D(2024, 2, 29) and R.add_months(D(2026, 11, 17), 14) == D(2028, 1, 17))
 
+# ── 1b. At scale, set off, booked, raised ───────────────────────────
+check("the staff in parts of a hundred, in their order",
+      [len(part) for part in R.chunks(range(250))] == [100, 100, 50] and R.chunks([]) == []
+      and R.chunks(range(5), 2)[-1] == [4])
+check("a rule set off by an event: a mandatory training or a refresher, a known event, a known reach, days for an "
+      "absence",
+      not R.rule_errors({"requirement_type": "Refresher", "training_program": "Fire Safety", "trigger": "Safety Incident"})
+      and R.rule_errors({"requirement_type": "Onboarding", "training_program": "Induction", "trigger": "Safety Incident"})
+      == ["Only a mandatory training or a refresher is set off by an event."]
+      and R.rule_errors({"requirement_type": "Mandatory", "training_program": "PPE", "trigger": "Rain"})
+      and R.rule_errors({"requirement_type": "Mandatory", "training_program": "PPE", "trigger": "Long Absence"})
+      == ["Say how many days away count as a long absence."]
+      and not R.rule_errors({"requirement_type": "Mandatory", "training_program": "PPE", "trigger": "Long Absence",
+                             "absence_days": 30}))
+check("set off: due so many days from the event", R.trigger_due({"due_within_days": 14}, D(2026, 11, 10))
+      == D(2026, 11, 24) and R.triggered({"trigger": "Process Change"}) and not R.triggered({}))
+check("an event reaches the person, their section or their department, as the rule says",
+      R.reached_by({}, {"name": "A"}, {"name": "A"}) and not R.reached_by({}, {"name": "B"}, {"name": "A"})
+      and R.reached_by({"trigger_reach": "Their Section"}, {"name": "B", "work_section": "X"},
+                       {"name": "A", "work_section": "X"})
+      and not R.reached_by({"trigger_reach": "Their Section"}, {"name": "B", "work_section": None},
+                           {"name": "A", "work_section": None})
+      and R.reached_by({"trigger_reach": "Their Department"}, {"name": "B", "department": "D"},
+                       {"name": "A", "department": "D"}))
+again = R.programme_state(D(2026, 12, 1), 12, [(D(2026, 3, 1), "EV-1")], since=D(2026, 11, 10))
+check("set off again: what was done before the event does not count", again["completed_on"] is None
+      and again["due_date"] == D(2026, 12, 1)
+      and R.programme_state(None, 12, [(D(2026, 11, 12), "EV-2")], since=D(2026, 11, 10))["evidence"] == "EV-2")
+ITEMS = [{"status": "Due Soon", "due_date": D(2026, 12, 1), "line": "b"},
+         {"status": "Overdue", "due_date": D(2026, 11, 1), "line": "a"},
+         {"status": "Expired", "due_date": D(2026, 11, 5), "line": "c"}]
+check("a digest: the overdue and run out first, then the soonest due; at most so many lines and how many more",
+      R.digest_lines(ITEMS) == ["a", "c", "b"] and R.digest_lines(ITEMS, shown=2) == ["a", "c", "And 1 more."]
+      and R.digest_counts(ITEMS) == (2, 1))
+check("booked on the soonest session still to be held; else requested while a requisition is open",
+      R.booking_of([(D(2026, 12, 9), "EV-B"), (D(2026, 12, 2), "EV-A"), (D(2026, 11, 1), "EV-OLD")], True,
+                   TODAY) == ("Booked", "EV-A", D(2026, 12, 2))
+      and R.booking_of([], True, TODAY) == ("Requested", None, None)
+      and R.booking_of([(D(2026, 11, 1), "EV-OLD")], False, TODAY) == (None, None, None))
+GAPS = [
+    {"name": "R1", "employee": "E1", "training_program": "Fire", "branch": "K", "work_section": "Ext", "department": "Prod",
+     "status": "Overdue", "due_date": D(2026, 11, 1)},
+    {"name": "R2", "employee": "E2", "training_program": "Fire", "branch": "K", "work_section": "Ext", "department": "Prod",
+     "status": "Due Soon", "due_date": D(2026, 12, 1)},
+    {"name": "R3", "employee": "E3", "training_program": "Fire", "branch": "N", "work_section": None, "department": "Admin",
+     "status": "Due Soon", "due_date": D(2026, 12, 1)},
+    {"name": "R4", "employee": "E4", "training_program": "Fire", "branch": "K", "work_section": "Ext",
+     "department": "Prod", "status": "Due Soon", "booking_status": "Booked"},
+    {"name": "R5", "employee": "E5", "training_program": "Fire", "branch": "K", "work_section": "Ext",
+     "department": "Prod", "status": "Pending"},
+    {"name": "R6", "employee": "E6", "training_program": None, "branch": "K", "status": "Overdue"},
+]
+groups = R.gap_groups(GAPS)
+check("the gaps grouped by training, plant and section (the department where there is none), the booked, the "
+      "pending and a certificate with no training of its own left out, the largest group first",
+      [(g["training_program"], g["branch"], g["work_section"], g["department"], [r["name"] for r in g["rows"]])
+       for g in groups] == [("Fire", "K", "Ext", "Prod", ["R1", "R2"]), ("Fire", "N", None, "Admin", ["R3"])], groups)
+check("why a requisition from gaps is needed, in a line",
+      R.gap_text(GAPS[:2], TODAY) == "2 required by the training rules, 1 overdue, the first due 2026-11-01.")
+check("the health score's nine parts and the providers' five factors, weighed from the settings",
+      [key for key, _label in R.HEALTH_PARTS] == ["mandatory", "certification", "coverage", "competency",
+                                                  "attendance", "assessment", "effectiveness", "budget", "critical"]
+      and sum(R.weights(None, "health_", R.HEALTH_PARTS).values()) == 100
+      and [key for key, _label in R.PROVIDER_FACTORS] == ["cost", "quality", "feedback", "learning", "impact"])
+check("a weighted average over the parts with a figure only",
+      R.weighted({"a": 80, "b": None, "c": 50}, {"a": 2, "b": 5, "c": 1}) == 70.0
+      and R.weighted({"a": None}, {"a": 1}) is None)
+check("the weights refused when all nought or below nought",
+      "The health score's weights must be nought or more, and not all nought." in R.settings_errors(
+          dict(R.DEFAULTS, **{"health_" + key: 0 for key, _label in R.HEALTH_PARTS}))
+      and "The provider ranking's weights must be nought or more, and not all nought." in R.settings_errors(
+          dict(R.DEFAULTS, provider_cost=-1)))
+
 # ── 2. The paper ──────────────────────────────────────────────────────
 GLUE = read("hrms_addon", "hrms_addon", "learning.py")
 G = sys.modules.get("learning")  # never imported: it needs Frappe
@@ -355,8 +428,9 @@ check("a rule's requirement is written as it is, stamped, without a form's save"
       and "doc.set_new_name()" in GLUE)
 check("only what changed is written, and the record's modified date is left alone",
       'frappe.db.set_value(REQUIREMENT, row.name, changed, update_modified=False)' in GLUE)
-check("what no longer applies is kept as Not Applicable, not deleted",
-      '_employee_values(facts, {"status": rules.NOT_APPLICABLE})' in GLUE
+check("what no longer applies is kept as Not Applicable, not deleted, and lets go of its booking",
+      '_employee_values(person, {"status": rules.NOT_APPLICABLE,' in GLUE
+      and '"booking_status": None, "booked_event": None' in GLUE
       and '{"status": rules.NOT_APPLICABLE}' in GLUE)
 check("a rule deleted takes its requirements with it, before Frappe checks the links",
       'frappe.db.delete(REQUIREMENT, {"training_rule": doc.name})' in GLUE)
@@ -391,18 +465,18 @@ check("an employee is brought up to date only when something a rule reads change
       and "doc.get_doc_before_save()" in GLUE)
 check("the work is done in the background, after the save is committed",
       GLUE.count("enqueue_after_commit=True") >= 2)
-check("the daily job brings everyone up to date, then chases certificates and training",
-      re.search(r"def daily\(\):.*?refresh_all\(\).*?chase_certificates\(s, day\).*?chase_requirements\(s, day\)",
-                GLUE, re.S))
+check("the daily job brings everyone up to date, then chases certificates and training into one digest",
+      re.search(r"def daily\(\):.*?refresh_all\(\).*?chase_certificates\(s, day, digest\).*?"
+                r"chase_requirements\(s, day, digest\).*?digest\.send\(\)", GLUE, re.S))
 check("each training alert once per due date, the marks of past due dates dropped so the field never fills",
       'mark = "%s %s" % (row.status, row.due_date or "")' in GLUE
       and 'part.endswith(" %s" % (row.due_date or ""))' in GLUE)
 check("training due soon to the employee and supervisor; overdue to the head of department as well",
       "[rules.EMPLOYEE, rules.SUPERVISOR] + ([rules.HEAD] if status == rules.OVERDUE else [])" in GLUE)
 check("each rung's audience: the employee, their supervisor, the heads of department and HR of their plant, "
-      "and management", all(name in GLUE for name in ("employee.user_id", "_supervisor_user(employee)",
-                                                       "people.people_for(HEAD_ROLE", "people.hr_officers(",
-                                                       "people.people_for(GM_ROLE")))
+      "and management, each holder read once a run", all(name in GLUE for name in (
+          "employee.user_id", "_supervisor_user(employee)", "holding(HEAD_ROLE", "people.hr_officers(",
+          "holding(GM_ROLE", "people.people_for(role")))
 check("nobody who has left is chased", GLUE.count("employee.status == rules.ACTIVE") >= 1
       and "employee.status != rules.ACTIVE" in GLUE)
 check("the weekly digest goes to each plant's HR and opens the matrix for that plant",
@@ -414,7 +488,9 @@ check("who may see a passport: HR; the employee; their supervisor; managers thro
       'frappe.has_permission("Employee", "read", doc=facts.name, user=user)' in GLUE
       and "facts.user_id == user" in GLUE
       and 'frappe.db.get_value("Employee", facts.reports_to, "user_id") == user' in GLUE)
-check("the alerts go through the app's own notices", "people.notify(" in GLUE)
+check("the alerts go out as the app's own notices, one per person told a day",
+      "enqueue_create_notification([user], notice)" in GLUE and '"type": people.alert_type()' in GLUE
+      and "people.notify(" not in GLUE[GLUE.index("def chase_certificates"):GLUE.index("def trigger(")])
 check("the categories and the ladder seeded once, then HR's", "if not frappe.db.exists(CATEGORY, name):" in GLUE
       and 'if not doc.get("alert_tiers"):' in GLUE)
 
@@ -488,8 +564,9 @@ EXPIRY = read("hrms_addon", "hrms_addon", "report", "certification_expiry", "cer
 check("the expiry report leaves out what was renewed or revoked, and says who has been told",
       '"status": ["not in", [rules.RENEWED, rules.REVOKED]]' in EXPIRY and "told=" in EXPIRY)
 COMPLIANCE = read("hrms_addon", "hrms_addon", "report", "training_compliance", "training_compliance.py")
-check("the compliance report works each employee out as the passport does",
-      "rules.summary(mine, day, s, assessment=marks.get(employee))" in COMPLIANCE)
+check("the compliance report works each employee out as the passport does, competency with it",
+      "rules.summary(mine, day, s, assessment=marks.get(employee), competency=skills.get(employee))" in COMPLIANCE
+      and "competency.scores_for(list(people))" in COMPLIANCE)
 
 if fail:
     print("FAIL (%d):" % len(fail))

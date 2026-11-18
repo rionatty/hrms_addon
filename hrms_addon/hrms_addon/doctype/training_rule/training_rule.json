@@ -23,6 +23,11 @@
   "designations",
   "grades",
   "employment_types",
+  "trigger_section",
+  "trigger",
+  "column_break_trigger",
+  "trigger_reach",
+  "absence_days",
   "notes_section",
   "description"
  ],
@@ -148,6 +153,41 @@
    "options": "Training Rule Employment Type"
   },
   {
+   "fieldname": "trigger_section",
+   "fieldtype": "Section Break",
+   "label": "Set Off By",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "trigger",
+   "fieldtype": "Select",
+   "label": "Set Off By",
+   "options": "\nSafety Incident\nProcess Change\nNew Equipment\nAudit Finding\nCustomer Complaint\nQuality Defect\nLong Absence\nTransfer or Promotion",
+   "depends_on": "eval:in_list(['Mandatory','Refresher'], doc.requirement_type)",
+   "description": "Blank: asked by the dates alone."
+  },
+  {
+   "fieldname": "column_break_trigger",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trigger_reach",
+   "fieldtype": "Select",
+   "label": "Reaches",
+   "options": "The Employee\nTheir Section\nTheir Department",
+   "default": "The Employee",
+   "depends_on": "eval:doc.trigger"
+  },
+  {
+   "fieldname": "absence_days",
+   "fieldtype": "Int",
+   "label": "Days Away",
+   "depends_on": "eval:doc.trigger=='Long Absence'",
+   "non_negative": 1,
+   "default": "30",
+   "description": "Away this many days or more."
+  },
+  {
    "fieldname": "notes_section",
    "fieldtype": "Section Break",
    "label": "Notes",
@@ -160,7 +200,7 @@
   }
  ],
  "links": [],
- "modified": "2026-11-17 09:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Training Rule",

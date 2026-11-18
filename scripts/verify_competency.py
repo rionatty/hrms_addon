@@ -160,8 +160,9 @@ check("glue: the newest counts on save and when one goes", "_settle(doc.employee
     "assessment_on_update") and "leaving=doc.name" in body("assessment_on_trash"))
 check("glue: a certificate counts while Valid or Due Soon", "[learning_rules.VALID, learning_rules.DUE_SOON]"
       in body("_has_certificate"))
-check("glue: a reassessment newly due goes to the supervisor", "if status == rules.REASSESS:" in body("daily")
-      and "people.assign(ASSESSMENT" in body("daily"))
+check("glue: a reassessment newly due goes to the supervisor, every certificate and supervisor read once a run",
+      "if status == rules.REASSESS:" in body("daily") and "_valid_pairs(" in body("daily")
+      and "people.assign(ASSESSMENT" in body("_ask_reassessment"))
 check("glue: the reports read the counting assessments through the user's permissions",
       "frappe.get_list(ASSESSMENT" in body("counting_rows") and "rules.SUPERSEDED" in body("counting_rows"))
 check("glue: the scorecard reads competency and critical competency", "competency.coverage_for(ids)"

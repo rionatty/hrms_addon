@@ -31,7 +31,33 @@
   "cover_section",
   "cover_per_shift",
   "column_break_cover",
-  "cover_shifts"
+  "cover_shifts",
+  "health_section",
+  "health_mandatory",
+  "health_certification",
+  "health_coverage",
+  "column_break_health_1",
+  "health_competency",
+  "health_attendance",
+  "health_assessment",
+  "column_break_health_2",
+  "health_effectiveness",
+  "health_budget",
+  "health_critical",
+  "provider_section",
+  "provider_cost",
+  "provider_quality",
+  "column_break_provider_1",
+  "provider_feedback",
+  "provider_learning",
+  "column_break_provider_2",
+  "provider_impact",
+  "sessions_section",
+  "late_after_minutes",
+  "block_clashes",
+  "column_break_sessions",
+  "renewal_requisition",
+  "send_sms"
  ],
  "fields": [
   {
@@ -192,10 +218,171 @@
    "label": "Shifts Covered",
    "default": "2",
    "non_negative": 1
+  },
+  {
+   "fieldname": "health_section",
+   "fieldtype": "Section Break",
+   "label": "Learning Health Weights",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "health_mandatory",
+   "fieldtype": "Float",
+   "label": "Mandatory Compliance",
+   "default": "20",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "health_certification",
+   "fieldtype": "Float",
+   "label": "Certification Compliance",
+   "default": "15",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "health_coverage",
+   "fieldtype": "Float",
+   "label": "Training Coverage",
+   "default": "10",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_health_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "health_competency",
+   "fieldtype": "Float",
+   "label": "Competency Coverage",
+   "default": "10",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "health_attendance",
+   "fieldtype": "Float",
+   "label": "Attendance",
+   "default": "10",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "health_assessment",
+   "fieldtype": "Float",
+   "label": "Assessment Performance",
+   "default": "10",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_health_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "health_effectiveness",
+   "fieldtype": "Float",
+   "label": "Training Effectiveness",
+   "default": "10",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "health_budget",
+   "fieldtype": "Float",
+   "label": "Budget Utilisation",
+   "default": "5",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "health_critical",
+   "fieldtype": "Float",
+   "label": "Critical Skills Coverage",
+   "default": "10",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "provider_section",
+   "fieldtype": "Section Break",
+   "label": "Provider Ranking Weights",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "provider_cost",
+   "fieldtype": "Float",
+   "label": "Cost",
+   "default": "20",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "provider_quality",
+   "fieldtype": "Float",
+   "label": "Quality",
+   "default": "20",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_provider_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "provider_feedback",
+   "fieldtype": "Float",
+   "label": "Participant Feedback",
+   "default": "20",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "provider_learning",
+   "fieldtype": "Float",
+   "label": "Learning Outcomes",
+   "default": "20",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_provider_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "provider_impact",
+   "fieldtype": "Float",
+   "label": "Business Impact",
+   "default": "20",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "sessions_section",
+   "fieldtype": "Section Break",
+   "label": "Sessions and Messages",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "late_after_minutes",
+   "fieldtype": "Int",
+   "label": "Late After (Minutes)",
+   "default": "15",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "block_clashes",
+   "fieldtype": "Check",
+   "label": "Refuse Trainer and Venue Clashes",
+   "default": "1"
+  },
+  {
+   "fieldname": "column_break_sessions",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "renewal_requisition",
+   "fieldtype": "Check",
+   "label": "Ask for Renewal at First Alert",
+   "default": "1"
+  },
+  {
+   "fieldname": "send_sms",
+   "fieldtype": "Check",
+   "label": "Send SMS to Employees Without a User",
+   "description": "Uses the SMS Settings gateway."
   }
  ],
  "links": [],
- "modified": "2026-11-17 21:00:00.000000",
+ "modified": "2026-11-18 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "HRMS Addon",
  "name": "Learning Settings",

@@ -218,6 +218,9 @@ CARDS = {
             ("Certification", "Certification", DOCTYPE),
             ("Training Category", "Training Category", DOCTYPE),
             ("Learning Settings", "Learning Settings", DOCTYPE),
+            # what sets refreshers off, and the CPD each employee logs (learning_loop.py)
+            ("Learning Trigger", "Learning Trigger", DOCTYPE),
+            ("CPD Log", "CPD Log", DOCTYPE),
         ]),
     ],
     # Frappe HR ships the Performance page with its Appraisal Overview chart
@@ -739,6 +742,8 @@ SIDEBAR = {
         ("Certification", "Certification", DOCTYPE, "Setup", None),
         ("Training Category", "Training Category", DOCTYPE, "Setup", None),
         ("Learning Settings", "Learning Settings", DOCTYPE, "Setup", None),
+        ("Learning Trigger", "Learning Trigger", DOCTYPE, None, "Training Budget"),
+        ("CPD Log", "CPD Log", DOCTYPE, None, "Learning Trigger"),
         ("Disciplinary Case", "Disciplinary Case", DOCTYPE, None, "Employee Grievance"),
         ("Employee Suspension", "Employee Suspension", DOCTYPE, None, "Disciplinary Case"),
         ("Safety Incident", "Safety Incident", DOCTYPE, None, "Employee Suspension"),
@@ -821,7 +826,7 @@ GROUPS = {
                                         "Monthly Training Schedule", "Employee Training Requirement",
                                         "Employee Certification", "Training Application Review",
                                         "Training Impact Review", "Competency Assessment",
-                                        "Training Budget"]),
+                                        "Training Budget", "Learning Trigger", "CPD Log"]),
         ("Employee Relations", "scale", ["Employee Grievance", "Disciplinary Case", "Employee Suspension",
                                          "Safety Incident", "Medical Treatment Order"]),
         ("Exit", "log-out", ["Employee Separation", "Exit Interview", "Clearance Form", "Full and Final Statement",

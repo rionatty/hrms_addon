@@ -11,3 +11,10 @@ class TrainingApplicationReview(Document):
         from hrms_addon.hrms_addon import learning_delivery
 
         learning_delivery.review_validate(self)
+
+
+def on_doctype_update():
+    """The composite indexes it is looked up by (learning.INDEXES)."""
+    from hrms_addon.hrms_addon import learning
+
+    learning.add_indexes("Training Application Review")

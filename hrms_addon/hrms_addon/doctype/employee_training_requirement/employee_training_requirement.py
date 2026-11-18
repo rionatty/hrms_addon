@@ -12,3 +12,10 @@ class EmployeeTrainingRequirement(Document):
         from hrms_addon.hrms_addon import learning
 
         learning.requirement_validate(self)
+
+
+def on_doctype_update():
+    """Looked up by status and due date, plant and department; one per employee and rule."""
+    from hrms_addon.hrms_addon import learning
+
+    learning.add_indexes("Employee Training Requirement")

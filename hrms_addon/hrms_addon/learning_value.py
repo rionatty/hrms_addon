@@ -63,9 +63,13 @@ def event_costs(doc, method=None):
 
 
 def event_changed(doc, method=None):
-    """Every budget the session counts against, brought up to date."""
+    """Every budget the session counts against, brought up to date in the
+    background: one job per company and year however many sessions change."""
     if doc.get("start_time"):
-        refresh_budgets(doc.get("company"), getdate(doc.start_time).year)
+        company, year = doc.get("company"), getdate(doc.start_time).year
+        frappe.enqueue("hrms_addon.hrms_addon.learning_value.refresh_budgets", queue="long", timeout=1500,
+                       job_id="training_budgets::%s::%s" % (company or "", year), deduplicate=True,
+                       enqueue_after_commit=True, company=company, year=year)
 
 
 # ── Training Budget ───────────────────────────────────────────────────

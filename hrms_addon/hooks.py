@@ -2327,6 +2327,11 @@ doc_events = {
         "on_submit": "hrms_addon.hrms_addon.training.feedback_on_submit",
         "on_cancel": "hrms_addon.hrms_addon.training.feedback_on_cancel",
     },
+    # Learning: a safety incident recorded sets off the refreshers that ask
+    # for one (learning_loop.py)
+    "Safety Incident": {
+        "on_submit": "hrms_addon.hrms_addon.learning_loop.incident_on_submit",
+    },
 }
 
 # Scheduled Tasks
@@ -2448,6 +2453,9 @@ scheduler_events = {
         "hrms_addon.hrms_addon.competency.daily",
         # the year's training budgets brought up to date (learning_value.py)
         "hrms_addon.hrms_addon.learning_value.daily",
+        # Learning: those back from a long absence asked for their refreshers
+        # (learning_loop.py)
+        "hrms_addon.hrms_addon.learning_loop.daily",
     ],
     "weekly": [
         # each plant's HR told how much of the required training is done,
