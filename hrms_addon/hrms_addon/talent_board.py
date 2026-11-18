@@ -455,7 +455,7 @@ def get_succession(branch=None, department=None):
     summary["single_person"] = len([row for row in positions if cint(row.single_person_role)])
     summary["high_risk"] = len([row for row in positions if row.risk_level == "High"])
     summary["bench"] = succession_rules.bench_index([{"ready_now": len([row for row in position["slate"]
-                                                                        if row.readiness == rules.READY_NOW]),
+                                                                        if row.get("readiness") == rules.READY_NOW]),
                                                       "successors": position.successors or len(position["slate"])}
                                                      for position in positions])
     return {"positions": positions, "summary": summary}

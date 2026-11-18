@@ -22,8 +22,9 @@ from hrms_addon.hrms_addon import talent_rules as rules
 
 
 def execute():
-    actions = sorted({spec["action"] for spec in rules.BOXES.values()})
-    reasons = sorted({"From the %s placement." % spec["name"] for spec in rules.BOXES.values()})
+    # the words the first grid seeded (the boxes have Luuka's own since)
+    actions = sorted({action for _name, action, _colour in rules.OLD_SEED.values()})
+    reasons = sorted({"From the %s placement." % name for name, _action, _colour in rules.OLD_SEED.values()})
     themes = frappe.get_all("Development Theme", filters={"parenttype": "Talent Placement",
                                                           "theme": ["in", actions], "why": ["in", reasons]},
                             fields=["name", "parent"])
@@ -33,12 +34,16 @@ def execute():
     for name in frappe.get_all("Talent Program", filters={"docstatus": ["<", 2], "objectives": ["in", actions]},
                                pluck="name"):
         frappe.db.set_value("Talent Program", name, "objectives", None, update_modified=False)
-    steps = frappe.get_all("Development Action", filters={"parenttype": "Talent Program", "action": ["in", actions],
-                                                          "completed_on": ["is", "not set"]},
-                           fields=["name", "parent"])
-    for row in steps:
-        frappe.db.delete("Development Action", {"name": row.name})
-    _renumber("Development Action", "Talent Program", {row.parent for row in steps})
+    # a plan's actions, in the appraisal's table as they were, or in the plan's own (talent_plan_actions)
+    for doctype in ("Development Action", "Talent Plan Action"):
+        if not frappe.db.table_exists(doctype):
+            continue
+        steps = frappe.get_all(doctype, filters={"parenttype": "Talent Program", "action": ["in", actions],
+                                                 "completed_on": ["is", "not set"]},
+                               fields=["name", "parent"])
+        for row in steps:
+            frappe.db.delete(doctype, {"name": row.name})
+        _renumber(doctype, "Talent Program", {row.parent for row in steps})
 
 
 def _renumber(doctype, parenttype, parents):

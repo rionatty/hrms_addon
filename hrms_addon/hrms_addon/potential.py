@@ -105,8 +105,8 @@ def assessment_validate(doc):
                if row.get("score") not in (None, "") and flt(row.score) and not rules.LOW <= flt(row.score) <= rules.HIGH]
         if bad:
             frappe.throw(_("{0} is rated 1 to 5.").format(", ".join(bad)), title=_(ASSESSMENT))
-    mean = rules.weighted_mean([row.as_dict() for row in doc.get("ratings") or []], weights())
-    doc.weighted_score = mean
+    mean = rules.weighted_mean([row.as_dict() for row in doc.get("ratings") or []], weights(), places=None)
+    doc.weighted_score = round(mean, 2) if mean is not None else None
     doc.potential_score = round(mean * rules.TO_HUNDRED, 2) if mean is not None else None
     doc.status = {0: "Draft", 1: "Submitted", 2: "Cancelled"}[cint(doc.docstatus)]
 

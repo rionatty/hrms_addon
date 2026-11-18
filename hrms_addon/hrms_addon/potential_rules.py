@@ -119,16 +119,18 @@ def assessment_errors(facts, criteria):
     return errors
 
 
-def weighted_mean(ratings, weights):
+def weighted_mean(ratings, weights, places=2):
     """One rater's 1 to 5: the scores weighed as their criteria say. A
     criterion no longer weighed (or never kept) counts once, so an old
-    assessment still reads."""
+    assessment still reads. places=None keeps every decimal, for the score
+    out of a hundred."""
     given = [(_number(row.get("score")), weights.get(row.get("criterion"), 1.0) if weights else 1.0)
              for row in ratings or [] if row.get("score") not in (None, "") and _number(row.get("score")) > 0]
     total = sum(weight for _score, weight in given)
     if not given or not total:
         return None
-    return round(sum(score * weight for score, weight in given) / total, 2)
+    mean = sum(score * weight for score, weight in given) / total
+    return mean if places is None else round(mean, places)
 
 
 def placement_potential(assessments, weights, spread_allowed=None):
@@ -141,7 +143,7 @@ def placement_potential(assessments, weights, spread_allowed=None):
     means = []
     by_criterion = {}
     for assessment in assessments or []:
-        mean = weighted_mean(assessment.get("ratings"), weights)
+        mean = weighted_mean(assessment.get("ratings"), weights, places=None)
         if mean is None:
             continue
         means.append(mean)
@@ -151,12 +153,13 @@ def placement_potential(assessments, weights, spread_allowed=None):
             by_criterion.setdefault(row.get("criterion"), []).append(_number(row.get("score")))
     if not means:
         return {"score": None, "mean": None, "raters": 0, "spread": None, "disagree": 0, "criteria": []}
-    mean = round(sum(means) / len(means), 2)
+    exact = sum(means) / len(means)
+    mean = round(exact, 2)
     spread = round(max(means) - min(means), 2)
     allowed = _number(spread_allowed) if spread_allowed not in (None, "") and _number(spread_allowed) > 0 \
         else DEFAULT_SPREAD
     order = list(weights or {}) + sorted(name for name in by_criterion if name not in (weights or {}))
-    return {"score": round(mean * TO_HUNDRED, 2), "mean": mean, "raters": len(means), "spread": spread,
+    return {"score": round(exact * TO_HUNDRED, 2), "mean": mean, "raters": len(means), "spread": spread,
             "disagree": 1 if len(means) > 1 and spread > allowed else 0,
             "criteria": [{"criterion": name, "weight": (weights or {}).get(name, 0.0),
                           "average": round(sum(scores) / len(scores), 2), "lowest": min(scores),

@@ -43,18 +43,18 @@ def start(kind, reference_doctype, reference_name, method, **kwargs):
     log.flags.ignore_permissions = True
     log.insert()
     frappe.enqueue(RUNNER, queue="long", timeout=4 * 3600, job_id=job_id, deduplicate=True,
-                   enqueue_after_commit=True, log=log.name, kind=kind, method=method, kwargs=kwargs)
+                   enqueue_after_commit=True, log=log.name, kind=kind, step=method, kwargs=kwargs)
     return log.name
 
 
-def run(log, kind, method, kwargs=None):
-    """The queued step. `method(context, **kwargs)` does the work through the
+def run(log, kind, step, kwargs=None):
+    """The queued step. `step(context, **kwargs)` does the work through the
     context (items, each, chunked commits); whatever it tells people is
     gathered and sent once a person at the end."""
     context = Context(log, kind)
     frappe.flags[_DIGEST] = []
     try:
-        frappe.get_attr(method)(context, **(kwargs or {}))
+        frappe.get_attr(step)(context, **(kwargs or {}))
         context.finish()
     except Exception:
         frappe.db.rollback()
@@ -195,8 +195,9 @@ def send_digest(entries, subject, doctype=None, name=None):
         if found["more"]:
             lines += "<li>%s</li>" % _("and {0} more").format(found["more"])
         first = found["lines"][0] if found["lines"] else (None, None, None)
+        opens = (doctype, name) if name else (first[1], first[2])
         title = "%s: %d" % (subject, found["count"])
-        people.notify([user], doctype or first[1], name or first[2], title, "<p>%s</p><ul>%s</ul>" % (title, lines))
+        people.notify([user], opens[0], opens[1], title, "<p>%s</p><ul>%s</ul>" % (title, lines))
 
 
 @frappe.whitelist()
