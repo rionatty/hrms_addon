@@ -107,9 +107,10 @@ def session_before_submit(doc):
 
 def session_on_submit(doc):
     """The agreed moves applied to the placements in the background."""
+    doc.db_set("status", "Applying", update_modified=False)
     log_name = talent_jobs.start("calibration", SESSION, doc.name, "hrms_addon.hrms_addon.calibration.apply_job",
                                  session=doc.name)
-    doc.db_set({"status": "Applying", "job_log": log_name}, update_modified=False)
+    doc.db_set("job_log", log_name, update_modified=False)
 
 
 def session_on_cancel(doc):

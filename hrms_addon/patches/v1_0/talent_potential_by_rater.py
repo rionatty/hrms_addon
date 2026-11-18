@@ -45,8 +45,8 @@ def execute():
                               "ratings": ratings, "comments": "Moved from the placement's own ratings."})
         doc.flags.ignore_permissions = True
         doc.flags.migrating = True
-        doc.docstatus = 1
         doc.insert()
+        doc.submit()
         if row.docstatus == 1:
             placement = frappe.get_doc("Talent Placement", row.name)
             score = placement.potential_score
