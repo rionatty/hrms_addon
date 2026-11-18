@@ -2539,6 +2539,9 @@ scheduler_events = {
         # the month just ended in talent, told to the HR Managers and the
         # Talent Council with its Monthly Talent Report (talent.py)
         "hrms_addon.hrms_addon.talent.monthly",
+        # the month just ended in learning, by plant and department, kept as
+        # a Learning Snapshot (learning_centre.py)
+        "hrms_addon.hrms_addon.learning_centre.monthly",
     ],
     "daily_long": [
         # Learning: everyone's training requirements brought up to date, each

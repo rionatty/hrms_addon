@@ -191,6 +191,10 @@ CARDS = {
         # require of them and the certificates they hold, how far each plant
         # is, and the rules, catalogue and settings behind it
         ("Learning", [
+            # the executive view, a supervisor's team and the employee's own
+            # (learning_centre.py)
+            ("Learning Command Centre", "learning-command-centre", PAGE),
+            ("Learning Snapshot", "Learning Snapshot", DOCTYPE),
             ("Learning Passport", "learning-passport", PAGE),
             ("Employee Training Requirement", "Employee Training Requirement", DOCTYPE),
             ("Employee Certification", "Employee Certification", DOCTYPE),
@@ -817,7 +821,9 @@ SIDEBAR = {
         ("Training Evaluation Item", "Training Evaluation Item", DOCTYPE, "Setup", None),
         ("Meeting Record", "Meeting Record", DOCTYPE, "Setup", None),
         # Learning (learning.py)
-        ("Learning Passport", "learning-passport", PAGE, None, "hr-calendar"),
+        ("Learning Command Centre", "learning-command-centre", PAGE, None, "hr-calendar"),
+        ("Learning Passport", "learning-passport", PAGE, None, "learning-command-centre"),
+        ("Learning Snapshot", "Learning Snapshot", DOCTYPE, "Reports", None),
         ("Employee Training Requirement", "Employee Training Requirement", DOCTYPE, None, "learning-passport"),
         ("Employee Certification", "Employee Certification", DOCTYPE, None, "Employee Training Requirement"),
         ("Training Attendance", "Training Attendance", DOCTYPE, None, "Employee Certification"),
@@ -1066,7 +1072,7 @@ SHORT_LABELS = {
 # the icon of an entry of ours that stays at the top of a sidebar, above
 # the groups: what it opens -> icon
 TOP_ICONS = {"hr-calendar": "calendar", "attendance-board": "layout-grid", "leave-overview": "chart-column",
-             "learning-passport": "graduation-cap"}
+             "learning-passport": "graduation-cap", "learning-command-centre": "gauge"}
 
 CARD_BREAK, LINK, SECTION = "Card Break", "Link", "Section Break"
 

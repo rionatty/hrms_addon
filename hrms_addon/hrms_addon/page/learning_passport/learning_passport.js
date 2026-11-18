@@ -5,7 +5,9 @@
  *
  * Who they are, their light and Training & Competency Score, the hours of
  * training this year, what the rules require of them and how far they are,
- * their certificates, and the sessions they attended. An employee opens
+ * their certificates, their skills against their role, the sessions they are
+ * booked on and attended, how their supervisor saw them apply it, the
+ * learning content given them, their CPD and what it cost. An employee opens
  * their own; a supervisor their team's; HR and managers whoever they may
  * read, picked at the top. The server checks again (learning.can_see).
  *
@@ -25,6 +27,21 @@ const LP_LIGHT = {
 	Expired: "lp-red",
 	Renewed: "lp-grey",
 	Revoked: "lp-grey",
+	Competent: "lp-green",
+	Gap: "lp-red",
+	"Not Assessed": "lp-grey",
+	Registered: "lp-green",
+	Invited: "lp-blue",
+	"Waiting List": "lp-amber",
+	Assigned: "lp-blue",
+	"In Progress": "lp-amber",
+	Acknowledged: "lp-green",
+	Completed: "lp-green",
+	Passed: "lp-green",
+	Failed: "lp-red",
+	Applied: "lp-green",
+	"Partly Applied": "lp-amber",
+	"Not Applied": "lp-red",
 };
 // the order the required training is listed in: what needs doing first
 const LP_ORDER = ["Overdue", "Due Soon", "Pending", "Compliant", "Not Applicable"];
@@ -150,6 +167,7 @@ hrms_addon.LearningPassport = class LearningPassport {
 				}
 			});
 		}
+		this.page.add_inner_button(__("My Learning"), () => frappe.set_route("learning-command-centre"));
 		if (this.has_any(["HR User", "HR Manager", "System Manager"])) {
 			this.page.add_inner_button(__("Add Certificate"), () => {
 				if (this.employee) {
@@ -181,7 +199,9 @@ hrms_addon.LearningPassport = class LearningPassport {
 		}
 		this.page.set_title(__("Learning Passport") + ": " + e.employee_name);
 		this.$body.html(this.head(e) + this.tiles(data.figures) + this.required(data.requirements) +
-			this.certificates(data.certificates) + this.history(data.history));
+			this.certificates(data.certificates) + this.skills(data.skills || []) + this.upcoming(data.upcoming || []) +
+			this.history(data.history) + this.reviews(data.reviews || []) + this.content(data.content || []) +
+			this.cpd(data.cpd || [], data.figures) + this.costs(data.costs));
 		this.$body.find("[data-open]").on("click", (event) => {
 			const $el = $(event.currentTarget);
 			frappe.set_route("Form", $el.attr("data-open"), $el.attr("data-name"));
@@ -216,7 +236,8 @@ hrms_addon.LearningPassport = class LearningPassport {
 		return `<div class="lp-tiles">
 			<div class="lp-tile"><small>${__("Training & Competency Score")}</small>
 				<b class="lp-score">${f.score === null || f.score === undefined ? "–" : f.score}</b>
-				${f.assessment === null || f.assessment === undefined ? "" : `<em>${__("assessments {0}%", [Math.round(f.assessment)])}</em>`}</div>
+				${f.assessment === null || f.assessment === undefined ? "" : `<em>${__("assessments {0}%", [Math.round(f.assessment)])}</em>`}
+				${f.competency === null || f.competency === undefined ? "" : `<em>${__("skills {0}%", [Math.round(f.competency)])}</em>`}</div>
 			<div class="lp-tile"><small>${__("Status")}</small><b class="lp-light ${light}" style="font-size:16px">${__(f.light)}</b>
 				<div class="lp-sub">${f.overdue ? __("{0} overdue", [f.overdue]) + " · " : ""}${f.due_soon ? __("{0} due soon", [f.due_soon]) : ""}</div></div>
 			<div class="lp-tile"><small>${__("Training Hours in {0}", [f.year])}</small><b>${f.hours || 0}</b>
@@ -281,6 +302,82 @@ hrms_addon.LearningPassport = class LearningPassport {
 					<td class="lp-muted">${esc(row.effective || "")}</td></tr>`).join("")}</tbody></table></div>`
 			: `<div class="lp-empty">${__("No training attended yet.")}</div>`;
 		return `<div class="lp-card"><h4>${__("Training Attended")}<span class="lp-count">${rows.length}</span></h4>${body}</div>`;
+	}
+
+	table(heads, rows) {
+		return `<div class="lp-scroll"><table class="lp-table"><thead><tr>${heads.map((head) => `<th>${head}</th>`).join("")}</tr></thead>
+			<tbody>${rows.map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+	}
+
+	light(status) {
+		return `<span class="lp-light ${LP_LIGHT[status] || "lp-grey"}">${frappe.utils.escape_html(__(status || ""))}</span>`;
+	}
+
+	card(title, count, body, empty) {
+		return `<div class="lp-card"><h4>${title}<span class="lp-count">${count}</span></h4>${count ? body : `<div class="lp-empty">${empty}</div>`}</div>`;
+	}
+
+	skills(rows) {
+		const esc = frappe.utils.escape_html;
+		const date = (value) => (value ? frappe.datetime.str_to_user(value) : "–");
+		return this.card(__("Skills"), rows.length, this.table(
+			[__("Status"), __("Skill"), __("Level"), __("Required"), __("Assessed"), __("Next Due")],
+			rows.map((row) => [this.light(row.status), this.open("Competency Assessment", row.name, row.skill) +
+				(row.critical ? ` <span class="lp-tag">${__("Critical")}</span>` : ""), esc(row.level || "–"),
+				esc(row.required_level || "–"), `<span class="lp-date">${date(row.assessed_on)}</span>`,
+				`<span class="lp-date">${date(row.next_due)}</span>`])), __("No skills assessed yet."));
+	}
+
+	upcoming(rows) {
+		const esc = frappe.utils.escape_html;
+		const when = (value) => (value ? frappe.datetime.str_to_user(value) : "–");
+		return this.card(__("Booked Sessions"), rows.length, this.table(
+			[__("Place"), __("Session"), __("Training"), __("Starts"), __("Ends"), __("Venue")],
+			rows.map((row) => [this.light(row.place), this.open("Training Event", row.name, row.event_name || row.name),
+				esc(row.training_program || "–"), `<span class="lp-date">${when(row.start_time)}</span>`,
+				`<span class="lp-date">${when(row.end_time)}</span>`, esc(row.venue || "–")])), __("No sessions booked."));
+	}
+
+	reviews(rows) {
+		const esc = frappe.utils.escape_html;
+		const date = (value) => (value ? frappe.datetime.str_to_user(value) : "–");
+		return this.card(__("Applied at Work"), rows.length, this.table(
+			[__("Status"), __("Training"), __("Applied"), __("Score"), __("Due"), __("Reviewed")],
+			rows.map((row) => [this.light(row.status), this.open("Training Application Review", row.name, row.training_program || row.training_event),
+				row.applied ? this.light(row.applied) : "–", row.score === null || row.score === undefined ? "–" : esc(String(row.score)),
+				`<span class="lp-date">${date(row.due_on)}</span>`, `<span class="lp-date">${date(row.reviewed_on)}</span>`])),
+			__("No supervisor reviews yet."));
+	}
+
+	content(rows) {
+		const esc = frappe.utils.escape_html;
+		const date = (value) => (value ? frappe.datetime.str_to_user(value) : "–");
+		return this.card(__("Learning Content"), rows.length, this.table(
+			[__("Status"), __("Content"), __("Type"), __("Version"), __("Due"), __("Score"), __("Done")],
+			rows.map((row) => [this.light(row.status), this.open("Learning Content Assignment", row.name, row.content_title || row.learning_content),
+				esc(row.content_type || "–"), esc(row.version || "–"), `<span class="lp-date">${date(row.due_date)}</span>`,
+				row.score === null || row.score === undefined ? "–" : esc(String(row.score)),
+				`<span class="lp-date">${date(row.completed_on || row.acknowledged_on)}</span>`])), __("No learning content given yet."));
+	}
+
+	cpd(rows, f) {
+		const esc = frappe.utils.escape_html;
+		const date = (value) => (value ? frappe.datetime.str_to_user(value) : "–");
+		const body = `<div class="lp-sub" style="margin-bottom:6px">${__("{0} hour(s) in {1}", [f.cpd_hours || 0, f.year])}</div>` + this.table(
+			[__("Status"), __("Activity"), __("Type"), __("Certificate"), __("Date"), __("Hours"), __("Points")],
+			rows.map((row) => [this.light(row.status), this.open("CPD Log", row.name, row.activity), esc(row.activity_type || "–"),
+				esc(row.certification || "–"), `<span class="lp-date">${date(row.activity_date)}</span>`, row.hours || 0, row.points || 0]));
+		return this.card(__("CPD"), rows.length, body, __("No CPD logged."));
+	}
+
+	costs(c) {
+		if (!c) {
+			return "";
+		}
+		const money = (value) => format_currency(value || 0);
+		return `<div class="lp-card"><h4>${__("Cost in {0}", [c.year])}</h4><div class="lp-facts" style="margin-left:0">
+			<div><small>${__("Sessions")}</small>${money(c.sessions)}</div><div><small>${__("Certificates")}</small>${money(c.certificates)}</div>
+			<div><small>${__("Total")}</small><b>${money(c.total)}</b></div></div></div>`;
 	}
 
 	open(doctype, name, label) {
