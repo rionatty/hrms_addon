@@ -388,6 +388,10 @@ check("interventions: overtime down is an improvement", R.intervention_state(
     {"raised_on": D(2026, 10, 12), "target_date": D(2026, 11, 13), "status": R.IN_PROGRESS,
      "kpi": "Overtime % of Labour Cost", "baseline": 0.11, "latest": 0.09}, D(2026, 11, 17))["result"] == R.IMPROVED)
 
+check("people log: someone listed twice is refused, a score is a percentage",
+      R.log_errors({"attendees": [{"employee": "E1"}, {"employee": "E1"}]}) == ["E1 is listed twice."]
+      and R.log_errors({"score": 120}) == ["The score is a percentage, from 0 to 100."])
+
 # the brief
 POINTS = R.talking_points({"plant_score": 77.2, "plant_status": R.ATTENTION, "verdict": "1 on target.",
                            "money_lost": 32368000, "over_limit": 8, "ppe": 0.97, "not_wearing": 76, "absent": 219,

@@ -1950,7 +1950,7 @@ def log_errors(log):
     if not 0 <= _num(log.get("score")) <= 100:
         errors.append("The score is a percentage, from 0 to 100.")
     seen = set()
-    for row in log.get("participants") or ():
+    for row in log.get("attendees") or ():
         if row.get("employee") in seen:
             errors.append("{0} is listed twice.".format(row.get("employee")))
         seen.add(row.get("employee"))
