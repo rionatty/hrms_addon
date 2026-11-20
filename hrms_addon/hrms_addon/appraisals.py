@@ -194,29 +194,89 @@ def fill_year(year, soft_day=None):
 
 
 # ── 2, 3. The quarter opens ───────────────────────────────────────────
+# Each appraisal is inserted, sent on by the workflow and told about: at
+# Luuka's head count that is far longer than a web request may take (20 Nov
+# 2026, Open Q1 ended in "Request Timed Out"). The quarter is raised in the
+# background, a batch committed at a time, and whoever opened it is told.
+RAISE_JOB = "hrms_addon.hrms_addon.appraisals.raise_quarter"
+RAISE_BATCH = 25
+RAISE_HOURS = 4
+
+
+def _quarter_row(doc, quarter):
+    row = next((row for row in doc.quarters if row.quarter == quarter), None)
+    if not row:
+        frappe.throw(_("{0} is not on this plan.").format(quarter))
+    return row
+
+
+def _to_raise(doc, cycle):
+    """The employees in the plan's scope with no appraisal in the cycle yet, read at once."""
+    have = {row.employee for row in frappe.get_all("Appraisal", filters={
+        "appraisal_cycle": cycle.name, "docstatus": ["!=", 2]}, fields=["employee"], limit_page_length=0)}
+    return [employee for employee in _employees_for(doc) if employee.name not in have]
+
+
 @frappe.whitelist(methods=["POST"])
 def open_quarter(plan, quarter):
-    """The quarter's Appraisal Cycle and an Appraisal for each employee in
-    scope; the supervisor and the employee are told. Returns how many."""
+    """The quarter's Appraisal Cycle, and its appraisals raised in the
+    background (raise_quarter). Returns {"queued": how many are to be raised}:
+    none when everyone in scope has theirs already."""
     doc = frappe.get_doc("Appraisal Plan", plan)
     doc.check_permission("submit")
     if doc.docstatus != 1:
         frappe.throw(_("Submit the appraisal plan first."))
-    row = next((row for row in doc.quarters if row.quarter == quarter), None)
-    if not row:
-        frappe.throw(_("{0} is not on this plan.").format(quarter))
+    row = _quarter_row(doc, quarter)
     cycle = _cycle_for(doc, row)
-    made = 0
-    for employee in _employees_for(doc):
-        if frappe.db.exists("Appraisal", {"employee": employee.name, "appraisal_cycle": cycle.name,
-                                          "docstatus": ["!=", 2]}):
+    waiting = len(_to_raise(doc, cycle))
+    if waiting:
+        frappe.enqueue(RAISE_JOB, queue="long", timeout=RAISE_HOURS * 3600,
+                       job_id="appraisal_quarter::%s::%s" % (doc.name, quarter), deduplicate=True,
+                       enqueue_after_commit=True, plan=doc.name, quarter=quarter, user=frappe.session.user)
+    else:
+        _close_quarter(row, cycle)
+    return {"queued": waiting}
+
+
+def raise_quarter(plan, quarter, user=None):
+    """The background job: an appraisal for each employee in scope who has
+    none in the quarter's cycle, committed RAISE_BATCH at a time. One that
+    will not go in is named and the rest still go in. Returns how many were
+    raised."""
+    doc = frappe.get_doc("Appraisal Plan", plan)
+    row = _quarter_row(doc, quarter)
+    cycle = _cycle_for(doc, row)
+    made, failed = 0, []
+    for employee in _to_raise(doc, cycle):
+        frappe.db.savepoint("appraisal_raise")
+        try:
+            _raise_appraisal(doc, row, cycle, employee)
+        except Exception:
+            frappe.db.rollback(save_point="appraisal_raise")
+            frappe.log_error(title="Appraisal not raised: %s, %s %s" % (employee.name, plan, quarter))
+            failed.append(employee.employee_name or employee.name)
             continue
-        _raise_appraisal(doc, row, cycle, employee)
         made += 1
-    row.db_set("appraisal_cycle", cycle.name, update_modified=False)
-    row.db_set("appraisals", (row.appraisals or 0) + made, update_modified=False)
-    row.db_set("notified_on", row.notified_on or today(), update_modified=False)
+        if made % RAISE_BATCH == 0:
+            frappe.db.commit()
+    _close_quarter(row, cycle)
+    frappe.db.commit()
+    message = _("{0} {1}: {2} appraisal(s) raised.").format(doc.year, quarter, made)
+    if failed:
+        listed = ", ".join(failed[:10]) + ("…" if len(failed) > 10 else "")
+        message += " " + _("{0} could not be raised, see the Error Log: {1}. Open the quarter again for them.").format(
+            len(failed), listed)
+    if user:
+        people.notify([user], doc.doctype, doc.name, message)
     return made
+
+
+def _close_quarter(row, cycle):
+    """The quarter row knows its cycle and how many appraisals it holds."""
+    held = frappe.db.count("Appraisal", {"appraisal_cycle": cycle.name, "docstatus": ["!=", 2]})
+    row.db_set("appraisal_cycle", cycle.name, update_modified=False)
+    row.db_set("appraisals", held, update_modified=False)
+    row.db_set("notified_on", row.notified_on or today(), update_modified=False)
 
 
 def _cycle_for(plan, row):

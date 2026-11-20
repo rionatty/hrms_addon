@@ -33,10 +33,19 @@ frappe.ui.form.on("Appraisal Plan", {
 										plan: frm.doc.name,
 										quarter: row.quarter,
 									})
-									.then((made) => {
-										frappe.show_alert({
-											message: __("{0} appraisal(s) raised.", [made]),
-											indicator: "green",
+									.then((out) => {
+										const queued = (out && out.queued) || 0;
+										frappe.msgprint({
+											title: __("Open {0}", [row.quarter]),
+											indicator: queued ? "blue" : "green",
+											message: queued
+												? __(
+														"{0} appraisal(s) are being raised in the background. You will get an alert when they are done.",
+														[queued]
+												  )
+												: __("Everyone in scope already has an appraisal for {0}.", [
+														row.quarter,
+												  ]),
 										});
 										frm.reload_doc();
 									})

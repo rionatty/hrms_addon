@@ -593,6 +593,30 @@ for needle, why in (
         fail.append("pips.py: %s (%r not found)" % (why, needle))
 if 'doc.check_permission("submit")' not in body_of(glue, "open_quarter"):
     fail.append("open_quarter raises documents for everyone in scope: it must check the caller may submit the plan")
+# Open Qn timed out at Luuka's head count (20 Nov 2026): the appraisals are raised by a background job
+opener = body_of(glue, "open_quarter")
+raiser = body_of(glue, "raise_quarter") if "\ndef raise_quarter(" in glue else ""
+if not raiser:
+    fail.append("appraisals.raise_quarter, the background job that raises a quarter's appraisals, is missing")
+for needle, why in (
+    ("frappe.enqueue(RAISE_JOB", "the quarter's appraisals are raised in the background, never in the request"),
+    ('queue="long"', "on the long queue"),
+    ("deduplicate=True", "a second click while it runs queues nothing more"),
+    ("_raise_appraisal(", None),
+):
+    if why and needle not in opener:
+        fail.append("open_quarter: %s (%r not found)" % (why, needle))
+    if needle == "_raise_appraisal(" and needle in opener:
+        fail.append("open_quarter raises appraisals itself: at Luuka's head count the request times out")
+for needle, why in (
+    ('frappe.db.savepoint("appraisal_raise")', "each appraisal on its own savepoint"),
+    ('frappe.db.rollback(save_point="appraisal_raise")', "one that will not go in is undone alone"),
+    ("failed.append(", "and named, while the rest go in"),
+    ("made % RAISE_BATCH == 0", "committed a batch at a time"),
+    ("people.notify([user]", "whoever opened the quarter is told when it is done"),
+):
+    if needle not in raiser:
+        fail.append("raise_quarter: %s (%r not found)" % (why, needle))
 if "reason = _not_taken(" not in body_of(glue, "upload_sheet"):
     fail.append("upload_sheet writes onto appraisals: each sheet is judged before anything is written")
 not_taken = body_of(glue, "_not_taken")
