@@ -443,7 +443,10 @@ def run_on_submit(doc, method=None):
         return
     entry = _bank_entry(doc, made)
     doc.db_set("journal_entry", entry.name, update_modified=False)
-    plants = sorted({row.get("branch") for row in doc.get("employees") or [] if row.include and row.qualifies})
+    branches = {row.get("branch") or "" for row in doc.get("employees") or [] if row.include and row.qualifies}
+    # someone paid with no plant on their record (21 Nov 2026, the submit failed sorting the blank among the
+    # plants): every Payroll and Finance Officer is told, so nobody who should hear of it is missed
+    plants = sorted(branches) if all(branches) else None
     users = _users("Payroll Officer", plants) + _users("Finance Officer", plants)
     users = list(dict.fromkeys(users))
     if users:
